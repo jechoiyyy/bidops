@@ -1817,7 +1817,7 @@ CLI는 web 이미지 안에서 돈다. fixture 디렉터리를 읽기 전용으�
 |---|---|---|
 | `BIDOPS_RL_ANALYSIS_ENABLED` | `false` | 사업기회 판정 REST·실회사 판정 게이트 개방. 꺼져 있으면 `/api/opportunities/{id}/verdict*`·`/api/analysis/transfer-policy`가 404이고 브리핑 판정 표시·활동 피드 제공자는 아무것도 주지 않는다 |
 | `BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED` | `false` | 브리핑 추천→자동 시작과 `drain-verdict-queue`. 꺼져 있으면 hook과 drain이 아무것도 읽거나 쓰지 않는다 |
-| `BIDOPS_RL_ANALYSIS_POLICY_PATH` | `policies/analysis-policy-luna-rl-v10.json` | import 원본 파일(immutable). 기본값은 결정 B23 전 v1, B30 전 v2, B33 전 v3, B35 전 v4, B37 전 v5, B51 전 v6, B53 전 v7, B55 전 v8, C15 전 v9였고 v1~v9 파일은 그대로 남는다. 승인 CLI는 이 파일의 identity·sha를 선택 행과 대조하므로 **선택 행과 같은 버전**을 가리켜야 한다(v1·v2 행을 계속 쓰면 그 파일 경로를 명시) |
+| `BIDOPS_RL_ANALYSIS_POLICY_PATH` | `policies/analysis-policy-luna-rl-v11.json` | import 원본 파일(immutable). 기본값은 결정 B23 전 v1, B30 전 v2, B33 전 v3, B35 전 v4, B37 전 v5, B51 전 v6, B53 전 v7, B55 전 v8, C15 전 v9, C20 전 v10이었고 v1~v10 파일은 그대로 남는다. 승인 CLI는 이 파일의 identity·sha를 선택 행과 대조하므로 **선택 행과 같은 버전**을 가리켜야 한다(v1·v2 행을 계속 쓰면 그 파일 경로를 명시) |
 | `BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID` | 없음 | import한 정책 행 선택. 비어 있으면 RL 경로 fail closed(`analysis_policy_unavailable`). demo용 선택 env와 별개 |
 | `BIDOPS_REFERENCE_WORKFLOW_MODE`·`BIDOPS_LUNA_DEEP_REVIEW_ENABLED` | 기존 | **RL 경로도 요구한다**(변경 없음, 결과가 참조 실행 표식) |
 | `BIDOPS_PRESPEC_OVERVIEW_ENABLED`·`BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED` | `false` | RL 판정은 개요를 쓰지 않는다. 실제 호출 스택에서는 둘 다 `false`로 둬 개요 모델 호출이 생기지 않게 한다 |
@@ -1878,6 +1878,8 @@ curl -sS -X POST "http://127.0.0.1:<web 포트>/api/opportunities/<opportunity_i
 ```
 
 **v9 → v10 전환(결정 C15·C16).** 새 실행은 v10이 v9를 대신한다(v9 행·attempt·승인 기록은 그대로 남고, v9 → v10은 종합만 다시 실행의 계보가 아니다). v10은 큰 영역 분할(selector `card-sections-v4`)과 역할 출력 계약 v2(근거 번호 인용·역할 항목 격리)·추출 누락 unit 격리를 더한다. **runner 이미지를 다시 빌드해야 한다**(새 schema 파일 `/app/card-role-v2.json`·contract `card-role-v2`), web·`analysis-worker`·프런트도 새로 올린다(판정 보기 `role_isolations` 가산). 순서는 v8 → v9와 같다: 이미지 재빌드 → v10 import(행 canonical sha = 파일 sha `8b5be91e…93f9`) → 선택 env·`BIDOPS_RL_ANALYSIS_POLICY_PATH`를 v10으로 → v9 승인 철회·`--policy analysis-policy-luna-rl-v10` 재승인 → mock 경로(T11) 확인. 각 단계는 직전에 사람 확인을 받는다.
+
+**v10 → v11 전환(결정 C20).** 새 실행은 v11이 v10을 대신한다(파일 sha `8dabbbb4…f45a`; v10 행·attempt는 그대로이고 v10 → v11은 종합만 다시 실행의 계보가 아니다). 순서는 v9 → v10과 같고 runner 이미지 재빌드가 필요하다(새 schema `/app/card-role-v3.json`·`/app/card-synthesis-v3.json`). 각 단계는 직전에 사람 확인을 받는다.
 
 (경로는 web 이미지 안 위치다. 품질 인자는 주지 않는다 — 측정한 값이 없다.) `policy_sha256`은 이 **행의 canonical sha**이고 파일 raw sha가 아니다. 값을 하나라도 바꾸려면 새 버전 파일을 발행하고 다시 import·승인한다.
 

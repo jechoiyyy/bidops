@@ -315,10 +315,11 @@ _CARD_DERIVATION_KEYS = frozenset({
     # 결정 C16: role contract v2 (evidence ids mapped back by code).
     "role_contract",
 })
+#: Allowed contract names per audit key (결정 C20 adds the v3 role/synthesis contracts of policy v11).
 _CARD_DERIVATION_CONTRACTS = {
-    "extract_contract": "bidops.requirement-extract.v2",
-    "synthesis_contract": "bidops.practitioner-verdict.v2",
-    "role_contract": "bidops.verdict-role.v2",
+    "extract_contract": frozenset({"bidops.requirement-extract.v2"}),
+    "synthesis_contract": frozenset({"bidops.practitioner-verdict.v2", "bidops.practitioner-verdict.v3"}),
+    "role_contract": frozenset({"bidops.verdict-role.v2", "bidops.verdict-role.v3"}),
 }
 #: 결정 B55: audit actions of a synthesis-only resume (request link, reused rows).
 CARD_RESUME_REQUESTED_ACTION = "card.resume.requested"
@@ -335,7 +336,7 @@ def _card_derivation_metadata(value: Mapping[str, Any] | None) -> dict[str, Any]
     result: dict[str, Any] = {}
     for key, item in value.items():
         if key in _CARD_DERIVATION_CONTRACTS:
-            if item != _CARD_DERIVATION_CONTRACTS[key]:
+            if not isinstance(item, str) or item not in _CARD_DERIVATION_CONTRACTS[key]:
                 raise DeepReviewServiceError("processing_failed", "카드 분석 감사 값이 올바르지 않습니다", status_code=500)
             result[key] = item
         else:

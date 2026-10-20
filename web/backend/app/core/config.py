@@ -33,11 +33,11 @@ DEFAULT_BRIEFING_POLICY_PATH = (
 
 #: RL-03 카드 판정 정책 파일(import 원본)의 기본 위치. 버전+sha256으로 고정된 immutable
 #: 파일이며 실행은 이 파일이 아니라 import된 행(`BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID`)을
-#: 고른다. core는 계약 내용을 모르고 경로만 갖는다. 새 import 기본값은 v10(결정 C15·C16, v9에
-#: selector `card-sections-v4` — 한도를 넘는 영역 unit을 블록 경계에서 나눈다 — 와 역할 출력 계약 v2
-#: — 근거 번호 인용·항목 격리 — 를 더함)이며 v1~v9 파일은 그대로 남아 경로를 지정하면 import할 수 있다.
+#: 고른다. core는 계약 내용을 모르고 경로만 갖는다. 새 import 기본값은 v11(결정 C20, v10에 역할
+#: 출력 계약 v3·종합 출력 계약 v3 — unit은 짧은 번호 U1…, 근거는 E1…로만 인용 — 과 텍스트 조건 값
+#: 규칙을 더함)이며 v1~v10 파일은 그대로 남아 경로를 지정하면 import할 수 있다.
 DEFAULT_RL_ANALYSIS_POLICY_PATH = (
-    Path(__file__).resolve().parents[1] / "deep_review" / "policies" / "analysis-policy-luna-rl-v10.json"
+    Path(__file__).resolve().parents[1] / "deep_review" / "policies" / "analysis-policy-luna-rl-v11.json"
 )
 
 #: RL-04 제안서 초안 정책 파일(import 원본)의 기본 위치. 버전+sha256으로 고정된 immutable

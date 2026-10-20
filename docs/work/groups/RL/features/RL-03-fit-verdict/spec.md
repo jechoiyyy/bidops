@@ -176,6 +176,7 @@ findings "RL-03 카드 판정은 제약 하나의 검증 실패로…"의 후속
 - **정정(2026-10-20, 결정 C15, RL-05 STEP-006).** selector `card-sections-v4`·정책 `analysis-policy-luna-rl-v10`(v9와 selector가 다름; 역할 계약 변경은 아래 C16): `batch_max_chars`를 넘는 영역 unit을 블록 경계에서 원문 순서대로 한도 이하 part(`segment:<sha>:<segment UUID>#p<n>`)로 나눈다. 자르지 않고, 블록 하나가 한도를 넘으면 지금처럼 `input_budget_exceeded`다. 기본 import 경로는 v10, v1~v9는 그대로다(계약 contracts.md selector v4·정책 v10).
 - **정정(2026-10-20, 결정 C16, RL-05 STEP-007).** 정책 v10의 역할 단계는 출력 계약 `bidops.verdict-role.v2`(runner `card-role-v2`)로 근거를 payload `evidence_catalog`의 번호(`E1`…)로만 인용하고 코드가 원 근거로 되돌린다. 근거 번호가 그 unit 목록에 없는 finding은 `unknown`·근거 없음·고정 문구로 격리, 그런 caution은 버리고 role 행 `isolated_items`에 기록(역할 unit 25% 초과면 `card_role_invalid`, 격리가 있으면 "진행 가능" 불가). repair 뒤에도 빠진 추출 unit은 `rejected_units`(`extract_unit_missing`)로 격리한다. v1~v9 동작은 그대로다(계약 contracts.md 역할 출력 계약 v2·`role_isolations`).
 - **정정(2026-10-20, 결정 C19, RL-05 STEP-008).** 정책 v10(파일 불변, 검증 코드만): 역할 밖 unit을 가리킨 역할 caution은 버리고 role 행 `isolated_items`에 `role_caution_foreign_unit`으로 기록(25% 한도는 finding만), 종합 caution·next action 중 unit이 역할 결과 밖(`synthesis_unit_outside_roles`)이거나 근거가 그 unit 역할 근거가 아닌(`synthesis_evidence_outside_unit`) 항목만 버리고 최종 행 `isolated_items`에 기록한다. 판정·이유·blocking id·코드 행·상한 그대로, 허용 밖 owner는 치명, 버린 항목이 있으면 "진행 가능" 불가, 자동 보정 없음. 화면 `synthesis_isolations`(계약 contracts.md C19).
+- **정정(2026-10-20, 결정 C20, RL-05 STEP-009).** 새 불변 정책 `analysis-policy-luna-rl-v11`(sha256 `8dabbbb4…f45a`, 기본 import 경로): 역할 출력 계약 `bidops.verdict-role.v3`(`card-role-v3`)·종합 출력 계약 `bidops.practitioner-verdict.v3`(`card-synthesis-v3`)으로 unit은 payload의 `U1`…, 근거는 `E1`…로만 인용하고 코드가 되돌린다(역할 finding ref 불일치는 `card_role_invalid`, 없는 ref·id의 caution·종합 항목은 C19처럼 버리고 기록). 추출 text 조건 값은 인용의 정리된 구절이어도 된다(숫자는 인용에 있어야 하고 값 대조 사실 연결 조건은 원문 그대로). v10 → v11은 종합만 다시 실행의 계보가 아니다. v1~v10 동작은 그대로다(계약 contracts.md 정책 v11).
 
 ## 설정 키와 기본값
 
@@ -183,7 +184,7 @@ findings "RL-03 카드 판정은 제약 하나의 검증 실패로…"의 후속
 |---|---|---|---|---|
 | `BIDOPS_RL_ANALYSIS_ENABLED` | bool | false | | 실회사 분석 REST·게이트 개방 |
 | `BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED` | bool | false | | 자동 트리거 |
-| `BIDOPS_RL_ANALYSIS_POLICY_PATH` | path | `policies/analysis-policy-luna-rl-v10.json`(결정 B23 전 v1, B30 전 v2, B33 전 v3, B35 전 v4, B37 전 v5, B51 전 v6, B53 전 v7, B55 전 v8, C15 전 v9) | | immutable 파일(import 원본). v1~v9 파일은 경로를 지정하면 계속 import 가능 |
+| `BIDOPS_RL_ANALYSIS_POLICY_PATH` | path | `policies/analysis-policy-luna-rl-v11.json`(결정 B23 전 v1, B30 전 v2, B33 전 v3, B35 전 v4, B37 전 v5, B51 전 v6, B53 전 v7, B55 전 v8, C15 전 v9, C20 전 v10) | | immutable 파일(import 원본). v1~v10 파일은 경로를 지정하면 계속 import 가능 |
 | `BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID` | UUID | 없음 | | import된 정책 행 선택(비면 RL 경로 fail closed) |
 | `BIDOPS_REFERENCE_WORKFLOW_MODE`·`BIDOPS_LUNA_DEEP_REVIEW_ENABLED` | bool | 기존 | | RL 경로도 요구(변경 없음) |
 | 승인 행 `daily_cap` | int | 10 | 1..50 | `tunable`, 승인 CLI 인자 |

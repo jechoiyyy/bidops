@@ -34,9 +34,13 @@ SCHEMA_FILES = {
     "verdict-role": "bidops.verdict-role.v1.json",
     # 결정 C16 (RL-05): policy v10 role output -- short evidence ids, never triples.
     "verdict-role-v2": "bidops.verdict-role.v2.json",
+    # 결정 C20 (RL-05): policy v11 role output -- unit refs (U1...) and evidence ids, never unit ids.
+    "verdict-role-v3": "bidops.verdict-role.v3.json",
     "practitioner-verdict": "bidops.practitioner-verdict.v1.json",
     # 결정 B55: policy v9 synthesis output (no blocking_condition_ids; code computes them).
     "practitioner-verdict-v2": "bidops.practitioner-verdict.v2.json",
+    # 결정 C20 (RL-05): policy v11 synthesis output -- cautions/next actions cite unit refs and evidence ids.
+    "practitioner-verdict-v3": "bidops.practitioner-verdict.v3.json",
     # RL-04 (spec "문장 계약"·"생성 입력"): Luna section output (runner
     # ``proposal-section-v1``) and the frozen per-section input.  Kind-conditional
     # sentence rules live in ``services/proposal_validation.py``, not here.
@@ -55,8 +59,10 @@ REQUIREMENT_EXTRACT_SCHEMA = "requirement-extract"
 REQUIREMENT_EXTRACT_V2_SCHEMA = "requirement-extract-v2"
 VERDICT_ROLE_SCHEMA = "verdict-role"
 VERDICT_ROLE_V2_SCHEMA = "verdict-role-v2"
+VERDICT_ROLE_V3_SCHEMA = "verdict-role-v3"
 PRACTITIONER_VERDICT_SCHEMA = "practitioner-verdict"
 PRACTITIONER_VERDICT_V2_SCHEMA = "practitioner-verdict-v2"
+PRACTITIONER_VERDICT_V3_SCHEMA = "practitioner-verdict-v3"
 PROPOSAL_SECTION_SCHEMA = "proposal-section"
 PROPOSAL_INPUT_SCHEMA = "proposal-input"
 SCHEMAS = {key: value for key, value in SCHEMA_FILES.items()}
@@ -102,6 +108,7 @@ __all__ = [
     "DOCUMENT_STRUCTURE_SCHEMA",
     "PRACTITIONER_VERDICT_SCHEMA",
     "PRACTITIONER_VERDICT_V2_SCHEMA",
+    "PRACTITIONER_VERDICT_V3_SCHEMA",
     "PROPOSAL_INPUT_SCHEMA",
     "PROPOSAL_SECTION_SCHEMA",
     "REQUIREMENT_EXTRACT_SCHEMA",
@@ -112,6 +119,7 @@ __all__ = [
     "SchemaValidationError",
     "VERDICT_ROLE_SCHEMA",
     "VERDICT_ROLE_V2_SCHEMA",
+    "VERDICT_ROLE_V3_SCHEMA",
     "load_schema",
     "schema_path",
     "validate_json_schema",

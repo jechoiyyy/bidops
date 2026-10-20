@@ -2773,3 +2773,469 @@ def test_c19_final_row_isolation_dto_and_rows_written_before_c19() -> None:
             CardAssembledPractitionerVerdict.model_validate(broken)
     with pytest.raises(ValidationError):
         CardSynthesisIsolation(kind="next_action", unit_id="", rule_codes=["synthesis_unit_outside_roles"])
+
+
+# --- 결정 C20 (RL-05 STEP-009): policy v11 -- unit refs (U1...) and evidence ids (E1...) in the role
+# contract v3 and the synthesis contract v3, and the text-constraint value rule ----------------------
+#
+# v10 real failures C19 does not fix: a role answer copied 29 of 38 long unit ids with the source sha
+# cut to 47 characters (coverage failed, card_role_invalid); synthesis cautions/next actions still
+# copied (sha, block, quote) triples; an extract batch isolated 26% of its units because text-kind
+# constraint values paraphrased a phrase of their verbatim quote.
+
+RL_V11 = "analysis-policy-luna-rl-v11"
+
+
+def _role_v3_output(role_input, assessments: dict[str, str] | None = None) -> dict:
+    """A contract-following v3 answer: the v2 answer with each unit named by its ``U`` ref."""
+
+    v2 = _role_v2_output(role_input, assessments)
+    refs = {row.unit_id: f"U{index}" for index, row in enumerate(role_input.extract.items, start=1)}
+    return {
+        "schema_version": "bidops.verdict-role.v3", "role": v2["role"],
+        "unit_findings": [
+            {"unit_ref": refs[row["unit_id"]], **{key: value for key, value in row.items() if key != "unit_id"}}
+            for row in v2["unit_findings"]
+        ],
+        "cautions": [],
+    }
+
+
+def _c20_roles(inputs, overrides: dict[str, dict] | None = None):
+    from app.deep_review.services.card_roles import validate_verdict_role_v3
+
+    overrides = overrides or {}
+    return {role: validate_verdict_role_v3(overrides.get(role) or _role_v3_output(value), role_input=value)
+            for role, value in inputs.items()}
+
+
+def test_c20_role_contract_v3_is_registered_and_carries_refs_only() -> None:
+    from app.deep_review.contracts import SCHEMA_FILES, VERDICT_ROLE_V3_SCHEMA
+    from app.deep_review.services.card_analysis import (
+        ROLE_CONTRACT_V2_POLICY_IDENTITIES,
+        ROLE_CONTRACT_V3,
+        ROLE_CONTRACT_V3_POLICY_IDENTITIES,
+        ROLE_CONTRACT_V3_SCHEMA_VERSION,
+    )
+    from app.deep_review.services.luna_client import CONTRACT_SCHEMAS
+
+    assert ROLE_CONTRACT_V3 == "card-role-v3" and ROLE_CONTRACT_V3_SCHEMA_VERSION == "bidops.verdict-role.v3"
+    assert CONTRACT_SCHEMAS["card-role-v3"] == VERDICT_ROLE_V3_SCHEMA == "verdict-role-v3"
+    assert SCHEMA_FILES[VERDICT_ROLE_V3_SCHEMA] == "bidops.verdict-role.v3.json"
+    assert ROLE_CONTRACT_V3_POLICY_IDENTITIES == frozenset({RL_V11})
+    assert ROLE_CONTRACT_V2_POLICY_IDENTITIES == frozenset({"analysis-policy-luna-rl-v10"})  # v10 unchanged
+    frozen, _extract, _compare, inputs = _c16_world()
+    answer = _role_v3_output(inputs["operations_risk"])
+    validate_payload(answer, VERDICT_ROLE_V3_SCHEMA)
+    assert [row["unit_ref"] for row in answer["unit_findings"]] == ["U1", "U2", "U3", "U4"]
+    finding = answer["unit_findings"][0]
+    long_id = frozen.units[0].unit_id
+    for broken in (
+        {**answer, "schema_version": "bidops.verdict-role.v2"},
+        {**answer, "unit_findings": [{**finding, "unit_ref": long_id}]},          # a unit id is not a ref
+        {**answer, "unit_findings": [{**finding, "unit_ref": long_id[:52]}]},     # the observed truncation
+        {**answer, "unit_findings": [{**finding, "unit_ref": "U01"}]},
+        {**answer, "unit_findings": [{**finding, "unit_ref": "u1"}]},
+        {**answer, "unit_findings": [{**finding, "unit_id": long_id}]},           # extra key
+        {**answer, "unit_findings": [{key: value for key, value in finding.items() if key != "unit_ref"}]},
+        {**answer, "cautions": [{"unit_id": long_id, "text": "확인", "evidence_ids": []}]},
+        {**answer, "cautions": [{"unit_ref": "U1", "text": "확인", "evidence_refs": []}]},
+    ):
+        with pytest.raises(SchemaValidationError):
+            validate_payload(broken, VERDICT_ROLE_V3_SCHEMA)
+
+
+def test_c20_unit_refs_are_deterministic_and_map_back_to_the_unit_ids() -> None:
+    from app.deep_review.services.card_roles import validate_verdict_role_v2, validate_verdict_role_v3
+    from app.deep_review.services.company_analysis_input import card_role_unit_refs
+
+    frozen, _extract, _compare, inputs = _c16_world()
+    role_input = inputs["operations_risk"]
+    payload_extract = role_input.extract.model_dump(mode="json")
+    refs = card_role_unit_refs(payload_extract)
+    # role extract input order, U1..Un
+    assert refs == [{"unit_ref": f"U{index}", "unit_id": unit.unit_id}
+                    for index, unit in enumerate(frozen.units, start=1)]
+    assert refs == card_role_unit_refs(deepcopy(payload_extract))
+    answer = _role_v3_output(role_input)
+    answer["cautions"] = [{"unit_ref": "U2", "text": "백업 계획 확인", "evidence_ids": ["E4"]}]
+    before = json.dumps(answer, ensure_ascii=False, sort_keys=True)
+    result = validate_verdict_role_v3(answer, role_input=role_input)
+    assert json.dumps(answer, ensure_ascii=False, sort_keys=True) == before  # never changed in place
+    # round trip: the stored row is exactly the v2 result of the same answer with unit ids
+    v2 = _role_v2_output(role_input)
+    v2["cautions"] = [{"unit_id": frozen.units[1].unit_id, "text": "백업 계획 확인", "evidence_ids": ["E4"]}]
+    assert result.model_dump(mode="json") == validate_verdict_role_v2(v2, role_input=role_input).model_dump(mode="json")
+    stored = result.model_dump(mode="json")
+    assert [row["unit_id"] for row in stored["unit_findings"]] == [unit.unit_id for unit in frozen.units]
+    assert stored["cautions"][0]["unit_id"] == frozen.units[1].unit_id
+    assert stored["schema_version"] == "bidops.verdict-role.v1" and stored["isolated_items"] == []
+    assert '"U1"' not in json.dumps(stored) and "unit_ref" not in json.dumps(stored)
+
+
+def test_c20_unknown_missing_duplicate_or_reordered_finding_ref_is_fatal() -> None:
+    from app.deep_review.services.card_roles import validate_verdict_role_v3
+
+    frozen, _extract, _compare, inputs = _c16_world(8, fits={0: "met"})
+    role_input = inputs["operations_risk"]
+    valid = _role_v3_output(role_input)
+    validate_verdict_role_v3(valid, role_input=role_input)
+    cases = {
+        "unknown_ref": lambda o: o["unit_findings"][3].update(unit_ref="U9"),
+        "missing": lambda o: o["unit_findings"].pop(),
+        "duplicate": lambda o: o["unit_findings"][1].update(unit_ref="U1"),
+        "extra": lambda o: o["unit_findings"].append({**deepcopy(o["unit_findings"][0]), "unit_ref": "U9"}),
+        "order": lambda o: o["unit_findings"].reverse(),
+        # the observed v10 failure shape: a long unit id with the sha cut is not a ref at all
+        "truncated_unit_id": lambda o: o["unit_findings"][0].update(unit_ref=frozen.units[0].unit_id[:52]),
+        "role_name": lambda o: o.__setitem__("role", "technical_fit"),
+        "met_to_gap": lambda o: o["unit_findings"][0].update(assessment="gap"),
+        "v2_answer": lambda o: o.update(_role_v2_output(role_input)),
+    }
+    for name, mutate in cases.items():
+        changed = deepcopy(valid)
+        mutate(changed)
+        with pytest.raises(CardAnalysisValidationError, match="card_role_invalid"):
+            validate_verdict_role_v3(changed, role_input=role_input)
+        assert name
+    # a finding citing a foreign id is still isolated per item (C16), never fatal
+    isolated = deepcopy(valid)
+    isolated["unit_findings"][0]["evidence_ids"] = ["E3"]
+    result = validate_verdict_role_v3(isolated, role_input=role_input)
+    assert [row.model_dump(mode="json") for row in result.isolated_items] == [
+        {"kind": "finding", "unit_id": frozen.units[0].unit_id, "rule_codes": ["role_evidence_foreign_unit"]}]
+
+
+def test_c20_role_caution_with_an_unknown_ref_is_dropped_and_recorded() -> None:
+    from app.deep_review.schemas.card_analysis import CardVerdictRoleResult
+    from app.deep_review.services.card_roles import validate_isolated_verdict_role, validate_verdict_role_v3
+
+    frozen, _extract, _compare, inputs = _c19_world()
+    role_input = inputs["operations_risk"]  # four units; the fifth (technical_fit) has no ref here
+    answer = _role_v3_output(role_input)
+    answer["cautions"] = [
+        {"unit_ref": "U1", "text": "보안 계획 확인", "evidence_ids": ["E2"]},
+        {"unit_ref": "U5", "text": "역할 밖 주의", "evidence_ids": ["E1"]},     # no such unit in this role
+        {"unit_ref": "U2", "text": "다른 근거 주의", "evidence_ids": ["E1"]},   # another unit's id
+    ]
+    result = validate_verdict_role_v3(answer, role_input=role_input)
+    assert [row.unit_id for row in result.cautions] == [frozen.units[0].unit_id]
+    # C19 semantics: dropped, recorded with codes only; the record names the ref the model wrote
+    assert [row.model_dump(mode="json") for row in result.isolated_items] == [
+        {"kind": "caution", "unit_id": "U5", "rule_codes": ["role_caution_foreign_unit"]},
+        {"kind": "caution", "unit_id": frozen.units[1].unit_id, "rule_codes": ["role_evidence_foreign_unit"]}]
+    stored = result.model_dump(mode="json")
+    assert "역할 밖 주의" not in json.dumps(stored, ensure_ascii=False)
+    CardVerdictRoleResult.model_validate(stored)
+    validate_isolated_verdict_role(stored, role_input=role_input)  # synthesis re-check / resume
+    # cautions never count toward the 25% limit (findings only)
+    many = deepcopy(answer)
+    many["cautions"] = [{"unit_ref": f"U{index}", "text": "확인", "evidence_ids": []} for index in range(9, 20)]
+    assert [row.kind for row in validate_verdict_role_v3(many, role_input=role_input).isolated_items] == (
+        ["caution"] * 11)
+    many["unit_findings"][0]["evidence_ids"] = ["E999"]
+    many["unit_findings"][1]["evidence_ids"] = ["E999"]  # 2 of 4 findings: above 25%
+    with pytest.raises(CardAnalysisValidationError, match="card_role_invalid"):
+        validate_verdict_role_v3(many, role_input=role_input)
+
+
+def test_c20_v10_role_contract_v2_is_unchanged() -> None:
+    from app.deep_review.services.card_roles import validate_verdict_role_v2, validate_verdict_role_v3
+
+    frozen, _extract, _compare, inputs = _c19_world()
+    role_input = inputs["operations_risk"]
+    v2 = _role_v2_output(role_input)
+    v2["cautions"] = [{"unit_id": frozen.units[4].unit_id, "text": "확인", "evidence_ids": []}]
+    stored = validate_verdict_role_v2(v2, role_input=role_input).model_dump(mode="json")
+    assert stored["isolated_items"] == [
+        {"kind": "caution", "unit_id": frozen.units[4].unit_id, "rule_codes": ["role_caution_foreign_unit"]}]
+    # the two contracts never pass for each other
+    with pytest.raises(CardAnalysisValidationError, match="card_role_invalid"):
+        validate_verdict_role_v2(_role_v3_output(role_input), role_input=role_input)
+    with pytest.raises(CardAnalysisValidationError, match="card_role_invalid"):
+        validate_verdict_role_v3(_role_v2_output(role_input), role_input=role_input)
+    # v1 (policies v1-v9) is unchanged as well
+    validate_verdict_role(_role_output(role_input), role_input=role_input)
+
+
+def test_c20_synthesis_contract_v3_is_registered_and_carries_refs_only() -> None:
+    from app.deep_review.contracts import PRACTITIONER_VERDICT_V3_SCHEMA, SCHEMA_FILES
+    from app.deep_review.services.card_analysis import PRACTITIONER_VERDICT_V3, SYNTHESIS_CONTRACT_BY_REPORT_SCHEMA
+    from app.deep_review.services.luna_client import CONTRACT_SCHEMAS
+
+    assert PRACTITIONER_VERDICT_V3 == "bidops.practitioner-verdict.v3"
+    assert SYNTHESIS_CONTRACT_BY_REPORT_SCHEMA[PRACTITIONER_VERDICT_V3] == "card-synthesis-v3"
+    assert CONTRACT_SCHEMAS["card-synthesis-v3"] == PRACTITIONER_VERDICT_V3_SCHEMA == "practitioner-verdict-v3"
+    assert SCHEMA_FILES[PRACTITIONER_VERDICT_V3_SCHEMA] == "bidops.practitioner-verdict.v3.json"
+    answer = {"schema_version": "bidops.practitioner-verdict.v3", "verdict": "조건부 진행", "reason": "확인 필요",
+              "cautions": [{"unit_ref": "U1", "text": "확인", "evidence_ids": ["E1"]}],
+              "next_actions": [{"unit_ref": "U2", "owner": None, "action": "확인", "evidence_ids": []}]}
+    validate_payload(answer, PRACTITIONER_VERDICT_V3_SCHEMA)
+    caution, action = answer["cautions"][0], answer["next_actions"][0]
+    for broken in (
+        {**answer, "schema_version": "bidops.practitioner-verdict.v2"},
+        {**answer, "blocking_condition_ids": []},
+        {**answer, "cautions": [{**caution, "unit_ref": f"card:{SOURCE_SHA}:0:REQ-0"}]},
+        {**answer, "cautions": [{**caution, "evidence_refs": []}]},
+        {**answer, "next_actions": [{**action, "unit_id": "U2"}]},
+        {**answer, "next_actions": [{**action, "evidence_ids": ["E1x"]}]},
+        {**answer, "next_actions": [{key: value for key, value in action.items() if key != "owner"}]},
+    ):
+        with pytest.raises(SchemaValidationError):
+            validate_payload(broken, PRACTITIONER_VERDICT_V3_SCHEMA)
+
+
+def _synthesis_v3(*, verdict: str = "조건부 진행", cautions=None, actions=None) -> dict:
+    return {
+        "schema_version": "bidops.practitioner-verdict.v3", "verdict": verdict,
+        "reason": "상주 인원 요구가 회사 가용 인원을 넘고 확인할 조건이 남아 있다.",
+        "cautions": cautions or [], "next_actions": actions or [],
+    }
+
+
+def test_c20_synthesis_unit_catalog_refs_and_ids_map_back_to_ids_and_triples() -> None:
+    from app.deep_review.services.card_roles import synthesis_v1_from_v2, synthesis_v1_from_v3
+    from app.deep_review.services.company_analysis_input import card_synthesis_unit_index
+
+    frozen, extract, compare, inputs = _c19_world()
+    synthesis_input = build_synthesis_input(_c20_roles(inputs))
+    roles = [row.model_dump(mode="json") for row in synthesis_input.roles]
+    units, index = card_synthesis_unit_index(roles)
+    # units in role order (eligibility, technical, operations), then finding order; ids unique in the payload
+    assert [row["unit_id"] for row in units] == [frozen.units[4].unit_id, *[unit.unit_id for unit in frozen.units[:4]]]
+    assert [row["unit_ref"] for row in units] == ["U1", "U2", "U3", "U4", "U5"]
+    assert [row["evidence_id"] for row in index] == [f"E{n}" for n in range(1, len(index) + 1)]
+    assert len({(row["unit_id"], row["source_sha256"], row["block_key"], row["quote"]) for row in index}) == len(index)
+    assert (units, index) == card_synthesis_unit_index(deepcopy(roles))  # deterministic
+    by_unit = {}
+    for row in index:
+        by_unit.setdefault(row["unit_id"], []).append(row)
+    u0 = frozen.units[0]
+    ref0 = next(row["unit_ref"] for row in units if row["unit_id"] == u0.unit_id)
+    first = by_unit[u0.unit_id][0]
+    answer = _synthesis_v3(
+        cautions=[{"unit_ref": ref0, "text": "보안 보고 주기 주의", "evidence_ids": [first["evidence_id"]]}],
+        actions=[{"unit_ref": ref0, "owner": None, "action": "보안 계획 확인", "evidence_ids": []}])
+    before = json.dumps(answer, ensure_ascii=False, sort_keys=True)
+    mapped, isolated = synthesis_v1_from_v3(answer, synthesis_input=synthesis_input, extract=extract,
+                                            compare=compare)
+    assert json.dumps(answer, ensure_ascii=False, sort_keys=True) == before
+    assert isolated == []
+    triple = {key: first[key] for key in ("source_sha256", "block_key", "quote")}
+    v2_equivalent = _synthesis_v2(
+        cautions=[{"unit_id": u0.unit_id, "text": "보안 보고 주기 주의", "evidence_refs": [triple]}],
+        actions=[{"unit_id": u0.unit_id, "owner": None, "action": "보안 계획 확인", "evidence_refs": []}])
+    assert mapped == synthesis_v1_from_v2(v2_equivalent, extract=extract, compare=compare)  # round trip
+    assembled = assemble_practitioner_verdict(
+        mapped, synthesis_input=synthesis_input, extract=extract, compare=compare, record_rejected_units=True,
+        code_actions=True, isolate_items=True, pre_isolated=isolated)
+    stored = assembled.model_dump(mode="json")
+    assert stored["isolated_items"] == []
+    assert stored["cautions"] == [{"unit_id": u0.unit_id, "text": "보안 보고 주기 주의", "evidence_refs": [triple]}]
+    assert "unit_ref" not in json.dumps(stored)
+
+
+def test_c20_synthesis_bad_ref_or_evidence_id_drops_only_that_item() -> None:
+    from app.deep_review.services.card_roles import synthesis_v1_from_v3
+    from app.deep_review.services.company_analysis_input import card_synthesis_unit_index
+
+    frozen, extract, compare, inputs = _c19_world()
+    synthesis_input = build_synthesis_input(_c20_roles(inputs))
+    units, index = card_synthesis_unit_index([row.model_dump(mode="json") for row in synthesis_input.roles])
+    ref_of = {row["unit_id"]: row["unit_ref"] for row in units}
+    ids_of: dict[str, list[str]] = {}
+    for row in index:
+        ids_of.setdefault(row["unit_id"], []).append(row["evidence_id"])
+    u0, u1 = frozen.units[:2]
+    kept = {"unit_ref": ref_of[u0.unit_id], "owner": None, "action": "보안 계획 확인",
+            "evidence_ids": ids_of[u0.unit_id][:1]}
+    answer = _synthesis_v3(
+        cautions=[
+            {"unit_ref": "U9", "text": "범위 밖 주의", "evidence_ids": []},                                     # unknown ref
+            {"unit_ref": ref_of[u1.unit_id], "text": "다른 근거 주의", "evidence_ids": ids_of[u0.unit_id][:1]},  # foreign id
+        ],
+        actions=[kept, {"unit_ref": ref_of[u1.unit_id], "owner": None, "action": "없는 근거 행동",
+                        "evidence_ids": ["E999"]}])
+    mapped, isolated = synthesis_v1_from_v3(answer, synthesis_input=synthesis_input, extract=extract,
+                                            compare=compare)
+    assert [row.model_dump(mode="json") for row in isolated] == [
+        {"kind": "caution", "unit_id": "U9", "rule_codes": ["synthesis_unit_outside_roles"]},
+        {"kind": "caution", "unit_id": u1.unit_id, "rule_codes": ["synthesis_evidence_outside_unit"]},
+        {"kind": "next_action", "unit_id": u1.unit_id, "rule_codes": ["synthesis_evidence_outside_unit"]},
+    ]
+    assert [row["unit_id"] for row in mapped["next_actions"]] == [u0.unit_id] and mapped["cautions"] == []
+    assembled = assemble_practitioner_verdict(
+        mapped, synthesis_input=synthesis_input, extract=extract, compare=compare, record_rejected_units=True,
+        code_actions=True, isolate_items=True, pre_isolated=isolated)
+    # verdict, reason and code blocking ids as answered; dropped items never reach the row
+    assert (assembled.verdict, assembled.reason) == (answer["verdict"], answer["reason"])
+    stored = assembled.model_dump(mode="json")
+    assert stored["isolated_items"] == [row.model_dump(mode="json") for row in isolated]
+    text = json.dumps(stored, ensure_ascii=False)
+    assert "범위 밖 주의" not in text and "다른 근거 주의" not in text and "없는 근거 행동" not in text
+    # dropping never turns an answer into "진행 가능"
+    met_world = _c19_world(fits={index: "met" for index in range(5)})
+    met_input = build_synthesis_input(_c20_roles(met_world[3]))
+    dropped_only = _synthesis_v3(verdict="진행 가능", actions=[
+        {"unit_ref": "U9", "owner": None, "action": "확인", "evidence_ids": []}])
+    proceed, records = synthesis_v1_from_v3(dropped_only, synthesis_input=met_input, extract=met_world[1],
+                                            compare=met_world[2])
+    with pytest.raises(CardAnalysisValidationError, match="card_synthesis_invalid"):
+        assemble_practitioner_verdict(proceed, synthesis_input=met_input, extract=met_world[1],
+                                      compare=met_world[2], code_actions=True, isolate_items=True,
+                                      pre_isolated=records)
+    clean, none = synthesis_v1_from_v3(_synthesis_v3(verdict="진행 가능"), synthesis_input=met_input,
+                                       extract=met_world[1], compare=met_world[2])
+    assert none == [] and assemble_practitioner_verdict(
+        clean, synthesis_input=met_input, extract=met_world[1], compare=met_world[2], code_actions=True,
+        isolate_items=True, pre_isolated=none).verdict == "진행 가능"
+    # pre-isolated records need the isolation mode (policy v11 always has it)
+    with pytest.raises(CardAnalysisValidationError, match="card_synthesis_invalid"):
+        assemble_practitioner_verdict(mapped, synthesis_input=synthesis_input, extract=extract, compare=compare,
+                                      code_actions=True, pre_isolated=isolated)
+
+
+def test_c20_synthesis_owner_outside_the_allowlist_stays_fatal_even_on_a_dropped_item() -> None:
+    from app.deep_review.services.card_roles import synthesis_v1_from_v3
+
+    _frozen, extract, compare, inputs = _c19_world()
+    synthesis_input = build_synthesis_input(_c20_roles(inputs))
+    for unit_ref in ("U1", "U9"):
+        answer = _synthesis_v3(actions=[{"unit_ref": unit_ref, "owner": "김담당", "action": "확인",
+                                         "evidence_ids": []}])
+        with pytest.raises(CardAnalysisValidationError, match="card_synthesis_invalid"):
+            synthesis_v1_from_v3(answer, synthesis_input=synthesis_input, extract=extract, compare=compare)
+        mapped, _records = synthesis_v1_from_v3(answer, synthesis_input=synthesis_input, extract=extract,
+                                                compare=compare, allowed_owners=["김담당"])
+        assert mapped["blocking_condition_ids"] == []
+    # schema violations are card_synthesis_invalid (the runner turns them into the single schema repair)
+    with pytest.raises(CardAnalysisValidationError, match="card_synthesis_invalid"):
+        synthesis_v1_from_v3(_synthesis_v2(), synthesis_input=synthesis_input, extract=extract, compare=compare)
+
+
+#: The observed v10 extract failure shape (RL-05 1번): a verbatim quote whose text value paraphrases it.
+C20_APPROVAL = "과업 내용을 변경하려면 반드시 발주기관으로부터 사전승인을 받아야 함"
+
+
+def _c20_text_payload(text: str, *, value, quote: str, kind: str = "text", unit_name=None,
+                      normalized: str = "요구사항") -> tuple[CardAnalysisInput, dict]:
+    from app.deep_review.services.card_analysis import expected_constraint_operator
+
+    frozen = card_input([text])
+    unit = frozen.units[0]
+    payload = {"schema_version": "bidops.requirement-extract.v1", "items": [extract_item(
+        unit, type_="계약", mandatory=None, normalized=normalized,
+        constraints=[constraint(unit, kind=kind, value=value, unit_name=unit_name,
+                                operator=expected_constraint_operator(kind, quote), quote=quote)],
+    )]}
+    return frozen, payload
+
+
+def _c20_rules(frozen, payload, *, relaxed: bool) -> list[list[str]]:
+    from app.deep_review.services.card_analysis import validate_requirement_extract_isolated
+
+    result = validate_requirement_extract_isolated(payload, card_input=frozen, batch_index=0, ontology=ONTOLOGY,
+                                                   text_value_relaxed=relaxed)
+    return [row.rule_codes for row in result.rejected_units]
+
+
+def test_c20_v11_text_value_may_paraphrase_its_verbatim_quote_and_v10_still_rejects_it() -> None:
+    from app.deep_review.services.card_analysis import TEXT_VALUE_RELAXED_POLICY_IDENTITIES
+
+    assert TEXT_VALUE_RELAXED_POLICY_IDENTITIES == frozenset({RL_V11})
+    frozen, payload = _c20_text_payload(C20_APPROVAL, value="발주기관의 사전승인",
+                                        quote="반드시 발주기관으로부터 사전승인을 받아야 함")
+    before = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    assert _c20_rules(frozen, payload, relaxed=True) == []
+    assert _c20_rules(frozen, payload, relaxed=False) == [["constraint_expression"]]  # v7-v10 unchanged
+    with pytest.raises(CardAnalysisValidationError, match="card_extract_invalid"):
+        validate_requirement_extract(payload, card_input=frozen, batch_index=0, ontology=ONTOLOGY)  # v1-v6
+    assert json.dumps(payload, ensure_ascii=False, sort_keys=True) == before  # the value is never rewritten
+    # a verbatim value keeps passing under both rules
+    _same, verbatim = _c20_text_payload(C20_APPROVAL, value="발주기관으로부터 사전승인",
+                                        quote="반드시 발주기관으로부터 사전승인을 받아야 함")
+    assert _c20_rules(frozen, verbatim, relaxed=True) == [] == _c20_rules(frozen, verbatim, relaxed=False)
+    # the value stays a non-empty string (structural rule, unchanged)
+    with pytest.raises(CardAnalysisValidationError, match="card_extract_invalid"):
+        _c20_rules(frozen, _c20_text_payload(C20_APPROVAL, value="", quote="사전승인을 받아야 함")[1], relaxed=True)
+
+
+def test_c20_v11_quote_rules_still_apply_to_a_text_constraint() -> None:
+    frozen, payload = _c20_text_payload(C20_APPROVAL, value="발주기관의 사전승인",
+                                        quote="반드시 발주기관의 사전승인을 받아야 함")  # quote not in the block
+    assert _c20_rules(frozen, payload, relaxed=True) == [["constraint_quote_not_verbatim"]]
+    deadline = "계약 후 30일 이내 착수계를 제출하고 계약 후 30일 이내 보안서약서를 제출"
+    frozen, repeated = _c20_text_payload(deadline, value="30일 이내 제출", quote="계약 후 30일 이내",
+                                         normalized="계약 후 30일 이내 제출")
+    assert _c20_rules(frozen, repeated, relaxed=True) == [["constraint_quote_not_unique"]]
+    frozen, truncated = _c20_text_payload("계약 후 30일 이내 착수계를 제출", value="착수계 제출", quote="계약 후 30",
+                                          normalized="계약 후 30일 이내 착수계 제출")
+    assert _c20_rules(frozen, truncated, relaxed=True) == [["constraint_quote_truncated"]]
+
+
+def test_c20_v11_text_value_numbers_and_fact_linked_values_stay_exact() -> None:
+    text = "계약 후 30일 이내 착수계를 제출"
+    frozen, normalized = _c20_text_payload(text, value="30일 내 착수계 제출", quote=text,
+                                           normalized="계약 후 30일 이내 착수계 제출")
+    assert _c20_rules(frozen, normalized, relaxed=True) == []
+    # a number the quote does not write is never accepted in a text value
+    frozen, invented = _c20_text_payload(text, value="40일 내 착수계 제출", quote=text,
+                                         normalized="계약 후 30일 이내 착수계 제출")
+    assert _c20_rules(frozen, invented, relaxed=True) == [["constraint_expression"]]
+    # a text value BidOps compares with a company fact (상주 지역·본점 소재지·직접생산 품명) stays verbatim
+    branch = "본점 소재지가 서울특별시인 업체"
+    frozen, paraphrased = _c20_text_payload(branch, value="서울 본점", quote=branch)
+    assert _c20_rules(frozen, paraphrased, relaxed=True) == [["constraint_expression"]]
+    frozen, exact = _c20_text_payload(branch, value="서울특별시", quote=branch)
+    assert _c20_rules(frozen, exact, relaxed=True) == []
+
+
+@pytest.mark.parametrize(("text", "kind", "value", "unit_name", "quote"), [
+    ("투입 인력 3명 이상", "count", 4, "person", "투입 인력 3명 이상"),        # number not in the quote
+    ("유지관리 기간 12개월", "duration", 12, "day", "유지관리 기간 12개월"),  # unit not the quote's
+    ("사업예산 200백만원 이하", "amount", 2_000_000, "KRW", "사업예산 200백만원 이하"),
+    ("가용률 99% 이상", "percentage", 98, "percent", "가용률 99% 이상"),
+    ("2027년 1월 31일까지 납품", "date", "2027-02-01", None, "2027년 1월 31일까지 납품"),
+])
+def test_c20_v11_numeric_unit_and_date_kinds_keep_the_exact_expression_rule(text, kind, value, unit_name,
+                                                                            quote) -> None:
+    frozen, payload = _c20_text_payload(text, value=value, quote=quote, kind=kind, unit_name=unit_name,
+                                        normalized=text)
+    assert _c20_rules(frozen, payload, relaxed=True) == [["constraint_expression"]]
+    assert _c20_rules(frozen, payload, relaxed=False) == [["constraint_expression"]]
+    # a wrong operator is still constraint_expression under v11
+    frozen, wrong = _c20_text_payload("투입 인력 3명 이상", value=3, quote="투입 인력 3명 이상", kind="count",
+                                      unit_name="person", normalized="투입 인력 3명 이상")
+    wrong["items"][0]["constraints"][0]["operator"] = "lte"
+    assert _c20_rules(frozen, wrong, relaxed=True) == [["constraint_expression"]]
+
+
+def test_c20_mock_answers_role_v3_and_synthesis_v3_with_refs() -> None:
+    from app.deep_review.services.card_analysis import stage_prompt
+    from app.deep_review.services.card_roles import synthesis_v1_from_v3, validate_verdict_role_v3
+    from app.deep_review.services.company_analysis_input import card_role_ref_payload, card_synthesis_ref_payload
+    from app.deep_review.services.mock_analysis_client import MockCardAnalysisClient
+
+    frozen, extract, compare, inputs = _c19_world()
+    client = MockCardAnalysisClient(ONTOLOGY)
+    roles = {}
+    for role, role_input in inputs.items():
+        sent = card_role_ref_payload(role_input.extract.model_dump(mode="json"),
+                                     role_input.compare.model_dump(mode="json"))
+        value = {"role": role, **sent, "profile_facts": [], "profile_evidence": []}
+        answer = client.invoke_prompt(stage_prompt(role, "x", {}, value, repair=False), contract="card-role-v3")
+        assert answer.structured_output["schema_version"] == "bidops.verdict-role.v3"
+        assert all(row["unit_ref"].startswith("U") for row in answer.structured_output["unit_findings"])
+        roles[role] = validate_verdict_role_v3(answer.structured_output, role_input=role_input)
+        assert roles[role].isolated_items == []
+    synthesis_input = build_synthesis_input(roles)
+    sent_roles, catalog = card_synthesis_ref_payload([row.model_dump(mode="json") for row in synthesis_input.roles])
+    value = {"roles": sent_roles, "unit_catalog": catalog, "profile_facts": [], "profile_evidence": [],
+             "missing_sections": [], "rejected_units": []}
+    answer = client.invoke_prompt(stage_prompt("synthesis", "x", {}, value, repair=False), contract="card-synthesis-v3")
+    output = answer.structured_output
+    assert output["schema_version"] == "bidops.practitioner-verdict.v3" and output["verdict"] == "판단 불가"
+    assert output["cautions"] and output["cautions"][0]["unit_ref"] == "U1"
+    mapped, isolated = synthesis_v1_from_v3(output, synthesis_input=synthesis_input, extract=extract, compare=compare)
+    assert isolated == [] and mapped["cautions"][0]["unit_id"] == frozen.units[4].unit_id
+    assert client.calls[-1] == ("card-synthesis-v3", "synthesis")

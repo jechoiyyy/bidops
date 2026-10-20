@@ -55,6 +55,15 @@ role and a synthesis caution/next action outside the role units or their evidenc
 are dropped and recorded (role row / final row ``isolated_items``) instead of
 failing the attempt; a v10 synthesis-only resume follows the same rule.
 
+Policy ``analysis-policy-luna-rl-v11`` (결정 C20) is v10 with role contract v3
+(``card-role-v3``: the role payload names units by ``U1``.. refs, the answer cites
+refs and the v10 evidence ids; ``card_roles.validate_verdict_role_v3`` maps them
+back -- same stored row, same C16/C19 isolation), synthesis contract v3
+(``card-synthesis-v3``: the payload's ``unit_catalog`` numbers the role units and
+their role evidence; cautions/next actions cite refs and ids only, unresolved ones
+are dropped and recorded as in C19) and the text-constraint value rule
+(``_text_value_ok``).  v10 -> v11 is not a resume lineage; v11 -> v11 is.
+
 Model I/O happens only in ``run_card_analysis`` through the existing Luna
 client with the D2 transfer projections of ``company_analysis_input`` (every
 payload passes ``check_card_transfer_payload`` before the call).  With
@@ -82,6 +91,7 @@ from ...core.model_binding import canonical_json_bytes
 from ...core.model_client import ModelInvocationError
 from ..contracts import (
     PRACTITIONER_VERDICT_V2_SCHEMA,
+    PRACTITIONER_VERDICT_V3_SCHEMA,
     REQUIREMENT_EXTRACT_SCHEMA,
     REQUIREMENT_EXTRACT_V2_SCHEMA,
     SchemaValidationError,
@@ -136,9 +146,12 @@ EXTRACT_CONTRACT_BY_STAGE_SCHEMA: Final[dict[str, str]] = {
 #: 결정 B55: policy ``report_schema`` values and the synthesis contract each selects.
 PRACTITIONER_VERDICT_V1: Final[str] = "bidops.practitioner-verdict.v1"
 PRACTITIONER_VERDICT_V2: Final[str] = "bidops.practitioner-verdict.v2"
+#: 결정 C20 (policy v11): cautions/next actions cite ``unit_ref``/``evidence_ids`` only.
+PRACTITIONER_VERDICT_V3: Final[str] = "bidops.practitioner-verdict.v3"
 SYNTHESIS_CONTRACT_BY_REPORT_SCHEMA: Final[dict[str, str]] = {
     PRACTITIONER_VERDICT_V1: "card-synthesis-v1",
     PRACTITIONER_VERDICT_V2: "card-synthesis-v2",
+    PRACTITIONER_VERDICT_V3: "card-synthesis-v3",
 }
 #: 결정 B55: synthesis fields code derives under contract v2 (recorded in audits).
 CODE_DERIVED_SYNTHESIS_FIELDS: Final[tuple[str, ...]] = ("blocking_condition_ids", "next_actions.person_check")
@@ -150,10 +163,10 @@ RESUME_IDENTITY_KEYS: Final[frozenset[str]] = frozenset({
 })
 #: 결정 B55: policy keys a resume may differ in (identity, synthesis contract, synthesis instruction).
 RESUME_POLICY_FREE_KEYS: Final[frozenset[str]] = frozenset({"policy_identity", "policy_sha256", "report_schema", "stages"})
-#: 결정 B51: policies that isolate evidence-class extract failures per item (v10: 결정 C15).
+#: 결정 B51: policies that isolate evidence-class extract failures per item (v10: 결정 C15, v11: C20).
 ITEM_ISOLATION_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({
     "analysis-policy-luna-rl-v7", "analysis-policy-luna-rl-v8", "analysis-policy-luna-rl-v9",
-    "analysis-policy-luna-rl-v10",
+    "analysis-policy-luna-rl-v10", "analysis-policy-luna-rl-v11",
 })
 #: 결정 C16 (RL-05): policies whose role stage answers ``card-role-v2`` (short evidence
 #: ids, role item isolation) and whose extract stage isolates units still missing after
@@ -161,11 +174,33 @@ ITEM_ISOLATION_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({
 ROLE_CONTRACT_V2: Final[str] = "card-role-v2"
 ROLE_CONTRACT_V2_SCHEMA_VERSION: Final[str] = "bidops.verdict-role.v2"
 ROLE_CONTRACT_V2_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({"analysis-policy-luna-rl-v10"})
-EXTRACT_MISSING_UNIT_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({"analysis-policy-luna-rl-v10"})
+#: 결정 C20 (RL-05 STEP-009): policies whose role stage answers ``card-role-v3`` -- units by
+#: short ref ``U1``.. (role extract order) and evidence by the v10 ids; code maps both back,
+#: so the stored role row keeps the v10 shape.  C16/C19 isolation rules apply unchanged.
+ROLE_CONTRACT_V3: Final[str] = "card-role-v3"
+ROLE_CONTRACT_V3_SCHEMA_VERSION: Final[str] = "bidops.verdict-role.v3"
+ROLE_CONTRACT_V3_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({"analysis-policy-luna-rl-v11"})
+EXTRACT_MISSING_UNIT_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({
+    "analysis-policy-luna-rl-v10", "analysis-policy-luna-rl-v11",
+})
 #: 결정 C19 (RL-05 STEP-008): policies whose synthesis cautions/next actions outside the
 #: role units or their evidence are dropped and recorded (final row ``isolated_items``)
 #: instead of failing the attempt.  Validation code only -- the v10 policy file is unchanged.
-SYNTHESIS_ITEM_ISOLATION_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({"analysis-policy-luna-rl-v10"})
+#: 결정 C20: v11 keeps the rule (its refs/ids that do not resolve are dropped the same way).
+SYNTHESIS_ITEM_ISOLATION_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({
+    "analysis-policy-luna-rl-v10", "analysis-policy-luna-rl-v11",
+})
+#: 결정 C20 (RL-05 STEP-009): policies whose text-kind constraint ``value`` need not be a
+#: verbatim substring of its (still verbatim) quote -- see ``_text_value_ok``.  Every other
+#: kind and every earlier policy keep the exact expression rule.
+TEXT_VALUE_RELAXED_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({"analysis-policy-luna-rl-v11"})
+#: 결정 C20: facts whose deterministic compare reads a text constraint's ``value`` (상주
+#: 지역, 직접생산 품명, 본점·소재지 지역; ``card_compare._confirmed_comparison``).  A text
+#: constraint resolving to one of them keeps the verbatim value rule under v11 too, so a
+#: paraphrased value can never decide a compare result.
+TEXT_VALUE_COMPARED_FACT_KEYS: Final[frozenset[str]] = frozenset({
+    "staff:onsite", "qual:direct_production", "qual:branch",
+})
 #: 결정 C16: rule code of a batch unit the extract answer still lacks after the repair.
 EXTRACT_UNIT_MISSING_RULE: Final[str] = "extract_unit_missing"
 #: Extract fields a v2 answer never carries; code derives them (recorded in audits).
@@ -524,8 +559,32 @@ def expected_constraint_operator(kind: str, quote: str) -> str:
     return expected_operator
 
 
-def _validate_constraint_expression(constraint: CardRequirementConstraint) -> None:
-    """Number, unit and operator must be the quote's own expression (no conversion beyond KRW/%)."""
+def _text_value_ok(constraint: CardRequirementConstraint) -> bool:
+    """결정 C20 (policy v11): the text-kind ``value`` rule replacing "value is a substring of the quote".
+
+    The value may be a short normalized phrase of the quote (the quote itself is
+    still checked verbatim, unique and untruncated elsewhere), but every digit run
+    of the value must be a digit run of the quote (no number the quote does not
+    write), and a constraint whose compare reads the value
+    (``TEXT_VALUE_COMPARED_FACT_KEYS``) keeps the verbatim rule.  Non-emptiness and
+    ``unit=null`` are the unchanged DTO rules.
+    """
+
+    value = str(constraint.value)
+    if not set(re.findall(r"[0-9]+", value)) <= set(re.findall(r"[0-9]+", constraint.quote)):
+        return False
+    if resolve_fact_key(constraint) in TEXT_VALUE_COMPARED_FACT_KEYS:
+        return value in constraint.quote
+    return True
+
+
+def _validate_constraint_expression(constraint: CardRequirementConstraint, *, text_value_relaxed: bool = False) -> None:
+    """Number, unit and operator must be the quote's own expression (no conversion beyond KRW/%).
+
+    ``text_value_relaxed`` (결정 C20, policy v11) replaces only the text-kind check
+    ``value in quote`` with ``_text_value_ok``; the operator check (derived from the
+    quote) and every other kind are unchanged.
+    """
 
     quote = constraint.quote
     expected_operator = expected_constraint_operator(constraint.kind, quote)
@@ -586,8 +645,9 @@ def _validate_constraint_expression(constraint: CardRequirementConstraint) -> No
             constraint.value is False and not negative
         ):
             raise CardAnalysisValidationError(CARD_EXTRACT_INVALID)
-    elif constraint.kind == "text" and str(constraint.value) not in quote:
-        raise CardAnalysisValidationError(CARD_EXTRACT_INVALID)
+    elif constraint.kind == "text":
+        if not (_text_value_ok(constraint) if text_value_relaxed else str(constraint.value) in quote):
+            raise CardAnalysisValidationError(CARD_EXTRACT_INVALID)
 
 
 def _requirement_numbers_traceable(item: CardRequirementExtractItem, unit: CardAnalysisUnit) -> bool:
@@ -652,6 +712,7 @@ def extract_item_violations(
     concepts: Sequence[OntologyConcept],
     *,
     first_only: bool = False,
+    text_value_relaxed: bool = False,
 ) -> list[str]:
     """Evidence-class rule codes of one extract item against its frozen unit (결정 B51).
 
@@ -660,7 +721,8 @@ def extract_item_violations(
     ``fact_key`` anchor, expression), the numbers of ``normalized_requirement``
     and the concept candidates.  A constraint whose quote is not in its block
     is not checked further.  ``first_only`` stops at the first code (the
-    batch-level validator).  Nothing is corrected.
+    batch-level validator).  ``text_value_relaxed`` (결정 C20, policy v11) is the
+    text-value rule of ``_validate_constraint_expression``.  Nothing is corrected.
     """
 
     codes: list[str] = []
@@ -696,7 +758,7 @@ def extract_item_violations(
         ) and add(CONSTRAINT_FACT_KEY_RULE):
             return codes
         try:
-            _validate_constraint_expression(constraint)
+            _validate_constraint_expression(constraint, text_value_relaxed=text_value_relaxed)
         except CardAnalysisValidationError:
             if add(CONSTRAINT_EXPRESSION_RULE):
                 return codes
@@ -777,8 +839,12 @@ def validate_requirement_extract_isolated(
     batch_index: int,
     ontology: ValidatedOntology | Sequence[OntologyConcept],
     missing_unit_ids: Sequence[str] = (),
+    text_value_relaxed: bool = False,
 ) -> CardRequirementExtract:
     """결정 B51 (policy v7): the batch with evidence-class failures isolated per item.
+
+    ``text_value_relaxed`` (결정 C20, policy v11): the text-constraint value rule of
+    ``_text_value_ok`` instead of "value is a substring of its quote".
 
     Structural failures (schema, strict DTO, ontology binding, exact
     item-per-unit coverage in order) still raise ``card_extract_invalid`` for
@@ -801,7 +867,8 @@ def validate_requirement_extract_isolated(
             unit_id: {"unit_id": unit_id, "rule_codes": [EXTRACT_UNIT_MISSING_RULE]} for unit_id in missing_unit_ids
         }
         for item in result.items:
-            codes = extract_item_violations(item, units_by_id[item.unit_id], concepts)
+            codes = extract_item_violations(item, units_by_id[item.unit_id], concepts,
+                                            text_value_relaxed=text_value_relaxed)
             if codes:
                 rejected_by_id[item.unit_id] = {"unit_id": item.unit_id, "rule_codes": codes}
             else:
@@ -871,8 +938,10 @@ def resume_lineage_valid(
             return False
         return all(
             (source_policy.get("policy_identity") in identities) == (new_policy.get("policy_identity") in identities)
-            # 결정 C16: the role contract (stored role row shape) must agree as well.
-            for identities in (ITEM_ISOLATION_POLICY_IDENTITIES, ROLE_CONTRACT_V2_POLICY_IDENTITIES)
+            # 결정 C16: the role contract (stored role row shape) must agree as well; 결정 C20:
+            # so must the v3 role contract and the extract text-value rule (v10 -> v11 never resumes).
+            for identities in (ITEM_ISOLATION_POLICY_IDENTITIES, ROLE_CONTRACT_V2_POLICY_IDENTITIES,
+                               ROLE_CONTRACT_V3_POLICY_IDENTITIES, TEXT_VALUE_RELAXED_POLICY_IDENTITIES)
         )
     except (TypeError, ValueError, AttributeError):
         return False
@@ -890,6 +959,7 @@ def validate_requirement_extract(
     card_input: CardAnalysisInput | Mapping[str, Any],
     batch_index: int,
     ontology: ValidatedOntology | Sequence[OntologyConcept],
+    text_value_relaxed: bool = False,
 ) -> CardRequirementExtract:
     """Validate one model batch against its exact frozen units and ontology (``card_extract_invalid``).
 
@@ -906,7 +976,8 @@ def validate_requirement_extract(
     try:
         result, units_by_id, concepts, _order = _parsed_extract_batch(payload, card_input, batch_index, ontology)
         for item in result.items:
-            codes = extract_item_violations(item, units_by_id[item.unit_id], concepts, first_only=True)
+            codes = extract_item_violations(item, units_by_id[item.unit_id], concepts, first_only=True,
+                                            text_value_relaxed=text_value_relaxed)
             if codes:
                 raise _violation_error(codes[0])
         return result
@@ -1195,10 +1266,12 @@ def run_card_analysis(
         build_synthesis_input,
         build_verdict_role_inputs,
         synthesis_v1_from_v2,
+        synthesis_v1_from_v3,
         validate_isolated_verdict_role,
         validate_practitioner_verdict,
         validate_verdict_role,
         validate_verdict_role_v2,
+        validate_verdict_role_v3,
     )
     from .card_units import SELECTOR_VERSION, analysis_call_budget
     from .company_analysis_input import (
@@ -1260,15 +1333,25 @@ def run_card_analysis(
         item_isolation = policy.get("policy_identity") in ITEM_ISOLATION_POLICY_IDENTITIES
         # 결정 C16: role contract v2 + role item isolation, and extract missing-unit isolation.
         role_v2 = policy.get("policy_identity") in ROLE_CONTRACT_V2_POLICY_IDENTITIES
+        # 결정 C20: role contract v3 (unit refs + the v2 evidence ids, same stored row shape).
+        role_v3 = policy.get("policy_identity") in ROLE_CONTRACT_V3_POLICY_IDENTITIES
+        role_ids = role_v2 or role_v3
         missing_unit_isolation = (
             extract_v2 and item_isolation and policy.get("policy_identity") in EXTRACT_MISSING_UNIT_POLICY_IDENTITIES
         )
+        # 결정 C20: the text-constraint value rule of policy v11.
+        text_value_relaxed = policy.get("policy_identity") in TEXT_VALUE_RELAXED_POLICY_IDENTITIES
         rejected_units: list[Any] = []
         # 결정 B55: the synthesis contract follows the pinned policy's report_schema.
         report_schema = policy.get("report_schema", PRACTITIONER_VERDICT_V1)
         if report_schema not in SYNTHESIS_CONTRACT_BY_REPORT_SCHEMA:
             raise CardAnalysisRuntimeError("approval_invalid")
         synthesis_v2 = report_schema == PRACTITIONER_VERDICT_V2
+        # 결정 C20: synthesis contract v3 (refs/ids) always runs with C19 item isolation.
+        synthesis_v3 = report_schema == PRACTITIONER_VERDICT_V3
+        synthesis_isolation = policy.get("policy_identity") in SYNTHESIS_ITEM_ISOLATION_POLICY_IDENTITIES
+        if synthesis_v3 and not synthesis_isolation:
+            raise CardAnalysisRuntimeError("approval_invalid")
         synthesis_contract = SYNTHESIS_CONTRACT_BY_REPORT_SCHEMA[report_schema]
         derivation = (
             {"extract_contract": REQUIREMENT_EXTRACT_V2, "code_derived_fields": list(CODE_DERIVED_EXTRACT_FIELDS)}
@@ -1441,11 +1524,12 @@ def run_card_analysis(
             if missing_ids:
                 extracted = validate_requirement_extract_isolated(
                     raw, card_input=card_input, batch_index=batch.batch_index, ontology=ontology,
-                    missing_unit_ids=missing_ids,
+                    missing_unit_ids=missing_ids, text_value_relaxed=text_value_relaxed,
                 )
             else:
                 validator = validate_requirement_extract_isolated if item_isolation else validate_requirement_extract
-                extracted = validator(raw, card_input=card_input, batch_index=batch.batch_index, ontology=ontology)
+                extracted = validator(raw, card_input=card_input, batch_index=batch.batch_index, ontology=ontology,
+                                      text_value_relaxed=text_value_relaxed)
             extract_payload = extracted.model_dump(mode="json")
             persist("extract", key, extract_payload, payload)
             compared = compare_requirements(extracted, frozen=frozen)
@@ -1475,12 +1559,16 @@ def run_card_analysis(
             payload = card_role_transfer(
                 frozen, role=role, extract=role_input.extract.model_dump(mode="json"),
                 compare=role_input.compare.model_dump(mode="json"), operational_values=operational,
-                evidence_ids=role_v2,
+                evidence_ids=role_ids, unit_refs=role_v3,
             )
             if resume is not None:
                 stored_role = reuse("role", role, payload)
-                result = (validate_isolated_verdict_role(stored_role, role_input=role_input) if role_v2
+                result = (validate_isolated_verdict_role(stored_role, role_input=role_input) if role_ids
                           else validate_verdict_role(stored_role, role_input=role_input))
+            elif role_v3:
+                # 결정 C20: unit refs and evidence ids only; code maps both back (C16/C19 isolation).
+                raw = invoke(role, role, ROLE_CONTRACT_V3, instructions[role], payload, CARD_ROLE_INVALID)
+                result = validate_verdict_role_v3(raw, role_input=role_input)
             elif role_v2:
                 # 결정 C16: ids only; code maps them back and isolates per item.
                 raw = invoke(role, role, ROLE_CONTRACT_V2, instructions[role], payload, CARD_ROLE_INVALID)
@@ -1510,10 +1598,26 @@ def run_card_analysis(
         payload = card_synthesis_transfer(
             frozen, roles=[row.model_dump(mode="json") for row in synthesis_input.roles],
             fact_keys=synthesis_facts, operational_values=operational,
-            rejected_units=rejected_ids if item_isolation else None,
+            rejected_units=rejected_ids if item_isolation else None, unit_refs=synthesis_v3,
         )
         synthesis_accept = None
-        if synthesis_v2:
+        #: 결정 C20: the records of v3 items whose ref/ids did not resolve (set by the accepted answer).
+        synthesis_dropped: list[Any] = []
+        if synthesis_v3:
+            def synthesis_accept(output: Mapping[str, Any]) -> Mapping[str, Any]:
+                # 결정 C20: the v3 output schema is the only repairable rule; the refs/ids are
+                # resolved against the payload's own catalog (unresolved items dropped and
+                # recorded, an invented owner fatal) -- never guessed.
+                try:
+                    validate_payload(output, PRACTITIONER_VERDICT_V3_SCHEMA)
+                except SchemaValidationError:
+                    raise CardExtractStructureError([OUTPUT_SCHEMA_RULE], []) from None
+                mapped, records = synthesis_v1_from_v3(
+                    output, synthesis_input=synthesis_input, extract=extract, compare=compare, allowed_owners=(),
+                )
+                synthesis_dropped[:] = records
+                return mapped
+        elif synthesis_v2:
             def synthesis_accept(output: Mapping[str, Any]) -> Mapping[str, Any]:
                 # 결정 B55: the v2 output schema is the only repairable rule here
                 # (the client checks it too); everything else is validated below.
@@ -1526,7 +1630,7 @@ def run_card_analysis(
                      CARD_SYNTHESIS_INVALID, synthesis_accept)
         # 결정 C19: v10 drops (and records) synthesis items outside the role units/evidence;
         # the answer goes to assembly as given so the dropped items are recorded there.
-        synthesis_isolation = policy.get("policy_identity") in SYNTHESIS_ITEM_ISOLATION_POLICY_IDENTITIES
+        # 결정 C20: v11 items dropped while resolving refs/ids are recorded first (``pre_isolated``).
         verdict = (
             raw if synthesis_isolation else validate_practitioner_verdict(
                 raw, synthesis_input=synthesis_input, extract=extract, compare=compare, allowed_owners=(),
@@ -1536,7 +1640,8 @@ def run_card_analysis(
         assembled = assemble_practitioner_verdict(
             verdict, synthesis_input=synthesis_input, extract=extract, compare=compare, allowed_owners=(),
             missing_sections=missing_sections, rejected_units=rejected_ids,
-            record_rejected_units=item_isolation, code_actions=synthesis_v2, isolate_items=synthesis_isolation,
+            record_rejected_units=item_isolation, code_actions=synthesis_v2 or synthesis_v3,
+            isolate_items=synthesis_isolation, pre_isolated=synthesis_dropped,
         )
         persist("synthesis", "final", assembled.model_dump(mode="json"), payload)
         finished = _monotonic()
@@ -1544,13 +1649,15 @@ def run_card_analysis(
             raise CardAnalysisRuntimeError(CARD_REVIEW_TIMEOUT)
         elapsed = max(0.0, finished - started)
         completion_derivation = dict(derivation or {})
-        if synthesis_v2:
+        if synthesis_v2 or synthesis_v3:
             completion_derivation.update({
-                "synthesis_contract": PRACTITIONER_VERDICT_V2,
+                "synthesis_contract": PRACTITIONER_VERDICT_V3 if synthesis_v3 else PRACTITIONER_VERDICT_V2,
                 "synthesis_code_derived_fields": list(CODE_DERIVED_SYNTHESIS_FIELDS),
             })
         if role_v2:
             completion_derivation["role_contract"] = ROLE_CONTRACT_V2_SCHEMA_VERSION
+        elif role_v3:
+            completion_derivation["role_contract"] = ROLE_CONTRACT_V3_SCHEMA_VERSION
         service._finish_card_claim(
             session, claim, batch_count=len(card_input.batches), call_count=calls[0],
             elapsed_seconds=elapsed, target_seconds=target_seconds, target_missed=elapsed > target_seconds,
@@ -1606,11 +1713,17 @@ __all__ = [
     "ROLE_CONTRACT_V2",
     "ROLE_CONTRACT_V2_POLICY_IDENTITIES",
     "ROLE_CONTRACT_V2_SCHEMA_VERSION",
+    "ROLE_CONTRACT_V3",
+    "ROLE_CONTRACT_V3_POLICY_IDENTITIES",
+    "ROLE_CONTRACT_V3_SCHEMA_VERSION",
     "SYNTHESIS_ITEM_ISOLATION_POLICY_IDENTITIES",
+    "TEXT_VALUE_COMPARED_FACT_KEYS",
+    "TEXT_VALUE_RELAXED_POLICY_IDENTITIES",
     "REQUIREMENT_NUMBER_RULE",
     "CODE_DERIVED_SYNTHESIS_FIELDS",
     "PRACTITIONER_VERDICT_V1",
     "PRACTITIONER_VERDICT_V2",
+    "PRACTITIONER_VERDICT_V3",
     "RESUME_IDENTITY_KEYS",
     "RESUME_POLICY_FREE_KEYS",
     "RESUME_SOURCE_INVALID",
