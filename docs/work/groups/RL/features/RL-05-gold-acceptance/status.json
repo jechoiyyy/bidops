@@ -65,8 +65,9 @@
       "title": "gold 작성·실제 실행·채점·인수",
       "model": "complex",
       "fingerprint": "fbefd66882511b3ef7aaee7f39e8219a20aceda46154eb4226576de6e692cb14",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-20T12:59:00+09:00",
+      "note": "gold 확정(C13) → v9/v10/v11 실제 분석 → v11 10건 완료 → export·alignment·score → 사람 decision reject(C24). acceptance sha 97a4fbf8…"
     },
     {
       "id": "STEP-005",
@@ -234,7 +235,15 @@
     {
       "at": "2026-10-20T11:24:38+09:00",
       "text": "단계 STEP-009 done: 정책 v11 sha 8dabbbb4…, 역할 v3 d7062412…, 종합 v3 0588f65c…; text 값 완화(값 숫자는 인용에 포함·대조 직접 사실 연결 조건은 원문 유지). 리더 검증 STEP-008과 동일 로그"
+    },
+    {
+      "at": "2026-10-20T12:59:00+09:00",
+      "text": "단계 STEP-004 in_progress: "
+    },
+    {
+      "at": "2026-10-20T12:59:00+09:00",
+      "text": "단계 STEP-004 done: gold 확정(C13) → v9/v10/v11 실제 분석 → v11 10건 완료 → export·alignment·score → 사람 decision reject(C24). acceptance sha 97a4fbf8…"
     }
   ],
-  "updated_at": "2026-10-20T11:24:38+09:00"
+  "updated_at": "2026-10-20T12:59:00+09:00"
 }
