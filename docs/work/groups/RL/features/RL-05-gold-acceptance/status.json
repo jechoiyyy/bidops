@@ -119,80 +119,80 @@
     "docs": {
       "result": "pass",
       "method": "review",
-      "note": "최종 코드(리뷰 권고 반영). doctor 0, 리뷰 권고 2 문서 정정",
-      "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/final-doctor2.log; 독립 리뷰(차단 0, decisions C25)",
+      "note": "최종 코드(리뷰 권고 반영). doctor 0, 리뷰 권고 2 문서 정정; RL-07 착수: 문서 변경만 확인, 기존 제품 검증 증거 재사용(재실행 아님).",
+      "evidence": "docs/work/_runs/rl07-preflight-20261020/evidence-reuse.md; docs/work/_runs/rlc-20261019/logs/final-doctor2.log; 독립 리뷰(차단 0, decisions C25)",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "python3 scripts/feature_status.py doctor _",
-      "at": "2026-10-20T13:12:56+09:00",
-      "head": "3efffdff35967ba26156b0a56b46082d9e17733d",
-      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
-      "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
+      "at": "2026-10-20T22:48:17+09:00",
+      "head": "37b2ab076918f7afcdc7aa612a274ad1f1400dee",
+      "source_hash": "21f1de70fa8b478a8c687d99ad531bac93053fb11a47a7954b19686055a3043d",
+      "spec_hash": "9016c82a25ef0717d3236945b800b1763c3707d0cd1332e6632ffe220985ec6f"
     },
     "tests": {
       "result": "pass",
       "method": "command",
-      "note": "최종 코드(리뷰 권고 반영). 대조 변경 영향 묶음 PG 413 passed(compare·card·verdict·export·경계) + rl-gold 50 + 이전 전체 묶음 905(변경 경로 외 소스 동일)",
-      "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/review-fix-pg.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/final-rl-gold.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
+      "note": "최종 코드(리뷰 권고 반영). 대조 변경 영향 묶음 PG 413 passed(compare·card·verdict·export·경계) + rl-gold 50 + 이전 전체 묶음 905(변경 경로 외 소스 동일); RL-07 착수: 문서 변경만 확인, 기존 제품 검증 증거 재사용(재실행 아님).",
+      "evidence": "docs/work/_runs/rl07-preflight-20261020/evidence-reuse.md; docs/work/_runs/rlc-20261019/logs/review-fix-pg.log; docs/work/_runs/rlc-20261019/logs/final-rl-gold.log; docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
-      "at": "2026-10-20T13:12:56+09:00",
-      "head": "3efffdff35967ba26156b0a56b46082d9e17733d",
-      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
-      "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
+      "at": "2026-10-20T22:48:17+09:00",
+      "head": "37b2ab076918f7afcdc7aa612a274ad1f1400dee",
+      "source_hash": "21f1de70fa8b478a8c687d99ad531bac93053fb11a47a7954b19686055a3043d",
+      "spec_hash": "9016c82a25ef0717d3236945b800b1763c3707d0cd1332e6632ffe220985ec6f"
     },
     "postgres": {
       "result": "pass",
       "method": "command",
-      "note": "최종 코드(리뷰 권고 반영). postgres:17.11 413(수정 후) + 905(수정 전, 대조 외 경로 동일)",
-      "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/review-fix-pg.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
+      "note": "최종 코드(리뷰 권고 반영). postgres:17.11 413(수정 후) + 905(수정 전, 대조 외 경로 동일); RL-07 착수: 문서 변경만 확인, 기존 제품 검증 증거 재사용(재실행 아님).",
+      "evidence": "docs/work/_runs/rl07-preflight-20261020/evidence-reuse.md; docs/work/_runs/rlc-20261019/logs/review-fix-pg.log; docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-20T13:12:57+09:00",
-      "head": "3efffdff35967ba26156b0a56b46082d9e17733d",
-      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
-      "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
+      "at": "2026-10-20T22:48:18+09:00",
+      "head": "37b2ab076918f7afcdc7aa612a274ad1f1400dee",
+      "source_hash": "21f1de70fa8b478a8c687d99ad531bac93053fb11a47a7954b19686055a3043d",
+      "spec_hash": "9016c82a25ef0717d3236945b800b1763c3707d0cd1332e6632ffe220985ec6f"
     },
     "frontend": {
       "result": "pass",
       "method": "command",
-      "note": "최종 코드(리뷰 권고 반영). 프런트 변경 없음 — 77b96bb 이후 소스 동일, build·contrast 0, Playwright 87",
-      "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-frontend-build.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-playwright.log",
+      "note": "최종 코드(리뷰 권고 반영). 프런트 변경 없음 — 77b96bb 이후 소스 동일, build·contrast 0, Playwright 87; RL-07 착수: 문서 변경만 확인, 기존 제품 검증 증거 재사용(재실행 아님).",
+      "evidence": "docs/work/_runs/rl07-preflight-20261020/evidence-reuse.md; docs/work/_runs/rlc-20261019/logs/step008-009-frontend-build.log; docs/work/_runs/rlc-20261019/logs/step008-009-playwright.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
-      "at": "2026-10-20T13:12:57+09:00",
-      "head": "3efffdff35967ba26156b0a56b46082d9e17733d",
-      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
-      "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
+      "at": "2026-10-20T22:48:18+09:00",
+      "head": "37b2ab076918f7afcdc7aa612a274ad1f1400dee",
+      "source_hash": "21f1de70fa8b478a8c687d99ad531bac93053fb11a47a7954b19686055a3043d",
+      "spec_hash": "9016c82a25ef0717d3236945b800b1763c3707d0cd1332e6632ffe220985ec6f"
     },
     "api_guard": {
       "result": "pass",
       "method": "command",
-      "note": "최종 코드(리뷰 권고 반영). 전송 payload 경로 변경 없음 — payload guard·transfer policy PG 통과 로그 재사용",
-      "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
+      "note": "최종 코드(리뷰 권고 반영). 전송 payload 경로 변경 없음 — payload guard·transfer policy PG 통과 로그 재사용; RL-07 착수: 문서 변경만 확인, 기존 제품 검증 증거 재사용(재실행 아님).",
+      "evidence": "docs/work/_runs/rl07-preflight-20261020/evidence-reuse.md; docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-20T13:12:57+09:00",
-      "head": "3efffdff35967ba26156b0a56b46082d9e17733d",
-      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
-      "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
+      "at": "2026-10-20T22:48:18+09:00",
+      "head": "37b2ab076918f7afcdc7aa612a274ad1f1400dee",
+      "source_hash": "21f1de70fa8b478a8c687d99ad531bac93053fb11a47a7954b19686055a3043d",
+      "spec_hash": "9016c82a25ef0717d3236945b800b1763c3707d0cd1332e6632ffe220985ec6f"
     },
     "real_data_run": {
       "result": "pass",
       "method": "manual",
-      "note": "T5 실행·사람 결정 완료(decision=reject, 2026-10-20). 리뷰 권고 1 수정은 v11 결과에 영향 없음(모델 met 0). 품질 합격이 아님",
-      "evidence": "docs/validation-runs/2026-10-19-rl/RL-05/README.md; .sdlc/local-runtime/rl-evaluation-20261019/acceptance.json (sha 97a4fbf8…)",
+      "note": "T5 실행·사람 결정 완료(decision=reject, 2026-10-20). 리뷰 권고 1 수정은 v11 결과에 영향 없음(모델 met 0). 품질 합격이 아님; RL-07 착수: 문서 변경만 확인, 기존 제품 검증 증거 재사용(재실행 아님).",
+      "evidence": "docs/work/_runs/rl07-preflight-20261020/evidence-reuse.md; docs/validation-runs/2026-10-19-rl/RL-05/README.md; .sdlc/local-runtime/rl-evaluation-20261019/acceptance.json (sha 97a4fbf8…)",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-20T13:12:57+09:00",
-      "head": "3efffdff35967ba26156b0a56b46082d9e17733d",
-      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
-      "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
+      "at": "2026-10-20T22:48:18+09:00",
+      "head": "37b2ab076918f7afcdc7aa612a274ad1f1400dee",
+      "source_hash": "21f1de70fa8b478a8c687d99ad531bac93053fb11a47a7954b19686055a3043d",
+      "spec_hash": "9016c82a25ef0717d3236945b800b1763c3707d0cd1332e6632ffe220985ec6f"
     }
   },
   "notes": [
@@ -313,7 +313,7 @@
       "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-20T13:33:48+09:00",
+  "updated_at": "2026-10-20T22:48:18+09:00",
   "proof_history": [
     {
       "key": "docs",
@@ -445,6 +445,102 @@
         "head": "9e574c46892ab2794475df00e4f1f360974c2479",
         "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
         "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pass",
+        "method": "review",
+        "note": "최종 코드(리뷰 권고 반영). doctor 0, 리뷰 권고 2 문서 정정",
+        "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/final-doctor2.log; 독립 리뷰(차단 0, decisions C25)",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "python3 scripts/feature_status.py doctor _",
+        "at": "2026-10-20T13:12:56+09:00",
+        "head": "3efffdff35967ba26156b0a56b46082d9e17733d",
+        "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+        "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "최종 코드(리뷰 권고 반영). 대조 변경 영향 묶음 PG 413 passed(compare·card·verdict·export·경계) + rl-gold 50 + 이전 전체 묶음 905(변경 경로 외 소스 동일)",
+        "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/review-fix-pg.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/final-rl-gold.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
+        "at": "2026-10-20T13:12:56+09:00",
+        "head": "3efffdff35967ba26156b0a56b46082d9e17733d",
+        "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+        "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "최종 코드(리뷰 권고 반영). postgres:17.11 413(수정 후) + 905(수정 전, 대조 외 경로 동일)",
+        "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/review-fix-pg.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-20T13:12:57+09:00",
+        "head": "3efffdff35967ba26156b0a56b46082d9e17733d",
+        "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+        "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "최종 코드(리뷰 권고 반영). 프런트 변경 없음 — 77b96bb 이후 소스 동일, build·contrast 0, Playwright 87",
+        "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-frontend-build.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-playwright.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+        "at": "2026-10-20T13:12:57+09:00",
+        "head": "3efffdff35967ba26156b0a56b46082d9e17733d",
+        "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+        "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "최종 코드(리뷰 권고 반영). 전송 payload 경로 변경 없음 — payload guard·transfer policy PG 통과 로그 재사용",
+        "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-20T13:12:57+09:00",
+        "head": "3efffdff35967ba26156b0a56b46082d9e17733d",
+        "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+        "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pass",
+        "method": "manual",
+        "note": "T5 실행·사람 결정 완료(decision=reject, 2026-10-20). 리뷰 권고 1 수정은 v11 결과에 영향 없음(모델 met 0). 품질 합격이 아님",
+        "evidence": "docs/validation-runs/2026-10-19-rl/RL-05/README.md; .sdlc/local-runtime/rl-evaluation-20261019/acceptance.json (sha 97a4fbf8…)",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-20T13:12:57+09:00",
+        "head": "3efffdff35967ba26156b0a56b46082d9e17733d",
+        "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+        "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
       }
     }
   ],

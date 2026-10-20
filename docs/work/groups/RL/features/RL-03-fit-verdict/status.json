@@ -250,80 +250,80 @@
     "docs": {
       "result": "pass",
       "method": "review",
-      "note": "2026-10-20 배치 rlc-20261019 HEAD 재검증: RL-05 STEP-006~009(RL-03 코드 v10·v11) 반영 뒤 RL-00~04 plan 증명 합집합 1회. doctor 0",
-      "evidence": "docs/work/_runs/rlc-20261019/logs/reverify-doctor.log; 독립 리뷰 decisions C25",
+      "note": "2026-10-20 배치 rlc-20261019 HEAD 재검증: RL-05 STEP-006~009(RL-03 코드 v10·v11) 반영 뒤 RL-00~04 plan 증명 합집합 1회. doctor 0; RL-07 착수: 문서 변경만 확인, 기존 제품 검증 증거 재사용(재실행 아님).",
+      "evidence": "docs/work/_runs/rl07-preflight-20261020/evidence-reuse.md; docs/work/_runs/rlc-20261019/logs/reverify-doctor.log; 독립 리뷰 decisions C25",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "python3 scripts/feature_status.py doctor _",
-      "at": "2026-10-20T13:25:42+09:00",
-      "head": "e6e125e53356fd4e0a84fd54a2fe8dca27113a76",
-      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
-      "spec_hash": "543839017771b0ece128522393c3a72e4666130035361bc58cc6e90269758084"
+      "at": "2026-10-20T22:48:16+09:00",
+      "head": "37b2ab076918f7afcdc7aa612a274ad1f1400dee",
+      "source_hash": "21f1de70fa8b478a8c687d99ad531bac93053fb11a47a7954b19686055a3043d",
+      "spec_hash": "41ac7a4696020d93c4afd03f1457474d29923179a79ba0fcc9e1f4a94d7f00bf"
     },
     "tests": {
       "result": "pass",
       "method": "command",
-      "note": "2026-10-20 배치 rlc-20261019 HEAD 재검증: RL-05 STEP-006~009(RL-03 코드 v10·v11) 반영 뒤 RL-00~04 plan 증명 합집합 1회. 합집합 1261 passed(skip: PDF 폰트 4는 별도 27 passed로 재실행, 컨테이너 전용 1)",
-      "evidence": "docs/work/_runs/rlc-20261019/logs/reverify-rl00-04-pg.log; docs/work/_runs/rlc-20261019/logs/reverify-proposal-fonts-pg.log",
+      "note": "2026-10-20 배치 rlc-20261019 HEAD 재검증: RL-05 STEP-006~009(RL-03 코드 v10·v11) 반영 뒤 RL-00~04 plan 증명 합집합 1회. 합집합 1261 passed(skip: PDF 폰트 4는 별도 27 passed로 재실행, 컨테이너 전용 1); RL-07 착수: 문서 변경만 확인, 기존 제품 검증 증거 재사용(재실행 아님).",
+      "evidence": "docs/work/_runs/rl07-preflight-20261020/evidence-reuse.md; docs/work/_runs/rlc-20261019/logs/reverify-rl00-04-pg.log; docs/work/_runs/rlc-20261019/logs/reverify-proposal-fonts-pg.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
-      "at": "2026-10-20T13:25:42+09:00",
-      "head": "e6e125e53356fd4e0a84fd54a2fe8dca27113a76",
-      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
-      "spec_hash": "543839017771b0ece128522393c3a72e4666130035361bc58cc6e90269758084"
+      "at": "2026-10-20T22:48:16+09:00",
+      "head": "37b2ab076918f7afcdc7aa612a274ad1f1400dee",
+      "source_hash": "21f1de70fa8b478a8c687d99ad531bac93053fb11a47a7954b19686055a3043d",
+      "spec_hash": "41ac7a4696020d93c4afd03f1457474d29923179a79ba0fcc9e1f4a94d7f00bf"
     },
     "postgres": {
       "result": "pass",
       "method": "command",
-      "note": "2026-10-20 배치 rlc-20261019 HEAD 재검증: RL-05 STEP-006~009(RL-03 코드 v10·v11) 반영 뒤 RL-00~04 plan 증명 합집합 1회. postgres:17.11(migrations·privileges·drift·경계 포함)",
-      "evidence": "docs/work/_runs/rlc-20261019/logs/reverify-rl00-04-pg.log; docs/work/_runs/rlc-20261019/logs/reverify-proposal-fonts-pg.log",
+      "note": "2026-10-20 배치 rlc-20261019 HEAD 재검증: RL-05 STEP-006~009(RL-03 코드 v10·v11) 반영 뒤 RL-00~04 plan 증명 합집합 1회. postgres:17.11(migrations·privileges·drift·경계 포함); RL-07 착수: 문서 변경만 확인, 기존 제품 검증 증거 재사용(재실행 아님).",
+      "evidence": "docs/work/_runs/rl07-preflight-20261020/evidence-reuse.md; docs/work/_runs/rlc-20261019/logs/reverify-rl00-04-pg.log; docs/work/_runs/rlc-20261019/logs/reverify-proposal-fonts-pg.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-20T13:25:42+09:00",
-      "head": "e6e125e53356fd4e0a84fd54a2fe8dca27113a76",
-      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
-      "spec_hash": "543839017771b0ece128522393c3a72e4666130035361bc58cc6e90269758084"
+      "at": "2026-10-20T22:48:16+09:00",
+      "head": "37b2ab076918f7afcdc7aa612a274ad1f1400dee",
+      "source_hash": "21f1de70fa8b478a8c687d99ad531bac93053fb11a47a7954b19686055a3043d",
+      "spec_hash": "41ac7a4696020d93c4afd03f1457474d29923179a79ba0fcc9e1f4a94d7f00bf"
     },
     "frontend": {
       "result": "pass",
       "method": "command",
-      "note": "2026-10-20 배치 rlc-20261019 HEAD 재검증: RL-05 STEP-006~009(RL-03 코드 v10·v11) 반영 뒤 RL-00~04 plan 증명 합집합 1회. build·contrast 0, Playwright app 7 spec 195 passed",
-      "evidence": "docs/work/_runs/rlc-20261019/logs/reverify-frontend-build.log; docs/work/_runs/rlc-20261019/logs/reverify-playwright.log",
+      "note": "2026-10-20 배치 rlc-20261019 HEAD 재검증: RL-05 STEP-006~009(RL-03 코드 v10·v11) 반영 뒤 RL-00~04 plan 증명 합집합 1회. build·contrast 0, Playwright app 7 spec 195 passed; RL-07 착수: 문서 변경만 확인, 기존 제품 검증 증거 재사용(재실행 아님).",
+      "evidence": "docs/work/_runs/rl07-preflight-20261020/evidence-reuse.md; docs/work/_runs/rlc-20261019/logs/reverify-frontend-build.log; docs/work/_runs/rlc-20261019/logs/reverify-playwright.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
-      "at": "2026-10-20T13:25:43+09:00",
-      "head": "e6e125e53356fd4e0a84fd54a2fe8dca27113a76",
-      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
-      "spec_hash": "543839017771b0ece128522393c3a72e4666130035361bc58cc6e90269758084"
+      "at": "2026-10-20T22:48:16+09:00",
+      "head": "37b2ab076918f7afcdc7aa612a274ad1f1400dee",
+      "source_hash": "21f1de70fa8b478a8c687d99ad531bac93053fb11a47a7954b19686055a3043d",
+      "spec_hash": "41ac7a4696020d93c4afd03f1457474d29923179a79ba0fcc9e1f4a94d7f00bf"
     },
     "api_guard": {
       "result": "pass",
       "method": "command",
-      "note": "2026-10-20 배치 rlc-20261019 HEAD 재검증: RL-05 STEP-006~009(RL-03 코드 v10·v11) 반영 뒤 RL-00~04 plan 증명 합집합 1회. payload guard·transfer policy·회사 소속·Slack 사전 차단·demo off PG 통과",
-      "evidence": "docs/work/_runs/rlc-20261019/logs/reverify-rl00-04-pg.log",
+      "note": "2026-10-20 배치 rlc-20261019 HEAD 재검증: RL-05 STEP-006~009(RL-03 코드 v10·v11) 반영 뒤 RL-00~04 plan 증명 합집합 1회. payload guard·transfer policy·회사 소속·Slack 사전 차단·demo off PG 통과; RL-07 착수: 문서 변경만 확인, 기존 제품 검증 증거 재사용(재실행 아님).",
+      "evidence": "docs/work/_runs/rl07-preflight-20261020/evidence-reuse.md; docs/work/_runs/rlc-20261019/logs/reverify-rl00-04-pg.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-20T13:25:44+09:00",
-      "head": "e6e125e53356fd4e0a84fd54a2fe8dca27113a76",
-      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
-      "spec_hash": "543839017771b0ece128522393c3a72e4666130035361bc58cc6e90269758084"
+      "at": "2026-10-20T22:48:17+09:00",
+      "head": "37b2ab076918f7afcdc7aa612a274ad1f1400dee",
+      "source_hash": "21f1de70fa8b478a8c687d99ad531bac93053fb11a47a7954b19686055a3043d",
+      "spec_hash": "41ac7a4696020d93c4afd03f1457474d29923179a79ba0fcc9e1f4a94d7f00bf"
     },
     "real_data_run": {
       "result": "pass",
       "method": "manual",
-      "note": "사용자 확인(2026-10-18) v9 실제 판정 결과 재연결(C26): v1~v9 경로는 정책 id 집합으로 분리돼 byte 동일(독립 리뷰 확인). 현재 실제 경로 v11은 RL-05에서 실제 10건 completed(2026-10-20, 사람 decision 기록). unmeasured_reference",
-      "evidence": "docs/validation-runs/2026-10-17-rl/RL-03/README.md (T12 10차 667bf04d); docs/validation-runs/2026-10-19-rl/RL-05/README.md (v11 실제 10건 완료)",
+      "note": "사용자 확인(2026-10-18) v9 실제 판정 결과 재연결(C26): v1~v9 경로는 정책 id 집합으로 분리돼 byte 동일(독립 리뷰 확인). 현재 실제 경로 v11은 RL-05에서 실제 10건 completed(2026-10-20, 사람 decision 기록). unmeasured_reference; RL-07 착수: 문서 변경만 확인, 기존 제품 검증 증거 재사용(재실행 아님).",
+      "evidence": "docs/work/_runs/rl07-preflight-20261020/evidence-reuse.md; docs/validation-runs/2026-10-17-rl/RL-03/README.md (T12 10차 667bf04d); docs/validation-runs/2026-10-19-rl/RL-05/README.md (v11 실제 10건 완료)",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-20T13:25:46+09:00",
-      "head": "e6e125e53356fd4e0a84fd54a2fe8dca27113a76",
-      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
-      "spec_hash": "543839017771b0ece128522393c3a72e4666130035361bc58cc6e90269758084"
+      "at": "2026-10-20T22:48:17+09:00",
+      "head": "37b2ab076918f7afcdc7aa612a274ad1f1400dee",
+      "source_hash": "21f1de70fa8b478a8c687d99ad531bac93053fb11a47a7954b19686055a3043d",
+      "spec_hash": "41ac7a4696020d93c4afd03f1457474d29923179a79ba0fcc9e1f4a94d7f00bf"
     }
   },
   "notes": [
@@ -472,7 +472,7 @@
       "text": "단계 → done: 배치 검증 및 통합 완료"
     }
   ],
-  "updated_at": "2026-10-20T13:25:46+09:00",
+  "updated_at": "2026-10-20T22:48:17+09:00",
   "proof_history": [
     {
       "key": "tests",
@@ -881,6 +881,102 @@
         "head": "cec9d94695ed5c4409b3203202e71237fcfcff74",
         "source_hash": "46e0089f7510dd52a89be36d549880f8ba7c6b5c6356ce9124a03514aece6ae3",
         "spec_hash": "4d766281404d034bbccbdba5c7e2398dd6cd67da33bec1faf103250bea40edfc"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pass",
+        "method": "review",
+        "note": "2026-10-20 배치 rlc-20261019 HEAD 재검증: RL-05 STEP-006~009(RL-03 코드 v10·v11) 반영 뒤 RL-00~04 plan 증명 합집합 1회. doctor 0",
+        "evidence": "docs/work/_runs/rlc-20261019/logs/reverify-doctor.log; 독립 리뷰 decisions C25",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "python3 scripts/feature_status.py doctor _",
+        "at": "2026-10-20T13:25:42+09:00",
+        "head": "e6e125e53356fd4e0a84fd54a2fe8dca27113a76",
+        "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+        "spec_hash": "543839017771b0ece128522393c3a72e4666130035361bc58cc6e90269758084"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "2026-10-20 배치 rlc-20261019 HEAD 재검증: RL-05 STEP-006~009(RL-03 코드 v10·v11) 반영 뒤 RL-00~04 plan 증명 합집합 1회. 합집합 1261 passed(skip: PDF 폰트 4는 별도 27 passed로 재실행, 컨테이너 전용 1)",
+        "evidence": "docs/work/_runs/rlc-20261019/logs/reverify-rl00-04-pg.log; docs/work/_runs/rlc-20261019/logs/reverify-proposal-fonts-pg.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
+        "at": "2026-10-20T13:25:42+09:00",
+        "head": "e6e125e53356fd4e0a84fd54a2fe8dca27113a76",
+        "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+        "spec_hash": "543839017771b0ece128522393c3a72e4666130035361bc58cc6e90269758084"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "2026-10-20 배치 rlc-20261019 HEAD 재검증: RL-05 STEP-006~009(RL-03 코드 v10·v11) 반영 뒤 RL-00~04 plan 증명 합집합 1회. postgres:17.11(migrations·privileges·drift·경계 포함)",
+        "evidence": "docs/work/_runs/rlc-20261019/logs/reverify-rl00-04-pg.log; docs/work/_runs/rlc-20261019/logs/reverify-proposal-fonts-pg.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-20T13:25:42+09:00",
+        "head": "e6e125e53356fd4e0a84fd54a2fe8dca27113a76",
+        "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+        "spec_hash": "543839017771b0ece128522393c3a72e4666130035361bc58cc6e90269758084"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "2026-10-20 배치 rlc-20261019 HEAD 재검증: RL-05 STEP-006~009(RL-03 코드 v10·v11) 반영 뒤 RL-00~04 plan 증명 합집합 1회. build·contrast 0, Playwright app 7 spec 195 passed",
+        "evidence": "docs/work/_runs/rlc-20261019/logs/reverify-frontend-build.log; docs/work/_runs/rlc-20261019/logs/reverify-playwright.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+        "at": "2026-10-20T13:25:43+09:00",
+        "head": "e6e125e53356fd4e0a84fd54a2fe8dca27113a76",
+        "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+        "spec_hash": "543839017771b0ece128522393c3a72e4666130035361bc58cc6e90269758084"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "2026-10-20 배치 rlc-20261019 HEAD 재검증: RL-05 STEP-006~009(RL-03 코드 v10·v11) 반영 뒤 RL-00~04 plan 증명 합집합 1회. payload guard·transfer policy·회사 소속·Slack 사전 차단·demo off PG 통과",
+        "evidence": "docs/work/_runs/rlc-20261019/logs/reverify-rl00-04-pg.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-20T13:25:44+09:00",
+        "head": "e6e125e53356fd4e0a84fd54a2fe8dca27113a76",
+        "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+        "spec_hash": "543839017771b0ece128522393c3a72e4666130035361bc58cc6e90269758084"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pass",
+        "method": "manual",
+        "note": "사용자 확인(2026-10-18) v9 실제 판정 결과 재연결(C26): v1~v9 경로는 정책 id 집합으로 분리돼 byte 동일(독립 리뷰 확인). 현재 실제 경로 v11은 RL-05에서 실제 10건 completed(2026-10-20, 사람 decision 기록). unmeasured_reference",
+        "evidence": "docs/validation-runs/2026-10-17-rl/RL-03/README.md (T12 10차 667bf04d); docs/validation-runs/2026-10-19-rl/RL-05/README.md (v11 실제 10건 완료)",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-20T13:25:46+09:00",
+        "head": "e6e125e53356fd4e0a84fd54a2fe8dca27113a76",
+        "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+        "spec_hash": "543839017771b0ece128522393c3a72e4666130035361bc58cc6e90269758084"
       }
     }
   ],
