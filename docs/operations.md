@@ -1831,10 +1831,15 @@ CLI는 web 이미지 안에서 돈다. fixture 디렉터리를 읽기 전용으�
 ```bash
 docker compose -f docker-compose.yml exec web \
   python -m app.deep_review.cli import-profile-policy \
-  --policy /app/web/backend/app/deep_review/policies/analysis-policy-luna-rl-v9.json \
-  --label analysis-policy-luna-rl-v9 \
-  --expected-policy-sha256 afaba1d3b41177828443cb8e736e9b4728619a07fdfff2241ecb12d505fd2984 --actor '<담당자 이름>'
+  --policy /app/web/backend/app/deep_review/policies/analysis-policy-luna-rl-v11.json \
+  --label analysis-policy-luna-rl-v11 \
+  --expected-policy-sha256 8dabbbb473f81d91f5bffb73ea56cafb92876a80680f4d0b376bad245c1cf45a --actor '<담당자 이름>'
 # 출력의 policy_version_id를 BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID로 env에 넣고 web·worker 서비스를 재생성한다.
+# 이미지에 company-profile.md가 없으면 --profile 로 읽기 전용 마운트한 사본을 준다(2026-10-20 RL-05에서 확인).
+# v10 행이 필요한 환경: --policy …/analysis-policy-luna-rl-v10.json --label analysis-policy-luna-rl-v10
+#   --expected-policy-sha256 fcfb08ce95887ce51c8454b54c2c51c9ac1ca9c4df63ff1544862387a8130409
+# v9 행이 필요한 환경: --policy …/analysis-policy-luna-rl-v9.json --label analysis-policy-luna-rl-v9
+#   --expected-policy-sha256 afaba1d3b41177828443cb8e736e9b4728619a07fdfff2241ecb12d505fd2984
 # v8 행이 필요한 환경: --policy …/analysis-policy-luna-rl-v8.json --label analysis-policy-luna-rl-v8
 #   --expected-policy-sha256 63ca5b691bb87822839193d4b33d0af7a6c7b9569faa86e9345da88ca5857d4c
 # v7 행이 필요한 환경: --policy …/analysis-policy-luna-rl-v7.json --label analysis-policy-luna-rl-v7
