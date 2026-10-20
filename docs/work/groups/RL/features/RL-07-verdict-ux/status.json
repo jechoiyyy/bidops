@@ -1,0 +1,176 @@
+{
+  "schema_version": 2,
+  "feature": "RL-07-verdict-ux",
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "판정 화면 파생 함수와 fixture",
+      "model": "standard",
+      "fingerprint": "5e073e6c36caea9a9e3203a2024103985e9122f0c24315a72f2063f554b05a05",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-001",
+          "title": "판정 화면 파생 함수와 fixture",
+          "model": "standard",
+          "fingerprint": "e7d594c18a361f354586f7028a7fdd9ef88b6d8fbeb264e3f1dc38421f56616c",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-001",
+          "title": "판정 화면 파생 함수와 fixture",
+          "model": "standard",
+          "fingerprint": "348e5a8b4407c41fef425af4ed5163e491ac64dc5ae73f1e59c2e92d6b8c24bf",
+          "status": "stale",
+          "updated_at": null,
+          "history": [
+            {
+              "id": "STEP-001",
+              "title": "판정 화면 파생 함수와 fixture",
+              "model": "standard",
+              "fingerprint": "e7d594c18a361f354586f7028a7fdd9ef88b6d8fbeb264e3f1dc38421f56616c",
+              "status": "pending",
+              "updated_at": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "STEP-002",
+      "title": "주의 포인트 블록·검증 실패 목록 연결",
+      "model": "complex",
+      "fingerprint": "40843958e3216e814e21f9086babbb902b7dd9b92ff314949e87450cb3c8fc05",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-002",
+          "title": "주의 포인트 블록·검증 실패 목록 연결",
+          "model": "complex",
+          "fingerprint": "8dd85637ccc923b063ac806f0012ed54bd0837dc6fb4cedb3b08cac1076e22e8",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-003",
+      "title": "좌측 판정 요약 정리",
+      "model": "standard",
+      "fingerprint": "e3dc0223b939c7ae7a58b76cc886deba59a7863b760568b0f58a02a65e4a61da",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-003",
+          "title": "좌측 판정 요약 정리",
+          "model": "standard",
+          "fingerprint": "6a122e367c6188f4eb4e42f4f2e04cc3911c27c053ae9be09f82136b1f90fd0b",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-004",
+      "title": "대조표·원문 패널 문구",
+      "model": "standard",
+      "fingerprint": "9b07395e43b53b28a6d42c133d900e95fd3b021af52b03414ae5b1f3b0b6d233",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-004",
+          "title": "대조표·원문 패널 문구",
+          "model": "standard",
+          "fingerprint": "e2e34310cc9f677b81c012883f2ba706b8b48869bae0287c13658fb31c2b697d",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-005",
+      "title": "1280 배치와 브리핑 직행",
+      "model": "complex",
+      "fingerprint": "934d8544147abe76fa9ab2ede30b12e6c9b7166a7316d14505004f3f9f0703a3",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-005",
+          "title": "1280 배치와 브리핑 직행",
+          "model": "complex",
+          "fingerprint": "905108dbc0b382f099d9634438dd5adce90f86de3880702ea7423c34e2142bb2",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    },
+    {
+      "id": "STEP-006",
+      "title": "화면 명세 정정·실제 화면 확인",
+      "model": "standard",
+      "fingerprint": "6e47fd0e14bb448863ea686cc7dd9ece5200ebf907b3372039b9378d101081ce",
+      "status": "stale",
+      "updated_at": null,
+      "history": [
+        {
+          "id": "STEP-006",
+          "title": "화면 명세 정정·실제 화면 확인",
+          "model": "standard",
+          "fingerprint": "4ac231b838f6c6a4d5351cae97c52d670b611a185f2ff8392b6e2edd987d9bb1",
+          "status": "pending",
+          "updated_at": null
+        }
+      ]
+    }
+  ],
+  "proof": {
+    "docs": {
+      "result": "pending"
+    },
+    "tests": {
+      "result": "pending"
+    },
+    "postgres": {
+      "result": "pending"
+    },
+    "frontend": {
+      "result": "pending"
+    },
+    "api_guard": {
+      "result": "pending"
+    },
+    "real_data_run": {
+      "result": "pending"
+    }
+  },
+  "notes": [
+    {
+      "at": "2026-10-20T22:20:13+09:00",
+      "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-10-20T22:23:53+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-20T22:36:13+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-20T22:44:19+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-20T22:44:31+09:00",
+      "text": "단계 → review: 독립 검사 2회: 1차 지적 반영, 2차 지적(격리 번호·근본 원인 조건·1280 min-width·기존 기대값·역할 이름·브리핑 값) 코드·계약 근거로 반영, 사용자 결정 3건 기록"
+    }
+  ],
+  "updated_at": "2026-10-20T22:44:31+09:00"
+}

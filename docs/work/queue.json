@@ -64,6 +64,14 @@
         "RL-05-gold-acceptance"
       ],
       "added_at": "2026-10-16T20:41:36+09:00"
+    },
+    {
+      "feature": "RL-07-verdict-ux",
+      "depends_on": [
+        "RL-05-gold-acceptance",
+        "RL-03-fit-verdict"
+      ],
+      "added_at": "2026-10-20T22:44:31+09:00"
     }
   ]
 }
