@@ -26,15 +26,15 @@
     "merge_policy": "manual"
   },
   "specs": {
-    "RL-05-gold-acceptance": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
+    "RL-05-gold-acceptance": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
   },
   "ready": {
     "RL-05-gold-acceptance": {
       "inputs": {
-        "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
-        "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
+        "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+        "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
       },
-      "at": "2026-10-20T12:59:56+09:00"
+      "at": "2026-10-20T13:13:05+09:00"
     }
   },
   "decisions": [
@@ -67,6 +67,11 @@
       "feature": "RL-05-gold-acceptance",
       "note": "C15~C24 반영 최종 명세(STEP-006~009 추가, spec identity v1~v11) 재확인",
       "at": "2026-10-20T12:59:56+09:00"
+    },
+    {
+      "feature": "RL-05-gold-acceptance",
+      "note": "C25 리뷰 권고 반영(RL-05 spec identity 표기)",
+      "at": "2026-10-20T13:13:05+09:00"
     }
   ]
 }
