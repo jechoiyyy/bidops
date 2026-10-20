@@ -248,8 +248,8 @@ def resolve_company_deep_policy(session: Session, settings: Any = None, *, rl: b
     ``rl=False`` reads ``BIDOPS_DEMO_DEEP_REVIEW_POLICY_VERSION_ID`` and accepts
     only a ``narrative-v2`` row (unchanged).  ``rl=True`` (real company with
     ``BIDOPS_RL_ANALYSIS_ENABLED``) reads ``BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID``
-    and accepts only the ``card-v1`` row of ``analysis-policy-luna-rl-v1`` .. ``-v10``
-    (RL-03 spec "정책 행·선택", 결정 B23·B30·B33·B35·B37·B51·B53·B55·C15); an unset/other row is
+    and accepts only the ``card-v1`` row of ``analysis-policy-luna-rl-v1`` .. ``-v11``
+    (RL-03 spec "정책 행·선택", 결정 B23·B30·B33·B35·B37·B51·B53·B55·C15·C20); an unset/other row is
     ``analysis_policy_unavailable``.
 
     ``analysis_policy_unavailable``: setting unset, row missing, row not the

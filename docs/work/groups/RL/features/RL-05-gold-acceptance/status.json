@@ -100,16 +100,18 @@
       "title": "v10 격리 보완(결정 C19)",
       "model": "complex",
       "fingerprint": "6fa354361a2658d761037a2bb8bfd43652596b26be6b873cfdb50f6dce880d7f",
-      "status": "in_progress",
-      "updated_at": "2026-10-20T10:16:25+09:00"
+      "status": "done",
+      "updated_at": "2026-10-20T11:24:38+09:00",
+      "note": "C19 격리 보완(role_caution_foreign_unit, synthesis_unit_outside_roles|evidence_outside_unit). 리더 검증: 합친 코드 PG 905 passed(skip 2=PDF 폰트), build·contrast 0, Playwright 87 passed (logs/step008-009-*)"
     },
     {
       "id": "STEP-009",
       "title": "정책 v11 — unit·근거 짧은 번호 참조와 텍스트 조건 규칙(결정 C20)",
       "model": "complex",
       "fingerprint": "eb5ed78a092004937c5120bf82e04791d3e93331adb34ff5db9f3cd1378c9376",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-10-20T11:24:38+09:00",
+      "note": "정책 v11 sha 8dabbbb4…, 역할 v3 d7062412…, 종합 v3 0588f65c…; text 값 완화(값 숫자는 인용에 포함·대조 직접 사실 연결 조건은 원문 유지). 리더 검증 STEP-008과 동일 로그"
     }
   ],
   "proof": {
@@ -220,7 +222,19 @@
     {
       "at": "2026-10-20T10:19:50+09:00",
       "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-10-20T10:34:57+09:00",
+      "text": "단계 STEP-009 in_progress: "
+    },
+    {
+      "at": "2026-10-20T11:24:38+09:00",
+      "text": "단계 STEP-008 done: C19 격리 보완(role_caution_foreign_unit, synthesis_unit_outside_roles|evidence_outside_unit). 리더 검증: 합친 코드 PG 905 passed(skip 2=PDF 폰트), build·contrast 0, Playwright 87 passed (logs/step008-009-*)"
+    },
+    {
+      "at": "2026-10-20T11:24:38+09:00",
+      "text": "단계 STEP-009 done: 정책 v11 sha 8dabbbb4…, 역할 v3 d7062412…, 종합 v3 0588f65c…; text 값 완화(값 숫자는 인용에 포함·대조 직접 사실 연결 조건은 원문 유지). 리더 검증 STEP-008과 동일 로그"
     }
   ],
-  "updated_at": "2026-10-20T10:19:50+09:00"
+  "updated_at": "2026-10-20T11:24:38+09:00"
 }
