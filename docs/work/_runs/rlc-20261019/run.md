@@ -23,3 +23,8 @@
 - RL-05 STEP-001·002: 구현자 위임(standard/complex) → 리더 검증 rl-gold 50 passed, export·경계·트리거 PG 83 passed(skip 0). spec 정정 C7(사용자 승인)·accept-spec. 기능 커밋 `81084a4`.
 - RL-05 STEP-003: 사용자 선정 10건(C6) 중 #56은 카드 0개라 #15로 교체(C8). bidops_rla에 `lifecycle-20261014-notices` 적재, 운영 객체 백업 원본(sha 일치) `attach-local-original` 13건, holdout 13행, RL review 0. Git 밖 `rl-evaluation-20261019/`에 selection·cards·blank gold·작성지(`worksheet/`). 모델 호출 0.
 - 다음(사람): gold 작성(작성지) → gold-check → RL-03 실제 분석 10건(별도 승인) → export·alignment·score → 인수 결정. 회사 근거 §G를 먼저 반영하려면 gold 작성 전에 해야 함(binding sha가 바뀌면 selection·양식 재생성).
+- 2026-10-19~20 회사 근거 §G: v3(G1·G3·G4·G2 나라장터 계약 7건)·v4(정보통신공사업) 등록·활성화(bidops_rla), selection·blank gold 재생성(C10·C12). Mac 재부팅으로 운영·격리 스택 재기동(사용자 확인).
+- gold: Claude 초안 → 사용자 확인(C13), 차단 조건 gap만(C11), 확정 `gold.v1.json` 2026-10-20T07:02:40+09:00(sha `6c4ca154…`), RL review 0 상태에서 작성.
+- 실제 분석(C14 승인): v9 승인 하루 15건 재승인(`517a762c…`), 요청 10건 중 3건 `input_budget_exceeded`(영역 unit 12,061·29,949·12,963자) → STEP-006(C15). 7건 중 4건 실패(역할 근거 키 오류 3, 추출 unit 누락 1) → 정지 조건으로 worker 정지, 원 응답 복호화 진단(호출 없음) → STEP-007(C16). v9 호출 합계: transfer 5건·원 응답 41건.
+- 2026-10-20 v10(STEP-006·007, C15·C16) 전환: 정책 행 `a2fb9368…`, 승인 `9cfbd62a…`(15) → runner 인증 파일 누락으로 3건 authentication_failed(C17) → 승인 `691d0712…`(18, C18). 10건 결과: 완료 4(R26BD00284019·284697·284941·284956), 실패 6(종합 인용 축약 3·역할 caution 1 → STEP-008 C19, 역할 unit_id sha 축약 1·추출 텍스트 조건 비축자 26% 1 → STEP-009 v11 C20). 오늘 상한 18 소진, worker 정지.
+- STEP-008 커밋 `eb8a8e9`. STEP-009(v11) 구현 중. 다음: v11 등록·승인(18/일) → 10건 v11 재분석(KST 다음 날).
