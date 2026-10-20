@@ -2244,7 +2244,7 @@ def test_c16_wrong_or_foreign_id_isolates_only_that_finding(bad_id, code) -> Non
         "role_evidence_unknown", "role_evidence_foreign_unit"]
 
 
-def test_c16_invalid_caution_is_dropped_and_recorded_and_an_unknown_unit_stays_fatal() -> None:
+def test_c16_invalid_caution_is_dropped_and_recorded() -> None:
     from app.deep_review.services.card_roles import validate_verdict_role_v2
 
     frozen, _extract, _compare, inputs = _c16_world()
@@ -2265,11 +2265,8 @@ def test_c16_invalid_caution_is_dropped_and_recorded_and_an_unknown_unit_stays_f
         {"kind": "caution", "unit_id": u1.unit_id, "rule_codes": ["role_evidence_unknown"]}]
     assert all(row.reason != "" and row.evidence_refs for row in result.unit_findings)  # findings untouched
     assert "백업 주기 확인" not in json.dumps(result.model_dump(mode="json"), ensure_ascii=False)
-    for unit_id in ("card:unknown", frozen.units[0].unit_id + "x"):
-        broken = deepcopy(answer)
-        broken["cautions"] = [{"unit_id": unit_id, "text": "확인", "evidence_ids": []}]
-        with pytest.raises(CardAnalysisValidationError, match="card_role_invalid"):
-            validate_verdict_role_v2(broken, role_input=role_input)
+    # 결정 C19 changed one C16 rule: a caution naming a unit outside the role is no longer
+    # fatal but isolated (``role_caution_foreign_unit``) -- see the C19 tests below.
 
 
 @pytest.mark.parametrize(("units", "isolated", "fails"), [(4, 1, False), (4, 2, True), (8, 2, False), (8, 3, True)])
@@ -2514,3 +2511,265 @@ def test_c16_mock_answers_role_v2_with_its_own_catalog_ids() -> None:
     assert result.model_copy(update={"isolated_items": None}).model_dump(mode="json") == validate_verdict_role(
         v1.structured_output, role_input=role_input).model_dump(mode="json")
     assert client.calls == [("card-role-v2", "operations_risk"), ("card-role-v1", "operations_risk")]
+
+
+# --- 결정 C19 (RL-05 STEP-008): v10 role caution outside the role and synthesis item isolation ---
+
+
+def _c19_world(*, fits: dict[int, str] | None = None):
+    """Four 운영 units (operations_risk) and one 기능 unit (technical_fit only), each with one constraint triple."""
+
+    fits = fits or {}
+    names = C16_NAMES[:5]
+    frozen = card_input([f"{name} 운영 계획을 매월 보고한다" for name in names])
+    extract = CardRequirementExtract.model_validate({"items": [
+        extract_item(unit, type_="기능" if index == 4 else "운영", mandatory=None, normalized=f"{name} 운영 계획 보고",
+                     constraints=[constraint(unit, kind="text", value=f"{name} 운영 계획", unit_name=None,
+                                             operator="eq", quote=f"{name} 운영 계획")])
+        for index, (unit, name) in enumerate(zip(frozen.units, names))
+    ]})
+    compare = CardRequirementCompare.model_validate({"schema_version": "bidops.requirement-compare.v1", "items": [
+        {"unit_id": unit.unit_id, "fit_status": fits.get(index, "unknown"), "evidence_ids": [],
+         "reason_codes": ["confirmed_match" if fits.get(index) == "met" else "unmapped"],
+         "constraint_results": [{"constraint_index": 0, "status": fits.get(index, "unknown"), "fact_ids": [],
+                                 "path_ids": [],
+                                 "reason_code": "confirmed_match" if fits.get(index) == "met" else "unmapped"}]}
+        for index, unit in enumerate(frozen.units)
+    ]})
+    return frozen, extract, compare, build_verdict_role_inputs(extract, compare)
+
+
+def _c19_roles(inputs, overrides: dict[str, dict] | None = None):
+    from app.deep_review.services.card_roles import validate_verdict_role_v2
+
+    overrides = overrides or {}
+    return {role: validate_verdict_role_v2(overrides.get(role) or _role_v2_output(value), role_input=value)
+            for role, value in inputs.items()}
+
+
+def test_c19_role_caution_on_a_unit_outside_the_role_is_isolated_not_fatal() -> None:
+    from app.deep_review.schemas.card_analysis import CardVerdictRoleResult
+    from app.deep_review.services.card_roles import (
+        ROLE_CAUTION_FOREIGN_UNIT_RULE,
+        validate_isolated_verdict_role,
+        validate_verdict_role_v2,
+    )
+
+    frozen, _extract, _compare, inputs = _c19_world()
+    role_input = inputs["operations_risk"]
+    assert [row.unit_id for row in inputs["technical_fit"].extract.items] == [frozen.units[4].unit_id]
+    u0, other = frozen.units[0], frozen.units[4].unit_id  # ``other`` is a technical_fit unit
+    answer = _role_v2_output(role_input)
+    answer["cautions"] = [
+        {"unit_id": u0.unit_id, "text": "보안 계획 확인", "evidence_ids": ["E2"]},
+        {"unit_id": other, "text": "다른 역할 요구사항 주의", "evidence_ids": ["E1"]},
+        {"unit_id": "card:unknown", "text": "없는 요구사항 주의", "evidence_ids": []},
+    ]
+    before = json.dumps(answer, ensure_ascii=False, sort_keys=True)
+    result = validate_verdict_role_v2(answer, role_input=role_input)
+    assert json.dumps(answer, ensure_ascii=False, sort_keys=True) == before
+    assert ROLE_CAUTION_FOREIGN_UNIT_RULE == "role_caution_foreign_unit"
+    assert [row.unit_id for row in result.cautions] == [u0.unit_id]
+    assert [row.model_dump(mode="json") for row in result.isolated_items] == [
+        {"kind": "caution", "unit_id": other, "rule_codes": ["role_caution_foreign_unit"]},
+        {"kind": "caution", "unit_id": "card:unknown", "rule_codes": ["role_caution_foreign_unit"]}]
+    # findings untouched; the dropped caution's text is nowhere in the stored row
+    assert all(row.reason != "" and row.evidence_refs for row in result.unit_findings)
+    stored = result.model_dump(mode="json")
+    assert "다른 역할 요구사항 주의" not in json.dumps(stored, ensure_ascii=False)
+    # the stored row re-validates (synthesis re-check and synthesis-only resume)
+    validate_isolated_verdict_role(stored, role_input=role_input)
+    # the 25% limit counts findings only: 1 of 4 isolated findings + many foreign cautions continues
+    many = deepcopy(answer)
+    many["unit_findings"][0]["evidence_ids"] = ["E999"]
+    many["cautions"] = [{"unit_id": f"card:unknown-{index}", "text": "확인", "evidence_ids": []} for index in range(6)]
+    limited = validate_verdict_role_v2(many, role_input=role_input)
+    assert [row.kind for row in limited.isolated_items] == ["finding"] + ["caution"] * 6
+    many["unit_findings"][1]["evidence_ids"] = ["E999"]  # 2 of 4 findings: above 25% with or without cautions
+    with pytest.raises(CardAnalysisValidationError, match="card_role_invalid"):
+        validate_verdict_role_v2(many, role_input=role_input)
+    # DTO: the code is caution-only, the sole code, and never names a unit of the role
+    for items in (
+        [{"kind": "caution", "unit_id": u0.unit_id, "rule_codes": ["role_caution_foreign_unit"]}],
+        [{"kind": "finding", "unit_id": other, "rule_codes": ["role_caution_foreign_unit"]}],
+        [{"kind": "caution", "unit_id": other, "rule_codes": ["role_caution_foreign_unit", "role_evidence_unknown"]}],
+        [{"kind": "caution", "unit_id": other, "rule_codes": ["role_evidence_unknown"]}],  # evidence codes: role units
+    ):
+        with pytest.raises(ValidationError):
+            CardVerdictRoleResult.model_validate({**stored, "isolated_items": items})
+    # v1 role validation (policies v1-v9) is unchanged: a caution outside the role stays fatal
+    v1 = _role_output(role_input)
+    v1["cautions"] = [{"unit_id": other, "text": "확인", "evidence_refs": [evidence(frozen.units[4])]}]
+    with pytest.raises(CardAnalysisValidationError, match="card_role_invalid"):
+        validate_verdict_role(v1, role_input=role_input)
+
+
+def test_c19_foreign_role_caution_caps_the_verdict_like_any_role_isolation() -> None:
+    frozen, extract, compare, inputs = _c19_world(fits={index: "met" for index in range(5)})
+    proceed = _synthesis(frozen.units, verdict="진행 가능", blocking=[])
+    clean = build_synthesis_input(_c19_roles(inputs))
+    assert validate_practitioner_verdict(proceed, synthesis_input=clean, extract=extract,
+                                         compare=compare).verdict == "진행 가능"
+    answer = _role_v2_output(inputs["operations_risk"])
+    answer["cautions"] = [{"unit_id": frozen.units[4].unit_id, "text": "확인", "evidence_ids": []}]
+    capped = build_synthesis_input(_c19_roles(inputs, {"operations_risk": answer}))
+    with pytest.raises(CardAnalysisValidationError, match="card_synthesis_invalid"):
+        validate_practitioner_verdict(proceed, synthesis_input=capped, extract=extract, compare=compare)
+    assembled = assemble_practitioner_verdict(_synthesis(frozen.units, blocking=[]), synthesis_input=capped,
+                                              extract=extract, compare=compare)
+    assert assembled.verdict == "조건부 진행" and assembled.cautions == []
+
+
+def _c19_synthesis_answer(frozen):
+    u0, u1 = frozen.units[:2]
+    shortened_quote = u1.blocks[0].text[:-3]
+    assert shortened_quote and shortened_quote in u1.blocks[0].text  # a substring of the unit's own quote
+    kept_action = {"unit_id": u0.unit_id, "owner": None, "action": "보안 계획 확인", "evidence_refs": [evidence(u0)]}
+    shortened_action = {"unit_id": u1.unit_id, "owner": None, "action": "백업 계획을 원문에서 확인",
+                        "evidence_refs": [evidence(u1, shortened_quote)]}
+    outside_action = {"unit_id": "missing_section:budget", "owner": None, "action": "예산 확인", "evidence_refs": []}
+    kept_caution = {"unit_id": u0.unit_id, "text": "보안 보고 주기 주의", "evidence_refs": [evidence(u0)]}
+    outside_caution = {"unit_id": "card:unknown", "text": "범위 밖 주의", "evidence_refs": []}
+    shortened_caution = {"unit_id": u1.unit_id, "text": "백업 보고 주의", "evidence_refs": [evidence(u1, "백업 운영")]}
+    answer = _synthesis_v2(cautions=[kept_caution, outside_caution, shortened_caution],
+                           actions=[kept_action, shortened_action, outside_action])
+    return answer, kept_action, kept_caution
+
+
+def test_c19_v10_synthesis_drops_items_outside_the_roles_or_their_evidence_and_keeps_the_verdict() -> None:
+    from app.deep_review.services.card_roles import (
+        SYNTHESIS_EVIDENCE_OUTSIDE_UNIT_RULE,
+        SYNTHESIS_UNIT_OUTSIDE_ROLES_RULE,
+        synthesis_v1_from_v2,
+        validate_practitioner_verdict_isolated,
+    )
+
+    frozen, extract, compare, inputs = _c19_world()
+    synthesis_input = build_synthesis_input(_c19_roles(inputs))
+    u1 = frozen.units[1]
+    answer, kept_action, kept_caution = _c19_synthesis_answer(frozen)
+    before = json.dumps(answer, ensure_ascii=False, sort_keys=True)
+    v1 = synthesis_v1_from_v2(answer, extract=extract, compare=compare)
+    # v9 rules (no isolation): the same answer is still card_synthesis_invalid
+    with pytest.raises(CardAnalysisValidationError, match="card_synthesis_invalid"):
+        validate_practitioner_verdict(v1, synthesis_input=synthesis_input, extract=extract, compare=compare)
+    with pytest.raises(CardAnalysisValidationError, match="card_synthesis_invalid"):
+        assemble_practitioner_verdict(v1, synthesis_input=synthesis_input, extract=extract, compare=compare,
+                                      record_rejected_units=True, code_actions=True)
+    verdict, isolated = validate_practitioner_verdict_isolated(
+        v1, synthesis_input=synthesis_input, extract=extract, compare=compare)
+    assert (SYNTHESIS_UNIT_OUTSIDE_ROLES_RULE, SYNTHESIS_EVIDENCE_OUTSIDE_UNIT_RULE) == (
+        "synthesis_unit_outside_roles", "synthesis_evidence_outside_unit")
+    # verdict, reason and code blocking ids unchanged; only the bad items are left out (never rewritten)
+    assert (verdict.verdict, verdict.reason, verdict.blocking_condition_ids) == (
+        v1["verdict"], v1["reason"], v1["blocking_condition_ids"])
+    assert [row.model_dump(mode="json") for row in verdict.cautions] == [kept_caution]
+    assert [row.model_dump(mode="json") for row in verdict.next_actions] == [kept_action]
+    expected = [
+        {"kind": "caution", "unit_id": "card:unknown", "rule_codes": ["synthesis_unit_outside_roles"]},
+        {"kind": "caution", "unit_id": u1.unit_id, "rule_codes": ["synthesis_evidence_outside_unit"]},
+        {"kind": "next_action", "unit_id": u1.unit_id, "rule_codes": ["synthesis_evidence_outside_unit"]},
+        {"kind": "next_action", "unit_id": "missing_section:budget", "rule_codes": ["synthesis_unit_outside_roles"]},
+    ]
+    assert [row.model_dump(mode="json") for row in isolated] == expected
+    assembled = assemble_practitioner_verdict(
+        v1, synthesis_input=synthesis_input, extract=extract, compare=compare, record_rejected_units=True,
+        code_actions=True, isolate_items=True)
+    assert (assembled.verdict, assembled.reason, assembled.blocking_condition_ids) == (
+        v1["verdict"], v1["reason"], v1["blocking_condition_ids"])
+    stored = assembled.model_dump(mode="json")
+    assert stored["next_actions"] == [{**kept_action, "origin": "model"}]  # dropped rows never reach the row
+    assert stored["cautions"] == [kept_caution]
+    assert stored["isolated_items"] == expected
+    text = json.dumps(stored, ensure_ascii=False)
+    assert "백업 계획을 원문에서 확인" not in text and "범위 밖 주의" not in text and "예산 확인" not in text
+    assert json.dumps(answer, ensure_ascii=False, sort_keys=True) == before  # never corrected in place
+    # the stored row validates; an assembly with nothing to drop records an empty list
+    CardAssembledPractitionerVerdict.model_validate(stored)
+    clean = assemble_practitioner_verdict(
+        synthesis_v1_from_v2(_synthesis_v2(actions=[kept_action]), extract=extract, compare=compare),
+        synthesis_input=synthesis_input, extract=extract, compare=compare, record_rejected_units=True,
+        code_actions=True, isolate_items=True)
+    assert clean.model_dump(mode="json")["isolated_items"] == []
+
+
+def test_c19_v10_synthesis_owner_outside_the_allowlist_and_other_rules_stay_fatal() -> None:
+    from app.deep_review.services.card_roles import synthesis_v1_from_v2, validate_practitioner_verdict_isolated
+
+    frozen, extract, compare, inputs = _c19_world()
+    synthesis_input = build_synthesis_input(_c19_roles(inputs))
+    answer, kept_action, _kept_caution = _c19_synthesis_answer(frozen)
+    # an invented owner is fatal even on an action that would otherwise be dropped
+    for action in answer["next_actions"]:
+        payload = synthesis_v1_from_v2(_synthesis_v2(actions=[kept_action, {**action, "owner": "김담당"}]),
+                                       extract=extract, compare=compare)
+        with pytest.raises(CardAnalysisValidationError, match="card_synthesis_invalid"):
+            validate_practitioner_verdict_isolated(payload, synthesis_input=synthesis_input, extract=extract,
+                                                   compare=compare)
+        with pytest.raises(CardAnalysisValidationError, match="card_synthesis_invalid"):
+            assemble_practitioner_verdict(payload, synthesis_input=synthesis_input, extract=extract, compare=compare,
+                                          code_actions=True, isolate_items=True)
+    # a listed owner is still allowed
+    named = synthesis_v1_from_v2(_synthesis_v2(actions=[{**kept_action, "owner": "김담당"}]), extract=extract,
+                                 compare=compare)
+    validate_practitioner_verdict_isolated(named, synthesis_input=synthesis_input, extract=extract, compare=compare,
+                                           allowed_owners=["김담당"])
+    # the rejected-units contract is unchanged
+    with pytest.raises(CardAnalysisValidationError, match="card_synthesis_invalid"):
+        validate_practitioner_verdict_isolated(named, synthesis_input=synthesis_input, extract=extract,
+                                               compare=compare, allowed_owners=["김담당"],
+                                               rejected_units=[frozen.units[0].unit_id])
+
+
+def test_c19_v10_synthesis_isolation_caps_the_verdict_at_conditional() -> None:
+    from app.deep_review.services.card_roles import synthesis_v1_from_v2, validate_practitioner_verdict_isolated
+
+    frozen, extract, compare, inputs = _c19_world(fits={index: "met" for index in range(5)})
+    synthesis_input = build_synthesis_input(_c19_roles(inputs))
+    clean = synthesis_v1_from_v2(_synthesis_v2(verdict="진행 가능"), extract=extract, compare=compare)
+    assert validate_practitioner_verdict_isolated(
+        clean, synthesis_input=synthesis_input, extract=extract, compare=compare)[0].verdict == "진행 가능"
+    dropped_only = synthesis_v1_from_v2(_synthesis_v2(verdict="진행 가능", actions=[
+        {"unit_id": "card:unknown", "owner": None, "action": "확인", "evidence_refs": []}]),
+        extract=extract, compare=compare)
+    # dropping the item never turns an unresolved answer into "진행 가능"
+    with pytest.raises(CardAnalysisValidationError, match="card_synthesis_invalid"):
+        validate_practitioner_verdict_isolated(dropped_only, synthesis_input=synthesis_input, extract=extract,
+                                               compare=compare)
+    with pytest.raises(CardAnalysisValidationError, match="card_synthesis_invalid"):
+        assemble_practitioner_verdict(dropped_only, synthesis_input=synthesis_input, extract=extract,
+                                      compare=compare, code_actions=True, isolate_items=True)
+
+
+def test_c19_final_row_isolation_dto_and_rows_written_before_c19() -> None:
+    from app.deep_review.schemas.card_analysis import CardSynthesisIsolation
+    from app.deep_review.services.card_roles import synthesis_v1_from_v2
+
+    frozen, extract, compare, inputs = _c19_world()
+    synthesis_input = build_synthesis_input(_c19_roles(inputs))
+    answer, _kept_action, _kept_caution = _c19_synthesis_answer(frozen)
+    stored = assemble_practitioner_verdict(
+        synthesis_v1_from_v2(answer, extract=extract, compare=compare), synthesis_input=synthesis_input,
+        extract=extract, compare=compare, record_rejected_units=True, code_actions=True,
+        isolate_items=True).model_dump(mode="json")
+    # a v10 row written before C19 (and every v1-v9 row) has no key: read as "none", dumped without it
+    before_c19 = {key: value for key, value in stored.items() if key != "isolated_items"}
+    parsed = CardAssembledPractitionerVerdict.model_validate(before_c19)
+    assert parsed.isolated_items is None and parsed.model_dump(mode="json") == before_c19
+    legacy = assemble_practitioner_verdict(
+        synthesis_v1_from_v2(_synthesis_v2(), extract=extract, compare=compare), synthesis_input=synthesis_input,
+        extract=extract, compare=compare, record_rejected_units=True, code_actions=True)
+    assert "isolated_items" not in legacy.model_dump(mode="json")
+    for broken in (
+        {**stored, "verdict": "진행 가능"},  # an isolation caps the verdict
+        {**stored, "isolated_items": [{"kind": "finding", "unit_id": "u", "rule_codes": ["synthesis_unit_outside_roles"]}]},
+        {**stored, "isolated_items": [{"kind": "caution", "unit_id": "u", "rule_codes": ["role_evidence_unknown"]}]},
+        {**stored, "isolated_items": [{"kind": "caution", "unit_id": "u", "rule_codes": []}]},
+        {**stored, "isolated_items": [{"kind": "caution", "unit_id": "u", "rule_codes": [
+            "synthesis_unit_outside_roles", "synthesis_unit_outside_roles"]}]},
+        {**stored, "isolated_items": [{"kind": "caution", "unit_id": "u", "rule_codes": ["원문 문장"]}]},
+    ):
+        with pytest.raises(ValidationError):
+            CardAssembledPractitionerVerdict.model_validate(broken)
+    with pytest.raises(ValidationError):
+        CardSynthesisIsolation(kind="next_action", unit_id="", rule_codes=["synthesis_unit_outside_roles"])

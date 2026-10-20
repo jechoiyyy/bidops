@@ -19,6 +19,7 @@ import {
   legacyView,
   noneView,
   rejectedCompletedView,
+  synthesisIsolatedCompletedView,
   codeActionsCompletedView,
   runningView,
   sampleMatrix,
@@ -184,6 +185,22 @@ test("검증 실패로 격리된 요구사항은 '검증 실패 — 사람 확�
   await page.goto("/opportunities/7101/verdict");
   await waitTable(page);
   await expect(page.getByTestId("rejected-units")).toHaveCount(0);
+});
+
+test("역할 밖 주의와 종합에서 빠진 항목은 같은 '검증 실패 — 사람 확인 필요' 목록에 규칙 문구로만 보인다", async ({ page }) => {
+  // 결정 C19: 빠진 항목의 모델 문장은 서버가 주지 않는다. 카드에 없는 id는 영역 항목처럼 보이지 않는다.
+  await openVerdict(page, synthesisIsolatedCompletedView());
+  await waitTable(page);
+  const list = page.getByTestId("rejected-units");
+  await expect(list.getByRole("heading", { name: "검증 실패 — 사람 확인 필요 3" })).toBeVisible();
+  await expect(list.getByTestId("role-isolation")).toHaveText([
+    "판정 대상에 없는 항목운영·위험 주의 · 역할 주의가 그 역할 밖 요구사항을 가리킴",
+  ]);
+  await expect(list.getByTestId("synthesis-isolation")).toHaveText([
+    "REQ-1종합 다음 행동 · 종합 항목의 근거가 그 요구사항 근거와 다름",
+    "판정 대상에 없는 항목종합 주의 · 종합 항목이 역할 결과에 없는 요구사항을 가리킴",
+  ]);
+  for (const value of FORBIDDEN_VALUES) await expect(page.locator("body")).not.toContainText(value);
 });
 
 test("코드가 붙인 다음 행동은 '사람 확인' 표식으로 모델 행과 구분하고 담당은 미지정이다", async ({ page }) => {

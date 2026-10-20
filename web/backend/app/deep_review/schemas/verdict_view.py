@@ -7,7 +7,9 @@ matrix row keys ``normalized_requirement``/``mandatory``/``fact_labels`` and
 ``rejected_units`` and the matrix row key ``rejected_rule_codes`` (a rejected
 row has ``type`` null and fit ``unknown``); 결정 C16 adds the top-level
 ``role_isolations`` (role items whose evidence ids failed; an isolated finding
-stays in the matrix as ``unknown`` with the fixed notice).  ``company_sha256`` is
+stays in the matrix as ``unknown`` with the fixed notice); 결정 C19 adds the
+top-level ``synthesis_isolations`` (synthesis cautions/next actions left out of
+the final row).  ``company_sha256`` is
 the frozen company graph sha (no basis file).  Every model is closed (extra
 keys forbidden) so the view cannot silently grow.
 """
@@ -120,9 +122,21 @@ class VerdictRoleIsolation(StrictModel):
 
     role: Role
     unit_id: NonEmpty
-    #: The card's normalized requirement id (``SFR-1`` …); ``null`` for segment units.
+    #: The card's normalized requirement id (``SFR-1`` …); ``null`` for segment units and
+    #: (결정 C19 ``role_caution_foreign_unit``) for a named id that is no unit of the card.
     normalized_id: NonEmpty | None
     kind: Literal["finding", "caution"]
+    rule_codes: list[RuleCode] = Field(min_length=1)
+
+
+class VerdictSynthesisIsolation(StrictModel):
+    """결정 C19: one synthesis caution or next action left out of the final row; codes only."""
+
+    unit_id: NonEmpty
+    #: The card's normalized requirement id; ``null`` for segment units and for a named id
+    #: that is no unit of the card (``synthesis_unit_outside_roles``).
+    normalized_id: NonEmpty | None
+    kind: Literal["caution", "next_action"]
     rule_codes: list[RuleCode] = Field(min_length=1)
 
 
@@ -218,6 +232,8 @@ class PractitionerVerdictView(StrictModel):
     rejected_units: list[VerdictRejectedUnit]
     #: 결정 C16: role items isolated in the stored role rows (any availability; ``[]`` when none).
     role_isolations: list[VerdictRoleIsolation]
+    #: 결정 C19: synthesis items left out of the stored final row (``[]`` when none or no final row).
+    synthesis_isolations: list[VerdictSynthesisIsolation]
 
     @model_validator(mode="after")
     def _consistency(self) -> "PractitionerVerdictView":
@@ -242,6 +258,10 @@ class PractitionerVerdictView(StrictModel):
             raise ValueError("none_view_invalid")
         if self.result is not None and self.role_isolations and self.result.verdict == "진행 가능":
             raise ValueError("role_isolations_verdict_cap")
+        if self.availability == "none" and self.synthesis_isolations:
+            raise ValueError("none_view_invalid")
+        if self.result is not None and self.synthesis_isolations and self.result.verdict == "진행 가능":
+            raise ValueError("synthesis_isolations_verdict_cap")
         return self
 
 
@@ -302,6 +322,7 @@ __all__ = [
     "VerdictMatrixRow",
     "VerdictRejectedUnit",
     "VerdictRoleIsolation",
+    "VerdictSynthesisIsolation",
     "VerdictRequestCreate",
     "VerdictRequestReceipt",
     "VerdictResult",

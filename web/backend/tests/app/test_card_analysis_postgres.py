@@ -2272,3 +2272,168 @@ def test_c16_v10_synthesis_only_resume_reuses_the_isolated_role_rows(flow_engine
         assert again.calls == [("card-synthesis-v2", "synthesis", False)]
         assert _role_rows(session, resumed.attempt_id) == source_roles
         assert _final_row(session, resumed.attempt_id).payload["verdict"] != "진행 가능"
+
+
+# --- 결정 C19 (RL-05 STEP-008): v10 foreign role caution and synthesis item isolation ----------
+
+
+def _capture_synthesis_roles(fake: FakeLuna) -> list:
+    """Record the role rows the synthesis payload carries (``on_call`` runs before the override)."""
+
+    captured: list = []
+
+    def record(_fake, envelope):
+        if envelope["stage"] == "synthesis":
+            captured.append(envelope["input"]["roles"])
+    fake.on_call = record
+    return captured
+
+
+def _synthesis_bad_items(captured: list):
+    """The observed v10 failure: a next action whose quote is a shortened substring of its unit's own quote,
+    plus a caution naming a unit no role has."""
+
+    def mutate(output: dict) -> dict:
+        finding = next(row for role in captured[-1] for row in role["unit_findings"] if row["evidence_refs"])
+        ref = finding["evidence_refs"][0]
+        assert len(ref["quote"]) > 1
+        output["next_actions"] = [{"unit_id": finding["unit_id"], "owner": None, "action": "축약 인용 행동",
+                                   "evidence_refs": [{**ref, "quote": ref["quote"][:-1]}]}]
+        output["cautions"] = [{"unit_id": "card:unknown", "text": "범위 밖 주의", "evidence_refs": []}]
+        return output
+    return mutate
+
+
+def _expected_synthesis_isolations(captured: list) -> list[dict]:
+    finding = next(row for role in captured[-1] for row in role["unit_findings"] if row["evidence_refs"])
+    return [
+        {"kind": "caution", "unit_id": "card:unknown", "rule_codes": ["synthesis_unit_outside_roles"]},
+        {"kind": "next_action", "unit_id": finding["unit_id"], "rule_codes": ["synthesis_evidence_outside_unit"]},
+    ]
+
+
+@pytest.mark.parametrize("identity", [RL_V10, RL_V9])
+def test_c19_v10_synthesis_drops_a_shortened_quote_action_and_v9_still_fails(
+    flow_engine, monkeypatch, identity,
+) -> None:
+    from app.deep_review.services import verdict_view
+
+    with Session(flow_engine) as session:
+        world = tp.build_world(session, monkeypatch, policy_identity=identity)
+        tp.approve(session, policy_identity=identity)
+        started = tp.start(session, world)
+        knowledge = resolve_company_knowledge_context(session, world.company_id)
+        fake = FakeLuna(knowledge.ontology)
+        captured = _capture_synthesis_roles(fake)
+        fake.overrides[("synthesis", 0)] = _synthesis_bad_items(captured)
+        session.commit()
+        svc = DeepReviewService(client=fake, structure_loader=tp._structure_loader, raw_response_store=_FixtureStore())
+        if identity == RL_V9:
+            assert run_code(session, svc) == "card_synthesis_invalid"  # unchanged before v10
+            assert [row[2] for row in fake.calls if row[1] == "synthesis"] == [False]
+            assert ("synthesis", "final") not in stage_keys(session, started.attempt_id)
+            return
+        run(session, svc)
+        assert session.get(DeepReviewAttempt, started.attempt_id).status == "completed"
+        assert [row[2] for row in fake.calls if row[1] == "synthesis"] == [False]  # an isolation is never a repair
+        expected = _expected_synthesis_isolations(captured)
+        final = _final_row(session, started.attempt_id).payload
+        assert final["isolated_items"] == expected
+        # verdict and reason are the model's; no model row survives, only the code rows
+        assert final["verdict"] == "조건부 진행"
+        assert final["reason"] == "확인이 필요한 요구사항이 남아 있어 조건부로 검토한다."
+        assert all(row["origin"] == "code" for row in final["next_actions"])
+        text = json.dumps(final, ensure_ascii=False)
+        assert "축약 인용 행동" not in text and "범위 밖 주의" not in text
+        view = verdict_view.verdict_view(session, company_id=world.company_id, notice_id=world.notice_id)
+        assert view["availability"] == "completed" and view["result"]["verdict"] == "조건부 진행"
+        assert all(row["origin"] == "code" for row in view["result"]["next_actions"])
+        frozen = session.get(DeepReviewPreview, started.preview_id).input_snapshot
+        units = {row["unit_id"]: row for row in frozen["card_analysis"]["units"]}
+        assert view["synthesis_isolations"] == [
+            {**row, "normalized_id": units[row["unit_id"]]["normalized_id"] if row["unit_id"] in units else None}
+            for row in expected]
+        assert view["role_isolations"] == []
+
+
+def test_c19_v10_final_row_written_before_c19_still_shows(flow_engine, monkeypatch) -> None:
+    """A completed v10 attempt from before C19 has no ``isolated_items`` on its final row: read as none."""
+
+    from app.deep_review.services import verdict_view
+
+    with Session(flow_engine) as session:
+        world, started, svc, _fake, _approval = start_world_v10(session, monkeypatch)
+        # the pre-C19 code path: v10 without synthesis item isolation
+        monkeypatch.setattr(card_analysis, "SYNTHESIS_ITEM_ISOLATION_POLICY_IDENTITIES", frozenset())
+        run(session, svc)
+        assert session.get(DeepReviewAttempt, started.attempt_id).status == "completed"
+        final = _final_row(session, started.attempt_id).payload
+        assert "isolated_items" not in final
+        monkeypatch.undo()
+        view = verdict_view.verdict_view(session, company_id=world.company_id, notice_id=world.notice_id)
+        assert view["availability"] == "completed" and view["synthesis_isolations"] == []
+
+
+def test_c19_v10_role_caution_outside_the_role_is_isolated_and_shown(flow_engine, monkeypatch) -> None:
+    from app.deep_review.services import verdict_view
+
+    with Session(flow_engine) as session:
+        world, started, svc, fake, _approval = start_world_v10(session, monkeypatch)
+        frozen = session.get(DeepReviewPreview, started.preview_id).input_snapshot
+        role, role_units = _largest_role(frozen)
+        units = frozen["card_analysis"]["units"]
+        other = next(row for row in units if _fake_role(row) != role)  # a unit of another role
+
+        def foreign_caution(output: dict) -> dict:
+            first = output["unit_findings"][0]
+            output["cautions"] = [
+                {"unit_id": first["unit_id"], "text": "확인 필요", "evidence_ids": list(first["evidence_ids"])},
+                {"unit_id": other["unit_id"], "text": "다른 역할 주의", "evidence_ids": list(first["evidence_ids"])},
+            ]
+            return output
+
+        fake.overrides[(role, 0)] = foreign_caution
+        run(session, svc)
+        assert session.get(DeepReviewAttempt, started.attempt_id).status == "completed"
+        row = _role_rows(session, started.attempt_id)[role]
+        assert row["isolated_items"] == [
+            {"kind": "caution", "unit_id": other["unit_id"], "rule_codes": ["role_caution_foreign_unit"]}]
+        assert [caution["text"] for caution in row["cautions"]] == ["확인 필요"]
+        assert role_units[0] == row["cautions"][0]["unit_id"]
+        final = _final_row(session, started.attempt_id).payload
+        assert "다른 역할 주의" not in json.dumps(final, ensure_ascii=False) and final["verdict"] != "진행 가능"
+        assert final["isolated_items"] == []  # nothing dropped at synthesis
+        view = verdict_view.verdict_view(session, company_id=world.company_id, notice_id=world.notice_id)
+        assert view["role_isolations"] == [{"role": role, "unit_id": other["unit_id"],
+                                            "normalized_id": other["normalized_id"], "kind": "caution",
+                                            "rule_codes": ["role_caution_foreign_unit"]}]
+
+
+def test_c19_v10_synthesis_only_resume_isolates_the_shortened_quote_action(flow_engine, monkeypatch) -> None:
+    """6fd5691f / 9d9eb200 shape: v10 failed at synthesis, resumed v10 -> v10 (synthesis only) with the bad action."""
+
+    from app.deep_review.services import verdict_view
+
+    with Session(flow_engine) as session:
+        world, source, _svc, fake, _approval = start_world_v10(session, monkeypatch)
+        failure = SchemaFailure()
+        fake.overrides.update({("synthesis", 0): failure, ("synthesis", 1): failure})
+        assert run_code(session, _svc) == "card_synthesis_invalid"
+        source_roles = _role_rows(session, source.attempt_id)
+
+        resumed = _start_resume(session, world, source.attempt_id)
+        knowledge = resolve_company_knowledge_context(session, world.company_id)
+        again = FakeLuna(knowledge.ontology)
+        captured = _capture_synthesis_roles(again)
+        again.overrides[("synthesis", 0)] = _synthesis_bad_items(captured)
+        run(session, DeepReviewService(client=again, structure_loader=tp._structure_loader,
+                                       raw_response_store=_FixtureStore()))
+        assert session.get(DeepReviewAttempt, resumed.attempt_id).status == "completed"
+        assert again.calls == [("card-synthesis-v2", "synthesis", False)]
+        assert _role_rows(session, resumed.attempt_id) == source_roles
+        final = _final_row(session, resumed.attempt_id).payload
+        assert final["isolated_items"] == _expected_synthesis_isolations(captured)
+        assert final["verdict"] == "조건부 진행" and all(row["origin"] == "code" for row in final["next_actions"])
+        view = verdict_view.verdict_view(session, company_id=world.company_id, notice_id=world.notice_id)
+        assert view["attempt_id"] == str(resumed.attempt_id) and view["availability"] == "completed"
+        assert [row["kind"] for row in view["synthesis_isolations"]] == ["caution", "next_action"]

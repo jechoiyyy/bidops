@@ -195,7 +195,20 @@ export const REJECTED_RULE_LABEL: Record<string, string> = {
   extract_unit_missing: "추출 답에서 요구사항이 빠짐",
   role_evidence_unknown: "역할 판단의 근거 번호가 목록에 없음",
   role_evidence_foreign_unit: "역할 판단이 다른 요구사항의 근거 번호를 인용함",
+  // 결정 C19: 역할 밖 주의·종합 항목 격리
+  role_caution_foreign_unit: "역할 주의가 그 역할 밖 요구사항을 가리킴",
+  synthesis_unit_outside_roles: "종합 항목이 역할 결과에 없는 요구사항을 가리킴",
+  synthesis_evidence_outside_unit: "종합 항목의 근거가 그 요구사항 근거와 다름",
 };
+
+/**
+ * 결정 C19: 격리 목록의 대상 이름. 요구사항 번호가 없으면 영역 항목(segment)과
+ * 카드에 없는 id를 구분한다(모델이 지어낸 id를 영역 항목처럼 보이지 않게).
+ */
+export function isolationTarget(normalizedId: string | null, unitId: string, index: number): string {
+  if (normalizedId) return normalizedId;
+  return unitId.startsWith("segment:") ? `영역 항목 ${index + 1}` : "판정 대상에 없는 항목";
+}
 
 /** 결정 C16: 역할 이름(격리 목록 보조 문구). */
 export const ROLE_LABEL: Record<string, string> = {

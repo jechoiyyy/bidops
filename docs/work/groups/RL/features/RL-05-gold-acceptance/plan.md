@@ -47,6 +47,15 @@
    - 작업 대상: card_roles.py·card_analysis.py·schemas·contracts(role v2), runner contract map, mock client, 정책 v10(역할 계약 지시), verdict_view(격리 표시), 프런트(격리 표시가 기존 extract 격리 표시를 재사용하는지), RL-03 spec·contracts·business-rules.
    - 검증: 단위(번호 매핑·잘못된 번호·다른 unit 번호·격리 한도·누락 unit 격리·v9 동작 불변), T11 mock, PG, 실제 10건(T5).
 
+8. STEP-008 v10 격리 보완(결정 C19) [complex]
+   - 목표: v10 실제 10건 중 3건 실패 원인 제거 — 역할 caution이 역할 밖 unit을 가리키면 치명 대신 격리(버리고 기록, C16 설계대로), 종합의 caution·next_action 중 근거가 그 unit 근거와 맞지 않거나 unit이 역할 결과 밖이면 그 항목만 버리고 기록(판정·이유는 그대로, 자동 보정 없음). 정책 파일 v10 불변, v10(역할 계약 v2) 검증 코드만. v1~v9 불변.
+   - 작업 대상: card_roles.py(validate_verdict_role_v2·validate_practitioner_verdict), 종합 행 가산 키, verdict_view·프런트 격리 표시, RL-03 spec·contracts·business-rules.
+   - 검증: 단위(역할 밖 caution 격리·종합 항목 격리·v9 불변·기존 v10 완료 행 재검증 통과), PG, Playwright verdict, 내일 실제 재시도(5번 전체·7·8번 종합만).
+
+9. STEP-009 정책 v11 — unit·근거 짧은 번호 참조와 텍스트 조건 규칙(결정 C20) [complex]
+   - 목표: v10 실제 실패 중 C19로 남는 원인 제거 — 역할 출력이 unit_id(64자 sha 포함)를 잘라 옮김(2번), 종합 caution·next_action이 근거 3값을 옮김(3·7·8번), 추출 텍스트 조건 값이 인용과 글자 불일치로 격리 26%(1번). (a) 역할 계약 v3·종합 계약 v3: unit은 짧은 번호(U1…), 근거는 짧은 번호(E1…)로만 인용하고 코드가 되돌림. (b) 추출 text 종류 조건: 인용(quote)은 원문과 글자 그대로여야 하지만 값(value)은 그 인용의 요약이어도 허용; 숫자·단위·비교 종류는 지금처럼 정확 일치. (c) 새 불변 정책 v11, RL identity 목록 v11, C19 격리 규칙 유지. v1~v10 불변.
+   - 검증: 단위·PG·mock T11·Playwright verdict, v11 승인 뒤 10건 실제 분석(T5).
+
 ## 위임
 
 | 단계 | 작업량 | 난이도 | 모델 | 이유 |
@@ -58,6 +67,8 @@
 | STEP-005 | S | 낮음 | standard | 문서 |
 | STEP-006 | M | 높음 | complex | selector·정책 버전 불변식, 실제 분석 영향 |
 | STEP-007 | M | 높음 | complex | 출력 계약·격리 의미 변경 |
+| STEP-008 | S | 높음 | complex | 격리 의미 보완 |
+| STEP-009 | M | 높음 | complex | 출력 계약·검증 규칙 변경 |
 
 ## 위험
 

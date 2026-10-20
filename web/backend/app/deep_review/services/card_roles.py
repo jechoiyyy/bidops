@@ -38,7 +38,15 @@ HP-03 rules (spec "단계 wire 계약" 역할·종합) with RL names:
   such a caution is dropped; both are recorded in ``isolated_items``.  More
   than 25% isolated findings of the role's units is ``card_role_invalid``;
   coverage, order, role name and assessments beyond the compare stay fatal.
-  Any role isolation caps the verdict below "진행 가능" like ``rejected_units``.
+  Any role isolation caps the verdict below "진행 가능" like ``rejected_units``;
+* 결정 C19 (policy v10): a role caution naming a unit outside the role is
+  dropped too (``role_caution_foreign_unit``; cautions never count toward the
+  25% limit, which is about findings).  A synthesis caution or next action whose
+  unit is in no role result or whose evidence is outside that unit's role
+  evidence is left out of the final row and recorded in its ``isolated_items``
+  (``validate_practitioner_verdict_isolated``); verdict, reason, blocking ids,
+  code actions and caps are unchanged, an invented owner stays fatal, and a
+  dropped item is never rewritten or remapped.
 """
 
 from __future__ import annotations
@@ -58,6 +66,7 @@ from ..contracts import (
 )
 from ..schemas.card_analysis import (
     MISSING_SECTION_ACTION_PREFIX,
+    ROLE_CAUTION_FOREIGN_UNIT_RULE,
     ROLE_ISOLATED_REASON,
     CardNextAction,
     CardAssembledPractitionerVerdict,
@@ -69,6 +78,7 @@ from ..schemas.card_analysis import (
     CardRequirementExtract,
     CardRequirementMatrixItem,
     CardSynthesisInput,
+    CardSynthesisIsolation,
     CardVerdictCaution,
     CardVerdictConflict,
     CardVerdictRoleInput,
@@ -87,6 +97,9 @@ from .company_analysis_input import card_role_evidence_index
 #: 결정 C16: rule codes of an isolated role finding/caution (``CardRoleIsolation``).
 ROLE_EVIDENCE_UNKNOWN_RULE: Final[str] = "role_evidence_unknown"
 ROLE_EVIDENCE_FOREIGN_RULE: Final[str] = "role_evidence_foreign_unit"
+#: 결정 C19: rule codes of a dropped synthesis caution/next action (``CardSynthesisIsolation``).
+SYNTHESIS_UNIT_OUTSIDE_ROLES_RULE: Final[str] = "synthesis_unit_outside_roles"
+SYNTHESIS_EVIDENCE_OUTSIDE_UNIT_RULE: Final[str] = "synthesis_evidence_outside_unit"
 
 VERDICT_ROLES: Final[tuple[VerdictRole, ...]] = ("eligibility_economics", "technical_fit", "operations_risk")
 ROLE_REQUIREMENT_TYPES: Final[dict[str, frozenset[str]]] = {
@@ -273,13 +286,15 @@ def validate_verdict_role_v2(
 
     Fatal (``card_role_invalid``) as in v1: the v2 output schema, the role name,
     findings not exactly one per role unit in input order, an assessment other
-    than the compare ``fit_status`` or ``unknown``, a caution naming a unit
-    outside the role, more than 25% isolated findings.  Per item: an id that is
-    not in the payload's ``card_role_evidence_index`` (``role_evidence_unknown``)
-    or belongs to another unit (``role_evidence_foreign_unit``) isolates that
+    than the compare ``fit_status`` or ``unknown``, more than 25% isolated
+    findings (cautions never count).  Per item: an id that is not in the
+    payload's ``card_role_evidence_index`` (``role_evidence_unknown``) or
+    belongs to another unit (``role_evidence_foreign_unit``) isolates that
     finding (``unknown``, ``ROLE_ISOLATED_REASON``, no evidence) or drops that
-    caution; each is recorded as ``{kind, unit_id, rule_codes}``.  Valid ids are
-    mapped to their frozen triples in the cited order; nothing else is changed.
+    caution; 결정 C19: a caution naming a unit outside the role is dropped with
+    the single code ``role_caution_foreign_unit`` (its ids are not resolved);
+    each is recorded as ``{kind, unit_id, rule_codes}``.  Valid ids are mapped
+    to their frozen triples in the cited order; nothing else is changed.
     """
 
     try:
@@ -326,7 +341,11 @@ def validate_verdict_role_v2(
                                  "evidence_refs": refs})
         for row in payload["cautions"]:
             if row["unit_id"] not in compare_fit:
-                raise _role_invalid()
+                # 결정 C19: a caution naming a unit outside the role is dropped and recorded
+                # (not a finding, so it never counts toward the 25% limit).
+                isolated.append({"kind": "caution", "unit_id": row["unit_id"],
+                                 "rule_codes": [ROLE_CAUTION_FOREIGN_UNIT_RULE]})
+                continue
             refs, codes = resolve(row["unit_id"], row["evidence_ids"])
             if codes:
                 isolated.append({"kind": "caution", "unit_id": row["unit_id"], "rule_codes": codes})
@@ -412,6 +431,55 @@ def validate_practitioner_verdict(
     default rejects every non-null owner.
     """
 
+    result, _isolated = _checked_practitioner_verdict(
+        payload, synthesis_input=synthesis_input, extract=extract, compare=compare, allowed_owners=allowed_owners,
+        missing_sections=missing_sections, rejected_units=rejected_units, isolate=False,
+    )
+    return result
+
+
+def validate_practitioner_verdict_isolated(
+    payload: Mapping[str, Any],
+    *,
+    synthesis_input: CardSynthesisInput | Mapping[str, Any],
+    extract: CardRequirementExtract | Mapping[str, Any],
+    compare: CardRequirementCompare | Mapping[str, Any],
+    allowed_owners: Sequence[str] = (),
+    missing_sections: Sequence[str] = (),
+    rejected_units: Sequence[str] = (),
+) -> tuple[CardPractitionerVerdict, list[CardSynthesisIsolation]]:
+    """결정 C19 (policy v10): ``validate_practitioner_verdict`` with per-item isolation of cautions/next actions.
+
+    A caution or next action whose unit is in no role result
+    (``synthesis_unit_outside_roles``) or that cites an evidence triple outside
+    that unit's role evidence (``synthesis_evidence_outside_unit``, e.g. a
+    shortened quote) is left out of the returned verdict and recorded as
+    ``{kind, unit_id, rule_codes}`` -- never rewritten or remapped.  Everything
+    else is unchanged and fatal (``card_synthesis_invalid``): an owner outside
+    ``allowed_owners`` (even on an item that is dropped), blocking ids, the
+    mandatory-gap rule on the kept cautions, the rejected-units contract, and
+    "진행 가능" while anything is unresolved -- the dropped items count as
+    unresolved, so dropping never makes "진행 가능" pass.  Verdict, reason and
+    blocking ids are returned as answered.
+    """
+
+    return _checked_practitioner_verdict(
+        payload, synthesis_input=synthesis_input, extract=extract, compare=compare, allowed_owners=allowed_owners,
+        missing_sections=missing_sections, rejected_units=rejected_units, isolate=True,
+    )
+
+
+def _checked_practitioner_verdict(
+    payload: Mapping[str, Any],
+    *,
+    synthesis_input: CardSynthesisInput | Mapping[str, Any],
+    extract: CardRequirementExtract | Mapping[str, Any],
+    compare: CardRequirementCompare | Mapping[str, Any],
+    allowed_owners: Sequence[str],
+    missing_sections: Sequence[str],
+    rejected_units: Sequence[str],
+    isolate: bool,
+) -> tuple[CardPractitionerVerdict, list[CardSynthesisIsolation]]:
     try:
         validate_payload(payload, PRACTITIONER_VERDICT_SCHEMA)
         result = CardPractitionerVerdict.model_validate(payload)
@@ -437,33 +505,49 @@ def validate_practitioner_verdict(
         if role_unit_ids != unit_ids:
             raise _synthesis_invalid()
         evidence_by_unit = _role_evidence_by_unit(frozen_roles)
+
+        def item_codes(unit_id: str, refs: Sequence[Any]) -> list[str]:
+            if unit_id not in role_unit_ids:
+                return [SYNTHESIS_UNIT_OUTSIDE_ROLES_RULE]
+            if any(_evidence_key(evidence) not in evidence_by_unit.get(unit_id, set()) for evidence in refs):
+                return [SYNTHESIS_EVIDENCE_OUTSIDE_UNIT_RULE]
+            return []
+
+        isolated: list[CardSynthesisIsolation] = []
+        kept_cautions = []
         for caution in result.cautions:
-            if caution.unit_id not in role_unit_ids or any(
-                _evidence_key(evidence) not in evidence_by_unit.get(caution.unit_id, set())
-                for evidence in caution.evidence_refs
-            ):
+            codes = item_codes(caution.unit_id, caution.evidence_refs)
+            if not codes:
+                kept_cautions.append(caution)
+            elif isolate:
+                # 결정 C19: dropped as answered (never rewritten), recorded with codes only.
+                isolated.append(CardSynthesisIsolation(kind="caution", unit_id=caution.unit_id, rule_codes=codes))
+            else:
                 raise _synthesis_invalid()
         owner_allowlist = set(allowed_owners)
+        kept_actions = []
         for action in result.next_actions:
-            if action.unit_id not in role_unit_ids:
-                raise _synthesis_invalid()
+            # an invented owner stays fatal, also on an action that would be dropped (결정 C19)
             if action.owner is not None and action.owner not in owner_allowlist:
                 raise _synthesis_invalid()
-            if any(
-                _evidence_key(evidence) not in evidence_by_unit.get(action.unit_id, set())
-                for evidence in action.evidence_refs
-            ):
+            codes = item_codes(action.unit_id, action.evidence_refs)
+            if not codes:
+                kept_actions.append(action)
+            elif isolate:
+                isolated.append(CardSynthesisIsolation(kind="next_action", unit_id=action.unit_id, rule_codes=codes))
+            else:
                 raise _synthesis_invalid()
         mandatory_gaps = _mandatory_gap_ids(parsed_extract, parsed_compare)
         if not set(result.blocking_condition_ids) <= set(mandatory_gaps):
             raise _synthesis_invalid()
-        caution_ids = {row.unit_id for row in result.cautions}
+        caution_ids = {row.unit_id for row in kept_cautions}
         if any(unit_id not in result.blocking_condition_ids and unit_id not in caution_ids for unit_id in mandatory_gaps):
             raise _synthesis_invalid()
         unresolved = (
             any(row.fit_status != "met" for row in parsed_compare.items)
             or any(finding.assessment != "met" for role in frozen_roles.roles for finding in role.unit_findings)
             or any(role.cautions for role in frozen_roles.roles)
+            # the answer as given: a dropped item (결정 C19) is still unresolved
             or bool(result.cautions)
             or bool(result.next_actions)
         )
@@ -473,7 +557,9 @@ def validate_practitioner_verdict(
             mandatory_gaps or unresolved or missing_sections or rejected_units or role_isolated
         ):
             raise _synthesis_invalid()
-        return result
+        if not isolated:
+            return result, isolated
+        return result.model_copy(update={"cautions": kept_cautions, "next_actions": kept_actions}), isolated
     except CardAnalysisValidationError as error:
         if error.code != CARD_SYNTHESIS_INVALID:
             raise _synthesis_invalid() from None
@@ -583,6 +669,7 @@ def assemble_practitioner_verdict(
     rejected_units: Sequence[str] = (),
     record_rejected_units: bool = False,
     code_actions: bool = False,
+    isolate_items: bool = False,
 ) -> CardAssembledPractitionerVerdict:
     """Code-owned checklist, matrix and role conflicts around the validated synthesis.
 
@@ -598,6 +685,13 @@ def assemble_practitioner_verdict(
 
     결정 B55: ``code_actions`` (synthesis contract v2) marks the model actions
     ``origin="model"`` and appends ``code_next_actions`` (``origin="code"``).
+
+    결정 C19: ``isolate_items`` (policy v10) validates with
+    ``validate_practitioner_verdict_isolated``: the dropped cautions/next actions
+    never reach the row and are recorded in ``isolated_items`` (``[]`` when
+    none); without it the key is absent (v1-v9 stored shape unchanged).  Pass
+    the synthesis answer as given -- an already filtered verdict has nothing
+    left to record.
     """
 
     try:
@@ -607,9 +701,10 @@ def assemble_practitioner_verdict(
         )
         parsed_extract, parsed_compare = _parsed_extract_compare(extract, compare)
         payload = synthesis.model_dump(mode="json") if isinstance(synthesis, CardPractitionerVerdict) else synthesis
-        verdict = validate_practitioner_verdict(
+        verdict, isolated = _checked_practitioner_verdict(
             payload, synthesis_input=frozen_roles, extract=parsed_extract, compare=parsed_compare,
             allowed_owners=allowed_owners, missing_sections=missing_sections, rejected_units=rejected_units,
+            isolate=isolate_items,
         )
         compare_by_id = {row.unit_id: row for row in parsed_compare.items}
         rejected_by_id = {row.unit_id: row for row in parsed_extract.rejected_units}
@@ -684,6 +779,7 @@ def assemble_practitioner_verdict(
             rejected_units=(
                 [row.model_copy(deep=True) for row in parsed_extract.rejected_units] if record_rejected_units else None
             ),
+            isolated_items=[row.model_copy(deep=True) for row in isolated] if isolate_items else None,
         )
     except CardAnalysisValidationError as error:
         if error.code != CARD_SYNTHESIS_INVALID:
@@ -695,10 +791,13 @@ def assemble_practitioner_verdict(
 
 __all__ = [
     "CHECKLIST_MEMBERS",
+    "ROLE_CAUTION_FOREIGN_UNIT_RULE",
     "ROLE_EVIDENCE_FOREIGN_RULE",
     "ROLE_EVIDENCE_UNKNOWN_RULE",
     "ROLE_ISOLATED_REASON",
     "ROLE_REQUIREMENT_TYPES",
+    "SYNTHESIS_EVIDENCE_OUTSIDE_UNIT_RULE",
+    "SYNTHESIS_UNIT_OUTSIDE_ROLES_RULE",
     "VERDICT_ROLES",
     "assemble_practitioner_verdict",
     "build_synthesis_input",
@@ -709,6 +808,7 @@ __all__ = [
     "unit_evidence_keys",
     "validate_isolated_verdict_role",
     "validate_practitioner_verdict",
+    "validate_practitioner_verdict_isolated",
     "validate_verdict_role",
     "validate_verdict_role_v2",
 ]

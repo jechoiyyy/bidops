@@ -67,6 +67,7 @@ VIEW_KEYS = {
     "missing_sections", "started_at", "finished_at", "partial_matrix", "briefing_item_id", "opportunity_id",
     "rejected_units",  # 결정 B51 (additive)
     "role_isolations",  # 결정 C16 (additive)
+    "synthesis_isolations",  # 결정 C19 (additive)
 }
 FIT_ORDER = {"gap": 0, "unknown": 1, "met": 2}
 
@@ -228,7 +229,7 @@ def expected_view(session: Session, world, seeded, item, started, *, availabilit
         "partial_matrix": [] if completed else expected_rows(session, started.attempt_id, "partial"),
         "briefing_item_id": str(item.id),
         "opportunity_id": opportunity_id if opportunity_id is not None else seeded.opportunity_id,
-        "rejected_units": [], "role_isolations": [],
+        "rejected_units": [], "role_isolations": [], "synthesis_isolations": [],
     }
 
 
@@ -249,6 +250,7 @@ def test_t6_none_pending_completed_strict_dicts_and_the_opportunity_alias(flow_e
             "partial_stage_ids": [], "error_code": None, "missing_sections": [], "started_at": None,
             "finished_at": None, "partial_matrix": [], "briefing_item_id": str(item.id),
             "opportunity_id": seeded.opportunity_id, "rejected_units": [], "role_isolations": [],
+            "synthesis_isolations": [],
         }
         assert client.get(f"/api/opportunities/{seeded.opportunity_id}/verdict").json() == none.json()
 
@@ -357,7 +359,7 @@ def test_t6_attempt_selection_legacy_and_errors(flow_engine, monkeypatch, client
             "missing_sections": [], "started_at": stamp.isoformat(),
             "finished_at": (stamp + timedelta(minutes=5)).isoformat(), "partial_matrix": [],
             "briefing_item_id": None, "opportunity_id": other.opportunity_id, "rejected_units": [],
-            "role_isolations": [],
+            "role_isolations": [], "synthesis_isolations": [],
         }
 
         # another notice's attempt, unknown attempt, unknown company/notice → 404; bad query → 422
@@ -397,7 +399,7 @@ def test_t6_opportunity_alias_newest_pre_spec_none_and_merged(flow_engine, monke
             "stale_reasons": [], "quality_status": None, "identity": None, "source_binding": None, "result": None,
             "partial_stage_ids": [], "error_code": None, "missing_sections": [], "started_at": None,
             "finished_at": None, "partial_matrix": [], "briefing_item_id": None, "opportunity_id": empty.id,
-            "rejected_units": [], "role_isolations": [],
+            "rejected_units": [], "role_isolations": [], "synthesis_isolations": [],
         }
 
         merged = Opportunity(first_registered_stage="pre_spec", merged_into_opportunity_id=opportunity.id,
