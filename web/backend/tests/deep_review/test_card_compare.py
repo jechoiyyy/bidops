@@ -193,6 +193,36 @@ def test_allowlist_outside_operator_unknown_contract_scope_and_incomplete_units_
     assert rows[5].constraint_results[0].reason_code == "scope_unverified"
 
 
+def test_c21_text_value_outside_its_quote_does_not_cover_another_clause() -> None:
+    """결정 C21(리뷰 권고): a v11 summarized text value that is not verbatim in its quote
+    must not mark a different source clause as covered; a verbatim value still does."""
+
+    from app.deep_review.schemas.card_analysis import CardAnalysisUnit, CardRequirementExtractItem
+    from app.deep_review.services.card_compare import _atomic_coverage_incomplete
+
+    texts = ["보안서약서 제출 및 발주기관 사전승인"]
+    company = synthetic_company([_fact("qual:sanction_free", "confirmed", {"held": True, "detail": None})])
+    _frozen, units = frozen_for(texts, company)
+    # clause 1 is covered by a verbatim value; clause 2 only by a summarized value whose
+    # quote does not contain it -- before C21 that summary marked clause 2 covered.
+    summarized = extract_item(units[0], type_="계약", constraints=[
+        constraint(units[0], kind="text", value="보안서약서 제출", unit_name=None, operator="eq",
+                   quote="보안서약서 제출"),
+        constraint(units[0], kind="text", value="발주기관 사전승인", unit_name=None, operator="eq",
+                   quote="보안서약서 제출 및 발주기관"),
+    ])
+    verbatim = extract_item(units[0], type_="계약", constraints=[
+        constraint(units[0], kind="text", value="보안서약서 제출", unit_name=None, operator="eq",
+                   quote="보안서약서 제출"),
+        constraint(units[0], kind="text", value="발주기관 사전승인", unit_name=None, operator="eq",
+                   quote="발주기관 사전승인"),
+    ])
+    unit = units[0] if isinstance(units[0], CardAnalysisUnit) else CardAnalysisUnit.model_validate(units[0])
+    as_item = CardRequirementExtractItem.model_validate
+    assert _atomic_coverage_incomplete(as_item(summarized), unit) is True
+    assert _atomic_coverage_incomplete(as_item(verbatim), unit) is False
+
+
 def test_concept_paths_defer_to_the_allowlist_and_refuse_other_targets() -> None:
     texts = ["직접생산확인증명서 제출", "사회적기업 인증", "신용평가등급 확인"]
     company = synthetic_company([

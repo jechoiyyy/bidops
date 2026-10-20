@@ -2256,7 +2256,7 @@ DEMO-03(2026-10-10, 같은 데모 브랜치)은 공통 계약 §5·§6·§9·§1
 
 ### 설정 키
 
-`BIDOPS_RL_ANALYSIS_ENABLED`(bool, 기본 false: REST·게이트 개방)·`BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED`(bool, 기본 false: 자동 트리거·drain)·`BIDOPS_RL_ANALYSIS_POLICY_PATH`(기본 `policies/analysis-policy-luna-rl-v10.json`, import 원본; 기본값 이력 v1 → v2(B23) → v3(B30) → v4(B33) → v5(B35) → v6(B37) → v7(B51) → v8(B53) → v9(B55) → v10(C15))·`BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID`(UUID, 비면 RL 경로 fail closed). 승인 행의 `daily_cap`은 CLI 인자(기본 10, 1..50)다. `BIDOPS_REFERENCE_WORKFLOW_MODE`·`BIDOPS_LUNA_DEEP_REVIEW_ENABLED`는 RL 경로도 요구한다(변경 없음). 모두 꺼짐·미설정이 기본이고 앱 startup은 migration·정책 활성화·모델 호출을 하지 않는다.
+`BIDOPS_RL_ANALYSIS_ENABLED`(bool, 기본 false: REST·게이트 개방)·`BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED`(bool, 기본 false: 자동 트리거·drain)·`BIDOPS_RL_ANALYSIS_POLICY_PATH`(기본 `policies/analysis-policy-luna-rl-v11.json`, import 원본; 기본값 이력 v1 → v2(B23) → v3(B30) → v4(B33) → v5(B35) → v6(B37) → v7(B51) → v8(B53) → v9(B55) → v10(C15) → v11(C20))·`BIDOPS_RL_DEEP_REVIEW_POLICY_VERSION_ID`(UUID, 비면 RL 경로 fail closed). 승인 행의 `daily_cap`은 CLI 인자(기본 10, 1..50)다. `BIDOPS_REFERENCE_WORKFLOW_MODE`·`BIDOPS_LUNA_DEEP_REVIEW_ENABLED`는 RL 경로도 요구한다(변경 없음). 모두 꺼짐·미설정이 기본이고 앱 startup은 migration·정책 활성화·모델 호출을 하지 않는다.
 
 ### 확장점·CLI
 
