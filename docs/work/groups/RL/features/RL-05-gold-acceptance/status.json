@@ -119,80 +119,80 @@
     "docs": {
       "result": "pass",
       "method": "review",
-      "note": "최종 코드 9e574c4(STEP-008·009 검증 77b96bb 이후 문서만 변경 — 코드 로그 재사용). doctor 0, 문서 diff(model-quality-gate·operations·hp-contract·ADR·contracts·business-rules·RL-03 spec·validation README·findings) 확인",
-      "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/final-doctor.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step005-doctor.log",
+      "note": "최종 코드(리뷰 권고 반영). doctor 0, 리뷰 권고 2 문서 정정",
+      "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/final-doctor2.log; 독립 리뷰(차단 0, decisions C25)",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "python3 scripts/feature_status.py doctor _",
-      "at": "2026-10-20T12:59:34+09:00",
-      "head": "9e574c46892ab2794475df00e4f1f360974c2479",
-      "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
-      "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
+      "at": "2026-10-20T13:12:56+09:00",
+      "head": "3efffdff35967ba26156b0a56b46082d9e17733d",
+      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+      "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
     },
     "tests": {
       "result": "pass",
       "method": "command",
-      "note": "최종 코드 9e574c4(STEP-008·009 검증 77b96bb 이후 문서만 변경 — 코드 로그 재사용). rl-gold 50 passed, export_evaluation 포함 백엔드 묶음 PG 905 passed(skip 2=PDF 폰트 부재, 무관)",
-      "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/final-rl-gold.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
+      "note": "최종 코드(리뷰 권고 반영). 대조 변경 영향 묶음 PG 413 passed(compare·card·verdict·export·경계) + rl-gold 50 + 이전 전체 묶음 905(변경 경로 외 소스 동일)",
+      "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/review-fix-pg.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/final-rl-gold.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
-      "at": "2026-10-20T12:59:34+09:00",
-      "head": "9e574c46892ab2794475df00e4f1f360974c2479",
-      "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
-      "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
+      "at": "2026-10-20T13:12:56+09:00",
+      "head": "3efffdff35967ba26156b0a56b46082d9e17733d",
+      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+      "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
     },
     "postgres": {
       "result": "pass",
       "method": "command",
-      "note": "최종 코드 9e574c4(STEP-008·009 검증 77b96bb 이후 문서만 변경 — 코드 로그 재사용). postgres:17.11 905 passed(export PG·card·verdict·migrations·privileges·drift)",
-      "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
+      "note": "최종 코드(리뷰 권고 반영). postgres:17.11 413(수정 후) + 905(수정 전, 대조 외 경로 동일)",
+      "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/review-fix-pg.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-20T12:59:34+09:00",
-      "head": "9e574c46892ab2794475df00e4f1f360974c2479",
-      "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
-      "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
+      "at": "2026-10-20T13:12:57+09:00",
+      "head": "3efffdff35967ba26156b0a56b46082d9e17733d",
+      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+      "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
     },
     "frontend": {
       "result": "pass",
       "method": "command",
-      "note": "최종 코드 9e574c4(STEP-008·009 검증 77b96bb 이후 문서만 변경 — 코드 로그 재사용). plan에는 비적용이었으나 STEP-007·008이 판정 탭(격리 표시)을 바꿔 적용: build·contrast 0, Playwright verdict·record·proposal 87 passed",
+      "note": "최종 코드(리뷰 권고 반영). 프런트 변경 없음 — 77b96bb 이후 소스 동일, build·contrast 0, Playwright 87",
       "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-frontend-build.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-playwright.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
-      "at": "2026-10-20T12:59:34+09:00",
-      "head": "9e574c46892ab2794475df00e4f1f360974c2479",
-      "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
-      "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
+      "at": "2026-10-20T13:12:57+09:00",
+      "head": "3efffdff35967ba26156b0a56b46082d9e17733d",
+      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+      "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
     },
     "api_guard": {
       "result": "pass",
       "method": "command",
-      "note": "최종 코드 9e574c4(STEP-008·009 검증 77b96bb 이후 문서만 변경 — 코드 로그 재사용). plan에는 비적용이었으나 STEP-007·009가 역할·종합 전송 payload(evidence_catalog·unit_refs)를 바꿔 적용: test_verdict_payload_guard·transfer_policy·company_luna_policy PG 통과",
+      "note": "최종 코드(리뷰 권고 반영). 전송 payload 경로 변경 없음 — payload guard·transfer policy PG 통과 로그 재사용",
       "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
       "exit_code": 0,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-20T12:59:35+09:00",
-      "head": "9e574c46892ab2794475df00e4f1f360974c2479",
-      "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
-      "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
+      "at": "2026-10-20T13:12:57+09:00",
+      "head": "3efffdff35967ba26156b0a56b46082d9e17733d",
+      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+      "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
     },
     "real_data_run": {
       "result": "pass",
       "method": "manual",
-      "note": "T5 실행 완료와 사람 판단: gold 10건(사람 확정) + v11 실제 attempt 10건 채점(판정 3/10·차단 재현율 0.0·카드 0.84·치명 오판 0) → 사용자 decision=reject(2026-10-20). 증명은 실행·사람 결정 완료를 뜻하며 품질 합격이 아님",
+      "note": "T5 실행·사람 결정 완료(decision=reject, 2026-10-20). 리뷰 권고 1 수정은 v11 결과에 영향 없음(모델 met 0). 품질 합격이 아님",
       "evidence": "docs/validation-runs/2026-10-19-rl/RL-05/README.md; .sdlc/local-runtime/rl-evaluation-20261019/acceptance.json (sha 97a4fbf8…)",
       "exit_code": null,
       "actor": "orchestrator",
       "command": "",
-      "at": "2026-10-20T12:59:35+09:00",
-      "head": "9e574c46892ab2794475df00e4f1f360974c2479",
-      "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
-      "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
+      "at": "2026-10-20T13:12:57+09:00",
+      "head": "3efffdff35967ba26156b0a56b46082d9e17733d",
+      "source_hash": "09febe6262c945aebed74be8bf07d797cab3113c8198eedc00e9f97e8525c085",
+      "spec_hash": "72f41f62fd67b661c2d9993fd9bb354a3287d37f7f34545d4ef72274a220f42a"
     }
   },
   "notes": [
@@ -309,7 +309,7 @@
       "text": "단계 → validating"
     }
   ],
-  "updated_at": "2026-10-20T12:59:45+09:00",
+  "updated_at": "2026-10-20T13:12:57+09:00",
   "proof_history": [
     {
       "key": "docs",
@@ -345,6 +345,102 @@
       "key": "real_data_run",
       "previous": {
         "result": "pending"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pass",
+        "method": "review",
+        "note": "최종 코드 9e574c4(STEP-008·009 검증 77b96bb 이후 문서만 변경 — 코드 로그 재사용). doctor 0, 문서 diff(model-quality-gate·operations·hp-contract·ADR·contracts·business-rules·RL-03 spec·validation README·findings) 확인",
+        "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/final-doctor.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step005-doctor.log",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "python3 scripts/feature_status.py doctor _",
+        "at": "2026-10-20T12:59:34+09:00",
+        "head": "9e574c46892ab2794475df00e4f1f360974c2479",
+        "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
+        "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "최종 코드 9e574c4(STEP-008·009 검증 77b96bb 이후 문서만 변경 — 코드 로그 재사용). rl-gold 50 passed, export_evaluation 포함 백엔드 묶음 PG 905 passed(skip 2=PDF 폰트 부재, 무관)",
+        "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/final-rl-gold.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
+        "at": "2026-10-20T12:59:34+09:00",
+        "head": "9e574c46892ab2794475df00e4f1f360974c2479",
+        "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
+        "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "최종 코드 9e574c4(STEP-008·009 검증 77b96bb 이후 문서만 변경 — 코드 로그 재사용). postgres:17.11 905 passed(export PG·card·verdict·migrations·privileges·drift)",
+        "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-20T12:59:34+09:00",
+        "head": "9e574c46892ab2794475df00e4f1f360974c2479",
+        "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
+        "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "최종 코드 9e574c4(STEP-008·009 검증 77b96bb 이후 문서만 변경 — 코드 로그 재사용). plan에는 비적용이었으나 STEP-007·008이 판정 탭(격리 표시)을 바꿔 적용: build·contrast 0, Playwright verdict·record·proposal 87 passed",
+        "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-frontend-build.log; /Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-playwright.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+        "at": "2026-10-20T12:59:34+09:00",
+        "head": "9e574c46892ab2794475df00e4f1f360974c2479",
+        "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
+        "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "최종 코드 9e574c4(STEP-008·009 검증 77b96bb 이후 문서만 변경 — 코드 로그 재사용). plan에는 비적용이었으나 STEP-007·009가 역할·종합 전송 payload(evidence_catalog·unit_refs)를 바꿔 적용: test_verdict_payload_guard·transfer_policy·company_luna_policy PG 통과",
+        "evidence": "/Users/temp/orca/bidops/.sdlc/worktrees/batch-rlc-20261019/docs/work/_runs/rlc-20261019/logs/step008-009-pg.log",
+        "exit_code": 0,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-20T12:59:35+09:00",
+        "head": "9e574c46892ab2794475df00e4f1f360974c2479",
+        "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
+        "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pass",
+        "method": "manual",
+        "note": "T5 실행 완료와 사람 판단: gold 10건(사람 확정) + v11 실제 attempt 10건 채점(판정 3/10·차단 재현율 0.0·카드 0.84·치명 오판 0) → 사용자 decision=reject(2026-10-20). 증명은 실행·사람 결정 완료를 뜻하며 품질 합격이 아님",
+        "evidence": "docs/validation-runs/2026-10-19-rl/RL-05/README.md; .sdlc/local-runtime/rl-evaluation-20261019/acceptance.json (sha 97a4fbf8…)",
+        "exit_code": null,
+        "actor": "orchestrator",
+        "command": "",
+        "at": "2026-10-20T12:59:35+09:00",
+        "head": "9e574c46892ab2794475df00e4f1f360974c2479",
+        "source_hash": "710135f340d3cb9861a48b7a85160764f55c4f6e1da3f00c3eb9df2ab9d87533",
+        "spec_hash": "5f2d0be3b8bcc346606ab18d23c47639ceece721430fa5374459d8491835c602"
       }
     }
   ]

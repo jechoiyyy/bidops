@@ -474,7 +474,13 @@ def _atomic_coverage_incomplete(item: CardRequirementExtractItem, unit: CardAnal
                 _scalar_atom_signatures(clause)
                 or any(fact_anchor_matches(key, clause) for key in CARD_FACT_ANCHORS)
                 or any(candidate.alias_text in clause for candidate in item.concept_candidates)
-                or any(row.kind in {"text", "date"} and str(row.value) in clause for row in item.constraints)
+                # 결정 C21(리뷰 권고): a v11 text value may summarize its quote, so only a
+                # value that is also verbatim in the quote can mark a source clause covered
+                # (v1~v10 values are always inside the quote -- unchanged there).
+                or any(
+                    row.kind in {"text", "date"} and str(row.value) in clause and str(row.value) in row.quote
+                    for row in item.constraints
+                )
             ):
                 continue
             return True
