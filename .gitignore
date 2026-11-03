@@ -36,8 +36,30 @@ backups/
 #   data/runs/*/screening-results.json   2국면 모델 비교의 기준선
 #   reports/*/review-feedback.yaml       담당자 리뷰 기록
 
-# Claude Code 개인 설정 (커밋하지 않는다)
-.claude/settings.local.json
+# 로컬 AI 도구 설정·첨부·작업 공간 (파일은 로컬에 보존한다)
+.claude/
+.codex/
+.orca/
+.sdlc/
 .gjc/
-# /sdlc:loop 기능별 worktree
-.sdlc/worktrees/
+
+# 개인 편집기 설정과 OS 임시 파일
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# 로컬 Python 환경·캐시·coverage
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# 재생성 가능한 브라우저 테스트 결과 (docs의 검증 증거는 계속 추적한다)
+web/frontend/test-results/
+web/frontend/playwright-report/
