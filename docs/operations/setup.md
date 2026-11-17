@@ -5,8 +5,8 @@
 ## 사전 조건
 
 - Docker Engine과 Docker Compose가 필요하다. host 검증에는 Python 3.12+, Node 22+, npm 10+가 필요하다.
-- `.env.example`을 `.env`로 복사하고 실제 비밀은 외부 secret manager에서 주입한다. `.env`는 커밋하지 않는다.
-- `.env`는 모든 compose 파일이 공유하는 공통 파일이다. overlay 전용 값은 `env/<overlay>.env`에 두고 추가 `--env-file`로 넘긴다. `env/*.env.example`을 같은 이름의 `.env`로 복사해 사용하며 실제 파일은 커밋하지 않는다.
+- 개발은 `make env`로 격리 credential을 생성한다. 운영은 `.env.example`을 `.env`로 복사하고 실제 비밀을 외부 secret manager에서 주입한다. 실제 env는 커밋하지 않는다.
+- `.env`는 prod만 읽는 공통 파일이다. 목적별 값은 `env/<용도>.env`에 두며 selector가 읽는다. `env/*.env.example`을 같은 이름의 `.env`로 복사해 사용하며 실제 파일은 커밋하지 않는다.
 - `BIDOPS_UID`와 `BIDOPS_GID`는 0이 아닌 host 계정과 맞춘다.
 - PostgreSQL owner, migrate, app, worker, read-only backup 계정의 비밀번호를 서로 다르게 설정한다.
 - MinIO root와 source, structure write/read, quarantine, model-response, proposal-pdf(`BIDOPS_PROPOSAL_PDF_ACCESS_KEY`·`_SECRET_KEY`, web만 받음 — RL-04 결정 B48) 자격증명을 용도별로 분리한다.
@@ -16,7 +16,7 @@
 
 ### 웹의 회사자료 입력 전제
 
-`docker-compose.yml`의 `web` 서비스는 다음 세 파일을 host checkout에서 read-only로 주입한다. 세 파일은 build context와 runtime image에 없으므로 Compose로 웹 서비스를 실행할 때 반드시 현재 checkout에 regular file로 존재하고 읽을 수 있어야 한다.
+`docker/docker-compose.yml`의 `web` 서비스는 다음 세 파일을 host checkout에서 read-only로 주입한다. 세 파일은 build context와 runtime image에 없으므로 Compose로 웹 서비스를 실행할 때 반드시 현재 checkout에 regular file로 존재하고 읽을 수 있어야 한다.
 
 ```text
 docs/reference/company-profile.md
@@ -36,50 +36,27 @@ test -f web/backend/app/screening/baseline_company_profile.md && test -r web/bac
 
 ## 최초 기동
 
-### 기존 화면을 유지하는 사전규격 비교 서버
-
-기존 `bidops` 프로젝트의 DB·MinIO·ClamAV가 실행 중일 때, 비교 overlay는
-`web-comparison`만 추가한다. 기존 `web`(18787)을 재생성하지 않으며 별도 이미지와
-18887 포트를 쓴다. 포트가 사용 중이면 `BIDOPS_COMPARISON_WEB_PORT=18888`을 명시한다.
-두 웹은 같은 데이터를 사용하므로 어느 쪽에서 저장해도 양쪽에 반영된다.
+새 개발 환경은 [환경 선택](host.md)의 `make env → make build → make init → make create`를 따른다.
+프런트엔드는 Docker `$BUILDPLATFORM`에서 native로 빌드하고 아키텍처 독립적인 dist만 복사한다. Python 앱 runtime은 amd64, 문서 worker는 arm64 기본값을 유지한다.
+이전 `web-comparison`은 종료됐으며 같은 운영 DB를 쓰는 비교 서버를 새로 만들지 않는다.
+운영 최초 설치는 `.env`·모델·첨부·C-2 env와 승인 입력·이미지 태그를 준비하고 단계별 확인 후 실행한다.
 
 ```bash
-COMPOSE_PROJECT_NAME=bidops docker compose --env-file .env \
-  -f docker-compose.yml -f docker-compose.edge.yml \
-  -f docker-compose.luna-max-comparison.yml build web-comparison
-COMPOSE_PROJECT_NAME=bidops docker compose --env-file .env \
-  -f docker-compose.yml -f docker-compose.edge.yml \
-  -f docker-compose.luna-max-comparison.yml up -d --no-deps --no-build web-comparison
-curl --fail http://127.0.0.1:18787/api/health
-curl --fail http://127.0.0.1:18887/api/health
+export BIDOPS_ENV=prod
+make config
+make init
+make create
+make health
 ```
 
-비교용 worker·migration·수집기는 실행하지 않는다. 원격 확인이 필요하면 기존 18787
-전달은 유지하고 `tailscale serve --bg --tcp=18887 tcp://127.0.0.1:18887`을 추가한다.
-WSL mirrored 환경에서 비교 컨테이너를 재생성할 때 해당 비교 포트의 serve만 잠시
-끄고 기동 후 복원한다. 비교를 마칠 때는 위 Compose 파일 조합으로
-`stop web-comparison`만 실행하며 전체 프로젝트 `down`이나 볼륨 삭제를 하지 않는다.
-
-```bash
-cp .env.example .env
-cp env/model.env.example env/model.env
-export COMPOSE_PROJECT_NAME=bidops
-docker compose -f docker-compose.yml build
-docker compose -f docker-compose.yml up -d postgres minio clamav
-./scripts/init-runtime.sh
-docker compose --env-file .env --env-file env/model.env \
-  -f docker-compose.yml -f docker-compose.edge.yml -f docker-compose.model-egress.yml \
-  up -d web document-worker analysis-worker
-curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
-```
-
-`--env-file`을 명시하면 기본 `.env` 자동 로드가 꺼지므로 공통 파일과 overlay 파일을 함께 넘긴다. overlay 없이 기동할 때는 `--env-file` 없이 `.env`가 자동 로드된다.
+selector가 env와 overlay를 모두 선택한다. `make config`는 `config --quiet`를 사용해 비밀값을
+출력하지 않는다. 초기화·migration은 `make up`·앱 startup에서 실행되지 않는다.
 
 `scripts/init-runtime.sh`는 DB 역할 초기화, Alembic migration, MinIO 버킷·정책 초기화를 순서대로 실행한다. 앱 startup은 이 작업을 대신하지 않는다. `bidops-source`, `bidops-structure`, `bidops-quarantine`, `bidops-model-response`, `bidops-proposal-pdf` 버킷은 versioning과 최소 권한 정책을 유지한다. 만료 규칙은 `bidops-model-response` 90일, `bidops-proposal-pdf`(RL-04 제안서 초안 PDF, `retention_class=proposal-pdf-365d`, 암호화 없음) 365일이며 나머지는 만료하지 않는다.
 
 `migrate` service는 Alembic 성공 뒤 `scripts/runtime-privileges.sql`을 적용한다. 이 단계는 이전 blanket grant를 먼저 회수하고 현재 head의 table·operation allowlist를 다시 부여한다. 새 table은 `app`·`worker` 기본 DML을 받지 않으므로 migration에 runtime write path가 추가되면 같은 변경에서 allowlist와 역할 smoke test를 갱신해야 한다. `ro_backup`만 현재·향후 table의 `SELECT` 기본 권한을 유지한다.
 
-현재 코드의 기대 head는 `0041_proposal_draft`다. 아래는 사전규격 검토 제외·복원을 도입한 `0030_prespec_review_exclusion`의 변경 설명이다.
+현재 코드의 기대 head는 `app/core/db.py`의 `ALEMBIC_HEAD`와 migration head로 확인한다. 아래는 사전규격 검토 제외·복원을 도입한 `0030_prespec_review_exclusion`의 변경 설명이다.
 `notice`에 현재 제외 상태와 마지막 담당자·사유·시각 네 열을 추가하고 기존 건은
 included/null로 읽는다. `scripts/runtime-privileges.sql`의 app 열 한정 UPDATE 네 열을
 migration과 함께 적용해야 한다. worker 권한과 모델 설정은 바꾸지 않는다.
@@ -96,7 +73,7 @@ migration과 함께 적용해야 한다. worker 권한과 모델 설정은 바�
 
 첨부 worker의 자동 준비 경로가 필요로 하는 묶음·큐 INSERT를 worker에 부여한다. 사전규격 첨부 취득이 종결되면 `prespec-attachment-worker`가 같은 프로세스에서 문서 묶음을 만들고 확정한 뒤 개요 run을 큐에 넣으므로, worker 역할은 `document_bundle`·`document_bundle_item`·`idempotency_record`·`work_job` INSERT와 확정에 쓰는 열만 여는 `document_bundle`·`document_bundle_item` 열 한정 UPDATE, 잠금용 `document_structure (id)` UPDATE를 갖는다. 확정은 문서 집합·순서가 그대로면 기존 draft 항목을 지우지 않고 제자리로 갱신하므로 이 권한만으로 끝난다. 이 권한이 없으면 자동 준비가 SQLSTATE `42501`로 막히고 운영자가 app 역할의 보정 명령을 대신 실행해야 한다. worker는 어느 table에도 DELETE를 갖지 않으며, 권한을 바꿀 때는 `scripts/runtime-privileges.sql`과 역할 smoke test를 같은 변경에서 갱신하고 migration 단계로 다시 적용한다.
 
-사설 vLLM 없이 웹과 문서 준비만 확인할 때는 model-egress overlay를 빼고 기동할 수 있다. 이 경우 분석 worker가 모델 단계에서 실패하는 것은 정상이며 성공으로 보정하지 않는다.
+사설 모델 없이 웹과 문서 준비만 확인할 때는 `BIDOPS_ENV=dev`로 기동한다. 이 경우 분석 worker가 모델 단계에서 실패하는 것은 정상이며 성공으로 보정하지 않는다.
 
 `env/model.env`에는 쓰는 용도만 채운다. 비워 둔 용도는 endpoint가 빈 문자열로 남고,
 그 용도의 호출은 `resolve_model_endpoint`가 네트워크 접촉 전에 거부한다. C-1 판정만
@@ -112,9 +89,7 @@ overlay 추가만으로 egress가 안전해지지 않는다. host firewall의 �
 ```bash
 cp env/prespec-attachment.env.example env/prespec-attachment.env
 # env/prespec-attachment.env의 BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS를 승인된 값으로 채운다.
-COMPOSE_PROJECT_NAME=bidops docker compose \
-  --env-file .env --env-file env/prespec-attachment.env \
-  -f docker-compose.yml -f docker-compose.prespec-attachment.yml \
+BIDOPS_ENV=prod scripts/compose.sh \
   up -d prespec-attachment-worker
 ```
 
@@ -137,12 +112,13 @@ python -m app.deep_review.workers.prespec_attachment --once --notice-id 179
 첨부 URL의 수명은 아직 측정하지 않았으므로 `unknown`으로 유지한다. URL·object key·로컬
 경로·자격증명은 worker 상태와 감사 상세에 저장하지 않는다.
 
-모델 없이 상태 전이와 저장·검증 계보만 확인할 때는 mock override를 사용한다. 이 override는 전용 값을 파일 안에 리터럴로 선언하므로 추가 env 파일이 필요 없고 어떤 egress도 열지 않는다.
+모델 없이 상태 전이와 저장·검증 계보만 확인할 때는 별도 mock 환경을 사용한다.
 
 ```bash
-COMPOSE_PROJECT_NAME=bidops docker compose \
-  -f docker-compose.yml -f docker-compose.mock-reference.yml \
-  up -d web document-worker analysis-worker
+make env BIDOPS_ENV=mock
+make build BIDOPS_ENV=mock
+make init BIDOPS_ENV=mock
+make create BIDOPS_ENV=mock
 ```
 
 이 override는 두 단계를 모두 덮는다. 심층 검토는 `BIDOPS_ANALYSIS_PROVIDER=mock`,
@@ -244,11 +220,11 @@ scripts/run-prespec-workflow.sh --help
 
 | 파일 | 소비하는 compose | 담는 값 |
 |---|---|---|
-| `.env` | `docker-compose.yml`, `docker-compose.edge.yml` | 프로세스 정체성, 로그, DB·MinIO 자격증명, 암호화 키, 화면 port, 승인 profile/policy 참조 |
-| `env/model.env` | `docker-compose.model-egress.yml`, `docker-compose.c2-order-plan.yml` | 용도별 `BIDOPS_VLLM_{SCREENING,OVERVIEW,DEEP_REVIEW}_*`, 공유 `BIDOPS_VLLM_*`, C-2 입력 파일 host 경로 |
-| `env/prespec-attachment.env` | `docker-compose.prespec-attachment.yml` | `BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS` |
-| `env/slack.env` | `docker-compose.slack-egress.yml` | `BIDOPS_SLACK_*`(활성 스위치·bot/app token·채널 ID·허용 host)와 `BIDOPS_PUBLIC_BASE_URL`. 예시 `env/slack.env.example`만 추적한다 |
-| 없음 | `docker-compose.mock-reference.yml` | 전용 값을 override 파일 안에 리터럴로 선언한다 |
+| `.env` | `docker/docker-compose.yml`, `docker/docker-compose.edge.yml` | 프로세스 정체성, 로그, DB·MinIO 자격증명, 암호화 키, 화면 port, 승인 profile/policy 참조 |
+| `env/model.env` | `docker/docker-compose.prod.yml` | 용도별 `BIDOPS_VLLM_{SCREENING,OVERVIEW,DEEP_REVIEW}_*`, 공유 `BIDOPS_VLLM_*`, C-2 입력 파일 host 경로 |
+| `env/prespec-attachment.env` | `docker/docker-compose.prod.yml` | `BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS` |
+| `env/slack.env` | `docker/docker-compose.slack-egress.yml` | `BIDOPS_SLACK_*`(활성 스위치·bot/app token·채널 ID·허용 host)와 `BIDOPS_PUBLIC_BASE_URL`. 예시 `env/slack.env.example`만 추적한다 |
+| 없음 | `docker/docker-compose.mock-reference.yml` | 전용 값을 override 파일 안에 리터럴로 선언한다 |
 
 overlay 전용 값을 `.env`에 두지 않는다. `.env`에 두면 overlay를 붙이지 않은 기동에서도 endpoint가 주입되어 fail-closed 기본값이 흐려진다.
 

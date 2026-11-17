@@ -2,6 +2,10 @@
 
 [전체 운영 절차](../operations.md). 기준일: 2026-10-21. 명령은 별도 표시가 없으면 저장소 루트에서 실행한다. 운영 변경·실제 전송은 단계별 승인 범위를 따른다.
 
+현재 실행은 `export BIDOPS_ENV=prod`로 운영 환경을 명시한 뒤 아래 명령을 쓴다.
+격리 개발·mock 설치는 [host](host.md)를 따른다. 이 문서의 이전 참조 실행 기록은 현재 품질·활성화 승인이 아니다.
+
+
 현재 운영의 마지막 확인은 2026-10-19다. 아래 참조 절차의 과거 실행 상태는 현재 스위치 상태가 아니다. 신규 실행에서 당시 승인을 재사용하지 않는다.
 
 ## 사전규격 심층 검토 참조 실행
@@ -26,7 +30,7 @@
 
 1. **수집기 timeout은 300초로 준다.** `collect_notices.py`의 `--timeout` 기본값은 30초이고
    사전규격 구간 수집에서는 거의 항상 모자란다.
-2. **회차 디렉터리는 host에서 만들고 `docker compose cp`로 컨테이너에 넣는다.** web
+2. **회차 디렉터리는 host에서 만들고 `scripts/compose.sh cp`로 컨테이너에 넣는다.** web
    컨테이너에는 나라장터 API key가 없다. 수집은 host에서 하고 결과 디렉터리만 넣는다.
 3. **컨테이너 안에서 `127.0.0.1`을 쓰지 않는다.** 컨테이너의 loopback은 자기 자신이다.
    DB는 `postgres`, 객체 저장소는 `minio`, 검사기는 `clamav`처럼 **서비스 이름**을 쓰고,
@@ -51,7 +55,7 @@ cd /path/to/bidops
 git status --short
 git rev-parse HEAD
 cp .env.example .env          # 이미 있으면 건너뛴다
-export COMPOSE_PROJECT_NAME=bidops
+export BIDOPS_ENV=prod
 ```
 
 `.env`에서 최소한 다음을 채운다. 비밀은 외부 secret manager에서 주입하고 `.env`는
@@ -78,17 +82,17 @@ test -f web/backend/app/screening/baseline_company_profile.md
 기동한다.
 
 ```bash
-docker compose -f docker-compose.yml build
-docker compose -f docker-compose.yml up -d postgres minio clamav
+scripts/compose.sh build
+scripts/compose.sh up -d postgres minio clamav
 ./scripts/init-runtime.sh
-docker compose -f docker-compose.yml up -d web document-worker
+scripts/compose.sh up -d web document-worker
 curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
 ```
 
 `curl`은 **host에서** 실행하므로 `127.0.0.1`이 맞다. 컨테이너 안에서 같은 주소를 쓰지
 않는다.
 
-- **확인**: `docker compose ps`에서 `postgres`·`minio`·`clamav`·`web`·`document-worker`가
+- **확인**: `scripts/compose.sh ps`에서 `postgres`·`minio`·`clamav`·`web`·`document-worker`가
   healthy 또는 running이고, `/api/health`가 `{"status":"ok"}`다.
 - **중단 기준**: `init-runtime.sh`가 실패하거나 `/api/health`가 200이 아니면 다음 단계로
   가지 않는다. MinIO versioning 검증 실패는 fail-closed가 정상 동작이므로 우회하지 않는다.
@@ -101,7 +105,7 @@ curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/health"
 실행에서는 **품질 인자 없이** import한다 — 아직 측정한 값이 없기 때문이다.
 
 ```bash
-docker compose -f docker-compose.yml exec web \
+scripts/compose.sh exec web \
   python -m app.deep_review.cli import-profile-policy \
   --actor '<담당자 이름>'
 ```
@@ -124,10 +128,10 @@ BIDOPS_REFERENCE_WORKFLOW_MODE=true
 심층 검토 생성이 계속 실패한다.
 
 ```bash
-docker compose -f docker-compose.yml up -d --force-recreate web
+scripts/compose.sh up -d --force-recreate web
 ```
 
-- **확인**: `docker compose exec web env | grep BIDOPS_ACTIVE_`가 두 UUID를 보여 준다.
+- **확인**: `scripts/compose.sh exec web env | grep BIDOPS_ACTIVE_`가 두 UUID를 보여 준다.
   `import-profile-policy` 출력의 `active_configuration_changed`는 항상 `false`다 — 명령이
   환경을 대신 바꾸지 않는다는 뜻이므로 정상이다.
 - **중단 기준**: 명령이 `policy_hash_mismatch`나 `invalid_request`로 끝나면 값을 고쳐 넣지
@@ -169,8 +173,8 @@ python3 skills/bidops-collect/scripts/select_validation_sample.py \
 회차 디렉터리를 컨테이너에 넣고 적재한다.
 
 ```bash
-docker compose -f docker-compose.yml cp "data/runs/${RUN_ID}" web:/app/data/runs/
-docker compose -f docker-compose.yml exec web \
+scripts/compose.sh cp "data/runs/${RUN_ID}" web:/app/data/runs/
+scripts/compose.sh exec web \
   python -m app.lifecycle.ingest.cli --run "${RUN_ID}"
 ```
 
@@ -192,7 +196,7 @@ docker compose -f docker-compose.yml exec web \
   해롭지는 않다(멱등). 과거 회차를 손으로 다시 맞출 때만 쓴다.
 
   ```bash
-  docker compose -f docker-compose.yml exec web python -c \
+  scripts/compose.sh exec web python -c \
     "from app.core.db import SessionLocal; from app.deep_review.services.prespec_attachments import refresh_fetch_eligibility; s=SessionLocal(); print(refresh_fetch_eligibility(s)); s.commit()"
   ```
 
@@ -233,8 +237,7 @@ curl --fail --silent --show-error \
 overlay를 붙여 `web`을 재기동한다.
 
 ```bash
-docker compose --env-file .env --env-file env/model.env \
-  -f docker-compose.yml -f docker-compose.edge.yml -f docker-compose.model-egress.yml \
+scripts/compose.sh \
   up -d web
 ```
 
@@ -276,8 +279,7 @@ curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/screening/executions
 ```bash
 cp env/prespec-attachment.env.example env/prespec-attachment.env
 # BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS 를 방화벽에서 승인한 host와 같게 채운다
-docker compose --env-file .env --env-file env/prespec-attachment.env \
-  -f docker-compose.yml -f docker-compose.prespec-attachment.yml \
+scripts/compose.sh \
   up -d prespec-attachment-worker
 ```
 
@@ -285,7 +287,7 @@ overlay가 `BIDOPS_G2B_ATTACHMENT_ENABLED=true`를 덮고 `prespec-egress` netwo
 overlay 없이는 기본값 `false`로 worker가 idle이고, allowlist가 비면 fail closed한다.
 worker 설정은 concurrency 1, poll 5초, lease 120초다.
 
-- **확인**: `docker compose logs --since=10m prespec-attachment-worker`에 안전한 상태 전이만
+- **확인**: `scripts/compose.sh logs --since=10m prespec-attachment-worker`에 안전한 상태 전이만
   보인다. `/api/pre-specs`의 항목 `document` 집계에서 `완료` 건수가 오르고,
   `auto_preparation_status`가 `waiting_attachments`에서 넘어간다.
 - **중단 기준**: 로그에 URL·object key·로컬 경로·자격증명이 보이면 **즉시 중지하고 보고한다**
@@ -316,8 +318,8 @@ BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH=/app/app/deep_review/policies/prespec-overvi
 ```
 
 `BIDOPS_PRESPEC_OVERVIEW_ENABLED`가 `false`(기본값)면 개요 run이 자동으로 만들어지지
-않는다. 이 참조 실행은 C-2를 돌리지 않으므로 `docker-compose.c2-order-plan.yml`을 붙이지
-않으며, 따라서 C-2 입력 파일 host 경로도 필요 없다.
+않는다. prod는 승인된 C-2 입력 마운트를 함께 보존한다. 이 참조 실행에서 C-2를 돌리지 않으려면
+`BIDOPS_C2_EXECUTION_ALLOWED=false`를 선택 환경에 명시하고, 다른 운영 작업과 충돌하지 않는지 확인한다.
 
 v8 예비 판단 정책 파일은 제품 코드에 있지만 기본값은 v7이다. v8 경로로 바꾸는 것은 실제
 모델 호출과 기존 자동화 소비 경계에 영향을 주는 운영 변경이다. 0031 migration, web과
@@ -326,8 +328,7 @@ analysis-worker의 동일 image·정책 mount, 고정 표본의 사람 품질 �
 경로를 바꾸지 않는다.
 
 ```bash
-docker compose --env-file .env --env-file env/model.env \
-  -f docker-compose.yml -f docker-compose.model-egress.yml \
+scripts/compose.sh \
   up -d analysis-worker
 ```
 
@@ -342,7 +343,7 @@ docker compose --env-file .env --env-file env/model.env \
    충족하지 않고 `semantic_status=passed`와 `overview_full` 범위가 필요하다.
 
 플래그가 켜져 있는 동안 1의 자격은 "`우선 검토` 또는 `SW사업대상=Y`"다(2026-09-11 MVP 완화).
-이미 적재가 끝나 촉발 지점이 지나간 공고는 `docker compose exec web python -m
+이미 적재가 끝나 촉발 지점이 지나간 공고는 `scripts/compose.sh exec web python -m
 app.deep_review.cli prepare-overviews --all-eligible [--limit N] [--dry-run]`으로 한 번에
 태운다 — 이 명령은 묶음 준비와 개요 enqueue까지만 하고 모델을 부르지 않는다. 대상에서
 `queued`·`running`·`completed` run이 있는 공고는 빠진다. 0026 적용 뒤에는(과거 run 행이
@@ -460,10 +461,10 @@ curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/deep-reviews/<deep_r
 ### 실행 뒤 정리
 
 ```bash
-docker compose -f docker-compose.yml stop analysis-worker prespec-attachment-worker web
+scripts/compose.sh stop analysis-worker prespec-attachment-worker web
 ```
 
-`docker compose down -v`와 volume 삭제는 하지 않는다. 회차 원본과 만들어진 검토는
+`scripts/compose.sh down -v`와 volume 삭제는 하지 않는다. 회차 원본과 만들어진 검토는
 보존한다. 참조 실행이 만든 심층 검토를 나중에 실제 품질 실행으로 재사용하지 않는다 —
 provider/model 계보와 품질 표식이 고정돼 있으므로 새 묶음 또는 새 policy version으로 새
 검토를 만든다.
@@ -494,7 +495,7 @@ python3 skills/bidops-screen/scripts/validate_order_plan_phase0.py --json
 ./web/run-web-tests.sh
 cd web/frontend && npm run test:contrast
 cd web/frontend && npm run test:screens
-COMPOSE_PROJECT_NAME=bidops docker compose -f docker-compose.yml build
+make build BIDOPS_ENV=dev
 ```
 
 `web/run-web-tests.sh`는 임시 PostgreSQL 17에서 migration을 수행하고, 격리 DB의 backend 테스트와 frontend production build, Playwright 화면 스냅샷 회귀를 실행한다. 검증 폭은 laptop 1280x800과 desktop 1440x900 두 폭이다(ADR-0047. 이전의 네 폭에서 모바일 390·태블릿 768을 없앴다). 화면 검사는 의미·구조·픽셀 세 층이며 게이트는 앞의 둘(`npm run test:screens`)이다. 픽셀 층(`npm run test:pixel`)은 기준 이미지 대조라 게이트가 아니고, 갈아 끼울 때는 사유·영향 화면·승인자를 기록에 남긴다([standards.md](../standards.md)). Docker가 없으면 `BIDOPS_TEST_POSTGRES_URL`에 폐기 가능한 PostgreSQL 관리 URL을 제공한다. 운영 DB URL을 사용하지 않는다. Playwright는 브라우저 번들을 자동으로 내려받지 않으므로 없으면 실패한다.

@@ -2,6 +2,10 @@
 
 [전체 운영 절차](../operations.md). 기준일: 2026-10-21. 명령은 별도 표시가 없으면 저장소 루트에서 실행한다. 운영 변경·실제 전송은 단계별 승인 범위를 따른다.
 
+현재 실행은 `export BIDOPS_ENV=prod`로 운영 환경을 명시한 뒤 아래 명령을 쓴다.
+격리 개발·mock 설치는 [host](host.md)를 따른다. 이 문서의 이전 참조 실행 기록은 현재 품질·활성화 승인이 아니다.
+
+
 0041과 RL 코드는 2026-10-19 운영에 배포됐지만 분석은 비활성이다. 아래 절차는 격리 환경에서 검증한 실행 방법이다. 현재 정책 기본값은 v11, RL-04 실제 초안은 partial(4/6절), RL-05 인수는 reject다. 근거는 [현재 현황](../tracking/status.md)을 따른다.
 
 ## 회사 근거 갱신 (RL-00, 2026-10-16)
@@ -15,7 +19,7 @@
 5. **확인.** `GET /api/company`의 `active_graph_version.graph_version_id`가 방금 활성화한 값인지, `GET /api/companies/{company_id}/profile`의 facts 수가 `status_counts` 합과 같고 origin·status가 의도한 값인지 본다. `GET /api/workload`의 `company_attention`은 `proposed`+`unknown` 합과 같아야 한다. 이전 버전은 `profile?graph_version_id=`로 계속 조회된다.
 6. **기록.** README에 새 파일 sha256(`source_sha256`·`graph_sha256` 포함)·`status_counts`·변경 사유를 덧붙인다.
 
-CLI는 web 이미지 안에서 돈다. fixture 디렉터리를 읽기 전용으로 마운트한 일회용 컨테이너로 실행한다(예: compose overlay에 `~/orca/fixtures/company/rootlab:/fixtures/rootlab:ro`를 둔 서비스로 `docker compose ... run --rm --no-deps -T <서비스> python -m app.deep_review.cli import-company-knowledge --ontology /fixtures/rootlab/ontology.v2.json --company /fixtures/rootlab/rootlab.source.v1.json --actor <이름>`). 2026-10-16 RL-00 STEP-006은 `bidops-local` 안의 별도 DB `bidops_rla`(기존 `bidops` DB는 HP-03 migration 0039에 있어 main 계열과 이력이 갈라졌다)에서 이 방식으로 import→activate→REST 확인을 했다(README 참조).
+CLI는 web 이미지 안에서 돈다. fixture 디렉터리를 읽기 전용으로 마운트한 일회용 컨테이너로 실행한다(예: compose overlay에 `~/orca/fixtures/company/rootlab:/fixtures/rootlab:ro`를 둔 서비스로 `scripts/compose.sh ... run --rm --no-deps -T <서비스> python -m app.deep_review.cli import-company-knowledge --ontology /fixtures/rootlab/ontology.v2.json --company /fixtures/rootlab/rootlab.source.v1.json --actor <이름>`). 2026-10-16 RL-00 STEP-006은 `bidops-local` 안의 별도 DB `bidops_rla`(기존 `bidops` DB는 HP-03 migration 0039에 있어 main 계열과 이력이 갈라졌다)에서 이 방식으로 import→activate→REST 확인을 했다(README 참조).
 
 운영 DB에서 import·activate를 실행하는 것은 **직전에 사람 확인을 받는다.** dry-run은 쓰기가 없지만 확인 없이 활성화하지 않는다. 격리 스택(`bidops-local`)에서 먼저 같은 순서로 확인하고 운영 반영은 별도 승인이다. 가상회사 파일은 `BIDOPS_DEMO_ENABLED=true`가 아니면 import·`--dry-run` 모두 `fictional_requires_demo`(exit 2)로 거부된다. "곧 만료" 기준일 수는 `BIDOPS_COMPANY_EXPIRY_WARNING_DAYS`(기본 60, 1..365)다.
 
@@ -34,14 +38,14 @@ CLI는 web 이미지 안에서 돈다. fixture 디렉터리를 읽기 전용으�
 | `BIDOPS_REFERENCE_WORKFLOW_MODE`·`BIDOPS_LUNA_DEEP_REVIEW_ENABLED` | 기존 | **RL 경로도 요구한다**(변경 없음, 결과가 참조 실행 표식) |
 | `BIDOPS_PRESPEC_OVERVIEW_ENABLED`·`BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED` | `false` | RL 판정은 개요를 쓰지 않는다. 실제 호출 스택에서는 둘 다 `false`로 둬 개요 모델 호출이 생기지 않게 한다 |
 
-기반 compose는 RL 키를 전달하지 않는다. 키는 web과 `worker` DB 자격으로 도는 서비스(`analysis-worker`·`prespec-attachment-worker`)가 **모두 같은 값**으로 읽어야 하므로 env 파일·overlay로 주고, 올린 뒤 `docker compose exec -T <서비스> printenv BIDOPS_RL_ANALYSIS_ENABLED`처럼 서비스마다 값 하나씩 확인한다.
+기반 compose는 RL 키를 전달하지 않는다. 키는 web과 `worker` DB 자격으로 도는 서비스(`analysis-worker`·`prespec-attachment-worker`)가 **모두 같은 값**으로 읽어야 하므로 env 파일·overlay로 주고, 올린 뒤 `scripts/compose.sh exec -T <서비스> printenv BIDOPS_RL_ANALYSIS_ENABLED`처럼 서비스마다 값 하나씩 확인한다.
 
 **1. 배포 전제(운영 변경이므로 직전에 사람 확인).** migration `0040_card_analysis`(테이블 4개 + `briefing_item.slack_message_ts`, [contracts.md](../contracts.md))와 `scripts/runtime-privileges.sql`의 새 권한(worker INSERT 5개 포함)을 적용하고 `web`·`analysis-worker`·`codex-runner` 이미지를 새로 올린다. 전체 백업과 `before-rl-verdict-<날짜>` 롤백 태그를 먼저 남기고 migration head를 기록한다. 새 테이블은 DELETE 권한이 없어 되돌리려면 백업으로 복구한다. 회사 근거(RL-00)의 활성 binding이 먼저 있어야 한다(없으면 `company_profile_not_ready`).
 
 **2. 정책 import와 선택.** 정책 행은 승인 대상이자 선택 대상이다. 파일을 고쳐 쓰지 않고 immutable 파일을 import한다.
 
 ```bash
-docker compose -f docker-compose.yml exec web \
+scripts/compose.sh exec web \
   python -m app.deep_review.cli import-profile-policy \
   --policy /app/web/backend/app/deep_review/policies/analysis-policy-luna-rl-v11.json \
   --label analysis-policy-luna-rl-v11 \
@@ -105,7 +109,7 @@ curl -sS -X POST "http://127.0.0.1:<web 포트>/api/opportunities/<opportunity_i
 **3. 전송 정책 승인(사람 직전 확인 대상, 실제 전송 권한을 여는 단계).**
 
 ```bash
-docker compose -f docker-compose.yml exec web \
+scripts/compose.sh exec web \
   python -m app.deep_review.cli approve-transfer-policy \
   --policy analysis-policy-luna-rl-v9 --actor '<담당자 이름>' --daily-cap <N> [--dry-run]
 # v1~v8 행을 계속 쓰는 환경이면 --policy analysis-policy-luna-rl-v1|…|v8(정책 파일 경로도 같은 버전)
@@ -115,19 +119,19 @@ docker compose -f docker-compose.yml exec web \
 - 확인: `GET /api/analysis/transfer-policy`의 `active.approval_id`·`daily_cap`·`today_used`가 CLI 출력과 같은지 본다(화면 조작은 서버 상태로 확인한다).
 - **철회:** `revoke-transfer-policy --approval-id <id> --actor <이름> --reason <사유>`. 한 번만 가능하며 이후 자동 경로와 worker가 호출 전에 `policy_not_approved`로 멈춘다. 이미 실행 중인 attempt도 첫 호출 전 승인 재검사에서 멈춘다. 상한을 바꾸려면 철회하고 새로 승인한다.
 
-**4. Luna runner와 인증·egress.** 기존 `docker-compose.luna.yml`(profile `luna`)을 쓴다. `codex-runner`만 `luna-internal`(내부)과 `luna-egress` 두 네트워크에 있고 web·`analysis-worker`는 내부망뿐이며 runner에는 DB·MinIO·원문 volume이 없다. 인증은 `env/luna.env`의 `BIDOPS_CODEX_AUTH_FILE`이 가리키는 `auth.json` 파일 **하나를 compose secret으로 runner에만 읽기 전용 마운트**한다. 로컬 PoC는 호스트 개인 로그인 파일을 쓰며(2026-10-17 인터뷰 D6, CLI 0.162.1) 값·파일 내용을 로그·문서·채팅·명령줄에 남기지 않고 다른 서비스에 마운트하지 않는다. runner 이미지는 `card-extract-v1|card-role-v1|card-synthesis-v1` contract를 알아야 하므로 이 변경 뒤 다시 빌드한다. `luna-egress`는 host allowlist가 아니므로 운영에서는 방화벽에서 runner의 필요한 통신만 허용했는지 따로 확인한다. 구현·mock 검증은 Luna 인증·모델 접근·실자료 품질을 증명하지 않는다. 오케스트레이션 명령 배열과 롤백은 [Luna 운영 적용 절차](../0922_luna-deep-review/apply.md)의 compose 조합을 따르고 서비스 교체는 `up -d --no-deps --no-build --force-recreate`로 한다.
+**4. Luna runner와 인증·egress.** 기존 `docker/docker-compose.luna.yml`(profile `luna`)을 쓴다. `codex-runner`만 `luna-internal`(내부)과 `luna-egress` 두 네트워크에 있고 web·`analysis-worker`는 내부망뿐이며 runner에는 DB·MinIO·원문 volume이 없다. 인증은 `env/luna.env`의 `BIDOPS_CODEX_AUTH_FILE`이 가리키는 `auth.json` 파일 **하나를 compose secret으로 runner에만 읽기 전용 마운트**한다. 로컬 PoC는 호스트 개인 로그인 파일을 쓰며(2026-10-17 인터뷰 D6, CLI 0.162.1) 값·파일 내용을 로그·문서·채팅·명령줄에 남기지 않고 다른 서비스에 마운트하지 않는다. runner 이미지는 `card-extract-v1|card-role-v1|card-synthesis-v1` contract를 알아야 하므로 이 변경 뒤 다시 빌드한다. `luna-egress`는 host allowlist가 아니므로 운영에서는 방화벽에서 runner의 필요한 통신만 허용했는지 따로 확인한다. 구현·mock 검증은 Luna 인증·모델 접근·실자료 품질을 증명하지 않는다. 오케스트레이션은 `BIDOPS_ENV=prod`와 선택 env의 `BIDOPS_COMPOSE_FEATURES=luna`를 사용하는 공통 선택기를 따르고, [Luna 운영 적용 절차](../0922_luna-deep-review/apply.md)의 옛 compose 조합은 재사용하지 않는다. 현재 배포의 이미지·정책 버전으로 롤백을 준비하며 서비스 교체는 `up -d --no-deps --no-build --force-recreate`로 한다.
 
 **4a. 로컬 원본 연결(결정 B15, 첨부 행에 파일이 없을 때).** G2B 링크만 있고 바이트가 없는 사전규격 첨부 행에, 이전 수집본과 sha256이 같은 로컬 원본을 연결한다. G2B를 부르지 않으며 바이트는 G2B fetcher와 **같은** 격리→ClamAV·MIME/확장자 검사→source→문서·구조 경로를 지난다. 연결 뒤 그 공고의 문서 준비를 trigger `operator_local_original`로 연다(등급·브리핑 자격만 건너뛰고 취득 종결·safe·구조·확정 fence는 그대로). 첨부 worker와 같은 자격·네트워크(worker DB 자격, `scanning` 네트워크의 ClamAV, 문서 storage, 변환 scratch)를 쓰므로 `prespec-attachment-worker` 컨테이너에서 실행하고, HWP 변환을 위해 `document-worker`가 떠 있어야 한다. 운영 DB 쓰기이므로 직전에 사람 확인을 받는다.
 
 ```bash
 # 파일을 컨테이너 안의 임시 경로로 복사한다(호스트 경로는 컨테이너에서 보이지 않는다).
-docker compose -f docker-compose.yml cp '<로컬 원본.hwp>' prespec-attachment-worker:/tmp/local-original.hwp
-docker compose -f docker-compose.yml exec -T prespec-attachment-worker \
+scripts/compose.sh cp '<로컬 원본.hwp>' prespec-attachment-worker:/tmp/local-original.hwp
+scripts/compose.sh exec -T prespec-attachment-worker \
   python -m app.deep_review.cli attach-local-original \
   --notice-id <notice_id> --attachment-id <attachment_id> --file /tmp/local-original.hwp \
   --expected-sha256 <이전 수집본 sha256> --actor '<담당자 이름>' --dry-run
 # dry-run 출력(errors=[])을 확인한 뒤 같은 명령을 --dry-run 없이 한 번 실행하고, 임시 파일을 지운다.
-docker compose -f docker-compose.yml exec -T prespec-attachment-worker rm -f /tmp/local-original.hwp
+scripts/compose.sh exec -T prespec-attachment-worker rm -f /tmp/local-original.hwp
 ```
 
 - 출력 JSON `{notice_id, attachment_id, content_sha256, size_bytes, provenance, fetch_status_before, document_version_id, scan_status, preparation, dry_run, errors}`를 기록에 적는다. `preparation.confirmed=true`면 묶음이 `ready`다. `preparation.reason=awaiting_fetch`면 같은 공고의 다른 첨부 취득이 아직 끝나지 않았다는 뜻이며 그 첨부도 연결하거나 취득을 종결한 뒤 다시 준비한다.
@@ -141,16 +145,16 @@ docker compose -f docker-compose.yml exec -T prespec-attachment-worker rm -f /tm
 **6. 자동 시작과 큐(운영 자동화, 별도 확인).** `BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED=true`는 `build-briefing`이 만든 추천 항목마다 위 자동 시작 조건을 평가하게 만든다. 추천받은 SW=Y 사전규격에 ready 묶음이 없으면 문서 준비를 열며, 이때 묶음 생성의 등급 자격만 건너뛴다(결정 B18, 개요 플래그와 무관; 안전 검사·확정 fence는 그대로). 이 플래그를 켜는 것, cron(브리핑 CLI)에서 켜진 채 도는 것은 실제 모델 전송을 일으키므로 승인 상한과 직전 확인이 필요하다. 상한을 넘은 요청은 큐에 쌓이고 **다음 브리핑이 새로 만들어진 직후** 한 번 처리된다(자동 따라잡기 없음). 필요하면 수동으로:
 
 ```bash
-docker compose -f docker-compose.yml exec web \
+scripts/compose.sh exec web \
   python -m app.deep_review.cli drain-verdict-queue [--date YYYY-MM-DD]
 # RL-05 홀드아웃: 자동 분석에서 뺄 사전규격
-docker compose -f docker-compose.yml exec web \
+scripts/compose.sh exec web \
   python -m app.deep_review.cli drain-verdict-queue --hold <notice_id,…> --reason gold_holdout --actor '<이름>'
 ```
 
 `drain`의 `--date`는 "그 날짜(KST) **이전**에 쌓인 요청"을 처리하라는 뜻이며 한 번만 돈다. 출력의 `stopped_reason`(`daily_cap_reached`·`policy_not_approved`·`auto_start_disabled`)·`remaining`(남은 큐)을 확인한다. 큐 길이가 늘기만 하면 상한이나 승인을 사람이 다시 정한다. 자동 시작의 실제 스택 증명은 T11 mock이 하며(실제 스택에서 자동 시작을 켜 둔 실증은 이 기능의 범위가 아니다) 가짜로 증명되지 않는 생성→폴링→후속 경로는 실제 스택에서 한 번 돌기 전까지 "검증됨"이라 쓰지 않는다.
 
-**7. Slack 스레드 답글은 지금 켜지 않는다(D5).** 판정 완료 스레드 답글은 판정을 닫는 `analysis-worker`가 `core/slack.py`로 보내는데, Slack overlay(`docker-compose.slack-egress.yml`)는 `env/slack.env`와 egress network를 `web`·`slack-worker`에만 주고 `analysis-worker`에는 주지 않는다. 그래서 현재 구성에서는 전송기 호출 전 검사가 막아 답글이 **건너뛰어지며 오류가 아니다**. 켜려면 worker에 토큰·egress를 주는 별도 overlay 변경과 사람 확인이 필요하며 이번 범위에서는 하지 않았다. 스레드 답글의 증명은 가짜 서버 검사까지이고 실제 Slack 게시 증명으로 적지 않는다.
+**7. Slack 스레드 답글은 지금 켜지 않는다(D5).** 판정 완료 스레드 답글은 판정을 닫는 `analysis-worker`가 `core/slack.py`로 보내는데, Slack overlay(`docker/docker-compose.slack-egress.yml`)는 `env/slack.env`와 egress network를 `web`·`slack-worker`에만 주고 `analysis-worker`에는 주지 않는다. 그래서 현재 구성에서는 전송기 호출 전 검사가 막아 답글이 **건너뛰어지며 오류가 아니다**. 켜려면 worker에 토큰·egress를 주는 별도 overlay 변경과 사람 확인이 필요하며 이번 범위에서는 하지 않았다. 스레드 답글의 증명은 가짜 서버 검사까지이고 실제 Slack 게시 증명으로 적지 않는다.
 
 **8. 되돌리기.** 가장 빠른 차단은 `revoke-transfer-policy`(이후 호출 0)이고, 그다음 `BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED=false`·`BIDOPS_RL_ANALYSIS_ENABLED=false`로 재생성한다. 이미 저장된 판정·단계 행은 append-only라 지우지 않는다. 승인 철회는 감사 기록이 남는 CLI로만 하며 SQL로 고치지 않는다.
 
@@ -170,14 +174,14 @@ docker compose -f docker-compose.yml exec web \
 | `BIDOPS_PROPOSAL_PDF_ACCESS_KEY`·`BIDOPS_PROPOSAL_PDF_SECRET_KEY` | 없음(compose는 `:?`로 요구) | 버킷 `bidops-proposal-pdf` 전용 자격증명. **web과 minio-init만** 받는다(분석 worker는 PDF를 다루지 않는다, 결정 B49) |
 | `BIDOPS_RL_ANALYSIS_ENABLED`·`BIDOPS_LUNA_DEEP_REVIEW_ENABLED`·`BIDOPS_REFERENCE_WORKFLOW_MODE` | 기존 | 셋 다 켜져 있어야 경로가 열리고 실행된다. 꺼져 있으면 제안서 경로는 404·503이다 |
 
-RL 키와 정책 선택 env는 web과 `analysis-worker`가 **같은 값**으로 읽어야 하므로 env 파일·overlay로 주고, 올린 뒤 서비스마다 `docker compose exec -T <서비스> printenv BIDOPS_PROPOSAL_POLICY_VERSION_ID`로 확인한다. PDF 키는 web에서만 확인한다.
+RL 키와 정책 선택 env는 web과 `analysis-worker`가 **같은 값**으로 읽어야 하므로 env 파일·overlay로 주고, 올린 뒤 서비스마다 `scripts/compose.sh exec -T <서비스> printenv BIDOPS_PROPOSAL_POLICY_VERSION_ID`로 확인한다. PDF 키는 web에서만 확인한다.
 
 **1. 배포 전제(운영 변경, 직전 사람 확인).** migration `0041_proposal_draft`(테이블 4개, [contracts.md](../contracts/rl.md#제안서-초안-rl-04-2026-10-18))와 `scripts/runtime-privileges.sql`의 새 권한을 적용하고 `web`·`analysis-worker`·`codex-runner`(contract `proposal-section-v1` 스키마 COPY) 이미지를 새로 올린다. 전체 백업과 `before-rl-proposal-<날짜>` 롤백 태그를 먼저 남긴다. **main 병합 뒤 운영 스택을 다시 올리기 전에** 운영 env(`.env` 등 gitignore 파일)에 `BIDOPS_PROPOSAL_PDF_ACCESS_KEY`·`_SECRET_KEY`를 넣고 `minio-init`을 다시 실행해 버킷 `bidops-proposal-pdf`(versioning·전용 정책·365일 만료)를 만든다 — 키가 없으면 compose가 web·minio-init 기동을 거부한다(결정 B49). 이 단계도 직전에 사람 확인을 받는다.
 
 **2. 정책 import와 선택.** 파일을 고쳐 쓰지 않고 immutable 파일을 import한다.
 
 ```bash
-docker compose -f docker-compose.yml exec web \
+scripts/compose.sh exec web \
   python -m app.deep_review.cli import-profile-policy \
   --policy /app/web/backend/app/deep_review/policies/proposal-policy-luna-v1.json \
   --label proposal-policy-luna-v1 \
@@ -190,7 +194,7 @@ docker compose -f docker-compose.yml exec web \
 **3. 전송 정책 승인(사람 직전 확인, 실제 전송 권한을 여는 단계).**
 
 ```bash
-docker compose -f docker-compose.yml exec web \
+scripts/compose.sh exec web \
   python -m app.deep_review.cli approve-transfer-policy \
   --policy proposal-policy-luna-v1 --actor '<담당자 이름>' --daily-cap 1 [--dry-run]
 ```

@@ -1,0 +1,443 @@
+{
+  "schema_version": 2,
+  "feature": "RL-09-engine-integration",
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "실행 구성 단순화",
+      "model": "complex",
+      "fingerprint": "38e30616cde33c24f11773a19452455b0ccebb8fc88deee6c8218b17a6db5412",
+      "status": "done",
+      "updated_at": "2026-11-17T17:55:54+09:00"
+    },
+    {
+      "id": "STEP-002",
+      "title": "분석 패키지와 제품 adapter",
+      "model": "complex",
+      "fingerprint": "0c279ebdae90a40c24dd573f4547ab7bc63a08f70b13ae61325e6213977844ff",
+      "status": "done",
+      "updated_at": "2026-11-17T17:55:54+09:00"
+    },
+    {
+      "id": "STEP-003",
+      "title": "관리 화면과 대표 통합 검증",
+      "model": "complex",
+      "fingerprint": "7da2d967e343df4a0ae66184fd66c03e34c97db4a430c3dd2ecc1b2dcf1b73e6",
+      "status": "done",
+      "updated_at": "2026-11-17T19:16:48+09:00",
+      "note": "최종 UI9/대비8/빌드 및 실제 Compose 두폭2pass, 고정MinIOversion-PG대조2건. 입력손실 old-code실패 후 수정 검증."
+    },
+    {
+      "id": "STEP-004",
+      "title": "독립 리뷰와 검증 정리",
+      "model": "complex",
+      "fingerprint": "db59dd2e6ef864eb4c9cea8984f2ba601b8c1ec1db3569a342412d88eaa55f25",
+      "status": "done",
+      "updated_at": "2026-11-17T19:16:49+09:00",
+      "note": "독립 리뷰 최종mockbaseline PASS/차단0. 원본 품질reject 및 초기 기동/worker경고는후속으로보존. commit/merge/운영반영없음."
+    }
+  ],
+  "proof": {
+    "docs": {
+      "result": "pass",
+      "method": "review",
+      "note": "2026-11-18 공개 전 Docker 이동 독립 리뷰(gpt-6.1-sol/high) 차단 0. 참조 문서 1곳 및 기존 EOF 공백 3곳 수정, staged diff 검사 통과. 사용자 commit/main merge/origin push/cleanup 승인 기록. 제품 검증·품질 인수·운영 배포와 구분.",
+      "evidence": "docs/work/groups/RL/features/RL-09-engine-integration/plan.md",
+      "exit_code": null,
+      "actor": "leader",
+      "command": "python3 scripts/feature_status.py doctor _",
+      "at": "2026-11-18T00:42:25+09:00",
+      "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+      "source_hash": "8396b710865f359df49e969e7731e720ecdc547ba1aca84039b7fba1d83dd159",
+      "spec_hash": "df225db3196791cbd7f01af51948097dce3d66c3f688a6708112460a43b711e8"
+    },
+    "tests": {
+      "result": "pass",
+      "method": "command",
+      "note": "2026-11-18 경로 이동 영향 검사: make test-config 154 passed, runner COPY 계약 1 passed, 5개 합성 구성 전후 동등성 확인. 이전 엔진·adapter 검사 결과는 제품 소스 변경 없이 재사용하며 이번 재실행으로 주장하지 않는다. 이전 근거: docs/validation-runs/20261117-engine-integration/README.md 공개 전 변경은 문서/작업 승인뿐이며 위 제품 검사와 종료코드를 재사용한다.",
+      "evidence": "docs/work/groups/RL/features/RL-09-engine-integration/plan.md",
+      "exit_code": 0,
+      "actor": "leader",
+      "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
+      "at": "2026-11-18T00:42:25+09:00",
+      "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+      "source_hash": "8396b710865f359df49e969e7731e720ecdc547ba1aca84039b7fba1d83dd159",
+      "spec_hash": "df225db3196791cbd7f01af51948097dce3d66c3f688a6708112460a43b711e8"
+    },
+    "postgres": {
+      "result": "pass",
+      "method": "command",
+      "note": "2026-11-18: DB·migration·API 제품 소스 변경 없음. 5개 구성 동등성으로 DB/MinIO project·volume·mount·network 보존 확인. 이전 격리 PG/불변 저장 증거와 종료코드 0을 재사용하며 이번 PG 재실행은 아님. 이전 근거: .sdlc/backend-delta-tests.log 공개 전 변경은 문서/작업 승인뿐이며 위 제품 검사와 종료코드를 재사용한다.",
+      "evidence": "docs/work/groups/RL/features/RL-09-engine-integration/plan.md",
+      "exit_code": 0,
+      "actor": "leader",
+      "command": "",
+      "at": "2026-11-18T00:42:25+09:00",
+      "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+      "source_hash": "8396b710865f359df49e969e7731e720ecdc547ba1aca84039b7fba1d83dd159",
+      "spec_hash": "df225db3196791cbd7f01af51948097dce3d66c3f688a6708112460a43b711e8"
+    },
+    "frontend": {
+      "result": "pass",
+      "method": "command",
+      "note": "2026-11-18: frontend 소스·lock·런타임 동작 변경 없음. Dockerfile 위치와 COPY 입력 경로만 이동하고 root context 보존. 기존 production build/UI/실스택 증거와 종료코드 0을 재사용하며 이번 재빌드/E2E 재실행은 아님. 이전 근거: docs/validation-runs/20261117-engine-integration/README.md 공개 전 변경은 문서/작업 승인뿐이며 위 제품 검사와 종료코드를 재사용한다.",
+      "evidence": "docs/work/groups/RL/features/RL-09-engine-integration/plan.md",
+      "exit_code": 0,
+      "actor": "leader",
+      "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+      "at": "2026-11-18T00:42:25+09:00",
+      "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+      "source_hash": "8396b710865f359df49e969e7731e720ecdc547ba1aca84039b7fba1d83dd159",
+      "spec_hash": "df225db3196791cbd7f01af51948097dce3d66c3f688a6708112460a43b711e8"
+    },
+    "api_guard": {
+      "result": "pass",
+      "method": "command",
+      "note": "2026-11-18: API/worker/승인·감사 제품 소스 변경 없음. 실제 모델 호출 없이 기존 guard 증거와 종료코드 0을 재사용. 구성 전후 secret·service network 동등성 검사 통과. 이전 근거: .sdlc/backend-delta-tests.log 공개 전 변경은 문서/작업 승인뿐이며 위 제품 검사와 종료코드를 재사용한다.",
+      "evidence": "docs/work/groups/RL/features/RL-09-engine-integration/plan.md",
+      "exit_code": 0,
+      "actor": "leader",
+      "command": "",
+      "at": "2026-11-18T00:42:26+09:00",
+      "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+      "source_hash": "8396b710865f359df49e969e7731e720ecdc547ba1aca84039b7fba1d83dd159",
+      "spec_hash": "df225db3196791cbd7f01af51948097dce3d66c3f688a6708112460a43b711e8"
+    },
+    "real_data_run": {
+      "result": "not_applicable",
+      "method": "manual",
+      "note": "2026-11-18: RL-09는 mock 통합이며 실제 자료·모델 품질 인수를 대체하지 않는다. Docker 경로 이동에도 실제 모델 호출·품질 재측정은 범위 밖이다. 이전 근거: docs/work/groups/RL/features/RL-09-engine-integration/spec.md 공개 전 변경은 문서/작업 승인뿐이며 위 제품 검사와 종료코드를 재사용한다.",
+      "evidence": "docs/work/groups/RL/features/RL-09-engine-integration/plan.md",
+      "exit_code": null,
+      "actor": "leader",
+      "command": "",
+      "at": "2026-11-18T00:42:26+09:00",
+      "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+      "source_hash": "8396b710865f359df49e969e7731e720ecdc547ba1aca84039b7fba1d83dd159",
+      "spec_hash": "df225db3196791cbd7f01af51948097dce3d66c3f688a6708112460a43b711e8"
+    }
+  },
+  "notes": [
+    {
+      "at": "2026-11-17T17:06:46+09:00",
+      "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-11-17T17:08:05+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-11-17T17:08:35+09:00",
+      "text": "단계 → review: 통합 범위 사용자 승인; 독립 리뷰는 구현 완료 후 같은 범위에서 수행, 미완료로 보존"
+    },
+    {
+      "at": "2026-11-17T17:55:54+09:00",
+      "text": "단계 STEP-001 done: "
+    },
+    {
+      "at": "2026-11-17T17:55:54+09:00",
+      "text": "단계 STEP-002 done: "
+    },
+    {
+      "at": "2026-11-17T17:55:55+09:00",
+      "text": "단계 STEP-003 done: "
+    },
+    {
+      "at": "2026-11-17T17:55:55+09:00",
+      "text": "단계 STEP-004 done: "
+    },
+    {
+      "at": "2026-11-17T18:40:17+09:00",
+      "text": "단계 STEP-003 in_progress: 핵심 호스트 E2E 두 폭 및 UI 7건 통과. 추가 Compose 화면 검사는 응답 대기 실패가 남아 전체 검증 완료로 표시하지 않음. docs/validation-runs/20261117-engine-integration/README.md 참조."
+    },
+    {
+      "at": "2026-11-17T19:16:48+09:00",
+      "text": "단계 STEP-003 done: 최종 UI9/대비8/빌드 및 실제 Compose 두폭2pass, 고정MinIOversion-PG대조2건. 입력손실 old-code실패 후 수정 검증."
+    },
+    {
+      "at": "2026-11-17T19:16:49+09:00",
+      "text": "단계 STEP-004 done: 독립 리뷰 최종mockbaseline PASS/차단0. 원본 품질reject 및 초기 기동/worker경고는후속으로보존. commit/merge/운영반영없음."
+    }
+  ],
+  "updated_at": "2026-11-18T00:42:26+09:00",
+  "proof_history": [
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pending",
+        "method": "manual",
+        "note": "실자료 및 실제 모델 호출 없음. 합성 HWPX/mock으로만 입력-저장-조회-화면 경로를 확인.",
+        "evidence": "docs/validation-runs/20261117-engine-integration/README.md",
+        "exit_code": null,
+        "actor": "leader",
+        "command": "",
+        "at": "2026-11-17T18:41:09+09:00",
+        "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+        "source_hash": "5e33c30035cee2943281a95f92876dbf361ba1a4609156a486d019ccac7ae4b7",
+        "spec_hash": "32832859eaa7995425c815b1b760bae774809a6924bbc07b0c523ac8e37d1a8c"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "fail",
+        "method": "command",
+        "note": "호스트 실연결 E2E 2건과 UI 관련 7건 통과. 추가 Compose 브라우저 실행의 초기/재조회 대기 실패는 미해결이므로 전체 frontend proof는 fail로 보존.",
+        "evidence": "docs/validation-runs/20261117-engine-integration/README.md",
+        "exit_code": null,
+        "actor": "leader",
+        "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+        "at": "2026-11-17T18:41:05+09:00",
+        "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+        "source_hash": "5e33c30035cee2943281a95f92876dbf361ba1a4609156a486d019ccac7ae4b7",
+        "spec_hash": "32832859eaa7995425c815b1b760bae774809a6924bbc07b0c523ac8e37d1a8c"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "stale",
+        "method": "manual",
+        "note": "feature.json applies_when은 RL-03/04/05 실제 품질 인수에 한정. RL-09는 명시적 offline mock 통합이며 실모델 인수나 전송 승인을 대체하지 않는다.",
+        "evidence": "docs/work/groups/RL/features/RL-09-engine-integration/spec.md",
+        "exit_code": null,
+        "actor": "leader",
+        "command": "",
+        "at": "2026-11-17T19:01:16+09:00",
+        "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+        "source_hash": "bc1aa20b1f2b84674a28c1648b03d1f06c991563b6b2319f946c76b2f7199319",
+        "spec_hash": "32832859eaa7995425c815b1b760bae774809a6924bbc07b0c523ac8e37d1a8c",
+        "reason": "작업 상태 변경"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pass",
+        "method": "review",
+        "note": "기능/계약/Compose/운영/AGENTS 갱신, 독립최종review PASS, diff whitespace 확인. 기존RL-07 active run보존으로phase review유지.",
+        "evidence": "docs/validation-runs/20261117-engine-integration/review.md",
+        "exit_code": null,
+        "actor": "independent-review-and-leader",
+        "command": "python3 scripts/feature_status.py doctor _",
+        "at": "2026-11-17T19:16:50+09:00",
+        "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+        "source_hash": "c32e15c6688630be28bb38dfae863ae7e32cf9593a1c9d0bc466a79e3fca716b",
+        "spec_hash": "9baae2d55a53a8a1a6c1a5c06e1684ec264d15b57ef84b8c4d7e566515df69cc"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "AGENTS 영향범위 규칙으로 기본 전체 스위트 대신 plan 관련 검사 실행: engine512+adapter3, backend111 기존통과/수정후18+SQLite조건skip1, config149+종료delta2. 원본 품질진단2fail는별도보존.",
+        "evidence": "docs/validation-runs/20261117-engine-integration/README.md",
+        "exit_code": 0,
+        "actor": "leader",
+        "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
+        "at": "2026-11-17T19:16:49+09:00",
+        "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+        "source_hash": "c32e15c6688630be28bb38dfae863ae7e32cf9593a1c9d0bc466a79e3fca716b",
+        "spec_hash": "9baae2d55a53a8a1a6c1a5c06e1684ec264d15b57ef84b8c4d7e566515df69cc"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "일회용 PG17.11 migration/불변성/권한/API 변형 및 실제 dev app-worker 저장 확인. 운영 DB 변경없음.",
+        "evidence": ".sdlc/backend-delta-tests.log",
+        "exit_code": 0,
+        "actor": "leader",
+        "command": "",
+        "at": "2026-11-17T19:16:49+09:00",
+        "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+        "source_hash": "c32e15c6688630be28bb38dfae863ae7e32cf9593a1c9d0bc466a79e3fca716b",
+        "spec_hash": "9baae2d55a53a8a1a6c1a5c06e1684ec264d15b57ef84b8c4d7e566515df69cc"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "production build, contrast8, 의미/구조9, host실연결2 + 최종Compose실연결2통과. 기존timeout/품질기대값유지, notice본문동기화와actor제품수정 후 확인.",
+        "evidence": "docs/validation-runs/20261117-engine-integration/README.md",
+        "exit_code": 0,
+        "actor": "leader",
+        "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+        "at": "2026-11-17T19:16:49+09:00",
+        "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+        "source_hash": "c32e15c6688630be28bb38dfae863ae7e32cf9593a1c9d0bc466a79e3fca716b",
+        "spec_hash": "9baae2d55a53a8a1a6c1a5c06e1684ec264d15b57ef84b8c4d7e566515df69cc"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "live사전거부/회사소속/불변입력/leasefence/안전오류/full-app middleware/기존demo경계 관련 검사통과. 실제모델전송없음.",
+        "evidence": ".sdlc/backend-delta-tests.log",
+        "exit_code": 0,
+        "actor": "leader",
+        "command": "",
+        "at": "2026-11-17T19:16:49+09:00",
+        "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+        "source_hash": "c32e15c6688630be28bb38dfae863ae7e32cf9593a1c9d0bc466a79e3fca716b",
+        "spec_hash": "9baae2d55a53a8a1a6c1a5c06e1684ec264d15b57ef84b8c4d7e566515df69cc"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "not_applicable",
+        "method": "manual",
+        "note": "feature.json applies_when은 RL-03/04/05 실제품질인수에한정. RL-09 offline mock 통합은그인수를대체하지않음.",
+        "evidence": "docs/work/groups/RL/features/RL-09-engine-integration/spec.md",
+        "exit_code": null,
+        "actor": "leader",
+        "command": "",
+        "at": "2026-11-17T19:16:50+09:00",
+        "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+        "source_hash": "c32e15c6688630be28bb38dfae863ae7e32cf9593a1c9d0bc466a79e3fca716b",
+        "spec_hash": "9baae2d55a53a8a1a6c1a5c06e1684ec264d15b57ef84b8c4d7e566515df69cc"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pass",
+        "method": "review",
+        "note": "2026-11-18 Docker 경로·선택기·현재 운영 문서·AGENTS/CLAUDE 대조 및 diff check 통과. 기존 통합 독립 리뷰는 보존하며 이번 경로 이동의 추가 독립 리뷰로 주장하지 않는다. 이전 근거: docs/validation-runs/20261117-engine-integration/review.md",
+        "evidence": "docs/work/groups/RL/features/RL-09-engine-integration/plan.md",
+        "exit_code": null,
+        "actor": "leader",
+        "command": "python3 scripts/feature_status.py doctor _",
+        "at": "2026-11-18T00:12:04+09:00",
+        "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+        "source_hash": "c8c5f6d083ba05aba081421056aee913af9355f411d5bc4327bb26706bcaff2c",
+        "spec_hash": "9baae2d55a53a8a1a6c1a5c06e1684ec264d15b57ef84b8c4d7e566515df69cc"
+      }
+    },
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "2026-11-18 경로 이동 영향 검사: make test-config 154 passed, runner COPY 계약 1 passed, 5개 합성 구성 전후 동등성 확인. 이전 엔진·adapter 검사 결과는 제품 소스 변경 없이 재사용하며 이번 재실행으로 주장하지 않는다. 이전 근거: docs/validation-runs/20261117-engine-integration/README.md",
+        "evidence": "docs/work/groups/RL/features/RL-09-engine-integration/plan.md",
+        "exit_code": 0,
+        "actor": "leader",
+        "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
+        "at": "2026-11-18T00:12:04+09:00",
+        "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+        "source_hash": "c8c5f6d083ba05aba081421056aee913af9355f411d5bc4327bb26706bcaff2c",
+        "spec_hash": "9baae2d55a53a8a1a6c1a5c06e1684ec264d15b57ef84b8c4d7e566515df69cc"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "2026-11-18: DB·migration·API 제품 소스 변경 없음. 5개 구성 동등성으로 DB/MinIO project·volume·mount·network 보존 확인. 이전 격리 PG/불변 저장 증거와 종료코드 0을 재사용하며 이번 PG 재실행은 아님. 이전 근거: .sdlc/backend-delta-tests.log",
+        "evidence": "docs/work/groups/RL/features/RL-09-engine-integration/plan.md",
+        "exit_code": 0,
+        "actor": "leader",
+        "command": "",
+        "at": "2026-11-18T00:12:18+09:00",
+        "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+        "source_hash": "c8c5f6d083ba05aba081421056aee913af9355f411d5bc4327bb26706bcaff2c",
+        "spec_hash": "9baae2d55a53a8a1a6c1a5c06e1684ec264d15b57ef84b8c4d7e566515df69cc"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "2026-11-18: frontend 소스·lock·런타임 동작 변경 없음. Dockerfile 위치와 COPY 입력 경로만 이동하고 root context 보존. 기존 production build/UI/실스택 증거와 종료코드 0을 재사용하며 이번 재빌드/E2E 재실행은 아님. 이전 근거: docs/validation-runs/20261117-engine-integration/README.md",
+        "evidence": "docs/work/groups/RL/features/RL-09-engine-integration/plan.md",
+        "exit_code": 0,
+        "actor": "leader",
+        "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+        "at": "2026-11-18T00:12:19+09:00",
+        "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+        "source_hash": "c8c5f6d083ba05aba081421056aee913af9355f411d5bc4327bb26706bcaff2c",
+        "spec_hash": "9baae2d55a53a8a1a6c1a5c06e1684ec264d15b57ef84b8c4d7e566515df69cc"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pass",
+        "method": "command",
+        "note": "2026-11-18: API/worker/승인·감사 제품 소스 변경 없음. 실제 모델 호출 없이 기존 guard 증거와 종료코드 0을 재사용. 구성 전후 secret·service network 동등성 검사 통과. 이전 근거: .sdlc/backend-delta-tests.log",
+        "evidence": "docs/work/groups/RL/features/RL-09-engine-integration/plan.md",
+        "exit_code": 0,
+        "actor": "leader",
+        "command": "",
+        "at": "2026-11-18T00:12:19+09:00",
+        "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+        "source_hash": "c8c5f6d083ba05aba081421056aee913af9355f411d5bc4327bb26706bcaff2c",
+        "spec_hash": "9baae2d55a53a8a1a6c1a5c06e1684ec264d15b57ef84b8c4d7e566515df69cc"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "not_applicable",
+        "method": "manual",
+        "note": "2026-11-18: RL-09는 mock 통합이며 실제 자료·모델 품질 인수를 대체하지 않는다. Docker 경로 이동에도 실제 모델 호출·품질 재측정은 범위 밖이다. 이전 근거: docs/work/groups/RL/features/RL-09-engine-integration/spec.md",
+        "evidence": "docs/work/groups/RL/features/RL-09-engine-integration/plan.md",
+        "exit_code": null,
+        "actor": "leader",
+        "command": "",
+        "at": "2026-11-18T00:12:19+09:00",
+        "head": "539bb8b4020394fa6020933627e31a6ac55b7537",
+        "source_hash": "c8c5f6d083ba05aba081421056aee913af9355f411d5bc4327bb26706bcaff2c",
+        "spec_hash": "9baae2d55a53a8a1a6c1a5c06e1684ec264d15b57ef84b8c4d7e566515df69cc"
+      }
+    }
+  ]
+}

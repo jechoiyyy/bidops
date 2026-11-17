@@ -1,7 +1,7 @@
 # BidOps 데이터베이스 이해하기
 
-> 기준일: 2026-09-08
-> 기준 소스: PostgreSQL 17 `bidops` 스키마, 코드의 Alembic head `0020_prespec_company_fit`, 현재 업무 계약 (운영 DB 적용 여부와 별개)
+> 기준일: 2026-10-21
+> 기준 소스: PostgreSQL 17 `bidops` 스키마, 코드의 Alembic head `0041_proposal_draft`, 도메인 models.py 선언. 운영은 2026-10-19의 0041 적용 기록을 참조하며 이번에 DB를 재조회하지 않았다.
 > 대상 독자: 기획·사업개발 담당자, 운영자, 처음 프로젝트를 보는 개발자
 
 ## 한 문장으로 이해하기
@@ -12,22 +12,15 @@ BidOps DB는 공고의 최신값만 모아 둔 목록이 아니라, **어떤 회
 
 ## 먼저 알아둘 현재 기준
 
-현재 코드의 Alembic head 기준으로 아래 업무 사전에서 설명하는 테이블은 **73개**다. PostgreSQL 자체의 Alembic 관리 테이블 `alembic_version`은 이 수에 포함하지 않는다.
-
-기존 업무 사전의 71개에 설명형 PDF 개요와 회사 핏 이력 각 1개를 추가했다. ORM `Base.metadata`는 등록된 모든 표 **79개**를 센다. 모듈 소유 기준으로는 core 2 + lifecycle 10 + screening 28 + deep_review 39 = 79이다. 업무 사전의 수와 전체 등록 수를 구분한다.
+현재 네 도메인의 `models.py`에 선언된 업무 테이블은 **109개**다(`__tablename__` 정적 집계). PostgreSQL 자체의 `alembic_version`은 제외한다. 아래 빠른 사전은 주요 업무별 설명이며 전체 테이블 수와 동일한 목록으로 취급하지 않는다.
 
 | 구분 | 테이블 수 | 담당하는 일 |
 |---|---:|---|
-| 수집·사업기회 | 7 | 회차, 발주계획·공고의 누적 관측, 같은 사업의 연결 |
-| 1차 판정·사람 리뷰 | 11 | 모델 판정, 근거, 반론, 확인 항목, 사람 보정과 개정 이력 |
-| 첨부 취득 | 3 | 첨부 메타데이터, 다운로드 큐, 기관 포털 정보 |
-| 문서 준비 | 8 | 파일 객체, 악성코드 검사, 문서 버전·구조·묶음 |
-| 사전규격 개요 검토·회사 핏 | 7 | 앞부분 절단 snapshot, 모델 실행·결과·상태 전이 계보, 설명형 PDF 개요, 회사 핏 이력 |
-| 문서 segment·요구사항 inventory | 3 | 결정적 segment manifest, segment, 요구사항 ID 항목 |
-| 심층 검토 | 17 | 고정 입력, 단계별 분석, 주장·근거, 리포트·검증·사람 의견 |
-| 판정 실행·품질·일정 | 12 | 실행 큐, 재시도, 프로필 snapshot, 품질 게이트, 정책·일정·감사 |
-| 입찰 delta·최종 결정 | 5 | 문서 쌍 고정, 비교 시도, 항목·근거, 사람 Go/No-Go |
-| 합계 | **73** | 업무 사전 기준, `alembic_version` 제외 |
+| core | 2 | 공통 멱등성·감사 |
+| lifecycle | 19 | 회차·관측·사업기회·회사 identity·브리핑·활동 노트 |
+| screening | 32 | C-1·C-2 판정·사람 리뷰·품질 게이트·정책·일정 |
+| deep_review | 56 | 첨부·문서·회사 근거·개요·판정·제안서·delta·최종 결정 |
+| 합계 | **109** | 모델 선언 기준, `alembic_version` 제외 |
 
 테이블이 있다는 사실과 그 업무가 운영 가능하다는 사실은 다르다. 사전규격 개요에는 모델 worker와 검증 결과 API가 있지만 참조 실행을 운영 품질 승인으로 취급하지 않는다. `0020` 회사 핏도 기본 비활성·참조 실행 전용이다. `0015`의 입찰 delta 5개 테이블은 endpoint까지 있지만 비교 계산 worker와 모델 binding이 없어 `pending`·`running`에서 더 진행되지 않는다. **스키마의 존재**와 **워크플로우의 운영 가능 여부**를 같은 뜻으로 해석하면 안 된다.
 
@@ -75,7 +68,7 @@ DB 안의 상태가 모두 같은 종류의 의사결정은 아니다. 특히 �
 | 개요 검토 결과 | RFP 앞부분을 본 저비용 권고 | 자격 판정, 심층 추적 선택 |
 | `계속 추적/보류/종료` | 사람이 고른 사업기회 추적 상태 | 최종 입찰 참여 승인 |
 | 심층 `final_opinion` | 해당 리포트에 대한 사람 의견 | 최종 입찰 Go/No-Go |
-| 최종 입찰 Go/No-Go | 입찰공고 시점의 사람 결정 | **현재 DB에는 아직 없음** |
+| 최종 입찰 Go/No-Go | 입찰공고 시점의 사람 결정(`bid_final_decision`) | 추적 선택·심층 의견·RL 참고 판정 |
 
 ## 사용자 워크플로우로 보는 DB
 
@@ -89,7 +82,7 @@ flowchart LR
     F --> G{사람이 심층검토 선택}
     G -->|실행| H[7. 문서 묶음·심층 검토]
     H --> I[8. 계속 추적·보류·종료]
-    I -. 아직 미구현 .-> J[9. 입찰 delta·최종 Go/No-Go]
+    I -. 비교 계산 worker 미구현 .-> J[9. delta 저장·조회 / 사람 Go·No-Go]
 ```
 
 ### 1단계. 수집 회차를 연다
@@ -174,9 +167,9 @@ review/snapshot/attempt/result·event(`0012`·`0014`), v4 target/attempt(`0022`)
 검증·call ledger(`0025`)는 모두 삭제했다. run 하나가 notice·문서·snapshot·범위·상태·결과·경고를
 전부 담고, 공고의 "현재 개요"는 `created_at` 최신 run이다. 상세 열 계약은
 [ERD 8.5](deep-review-erd.md#85-사전규격-개요-run-0026)와
-[contracts.md](contracts.md#사전규격-개요-검토-mvp-2026-09-11)를 정본으로 한다. `0026` 적용
+[contracts.md](contracts/prespec-overview.md#사전규격-개요-검토와-예비-적합성-판단-mvp-2026-09-21)를 정본으로 한다. `0026` 적용
 전 삭제 대상 개요 테이블의 pg_dump 백업 절차는
-[operations.md](operations.md#0026-적용-전-개요-테이블-백업)를 따른다.
+[operations.md](operations/prespec-reference.md#0026-적용-전-개요-테이블-백업)를 따른다.
 
 `prespec_overview_run.status`는 `queued|running|completed|needs_human_review|failed|cancelled`다.
 binding이 없거나 허용 host·revision이 비어도 MVP 기간에는 fail closed하지 않는다(ADR-0050
@@ -234,16 +227,11 @@ document_bundle + profile_version + analysis_policy_version
 
 `recheck_signal`은 시스템이 다시 보라고 알리는 신호일 뿐 사람의 추적 선택이 아니다. 담당자 이름도 현재 로그인 인증값이 아니라 감사 표식이다.
 
-### 9단계. 입찰공고 변경과 최종 결정을 다룬다 — 아직 미구현
+### 9단계. 입찰공고 변경과 최종 결정을 다룬다 — 계산 worker 미구현
 
-업무 규칙에는 사전규격 대비 입찰공고의 금액, 계약기간, 참가자격, 공동수급, 평가방식, 배점, 제출물, 기한, 요구사항 변경을 비교하도록 정의되어 있다. 그러나 현재는 다음을 저장할 운영 테이블·migration·endpoint가 없다.
+`0015` migration의 `bid_delta_comparison`·`bid_delta_attempt`·`bid_delta_item`·`bid_delta_evidence`·`bid_final_decision`과 REST·화면이 있다. 기준/대상 문서 쌍과 비교 이력, 사람의 append-only 최종 결정을 저장한다. 그러나 실제 delta 계산 worker가 없어 새 비교는 `pending`에 머문다. 상세는 [입찰 delta·최종 결정 계약](bid-delta-contract-spec.md)을 따른다.
 
-- 비교할 기준/대상 문서 묶음 쌍
-- delta 실행과 변경·무변경·불명확·실패 결과
-- 알림 전달 상태
-- append-only 최종 입찰 Go/No-Go
-
-따라서 기존 `final_opinion`이나 `tracking_status`를 최종 입찰 결정으로 재사용하면 안 된다.
+`final_opinion`이나 `tracking_status`, RL 카드 판정을 최종 입찰 결정으로 재사용하지 않는다. RL 브리핑의 정정·마감 알림은 별도 기능이며 delta 계산 완료를 뜻하지 않는다.
 
 ## PostgreSQL과 MinIO의 역할 경계
 
@@ -428,7 +416,7 @@ version**으로 다시 등록한다.
 일반 업무 흐름에서 attachment를 물리 삭제하지 않는다. `retired_at`, `retired_reason`,
 `retired_by_name`으로 은퇴 처리한다.
 
-## 업무 테이블 73개 빠른 사전
+## 주요 업무 테이블 빠른 사전
 
 ### A. 수집·사업기회 7개
 
@@ -551,12 +539,31 @@ version**으로 다시 등록한다.
 
 계산 worker와 모델 binding은 아직 없다. 내부 binding을 확인할 수 없으면 API가 `503`으로 fail closed한다.
 
+### I. C-2·회사·RL 확장
+
+| 테이블 묶음 | 저장하는 것 |
+|---|---|
+| `order_plan_screening_policy`, `order_plan_screening_execution`, `order_plan_screening_batch_attempt` | C-2 정책·실행·묶음별 시도 |
+| `order_plan_screening_result`, `order_plan_screening_artifact`, `order_plan_screening_feedback` | 전체 모집단 선별 결과·불변 산출물·사람 피드백 |
+| `order_plan_screening_quality_gate`, `order_plan_screening_quality_evaluation`, `order_plan_screening_audit_sample`, `order_plan_screening_daily_trigger` | 측정·평가·감사 표본·정책 버전에 묶인 일일 스위치(0029) |
+| `company`, `company_opportunity_tracking`, `company_tracking_event` | 회사 identity·회사별 추적·이벤트(0034, RL 재사용) |
+| `knowledge_ontology_version`, `company_knowledge_source`, `company_knowledge_version`, `company_knowledge_node`, `company_knowledge_edge`, `company_knowledge_binding`, `company_knowledge_binding_event` | 불변 회사 근거·그래프·활성 binding 이력(0035) |
+| `company_fit_policy_version` | 회사 핏 정책 버전(0036) |
+| `deep_review_preview`, `deep_review_approval` | Luna 전송 입력 동결·건별 승인(0032) |
+| `assumption_input_version`, `assumption_run`, `assumption_stage` | 확인된 회사 사실과 분리된 가정 분석(0033) |
+| `briefing`, `briefing_item`, `briefing_reaction_event` | 평일 브리핑·추천/변화 항목·개인 반응(0038) |
+| `opportunity_note` | 사람이 쓴 사업기회 노트(0039). 활동 피드는 관측·감사·노트·hook에서 파생하며 별도 피드 테이블 없음 |
+| `transfer_policy_approval`, `card_analysis_stage`, `verdict_request`, `verdict_feedback` | 정책 전송 승인·카드 분석 단계·판정 큐/홀드아웃·피드백(0040) |
+| `proposal_draft`, `proposal_section`, `proposal_sentence_edit`, `proposal_export` | 6절 초안·검증 결과·사람 수정 overlay·PDF 내보내기(0041) |
+
+회사 데이터는 `confirmed`·`proposed`·`unknown`을 보존한다. 카드 판정과 제안서는 승인된 동결 입력·정책에 묶이며 회사 최신값으로 과거 결과를 덮지 않는다. PDF 본문은 MinIO `proposal-pdf` namespace, DB에는 버전·hash·객체 참조를 둔다. 스키마·API 상세는 [contracts](contracts.md), 품질·운영 여부는 [status](tracking/status.md)를 따른다.
+
 ## 아직 DB에 없거나 완결되지 않은 영역
 
-- 발주계획 선별 실험의 방식별 score·rank·reason·사람 정답을 저장하는 운영 테이블/API
+- 별도 선별 방식 비교의 범용 실험 관리. 현재 C-2의 순위·결과·피드백·품질 게이트 저장/API는 이미 구현됨
 - 제목·유사도 기반 candidate opportunity 연결 생성의 완결된 앱 경로
 - 사전규격 overview의 **품질 측정**. 모델 실행 worker와 검증 서비스, 런타임 권한, API 계약은 구현됐으나 실행 결과에 `quality_status=unmeasured_reference|mock_reference` 표식이 붙는 참조 실행 단계다. 승인된 artifact와 사람 gold 측정이 남아 있다
-- deep-review-v2의 역할별 모델 분석과 segment의 모델 보조 분류 (결정적 segment·요구사항 inventory만 `0018`에 있다)
+- 기존 deep-review-v2 설계의 segment 모델 보조 분류. RL의 카드 기반 역할 분석은 별도로 구현됐지만 품질 인수는 reject
 - 입찰공고 delta의 비교 계산 worker와 모델 binding (테이블·endpoint는 `0015`에 있으나 실행 주체가 없다)
 - delta 결과 알림 전달 이력
 - SSO, 웹 사용자, 역할 기반 권한

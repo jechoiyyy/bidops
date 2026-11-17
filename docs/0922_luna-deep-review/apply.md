@@ -1,5 +1,7 @@
 # Luna 운영 적용 절차 — 실행 전 사람 확인 필요
 
+> 실행 구성 변경(2026-11-18): 아래의 수동 Compose 조합은 당시 기록이다. 현재 파일은 `docker/`에 있으며 실행은 `scripts/compose.sh` 또는 Make로 선택한다. 현재 환경·승인·초기화 절차는 [운영 문서](../operations.md)를 따른다. 이 기록의 모델·정책·migration을 현재 운영에 그대로 적용하지 않는다.
+
 > 2026-09-23 후속: 운영 0032·서비스·Luna 정책 적용 및 실제 모델 연결 확인 완료. 1489번 실제 호출은 주장 참조 검증 실패로 종결, 완성 보고서 인수 미완료. [운영 기록](../validation-runs/20260922-luna-deep-review/live-validation.md).
 2026-09-23 작성. 아래는 재현 가능한 적용 절차다. 2026-09-23 실제 수행 범위는 위 운영 기록을 따른다. 구현·격리 검증과
 실제 인증·모델 접근·실자료 품질은 별개다. 기존 사용자 변경이 함께 있는 트리이므로
@@ -65,7 +67,7 @@ running 작업은 끝날 때까지 기다린다. queued 작업은 **각 중단 �
   --review-id '<queued review UUID>' --actor-name '<담당자>'
 ```
 
-[운영 백업 절차](../operations.md#백업과-복구)에 따라 DB와 객체 version 전체를 같은
+[운영 백업 절차](../operations/backup-restore.md)에 따라 DB와 객체 version 전체를 같은
 복구 지점으로 백업한다. dump exit·크기·해시·`pg_restore --list`, 객체 manifest와
 암호화 key 복구 위치를 확인한다. 백업 파일은 기존 파일을 덮지 않는다.
 

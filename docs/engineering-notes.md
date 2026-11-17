@@ -237,7 +237,7 @@
   컨테이너 안에서는 통과한다.
 - 원인: 표준 PDF 파서가 실패하면 poppler로 fallback하는데, `pdftotext`·`pdfinfo`가 없으면
   fallback 자체가 `malformed_pdf`를 던진다(`processor.py:447-449`). `poppler-utils`는
-  런타임 이미지에만 설치된다(`web/Dockerfile:48`).
+  런타임 이미지에만 설치된다(`docker/Dockerfile:48`).
 - 대응: 문서 파이프라인을 측정할 때는 host가 아니라 런타임 이미지 안에서 돌린다.
   `docker run --rm --network none -v <표본>:/data -w /app/web/backend <web 이미지> python …`
   로 충분하다. host 결과로 "이 문서는 처리 못 한다"고 결론 내리지 않는다.
@@ -453,7 +453,7 @@
 - 증상: 개요 run이 `pdf_preparation_failed:clamav_unavailable`로 끝난다.
 - 원인: analysis-worker가 `scanning` 네트워크에 붙어 있지 않아 `clamav:3310`에 연결할 수
   없다.
-- 대응: `docker-compose.yml`의 analysis-worker `networks`에 `scanning`이 있는지 확인한다.
+- 대응: `docker/docker-compose.yml`의 analysis-worker `networks`에 `scanning`이 있는지 확인한다.
   `BIDOPS_CLAMAV_HOST`/`BIDOPS_CLAMAV_PORT`가 맞아도 네트워크가 없으면 연결 자체가 안 된다.
 
 ## `pdf_preparation_failed:converter_unavailable`이 약 285초 뒤에 나면 `/scratch`가 안 붙은 것이다
@@ -554,7 +554,7 @@
   2026-10-09에 같은 현상을 진단(`.sdlc/local-runtime/rosetta-diagnosis.json`: DATA 640MiB
   실패·768MiB 통과)하고 arm64 문서 worker로 피해 갔다.
 - 대응: 제품 한도는 그대로 두고 문서 worker만 native arm64 이미지로 돌린다
-  (`docker-compose.mac.yml`의 `BIDOPS_DOCUMENT_IMAGE`, operations "Mac 운영 호스트").
+  (`docker/docker-compose.edge.yml`·`docker/docker-compose.prod.yml`의 `BIDOPS_DOCUMENT_IMAGE`, [Mac 운영 호스트](operations/host.md)).
   같은 증상이면 먼저 자식 한도를 걸고 rhwp를 직접 돌려 stderr에 `rosetta error`가 있는지 본다.
   `차단`된 취득 행은 제품이 되살리지 않는다(findings).
 

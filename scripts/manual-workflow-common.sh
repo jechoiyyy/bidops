@@ -5,25 +5,18 @@ WORKFLOW_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 WORKFLOW_ROOT="$(cd -- "${WORKFLOW_SCRIPT_DIR}/.." && pwd)"
 cd "${WORKFLOW_ROOT}"
 
-COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-bidops}"
+source "${WORKFLOW_SCRIPT_DIR}/compose-env.sh"
 workflow_default_web_port="${BIDOPS_WEB_PORT:-}"
 if [[ -z "${workflow_default_web_port}" ]] && command -v docker >/dev/null 2>&1; then
   workflow_published_web="$(
-    COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose -f docker-compose.yml \
+    "${WORKFLOW_SCRIPT_DIR}/compose.sh" \
       port web 8787 2>/dev/null || true
   )"
   if [[ "${workflow_published_web}" =~ :([0-9]+)$ ]]; then
     workflow_default_web_port="${BASH_REMATCH[1]}"
   fi
 fi
-if [[ -z "${workflow_default_web_port}" && -f "${WORKFLOW_ROOT}/.env" ]]; then
-  workflow_default_web_port="$(
-    awk -F= '$1 == "BIDOPS_WEB_PORT" { value=$2 } END { print value }' "${WORKFLOW_ROOT}/.env" \
-      | tr -d '\r"' \
-      | tr -d "'"
-  )"
-fi
-[[ "${workflow_default_web_port}" =~ ^[0-9]+$ ]] || workflow_default_web_port="18787"
+[[ "${workflow_default_web_port}" =~ ^[0-9]+$ ]] || workflow_default_web_port="${BIDOPS_DEFAULT_WEB_PORT}"
 BIDOPS_WORKFLOW_WEB_URL="${BIDOPS_WORKFLOW_WEB_URL:-http://127.0.0.1:${workflow_default_web_port}}"
 
 workflow_note() {
@@ -221,18 +214,18 @@ workflow_check_web() {
 workflow_copy_run_if_missing() {
   local run_id="$1"
   local run_dir="$2"
-  if COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose -f docker-compose.yml \
+  if "${WORKFLOW_SCRIPT_DIR}/compose.sh" \
       exec -T web test -e "/app/data/runs/${run_id}"; then
     workflow_note "container run directory already exists; preserving it and skipping copy: ${run_id}"
     return
   fi
-  COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose -f docker-compose.yml \
+  "${WORKFLOW_SCRIPT_DIR}/compose.sh" \
     cp "${run_dir}" web:/app/data/runs/
 }
 
 workflow_ingest_run() {
   local run_id="$1"
-  COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose -f docker-compose.yml \
+  "${WORKFLOW_SCRIPT_DIR}/compose.sh" \
     exec -T web python -m app.lifecycle.ingest.cli --run "${run_id}"
 }
 
@@ -252,6 +245,6 @@ workflow_common_preflight() {
   workflow_require_command docker
   workflow_require_command jq
   workflow_require_command python3
-  docker compose version >/dev/null
+  scripts/compose.sh version >/dev/null
   workflow_check_web
 }

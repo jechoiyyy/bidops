@@ -29,102 +29,45 @@
 
 관리 화면은 **1280~1920px 데스크톱·노트북**을 지원합니다. 현재 로그인·역할 기반 권한·SSO가 없으므로 서비스 접근은 사내망 또는 접근이 제한된 tailnet으로 한정합니다. 저장소 공개와 서비스의 인터넷 공개는 별개입니다.
 
-기반 Compose는 DB·객체 저장소를 호스트에 노출하지 않습니다. 화면은 `docker-compose.edge.yml`을 함께 적용해야 열리며, 기본 주소는 `http://127.0.0.1:18787`입니다. edge는 웹의 outbound 경로도 만들므로 외부 목적지 제한은 호스트 방화벽에서 관리합니다.
+기반 Compose는 DB·객체 저장소를 호스트에 노출하지 않습니다. 화면은 `docker/docker-compose.edge.yml`을 함께 적용해야 열리며, 개발 기본 주소는 `http://127.0.0.1:18789`입니다. edge는 웹의 outbound 경로도 만들므로 외부 목적지 제한은 호스트 방화벽에서 관리합니다.
 
-## 신규 설치
+## 통합 개발 시작
 
-아래는 **새 Linux amd64 환경의 기본 웹·문서 처리 스택** 설치 순서입니다. 기존 운영 환경의 재배포에는 [운영 절차](docs/operations.md)를 사용하세요. Apple silicon에서는 별도 이미지 구성이 필요하므로 [Mac 운영 호스트](docs/operations/host.md#mac-운영-호스트-2026-10-14)를 먼저 확인하세요.
-
-### 1. 소스와 설정 준비
-
-Docker Engine과 Docker Compose를 준비하고 저장소를 내려받습니다. 호스트에서 개발·검증할 경우 Python 3.12+, Node.js 22+, npm 10+도 필요합니다.
+Python 3.12+, Node.js 22+, Docker Compose가 필요합니다. 개발 기본은 `bidops-dev` / `127.0.0.1:18789`, mock은 `bidops-mock` / `:18790`입니다. 운영 `bidops` / `:18788`, 기존 데모 `bidops-local` / `:18787`과 자원을 공유하지 않습니다.
 
 ```bash
-git clone https://github.com/jechoiyyy/bidops.git
-cd bidops
-cp .env.example .env
+make env        # 개발 전용 자격증명을 env/dev.env에 한 번 생성
+make config
+make build
+make init       # 명시적 DB 역할·migration·MinIO 초기화
+make create     # 새 개발 컨테이너 생성
+make health
+make status
+make logs
+make test-config # 구성 선택·관련 운영 스크립트 검사
+make test-engine # 엔진·adapter 검사 (PostgreSQL 변형은 별도 test URL 지정)
 ```
 
-기동 전에 `.env`의 예시 값을 실제 배포 값으로 바꿉니다.
+이미 만든 컨테이너를 시작할 때는 `make up`, 수정 이미지를 만들 때는 `make build`, 새 이미지로 컨테이너를 교체할 때는 `make create`를 사용합니다. `make up`은 재배포나 migration을 수행하지 않습니다. `make down`은 프로젝트 컨테이너를 중지하고 볼륨을 보존합니다. 정확한 명령·옵션은 `make help`와 [호스트 절차](docs/operations/host.md)를 확인하세요.
 
-- `BIDOPS_UID`·`BIDOPS_GID`: 실행 계정의 `id -u`·`id -g`와 일치하는 0이 아닌 값
-- PostgreSQL: owner·migrate·app·worker·backup 역할별 서로 다른 비밀번호
-- MinIO: root 및 용도별 access key·secret key
-- 모델 응답 암호화: 키와 키 참조 값
-- 화면: `BIDOPS_WEB_BIND_HOST=127.0.0.1`, `BIDOPS_WEB_PORT=18787` (충돌하면 포트 변경)
+모델 없는 검증은 `env/mock.env`를 별도로 준비하고 모든 명령에 `BIDOPS_ENV=mock`을 지정합니다. 비밀값·회사자료는 커밋하거나 이미지에 넣지 않습니다. 프로필 API의 `503 profile_snapshot_unavailable`은 승인 snapshot이 없는 경우의 차단 동작입니다.
 
-비밀값은 배포 환경에서 주입하며 `.env`와 `env/*.env`는 커밋하지 않습니다. 상세 설정은 [설치·설정 안내](docs/operations/setup.md)에 있습니다.
+분석 엔진은 `packages/bid-deep-engine`과 BidOps adapter로 연결합니다. 사전규격 상세의 새 실행은 **mock 참조**이고 기존 판정·리뷰와 별도로 저장됩니다. Claude/API/CLI/A2A·Langfuse 전송은 이식하지 않습니다. 기존 품질 실패와 파서 누락은 유지되며, 통합 성공은 품질 인수를 의미하지 않습니다. [통합 계약과 검증](docs/work/groups/RL/features/RL-09-engine-integration/plan.md)을 참고하세요.
 
-### 2. 승인된 회사자료 준비
+## 운영 구성과 승인
 
-웹 서비스는 아래 파일을 호스트에서 읽기 전용으로 마운트합니다. 회사자료는 런타임 이미지에 포함되지 않으며, 공개 소스만으로 배포 준비가 완료되지는 않습니다. 배포 담당자가 승인된 자료와 기준선을 별도로 준비해야 합니다.
+Dockerfile 5개와 Compose 6개는 [`docker/`](docker/README.md)에서 관리합니다. 빌드 context와 bind mount의 기준은 저장소 루트이며 `.dockerignore`도 루트에 유지합니다.
+
+Make와 운영 스크립트는 `scripts/compose.sh` 하나로 환경을 선택합니다. 기존 `scripts/mac-compose.sh`는 prod 선택 wrapper입니다. 운영은 base+edge+prod 세 파일과 기존 env 네 파일을 사용하며 모델·G2B 네트워크는 해당 서비스에만 연결합니다. Luna·Slack은 별도 선택 capability입니다. profiles는 서비스 선택에만 사용합니다.
 
 ```bash
-test -f docs/reference/company-profile.md && test -r docs/reference/company-profile.md
-test -f docs/reference/company-performance-titles.tsv && test -r docs/reference/company-performance-titles.tsv
-test -f web/backend/app/screening/baseline_company_profile.md && test -r web/backend/app/screening/baseline_company_profile.md
-```
-
-세 검사 중 하나라도 실패하면 자료를 준비한 뒤 진행합니다. 빈 파일로 대신하지 않습니다. 프로필 기준선은 SHA-256 검증을 따릅니다.
-
-### 3. 이미지 빌드와 저장소 초기화
-
-기존 스택과 겹치지 않는 전용 Compose 프로젝트 이름을 지정합니다. 아래 이름은 새 설치용 예시이며, 이후 명령에도 같은 값을 유지합니다.
-
-```bash
-export COMPOSE_PROJECT_NAME=bidops-deploy
-
-docker compose -f docker-compose.yml build
-docker compose -f docker-compose.yml up -d postgres minio clamav
-
-# DB 역할 → Alembic migration → MinIO 버킷·권한 초기화
-./scripts/init-runtime.sh
-```
-
-앱 시작은 migration·seed·정책 활성화를 수행하지 않습니다. 초기화를 완료한 뒤 웹을 시작합니다.
-
-### 4. 서비스 시작과 확인
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.edge.yml \
-  up -d web document-worker
-
-docker compose -f docker-compose.yml -f docker-compose.edge.yml ps
-curl --fail http://127.0.0.1:18787/api/health
-```
-
-브라우저에서 `http://127.0.0.1:18787`을 엽니다. `.env`에서 포트를 변경했다면 확인 주소도 바꿉니다. API health와 함께 실제 화면이 열리는지 확인하세요.
-
-새 설치에는 수집 회차·판정·리뷰가 없습니다. 승인된 프로필 snapshot이 없을 때 프로필 API가 `503 profile_snapshot_unavailable`을 반환하는 것은 정상적인 차단 동작입니다. 수집·적재·프로필 및 정책 준비는 [설치 안내](docs/operations/setup.md)와 [일일 운영](docs/operations/daily.md)을 따릅니다.
-
-## 분석·연동 활성화
-
-기본 설치 이후 필요한 경로를 따로 설정합니다. 모델·회사자료 전송과 정책 활성화는 각 경로의 승인·감사 절차를 거칩니다.
-
-| 목적 | 추가 구성 | 절차 |
-|---|---|---|
-| 공고 판정·개요·심층 분석 | `docker-compose.model-egress.yml`, `env/model.env`, `analysis-worker` | [모델·worker 설정](docs/operations/setup.md) |
-| C-2 발주계획 선별 | model-egress + `docker-compose.c2-order-plan.yml`, 승인 입력·정책·품질 게이트 | [C-2 일일 운영](docs/operations/daily.md) |
-| 사전규격 첨부 취득 | `docker-compose.prespec-attachment.yml`, `env/prespec-attachment.env`, 첨부 worker | [사전규격 실행](docs/operations/prespec-reference.md) |
-| 회사 기반 판정·제안서 | RL 설정·회사 근거·승인 정책·전용 실행 환경 | [RL 운영](docs/operations/rl.md) |
-| Slack 브리핑·반응 | `docker-compose.slack-egress.yml`, `env/slack.env` | [RL·Slack 운영](docs/operations/rl.md) |
-| 모델 없는 흐름 검증 | `docker-compose.mock-reference.yml` (화면 접근에는 edge도 필요) | [참조 실행 가이드](docs/prespec-reference-run-guide.md) |
-
-`--env-file`을 쓰면 공통 `.env`와 해당 overlay의 환경 파일을 함께 넘깁니다. 스케줄러·심층 자동 시작·RL 분석·Slack은 기본 비활성이며, 모델 장애 때 외부 hosted 모델로 자동 전환하지 않습니다. mock·참조 실행은 품질 합격이나 운영 활성화 근거가 아닙니다.
-
-## 기존 Mac 운영
-
-기존 Mac 운영은 **운영 checkout의 `scripts/mac-compose.sh`**가 Compose 파일 6개·환경 파일 4개·`prespec` profile을 고정합니다. 프로젝트 이름은 `bidops`, 웹은 loopback `18788`, tailnet은 `8188`이며 신규 설치 예시와 구분합니다.
-
-```bash
-# 운영 checkout에서 읽기 전용 상태 확인
+# 운영 checkout의 읽기 전용 상태 확인
 scripts/mac-compose.sh ps
-curl --fail http://127.0.0.1:18788/api/health
 ```
 
-앱은 amd64 이미지, 문서 worker는 별도 native arm64 이미지를 사용합니다. 이미지 준비·교체·migration은 [Mac 호스트 절차](docs/operations/host.md#mac-운영-호스트-2026-10-14)를 따릅니다.
+앱은 amd64 이미지, 문서 worker는 native arm64 이미지를 사용합니다. 저장소에 portable `docker/Document.Dockerfile`을 제공합니다. 운영 project·volume 이름은 유지합니다. migration·재배포·정책 활성화·실제 모델·Slack·cron은 이번 통합에서 실행하지 않습니다.
 
-마지막 저장된 운영 확인은 [2026-10-19 배포 기록](docs/validation-runs/20261019-ops-rl-rollout/README.md)입니다. 당시 C-2 v5 active·일일 스위치 ON, 개요·상시 첨부 worker·RL 분석은 꺼져 있었습니다. 일일 스위치 ON은 cron 설치를 뜻하지 않으며, Mac cron은 설치하지 않은 상태로 기록돼 있습니다. 이후 코드 변경이 운영에 반영됐다고 추정하지 않습니다.
+마지막 저장된 배포는 [2026-10-19 기록](docs/validation-runs/20261019-ops-rl-rollout/README.md)입니다. 2026-11-17 읽기 전용 확인에서 운영과 데모 web은 모두 restarting/unhealthy였고 활성 BidOps cron 행은 없었습니다. 이 통합에서 복구하지 않았으며, 정상 운영 또는 새 코드 반영으로 해석하지 않습니다.
 
 ## 업데이트·백업·복구
 

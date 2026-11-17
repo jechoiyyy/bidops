@@ -2972,3 +2972,31 @@ class AssumptionStage(Base):
 for _assumption_model in (AssumptionInputVersion, AssumptionRun, AssumptionStage):
     event.listen(_assumption_model, "before_update", _immutable_luna_input)
     event.listen(_assumption_model, "before_delete", _immutable_luna_input)
+
+
+class EngineRun(Base):
+    """Immutable input/result envelope for the extracted offline engine, never a human decision."""
+    __tablename__ = "engine_run"
+    __table_args__ = (
+        UniqueConstraint("request_id", name="uq_engine_run_request"),
+        CheckConstraint("status IN ('queued','running','completed','partial','failed')", name="ck_engine_run_status"),
+        CheckConstraint("quality_status = 'mock_reference'", name="ck_engine_run_quality"),
+    )
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    company_id: Mapped[uuid_module.UUID] = mapped_column(_fk("company.id", ondelete="RESTRICT"), nullable=False)
+    notice_id: Mapped[int] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), nullable=False)
+    bundle_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_bundle.id", ondelete="RESTRICT"), nullable=False)
+    profile_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("profile_version.id", ondelete="RESTRICT"), nullable=False)
+    engine_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    quality_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    input_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_payload: Mapped[Any] = mapped_column(JSONB_COMPAT, nullable=False)
+    result_payload: Mapped[Any | None] = mapped_column(JSONB_NULL_COMPAT, nullable=True)
+    result_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_by_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)

@@ -1,6 +1,6 @@
 # BidOps 재정의 초안 — 루트랩 기준 AX 과제
 
-- 상태: **초안·미승인** (2026-10-16). §6 인터뷰 답을 받은 뒤 `sdlc:replan`으로 `docs/work/constitution/{mission,roadmap}.md`·큐에 반영하고 이 문서는 결정 기록으로 축약한다.
+- 상태: **2026-10-16 목표 채택 후의 결정 근거 기록**([ADR-0073](../tracking/decisions/0073-rootlab-real-company-ax-redefinition.md)). 본문의 초기 제안과 인터뷰 답을 구분한다. 현재 요구·순서는 [mission](../work/constitution/mission.md)·[roadmap](../work/constitution/roadmap.md), 구현·인수는 [status](../tracking/status.md)를 따른다. RL-00~05 구현·평가 기록이 있으며 RL-05 인수는 reject다(2026-10-21 문서 대조).
 - 회사 기준: 실회사 ㈜루트랩. 근거는 [`docs/reference/company-profile.md`](../reference/company-profile.md)(2026-08 회사소개서)와 [`docs/reference/company-homepage-profile.md`](../reference/company-homepage-profile.md)(2026-10-16 홈페이지).
 - 이전 방향과의 관계: C-2 발주계획 선별(운영 PoC), DEMO 가상 SI 3사(종료), HP 가상 홈페이지 1사(HP-00·01 완료, 02~06 미착수)는 기록과 코드를 보존하되 **가상회사 전제는 폐기**한다.
 
