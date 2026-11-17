@@ -12,7 +12,7 @@
 > 2026-09-11 [ADR-0054](tracking/decisions/0054-prespec-overview-mvp-rewrite.md)로 폐기하고
 > `prespec_overview_run`(migration 0026) 단일 테이블로 재작성했다. `docs/0910_prespec-workflow-hardening/`
 > 폴더는 삭제했으며 상세는 git 이력(`71b9954`)에서 찾는다. 현재 계약은
-> [contracts.md](contracts.md#사전규격-개요-검토-mvp-2026-09-11)를 정본으로 한다.
+> [contracts.md](contracts/prespec-overview.md#사전규격-개요-검토와-예비-적합성-판단-mvp-2026-09-21)를 정본으로 한다.
 
 ## 두 갈래로 나눠서 간다
 
@@ -150,7 +150,7 @@ model revision이 없으면 모델을 쓰는 모든 용도가 호출 전에 막�
 ### 심층 검토·회사 핏 결과에는 품질 표식이 붙는다
 
 2026-09-11 개요 스택 재작성으로 `prespec_overview_run`은 `quality_status` 필드를 더 이상
-갖지 않는다(계약은 [contracts.md](contracts.md#사전규격-개요-검토-mvp-2026-09-11)). 아래
+갖지 않는다(계약은 [contracts.md](contracts/prespec-overview.md#사전규격-개요-검토와-예비-적합성-판단-mvp-2026-09-21)). 아래
 배지는 심층 검토 보고서와 회사 핏 결과에 그대로 적용된다.
 
 - **참조 실행 · 품질 미측정** (`unmeasured_reference`) — 실제 모델이 돌았지만 품질을 재지
@@ -173,7 +173,7 @@ model revision이 없으면 모델을 쓰는 모든 용도가 호출 전에 막�
 
 **(2026-09-11 종결)** 이전에는 개요 검토를 mock으로 돌려도 실제 참조 실행과 품질 표식을
 구분할 수 없었다. `prespec_overview_run`에 `quality_status` 필드 자체가 없어졌으므로 이
-문제는 해당 스택 폐기로 종결됐다([findings](tracking/findings.md#mock-종단의-개요-검토가-실제-참조-실행과-응답에서-구분되지-않는다)).
+문제는 해당 스택 폐기로 종결됐다([findings](tracking/findings/model-review.md#mock-종단의-개요-검토가-실제-참조-실행과-응답에서-구분되지-않는다)).
 심층 검토의 mock 표식(`mock_reference`)은 이와 무관하게 정상 동작한다.
 
 ## 증거를 남긴다

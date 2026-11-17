@@ -56,7 +56,7 @@ docker run --rm --network none --user 1000:1000 --memory 1g --pids-limit 128 \
 ```
 
 원본 사본이 없으면 [R0의 표본 취득·검증 기록](2026-09-10-rhwp-r0-baseline.md)과
-[계획의 고정 object version](../rhwp-document-pipeline/Plan.md#3-자주-쓰는-명령)을 따른다.
+[계획의 고정 object version](../0910_rhwp-document-pipeline/Plan.md)을 따른다.
 `/input` 파일명은 `notice-142.hwpx`, `notice-10-rfp.hwp`, `notice-10-sow.hwp`다.
 원문 hash, 이미지 ID, 옵션·격리 조건, 대응표 hash는 [안전 지표](2026-09-10-rhwp-r2-para-page-map.metrics.json)에 있다.
 산출물 전문·첨부·페이지 텍스트는 이 기록에 저장하지 않았다. 별도 ClamAV 판정은 수행하지

@@ -8,7 +8,7 @@
 이어서 수행한다.
 
 등급 기반 자동 문서 준비와 `SW사업대상=Y` 자동 심층 시작까지 한 번에 통과시키는 절차는 이
-문서가 아니라 [운영 절차의 "사전규격 심층 검토 참조 실행"](operations.md#사전규격-심층-검토-참조-실행)이
+문서가 아니라 [운영 절차의 "사전규격 심층 검토 참조 실행"](operations/prespec-reference.md#사전규격-심층-검토-참조-실행)이
 정본이다. 이 문서는 테이블을 채우고 화면에 뜨는지만 확인한다.
 
 ## 2026-09-04 확인 상태
@@ -44,13 +44,13 @@
   `BIDOPS_VLLM_MODEL_REVISION`이 비어 있어 모델을 부르는 모든 용도가 호출 전에 fail
   closed한다. 화면 흐름만 볼 때는 `docker-compose.mock-reference.yml`로 web·analysis-worker를
   재기동하고, 실제 모델로 돌릴 때는
-  [운영 절차의 "사전규격 심층 검토 참조 실행"](operations.md#사전규격-심층-검토-참조-실행)을
+  [운영 절차의 "사전규격 심층 검토 참조 실행"](operations/prespec-reference.md#사전규격-심층-검토-참조-실행)을
   따른다. mock 판정은 화면 흐름 확인용이지 품질 근거가 아니다.
 
 ## 실행 순서
 
 컨테이너 이름은 Compose 프로젝트 `bidops` 기준이다. 2026-09-04에 `bidops-e2e-t7` 프로젝트의 volume을
-복제해 이 이름으로 재기동했고, 발주계획 1,040건과 C-2 실행 결과는 그대로 보존됐다(`docs/docker-consolidation.md`).
+복제해 이 이름으로 재기동했고, 발주계획 1,040건과 C-2 실행 결과는 그대로 보존됐다(당시 정리 기록: `git show b5a61e4:docs/docker-consolidation.md`; 현재 조합은 [호스트 절차](operations/host.md)).
 
 ### 1. 기존 공고 회차 적재 (모델·외부망 불필요)
 

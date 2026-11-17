@@ -112,7 +112,7 @@ docker run --rm --network none --read-only --tmpfs /tmp \
   > /secure/bidops-e2e/qwen-quality-result.json
 ```
 
-통과 결과의 `policy_import_arguments`를 그대로 사용해 measured profile/policy를 import한다. 아래 `<...>`에는 scorer가 출력한 값만 넣는다. 품질을 아직 재지 않은 **참조 실행**은 이 인수 절차가 아니라 [운영 절차의 "사전규격 심층 검토 참조 실행"](operations.md#사전규격-심층-검토-참조-실행)을 따르며, 그쪽은 품질 인자 없이 import한다.
+통과 결과의 `policy_import_arguments`를 그대로 사용해 measured profile/policy를 import한다. 아래 `<...>`에는 scorer가 출력한 값만 넣는다. 품질을 아직 재지 않은 **참조 실행**은 이 인수 절차가 아니라 [운영 절차의 "사전규격 심층 검토 참조 실행"](operations/prespec-reference.md#사전규격-심층-검토-참조-실행)을 따르며, 그쪽은 품질 인자 없이 import한다.
 
 ```bash
 docker compose --project-name bidops-deep-review-e2e \

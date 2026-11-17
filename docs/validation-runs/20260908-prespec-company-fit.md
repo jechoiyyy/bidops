@@ -93,7 +93,7 @@ PY
 1,556 passed·18 failed·5 skipped였다. migration의 새 테이블/감사 표식과 worker의 활성 입력
 설정을 기존 검사에 반영한 뒤 실패 항목을 재실행했다. 15개가 통과했고 남은 3개 중
 worker 설정 검사는 최종 74개 집중 검사에서 통과했다. 나머지 2개는 이미 기록된
-[lifecycle Protocol 계약 공백](../tracking/findings.md#lifecycle-projection의-protocol-요구-메서드와-구현-불일치)이다.
+[lifecycle Protocol 계약 공백](../tracking/findings/model-review.md#lifecycle-projection의-protocol-요구-메서드와-구현-불일치)이다.
 최종 수정 후 전체 backend를 다시 한 번 모두 통과시킨 기록은 없다.
 
 전체 frontend `npm run test:screens`는 463 passed·10 failed·6 skipped다. 실패는 회사 핏을

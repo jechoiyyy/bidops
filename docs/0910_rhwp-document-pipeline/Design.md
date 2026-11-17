@@ -9,7 +9,7 @@
 > migration 0026에서 삭제됐고, 범위 확인은
 > `POST /api/pre-specs/{notice_id}/overview/range-confirmations`(body `{page_start, page_end,
 > note?}`)로 단순화됐다. 현재 계약은
-> [contracts.md](../contracts.md#사전규격-개요-검토-mvp-2026-09-11)를 정본으로 한다. rhwp
+> [contracts.md](../contracts/prespec-overview.md#사전규격-개요-검토와-예비-적합성-판단-mvp-2026-09-21)를 정본으로 한다. rhwp
 > 변환·snapshot·절 후보(`bidops.section-candidates.v1/v2`) 설계는 그대로 유효하다.
 
 ## 1. 현재 구조와 바뀌는 지점

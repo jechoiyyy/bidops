@@ -53,7 +53,7 @@
 ### 항목·반응 계약
 
 - `reaction` enum 전체 `대기 | 채택 | 무시 | 나중에`. 초기 `대기`. `tracked_change` 행은 `reaction=null` 고정.
-- 반응은 항목당 하나(팀 결정이 아니라 "마지막 담당 기록")다. 두 사람이 다르게 누르면 나중 요청이 `expected_revision` 불일치로 409 `version_conflict`를 받고 재조회 뒤 다시 누른다; 모든 시도는 이벤트로 남는다(ux-review §2 이관 항목의 결정).
+- 반응은 항목당 하나(팀 결정이 아니라 "마지막 담당 기록")다. 두 사람이 다르게 누르면 나중 요청이 `expected_revision` 불일치로 409 `version_conflict`를 받고 재조회 뒤 다시 누른다; 모든 시도는 이벤트로 남는다(ux-review의 "후속 명세로 확정한 사항").
 - `reacted_via` enum `screen | slack`. `reacted_by`는 화면은 actor 헤더 이름, Slack은 사용자 표시 이름(`users.info` 호출 없이 interaction payload의 `user.username`/`name` 중 있는 것).
 - 되돌리기 = 새 반응 PATCH(이전 값으로). 모든 변화는 `briefing_reaction_event` append(`previous`·`new`·`actor`·`via`·`request_id`). `revision`은 0부터 +1.
 - 멱등: core `IdempotencyRecord`(`app/core/models.py`; `operation="briefing.react"`, `aggregate_type="briefing_item"`, `aggregate_id=<item_id>`, `claimed_name=actor`, `request_id=body`, `request_sha256` = canonical JSON `{operation, item_id, reaction, expected_revision, actor, via}`의 SHA). 같은 key·같은 hash는 저장 snapshot(`BriefingItemView`) 재생, 다른 hash는 409 `idempotency_conflict`. fence 로직은 `opportunity_tracking.py`의 사설 함수를 `core/idempotency_fence.py`로 뽑아 둘이 같이 쓴다(복제 금지). `expected_revision` 불일치 409 `version_conflict`.

@@ -3,10 +3,10 @@
 | 항목 | 내용 |
 |---|---|
 | 문서 상태 | 현재 제품 기준선·통합 PRD |
-| 기준일 | 2026-09-01 |
+| 기준일 | 2026-10-21 (소스·기록 대조, 운영 마지막 확인 2026-10-19) |
 | 제품 | BidOps — 공공조달 사업기회 의사결정 지원 시스템 |
 | 대상 사용자 | 기획·사업개발 담당자, 운영자 |
-| 현재 착수 단위 | 발주계획 C-2 `BM25 Top 300 + Qwen` |
+| 현재 작업 범위 | RL 실회사 AX — 구현된 RL-00~05의 인수 후속, review 상태 RL-06·07 |
 | 관련 문서 | [`ADR.md`](ADR.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`contracts.md`](contracts.md), [`business-rules.md`](business-rules.md) |
 
 이 문서는 나라장터의 발주계획을 조기에 탐색하고, 사전규격 제안요청서를 검토한 뒤, 선택한
@@ -140,22 +140,22 @@ RFP 개요 검토는 문서의 목차와 의미 있는 소제목에 따라 결�
 
 | 영역 | 현재 상태 | 제품 해석 |
 |---|---|---|
-| 기존 공고 pipeline | 수집·정규화·표본·다섯 관점 판정·HTML/YAML 산출물 구현 | 검증된 기존 기준선 |
-| 관리자 API/UI | 회차·공고·리뷰·프로필 projection·지표·첨부·기회·문서 bundle·심층 검토 화면 제공 | 사람이 조회·검토하는 기반 |
-| PostgreSQL/MinIO | 운영 정본 schema·object versioning·복구 경계 고정 | SQLite는 격리 테스트·일회성 이관만 |
-| 사전규격 개요 | 절단 snapshot·attempt/result 계약·조회 화면에 더해 모델 실행 worker와 통일 client 연결까지 구현 | 실행은 `quality_status=unmeasured_reference\|mock_reference`인 참조 실행이다. 승인된 artifact와 사람 gold 측정이 남음 |
-| 사전규격 자동 준비 | 등급 기반 자동 묶음·`SW사업대상=Y` 자동 심층 시작 구현([ADR-0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)) | 자동 시작이 만든 검토를 실행하는 경로에 결함이 남아 있다([findings](tracking/findings.md)) |
-| 문서 segment·요구사항 inventory | 결정적 manifest 저장과 검증 연결 구현([ADR-0051](tracking/decisions/0051-deep-review-v2-deterministic-subset.md)) | 역할별 모델 분석과 Luna 외부 평가는 보류 |
-| 입찰 delta | schema·REST·화면 계약 및 migration 경계 존재 | 실제 계산 worker/model adapter와 운영 실행은 남음 |
-| C-2 선별 | 비교 실험·Phase 0 전용 schema/validator·binding 고정 | 제품 adapter·C-2 DB/API/worker는 미구현 |
-| scheduler/always-on | 계약·상태·조건 설계와 기본 비활성 경계 | 운영 품질 승인 뒤 별도 활성화 |
+| 수집·C-2 | 수집·적재·BM25·Qwen·정책·게이트·화면·일일 실행 구현 | Mac v5는 10월 14일 게이트 통과, 10월 19일 active·일일 ON 확인 |
+| 관리자 API/UI | 회차·공고·리뷰·프로필·첨부·사업기회·문서·심층 검토 제공 | 사람 조회·검토 기반. 로그인/SSO 없음 |
+| PostgreSQL/MinIO | 코드 head 0041, 운영에도 10월 19일 적용, versioned object | SQLite는 격리 테스트·일회성 이관만 |
+| 사전규격 개요·자동 준비 | 취득·변환·개요 실행·조회 구현 | 개요는 참조 실행. Mac의 개요 플래그·상시 첨부 worker는 마지막 기록상 꺼짐 |
+| RL-00~02 | 실회사 근거 등록, 브리핑·Slack·반응, 활동 피드·노트 구현 | 격리 검증 기록 있음. 운영 회사 등록·브리핑은 별도 |
+| RL-03 카드 판정 | 카드·영역 추출, 결정적 회사 대조, 역할 판단·종합, 판정 탭 구현 | 실제 gold 10건 인수 reject. 실행 완료를 품질 합격으로 해석하지 않음 |
+| RL-04 제안서 | 6절 초안·문장 수정·검토·PDF 구현 | 실제 1건 partial(4/6절 완료), 제출본은 사람 책임 |
+| RL-05 인수 | 도구·실제 분석·채점·사람 결정 완료 | 판정 일치 3/10, 차단 조건 recall 0/7. 대조 범위 개선 필요 |
+| 입찰 delta·최종 결정 | DB·REST·화면 구현 | 비교 계산 worker는 없음. 추적 선택과 최종 결정을 구분 |
+| scheduler/always-on | 기존 경로 기본 비활성 | C-2 일일 스크립트·DB 스위치와 별개 |
 
-코드·스키마·시안이 존재한다는 사실은 사용자 흐름이 운영 가능하다는 뜻이 아니다. 상세 구현
-상태는 [`tracking/status.md`](tracking/status.md)를 따른다.
+상세 상태와 증거는 [tracking/status.md](tracking/status.md)를 따른다. RL-06·07은 문서·큐 등록 상태이며 구현 전이다.
 
-### 5.2 C-2 MVP 목표 범위
+### 5.2 C-2 제품 범위
 
-다음은 C-2 제품화를 완료했을 때의 목표 범위다. 현재 구현·계약 상태는 5.1과
+다음은 구현된 C-2의 범위다. 정책별 품질·운영 상태는 5.1과
 tracking/status.md에서 별도로 관리한다.
 
 - 사람이 source run과 binding을 선택하는 수동 실행
@@ -168,7 +168,7 @@ tracking/status.md에서 별도로 관리한다.
 - PostgreSQL 적재, versioned object, 안전한 API projection과 감사
 - scheduler 없이 fake E2E와 수동 운영 경계 검증
 
-정확한 file·REST·DB field와 상태는 [`contracts.md`의 C-2 계약](contracts.md#c-2-phase-0-fixed-contract)을
+정확한 file·REST·DB field와 상태는 [`contracts.md`의 C-2 계약](contracts/c2.md#c-2-phase-0-fixed-contract)을
 따른다.
 
 ### 5.3 이후 생애주기 범위
@@ -183,7 +183,7 @@ tracking/status.md에서 별도로 관리한다.
 
 ### 5.4 명시적 제외
 
-- 자동 입찰서 작성·제출, 발주기관 연락·협상·알림 발송
+- 자동 입찰 제출·최종 제출본 확정, 발주기관 연락·협상·대외 알림 발송(사내 Slack 브리핑과 제안서 초안은 RL 범위)
 - 모델의 자동 최종 참여 결정 또는 추적 상태 변경
 - hosted OpenAI·Codex로의 자동 fallback
 - `unknown`, 실패, 미확인 자격을 부정 또는 0으로 바꾸는 기능
@@ -342,32 +342,17 @@ BM25가 놓친 두 건은 현재 기록상 관련·우선순위 낮음·draft la
 
 1. C-2 대상 corpus의 사람 adjudication과 감사 표본 정책을 확정한다.
 2. 승인 gold에서 recall, precision, 검토량, 중요 누락, 시간·token을 다시 계산한다.
-3. 실제 private vLLM model artifact/revision digest와 payload binding을 확인한다.
+3. 실제 모델 artifact/revision digest와 payload binding을 확인한다(Mac v5는 LiteLLM/Ollama, 사설 vLLM은 이전 환경).
 4. fake/live 실행을 분리해 strict schema·failure·no-fallback·감사·hash를 검증한다.
 5. 운영자가 정확한 policy·model·prompt·profile·generation binding을 명시적으로 승인한다.
 
-심층 검토 품질 gate의 후보 기준은 필수 항목 recall 0.80 이상, 사람 판정 일치율 0.70 이상,
-근거 부족 오판율 0.10 이하로 문서화되어 있으나, 대표 HWP/PDF와 사람 gold가 충분히 확보되어
-실측 승인된 것으로 간주하지 않는다. 목표 recall·중요 누락 허용치·감사 표본률은 확정 전
-`미측정` 또는 `승인 대기`로 남긴다.
+C-2 PoC 임계값과 승인값은 [일일 운영 결정 표](0918_daily-operation/plan.md)에 있다. v4·v5의 통과 기록을 새 정책에 승계하지 않는다. RL 카드 판정은 별도 [gold 인수 기준](model-quality-gate.md#rl-판정-gold-인수-rl-05)을 적용하며, 2026-10-20 인수 결과는 reject다. 예전 심층 검토 후보 지표를 RL의 합격 기준으로 대신 쓰지 않는다.
 
-## 9. 단계별 로드맵
+## 9. 현재 로드맵
 
-| 단계 | 목적 | 현재 상태 |
-|---|---|---|
-| Phase 0 | 정책·file/REST/DB 계약·binding 고정 | C-2 계약 채택, 실행·활성화는 blocked |
-| Phase 1 | 결정적 BM25·Qwen 결과 생산자 | 착수 대상 |
-| Phase 2 | C-2 PostgreSQL table·loader·권한 | 계약만 고정, migration 후속 |
-| Phase 3 | 수동 API·Qwen worker·telemetry | 후속, scheduler 없음 |
-| Phase 4 | 발주계획 누적 검토 화면·feedback | 후속 |
-| Phase 5 | 사람 gold·quality gate·수동 운영 승인 | 후속 |
-| Phase 6 | daily scheduler·catch-up·월/목 큐 | Phase 0~5와 운영 훈련 뒤 별도 ADR |
-| Phase 7 | 사전규격·심층 검토·입찰 delta 생애주기 완성 | 일부 기반 구현, end-to-end 미완료 |
+[RL 로드맵](work/constitution/roadmap.md)과 `docs/work/queue.json`이 순서·의존의 정본이다. RL-00~05는 구현·평가 기록이 있고 RL-06 로컬 모델 최적화·RL-07 판정 UX는 review다. 저장된 done과 큐의 증거 유효 단계, 품질 인수 결과를 구분한다.
 
-Phase 6 이후에도 정책 활성화와 scheduler 활성화는 서로 다른 행위다. 실행 가능한 code가
-존재해도 quality gate와 운영자 승인이 없으면 기본값은 비활성이다. 상세 작업 순서는
-[`PLAN.md`](PLAN.md), 현재 문제와 후속은 [`tracking/status.md`](tracking/status.md)와
-[`tracking/findings.md`](tracking/findings.md)를 따른다.
+우선 후속은 인수 실패의 회사 대조 범위, 제안서 부분 실패, 판정 UX와 운영 RL 전환 경계다. 상세는 [PLAN](PLAN.md)·[findings](tracking/findings.md)를 따른다. C-2 제품화 이전의 Phase 순서는 git 이력이며 새 작업 번호로 재사용하지 않는다. C-2 scheduler 통합·입찰 delta worker·SSO는 별도 후속이다.
 
 ## 10. 용어·상태 경계
 
@@ -401,7 +386,8 @@ Phase 6 이후에도 정책 활성화와 scheduler 활성화는 서로 다른 �
 결정 근거는 [`ADR.md`](ADR.md), wire/DB 형태는 [`contracts.md`](contracts.md)에 둔다.
 
 
-## 가상 SI 3사 데모 목표 계약 (2026-10-06 채택; DEMO-01~04 데모 브랜치 구현(DEMO-04는 mock 화면 검증), DEMO-05 구현 전)
+## RL 목표 계약과 이전 그룹
 
-새 착수 목표는 가상 SI 3사의 사전규격 탐색·지식그래프 근거·심층검토·추적 결정 데모다. 기존 생애주기 장기 목표와 C-2 운영 계약은 유지한다.
-[ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).
+2026-10-16 [ADR-0073](tracking/decisions/0073-rootlab-real-company-ax-redefinition.md)으로 실회사 루트랩 1곳의 발견·브리핑, 근거 기반 판정 보조, 제안서 초안을 채택했다. [mission](work/constitution/mission.md)과 각 RL 기능 spec이 상세 요구사항이다. RL의 모델 호출은 codex-exec `gpt-6-luna`/high, 전송은 정책 단위 승인과 건별 감사다. 이 범위가 기존 Mac C-2의 모델을 교체하지 않는다.
+
+DEMO 가상 3사와 HP 가상 1사 작업은 종료됐다. [DEMO 공통 계약](work/demo-contract.md)·[HP 공통 계약](work/hp-contract.md)은 재사용 코드의 경계 기록이며 새 데모 착수 지시가 아니다.
