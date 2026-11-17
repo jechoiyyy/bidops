@@ -1,6 +1,6 @@
 # 스케줄링
 
-스케줄러는 시간을 감지하고 영속 예약을 만드는 역할만 한다. 실제 수집·표본·판정·병합·보고는 [에이전트 런타임](agent/agent-runtime.md)의 동일한 FIFO worker가 수행한다. 기본값은 scheduler와 always-on 모두 false다.
+스케줄러는 시간을 감지하고 영속 예약을 만드는 역할만 한다. 실제 수집·표본·판정·병합·보고는 [실행 모델](ARCHITECTURE.md#7-실행-모델과-상태-경계)의 동일한 FIFO worker가 수행한다. 기본값은 scheduler와 always-on 모두 false다.
 
 ## 시계와 스위치
 
@@ -62,7 +62,7 @@ inspection·reservation·queue row보다 먼저 fail closed한다. 그 뒤 `scre
 호출은 존재하지 않는다. API schedule/always-on 응답은 canonical
 `generation_config`와 digest를 함께 노출하고, 요청은 이 값을 받지 않는다.
 
-수집기·표본기·판정·보고 중 한 단계가 실패해도 schedule row에는 정확한 status와 안전한 요약 오류만 남긴다. prompt/profile 원문·API key는 log/audit에 기록하지 않는다. 판정의 공고별 실패와 성공 subset은 [에이전트 런타임](agent/agent-runtime.md)의 `부분 성공` 규칙을 따른다.
+수집기·표본기·판정·보고 중 한 단계가 실패해도 schedule row에는 정확한 status와 안전한 요약 오류만 남긴다. prompt/profile 원문·API key는 log/audit에 기록하지 않는다. 판정의 공고별 실패와 성공 subset은 [판정 실행·정책 계약](contracts/lifecycle-rest.md#판정-실행-정책-품질-일정)의 `부분 성공` 경계을 따른다.
 
 ## API·감사
 

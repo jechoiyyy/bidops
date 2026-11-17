@@ -83,7 +83,7 @@
   중복) + 추적 사업 연결분. 전체 약 606건/일의 한 자릿수 %다. 실제 운영 비율은 daily 스크립트
   실행 뒤 `run.counts_json["selection"]`으로 측정한다.
 - `collected_record_index`·`collected_record_token`(migration `0027`)과 선별 사유 코드 10종이
-  DB에 추가된다. 상세 스키마·권한은 [contracts.md](../../contracts.md#적재-cli와-수집-색인-spec-2)가
+  DB에 추가된다. 상세 스키마·권한은 [contracts.md](../../contracts/pipeline-db.md#적재-cli와-수집-색인-spec-2)가
   정본이다.
 - 경쟁입찰은 실측상 거의 전부(78.8%, 키 없는 386건은 전부 수의계약) 공식 키를 갖는다. 추적
   사업의 입찰공고 연결은 공고가 적재되기만 하면 공식 키로 해결되며, 이름·기관 대조가 필요한

@@ -65,7 +65,7 @@ running 작업은 끝날 때까지 기다린다. queued 작업은 **각 중단 �
   --review-id '<queued review UUID>' --actor-name '<담당자>'
 ```
 
-[운영 백업 절차](../operations.md#백업과-복구)에 따라 DB와 객체 version 전체를 같은
+[운영 백업 절차](../operations/backup-restore.md)에 따라 DB와 객체 version 전체를 같은
 복구 지점으로 백업한다. dump exit·크기·해시·`pg_restore --list`, 객체 manifest와
 암호화 key 복구 위치를 확인한다. 백업 파일은 기존 파일을 덮지 않는다.
 

@@ -7,7 +7,7 @@
 > R7 범위 선택 REST 설명은 같은 날 뒤이은 개요 스택 재작성으로 대체된 **역사 기록**이다.
 > `prespec_v4_target`·`prespec_v4_attempt` 테이블은 migration 0026에서 삭제됐고, 범위 확인은
 > `POST /api/pre-specs/{notice_id}/overview/range-confirmations`로 단순화됐다. 현재 계약은
-> [contracts.md](../contracts.md#사전규격-개요-검토-mvp-2026-09-11)를 정본으로 한다. rhwp
+> [contracts.md](../contracts/prespec-overview.md#사전규격-개요-검토와-예비-적합성-판단-mvp-2026-09-21)를 정본으로 한다. rhwp
 > 변환·snapshot·절 후보 요구사항은 그대로 유효하다.
 
 ## 1. 목표

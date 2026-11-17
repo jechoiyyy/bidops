@@ -20,12 +20,12 @@ bidops/
 ├── docs/
 │   ├── ARCHITECTURE.md               현재 구조·계약·목표 데이터 흐름 (정본)
 │   ├── ADR.md                        결정 통합 색인 (상세는 tracking/decisions/)
-│   ├── PRD.md, PLAN.md               현재 착수 범위(발주계획 C-2 선별)의 요구와 순서
+│   ├── PRD.md, PLAN.md               제품 요구·RL 실행 경계와 후속 순서
 │   ├── business-rules.md             생애주기·선별·심층 검토 상태 규칙
 │   ├── standards.md                  구현·검증 강제 기준
 │   ├── engineering-notes.md          증상별 재발 방지 지식
-│   ├── operations.md                 설치·실행·백업·복구 절차
-│   ├── contracts.md                  REST·파일·DB 소비자 계약
+│   ├── operations.md, operations/     운영 색인·호스트·설치·일일 실행·참조·RL·백업 절차
+│   ├── contracts.md, contracts/       공통 규칙과 도메인별 REST·파일·DB 소비자 계약
 │   ├── database-guide.md             DB 전체 해설과 설계 근거
 │   ├── deep-review-erd.md            심층 검토 DB 권위 계약
 │   ├── bid-delta-contract-spec.md    입찰 delta·최종 결정 OpenAPI·DB 명세
@@ -34,19 +34,17 @@ bidops/
 │   ├── prespec-reference-run-guide.md  사전규격 참조 실행 시작 가이드 (먼저 읽는다)
 │   ├── e2e-bc-acceptance.md          문서 준비(B)→심층 검토(C) 연속 인수 절차
 │   ├── e2e-lifecycle-fill.md         공고·사전규격·리뷰 테이블 채우기와 화면 확인 절차
-│   ├── docker-consolidation.md       t7 접두사 제거와 Compose 프로젝트·호스트 자원 정리 기록
-│   ├── agent/agent-runtime.md        공고 판정 worker의 입력 동결·span·telemetry
 │   ├── 0915_ui-redesign/            관리 화면 재설계 C 정본(2026-09-15 채택, 시안·plan·notes)
 │   ├── 0917_opportunity-tracking/   사업 추적 연결·선별 적재·Go/No-Go 분리 정본(2026-09-17 승인, intent·spec·plan)
 │   ├── 0918_daily-operation/       매일 1일치 수집·판정 운영 고도화 정본(2026-09-18 승인, 2026-09-19 main 병합·운영 배포·C-2 v4 게이트 통과와 활성화, 사람 결정 D-a~D-e 값은 plan.md §결정 표, intent·spec·plan)
 │   ├── deep-review-v2/               첨부문서 분석 설계(결정적 부분만 구현, ADR-0051)와 Luna 시안 검증 계획(보류)
-│   ├── rhwp-document-pipeline/       rhwp 네이티브 변환 파이프라인 작업 정본(ADR·Requirements·Design·Spec·Plan, 2026-09-10 시작)
+│   ├── 0910_rhwp-document-pipeline/       rhwp 네이티브 변환 파이프라인 작업 정본(ADR·Requirements·Design·Spec·Plan, 2026-09-10 시작)
 │   ├── reference/                    회사 프로필·실적 근거자료
 │   ├── validation-runs/              시점별 실행 증거
 │   └── tracking/
 │       ├── status.md                 구현과 검증의 현재 상태
-│       ├── lifecycle-workstream.md   생애주기 구현의 결정 대기·할 일 기록
-│       ├── findings.md               재현 가능한 미해결 문제
+│       ├── lifecycle-workstream.md   생애주기 결정·조사 근거 색인
+│       ├── findings.md, findings/     미해결·부분 해소·수용 제약 색인과 분야별 재현
 │       └── decisions/                기술·운영 결정과 대안·결과
 ├── skills/
 │   ├── bidops-collect/AGENTS.md       수집·정규화·표본 선정
@@ -58,19 +56,20 @@ bidops/
     └── frontend/AGENTS.md             React 검토 화면
 ```
 
-`docs/validation-runs`는 시점별 실행 증거이며 현재 코드와 위 핵심 문서의 계약을 대체하지 않는다. 완료·미채택 계획, 과거 리뷰·목업, 인수인계 문서는 저장소에 보관하지 않으며 필요하면 git 이력에서 찾는다. 과거의 `R-xx`·`A-xx`·phase·T-번호 체계는 종료됐고 새 작업에 다시 쓰지 않는다. 외부 의존성은 나라장터 OpenAPI, PostgreSQL 17, MinIO, ClamAV, 승인된 사설 OpenAI-compatible vLLM(`qwen3.8-27B`), 문서 변환기, 승인 프로필 기준선 검증용 Git, Astryx 디자인 시스템(`@astryxdesign/core@0.5.2`, `@astryxdesign/cli@0.5.2`, 테마 아이콘 레지스트리가 요구하는 `lucide-react@1.39.0`)이다.
+`docs/validation-runs`는 시점별 실행 증거이며 현재 코드와 위 핵심 문서의 계약을 대체하지 않는다. 완료·미채택 계획, 과거 리뷰·목업, 인수인계 문서는 저장소에 보관하지 않으며 필요하면 git 이력에서 찾는다. 과거의 `R-xx`·`A-xx`·phase·T-번호 체계는 종료됐고 새 작업에 다시 쓰지 않는다. 외부 의존성은 나라장터 OpenAPI, PostgreSQL 17, MinIO, ClamAV, Mac C-2·개요용 LiteLLM/Ollama, RL 분석용 codex-exec Luna, 기존 용도별 OpenAI-compatible 모델 경로, Slack, 문서 변환기, 승인 프로필 기준선 검증용 Git, Astryx 디자인 시스템(`@astryxdesign/core@0.5.2`, `@astryxdesign/cli@0.5.2`, 테마 아이콘 레지스트리가 요구하는 `lucide-react@1.39.0`)이다.
 Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-0040에 따라 이 저장소에 적용하지 않으며 레이아웃은 프로젝트가 소유한다.
-화면의 색은 무드보드(git 이력 `docs/design/moodborad.jpg`, 삭제됨)에서 파생한 프로젝트 소유 테마 `bidops`가 정본이며(ADR-0048), 화면은 테마 토큰만 읽고 `:root`나 화면 CSS에서 `--color-*`를 재정의하지 않는다. 성공·실패·경고 의미색은 무드보드가 정하지 않는다.
+화면의 색은 프로젝트 소유 테마 `bidops`가 정본이다. 초기 무드보드에서 출발했고 2026-10-16 RL 시안 v26의 라이트 테마·셸로 개정됐다(ADR-0048·ADR-0073). 화면은 테마 토큰만 읽고 `:root`나 화면 CSS에서 `--color-*`를 재정의하지 않는다. 의미색도 현재 승인 테마와 대비 게이트를 따른다.
 
 ## RL 기능 문서와 실행 큐
 
 루트랩 실회사 기준 AX 과제(2026-10-16, ADR-0073)는 [로드맵](docs/work/constitution/roadmap.md)과 [재정의 초안](docs/1016_rootlab-redefinition/draft.md)을 먼저 읽는다.
 회사 근거는 `docs/reference/company-profile.md`(회사소개서)·`company-homepage-profile.md`(홈페이지)·`company-preferences.md`(제안값, `proposed`)이며 미확인 값은 `docs/1016_rootlab-redefinition/company-interview.md`로 채운다.
-이전 HP(가상 홈페이지 1사)·DEMO(가상 SI 3사) 그룹은 종료했고 HP-00·01 코드만 재사용한다. [HP 공통 계약](docs/work/hp-contract.md)·[DEMO 공통 계약](docs/work/demo-contract.md)은 재사용 코드의 계약 기록이다.
+이전 HP(가상 홈페이지 1사)·DEMO(가상 SI 3사) 그룹은 종료했고 HP-00·01과 DEMO-01~04의 회사 기반 코드를 재사용한다. [HP 공통 계약](docs/work/hp-contract.md)·[DEMO 공통 계약](docs/work/demo-contract.md)은 재사용 코드의 계약 기록이다.
 기능 상태는 `docs/work/groups/RL/features/*/status.json`, 순서·의존은 `docs/work/queue.json`이 정본이다.
 `python3 scripts/feature_status.py queue _ show`로 확인하고 상태·큐는 이 도구로만 수정한다.
-모든 LLM 호출은 codex-exec `gpt-6-luna`/high 하나이며 전송은 정책 단위 사전 승인 + 건별 감사다. 입력 정본은 HWP/HWPX 원본이다.
-문서화 완료를 제품 구현·실제 모델 검증 완료로 표시하지 않는다. commit·merge는 수동이다.
+RL 범위의 모든 LLM 호출은 codex-exec `gpt-6-luna`/high 하나이며 전송은 정책 단위 사전 승인 + 건별 감사다. 기존 Mac C-2·개요의 LiteLLM/Ollama와 구분한다. 입력 정본은 HWP/HWPX 원본이다.
+2026-10-21 소스·기록 대조: RL-00~05 구현·평가 기록이 main에 있고 저장된 phase는 done이다. 다만 큐는 증거 현재성을 검사해 validating을 표시할 수 있다. RL-05 인수는 reject(판정 일치 3/10·차단 조건 recall 0/7), RL-04 실제 초안은 partial(4/6절 완료)이며 품질 합격이 아니다. RL-06·07은 review·구현 전이다. 상세는 [현황](docs/tracking/status.md)과 [실행 계획](docs/PLAN.md)을 따른다.
+문서화·작업 절차 완료를 제품 품질·운영 활성화로 표시하지 않는다. commit·merge는 수동이다.
 
 ## 작업 전 확인
 
@@ -79,7 +78,7 @@ Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-004
 - DB·적재·회차를 바꾸면 원본 불변성, 부분 산출물 경고, DB 정본 리뷰, Alembic 경계를 확인한다.
 - 첨부·변환·다운로드·모델 전송·로그를 바꾸면 경로 격리, 최소 권한, 감사, 건별 외부 전송 승인(모델 전송 정책은 ADR-0050 완화 항목 참조)을 확인한다.
 - 배포·일정·모델·backup을 바꾸면 `docs/operations.md`의 현재 실행 명령과 fail-closed 기본값을 확인한다.
-- 발주계획 선별 제품 구현은 고정 3일 표본의 키워드·ColBERT·Qwen·GPT Luna 비교 실험과 사람 정답 보고서가 승인된 뒤 시작한다.
+- C-2 방식 선택·제품화·v4/v5 게이트는 완료 기록이 있다. 새 선별 방식·정책을 바꾸면 승인된 동결 표본·사람 gold로 다시 측정하고 새 binding·게이트·승인을 받는다. 과거 비교 실험을 현재 미착수 작업으로 되돌리지 않는다.
 
 ## 검증 범위와 종료 기준
 
@@ -128,10 +127,12 @@ Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-004
 - 사전규격은 등급이 `우선 검토`이면 문서 준비를 자동으로 진행한다. `BIDOPS_PRESPEC_OVERVIEW_ENABLED`가 켜져 있으면 ready 묶음에서 개요 run을 자동 enqueue하고, 개요 run이 `completed`이고 `SW사업대상=Y`이며 현재 회사 핏 `matched`인 게이트를 지나야 심층 검토를 자동 시작한다. 이 자동 시작은 `BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED=true`일 때만 허용하며 새 기본값은 false다(ADR-0049·ADR-0054, 2026-09-08 회사 핏 게이트 추가, 2026-09-11 개요 스택 재작성). 회사 핏은 기본 비활성이고 현재는 명시적으로 켠 참조 실행만 지원한다. 자동으로 여는 것은 분석의 시작뿐이며 추적 승인과 최종 Go/No-Go는 사람이 결정한다.
 - C-1 공고 판정·사전규격 개요·심층 검토는 `app/core/model_client.py` 하나를 용도별 설정으로 부른다. C-2 발주계획 어댑터와 사용자 승인 Luna `codex-exec`만 별도 transport다.
 - 일일 수집은 `scripts/run-daily-lifecycle.sh --track notices|order-plans`로 트랙마다 따로 실행하며 기준일은 전일(KST)이 기본이고 공고는 4일 창·발주계획은 1일 창이다. 발주계획 트랙은 C-2 활성화와 일일 자동 실행(환경 cap `BIDOPS_C2_DAILY_TRIGGER_ENABLED` + 활성 policy 버전에 묶인 DB 스위치)이 켜지기 전에는 수집조차 하지 않는다([ADR-0060](docs/tracking/decisions/0060-c2-policy-db-row-authority.md)·[ADR-0061](docs/tracking/decisions/0061-daily-collection-window.md)).
-- **2026-10-14 운영 호스트를 WSL2에서 Mac(42-ax)으로 옮겼다**([ADR-0072](docs/tracking/decisions/0072-c2-mac-litellm-ollama.md)). WSL2의 운영 DB·MinIO·승인 프롬프트 v3·사설 vLLM(`192.168.0.139`)은 넘어오지 않아 v4는 다시 실행할 수 없다. Mac 운영은 `scripts/mac-compose.sh`(프로젝트 `bidops`, web `127.0.0.1:18788`·tailnet `:8188`)이고, 같은 Mac의 데모 스택 `bidops-local`(`:18787`)과 분리돼 있다. C-2는 `c2-order-plan-screening-v5`(LiteLLM `local-agent-main` → 로컬 Ollama `qwen3.8:27b-ctx32k`, digest `41a558fc…`)가 같은 gold v3·임계값 게이트를 2026-10-14에 통과해(나쁜 쪽 recall 100%·precision 39.7%·중요 누락 0·하루 검토량 73) 활성화됐고 일일 스위치가 켜져 있다. 2026-10-15부터 사전규격도 **개요 검토까지만** 같은 LiteLLM으로 돈다(정책 `prespec-overview-policy-v7-litellm-v2.json`, 심층 자동 시작·회사 핏 꺼짐, C-1 미실행, 문서 worker만 native arm64 — Rosetta에서 rhwp가 자식 메모리 한도와 충돌). 아래 v4 서술은 WSL2 시기의 이력이다.
+- **2026-10-14 운영 호스트를 WSL2에서 Mac(42-ax)으로 옮겼다**([ADR-0072](docs/tracking/decisions/0072-c2-mac-litellm-ollama.md)). WSL2의 운영 DB·MinIO·승인 프롬프트 v3·사설 vLLM(`192.168.0.139`)은 넘어오지 않아 v4는 다시 실행할 수 없다. Mac 운영은 `scripts/mac-compose.sh`(프로젝트 `bidops`, web `127.0.0.1:18788`·tailnet `:8188`)이고, 같은 Mac의 데모 스택 `bidops-local`(`:18787`)과 분리돼 있다. C-2는 `c2-order-plan-screening-v5`(LiteLLM `local-agent-main` → 로컬 Ollama `qwen3.8:27b-ctx32k`, digest `41a558fc…`)가 같은 gold v3·임계값 게이트를 2026-10-14에 통과해(나쁜 쪽 recall 100%·precision 39.7%·중요 누락 0·하루 검토량 73) 활성화됐고 일일 스위치가 켜져 있다. 2026-10-15 사전규격은 같은 LiteLLM으로 **개요 검토까지만** 참조 실행했다(정책 `prespec-overview-policy-v7-litellm-v2.json`, 심층 자동 시작·회사 핏 꺼짐, C-1 미실행, 문서 worker만 native arm64). 실행 뒤 개요 플래그와 상시 첨부 worker를 껐으며 10월 19일에도 유지했다. 아래 v4 서술은 WSL2 시기의 이력이다.
 - C-2 policy 활성 정본은 DB 행이다. 활성화와 일일 자동 실행 스위치는 관리 화면 `/order-plan-policies` 탭에서 다루고, 품질 게이트는 제품 경로를 그대로 타는 측정 전용 실행 2회와 게시일별 채점으로 판정한다. 2026-09-19에 `c2-order-plan-screening-v4`가 gold adjudicated v3 기준 게이트(recall ≥ 0.90·precision ≥ 0.35·중요 누락 ≤ 3·하루 검토량 ≤ 80, 두 pass 모두)를 통과해 활성화됐고 일일 자동 실행 스위치도 켜져 있다. 이 임계값·감사 표본 값(실행당 상한 10건, 월·목 검토)·전송 승인(binding 단위)은 **PoC용 결정**이며 운영 전환 때 다시 정한다(값과 근거는 `docs/0918_daily-operation/plan.md` 결정 표 D-a~D-e). 측정 여유가 작다(precision 36.7%, 하루 최대 검토량 79건)는 점을 품질 근거로 인용할 때 함께 적는다. v3 policy는 generation config revision 불일치로 한 번도 실행되지 못한 채 남은 행이며 되살리지 않는다.
 - GPU 휴지(`BIDOPS_GPU_BUSY_LIMIT_SECONDS`·`BIDOPS_GPU_REST_SECONDS`)는 기본값이 둘 다 0(꺼짐)이며 값을 주지 않으면 기존 워커 동작과 같다. 운영은 `env/c2.env`에서 600초 사용·300초 휴지로 켜 두었고, 휴지는 작업 사이에서만 들어간다.
-- 첨부 취득 실패·묶음 failed 재시작 화면, 입찰 delta 계산 worker, deep-review-v2 역할별 모델 분석, SSO, 알림은 아직 구현 전이다. 문서 준비 화면과 개요 run 실행기·REST·화면은 구현돼 있다. 입찰 delta는 저장·REST·화면까지 있으나 비교를 실제로 계산하는 worker가 없어 `bid_delta_comparison`이 `pending`에 머문다.
+- 첨부 취득 실패·묶음 failed 재시작 화면, 입찰 delta 계산 worker, SSO는 아직 구현 전이다. 기존 deep-review-v2 설계와 별도로 RL 카드 기반 역할 분석·판정과 Slack 브리핑/반응은 구현됐으며 운영 활성화·품질 인수는 별개다. 문서 준비 화면과 개요 run 실행기·REST·화면은 구현돼 있다. 입찰 delta는 저장·REST·화면까지 있으나 비교를 실제로 계산하는 worker가 없어 `bid_delta_comparison`이 `pending`에 머문다.
+
+- 마지막 운영 확인은 [2026-10-19 배포 기록](docs/validation-runs/20261019-ops-rl-rollout/README.md)이다. main `b8005ef`·DB `0041_proposal_draft`를 운영에 반영했고 C-2 v5 일일 ON을 확인했다. RL 분석은 false, 운영 회사 근거·브리핑은 미등록이다. 현재 main의 v11·RL-05 격리 인수를 운영에 반영했다고 추정하지 않는다. 이번 2026-10-21 문서 갱신은 운영 재조회가 아니다.
 
 ## 운영 변경·배포 시 유의
 

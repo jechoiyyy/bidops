@@ -113,7 +113,7 @@ label 집합: `business_eligibility_evaluation`, `technical_functional`, `qualit
 
 ## 6. 분석 단위와 1층 추출 (확정 뼈대, 세부는 HP-03)
 
-> **RL-03 주석.** 이 절은 루트랩 기준으로 [RL-03](groups/RL/features/RL-03-fit-verdict/spec.md)이 구현했다(`card-extract-v1`, 입력 `bidops.card-analysis-input.v1`, 단계 payload는 `confirmed` 사실 값 포함·`proposed`/`unknown`은 키·상태만). 차이는 RL-03 spec "루트랩 재명세 차이"와 [contracts.md](../contracts.md#카드-기반-참여-판정-rl-03-2026-10-17)가 정본이다.
+> **RL-03 주석.** 이 절은 루트랩 기준으로 [RL-03](groups/RL/features/RL-03-fit-verdict/spec.md)이 구현했다(`card-extract-v1`, 입력 `bidops.card-analysis-input.v1`, 단계 payload는 `confirmed` 사실 값 포함·`proposed`/`unknown`은 키·상태만). 차이는 RL-03 spec "루트랩 재명세 차이"와 [contracts.md](../contracts/rl.md#카드-기반-참여-판정-rl-03-2026-10-17)가 정본이다.
 
 - 2026-10-15 승인: 요구사항 카드와 사업개요·추진 일정·예산·입찰참가자격·평가·계약 조건 영역을 분석한다. 구체 selector는 HP03 spec에서 고정한다.
 - 분석 단위는 **unit**이다. unit은 (a) 요구사항 카드 1장, 또는 (b) 카드가 아닌 segment(사업개요·추진 일정·예산·입찰참가자격·평가·계약 조건) 하나다. unit id는 `card:<source_sha256>:<ordinal>:<normalized_id>` 또는 `segment:<source_sha256>:<segment_id UUID>`다. source 중복 및 selector 세부는 HP03 spec을 따른다.

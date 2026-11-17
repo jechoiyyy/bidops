@@ -90,7 +90,7 @@ REST는 공고별 목록·미리보기·승인 실행 생성, 실행별 상태·
 
 ## 구현에서 확정한 세부 계약
 
-- REST 경로·DTO는 [contracts.md](../contracts.md#1489번-가정-분석-v1-2026-09-23-운영-적용-전)에 고정했다.
+- REST 경로·DTO는 [contracts.md](../contracts/deep-review.md#1489번-가정-분석-v1-2026-09-23-운영-적용-전)에 고정했다.
 - `assumption_input_version`, `assumption_run`, `assumption_stage` 세 표를 0033으로 추가한다.
   단계 표는 호출 종결 결과를 append하고 호출 시작 audit로 진행·시각·prompt hash를 보존한다.
 - 입력 상한은 요청당 160,000자다. 기존 심층검토의 100,000자 상한은 바꾸지 않는다.

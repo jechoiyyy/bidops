@@ -1,6 +1,6 @@
 # rhwp 문서 변환 파이프라인 R6 운영 인수 — 2026-09-10
 
-작업: [docs/rhwp-document-pipeline/Plan.md](../rhwp-document-pipeline/Plan.md) R6. 담당: 관리자 직접 실행(사용자 요청).
+작업: [docs/rhwp-document-pipeline/Plan.md](../0910_rhwp-document-pipeline/Plan.md) R6. 담당: 관리자 직접 실행(사용자 요청).
 기준 코드: main `8f863da` + 이 기록과 함께 올린 `web/Dockerfile` `fontconfig` 보정. 모델 호출·attempt enqueue·정책 활성화·사람 결정 변경은 없다.
 
 ## 결과 요약

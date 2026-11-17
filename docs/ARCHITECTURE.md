@@ -3,7 +3,7 @@
 | 항목 | 내용 |
 |---|---|
 | 문서 상태 | 현재 구조·계약·목표 구조를 통합한 기준 문서 |
-| 기준일 | 2026-09-05 (KST) |
+| 기준일 | 2026-10-21 (소스·기록 대조, 운영 마지막 확인 2026-10-19) |
 | 정본 | docs/ARCHITECTURE.md |
 | 제품 | BidOps |
 | 관련 문서 | ADR.md, PRD.md, business-rules.md, contracts.md, operations.md (모델 전송 정책은 ADR-0050 완화 항목 참조) |
@@ -65,14 +65,18 @@ flowchart LR
     operator[운영 담당자]
     g2b[나라장터 OpenAPI]
     git[승인 프로필 기준선 Git]
-    privatevllm[승인된 사설 OpenAI-compatible vLLM]
+    privatevllm[승인된 용도별 모델 endpoint]
+    luna[codex-exec Luna runner]
+    slack[Slack bot / Socket Mode]
     bidops[BidOps]
 
     planner -->|검색·검토·사람 결정| bidops
     operator -->|실행·승인·장애 확인| bidops
     g2b -->|발주계획·사전규격·입찰공고| bidops
     git -->|회사 프로필 기준선 검증| bidops
-    bidops -->|용도별 승인 endpoint로 건별 전송| privatevllm
+    bidops -->|Mac C-2·개요 / 기존 용도별 경로| privatevllm
+    bidops -->|RL 정책 승인·건별 감사| luna
+    bidops <-->|브리핑·반응 / 기본 비활성| slack
 ~~~
 
 나라장터 자료는 외부 원문과 관측 시점을 보존한다. Git은 승인된 회사 프로필 기준선을 검증하는 입력일 뿐, 회사 역량의 자동 증명원이 아니다. 모델 endpoint는 용도(`screening`·`overview`·`deep_review`)별로 승인되고 식별자·선언 revision·prompt·profile hash와 함께 기록된다([ADR-0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)).
@@ -81,7 +85,7 @@ flowchart LR
 
 ### 3.2 제품 경계
 
-BidOps가 자동화하는 범위는 수집, 원문 보존, 정규화, 후보 선별, 첨부 안전 처리, 구조화·요약 보조, 변경 비교 및 보고서 준비다. 다음은 자동화하지 않는다.
+BidOps가 자동화하는 범위는 수집, 원문 보존, 정규화, 후보 선별, 첨부 안전 처리, 구조화·요약 보조, 보고서·제안서 초안 준비다. 변경 비교는 저장·조회 경로만 있고 계산 worker는 아직 없다. 다음은 자동화하지 않는다.
 
 - 발주처 연락
 - 추적 승인
@@ -102,7 +106,7 @@ flowchart TB
     pg[(PostgreSQL 17<br/>bidops schema)]
     minio[(Versioned MinIO)]
     clamav[ClamAV]
-    vllm[Private approved vLLM]
+    vllm[Approved model endpoint]
     source[나라장터 OpenAPI]
 
     browser -->|REST| api
@@ -287,19 +291,19 @@ SW=Y 사전규격 적재 시 기관·이름이 일치하는 발주계획을 자�
 
 **브리핑 흐름(RL-01, 2026-10-17):** 두 트랙 수집·C-2 → `scripts/run-daily-briefing.sh`(web 컨테이너의 `build-briefing`) → 결정적 규칙(회사 `confirmed` 사실·제외·점수, 발주계획은 반복 발주처 ∧ 유사 실적만)이 후보를 상위 N으로 줄여 `briefing`·`briefing_item` 저장 → `/briefing` 화면과 Slack 전송(`--send`, `core/slack.py`) → 화면·Slack 버튼 반응은 개인 기록으로만 저장하고 추적 상태·Go/No-Go를 바꾸지 않음. 상세는 [business-rules.md](business-rules.md#브리핑-추천반응-rl-01-2026-10-17)·[operations.md](operations.md)가 정본이다.
 
-**레코드 활동 흐름(RL-02, 2026-10-17):** 사업기회 레코드 `GET /api/opportunities/{id}/activity`는 권위 연결·공고 관측·추적 감사·브리핑 반응·`opportunity_note`에서 요청마다 단계 바 6단계와 활동 항목을 **파생**하고(피드를 저장하지 않는다), 다른 모듈의 판정 완료·초안 준비 사건은 lifecycle hook `opportunity_activity_items`로 받아 공통 정렬·커서에 합친다(제공자: deep_review의 RL-03 `verdict_completed`·RL-04 `draft_prepared`). 추적 중 입찰공고의 D-3·D-1 마감 알림은 새 worker 없이 RL-01 브리핑의 `tracked_change` 사유로 들어간다(규칙 파일 v2). 상세는 [business-rules.md](business-rules.md#사업기회-레코드-단계-바활동-피드-rl-02-2026-10-17)·[contracts.md](contracts.md#레코드-활동-피드노트-rl-02-2026-10-17)가 정본이다.
+**레코드 활동 흐름(RL-02, 2026-10-17):** 사업기회 레코드 `GET /api/opportunities/{id}/activity`는 권위 연결·공고 관측·추적 감사·브리핑 반응·`opportunity_note`에서 요청마다 단계 바 6단계와 활동 항목을 **파생**하고(피드를 저장하지 않는다), 다른 모듈의 판정 완료·초안 준비 사건은 lifecycle hook `opportunity_activity_items`로 받아 공통 정렬·커서에 합친다(제공자: deep_review의 RL-03 `verdict_completed`·RL-04 `draft_prepared`). 추적 중 입찰공고의 D-3·D-1 마감 알림은 새 worker 없이 RL-01 브리핑의 `tracked_change` 사유로 들어간다(규칙 파일 v2). 상세는 [business-rules.md](business-rules.md#사업기회-레코드-단계-바활동-피드-rl-02-2026-10-17)·[contracts.md](contracts/lifecycle-rest.md#레코드-활동-피드노트-rl-02-2026-10-17)가 정본이다.
 
-**카드 판정 흐름(RL-03, 2026-10-17):** 브리핑 `pre_spec` 추천 항목(hook `on_briefing_recommendation`) 또는 사람의 "다시 판정"(`POST /api/opportunities/{id}/verdict-requests`) → 게이트(실회사 ∧ `BIDOPS_RL_ANALYSIS_ENABLED`, 정책 단위 `transfer_policy_approval` 활성·sha·scope·일일 상한, SW사업대상 Y ∧ ready 문서 묶음; **개요 run은 보지 않는다**) → service가 preview·review·attempt·approval 행을 자동 생성(`actor_kind=system`, 상한 초과는 `verdict_request` 큐) → 분석 worker가 attempt claim 직후 `analysis.transfer.sent`를 남기고 → **추출**(Luna `card-extract-v1`, 카드·영역 unit 묶음) → **대조**(코드, 모델 호출 없음, 회사 `confirmed` 사실만 근거·`proposed`/`unknown`은 `unknown`) → **역할 3개**(Luna `card-role-v1`, 대조 결과를 넘지 못함) → **종합**(Luna `card-synthesis-v1`)을 `card_analysis_stage` append-only 행으로 쌓는다(모든 호출은 `codex-runner` 하나, hosted fallback 없음). 검증 실패는 사람 검토로 보내고 자동 보정·재시도가 없다. 읽기 쪽은 `GET …/verdict` view 한 곳이 attempt·단계 행·동결 입력을 읽어 조립하고 화면(`/opportunities/:id/verdict`)·활동 피드 `verdict_completed`·브리핑 `verdict_display`(v2)·Slack 스레드 한 줄이 그 결과만 소비한다. 판정은 참고 의견이며 추적 선택·Go/No-Go를 바꾸지 않는다. 상세는 [business-rules.md](business-rules.md#rl-자동-분석과-판정-상태-rl-03-2026-10-17)·[contracts.md](contracts.md#카드-기반-참여-판정-rl-03-2026-10-17)·[operations.md](operations.md)가 정본이다.
+**카드 판정 흐름(RL-03, 2026-10-17):** 브리핑 `pre_spec` 추천 항목(hook `on_briefing_recommendation`) 또는 사람의 "다시 판정"(`POST /api/opportunities/{id}/verdict-requests`) → 게이트(실회사 ∧ `BIDOPS_RL_ANALYSIS_ENABLED`, 정책 단위 `transfer_policy_approval` 활성·sha·scope·일일 상한, SW사업대상 Y ∧ ready 문서 묶음; **개요 run은 보지 않는다**) → service가 preview·review·attempt·approval 행을 자동 생성(`actor_kind=system`, 상한 초과는 `verdict_request` 큐) → 분석 worker가 attempt claim 직후 `analysis.transfer.sent`를 남기고 → **추출**(Luna `card-extract-v1`, 카드·영역 unit 묶음) → **대조**(코드, 모델 호출 없음, 회사 `confirmed` 사실만 근거·`proposed`/`unknown`은 `unknown`) → **역할 3개**(Luna `card-role-v1`, 대조 결과를 넘지 못함) → **종합**(Luna `card-synthesis-v1`)을 `card_analysis_stage` append-only 행으로 쌓는다(모든 호출은 `codex-runner` 하나, hosted fallback 없음). 검증 실패는 사람 검토로 보내고 자동 보정·재시도가 없다. 읽기 쪽은 `GET …/verdict` view 한 곳이 attempt·단계 행·동결 입력을 읽어 조립하고 화면(`/opportunities/:id/verdict`)·활동 피드 `verdict_completed`·브리핑 `verdict_display`(v2)·Slack 스레드 한 줄이 그 결과만 소비한다. 판정은 참고 의견이며 추적 선택·Go/No-Go를 바꾸지 않는다. 상세는 [business-rules.md](business-rules.md#rl-자동-분석과-판정-상태-rl-03-2026-10-17)·[contracts.md](contracts/rl.md#카드-기반-참여-판정-rl-03-2026-10-17)·[operations.md](operations.md)가 정본이다.
 
-**제안서 초안 흐름(RL-04, 2026-10-18):** 사업기회 제안서 탭의 "제안서 초안 만들기"(`POST /api/opportunities/{id}/proposal-requests`) → 게이트(실회사 ∧ RL·Luna·참조 모드, 정책 `proposal-policy-luna-v1` 행의 `purposes=["proposal"]` 승인·sha·하루 상한, 사업기회 사전규격의 최신 카드 판정 `completed`, 진행 중 초안 없음) → web이 `proposal_draft`·절 6개·WorkJob(`proposal_section`) 6개를 한 transaction에 만든다(이전 초안 `superseded`) → 합성 `analysis-worker` 슬롯의 마지막 순서에서 절마다 판정 attempt의 동결 입력으로 `bidops.proposal-input.v1`을 동결하고 8키 payload를 검사한 뒤 runner 주소·상한을 확인하고 `analysis.transfer.sent`를 남긴 다음 Luna `proposal-section-v1`을 한 번 부르고(+schema repair 1회) `proposal_validation`(출처·인용·금지 숫자·커버리지)을 통과한 Section만 저장한다(실패는 절 `failed`·사람 검토). 읽기는 `GET …/proposal`이 최신 revision·문장 수정 overlay·판정 매트릭스 fit을 조립하고, 검토·제출 준비·문장 수정은 web mutation이며, "PDF로 내보내기"는 web이 ReportLab로 결정적 PDF를 만들어 `bidops-proposal-pdf`에 두고 overlay sha가 같으면 재사용한다. 완료 초안은 활동 피드 `draft_prepared`로 보인다. 초안은 판정·추적·Go/No-Go를 바꾸지 않는다. 상세는 [business-rules.md](business-rules.md#제안서-초안-rl-04-2026-10-18)·[contracts.md](contracts.md#제안서-초안-rl-04-2026-10-18)·[operations.md](operations.md#rl-제안서-초안-운영-rl-04-2026-10-18)가 정본이다.
+**제안서 초안 흐름(RL-04, 2026-10-18):** 사업기회 제안서 탭의 "제안서 초안 만들기"(`POST /api/opportunities/{id}/proposal-requests`) → 게이트(실회사 ∧ RL·Luna·참조 모드, 정책 `proposal-policy-luna-v1` 행의 `purposes=["proposal"]` 승인·sha·하루 상한, 사업기회 사전규격의 최신 카드 판정 `completed`, 진행 중 초안 없음) → web이 `proposal_draft`·절 6개·WorkJob(`proposal_section`) 6개를 한 transaction에 만든다(이전 초안 `superseded`) → 합성 `analysis-worker` 슬롯의 마지막 순서에서 절마다 판정 attempt의 동결 입력으로 `bidops.proposal-input.v1`을 동결하고 8키 payload를 검사한 뒤 runner 주소·상한을 확인하고 `analysis.transfer.sent`를 남긴 다음 Luna `proposal-section-v1`을 한 번 부르고(+schema repair 1회) `proposal_validation`(출처·인용·금지 숫자·커버리지)을 통과한 Section만 저장한다(실패는 절 `failed`·사람 검토). 읽기는 `GET …/proposal`이 최신 revision·문장 수정 overlay·판정 매트릭스 fit을 조립하고, 검토·제출 준비·문장 수정은 web mutation이며, "PDF로 내보내기"는 web이 ReportLab로 결정적 PDF를 만들어 `bidops-proposal-pdf`에 두고 overlay sha가 같으면 재사용한다. 완료 초안은 활동 피드 `draft_prepared`로 보인다. 초안은 판정·추적·Go/No-Go를 바꾸지 않는다. 상세는 [business-rules.md](business-rules.md#제안서-초안-rl-04-2026-10-18)·[contracts.md](contracts/rl.md#제안서-초안-rl-04-2026-10-18)·[operations.md](operations/rl.md#rl-제안서-초안-운영-rl-04-2026-10-18)가 정본이다.
 
 ### 5.2 발주계획 C-2 선별 흐름
 
 ~~~mermaid
 flowchart LR
-    input[625건 고정 입력 manifest]
+    input[수집 회차 전체 모집단 / 고정 입력 manifest]
     bm25[BM25 ranking<br/>Top 300]
-    batch[배치 실행<br/>300 / 325]
+    batch[선정 후보를 최대 25건씩 배치 실행]
     qwen[Qwen 분류<br/>BM25 후보만]
     result[결과·실패·telemetry]
     feedback[사람 정답·피드백]
@@ -312,7 +316,7 @@ flowchart LR
     gate -. 승인 후 .-> product
 ~~~
 
-현재 C-2는 실험 선택과 Phase 0 계약 검증까지 진행된 상태다. 제품 adapter, 제품 DB 적재, API/UI 연결, 운영 worker는 아직 완성된 end-to-end 흐름이 아니다. 실험 결과의 후보 비율이나 recall/precision은 운영 활성화 승인과 동일하지 않다.
+C-2는 제품 adapter·DB 적재·API/UI·worker·품질 게이트·일일 트리거까지 구현됐다. Mac v5는 2026-10-14 제품 경로의 두 pass 측정으로 게이트를 통과했다. 고정 gold 측정과 일일 회차 실행을 구분하며, 실행 완료나 파일 validator 결과만으로 정책을 활성화하지 않는다.
 
 Phase 0에서 고정한 산출물은 input, ranking, decisions, failures, telemetry, result, feedback 계약이다. 모든 산출물은 schema_version, run id, config/prompt/model/profile hash와 연결되어야 한다. 부분 manifest와 draft 정답은 완료된 gold set으로 승격하지 않는다.
 
@@ -427,26 +431,19 @@ flowchart LR
 
 PostgreSQL 17의 bidops schema가 운영 메타데이터·관계·상태·감사·리뷰의 정본이다. MinIO는 raw, attachment, document, report와 같은 binary/object bytes를 versioning으로 보존한다. DB row가 object hash·namespace·version과 연결되지 않으면 산출물을 완전한 정본으로 취급하지 않는다.
 
-현재 코드의 Alembic head는 `0020_prespec_company_fit`이며 운영 DB 적용 여부와 구분한다. SQLite는 격리 테스트와 일회성 이전 입력에만 사용한다. 운영 애플리케이션이 startup에서 SQLite로 fallback하거나 create_all로 스키마를 만들지 않는다.
+현재 코드의 Alembic head는 `0041_proposal_draft`이며 2026-10-19 운영 적용 기록이 있다. 이후 소스 변경의 배포 여부는 별도다. SQLite는 격리 테스트와 일회성 이전 입력에만 사용한다. 운영 애플리케이션이 startup에서 SQLite로 fallback하거나 create_all로 스키마를 만들지 않는다.
 
 ### 6.2 도메인 그룹
 
-현재 DB guide의 업무 사전 기준 73개 table은 다음 영역으로 묶인다.
+현재 네 도메인의 `models.py` 선언(`__tablename__`) 기준으로 업무 테이블은 109개다. `alembic_version`은 제외하며 운영 DB를 조회한 수치가 아니다.
 
-| 영역 | 수량 | 주요 책임 |
+| 소유 모듈 | 수량 | 주요 책임 |
 |---|---:|---|
-| collection / opportunity | 7 | 수집 회차, 원문 관측, 기회 identity |
-| screening / review | 11 | 선별 정책·실행·판정·리뷰 |
-| attachment | 3 | 첨부 메타데이터·수명·안전 상태 |
-| document | 8 | object·scan·변환·버전·구조·bundle |
-| document segment / inventory | 3 | segment manifest·segment·요구사항 inventory 항목 |
-| overview / company fit | 7 | 개요 실행·결과·이벤트, PDF 개요, 회사 핏 이력 |
-| deep review | 17 | claim·evidence·report·validation·opinion |
-| execution / quality / schedule | 12 | job·lease·quality gate·활성화·스케줄 |
-| delta / final | 5 | snapshot pair·delta·최종 결정 |
-| 합계 | 73 | 업무 사전 기준 |
-
-업무 사전 기준 73개와 ORM `Base.metadata` 기준 79개는 세는 대상이 다르다. 후자에는 문서 사전이 별도 영역으로 세지 않는 표가 함께 들어 있다. 모듈 소유 기준은 core 2 + lifecycle 10 + screening 28 + deep_review 39이다.
+| core | 2 | 공통 멱등성·감사 |
+| lifecycle | 19 | 수집·관측·사업기회·회사 identity·브리핑·노트 |
+| screening | 32 | C-1·C-2 판정·리뷰·정책·품질·일정 |
+| deep_review | 56 | 문서·회사 근거·개요·판정·제안서·delta·최종 결정 |
+| 합계 | 109 | 현재 모델 선언 기준 |
 
 세부 table·column·FK·삭제 정책은 docs/database-guide.md와 docs/deep-review-erd.md의 계약을 사용한다. 이 문서의 그룹화는 탐색용이며 schema 정의를 복제하지 않는다.
 
@@ -509,7 +506,7 @@ flowchart TD
 
 | 영역 | 예시 상태 | 의미 |
 |---|---|---|
-| C-2 실행 | planned, running, completed, failed, valid_but_blocked | 계약 검증·실행·품질 gate 상태 |
+| C-2 실행 | 대기, 실행 중, 중지 요청, 성공, 부분 성공, 실패, 중단됨 | 실행 REST/DB 상태. `valid_but_blocked`는 파일 계약 validator의 결과이며 실행 상태가 아님 |
 | delta 계산 | pending, running, completed, failed | 계산 lifecycle |
 | delta 결과 | changed, unchanged, unknown, failed | 비교 결과 |
 | 추적 | 계속 추적, 보류, 종료 | 사람의 추적 결정 |
@@ -521,9 +518,9 @@ flowchart TD
 
 FastAPI는 검증된 request를 service와 repository transaction으로 전달하고, 응답에는 허용된 projection만 포함한다. 내부 파일 경로, MinIO credential, API key, raw secret, 모델 원문 응답을 반환하지 않는다.
 
-현재 API는 runs, notices, pre_specs, opportunities, reviews, metrics, attachments, portals, profile, screening, quality_gates, policies, schedule, document_bundles, deep_reviews, bid_delta, reports 영역의 router를 가진다. 모든 router가 완전한 업무 flow를 제공한다는 뜻은 아니며, 상태 문서의 구현·운영 구분을 함께 확인한다.
+현재 API는 회차·공고·발주계획·사업기회·리뷰·지표·첨부·프로필·정책·품질·일정·문서·심층·delta 외에 회사 근거, 브리핑, 활동/노트, RL 판정·제안서 router를 가진다. 모든 router가 완전한 업무 flow를 제공한다는 뜻은 아니며, 상태 문서의 구현·운영 구분을 함께 확인한다.
 
-C-2가 제품화될 때의 namespace는 docs/contracts.md의 /api/order-plans 및 /api/order-plan-screening 계약을 따른다. C-2 실험 스크립트의 파일 output을 기존 screening REST의 임의 payload로 변환하지 않고, Phase 0 계약의 adapter를 둔다.
+C-2 제품 namespace는 docs/contracts.md의 /api/order-plans 및 /api/order-plan-screening 계약을 따른다. C-2 실험 스크립트의 파일 output을 기존 screening REST의 임의 payload로 변환하지 않고, Phase 0 계약의 adapter를 둔다.
 
 ### 8.2 파일 계약 경계
 
@@ -595,20 +592,19 @@ host에 열리는 것은 관리 화면 하나이며 `docker-compose.edge.yml`이
 
 | 영역 | 현재 상태 | 목표·다음 경계 |
 |---|---|---|
-| 수집·정규화 | 기존 Python pipeline과 회차·원문·정규화 흐름 존재 | 운영 secret·egress·복구 훈련과 함께 지속 검증 |
-| PostgreSQL/MinIO | 운영 정본과 Alembic head 존재 | migration·backup·restore 절차의 실제 검증 |
-| FastAPI/React | 기본 관리 API·화면과 여러 router 존재 | 준비·실패 재시작·모든 lifecycle action의 end-to-end 연결 |
-| 첨부·문서 | 안전 경계와 worker 설계·일부 구현 존재 | 실제 다양한 HWP/HWPX/PDF corpus, 변환 실패 UI, 재시작 |
-| 개요 검토 | DB/API/UI·계약에 더해 모델 실행 worker와 통일 client 연결까지 존재. 실행 결과는 참조 실행 표식이 붙는다 | 승인 artifact와 사람 gold로 측정한 quality gate |
-| 심층 검토 | ERD·계약·worker 구조, 결정적 segment·요구사항 inventory 검증 존재 | 실 corpus/gold, 역할별 분석, 운영 승인 |
-| 사전규격 자동 준비·자동 심층 시작 | 등급 기반 자동 묶음과 `SW사업대상=Y` 자동 생성 존재 | 자동 생성된 검토의 실행 경로 결함 해소(findings), 운영 관측 |
-| C-2 선별 | 실험 선택 BM25 Top 300 + Qwen, Phase 0 contract validator | 제품 adapter·DB/API/UI·worker·human gold·quality gate |
-| 입찰 delta | schema/API/UI/migration 계약과 일부 구현 존재 | 계산 worker, exact snapshot 비교, 운영 검증 |
-| 최종 결정 | append-only 계약 | 사람 action과 감사·권한 경계의 운영 구현 |
-| 스케줄링 | 설계는 있으나 기본 비활성 | quality/operational approval 후 제한적 활성화 |
-| 인증·SSO·알림 | 미구현 | 별도 보안·운영 결정과 migration 필요 |
+| 수집·C-2 | 전체 모집단·BM25/Qwen·DB/API/worker/화면·게이트·일일 실행 구현 | Mac v5는 게이트 통과·일일 ON 기록 있음. 새 정책은 별도 측정·승인 |
+| PostgreSQL/MinIO | 코드 head 0041, 모델 선언 109개, versioned object | 10월 19일 운영 0041 반영. 현재 소스가 전부 운영 배포됐다는 뜻은 아님 |
+| 첨부·문서·개요 | ClamAV·native HWP/HWPX·문서 준비·개요 실행/조회 구현 | 개요 품질은 참조 실행. 첨부 실패·묶음 failed 재시작 UI 없음 |
+| 기존 자동 심층 | 개요 완료·SW Y·회사 핏 matched와 별도 자동 시작 플래그로 제한 | 기본 false. RL 자동 분석은 별도 정책·트리거이며 개요 run을 요구하지 않음 |
+| RL-00~02 | 실회사 근거·브리핑/Slack·활동 피드·노트 구현 | 운영 회사 등록·브리핑·Slack 활성화는 별도 |
+| RL-03 | 추출·코드 대조·역할 판단·종합·판정 화면 구현, import 기본 v11 | 실제 10건 인수 reject. 개념 매핑·회사 대조 범위 개선 필요 |
+| RL-04 | 6절 초안·검토·문장 수정·PDF 구현 | 실제 1건 partial(4/6절 완료), HWP 출력은 후속 |
+| RL-05 | gold 도구·실제 분석·채점·사람 결정 완료 | 판정 일치 3/10·차단 조건 recall 0/7. 작업 done이 합격은 아님 |
+| RL-06·07 | 명세·큐 등록, review | 로컬 모델 최적화·판정 UX 구현 전 |
+| 입찰 delta·최종 결정 | 저장·REST·화면 존재 | 비교 계산 worker 없음. 최종 결정은 사람 책임 |
+| 인증·SSO | 미구현 | 사내망·감사 표식 경계 유지 |
 
-“구현됨”은 코드나 schema가 존재한다는 뜻이고 “운영 가능”은 품질·보안·운영 gate까지 통과했다는 뜻이다. 현재 C-2, 모델 worker, delta 계산, backup/restore 훈련은 전자와 후자를 혼동하지 않는다.
+[구현 현황](tracking/status.md)과 [운영 반영](validation-runs/20261019-ops-rl-rollout/README.md), [RL 인수](validation-runs/2026-10-19-rl/RL-05/README.md)가 증거를 연결한다. 스키마·코드·처리 완료·품질 합격·운영 활성화를 구분한다.
 
 ## 12. 품질·관측·장애 대응
 
@@ -646,15 +642,14 @@ validator 실패는 결과를 자동 보정하지 않는다. report renderer는 
 
 현재 남은 위험은 구현 작업과 별도로 추적한다.
 
-- 실제 deep-review corpus와 gold가 부족하여 모델 품질 gate를 닫지 못함
-- C-2 운영 입력 625건 manifest의 사람 정답이 부분 상태임
-- vLLM artifact digest가 immutable하다는 운영 증거가 부족함
-- legacy mutation audit과 screening v3 renderer gap이 남아 있음
-- 실제 backup/restore, DB 권한, egress allow/deny 검증과 훈련이 남아 있음
-- 담당자 이름이 인증이 아니며 SSO/RBAC가 구현되지 않음
-- document preparation/retry UI와 API quota 측정이 남아 있음
+- RL-05의 실제 gold 인수가 reject이며 회사 대조의 차단 조건 재현이 0/7이다.
+- RL-04 실제 초안은 참조 식별자 검증 실패로 4/6절만 완료했다.
+- C-2 v5는 PoC 임계값을 통과했으나 이 결과를 RL 분석·개요 품질이나 새 정책의 승인으로 승계할 수 없다.
+- 입찰 delta 계산 worker·첨부 실패 재시작 UI가 없고, 담당자 이름은 인증이 아니다.
+- 운영 코드 반영과 RL 활성화·Slack·cron·모델 전송 승인은 별개다. 격리 실행 결과를 운영 적용으로 옮겨 적지 않는다.
+- Mac의 모델·첨부 egress 및 백업·복구는 실제 환경의 운영 절차와 관측이 필요하다. 과거 WSL2 주소·digest·이미지를 현재 설정으로 사용하지 않는다.
 
-재현 조건과 영향은 docs/tracking/findings.md에서 관리한다. 해결되지 않은 구조 문제를 이 문서에서 완료로 표시하지 않는다.
+재현 조건과 영향은 [findings](tracking/findings.md), 실행·승인 경계는 [operations](operations.md)에서 관리한다.
 
 ## 14. 변경·확장 규칙
 
@@ -696,7 +691,7 @@ validator 실패는 결과를 자동 보정하지 않는다. report renderer는 
 별도 큐 소비자를 만들지 않으며 기존 vLLM transport와 이력은 유지한다.
 심층 자동 시작은 기본 off, Luna 요청도 별도 enabled·reference 설정이 필요하다.
 runner는 DB·MinIO·저장소 없이 전용 인증 secret만 사용한다.
-[계약](contracts.md#사용자-요청-기반-luna-심층검토-adr-0069)과
+[계약](contracts/deep-review.md#사용자-요청-기반-luna-심층검토-adr-0069)과
 [적용 절차](0922_luna-deep-review/apply.md)를 따른다.
 
 ### 별도 가정 분석 경로 (2026-09-23, 운영 적용 전)
@@ -708,14 +703,14 @@ runner는 DB·MinIO·저장소 없이 전용 인증 secret만 사용한다.
 별도 REST를 통해 A안 React reader가 읽는다. [작업 정본](0923_assumption-analysis/intent.md).
 
 
-## 가상 SI 3사 데모 계약 (2026-10-09, DEMO-01·02 데모 브랜치 구현; 2026-10-10 DEMO-03 구현, 실제 Luna 대표 1건은 2026-10-11 DEMO-05로 이관)
+## 재사용된 DEMO 회사 계약 (그룹 종료, RL에 통합)
 
 회사 identity·추적은 lifecycle, 버전 프로필·지식그래프·회사별 분석은 deep_review가 소유한다. 원문과 v7 개요는 공유하고 결과는 회사 문맥으로 분리한다.
 DEMO-01은 별도 데모 브랜치에서 lifecycle 회사 identity·독립 추적과 deep_review의 nullable 회사 계보,
 legacy NULL 조회·worker 경계까지 구현했다. Notice·Opportunity 원문은 공유 소유를 유지한다.
 DEMO-02는 같은 데모 브랜치에서 core의 순수 온톨로지·원본 validator와 deep_review 소유의 불변 온톨로지·원본·graph version·node·edge·binding·binding event(migration `0035`),
 원본 hash에 묶인 profile v2·ProfileEvidence 단일 등록, 명시적 activate CLI, 회사별 profile·knowledge-graph·profile-evidence 읽기 REST를 구현했다.
-main·운영에는 미반영이다. `bidops-local`의 승인된 3사 원본 등록·활성화(공통 계약 §10 준비 단계)는 DEMO-03 STEP-007에서 수행했다. 회사별 화면은 DEMO-04(2026-10-12, 같은 데모 브랜치)가 frontend에만 추가했고 Playwright mock으로만 검증했다. 실제 백엔드·자료 인수는 DEMO-05 범위다.
+DEMO-01~04 코드는 이후 main과 2026-10-19 운영 코드·스키마에 포함됐다. 당시 3사 등록·회사별 화면 검증은 격리 데모 증거이며 운영 다회사 활성화가 아니다. DEMO-05는 중단했고 RL이 실회사 1곳으로 재명세했다. 현재는 이 회사 경계·그래프·분석 기반을 재사용한다.
 DEMO-04 frontend는 `GET /api/demo-config`가 enabled일 때만 `/companies/...` 경로와 셸의 회사 선택기를 등록한다. `src/lib/companyApi.ts`가 회사 REST DTO와 company_id 단위 query key를 소유하고, 기존 `TrackingDecisionControl`·`LunaRequest`·`NarrativeReportReader`는 회사 adapter를 주입받는다. 업무 규칙과 관계·판정은 브라우저가 계산하지 않는다.
 DEMO-03(2026-10-10)은 deep_review에 회사별 분석 경로를 추가했다. 순수 `company_knowledge_retrieval`(용어 정규화·concept 매핑·3 hop 경로 검색·경로 상한·필수 사실·coverage·slice), `company_analysis_input`(CompanyAnalysisInput·FrozenProvenance builder, 공고 ready bundle 문서 집합), `company_source_units`(심층·핏 공용 분할기 unit과 inventory 엄격 일치),
 `company_fit_policy`(v2 이력·v3 `source_characters`, 새 enqueue는 v3만)·`company_fit`(enqueue CLI, 2026-10-11부터 ready bundle 필수·개요 행 evidence page의 분할기 unit 연결, v2 결과 검증)·`company_fit_runner` 회사 분기(동결 입력과 저장된 정책 행만, `overview` 용도 LiteLLM `local-agent-main`, 심층 자동 시작 없음), `company_deep_review`(회사 preview/승인/생성/재시도·현재성), `company_slices`(stage별 회사 slice·검증), `company_projection`(회사 읽기·비교 projection), 라우터 `company_analysis`(쓰기)·`company_reads`(읽기·비교).

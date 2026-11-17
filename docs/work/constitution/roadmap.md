@@ -3,9 +3,9 @@
 ## RL — 루트랩 실회사 기준 AX 과제
 
 2026-10-16 확정한 신규 목표다([ADR-0073](../../tracking/decisions/0073-rootlab-real-company-ax-redefinition.md), [재정의 초안](../../1016_rootlab-redefinition/draft.md)).
-화면 정본은 [RL 화면 구현 명세](../../1016_rootlab-redefinition/ui-spec.md)(시안 v26, 2026-10-16)이며 RL-00~04 spec은 이를 인용한다. 상태의 정본은 기능 status.json, 순서·직접 의존의 정본은 queue.json이다. 아래는 기능 후보이며 **각 기능은 `/sdlc:feature <ID>`로 intent·spec·plan을 쓴 뒤 큐에 등록한다. 등록 전 행은 계획이지 기능이 아니다.**
+화면 정본은 [RL 화면 구현 명세](../../1016_rootlab-redefinition/ui-spec.md)(시안 v26, 2026-10-16)이며 RL-00~04 spec은 이를 인용한다. 상태의 정본은 기능 status.json, 순서·직접 의존의 정본은 queue.json이다. 아래 RL-00~07은 모두 intent·spec·plan 작성과 큐 등록을 마쳤다. 새 기능은 `/sdlc:feature <ID>`로 문서화한 뒤 등록하며, 등록 전 제안은 구현 사실이 아니다.
 
-| 기능 후보 | 목표 | 선행 | 핵심 입력 |
+| 기능 | 목표 | 선행 요약 | 핵심 입력 |
 |---|---|---|---|
 | `RL-00-company-ground-truth` | 루트랩 실회사 1곳을 `is_fictional=false`로 등록. 프로필·실적·선호·자격을 출처·상태(`confirmed`/`proposed`/`unknown`)와 함께 버전 고정. 인터뷰 답 반영 절차 | 없음 | company-profile, homepage-profile, preferences, 인터뷰 A~F |
 | `RL-01-daily-briefing` | 평일 1회 브리핑 생성(반복 발주처·연차 사업 규칙 → C-2·사전규격·입찰공고 후보 → 상위 N + 이유 3줄 + 차단 조건 + 마감)과 Slack bot 전송·화면, 채택/무시 피드백 저장. 브리핑은 결정적 규칙이라 LLM 호출이 없고 **Luna 정책 발행은 RL-03** | RL-00 | 수집 파이프라인, C-2 결과, 선호·제외 조건 |
@@ -16,12 +16,26 @@
 | `RL-06-local-llm-optimization` | 기능 완료 뒤 토큰 최적화용 로컬 LLM 검토(사용자 Q3) | RL-04 | 호출 수·토큰 계측 |
 | `RL-07-verdict-ux` | 판정 탭 실무자 화면 개선(프런트엔드 1차): 주의 포인트 블록·판정 한 줄 요약·코드 "사람 확인" 묶음·검증 실패↔표 연결·회사 근거 고정 문구·쪽 미확인 열 정리·1280 배치·브리핑 판정 직행. 서버·계약 불변(2026-10-20 RL-05 실데이터 독립 UX 검토) | RL-05 | HP 계약 §8, ui-spec §4.4 |
 
-### 다음 실행 순서 (2026-10-16)
+### 구현·인수 현황 (2026-10-21)
 
-1. 사용자가 [인터뷰](../../1016_rootlab-redefinition/company-interview.md)를 채운다(RL-00 입력). 비어 있어도 RL-00 명세는 시작할 수 있고 값은 `unknown`으로 등록한다.
-2. `/sdlc:feature RL-00-company-ground-truth` → `RL-01-daily-briefing` 순으로 문서화하고 `/sdlc:loop`로 구현한다. 실행·검증은 `bidops-local` 격리 자원, 브랜치는 main에서 분기한다.
-3. Luna 정책 승인 전송(ADR-0073 결정 5)의 정책 파일·승인 기록은 **RL-03에서** 발행한다(RL-01 브리핑은 결정적 규칙이라 LLM 호출이 없다). 실제 호출은 직전 사람 확인 대상이다.
-4. 2026-10-16 RL-00~06 intent·spec·plan 작성·독립 검사·큐 등록 완료(`queue _ show`). 구현은 `/sdlc:loop`로 시작하며 배치 승인은 그때 받는다.
+| 기능 | 저장된 `status.json` phase | 해석 |
+|---|---|---|
+| RL-00~02 | `done` | 회사 근거·브리핑·활동 피드 구현 및 격리 검증 기록 있음 |
+| RL-03 | `done` | 카드 판정 구현·실제 실행 기록 있음. 품질 합격은 아님 |
+| RL-04 | `done` | 초안·PDF 구현. 실제 1건은 `partial`(4/6절 완료) |
+| RL-05 | `done` | 평가·사람 결정 절차 완료. **인수 결과 `reject`** |
+| RL-06 | `review` (0/4) | 로컬 모델 최적화 명세, 구현 전 |
+| RL-07 | `review` (0/6) | 판정 화면 개선 명세, 구현 전 |
+
+`queue _ show`는 완료 증거를 현재 입력과 대조해 유효 단계를 계산한다. 갱신 전 조회에서 HP-00·01, RL-00~02·04는 `validating`, RL-03·05는 `done`이었다. 문서 변경으로 증거 hash가 달라질 수 있으므로 다음 실행 직전에 다시 조회한다. 상태 파일의 `done`만으로 선행 게이트를 우회하거나 제품 검증을 재실행한 것으로 적지 않는다.
+
+### 다음 실행 경계
+
+1. 실행 큐와 [RL-07 선행 증거 재사용 기록](../_runs/rl07-preflight-20261020/evidence-reuse.md)을 대조한다. 제품 소스가 같으면 기존 증거와 문서 변경의 영향을 확인하고 필요한 기록만 갱신한다.
+2. RL-07은 판정 탭의 설명·표시·탐색을 고치는 프런트엔드 범위다. 회사 대조의 `gap` 누락은 해결하지 않는다.
+3. [RL-05 인수 실패](../../validation-runs/2026-10-19-rl/RL-05/README.md)의 후속은 대조 개념 매핑·회사 사실 범위를 보완한 뒤 같은 gold로 재측정하는 것이다. [findings](../../tracking/findings.md)에 남기며 새 구현 범위·승인은 별도 기능 문서로 정한다.
+4. RL-06은 큐의 RL-04·03·05 선행 조건과 인수 실패의 영향을 확인한 뒤 착수한다. 현재 RL의 승인 모델을 로컬 모델로 바꾼 상태가 아니다.
+5. 운영 코드·DB 반영과 RL 기능 활성화는 별개다. 마지막 [운영 반영 기록](../../validation-runs/20261019-ops-rl-rollout/README.md)은 RL 분석 false·운영 회사 근거/브리핑 미등록이며, 실제 전송·Slack·cron은 별도 승인 경계다.
 
 ## 후속 범위
 
