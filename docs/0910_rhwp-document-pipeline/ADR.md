@@ -4,7 +4,7 @@
 기준일: 2026-09-11
 상태: native 변환·MVP 보완 구현과 승인된 운영 배포·6건 source-only 재준비, Qwen 참조 실행 4건 사람 검토 대기 종결. 이 폴더의 다섯 문서(ADR·Requirements·Design·Spec·Plan)가 이 작업의 정본이며, 작업 중 바뀌거나 추가되는 결정은 여기에 덧붙인다.
 
-관련 정본: [docs/ARCHITECTURE.md](../ARCHITECTURE.md), [ADR-0010 HWPX 분석 정본](../tracking/decisions/0010-hwpx-canonical-input.md), [ADR-0051 deep-review-v2 결정적 부분](../tracking/decisions/0051-deep-review-v2-deterministic-subset.md), [deep-review-v2 §7 HWPX·PDF 처리 방향](../deep-review-v2/document-analysis-design.md), [사전규격 v4 구현 계획](../tracking/prespec-v4-implementation-plan.md).
+관련 정본: [docs/ARCHITECTURE.md](../ARCHITECTURE.md), [ADR-0010 HWPX 분석 정본](../tracking/decisions/0010-hwpx-canonical-input.md), [ADR-0051 deep-review-v2 결정적 부분](../tracking/decisions/0051-deep-review-v2-deterministic-subset.md), [deep-review-v2 §7 HWPX·PDF 처리 방향](../deep-review-v2/document-analysis-design.md), [PDF·회사 핏 참조 인수 경계](../contracts/prespec-pdf-acceptance.md).
 
 ## 배경 요약
 

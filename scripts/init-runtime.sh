@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
+# Explicit bootstrap only. Never run from an application's entrypoint or start.
 set -euo pipefail
-
-# Run inside the explicitly named Compose project after external secrets
-# are loaded.  The services are idempotent and this helper never removes data.
-COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-bidops}" docker compose -f docker-compose.yml run --rm postgres-init
-COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-bidops}" docker compose -f docker-compose.yml run --rm migrate
-COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-bidops}" docker compose -f docker-compose.yml run --rm minio-init
+compose="$(cd "$(dirname "$0")" && pwd)/compose.sh"
+"$compose" up -d postgres minio
+"$compose" run --rm postgres-init
+"$compose" run --rm migrate
+"$compose" run --rm minio-init

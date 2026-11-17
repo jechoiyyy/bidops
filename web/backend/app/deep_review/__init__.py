@@ -24,6 +24,8 @@ from typing import TYPE_CHECKING, Any
 #: 이름은 공개하지 않는다 — 공개하면 조립 계층이 startup에서 부를 수 있게 되고
 #: 그것은 §9가 금지한 일이다(`tests/app/test_module_boundaries.py`의 startup 검사).
 _EXPORTS: dict[str, tuple[str, str]] = {
+    "engine_runs_router": (".routers.engine_runs", "router"),
+    "run_engine_once": (".services.engine_runs", "run_once"),
     # === 조립이 쓴다 — router 인스턴스 (routers/*.py) ======================
     # `app/main.py`가 `getattr(<모듈>, <router 이름>)`로 가져간다. 정적 import가
     # 없어도 조립에 반드시 필요하다.

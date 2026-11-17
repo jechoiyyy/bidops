@@ -622,3 +622,13 @@ COMMIT;
 GRANT SELECT ON TABLE bidops.assumption_input_version, bidops.assumption_run, bidops.assumption_stage TO app, worker;
 GRANT INSERT ON TABLE bidops.assumption_input_version, bidops.assumption_run TO app;
 GRANT INSERT ON TABLE bidops.assumption_stage TO worker;
+
+-- Extracted engine runs: web enqueues immutable snapshots; the existing single
+-- analysis worker can only publish the result and advance its execution state.
+GRANT SELECT ON TABLE bidops.engine_run TO app;
+GRANT INSERT ON TABLE bidops.engine_run TO app;
+GRANT SELECT ON TABLE bidops.engine_run TO worker;
+GRANT UPDATE (status, result_payload, result_sha256, error_code, started_at, completed_at)
+    ON bidops.engine_run TO worker;
+
+COMMIT;

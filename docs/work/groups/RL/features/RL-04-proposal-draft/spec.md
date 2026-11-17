@@ -3,7 +3,7 @@
 - 기능 ID: `RL-04-proposal-draft`
 - 근거: [intent.md](./intent.md), RL-03 spec(전송 승인·unit·compare·verdict·gate 순서·cap·감사), RL-00 spec(사실 노드), RL-02 spec(hook·탭), bid-procedure §4·§5, ui-spec §3·§4.5, ux-review §5 결정 5·6
 - 작성일: 2026-10-16 (같은 날 독립 검사 1차 20건 반영; 2026-10-17 배치 B 인터뷰 D2·D3·D4·D9·D10·D11·D12와 v2 fixture 대조 정정 반영 — [batch-b-interview.md](../../batch-b-interview.md))
-- 구현 상태(2026-10-18): STEP-001~009 구현·mock 검증(`quality_status=mock_reference`) 완료, 결정 B41~B49(`docs/work/_runs/rlb-20261017/decisions.md`). **T11(실제 Luna 초안 1건)은 pending**이다 — 입력이 되는 RL-03 T12 실제 판정이 아직 없다(결정 B37, [findings "RL-03 카드 판정은 제약 하나의 검증 실패로 판정 전체가 사람 검토로 끝난다"](../../../../../tracking/findings.md#rl-03-카드-판정은-제약-하나의-검증-실패로-판정-전체가-사람-검토로-끝난다-2026-10-18-미해결)). 실제 초안은 RL-03 실제 판정이 completed가 된 뒤 사람 확인을 받고 진행한다.
+- 구현·실제 검증 상태(2026-10-21 문서 대조): STEP-001~009 구현·mock 검증과 후속 실제 Luna 초안 1건(T11)을 수행했다. 실제 결과는 `partial`(4/6절 완료)이며 실적·운영 절은 식별자 참조 검증 실패로 남았다. [실제 실행 기록](../../../../../validation-runs/2026-10-17-rl/RL-04/README.md)이 근거다. 초기의 RL-03 판정 미완료에 따른 T11 pending은 해소됐으나 실제 초안 품질 합격을 뜻하지 않는다.
 
 ## 큰 틀 문서와의 관계
 

@@ -65,12 +65,12 @@ verification 4, draft dispatch/response event 8, model response object 4건만 �
 OFF 감사 `a6e96d1b-9c8a-40b6-87f7-d1e177c21222`로 종료해 active attempt 0건이다. 기존 방화벽은
 변경하지 않았고 원문·검증·정책·호출 상한을 풀지 않았다. 결과는
 `unmeasured_reference`로서 운영 품질·정책 활성화 승인이 아니며, 근거는
-[실행 요약](../../.dryforge/prespec-qwen-0911-mHF0bO/README.md)과 그 폴더의 안전 metadata JSON이다.
+실행 당시 로컬 요약(`.dryforge/prespec-qwen-0911-mHF0bO/README.md`, 현재 checkout 없음)과 그 폴더의 안전 metadata JSON이다.
 
 문서 동기화는 Sol medium이 이 폴더의 ADR·Requirements·Design·Spec·Plan을 맡아 완료했고,
 관리자가 최종 diff와 실행 증거를 대조했다. 남은 용량 계산식·검증 시점·과거/현재 표기만
 문서에서 보정했다. 앱 검사나 운영 실행을 추가하지 않았으며 상세 실행·검증·미완료 항목은
-[이번 실행 기록](../../.dryforge/prespec-mvp-deploy-20260911-OIBy24/README.md)을 따른다.
+당시 로컬 실행 기록(`.dryforge/prespec-mvp-deploy-20260911-OIBy24/README.md`, 현재 checkout 없음)을 따른다.
 2026-09-10 안정화 계획 문서 자체는 2026-09-11 개요 스택 재작성으로 폐기했다
 ([ADR-0054](../tracking/decisions/0054-prespec-overview-mvp-rewrite.md), git 이력 `71b9954`).
 
@@ -79,7 +79,7 @@ OFF 감사 `a6e96d1b-9c8a-40b6-87f7-d1e177c21222`로 종료해 active attempt 0�
 1. 저장소 지침 [CLAUDE.md](../../CLAUDE.md)와 [docs/standards.md](../standards.md), [docs/engineering-notes.md](../engineering-notes.md), [web/backend/AGENTS.md](../../web/backend/AGENTS.md)를 읽는다.
 2. 이 작업의 정본 다섯 문서를 순서대로 읽는다. [ADR.md](ADR.md) → [Requirements.md](Requirements.md) → [Design.md](Design.md) → [Spec.md](Spec.md) → 이 Plan이다.
 3. 먼저 위 "현재 MVP 상태"와 이 문서 끝의 최신 진행 기록을 확인한다. R0~R7은 종료된 역사적 구현 단계이며 새 작업 체계로 재사용하지 않는다.
-4. 현재 운영 상태는 [docs/tracking/status.md](../tracking/status.md) "사전규격 v4 최신 운영 상태"와 [docs/tracking/findings.md](../tracking/findings.md)의 notice 142 항목, [prespec-v4-implementation-plan.md](../tracking/prespec-v4-implementation-plan.md) "최신 운영 상태"에 있다.
+4. 현재 운영은 [현황](../tracking/status.md), 과거 notice 142의 잔여 한계는 [문서 문제 기록](../tracking/findings/documents.md), v4 인수 범위는 [PDF·회사 핏 참조 인수 경계](../contracts/prespec-pdf-acceptance.md)에서 확인한다. 아래 단계별 상태는 당시 기록이다.
 5. 운영 명령(compose, 배포, v4 CLI, 참조 실행)은 [docs/operations.md](../operations.md)를 따른다. 특히 "사전규격 v4 준비" 절과 2026-09-10에 추가된 `--binding` 주석.
 
 ## 1. 진행 원칙
@@ -250,7 +250,7 @@ git diff --check
 - [x] 새 이미지 `bidops-rdp-r6:20260910`로 web·document-worker 재생성. R5 이미지의 `fc-list` 부재(native 변환 전부 `converter_unavailable`)를 `web/Dockerfile` `fontconfig` 추가로 먼저 보정했다.
 - [x] explicit_sample 활성화 → 142·59 native snapshot·target `ready` → 비활성화. endpoint가 없어 attempt는 없다. **35는 보류**: 새 구조 blocks가 기존과 달라 `structure_binding_mismatch`가 나고 실패 attempt가 `current`를 덮으므로 실행하지 않았다.
 - [x] API·UI 확인: `overview-pages` 35/59/142 준비 전후 byte 동일, 142 segments `mapped` 35·`partial` 42, 구조 PDF endpoint 200(4,829,134 B), 두 폭 화면 오버플로·오류 없음. 심층 검토 화면의 segment 링크는 운영 `deep_review` 행이 없어 REST로만 확인.
-- [x] `docs/tracking/status.md`·`findings.md`·`prespec-v4-implementation-plan.md`·[`docs/validation-runs/2026-09-10-rhwp-pipeline.md`](../validation-runs/2026-09-10-rhwp-pipeline.md) 기록.
+- [x] `docs/tracking/status.md`·`findings.md`·`prespec-v4-implementation-plan.md`(종료된 계획, git 이력)·[`docs/validation-runs/2026-09-10-rhwp-pipeline.md`](../validation-runs/2026-09-10-rhwp-pipeline.md) 기록.
 
 게이트: 세 표본 중 142·59 새 snapshot과 142 화면 링크 경로(REST) 확인, 기존 결과 보존, 문서 갱신. 35는 구조 revision 설계·승인 뒤 별도로 준비한다.
 

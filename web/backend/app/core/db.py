@@ -100,13 +100,13 @@ SessionLocal = sessionmaker(
 # unsurprising for code that expects a session factory named ``Session``.
 SessionFactory = SessionLocal
 
-ALEMBIC_HEAD = "0041_proposal_draft"
+ALEMBIC_HEAD = "0042_engine_run"
 # Alembic hard-codes ``version_num VARCHAR(32)`` when it creates its version
 # table, and revision identifiers in this lineage are longer than that.  The
 # table is created at this width by ``alembic/env.py`` instead; the guard in
 # ``tests/app/test_db_migrations.py`` keeps every identifier inside it.
 ALEMBIC_VERSION_NUM_WIDTH = 64
-MIGRATION_COMMAND = "docker compose --project-name <isolated> -f docker-compose.yml run --rm migrate"
+MIGRATION_COMMAND = "make BIDOPS_ENV=<dev|mock|prod> migrate"
 
 
 def get_db() -> Generator[Session, None, None]:

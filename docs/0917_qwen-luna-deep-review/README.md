@@ -132,5 +132,5 @@ hwpx-pdf-overview-ab-20260917-173238/
 - 이 기록을 작성하는 시점에는 제품 코드, DB, REST 계약, 활성 모델 정책을 변경하지 않는다.
 - 새 모델 실행은 `unmeasured_reference`, `deployable=false`로 취급한다.
 - Qwen 또는 Luna 선택 전까지 현재 심층 검토 런타임을 교체하지 않는다.
-- 기존 작업 트리의 다른 변경과 `docs/0916_deep-review-ui`,
+- 기존 작업 트리의 다른 변경과 `docs/0916_deep-review-ui`(미채택 시안, 현재 삭제·git 이력 보존),
   `docs/0917_opportunity-tracking` 등 다른 미추적 작업은 건드리지 않는다.

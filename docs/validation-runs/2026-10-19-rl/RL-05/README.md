@@ -1,6 +1,6 @@
-# RL-05 gold 인수 평가 준비 — bidops-local (격리)
+# RL-05 gold 인수 평가 — bidops-local (격리)
 
-2026-10-19, run `rlc-20261019`, 기능 `RL-05-gold-acceptance`. 사용자 gold 10건과 RL-03 판정을 대조하는 평가의 **표본 선정·홀드아웃·빈 gold 양식 준비까지**의 기록이다. **사람이 gold를 쓰기 전이고 모델 호출은 이 run에서 0회다. 채점 지표·사람 결정은 아직 없다.** 문서 원문·회사 자료·사람 답은 적지 않으며 sha256·건수·식별자만 적는다. 절차는 [operations.md "RL 판정 gold 인수 평가"](../../../operations.md#rl-판정-gold-인수-평가-rl-05-2026-10-19), 기준은 [model-quality-gate.md "RL 판정 gold 인수"](../../../model-quality-gate.md#rl-판정-gold-인수-rl-05)다.
+2026-10-19~20, run `rlc-20261019`, 기능 `RL-05-gold-acceptance`. 사용자 gold 10건의 준비부터 실제 분석·채점·사람 인수까지 기록한다. **최종 인수는 reject**(2026-10-20)이며 수치·원인은 마지막 "실제 분석·채점·인수" 절을 따른다. 아래 준비 당시의 모델 호출 0회·빈 gold·대기 상태는 시점 기록이다. 문서 원문·회사 자료·사람 답은 적지 않으며 sha256·건수·식별자만 적는다. 절차는 [operations.md "RL 판정 gold 인수 평가"](../../../operations/rl.md#rl-판정-gold-인수-평가-rl-05-2026-10-19), 기준은 [model-quality-gate.md "RL 판정 gold 인수"](../../../model-quality-gate.md#rl-판정-gold-인수-rl-05)다.
 
 - 환경: 격리 스택 `bidops-local`(운영 `bidops` 스택·운영 DB 미사용), DB `bidops_rla`, export용 이미지 `bidops-local:rlc-20261019-rl05`(feature worktree `81084a4`), web의 `BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED=false`.
 - 평가 디렉터리(Git 밖, `.sdlc/local-runtime/rl-evaluation-20261019/`)의 파일은 저장소에 두지 않는다. 사람이 쓸 작업 양식은 같은 디렉터리 `worksheet/` 아래다.
@@ -49,7 +49,7 @@
 
 `rl-gold.py gold-check`를 빈 양식에 돌리면 `human_gold_incomplete`(exit 2)다 — 아직 아무도 쓰지 않았다는 **예상된 결과**이며 통과가 아니다.
 
-## 현재 상태와 다음 단계
+## 준비 당시 상태와 이후 순서 (2026-10-19)
 
 - 상태: 사람의 gold 작성(STEP-004)을 기다린다. `validating` 이전에 모델 실행·채점·인수는 하지 않았다.
 - 이후 순서(각각 따로 확인): 사람이 모델 전에 gold 작성 → `gold-check` 통과 → 공고별 수동 RL-03 실제 분석(RL-03 정책 단위 승인과 요청 직전 사람 확인, 실제 Luna 전송) → `export-evaluation --actual`(초안) → 사람이 alignment → 최종 export → `rl-gold.py score` → 사람이 `acceptance.json`에 결정 기록. 이 기록에 파일 sha256·metrics·결정을 덧붙인다.

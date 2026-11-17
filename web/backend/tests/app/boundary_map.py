@@ -341,6 +341,7 @@ TABLE_OWNER: dict[str, str] = {
     "verdict_feedback": DEEP_REVIEW,
     # RL-04 proposal draft (0041).
     "proposal_draft": DEEP_REVIEW,
+    "engine_run": DEEP_REVIEW,
     "proposal_section": DEEP_REVIEW,
     "proposal_sentence_edit": DEEP_REVIEW,
     "proposal_export": DEEP_REVIEW,

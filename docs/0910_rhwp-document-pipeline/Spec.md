@@ -215,7 +215,7 @@ runner가 `manifest_invalid`로 닫아 모델을 호출하지 않는다. 초안 
 범위 조회 v2·후보 index 기반 확정을 포함한 이 절의 REST 계약은 대체됐다. 범위 확인은
 `POST /api/pre-specs/{notice_id}/overview/range-confirmations`(body `{page_start, page_end,
 note?}`)로 단순화됐고, `prespec_v4_target`·`prespec_v4_attempt` 테이블은 migration 0026에서
-삭제됐다. 현재 계약은 [contracts.md](../contracts.md#사전규격-개요-검토-mvp-2026-09-11)를
+삭제됐다. 현재 계약은 [contracts.md](../contracts/prespec-overview.md#사전규격-개요-검토와-예비-적합성-판단-mvp-2026-09-21)를
 정본으로 한다. snapshot(`prespec_v4_pdf_snapshot`)과 절 후보
 (`bidops.section-candidates.v1/v2`, §5의 `digest --sections`) 계약은 그대로 유지된다.
 
@@ -226,7 +226,7 @@ note?}`)로 단순화됐고, `prespec_v4_target`·`prespec_v4_attempt` 테이블
 
 옛 policy v5 두 단계 호출 경계(초안 2회·semantic 1회, `failed/input_capacity_exceeded`
 기술적 미실행 구분)는 새 정책 v6에서도 같은 모양(attempt당 draft 2회·semantic 1회)으로
-유지된다. 상세 상한·오류 코드는 [contracts.md](../contracts.md#실행-흐름)를 정본으로 한다.
+유지된다. 상세 상한·오류 코드는 [contracts.md](../contracts/prespec-overview.md#실행-흐름)를 정본으로 한다.
 2026-09-11 실제 참조 실행(744·749·759·761)의 실측 결과는 §8의 역사 기록에 있다.
 
 ## 7. 역사적 구현 단계와 당시 게이트

@@ -656,7 +656,7 @@ lease 길이는 환경변수가 아니라 모듈 상수 1,200초다.
 
 사용자가 요청한 개요 뒤 회사 핏 판정과 상세 사유 표시를 위해
 `prespec_company_fit_attempt`를 추가한다. 기존 개요·심층 검토 결과를 덮어쓰지 않는다.
-세부 JSON/조회 계약은 [회사 핏 계약](contracts.md#사전규격-회사-핏-계약-bidopsprespec-company-fitv1)을 따른다.
+세부 JSON/조회 계약은 [회사 핏 계약](contracts/deep-review.md#사전규격-회사-핏-계약-bidopsprespec-company-fitv1)을 따른다.
 
 - `notice_id`·`document_version_id`를 같은 공고의 문서에 고정한다.
   `overview_run_id`(`prespec_overview_run(id)` FK, nullable)는 원본 개요가 같은
@@ -705,7 +705,7 @@ UNIQUE는 유지한다. 서비스가 원본·객체 버전·해시·HWPX 검증�
 v3 개요 review/snapshot/attempt/result(`0012`·`0014`), v4 target/attempt(`0022`), v5 주장
 검증·call ledger(`0025`)를 모두 폐기하고 `prespec_overview_run` 단일 테이블로 재작성한다
 ([ADR-0054](tracking/decisions/0054-prespec-overview-mvp-rewrite.md)). 상세 계약 정본은
-[contracts.md](contracts.md#사전규격-개요-검토-mvp-2026-09-11)다.
+[contracts.md](contracts/prespec-overview.md#사전규격-개요-검토와-예비-적합성-판단-mvp-2026-09-21)다.
 
 | 열 | 타입 | 뜻 |
 |---|---|---|
@@ -738,7 +738,7 @@ SELECT/INSERT/UPDATE, worker role은 SELECT/INSERT/UPDATE만 갖는다. 함께 d
 `prespec_overview_result`, `prespec_overview_attempt`, `prespec_overview_snapshot`,
 `prespec_overview_review`이고 함수 `tf_prespec_v4_attempt_guard()`도 drop한다.
 `prespec_v4_pdf_snapshot`(`0021`)과 `bidops.section-candidates.v1/v2`는 유지한다. 적용 전
-pg_dump 백업 절차는 [operations.md](operations.md#0026-적용-전-개요-테이블-백업)를 따른다.
+pg_dump 백업 절차는 [operations.md](operations/prespec-reference.md#0026-적용-전-개요-테이블-백업)를 따른다.
 
 ## 8.6 입찰 최종 결정 근거 (`0028`, 2026-09-17 추가)
 
@@ -892,7 +892,7 @@ page 인용이 여러 문단에 걸치면 DB block key 정렬 대신 고정 stru
 Luna v2 보조 연결 제외 기록은 완료 stage의 기존 invocation metadata에 저장한다.
 모델 원본은 암호화 객체에 보존하고 파생 claim metadata만 제외된 연결을 반영한다.
 validation check의 관련 ID에는 유효한 대상 claim만 넣으며 제외한 ID는 넣지 않는다.
-보고서 수정본도 같은 stage의 경고를 이어받는다. [계약](contracts.md#luna-v2-보조-연결-경고-2026-09-23).
+보고서 수정본도 같은 stage의 경고를 이어받는다. [계약](contracts/deep-review.md#luna-v2-보조-연결-경고-2026-09-23).
 
 ## 가정 분석 별도 이력 (0033, 운영 적용 전)
 

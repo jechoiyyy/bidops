@@ -7,8 +7,7 @@
 PostgreSQL 백업은 현재 Compose 계약상 host의 `./backups/postgres`에 쓴다. 실행 뒤 dump를 승인된 외부 보존 위치로 복사하고 보존 위치의 접근권한과 hash를 기록한다.
 
 ```bash
-COMPOSE_PROJECT_NAME=bidops docker compose \
-  -f docker-compose.yml --profile backup run --rm ro-backup
+BIDOPS_ENV=prod scripts/compose.sh run --rm ro-backup
 ```
 
 `scripts/backup-postgres.sh`는 timestamp가 붙은 custom-format dump를 만들고 기존 백업을 삭제하지 않는다. 4시간 RPO가 필요하면 이 스크립트와 별도로 WAL 보관을 구성하고 복구 시험으로 확인한다.

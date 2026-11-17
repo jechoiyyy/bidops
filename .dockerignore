@@ -19,3 +19,6 @@ web/frontend/playwright-report
 
 # Local SDLC workspaces are not runtime build inputs.
 .sdlc
+
+# Isolated host verification environment is not a build input.
+.venv

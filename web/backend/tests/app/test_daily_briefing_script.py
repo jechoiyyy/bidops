@@ -57,7 +57,7 @@ case "${name}" in
   docker)
     args="$*"
     case "${args}" in
-      "compose version") exit 0 ;;
+      *" version") exit 0 ;;
       *"exec -T web python -m app.lifecycle.cli build-briefing"*)
         [[ -f "${state}/cli_stderr" ]] && cat "${state}/cli_stderr" >&2
         [[ -f "${state}/cli_stdout" ]] && cat "${state}/cli_stdout"
@@ -134,7 +134,8 @@ class Env:
 def make_env(tmp_path: Path) -> Env:
     root = tmp_path / "repo"
     (root / "scripts").mkdir(parents=True)
-    shutil.copy2(ROOT / "scripts" / SCRIPT, root / "scripts" / SCRIPT)
+    for name in (SCRIPT, "compose.sh", "compose-env.sh"):
+        shutil.copy2(ROOT / "scripts" / name, root / "scripts" / name)
     state = tmp_path / "state"
     state.mkdir()
     bin_dir = tmp_path / "fake-bin"
@@ -166,9 +167,9 @@ def test_dry_run_in_a_clean_environment_prints_the_call_order_and_calls_nothing(
     assert result.returncode == 0, result.stderr
     out = result.stdout
     # 호출 순서: compose 확인 → web 컨테이너 안 build-briefing → JSON 검사.
-    compose = out.index("docker compose version")
+    compose = out.index("scripts/compose.sh version")
     cli = out.index(
-        "docker compose -f docker-compose.yml exec -T web python -m app.lifecycle.cli build-briefing "
+        "scripts/compose.sh exec -T web python -m app.lifecycle.cli build-briefing "
         "--date 2026-10-14 --json --send"
     )
     check = out.index("slack_send_failed")
@@ -207,10 +208,9 @@ def test_arguments_are_forwarded_to_the_cli_inside_the_web_container(env: Env) -
     result = env.run("--date", "2026-10-14", "--send")
 
     assert result.returncode == 0, result.stderr
-    assert env.cli_calls() == [
-        "docker compose -f docker-compose.yml exec -T web python -m app.lifecycle.cli "
-        "build-briefing --date 2026-10-14 --json --send"
-    ]
+    (call,) = env.cli_calls()
+    assert "-p bidops-dev --env-file env/dev.env" in call
+    assert call.endswith("exec -T web python -m app.lifecycle.cli build-briefing --date 2026-10-14 --json --send")
     # 성공하면 CLI의 JSON이 그대로 stdout에 남는다(cron 로그의 증거).
     assert json.loads(result.stdout[result.stdout.index("{"):]) == GOOD_OUTPUT
 
@@ -229,12 +229,12 @@ def test_without_send_the_flag_is_not_forwarded_and_default_date_is_today_in_kst
     assert date_value is not None and date_value.group(1) in {before, after}
 
 
-def test_compose_project_defaults_to_bidops_and_can_be_overridden(env: Env) -> None:
+def test_compose_project_defaults_to_isolated_dev_and_can_be_overridden(env: Env) -> None:
     default = env.run("--date", "2026-10-14", "--dry-run", clean_env=True)
-    overridden = env.run("--date", "2026-10-14", "--dry-run", COMPOSE_PROJECT_NAME="bidops-local")
+    overridden = env.run("--date", "2026-10-14", "--dry-run", COMPOSE_PROJECT_NAME="bidops-test")
 
-    assert "COMPOSE_PROJECT_NAME=bidops docker compose" in default.stdout
-    assert "COMPOSE_PROJECT_NAME=bidops-local docker compose" in overridden.stdout
+    assert "COMPOSE_PROJECT_NAME=bidops-dev scripts/compose.sh" in default.stdout
+    assert "COMPOSE_PROJECT_NAME=bidops-test scripts/compose.sh" in overridden.stdout
 
 
 @pytest.mark.parametrize(
@@ -278,7 +278,7 @@ def test_cron_example_reuses_the_track_lock_and_wraps_in_timeout() -> None:
     붙이고, 브리핑 줄은 두 트랙(수집 회차를 만드는 notices, C-2 결과를 만드는 order-plans)과
     **같은 락 파일 둘 다**를 잡는다 — 수집·적재·C-2 실행이 도는 동안 브리핑이 끼어들지 않는다."""
 
-    text = (ROOT / "docs" / "operations.md").read_text(encoding="utf-8")
+    text = (ROOT / "docs" / "operations" / "daily.md").read_text(encoding="utf-8")
     cron_lines = [line for line in text.splitlines() if re.match(r"^[0-9*/,-]+( [0-9*/,-]+){4} cd /", line)]
     notices = next(line for line in cron_lines if "run-daily-lifecycle.sh --track notices" in line)
     briefing = next(line for line in cron_lines if "run-daily-briefing.sh" in line)

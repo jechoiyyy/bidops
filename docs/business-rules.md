@@ -137,7 +137,7 @@ N은 사용자가 공고를 지정한 단건 요청으로 실행할 수 있다.
 시작하거나 찾아보기를 할 때 쓰인다. 실측(3일 창, 2026-09-17)으로는 입찰공고 전체 1,818건 중
 1468(소프트웨어사업자) 업종 표시는 138건이며, SW 사전규격 계보를 잇는 입찰공고 84건 중 24건
 (29%)이 1468 밖이었다 — 업종제한이 없는 SW 공고는 1468 조회에 잡히지 않으므로 **1468은 수집
-필터가 아니라 표시로만 쓴다**([`../validation-runs/20260917-bid-collection-probe.md`](../validation-runs/20260917-bid-collection-probe.md),
+필터가 아니라 표시로만 쓴다**([`../validation-runs/20260917-bid-collection-probe.md`](validation-runs/20260917-bid-collection-probe.md),
 [ADR-0059](tracking/decisions/0059-full-collection-selective-ingest-and-index-search.md)).
 
 입찰공고는 다음 중 하나에 해당하면 적재한다. ① 공식 키(발주계획 통합번호·사전규격 등록번호·
@@ -151,7 +151,7 @@ SW=Y 사전규격(DB 또는 색인)을 가리킴, ③ 1468 표시가 있고 계�
 
 선별 적재의 통계(원천별 수집 건수, 사유별 선별·제외 건수)는 그 회차 적재 시점의 결과
 snapshot이다. 나중에 추적 보충이나 찾아보기로 적재된 레코드는 회차 통계를 다시 쓰지 않고
-색인 행에만 반영한다. 상세 계약은 [contracts.md](contracts.md#적재-cli와-수집-색인-spec-2)가
+색인 행에만 반영한다. 상세 계약은 [contracts.md](contracts/pipeline-db.md#적재-cli와-수집-색인-spec-2)가
 정본이다.
 
 ### 조치 필요·신규 입찰공고 구역과 보류 재검토(2026-09-17)
@@ -404,7 +404,7 @@ HWP 원본은 그대로 보존하고 HWP 분석에는 검증된 HWPX 변환 결�
 ## 발주계획 C-2 선별 상태 규칙
 
 C-2는 기존 공고의 적합성·참여 준비 판정과 별도의 relevance 흐름이다. Phase 0의 고정
-정의와 machine-readable schema는 [`docs/contracts.md`의 C-2 계약](contracts.md#c-2-phase-0-fixed-contract)과
+정의와 machine-readable schema는 [`docs/contracts.md`의 C-2 계약](contracts/c2.md#c-2-phase-0-fixed-contract)과
 `skills/bidops-screen/contracts/`를 따른다.
 
 - 전체 `bidops.collected-order-plans.v1` 회차를 먼저 검증한다. `metadata.collection.complete=false`,
@@ -452,7 +452,7 @@ manifest는 `partially_human_adjudicated`이며 사람 22건, draft 603건, 잔�
 권고형 개요, legacy v4 단일 호출, v5 주장 검증 스택(activation v2·call ledger·
 verification)을 폐기하고 `prespec_overview_run` 단일 테이블로 다시 썼다. 첨부 취득·묶음·
 자동 준비·문서 변환·PDF/쪽 텍스트 스냅숏과 주장 결정적 검증 함수는 그대로 유지한다. 상세
-wire·DB 계약은 [contracts.md](contracts.md#사전규격-개요-검토-mvp-2026-09-11)가 정본이다.
+wire·DB 계약은 [contracts.md](contracts/prespec-overview.md#사전규격-개요-검토와-예비-적합성-판단-mvp-2026-09-21)가 정본이다.
 
 ### 상태 의미
 
@@ -544,7 +544,7 @@ schema 위반(`semantic_schema_invalid`)은 계속 `failed`이며 그 사유 코
 
 ### 설명형 심층검토 v2의 해석 (2026-09-22)
 
-새 정책의 보고서에서도 시스템 권고, 사람의 심층검토 의견, 추적 선택, 최종 입찰 Go/No-Go는 별도다. `not_analyzed`와 근거의 `unknown/unsupported/conflicting`을 사업 위험 없음·회사 역량 미달·확정적 불가로 변환하지 않는다. 재분석 중/실패에 이전 보고서를 조회할 수 있지만 그것이 새 실행의 완료를 뜻하지 않으며, 현재 실행 완료 전 수정·의견 저장 gate는 유지한다. 품질 표식은 기존 규칙을 그대로 따른다. 상세는 [v2 계약](contracts.md#심층검토-설명형-보고서-v2-2026-09-22-선택형-poc).
+새 정책의 보고서에서도 시스템 권고, 사람의 심층검토 의견, 추적 선택, 최종 입찰 Go/No-Go는 별도다. `not_analyzed`와 근거의 `unknown/unsupported/conflicting`을 사업 위험 없음·회사 역량 미달·확정적 불가로 변환하지 않는다. 재분석 중/실패에 이전 보고서를 조회할 수 있지만 그것이 새 실행의 완료를 뜻하지 않으며, 현재 실행 완료 전 수정·의견 저장 gate는 유지한다. 품질 표식은 기존 규칙을 그대로 따른다. 상세는 [v2 계약](contracts/deep-review.md#심층검토-설명형-보고서-v2-2026-09-22-선택형-poc).
 
 표기 차이만으로 분석 전체를 중단하지 않는다. 공백·따옴표 등의 인용 표기는 원문으로
 연결하고 동일한 원화 금액은 단위 환산을 인정한다. 축약 연도의 세기 해석은 보고서를
@@ -627,7 +627,7 @@ DEMO-04 화면은 회사 경로에서만 계속 추적·보류·종료 세 상�
 
 ## 사업기회 레코드 단계 바·활동 피드 (RL-02, 2026-10-17)
 
-사업기회 하나가 지금 어디까지 왔는지(단계 바), 누가 무엇을 했는지(활동 피드), 곧 마감인 추적 중 사업을 알리는 규칙(마감 알림)이다. 계약은 [contracts.md "레코드 활동 피드·노트"](contracts.md#레코드-활동-피드노트-rl-02-2026-10-17)·[브리핑](contracts.md#브리핑-rl-01-2026-10-17), 기능 명세는 `docs/work/groups/RL/features/RL-02-opportunity-timeline/spec.md`다. LLM을 부르지 않는다. "run 결정 기록 #N"은 `docs/work/_runs/rla-20261016/decisions.md`의 번호다.
+사업기회 하나가 지금 어디까지 왔는지(단계 바), 누가 무엇을 했는지(활동 피드), 곧 마감인 추적 중 사업을 알리는 규칙(마감 알림)이다. 계약은 [contracts.md "레코드 활동 피드·노트"](contracts/lifecycle-rest.md#레코드-활동-피드노트-rl-02-2026-10-17)·[브리핑](contracts/rl.md#브리핑-rl-01-2026-10-17), 기능 명세는 `docs/work/groups/RL/features/RL-02-opportunity-timeline/spec.md`다. LLM을 부르지 않는다. "run 결정 기록 #N"은 `docs/work/_runs/rla-20261016/decisions.md`의 번호다.
 
 - **권위 연결의 정의를 그대로 쓴다.** 단계 바·레코드 제목·피드의 "발견·공개·게시" 사건·마감 알림은 모두 contracts "마감 임박 창"의 권위 연결(`official`·`확정` 또는 `candidate`·`사람 확인 완료`·`accepted`)만 읽는다. 확인 대기·거절 후보와 `검색 미확인` 연결은 어느 단계도 만들지 않는다. Python 쪽 판정은 `is_authoritative_link` 하나이고 SQL 쪽은 `authoritative_link_predicate`이며, 이 규칙을 화면이나 다른 service가 다시 만들지 않는다. 단계 구분은 발주계획 = `stage=order_plan`, 사전규격 = `stage=notice` ∧ `Notice.source_type`이 사전규격 종류(`PRE_SPEC_SOURCE_TYPES`), 입찰공고 = `stage=notice` ∧ `source_type='bid_notice'`이고 그 밖의 공고 종류는 단계를 정하지 않는다. 한 단계에 권위 연결이 여럿이면 연결 시각이 가장 늦은 것(같으면 연결 id가 큰 것)이 그 단계를 대표한다.
 - **단계 바는 6단계 고정 순서다**: 발주계획 → 사전규격 → 입찰공고 → 마감 → 개찰 → 계약. 앞 세 단계는 권위 연결이 있으면 `done`이고 **가장 뒤 단계**는 `current`다(단, 입찰공고가 가장 뒤 단계이고 마감이 이미 지났으면 입찰공고도 `done`이다). 마감은 입찰공고 `deadline_at`이 지났으면 `done`, 아직이면 `upcoming_deadline`이며 입찰공고가 없거나 `deadline_at`이 `null`이면 `unknown`이다 — **사전규격 의견 마감은 마감 단계가 아니다**. 개찰은 입찰공고 `lifecycle_json.opening_at`(시간대가 있는 ISO)이 있고 지났으면 `done`, 미래면 `upcoming_deadline`이며 키가 없거나 `null`이거나 시간대가 없으면 `unknown`이다. **계약은 읽을 데이터가 없으므로 언제나 `unknown`이다.** 어느 칸에도 맞지 않는 단계는 뒤 단계가 이미 `done|current`면 `unknown`(건너뛴 단계는 있었는지 추정하지 않는다), 아니면 `pending`이다. 예: 발주계획만 있으면 사전규격·입찰공고 `pending`, 마감·개찰 `unknown`; 사전규격 없이 입찰공고가 있으면 사전규격 `unknown`. 개찰·계약 시각을 마감 날짜로 추정하지 않는다(`unknown`은 "미확인"이며 미실시나 부족이 아니다).
@@ -639,7 +639,7 @@ DEMO-04 화면은 회사 경로에서만 계속 추적·보류·종료 세 상�
 
 ## RL 자동 분석과 판정 상태 (RL-03, 2026-10-17)
 
-사전규격 제안요청서를 카드·영역 단위로 나눠 회사 근거와 대조하고 참여 판정을 만드는 규칙이다. 계약은 [contracts.md "카드 기반 참여 판정"](contracts.md#카드-기반-참여-판정-rl-03-2026-10-17), 절차는 [operations.md "RL 카드 판정 운영"](operations.md), 기능 명세는 `docs/work/groups/RL/features/RL-03-fit-verdict/spec.md`다. **판정은 참고 의견이다.** 적합성 등급(C-1)·참여 준비 상태·심층 검토 추적 선택·최종 입찰 Go/No-Go와 서로 대신하지 않으며, 판정이 추적 상태를 바꾸지도 승인을 대신하지도 않는다. 결과는 `unmeasured_reference`로만 보이고 품질·운영 완료 근거로 쓰지 않는다.
+사전규격 제안요청서를 카드·영역 단위로 나눠 회사 근거와 대조하고 참여 판정을 만드는 규칙이다. 계약은 [contracts.md "카드 기반 참여 판정"](contracts/rl.md#카드-기반-참여-판정-rl-03-2026-10-17), 절차는 [operations.md "RL 카드 판정 운영"](operations.md), 기능 명세는 `docs/work/groups/RL/features/RL-03-fit-verdict/spec.md`다. **판정은 참고 의견이다.** 적합성 등급(C-1)·참여 준비 상태·심층 검토 추적 선택·최종 입찰 Go/No-Go와 서로 대신하지 않으며, 판정이 추적 상태를 바꾸지도 승인을 대신하지도 않는다. 결과는 `unmeasured_reference`로만 보이고 품질·운영 완료 근거로 쓰지 않는다.
 
 - **1차 대상은 사전규격뿐이다.** 입찰공고는 첨부 취득·문서 준비 경로가 없어 판정 대상이 아니다(후속 기능). 같은 사업기회에 입찰공고가 뒤에 연결돼도 재분석하지 않고 사전규격 판정을 "사전규격 판정 참조"로 보여 주며, 사전규격 판정이 없으면 "판정 대상 아님"이다.
 - **개요는 전제가 아니다(D1).** RL 경로(`card-v1`)는 사전규격 개요 run을 기다리거나 부르지 않는다. 자격은 공고 메타 `qualification_flags_json.sw_business_status='Y'` ∧ 문서 묶음 `ready`뿐이다(SW≠Y는 403 `effective_grade_ineligible`, ready 없음은 409 `bundle_not_ready`). Luna는 판정 단계(추출·역할·종합)에만 호출하고 개요 모델 호출은 이 경로에서 일어나지 않는다. 기존 `narrative-v2` 회사 심층 경로는 지금처럼 개요 completed를 요구한다.
@@ -664,7 +664,7 @@ DEMO-04 화면은 회사 경로에서만 계속 추적·보류·종료 세 상�
 
 ## 제안서 초안 (RL-04, 2026-10-18)
 
-판정이 끝난 사업기회에서 제안요청서 목차(bid-procedure §5)에 맞춘 여섯 절 초안과 요구사항 대응표를 만들고 사람이 검토해 PDF로 내보내는 규칙이다. 계약은 [contracts.md "제안서 초안"](contracts.md#제안서-초안-rl-04-2026-10-18), 절차는 [operations.md "RL 제안서 초안 운영"](operations.md#rl-제안서-초안-운영-rl-04-2026-10-18), 기능 명세는 `docs/work/groups/RL/features/RL-04-proposal-draft/spec.md`, 미정 선택은 결정 B41~B49다. **초안은 서류 준비 보조다.** 판정·적합성 등급·추적 선택·참여 준비·최종 Go/No-Go를 대신하지 않고, "제출 준비" 단계도 서류 준비 상태일 뿐 참여 결정이 아니다. 제출본은 사람이 만든다. 참조 실행 표식(`unmeasured_reference`, mock은 `mock_reference`)은 PDF 표지와 감사에 남고 화면에는 품질 표식을 그리지 않으며(ui-spec §4.5) 품질 근거로 쓰지 않는다.
+판정이 끝난 사업기회에서 제안요청서 목차(bid-procedure §5)에 맞춘 여섯 절 초안과 요구사항 대응표를 만들고 사람이 검토해 PDF로 내보내는 규칙이다. 계약은 [contracts.md "제안서 초안"](contracts/rl.md#제안서-초안-rl-04-2026-10-18), 절차는 [operations.md "RL 제안서 초안 운영"](operations/rl.md#rl-제안서-초안-운영-rl-04-2026-10-18), 기능 명세는 `docs/work/groups/RL/features/RL-04-proposal-draft/spec.md`, 미정 선택은 결정 B41~B49다. **초안은 서류 준비 보조다.** 판정·적합성 등급·추적 선택·참여 준비·최종 Go/No-Go를 대신하지 않고, "제출 준비" 단계도 서류 준비 상태일 뿐 참여 결정이 아니다. 제출본은 사람이 만든다. 참조 실행 표식(`unmeasured_reference`, mock은 `mock_reference`)은 PDF 표지와 감사에 남고 화면에는 품질 표식을 그리지 않으며(ui-spec §4.5) 품질 근거로 쓰지 않는다.
 
 - **완료된 판정이 있어야 만든다.** 대상은 사업기회의 권위 연결 사전규격에 대한 최신 RL-03 카드 판정이고 그 판정이 `completed`여야 한다(아니면 `verdict_required`). 초안은 그 판정 attempt의 동결 입력·검증된 단계 행만 읽으며 원문이나 회사 근거를 다시 읽지 않는다.
 - **절 여섯 개와 목차 대응은 고정이다.** 제안 개요(Ⅰ)·사업수행 실적(Ⅱ-3·4)·수행 전략(Ⅲ-1·5)·요구사항 수행방안(Ⅲ-2)·운영·SLA(Ⅲ-3·4·Ⅴ)·수행조직(Ⅳ-2·3). 일반현황·경영실태·추진 일정·가격은 만들지 않는다. 절마다 모델 호출은 한 번이고(+schema repair 최대 1회) 절 하나가 실패해도 다른 절은 보존한다.

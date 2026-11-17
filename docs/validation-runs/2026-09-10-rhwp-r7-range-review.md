@@ -1,6 +1,6 @@
 # rhwp 문서 변환 파이프라인 R7 범위 선택 보조 — 2026-09-10
 
-작업: [Plan.md](../rhwp-document-pipeline/Plan.md) R7. 사용자 승인("R7까지 완료") 뒤 Opus 서브에이전트 3개(WP-A 산출물·WP-B 선택기/REST/CLI·WP-C 화면)에 위임하고 관리자가 diff·게이트를 검수해 main에 병합했다(`a0a2039`, `1f66044`). 모델 호출·attempt·정책 활성화는 없다.
+작업: [Plan.md](../0910_rhwp-document-pipeline/Plan.md) R7. 사용자 승인("R7까지 완료") 뒤 Opus 서브에이전트 3개(WP-A 산출물·WP-B 선택기/REST/CLI·WP-C 화면)에 위임하고 관리자가 diff·게이트를 검수해 main에 병합했다(`a0a2039`, `1f66044`). 모델 호출·attempt·정책 활성화는 없다.
 
 ## 구현 요약
 
