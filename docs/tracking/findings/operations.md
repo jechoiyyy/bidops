@@ -2,6 +2,16 @@
 
 [전체 색인](../findings.md). 미해결 또는 일부 조치 뒤 검증이 남은 항목이다. 제목의 날짜는 마지막 관측·기록 시점이며 2026-10-21에 다시 재현했다는 뜻이 아니다. 과거 기능명·정책·환경을 현재에 적용하기 전에 소스와 마지막 실행 증거를 확인한다.
 
+## 2026-11-17 통합 개발 Compose의 응답 대기와 worker 경고
+
+- 재현 환경: `integration/deep-agent-baseline`, `bidops-dev:18789`, amd64 app·arm64 문서 worker. 합성 HWPX/회사로 실제 공용 worker와 versioned MinIO/PostgreSQL을 연결했다.
+- 해소: 초기 panel 5초 실패는 lazy 파일 로드 뒤 시작하는 필수 notice GET과 assertion이 동기화되지 않은 검사 한계가 있었다. 정확한 GET의 상태·본문·notice ID를 기다리도록 고쳤고 기존 전체/화면/결과 제한은 유지했다.
+- 해소: 동기화 뒤 desktop에서 actor 입력이 사라지는 제품 결함을 별도로 확인했다. bundle null→ready의 key 변경이 입력 중 DOM을 교체했다. old-code 회귀 실패 후 stable company/notice key·frozen request/actor/bundle·bundle 변경 현재성 재조회로 수정했다. 최종 UI 9건과 실제 Compose 두 폭 E2E가 통과했다.
+- 남은 관측: 초기에 `worker.job_failed`가 있었으나 같은 역할의 각 소비자와 공용 `--once`에서는 재현되지 않았다. 초기 재기동도 60초를 넘긴 뒤 health가 정상화됐다. 당시 host load average가 약 90/132/112로 높았지만 시계열이 없어 원인을 확정하지 않는다. 별도 probe와 최종 기동/기능 성공으로 이 관측을 해소 처리하지 않는다.
+- 환경 조치: Docker 기본 address pool 소진은 기존 network/daemon을 건드리지 않고 개발 전용 비중첩 subnet으로 우회했다. 운영·다른 프로젝트의 자원을 변경하지 않았다.
+- 후속: 유휴 worker는 민감 payload 없이 event/exception-class를 계측한다. 지연 재현 시 브라우저 body 완료, 서버 duration/DB wait, host/VM 자원을 같은 시점에 대조한다. timeout 확대·강제 클릭으로 실패를 통과시키지 않는다.
+- 증거: [통합 검증](../../validation-runs/20261117-engine-integration/README.md), `.sdlc/dev-browser-actor-fixed.log`, `frontend-actor-tests.log`. 초기 실패 로그와 trace도 `.sdlc`에 유지한다.
+
 ## 첨부 취득 종결에서 부르는 자동 문서 준비가 커밋되지 않는다 (2026-10-15, 미해결)
 
 - 재현: 첨부 worker(`prespec_attachment` 상시 또는 `--once --notice-id N`)가 공고의 마지막 첨부를

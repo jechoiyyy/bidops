@@ -2,6 +2,10 @@
 
 [전체 운영 절차](../operations.md). 기준일: 2026-10-21. 명령은 별도 표시가 없으면 저장소 루트에서 실행한다. 운영 변경·실제 전송은 단계별 승인 범위를 따른다.
 
+현재 실행은 `export BIDOPS_ENV=prod`로 운영 환경을 명시한 뒤 아래 명령을 쓴다.
+격리 개발·mock 설치는 [host](host.md)를 따른다. 이 문서의 이전 참조 실행 기록은 현재 품질·활성화 승인이 아니다.
+
+
 ## 발주계획 선별 실험 운영
 
 제품 선별기를 구현하기 전에 동일한 3일 입력을 동결해 네 방식을 비교한다.
@@ -157,9 +161,9 @@ always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시�
 #          timeout이 스크립트를 끊어도 C-2 실행 자체는 분석 워커에서 계속 돌고, 다음 날은
 #          active_execution_exists로 건너뛴다(경과가 길면 비0으로 끝나 사람이 본다).
 # crontab에서 %는 \%로 적어야 한다. 로그는 저장소 밖에 쌓아 회차·보고서와 섞지 않는다.
-30 6 * * * cd /path/to/bidops && flock -n ~/.local/state/bidops/notices.lock timeout 3h ./scripts/run-daily-lifecycle.sh --track notices >> ~/.local/state/bidops/logs/notices-$(date +\%Y%m).log 2>&1
+30 6 * * * cd /path/to/bidops && BIDOPS_ENV=prod flock -n ~/.local/state/bidops/notices.lock timeout 3h ./scripts/run-daily-lifecycle.sh --track notices >> ~/.local/state/bidops/logs/notices-$(date +\%Y%m).log 2>&1
 # C-2 활성화·일일 자동 실행이 켜진 뒤에만 설치한다. BIDOPS_C2_DAILY_ACTOR는 감사 표식이며 인증이 아니다.
-0 7 * * * cd /path/to/bidops && BIDOPS_C2_DAILY_ACTOR=<담당자 이름> flock -n ~/.local/state/bidops/plans.lock timeout 6h ./scripts/run-daily-lifecycle.sh --track order-plans >> ~/.local/state/bidops/logs/plans-$(date +\%Y%m).log 2>&1
+0 7 * * * cd /path/to/bidops && BIDOPS_ENV=prod BIDOPS_C2_DAILY_ACTOR=<담당자 이름> flock -n ~/.local/state/bidops/plans.lock timeout 6h ./scripts/run-daily-lifecycle.sh --track order-plans >> ~/.local/state/bidops/logs/plans-$(date +\%Y%m).log 2>&1
 ```
 
 **보관**: 회차 디렉터리(`data/runs/lifecycle-*`)는 불변이며 자동으로 지우지 않는다. 보관
@@ -210,7 +214,7 @@ always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시�
    | `…/order-plan-screening-phase0-binding.v4.json` | `682cb16dd2ac5ed622386a6cea42891633659f2d8073c3bcb6e1af419087790c` |
 
    generation config v5는 v4에서 `model_revision`(→ `5fa804ff…`)과 `method_version`
-   (→ `vllm-qwen-order-plan-batch-nonthinking-v5`) 둘만 다르다. `docker-compose.yml`의
+   (→ `vllm-qwen-order-plan-batch-nonthinking-v5`) 둘만 다르다. `docker/docker-compose.yml`의
    web(`:180-182`)·analysis-worker(`:250-252`) 마운트 세 줄과 `app/core/config.py`의
    `BIDOPS_C2_POLICY_PATH`·`BIDOPS_C2_BINDING_PATH`·generation config 기본 경로(`:308-312`)가
    같은 변경에서 v4·v5를 가리킨다. v2·v3 파일과 generation config v4는 고치지 않았다.
@@ -244,15 +248,15 @@ always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시�
    나눈다. 원본은 고치지 않는다. 각 회차를 컨테이너에 복사하고 적재한다.
 
    ```bash
-   docker compose -f docker-compose.yml cp "data/runs/gate-gold-<YYYYMMDD>-plans" web:/app/data/runs/
-   docker compose -f docker-compose.yml exec web \
+   scripts/compose.sh cp "data/runs/gate-gold-<YYYYMMDD>-plans" web:/app/data/runs/
+   scripts/compose.sh exec web \
      python -m app.lifecycle.ingest.cli --run "gate-gold-<YYYYMMDD>-plans" --collection
    ```
 
    적재 결과의 `warnings`가 **네 회차 모두 빈 배열**인지 확인한다. C-2 실행 생성은 source run에
    적재 경고가 하나라도 있으면 `409 source_run_incomplete`로 거부하며, 응답 message는 code별
    고정 문구라 사유가 보이지 않는다. 사유는 web 컨테이너 로그
-   (`docker compose -f docker-compose.yml logs web | grep "c2 request rejected"`)와
+   (`scripts/compose.sh logs web | grep "c2 request rejected"`)와
    `GET /api/runs/<회차>/warnings`에서 읽는다.
 
    네 회차를 모두 적재한 뒤 게이트를 만든다(`POST /api/order-plan-screening/quality-gates`, 측정
@@ -328,13 +332,11 @@ always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시�
     ```bash
     # env/model.env 또는 .env에 추가한 뒤
     BIDOPS_C2_DAILY_TRIGGER_ENABLED=true
-    docker compose --env-file .env --env-file env/model.env \
-      -f docker-compose.yml -f docker-compose.edge.yml \
-      -f docker-compose.model-egress.yml -f docker-compose.c2-order-plan.yml \
+    scripts/compose.sh \
       up -d --force-recreate web
     ```
 
-    `docker-compose.c2-order-plan.yml`이 이 값을 web에 전달한다(base compose는 항상 `false`로
+    `docker/docker-compose.prod.yml`이 이 값을 web에 전달한다(base compose는 항상 `false`로
     고정한다). **policy를 교체하면 자동 실행이 멈춘다.** 스위치는 이전 버전에 묶여 있으므로 새
     버전에서 다시 켜야 한다.
 12. **cron 발주계획 줄 설치.** 운영시작일부터 매 달력일. 앞선 날짜가 있으면 스크립트의
@@ -346,7 +348,7 @@ transaction에서 `retired`로 내리는 자동 교체다. 대체 버전 없이 
 않는다).
 
 ```bash
-docker compose -f docker-compose.yml exec web \
+scripts/compose.sh exec web \
   python -m app.screening.c2_policy retire \
     --policy-version <v> --retired-by <담당자 이름> --reason "<사유>"
 ```
@@ -373,19 +375,18 @@ docker compose -f docker-compose.yml exec web \
 
 1. `cp env/slack.env.example env/slack.env`로 만들고 값을 채운다(`env/*.env`는 gitignore). 키는 `BIDOPS_SLACK_ENABLED`(기본 `false`), `BIDOPS_SLACK_BOT_TOKEN`(`xoxb-`, 전송·갱신), `BIDOPS_SLACK_APP_TOKEN`(`xapp-`, Socket Mode), `BIDOPS_SLACK_CHANNEL_ID`(브리핑 전용 채널 하나), `BIDOPS_SLACK_ALLOWED_HOSTS`(기본 `slack.com,wss-primary.slack.com`, 정확 일치·빈 값이면 어떤 host도 허용하지 않음), `BIDOPS_PUBLIC_BASE_URL`(메시지의 레코드 링크 기준 주소, 비면 링크 없이 제목만)이다.
 2. **fail closed.** `BIDOPS_SLACK_ENABLED=false`(기본)이거나 토큰·채널이 비어 있거나 호출 host가 허용 목록에 없으면 네트워크에 닿지 않는다. 전송기(`app/core/slack.py`)가 호출 전에 이 순서로 검사하고 어긋나면 CLI 출력의 `slack.skipped_reason`이 `slack_disabled`·`token_missing`·`channel_missing`·`host_not_allowed`가 된다. 다른 채널·hosted fallback은 없다. host 방화벽에서 `slack.com`·`wss-primary.slack.com`(443) 외 egress를 막은 뒤에만 켠다.
-3. 운영 compose 조합에 `docker-compose.slack-egress.yml`을 더하고 `slack-worker`는 profile `slack`으로 올린다. overlay가 `env/slack.env`를 `web`과 `slack-worker` 두 서비스에만 `env_file:`로 주므로 `--env-file`에는 넣지 않는다(기존 `.env`·`env/model.env`·`env/prespec-attachment.env`·`env/c2.env` 조합은 그대로).
+3. 운영 `.env`에 `BIDOPS_COMPOSE_FEATURES=slack`을 기록한다(Luna도 쓰면 `luna,slack`). selector가 `env/slack.env`를 `web`과 `slack-worker` 두 서비스에만 `env_file:`로 주므로 `--env-file`에는 넣지 않는다(기존 `.env`·`env/model.env`·`env/prespec-attachment.env`·`env/c2.env` 조합은 그대로).
 
    ```bash
-   # 최소 조합 예: 기반 + edge + slack overlay. 운영 조합이면 나머지 overlay와 --env-file도 그대로 붙인다.
-   docker compose -f docker-compose.yml -f docker-compose.edge.yml \
-     -f docker-compose.slack-egress.yml --profile slack \
+   # prod 선택과 .env의 Slack capability를 모든 명령이 함께 읽는다.
+   scripts/compose.sh \
      up -d --no-deps --no-build --force-recreate web slack-worker
    ```
 
-   `env/slack.env`가 없으면 compose가 기동 전에 멈춘다. overlay 없이 올린 `slack-worker`는 기본값(꺼짐)이라 연결하지 않고 0으로 끝난다. 켜 놓고 토큰·채널·허용 host가 어긋나면 연결 전에 1로 끝나며 `restart: on-failure`가 드러낸다. 올린 뒤 플래그가 실제로 반영됐는지는 `docker compose exec -T web printenv BIDOPS_SLACK_ENABLED`처럼 **값 하나씩** 본다. `docker compose config`는 `env_file` 값을 펼쳐 토큰이 터미널에 나오므로 이 overlay를 붙인 채 쓰지 않는다.
+   `env/slack.env`가 없으면 compose가 기동 전에 멈춘다. overlay 없이 올린 `slack-worker`는 기본값(꺼짐)이라 연결하지 않고 0으로 끝난다. 켜 놓고 토큰·채널·허용 host가 어긋나면 연결 전에 1로 끝나며 `restart: on-failure`가 드러낸다. 올린 뒤 플래그가 실제로 반영됐는지는 `scripts/compose.sh exec -T web printenv BIDOPS_SLACK_ENABLED`처럼 **값 하나씩** 본다. `scripts/compose.sh config`는 `env_file` 값을 펼쳐 토큰이 터미널에 나오므로 이 overlay를 붙인 채 쓰지 않는다.
 4. **토큰 취급.** 토큰은 `env/slack.env`(권한 600)에만 두고 명령줄·compose 파일·이미지·로그·이 문서·채팅·티켓에 적지 않는다. 앱은 토큰을 `SecretStr`로만 다루며 로그·응답·오류에 넣지 않는다(실패는 `slack_send_failed`와 안전한 code만). 노출이 의심되면 Slack 앱에서 토큰을 폐기·재발급하고 `env/slack.env`를 고쳐 두 서비스를 다시 만든다. Slack 앱 설정(Socket Mode 사용·interactivity·bot의 `chat:write` 권한·채널 초대·app-level token `connections:write`)은 시운전에서 확인한다.
 
-**실행: `scripts/run-daily-briefing.sh [--date YYYY-MM-DD] [--send] [--dry-run]`.** web 컨테이너 안에서 `python -m app.lifecycle.cli build-briefing --date <D> --json [--send]`를 실행한다(`COMPOSE_PROJECT_NAME` 기본 `bidops`, `docker compose -f docker-compose.yml exec -T web`로 실행 중인 컨테이너를 찾는다). `--date`는 브리핑 날짜 D(기본 오늘 KST)이고 수집 회차는 D-1이다. 토·일은 행 없이 `weekend`로 끝나고 같은 날 재실행은 기존 행을 그대로 둔다(`created=false`). `--dry-run`은 호출 순서만 출력하며 docker·web·Slack을 부르지 않는다(깨끗한 환경 `env -i HOME=… PATH=…`에서도 같다). 종료 코드:
+**실행: `scripts/run-daily-briefing.sh [--date YYYY-MM-DD] [--send] [--dry-run]`.** web 컨테이너 안에서 `python -m app.lifecycle.cli build-briefing --date <D> --json [--send]`를 실행한다(`BIDOPS_ENV` 기본 `dev`; 운영은 `prod`, `scripts/compose.sh exec -T web`로 실행 중인 컨테이너를 찾는다). `--date`는 브리핑 날짜 D(기본 오늘 KST)이고 수집 회차는 D-1이다. 토·일은 행 없이 `weekend`로 끝나고 같은 날 재실행은 기존 행을 그대로 둔다(`created=false`). `--dry-run`은 호출 순서만 출력하며 docker·web·Slack을 부르지 않는다(깨끗한 환경 `env -i HOME=… PATH=…`에서도 같다). 종료 코드:
 
 | 코드 | 뜻 |
 |---|---|
@@ -405,7 +406,7 @@ docker compose -f docker-compose.yml exec web \
 # 문서용 예시 — 설치되어 있지 않음. 감독 시운전을 마치고 사람이 crontab -e로 추가할 때만 참고한다.
 # flock -w 3600: notices·plans 트랙이 lock을 쥐고 있으면 최대 1시간 기다린다(기다림이 끝나면 비0으로 끝나 로그에 남는다).
 # timeout 30m: 멈춘 실행을 끊는다. 월~금만 돌리며 주말 처리는 CLI도 한 번 더 막는다.
-0 9 * * 1-5 cd /path/to/bidops && flock -w 3600 ~/.local/state/bidops/notices.lock flock -w 3600 ~/.local/state/bidops/plans.lock timeout 30m ./scripts/run-daily-briefing.sh --send >> ~/.local/state/bidops/logs/briefing-$(date +\%Y\%m).log 2>&1
+0 9 * * 1-5 cd /path/to/bidops && BIDOPS_ENV=prod flock -w 3600 ~/.local/state/bidops/notices.lock flock -w 3600 ~/.local/state/bidops/plans.lock timeout 30m ./scripts/run-daily-briefing.sh --send >> ~/.local/state/bidops/logs/briefing-$(date +\%Y\%m).log 2>&1
 ```
 
 **설치 전 감독 시운전(T12, 사람 확인 필요).** 순서: ① 깨끗한 환경에서 `env -i HOME=$HOME PATH=$PATH scripts/run-daily-briefing.sh --dry-run`으로 순서를 본 뒤 `--send` 없이 한 번 실행해 JSON·`GET /api/briefings/latest`·`/briefing` 화면을 확인한다. 이 실행은 그날 브리핑 행을 **실제로 만들고 지울 수 없으므로** 시운전 날짜가 곧 그날의 브리핑이다(행을 쓰지 않는 계산 확인은 컨테이너에서 `python -m app.lifecycle.cli build-briefing --dry-run`을 직접 준다). ② `GET /api/briefings/<날짜>/slack-preview`로 보낼 payload를 읽는다. ③ **테스트 채널**로 `--send`를 사람이 확인한 뒤 한 번 실행하고 메시지 1건과 버튼 클릭 → 화면 반영을 본다. ④ `GET /api/workload`의 `briefing_pending`이 화면의 대기 수와 같은지 본다. ⑤ 증거를 `docs/validation-runs/`에 기록한다. 차단 0이 된 뒤에만 cron을 설치한다. 가짜 docker·가짜 CLI로 도는 `tests/app/test_daily_briefing_script.py`는 호출 순서·인자·종료 코드만 증명하며 실제 컨테이너·실제 Slack 전송은 이 시운전이 증명한다.

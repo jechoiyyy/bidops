@@ -12,24 +12,22 @@
 
 ## 현재 Compose runtime 실행
 
-운영·통합 확인은 반드시 별도 Compose 프로젝트 이름과 `docker-compose.yml`을 사용합니다. 비밀값은
-`.env`에 직접 기록하거나 Git에 넣지 말고 외부 secret 주입 절차를 따릅니다.
+새 checkout은 기본 격리 프로젝트 `bidops-dev`와 별도 자격을 사용합니다. 운영·기존 데모의
+volume과 `.env`를 공유하지 않습니다.
 
 ```bash
-cp .env.example .env
-COMPOSE_PROJECT_NAME=bidops docker compose -f docker-compose.yml build
-COMPOSE_PROJECT_NAME=bidops docker compose -f docker-compose.yml up -d postgres minio clamav
-COMPOSE_PROJECT_NAME=bidops ./scripts/init-runtime.sh
-COMPOSE_PROJECT_NAME=bidops docker compose \
-  -f docker-compose.yml -f docker-compose.edge.yml -f docker-compose.model-egress.yml \
-  up -d web document-worker analysis-worker
-curl -fsS http://127.0.0.1:18787/api/health
+make env
+make build
+make init
+make create
+make health                     # http://127.0.0.1:18789
 ```
 
-앱 시작은 migration·`create_all`·policy/portal seed를 수행하지 않습니다. `init-runtime.sh`가 만든
-PostgreSQL migration과 object-store 초기화가 먼저 완료되어야 하며, policy seed와 always-on 전환은
-담당자가 별도로 승인·실행합니다. 일상 운영에서 `docker compose down -v`를 사용하거나 main worktree의
-Compose·volume을 공유하지 않습니다.
+`make up`은 설치된 컨테이너를 다시 시작하며 migration·seed를 실행하지 않습니다.
+`BIDOPS_ENV=mock`은 별도 `bidops-mock`/18790의 참조 실행입니다. 운영은 반드시
+`BIDOPS_ENV=prod`로 선택하며 기존 `bidops`/18788·amd64 앱·arm64 문서 worker를 유지합니다.
+Compose 옵션은 [호스트 절차](../docs/operations/host.md)의 selector 하나가 소유합니다.
+실제 모델 호출·운영 배포·정책 활성화는 별도 사람 결정입니다.
 
 ## 개발 실행
 

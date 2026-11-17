@@ -9,12 +9,13 @@ BidOps는 기획·사업개발 담당자가 나라장터 발주계획을 조기�
 ```text
 bidops/
 ├── AGENTS.md, CLAUDE.md              작업 진입점이며 내용은 동일하다
-├── docker-compose.yml                PostgreSQL·MinIO 기반 애플리케이션 스택
-├── docker-compose.edge.yml           관리 화면 host publish (이 파일만 포트를 연다)
-├── docker-compose.model-egress.yml   screening·overview·deep_review 모델 egress
-├── docker-compose.c2-order-plan.yml  C-2 발주계획 판정 입력 마운트
-├── docker-compose.prespec-attachment.yml  사전규격 첨부 G2B egress
-├── docker-compose.mock-reference.yml 모델 없는 참조 실행
+├── docker/                           Dockerfile 5개·Compose 6개·실행 경계 지침
+│   ├── docker-compose.yml             내부 애플리케이션 스택
+│   ├── docker-compose.edge.yml        공통 이미지·관리 화면 host publish
+│   ├── docker-compose.prod.yml        Mac 운영·모델·C-2 입력·G2B 격리
+│   └── docker-compose.{mock-reference,luna,slack-egress}.yml
+├── scripts/compose.sh                 dev(기본)·mock·prod 공통 구성 선택
+├── packages/bid-deep-engine/          transport 없는 분석 코어와 원본 revision 기록
 ├── run-tests.sh                      파이프라인 단위·교차 테스트
 ├── data/, reports/                   불변 회차 입력과 파생 보고서
 ├── docs/
@@ -120,7 +121,7 @@ RL 범위의 모든 LLM 호출은 codex-exec `gpt-6-luna`/high 하나이며 전�
 ## 현재 런타임 사실
 
 - PostgreSQL 17의 `bidops` schema와 versioned MinIO가 운영 정본이다. SQLite는 격리 테스트와 일회성 이전 입력에만 사용한다.
-- `docker-compose.yml`이 애플리케이션 스택이다. 기본 network는 내부망이며 외부 호출은 목적별 overlay를 명시한 경우에만 연다.
+- `docker/docker-compose.yml`이 애플리케이션 스택이다. 기본 network는 내부망이며 prod의 서비스별 egress 또는 명시적인 Luna/Slack overlay만 외부 경로를 연다. 개발 기본은 `bidops-dev:18789`, mock은 `bidops-mock:18790`이며 운영 `bidops:18788`·기존 데모 `bidops-local:18787`과 분리한다. Make와 운영 스크립트는 `scripts/compose.sh`를 사용한다. 초기화·migration은 별도 명령이다.
 - 관리 화면은 **데스크톱·노트북 전용**이다. 지원 폭은 1280~1920px이며 모바일·태블릿 레이아웃과 터치 전용 조작을 만들지 않는다. 1280px 미만은 가로 스크롤을 허용하고 별도 레이아웃으로 전환하지 않는다(ADR-0047). 화면 검증 viewport는 laptop 1280x800과 desktop 1440x900 두 폭이다.
 - 현재 애플리케이션에는 로그인·역할 기반 권한이 없다. 사내망 접근 제한이 경계이고 담당자 이름은 감사 표식일 뿐 인증이 아니다.
 - 스케줄러와 always-on은 기본 비활성이다. 앱 startup은 migration, seed, 정책 활성화, 모델 호출을 수행하지 않는다.
@@ -142,7 +143,7 @@ RL 범위의 모든 LLM 호출은 codex-exec `gpt-6-luna`/high 하나이며 전�
 - **운영 DB 행을 SQL로 고치지 않는다.** 활성화·retire·스위치·게이트·evaluation은 감사 기록이 남는 화면·REST·CLI(`python -m app.screening.c2_policy ...`)로만 바꾼다(ADR-0060).
 - **policy·binding·generation config 파일은 버전+sha256으로 고정된 immutable 파일이다.** 값 하나라도 바꾸려면 새 버전을 발행하고 compose 마운트와 `app/core/config.py` 기본 경로를 함께 올린다. 실패한 옛 버전의 행·게이트·실행은 흔적으로 남긴다.
 - **발행 전에 워커 검증을 건식으로 통과시킨다.** binding `model_digest` = generation config `model_revision` = 서버 선언 revision(`BIDOPS_VLLM_MODEL_REVISION`)이 모두 같아야 한다. 어긋나면 워커가 `binding_mismatch`로 실행을 거부하고, 그때는 재발행 말고 길이 없다.
-- **Mac 운영 compose는 `scripts/mac-compose.sh`가 고정한다**(기반+edge+model-egress+prespec-attachment+c2-order-plan+mac overlay, env `.env`·`env/model.env`·`env/prespec-attachment.env`·`env/c2.env`, `--profile prespec`, 애플리케이션 이미지 linux/amd64·문서 worker arm64). 일일 스크립트는 GNU coreutils·flock과 OrbStack docker를 PATH에 둔 cron 줄로만 돈다(`docs/operations.md` "Mac 운영 호스트"). 아래 다섯 파일 조합은 WSL2 시기 기준이다.
+- **Mac 운영 compose는 `scripts/mac-compose.sh` → `scripts/compose.sh`가 고정한다**(기반+edge+prod, env `.env`·`env/model.env`·`env/prespec-attachment.env`·`env/c2.env`, `--profile prespec`, 애플리케이션 이미지 linux/amd64·문서 worker arm64). 일일 스크립트는 GNU coreutils·flock과 OrbStack docker를 PATH에 둔 cron 줄로만 돈다(`docs/operations.md` "Mac 운영 호스트"). 아래 다섯 파일 조합은 WSL2 시기 기준이다.
 - **운영 compose는 파일 5개 + env 파일 4개 조합이다**(`.env`·`env/model.env`·`env/prespec-attachment.env`·`env/c2.env`, 기반+edge+model-egress+prespec-attachment+c2-order-plan, `--profile prespec`, `COMPOSE_PROJECT_NAME=bidops`). 서비스 교체는 `up -d --no-deps --no-build --force-recreate <services>`로 하고, 올린 뒤 `docker compose config`나 컨테이너 env로 플래그가 실제로 렌더됐는지 본다. `env/*.env`는 gitignore라 새 환경에서는 직접 만들어야 한다. 셸 주입에 기대는 값은 env 파일로 옮긴다.
 - **배포 전에 전체 백업과 롤백 태그를 남긴다**(`backups/postgres/full/`, `before-<작업>-<날짜>` 태그). migration head를 배포 기록에 적는다.
 - **회차 Run의 기본키는 `<디렉터리>--<generated_at>Z`다.** `GET /api/runs/{id}`만 디렉터리 이름을 풀어 주고 C-2 API는 정규 id만 받는다. 스크립트·도구는 적재 뒤 web에서 정규 id를 받아 쓰고, 한 디렉터리에 Run 행이 둘 이상이면 추정하지 않고 멈춘다.
@@ -195,3 +196,7 @@ MORE CLI:
   swizzle <Name>     eject component source for deep customization
   upgrade --apply    run after any @astryxdesign/core bump
 <!-- ASTRYX:END -->
+
+## 2026-11-17 분석 엔진 통합 작업
+
+[ADR-0074](docs/tracking/decisions/0074-deep-engine-development-baseline.md)·[RL-09](docs/work/groups/RL/features/RL-09-engine-integration/plan.md)를 따른다. 원본 분석 코어를 별도 패키지로 재사용하며 SQLite 큐·독립 CLI/A2A/chat·Claude/Langfuse 전송은 이식하지 않는다. 새 경로는 mock_reference이며 live 전송은 승인 계약 마련 전 fail closed한다. 기존 품질 reject와 운영 미배포 상태를 보존한다. 이번 조사에서 운영/데모 web은 restarting/unhealthy였으며 복구 작업을 실행하지 않았다.

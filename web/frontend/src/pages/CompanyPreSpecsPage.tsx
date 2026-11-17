@@ -1,3 +1,4 @@
+import { EngineAnalysisPanel } from "../components/engine/EngineAnalysisPanel";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -513,6 +514,7 @@ function CompanyPreSpecDetail({ companyId, noticeId }: { companyId: Uuid; notice
               <Link className="cw-link" to={`/pre-specs/${detail.notice_id}/company-comparison`}>3사 비교</Link>
             </p>
           </div>
+          <EngineAnalysisPanel key={`${companyId}:${noticeId}`} companyId={companyId} noticeId={noticeId} bundleId={detail.bundle_id} />
           <CompanyFitAttempts companyId={companyId} noticeId={detail.notice_id} />
           <CompanyDeepReviewRequest companyId={companyId} detail={detail} />
           <CompanyTrackingSection companyId={companyId} noticeId={detail.notice_id} opportunityId={detail.opportunity_id} />

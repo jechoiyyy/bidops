@@ -306,7 +306,7 @@ def test_card_contracts_map_to_fixed_image_schema_files():
         'proposal-section-v1': Path('/app/proposal-section.json'),
     }
     # Every image path is COPYed from exactly the authority contract file.
-    dockerfile = (RUNNER.parent / 'Dockerfile').read_text()
+    dockerfile = (RUNNER.parents[2] / 'docker' / 'CodexRunner.Dockerfile').read_text()
     copies = {}
     for line in dockerfile.splitlines():
         if line.startswith('COPY web/backend/app/deep_review/contracts/'):

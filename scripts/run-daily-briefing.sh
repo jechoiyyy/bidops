@@ -16,7 +16,7 @@ Usage:
 Builds the weekday briefing once (RL-01) by running, inside the running web
 container:
 
-  docker compose -f docker-compose.yml exec -T web \
+  scripts/compose.sh exec -T web \
     python -m app.lifecycle.cli build-briefing --date <D> --json [--send]
 
 Run it after the notices track of the same morning has finished: the briefing
@@ -41,7 +41,8 @@ Options:
   -h, --help          Show this help.
 
 Environment:
-  COMPOSE_PROJECT_NAME  Compose project of the running stack (default bidops).
+  COMPOSE_PROJECT_NAME  Compose project of the selected stack (default bidops-dev).
+  BIDOPS_ENV           dev (default), prod, or mock; prod selects bidops.
                         Nothing else is read, so the script works from a clean
                         cron environment (env -i HOME=... PATH=...).
 
@@ -129,16 +130,16 @@ else
   briefing_date="$(TZ=Asia/Seoul date +%Y-%m-%d)"
 fi
 
-project="${COMPOSE_PROJECT_NAME:-bidops}"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+source "${script_dir}/compose-env.sh"
+project="$COMPOSE_PROJECT_NAME"
 
 cli_args=(build-briefing --date "${briefing_date}" --json)
 if [[ "${send}" == "true" ]]; then
   cli_args+=(--send)
 fi
 
-# The scripts/ directory's parent is the repository root; `-f docker-compose.yml`
-# finds the running web container of the project (the same call shape as
-# run-daily-lifecycle.sh). The overlays only matter when the stack is created.
+# The same selector is used for creation, read-only lookup, and CLI execution.
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "${script_dir}/.."
 
@@ -146,8 +147,8 @@ if [[ "${dry_run}" == "true" ]]; then
   cat <<EOF
 [dry-run] daily briefing for ${briefing_date} (KST); nothing is executed.
 [dry-run] would run, in this order:
-  1. docker compose version
-  2. COMPOSE_PROJECT_NAME=${project} docker compose -f docker-compose.yml exec -T web python -m app.lifecycle.cli ${cli_args[*]}
+  1. scripts/compose.sh version
+  2. COMPOSE_PROJECT_NAME=${project} scripts/compose.sh exec -T web python -m app.lifecycle.cli ${cli_args[*]}
   3. read the JSON the CLI printed:
        CLI exit non-zero               -> exit with that code
        stdout is not a JSON object     -> exit ${EXIT_OUTPUT_UNREADABLE}
@@ -159,11 +160,11 @@ fi
 
 command -v docker >/dev/null 2>&1 || die "required command not found: docker"
 command -v jq >/dev/null 2>&1 || die "required command not found: jq"
-docker compose version >/dev/null || die "docker compose is not available"
+scripts/compose.sh version >/dev/null || die "docker compose is not available"
 
 note "building the briefing for ${briefing_date} (send=${send}, project=${project})"
 cli_status=0
-output="$(COMPOSE_PROJECT_NAME="${project}" docker compose -f docker-compose.yml \
+output="$("${script_dir}/compose.sh" \
   exec -T web python -m app.lifecycle.cli "${cli_args[@]}")" || cli_status=$?
 
 if [[ -n "${output}" ]]; then

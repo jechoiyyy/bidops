@@ -1,17 +1,24 @@
 .DEFAULT_GOAL := help
 
-COMPOSE_PROJECT_NAME ?= bidops
-# edge overlay는 선택이 아니다. base의 web은 internal network에만 붙어 있어
-# 이 파일 없이 재생성하면 포트 publish가 조용히 사라진다.
-COMPOSE := docker compose -p "$(COMPOSE_PROJECT_NAME)" -f docker-compose.yml -f docker-compose.edge.yml
+BIDOPS_ENV ?= dev
+export BIDOPS_ENV
+# Project/env files/capabilities are selected in one place for every target.
+COMPOSE := ./scripts/compose.sh
 WAIT_TIMEOUT ?= 60
 LOG_TAIL ?= 100
+PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
+# Existing daily workflows use GNU date. Homebrew's documented path is optional.
+TEST_PATH := $(if $(wildcard /opt/homebrew/opt/coreutils/libexec/gnubin),/opt/homebrew/opt/coreutils/libexec/gnubin:)$(PATH)
 
 # Reuse installed containers, including their deployment settings and static UI.
-# Keep initialization jobs and model/collection workers outside daily web startup.
+# Initialization jobs and production model/collection workers stay explicit.
+# Isolated dev/mock also run the queue consumer for local mock jobs.
 SERVER_SERVICES := postgres minio clamav document-worker web
+ifneq ($(BIDOPS_ENV),prod)
+SERVER_SERVICES += analysis-worker
+endif
 
-.PHONY: help up start stop down restart status logs health build check-containers
+.PHONY: help up start stop down restart status logs health build check-containers env init migrate create config test-config test-engine
 
 help:
 	@printf '%s\n' \
@@ -22,10 +29,13 @@ help:
 	  'make status   웹 서버와 필요한 서비스 상태 확인' \
 	  'make logs     웹 로그 실시간 확인 (Ctrl+C로 종료)' \
 	  'make health   API와 화면 응답 확인' \
-	  'make build    모든 Compose 이미지 빌드; 기존 컨테이너는 갱신하지 않음' \
+	  'make build    웹·문서·초기화 이미지 빌드; 기존 컨테이너는 갱신하지 않음' \
 	  '' \
-	  '옵션: COMPOSE_PROJECT_NAME=bidops WAIT_TIMEOUT=60 LOG_TAIL=100' \
-	  '최초 설치·새 이미지 배포: docs/operations.md 참고'
+	  '옵션: BIDOPS_ENV=dev|prod|mock (기본 dev), WAIT_TIMEOUT=60 LOG_TAIL=100' \
+	  '최초 설치: make env → make build → make init → make create (운영은 단계별 승인)' \
+	  'make migrate 명시적 migration; make config 비밀값 없이 구성 검증' \
+	  'make test-config Compose 경계·선택·일일 스크립트 관련 검사' \
+	  'make test-engine 엔진·API 관련 검사; 격리 PostgreSQL 변형은 BIDOPS_TEST_POSTGRES_URL 지정'
 
 up: start
 
@@ -36,6 +46,9 @@ start: check-containers
 	  clamav_ids="$$($(COMPOSE) ps --all --quiet clamav)"; \
 	  document_worker_ids="$$($(COMPOSE) ps --all --quiet document-worker)"; \
 	  web_ids="$$($(COMPOSE) ps --all --quiet web)"; \
+	  if [ "$(BIDOPS_ENV)" != prod ]; then \
+	    document_worker_ids="$$document_worker_ids $$($(COMPOSE) ps --all --quiet analysis-worker)"; \
+	  fi; \
 	  if [ -z "$$postgres_ids" ] || [ -z "$$minio_ids" ] || [ -z "$$clamav_ids" ] \
 	    || [ -z "$$document_worker_ids" ] || [ -z "$$web_ids" ]; then \
 	    printf '%s\n' '필요한 기존 컨테이너가 모두 있어야 시작할 수 있습니다. docs/operations.md의 최초 기동 절차를 먼저 진행하세요.' >&2; \
@@ -54,8 +67,8 @@ start: check-containers
 	    done; \
 	    minio_ready=true; minio_health=unknown; \
 	    for id in $$minio_ids; do \
-	      minio_health="$$(docker inspect --format '{{.State.Health.Status}}' "$$id")"; \
-	      [ "$$minio_health" = healthy ] || minio_ready=false; \
+	      minio_health="$$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$$id")"; \
+	      { [ "$$minio_health" = healthy ] || [ "$$minio_health" = running ]; } || minio_ready=false; \
 	    done; \
 	    clamav_ready=true; clamav_state=unknown; \
 	    for id in $$clamav_ids; do \
@@ -102,13 +115,31 @@ stop:
 	$(COMPOSE) stop web
 
 down:
-	$(COMPOSE) stop
+	@bash -c 'set -eu; source scripts/compose-env.sh; \
+	  ids="$$(docker ps --quiet --filter "label=com.docker.compose.project=$$COMPOSE_PROJECT_NAME")"; \
+	  if [ -n "$$ids" ]; then docker stop $$ids; fi'
 
 restart:
 	$(COMPOSE) restart --no-deps web
 
 build:
-	$(COMPOSE) build
+	$(COMPOSE) build web document-worker postgres-init migrate minio-init
+
+env:
+	python3 scripts/create-dev-env.py
+
+# Explicit one-shot setup and migrations; never dependencies of start/up.
+init:
+	./scripts/init-runtime.sh
+
+migrate:
+	$(COMPOSE) run --rm --no-deps migrate
+
+create:
+	$(COMPOSE) up -d --no-deps $(SERVER_SERVICES)
+
+config:
+	$(COMPOSE) config --quiet
 
 status:
 	$(COMPOSE) ps --all $(SERVER_SERVICES)
@@ -137,3 +168,14 @@ check-containers:
 	      exit 1; \
 	    fi; \
 	  done
+
+# Focused checks only. Never select an operating database for the PG variant.
+test-config:
+	PATH="$(TEST_PATH)" BIDOPS_PRESPEC_OVERVIEW_ENABLED=false PYTHONPATH=web/backend $(PYTHON) -m pytest -q \
+	  web/backend/tests/app/test_compose_selection.py web/backend/tests/app/test_runtime_contract.py \
+	  web/backend/tests/app/test_daily_briefing_script.py web/backend/tests/app/test_daily_lifecycle_script.py \
+	  web/backend/tests/app/test_daily_c2_script.py
+
+test-engine:
+	BIDOPS_PRESPEC_OVERVIEW_ENABLED=false BIDOPS_DATABASE_URL=sqlite:// PYTHONPATH=web/backend:packages/bid-deep-engine/src $(PYTHON) -m pytest -q \
+	  packages/bid-deep-engine/engine_tests web/backend/tests/deep_review/test_engine_runs.py

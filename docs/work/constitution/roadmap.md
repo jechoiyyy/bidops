@@ -54,3 +54,7 @@
 ## DEMO — 가상 SI 3사 (2026-10-06 ~ 2026-10-14, 종료)
 
 [ADR-0070](../../tracking/decisions/0070-multi-company-knowledge-demo.md)·[DEMO 공통 계약](../demo-contract.md)이 기록이다. DEMO-00~04 코드(회사 경계·그래프·화면)는 RL이 재사용하고 DEMO-05는 중단했다.
+
+## 2026-11-17 통합 개발 기준선
+
+사용자 요청으로 `RL-09-engine-integration`을 추가한다. 기존 품질 reject를 보존하며 분석 엔진과 제품 실행 흐름을 연결한다. 운영 전환은 포함하지 않는다.

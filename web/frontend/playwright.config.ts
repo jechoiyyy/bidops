@@ -57,7 +57,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run build -- --outDir ${previewOutDir} && npm run preview -- --outDir ${previewOutDir} --port ${previewPort} --strictPort`,
+    command: `npm run build -- --outDir ${previewOutDir} && npm run preview -- --outDir ${previewOutDir} --host 127.0.0.1 --port ${previewPort} --strictPort`,
     url: `http://127.0.0.1:${previewPort}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

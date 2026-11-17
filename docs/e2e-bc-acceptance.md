@@ -1,5 +1,7 @@
 # 단계 B→C 연속 인수 테스트
 
+> 실행 구성 변경(2026-11-18): 아래의 수동 Compose 조합은 당시 기록이다. 현재 파일은 `docker/`에 있으며 실행은 `scripts/compose.sh` 또는 Make로 선택한다. 현재 환경·승인·초기화 절차는 [운영 문서](operations.md)를 따른다. 이 기록의 모델·정책·migration을 현재 운영에 그대로 적용하지 않는다.
+
 기준일: 2026-08-26
 
 이 절차는 `문서 bundle 준비(B) → Qwen 3단계 분석(C) → machine report/validation/evidence 조회`를 하나의 증적으로 확인한다. 운영 DB나 기존 Compose volume을 사용하지 않고 새 프로젝트 이름으로만 실행한다.

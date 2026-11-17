@@ -8,12 +8,15 @@
 - C-2 v5 active·일일 스위치 ON, `/api/health` 200 확인. 개요 플래그·상시 첨부 worker는 꺼진 상태를 유지했다.
 - RL 분석은 `BIDOPS_RL_ANALYSIS_ENABLED=false`. 운영 회사 근거·브리핑 미등록이며 코드·스키마 배포가 기능 활성화나 모델 전송 승인은 아니다.
 - 현재 main의 RL import 기본 정책은 v11이다. 10월 20일 실제 v11 분석과 인수 reject는 격리 `bidops-local` 기록이며 운영 배포 사실로 옮겨 적지 않는다.
-- 아래 일반 설치 명령·WSL2 v4 이력·격리 RL 실행 절차를 구분한다. Mac 운영 조합은 `scripts/mac-compose.sh`, RL·Slack 추가 활성화는 해당 절의 승인·설정 절차를 따른다.
+- 아래 일반 설치 명령·WSL2 v4 이력·격리 RL 실행 절차를 구분한다. Mac 운영 조합은 `BIDOPS_ENV=prod scripts/compose.sh` (`mac-compose.sh`는 호환 진입점), RL·Slack 추가 활성화는 해당 절의 승인·설정 절차를 따른다.
+
+2026-11-17 통합 작업의 제한적 읽기 전용 조회에서는 기존 운영·데모 web이 restarting/unhealthy였다. 정책/DB 상태를 재확인하거나 운영을 변경하지 않았으며, 아래 과거 정상 상태를 현재 정상 근거로 쓰지 않는다([통합 기록](validation-runs/20261117-engine-integration/README.md)).
 
 ## 운영 기준선
 
 - 운영 정본은 PostgreSQL 17의 `bidops` schema와 버전 관리가 켜진 MinIO 객체 저장소다.
-- `docker-compose.yml`이 웹, DB, 객체 저장소, 악성코드 검사, 문서 worker, 분석 worker, 첨부 worker의 기준 배포 파일이다.
+- Compose와 Dockerfile은 `docker/`에 모은다. `scripts/compose.sh`는 `--project-directory`를 저장소 루트로 고정하므로 build context·bind mount·env·secret 상대 경로가 유지된다. 파일을 직접 조합하지 않고 Make 또는 선택기를 사용한다.
+- `docker/docker-compose.yml`이 웹, DB, 객체 저장소, 악성코드 검사, 문서 worker, 분석 worker, 첨부 worker의 기준 배포 파일이다.
 - 모든 Compose 명령에는 전용 `COMPOSE_PROJECT_NAME`을 사용한다. 다른 worktree의 컨테이너와 volume을 중지하거나 삭제하지 않는다.
 - 일상 운영에서 `docker compose down -v`, volume 삭제, 원본 객체 삭제를 사용하지 않는다.
 - legacy notice attachment의 id 기반 다운로드 호환 사본은 `/app/web/data/attachments`에 있다. 같은 부모의 `/app/web/data/profile-snapshots`는 승인 프로필 projection이 읽는 artifact이므로 Compose named volume `web-data`가 `/app/web/data` 전체를 보존한다. 업로드는 quarantine·ClamAV 검사 후에만 등록된다.
@@ -29,7 +32,7 @@
 | 백업·복구·서버 이전 | [backup-restore](operations/backup-restore.md) |
 | 루트랩 회사 근거·판정·제안서·평가 | [rl](operations/rl.md) |
 
-Mac 운영은 [호스트 절차](operations/host.md)의 `scripts/mac-compose.sh` 조합이 정본이다. WSL2 v4와 개별 참조 실행의 명령은 해당 환경의 기록이며 Mac 운영에 그대로 적용하지 않는다.
+환경 선택은 [호스트 절차](operations/host.md)의 `scripts/compose.sh` 하나가 정본이다. 기본은 격리 dev이며 운영은 `BIDOPS_ENV=prod`로 명시한다. WSL2 v4와 개별 참조 실행의 명령은 해당 환경의 기록이며 Mac 운영에 그대로 적용하지 않는다.
 
 ## 종료된 데모의 경계
 

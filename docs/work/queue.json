@@ -72,6 +72,11 @@
         "RL-03-fit-verdict"
       ],
       "added_at": "2026-10-20T22:44:31+09:00"
+    },
+    {
+      "feature": "RL-09-engine-integration",
+      "depends_on": [],
+      "added_at": "2026-11-17T17:08:05+09:00"
     }
   ]
 }

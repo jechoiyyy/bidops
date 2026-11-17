@@ -1,3 +1,4 @@
+import { CurrentCompanyEnginePanel } from "../components/engine/EngineAnalysisPanel";
 import { Button } from "@astryxdesign/core/Button";
 import { InternationalizationProvider } from "@astryxdesign/core/i18n";
 import koKR from "@astryxdesign/core/locales/ko-KR.json";
@@ -928,6 +929,8 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
             </Panel>
           ) : null}
         </div>
+
+        <CurrentCompanyEnginePanel noticeId={noticeId} bundleId={latestBundle?.status === "ready" ? latestBundle.id : null} />
 
         {/* 발주계획 후보(docs/0917_opportunity-tracking/spec.md §11.4). 6단 구조를 늘리지
             않도록 ⑥의 `처리 이력과 연결` 바로 위에 둔다. 연결 확인은 사람이 한다. */}

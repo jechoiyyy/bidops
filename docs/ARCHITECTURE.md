@@ -560,7 +560,7 @@ React는 FastAPI REST API의 consumer다. DB·MinIO·worker·모델 endpoint에 
 
 ### 10.1 애플리케이션 스택
 
-운영 기준 compose는 docker-compose.yml이다. 기본 network는 내부망이며 외부 호출은 목적별 overlay를 명시한 경우에만 열 수 있다.
+운영 기준 compose는 docker/docker-compose.yml이다. 기본 network는 내부망이며 외부 호출은 목적별 overlay를 명시한 경우에만 열 수 있다.
 
 | 영역 | 역할 |
 |---|---|
@@ -573,7 +573,7 @@ React는 FastAPI REST API의 consumer다. DB·MinIO·worker·모델 endpoint에 
 | init/migrate/minio-init | 명시적 초기화·migration·bucket 정책 |
 | overlays | edge(화면 publish), model-egress(모델 egress), c2-order-plan(C-2 입력), prespec-attachment(G2B egress), mock-reference |
 
-host에 열리는 것은 관리 화면 하나이며 `docker-compose.edge.yml`이 그 publish를 소유한다. 기본값은 loopback이고 PostgreSQL·MinIO는 internal network에만 있다. 운영 secret은 환경·secret 파일 계약을 사용하며 이미지·Git·로그에 넣지 않는다.
+host에 열리는 것은 관리 화면 하나이며 `docker/docker-compose.edge.yml`이 그 publish를 소유한다. 기본값은 loopback이고 PostgreSQL·MinIO는 internal network에만 있다. 운영 secret은 환경·secret 파일 계약을 사용하며 이미지·Git·로그에 넣지 않는다.
 
 ### 10.2 시작과 종료
 
@@ -717,3 +717,7 @@ DEMO-03(2026-10-10)은 deep_review에 회사별 분석 경로를 추가했다. �
 회사 심층은 기존 DeepReviewPreview/Approval/DeepReview에 `company_id`·`graph_version_id`·`provenance_jsonb`를 더해 재사용하고 기존 공용 analysis-worker 슬롯이 `BIDOPS_DEMO_ENABLED`일 때만 회사 job을 claim한다. worker는 승인 preview의 동결 입력만 쓰며(`approved_company_input`: 승인·preview·review 회사 일치, 계보·hash·nonce 일치, 생성 audit 회사 키, pinned bundle 재분할 일치) 어긋나면 `approval_invalid`로 호출 0, 회사 행↔demo 정책 identity 불일치는 `company_policy_invalid`다.
 lifecycle은 공개 함수 `company_pre_spec_notices`·`company_tracking_views`만 제공하고 deep_review를 import하지 않는다. migration은 `0036_company_analysis` 하나(`company_fit_policy_version` 신설, 핏 attempt 정책 FK 분리·`graph_version_id`·`provenance_jsonb`·동결 입력 일치 insert guard, deep_review graph 계보·불변 trigger, preview/approval 회사 열)이며 권한은 `scripts/runtime-privileges.sql`(worker는 지식 테이블 SELECT만, binding_event 제외)에 있다. 실제 Luna 대표 1건과 운영·main 반영은 미수행이다.
 [ADR-0070](tracking/decisions/0070-multi-company-knowledge-demo.md) · [공통 계약](work/demo-contract.md) · [기능 로드맵](work/constitution/roadmap.md).
+
+## 분석 엔진 통합 개발 기준선 (2026-11-17)
+
+[ADR-0074](tracking/decisions/0074-deep-engine-development-baseline.md)에 따라 별도 분석 코어 패키지를 deep_review adapter로 연결한다. 수집·공고·회사 근거·공용 WorkJob·PostgreSQL·MinIO 정본은 유지한다. 원본 SQLite/CLI/A2A/chat 운영 구조 및 외부 모델/관측 transport는 이식하지 않는다. `mock_reference` 연결 검증과 실제 모델 품질·운영 배포를 구별한다. 구현·검증 범위는 [RL-09](work/groups/RL/features/RL-09-engine-integration/plan.md)를 따른다.
