@@ -1,0 +1,230 @@
+{
+  "repository": "bid-deep-agent",
+  "commit": "7ad9283d8e8a405074374d12c5f0a13ccb8e5b1f",
+  "engine_version": "bid-deep-engine.v1",
+  "files": [
+    {
+      "path": "src/bidops/analysis/actions.py",
+      "sha256": "18687e803413cf7b07c5976e495bc4268fb15cf7a7619465658fdf25aaa8945f",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/document.py",
+      "sha256": "3774d5b80bbf7351d3a9ef75c3c489c5cbc6ed3e268bb7f3cb086ecdb7293326",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/evidence.py",
+      "sha256": "729e5eff4e179bc78b4e72591ecd03749a1229cf2d21456f39e101dd72aebf0e",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/evidence_locations.py",
+      "sha256": "4c46153337ad6518b084ace274516e098b4274c234cc045938baf9544940544e",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/extractor.py",
+      "sha256": "e4abb710a2320970c3f7f3b8b6b26980400e6fe775bfa72c55290b7030b6caca",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/gates.py",
+      "sha256": "0391e8a294030b8ac59d742461f542c462b8a4ca85e4298a41929725f96cf770",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/labels.py",
+      "sha256": "229258850567b60cf1a3538ff416c86a0c2652bfa04eda19ef7834b0d7c741b1",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/matcher.py",
+      "sha256": "6cec0a83b3df280892ec77084c2c1dc41496ee91fdb0e91139859df24f8da0c8",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/merge.py",
+      "sha256": "156f2a13762a5e6a58fb2f05dd5c60ae54ddab2e973b116d4f928458ea20f57c",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/pipeline.py",
+      "sha256": "13af254dbefc5c650bdd7d4f8da213069fd4917725b51bcb439a55226998753a",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/prompt_files.py",
+      "sha256": "c5e3892159e8a989975c3310bfa2f137df843d7fc8fc344c3e4188f2bf97afa9",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/provenance.py",
+      "sha256": "0e5c9e4e15d7fe8741a81aa6571a4894426a12d6bc9510275ab1d976bed8d1eb",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/recommend.py",
+      "sha256": "8fa5f717b554b98cf0c3b3093651cfc972c9c08b2562ad707d54899d9842cbd7",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/review.py",
+      "sha256": "304fc6cdaf6f47f21258405b135e816d48d643af180d386e7407eeae7bfb76fb",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/schemas.py",
+      "sha256": "d251e907907de70bf2927b5dab1d612930c2ff398ff94ce35fb5afce1aeadcd7",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/scoring.py",
+      "sha256": "dea084f961571aceecaa9a44a645e09408c3c18f8c41bf8f1b5e6a61e9124efc",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/spend.py",
+      "sha256": "ef27929ecd0853dbc230d6ce945caffd6d9a271cbda52fdfe391eeb8670e7ed3",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/strategies.py",
+      "sha256": "55fdef13cdd7ee8601b4682aec721feb7b44cc27f8aa65021530080f15c8ab52",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/synthesizer.py",
+      "sha256": "0da280cb14f45683625229b2e259db4d1864aac4f3e82fa9717c7a17e6d184e2",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/company/hints.py",
+      "sha256": "cfdd6088efb883613f519429f70e2212b8b5fe9246057b7286f7221b188f2d37",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/company/knowledge.py",
+      "sha256": "11fc66c954a5ec680cf8ac1ec86a625bdb497308ba8abf35754c8fd9c6950ccf",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/company/loader.py",
+      "sha256": "ee466521c940ca55e6526afafcaf3b7e5edf3e46b05c4e2aba187f3947896727",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/company/past_labels.py",
+      "sha256": "7807fc046d31b042264a4a7cc7590e8e784eaa91510ecc13e5fca71ebea23a1c",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/company/provenance.py",
+      "sha256": "a8a0f933791077c8e85043767b9f32e5e98843b4aa6a76abe63717edfeb553d0",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/company/schema.py",
+      "sha256": "45df6d1ce25d56d6029480e61425a59879b0d14c8f9fdb25be1a4ff644a6dd3d",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/feedback/decision.py",
+      "sha256": "27a32e99d13b49d4cd166082c3acbd9103fe49fdb60d9efc2227761907219739",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/feedback/gate_confirmations.py",
+      "sha256": "9dad366494cde60e7ad184d2500f24891007e0a0afeeb5f68db23d0f57c65d90",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/ingest/models.py",
+      "sha256": "075c28870172e511f2eb4f6c08552885a6ad6417e991a9e1268fb2b905b6e3b9",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/ingest/normalize.py",
+      "sha256": "9d9766a7266abeb2530993605ab3715ed10b381cbd4adeb69f6c269851340d31",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/prompts/extract.md",
+      "sha256": "8723b51e48ea8b814b60de868b81fc4567e44cbf1b850124a45e9cbde24bd896",
+      "adaptation": "none"
+    },
+    {
+      "path": "src/bidops/analysis/prompts/match.md",
+      "sha256": "62c55b145c1ee3559a0acf9771fefe4f1b24c0358ee8b29cea73b145f81a4cdb",
+      "adaptation": "none"
+    },
+    {
+      "path": "src/bidops/analysis/prompts/extract_partial.md",
+      "sha256": "42051a3299f5fc0450d0587aad38dc868dbe75ca29cf4b5d17077bb2a1ac47cd",
+      "adaptation": "none"
+    },
+    {
+      "path": "src/bidops/analysis/prompts/synth.md",
+      "sha256": "7e215075d7f4e3b9fc9fa0dcd3054e118eb274f3d612b04687f398e287a82303",
+      "adaptation": "none"
+    },
+    {
+      "path": "src/bidops/analysis/prompts/system.md",
+      "sha256": "60199023df3d0da39d828a01217c2c83eef2c75d4dcff3ac2bc4aaa9b51acff1",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/test_gates.py",
+      "sha256": "dfd13603b7d018dc503f7beba548b84c4a4b0f0fa5b33000136f9ca875b58dd5",
+      "adaptation": "namespace-only synthetic tests"
+    },
+    {
+      "path": "tests/gate_factories.py",
+      "sha256": "5cad9df811edea863d64be97b8188641a559cb08369efb2c6dec893f0cae31bb",
+      "adaptation": "namespace-only synthetic tests"
+    },
+    {
+      "path": "tests/test_analysis_schemas.py",
+      "sha256": "848d1f484248db0e2fea4cae930bd8466e6fe0c1b5874705cc10583dc8559ac8",
+      "adaptation": "namespace-only synthetic tests"
+    },
+    {
+      "path": "src/bidops/analysis/pricing.py",
+      "sha256": "2db4550a758556ee41ec82ee2f741d50257af9bc8269a6cc92cd90fb4aa6f32d",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/spend.py",
+      "sha256": "ef27929ecd0853dbc230d6ce945caffd6d9a271cbda52fdfe391eeb8670e7ed3",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/model_catalog.py",
+      "sha256": "fb2a223c9967d1f9c3d24712bf07195aea17b035cb1987508816b44962aad322",
+      "adaptation": "namespace only"
+    },
+    {
+      "path": "src/bidops/analysis/llm.py",
+      "sha256": "ff1cb8ac495bfec0cc5977abc0cdffb205e959ca945f72f07b57209e5dd4162d",
+      "adaptation": "value/error classes only; transport implementation excluded"
+    }
+  ],
+  "excluded_transport_files": [
+    "analysis/llm.py (types extracted only)",
+    "analysis/claude_cli.py",
+    "analysis/gateway.py",
+    "analysis/tracing.py (offline replacement)"
+  ],
+  "upstream_dirty_files": [
+    "docs/decisions.md",
+    "docs/work/feature.json",
+    "docs/work/groups/LLM/features/LLM-02-cli-transport/spec.md",
+    "docs/work/queue.json",
+    "specs/roadmap.md",
+    "specs/tech-stack.md",
+    "src/bidops/analysis/claude_cli.py",
+    "tests/test_claude_cli.py"
+  ],
+  "included_dirty_files": [],
+  "notes": "No CLI, A2A, task SQLite store, chat, source company data, credentials, telemetry or live transport. llm value/error types are extracted; config is type stub; tracing is offline seam."
+}

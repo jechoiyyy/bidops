@@ -301,13 +301,13 @@ EOF
 print_dry_run_ingest() {
   cat <<EOF
 
-  docker compose -f docker-compose.yml cp ${run_dir} web:/app/data/runs/
-  docker compose -f docker-compose.yml exec -T web python -m app.lifecycle.ingest.cli --run ${run_id} --collection
-  docker compose -f docker-compose.yml exec -T web python -m app.lifecycle.ingest.cli --tracked-backfill
+  scripts/compose.sh cp ${run_dir} web:/app/data/runs/
+  scripts/compose.sh exec -T web python -m app.lifecycle.ingest.cli --run ${run_id} --collection
+  scripts/compose.sh exec -T web python -m app.lifecycle.ingest.cli --tracked-backfill
 EOF
   if [[ "${opt_track}" == "notices" ]]; then
     cat <<EOF
-  docker compose -f docker-compose.yml exec -T web python -c \\
+  scripts/compose.sh exec -T web python -c \\
     'from app.core.db import SessionLocal; from app.deep_review.services.prespec_attachments import refresh_fetch_eligibility; s=SessionLocal(); print(refresh_fetch_eligibility(s)); s.commit()'
 EOF
   fi
@@ -389,12 +389,12 @@ ingest_order_plans_step() {
 
   local result
   workflow_note "ingesting order-plan run ${run_id} (--collection)"
-  result="$(COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose -f docker-compose.yml \
+  result="$("${WORKFLOW_SCRIPT_DIR}/compose.sh" \
     exec -T web python -m app.lifecycle.ingest.cli --run "${run_id}" --collection)"
   print_result "order-plan ingest" "${result}"
 
   workflow_note "running tracked backfill"
-  result="$(COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose -f docker-compose.yml \
+  result="$("${WORKFLOW_SCRIPT_DIR}/compose.sh" \
     exec -T web python -m app.lifecycle.ingest.cli --tracked-backfill)"
   print_result "tracked backfill" "${result}"
 }
@@ -404,17 +404,17 @@ ingest_notices_step() {
 
   local result
   workflow_note "ingesting notice run ${run_id} (--collection)"
-  result="$(COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose -f docker-compose.yml \
+  result="$("${WORKFLOW_SCRIPT_DIR}/compose.sh" \
     exec -T web python -m app.lifecycle.ingest.cli --run "${run_id}" --collection)"
   print_result "notice ingest" "${result}"
 
   workflow_note "running tracked backfill"
-  result="$(COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose -f docker-compose.yml \
+  result="$("${WORKFLOW_SCRIPT_DIR}/compose.sh" \
     exec -T web python -m app.lifecycle.ingest.cli --tracked-backfill)"
   print_result "tracked backfill" "${result}"
 
   workflow_note "refreshing attachment fetch eligibility"
-  COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose -f docker-compose.yml \
+  "${WORKFLOW_SCRIPT_DIR}/compose.sh" \
     exec -T web python -c \
     'from app.core.db import SessionLocal; from app.deep_review.services.prespec_attachments import refresh_fetch_eligibility; s=SessionLocal(); print(refresh_fetch_eligibility(s)); s.commit()'
 }

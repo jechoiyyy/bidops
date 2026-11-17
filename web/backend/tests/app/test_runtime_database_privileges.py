@@ -1750,3 +1750,14 @@ def test_effective_proposal_grants_and_role_triggers_follow_the_matrix() -> None
                    "P0001", id=sections["queued"])
         finally:
             engine.dispose()
+
+
+def test_engine_run_grants_keep_inputs_and_human_review_immutable() -> None:
+    assert 'engine_run' in _table_grants('app','SELECT')
+    assert 'engine_run' in _table_grants('app','INSERT')
+    assert 'engine_run' in _table_grants('worker','SELECT')
+    assert 'engine_run' not in _table_grants('worker','INSERT')
+    assert _column_update_grant('worker','engine_run') == {'status','result_payload','result_sha256','error_code','started_at','completed_at'}
+    for role in ('app','worker'):
+        assert 'engine_run' not in _table_grants(role,'UPDATE')
+        assert 'engine_run' not in _table_grants(role,'DELETE')

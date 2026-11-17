@@ -10,7 +10,7 @@ ROOT = Path(__file__).parents[4]
 
 
 def test_runtime_image_installs_native_rhwp_and_pinned_fallback_fonts():
-    dockerfile = (ROOT / "web/Dockerfile").read_text(encoding="utf-8")
+    dockerfile = (ROOT / "docker/Dockerfile").read_text(encoding="utf-8")
     binary = "app/deep_review/document_mcp/vendor/rhwp/bin/rhwp"
 
     # fc-list must be installed explicitly: the font manifest fingerprint
@@ -21,7 +21,7 @@ def test_runtime_image_installs_native_rhwp_and_pinned_fallback_fonts():
 
 
 def test_runtime_image_copies_only_allowlisted_reference_material():
-    dockerfile = (ROOT / "web/Dockerfile").read_text(encoding="utf-8")
+    dockerfile = (ROOT / "docker/Dockerfile").read_text(encoding="utf-8")
     dockerignore_lines = {
         line.strip()
         for line in (ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines()
@@ -50,7 +50,7 @@ def test_runtime_image_copies_only_allowlisted_reference_material():
     assert "web/backend/app/screening/baseline_company_profile.md" in dockerignore_lines
     assert "!docs/reference/company-performance-titles.tsv" not in dockerignore_lines
 
-    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    compose = yaml.safe_load((ROOT / "docker/docker-compose.yml").read_text(encoding="utf-8"))
     web_volumes = compose["services"]["web"]["volumes"]
     assert (
         "./docs/reference/company-profile.md:/app/docs/reference/company-profile.md:ro"
@@ -68,13 +68,13 @@ def test_runtime_image_copies_only_allowlisted_reference_material():
 
 
 def test_real_qwen_is_not_embedded_in_the_application_compose():
-    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    compose = yaml.safe_load((ROOT / "docker/docker-compose.yml").read_text(encoding="utf-8"))
     assert "ollama" not in compose["services"]
     assert "vllm" not in compose["services"]
 
 
 def test_worker_network_and_command_boundaries_are_explicit():
-    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    compose = yaml.safe_load((ROOT / "docker/docker-compose.yml").read_text(encoding="utf-8"))
     services = compose["services"]
 
     worker = services["document-worker"]
@@ -159,24 +159,24 @@ def test_host_exposure_lives_only_in_the_edge_overlay():
     그래서 노출은 edge overlay 하나만 소유한다.
     """
 
-    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    compose = yaml.safe_load((ROOT / "docker/docker-compose.yml").read_text(encoding="utf-8"))
     for name, service in compose["services"].items():
         assert "ports" not in service, f"{name} declares a port the base stack cannot publish"
     assert all(network.get("internal") is True for network in compose["networks"].values())
 
-    edge = yaml.safe_load((ROOT / "docker-compose.edge.yml").read_text(encoding="utf-8"))
-    assert set(edge["services"]) == {"web"}
+    edge = yaml.safe_load((ROOT / "docker/docker-compose.edge.yml").read_text(encoding="utf-8"))
+    assert {n for n, svc in edge["services"].items() if "ports" in svc} == {"web"}
     assert edge["services"]["web"]["networks"] == ["edge"]
     assert edge["networks"]["edge"]["driver"] == "bridge"
     # 발행 포트는 명시적인 host-IP 필드를 갖는다. "<host>:<container>" 형식은
     # Docker가 모든 host interface에 bind하게 만든다.
     ports = edge["services"]["web"]["ports"]
-    assert ports == ["${BIDOPS_WEB_BIND_HOST:-127.0.0.1}:${BIDOPS_WEB_PORT:-18787}:8787"]
+    assert ports == ["${BIDOPS_WEB_BIND_HOST:-127.0.0.1}:${BIDOPS_WEB_PORT:-${BIDOPS_DEFAULT_WEB_PORT:-18789}}:8787"]
     assert ports[0].count(":") >= 2
 
 
 def test_compose_commands_and_recovery_scripts_exist():
-    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    compose = yaml.safe_load((ROOT / "docker/docker-compose.yml").read_text(encoding="utf-8"))
     for service in compose["services"].values():
         command = service.get("command")
         if command and command[:3] == ["python", "-m", "app.deep_review.workers.document"]:
@@ -193,8 +193,8 @@ def test_compose_commands_and_recovery_scripts_exist():
     assert ops["profiles"] == ["ops"]
     assert ops["entrypoint"] == ["/bin/sh"]
     assert set(ops["networks"]) == {"database", "storage"}
-    assert (ROOT / "web/Ops.Dockerfile").is_file()
-    ops_dockerfile = (ROOT / "web/Ops.Dockerfile").read_text(encoding="utf-8")
+    assert (ROOT / "docker/Ops.Dockerfile").is_file()
+    ops_dockerfile = (ROOT / "docker/Ops.Dockerfile").read_text(encoding="utf-8")
     assert "COPY --from=minio-client /usr/bin/mc" in ops_dockerfile
     assert "postgresql-client coreutils" in ops_dockerfile
     db_source = (ROOT / "web/backend/app/core/db.py").read_text(encoding="utf-8")
@@ -207,15 +207,13 @@ def test_compose_commands_and_recovery_scripts_exist():
 def test_model_egress_is_one_explicit_override_for_every_purpose():
     """세 용도가 한 transport를 쓰므로 egress overlay도 하나다."""
 
-    override = yaml.safe_load((ROOT / "docker-compose.model-egress.yml").read_text(encoding="utf-8"))
-    assert set(override["services"]) == {"web", "analysis-worker"}
-    assert override["networks"] == {"model-egress": None}
-    for service in override["services"].values():
-        assert service["networks"] == ["model-egress"]
-        # egress overlay는 network와 설정만 열고 파일을 마운트하지 않는다.
-        assert "volumes" not in service
+    override = yaml.safe_load((ROOT / "docker/docker-compose.prod.yml").read_text(encoding="utf-8"))
+    assert set(override["networks"]) == {"model-egress", "prespec-egress"}
+    for name in ("web", "analysis-worker"):
+        assert override["services"][name]["networks"] == ["model-egress"]
+    assert "networks" not in override["services"]["document-worker"]
 
-    base = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    base = yaml.safe_load((ROOT / "docker/docker-compose.yml").read_text(encoding="utf-8"))
     assert "model-egress" not in base["networks"]
     assert all(network.get("internal") is True for network in base["networks"].values())
 
@@ -230,7 +228,7 @@ def test_model_overlay_never_defaults_an_endpoint_for_an_unused_purpose():
     revision도 MVP 기간 동안 비어 있을 수 있다(ADR-0050 완화).
     """
 
-    override = yaml.safe_load((ROOT / "docker-compose.model-egress.yml").read_text(encoding="utf-8"))
+    override = yaml.safe_load((ROOT / "docker/docker-compose.prod.yml").read_text(encoding="utf-8"))
     purposes = ("SCREENING", "OVERVIEW", "DEEP_REVIEW")
     web = override["services"]["web"]["environment"]
     worker = override["services"]["analysis-worker"]["environment"]
@@ -256,15 +254,12 @@ def test_model_overlay_never_defaults_an_endpoint_for_an_unused_purpose():
     assert "OLLAMA" not in example
 
 
-def test_c2_order_plan_inputs_are_a_separate_explicit_override():
+def test_production_c2_inputs_remain_explicit_readonly_mounts():
     """회사 역량 파일과 프롬프트는 이미지가 아니라 승인된 host 경로에서 온다."""
 
-    override = yaml.safe_load((ROOT / "docker-compose.c2-order-plan.yml").read_text(encoding="utf-8"))
-    assert set(override["services"]) == {"web", "analysis-worker"}
-    # 이 overlay는 입력만 담당한다. 전송 경로는 model-egress overlay가 열어야 한다.
-    assert "networks" not in override
-    for service in override["services"].values():
-        assert "networks" not in service
+    override = yaml.safe_load((ROOT / "docker/docker-compose.prod.yml").read_text(encoding="utf-8"))
+    for name in ("web", "analysis-worker"):
+        service = override["services"][name]
         environment = service["environment"]
         assert environment["BIDOPS_C2_EXECUTION_ALLOWED"] == "${BIDOPS_C2_EXECUTION_ALLOWED:-false}"
         assert environment["BIDOPS_C2_CAPABILITIES_PATH"] == "/run/c2/company-capabilities.json"
@@ -280,7 +275,7 @@ def test_c2_order_plan_inputs_are_a_separate_explicit_override():
 def test_prespec_attachment_worker_is_idle_without_its_egress_override():
     """worker는 기반 스택이 profile로 소유하고, overlay는 egress만 연다."""
 
-    base = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    base = yaml.safe_load((ROOT / "docker/docker-compose.yml").read_text(encoding="utf-8"))
     worker = base["services"]["prespec-attachment-worker"]
     assert worker["profiles"] == ["prespec"]
     assert set(worker["networks"]) == {"database", "storage", "scanning"}
@@ -299,16 +294,15 @@ def test_prespec_attachment_worker_is_idle_without_its_egress_override():
     assert all(network.get("internal") is True for network in base["networks"].values())
 
     override = yaml.safe_load(
-        (ROOT / "docker-compose.prespec-attachment.yml").read_text(encoding="utf-8")
+        (ROOT / "docker/docker-compose.prod.yml").read_text(encoding="utf-8")
     )
-    assert set(override["services"]) == {"prespec-attachment-worker"}
     overlay_worker = override["services"]["prespec-attachment-worker"]
     assert overlay_worker["networks"] == ["prespec-egress"]
     assert overlay_worker["environment"]["BIDOPS_G2B_ATTACHMENT_ENABLED"] == "true"
     assert overlay_worker["environment"]["BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS"].startswith(
         "${BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS:?"
     )
-    assert override["networks"] == {"prespec-egress": None}
+    assert "prespec-egress" in override["networks"]
 
 
 def test_slack_worker_is_idle_without_its_egress_override():
@@ -318,7 +312,7 @@ def test_slack_worker_is_idle_without_its_egress_override():
     기반에 `BIDOPS_SLACK_*`를 두면 overlay의 env 파일 값이 조용히 가려진다.
     """
 
-    base = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    base = yaml.safe_load((ROOT / "docker/docker-compose.yml").read_text(encoding="utf-8"))
     worker = base["services"]["slack-worker"]
     assert worker["profiles"] == ["slack"]
     assert worker["networks"] == ["database"]
@@ -335,7 +329,7 @@ def test_slack_worker_is_idle_without_its_egress_override():
     assert (ROOT / "web/backend/app/lifecycle/cli.py").is_file()
     assert (ROOT / "web/backend/app/lifecycle/slack_worker.py").is_file()
 
-    override = yaml.safe_load((ROOT / "docker-compose.slack-egress.yml").read_text(encoding="utf-8"))
+    override = yaml.safe_load((ROOT / "docker/docker-compose.slack-egress.yml").read_text(encoding="utf-8"))
     assert set(override["services"]) == {"web", "slack-worker"}
     for service in override["services"].values():
         # overlay는 env 파일과 egress network만 준다(포트·마운트·값 하드코딩 없음).
@@ -359,13 +353,13 @@ def test_slack_worker_is_idle_without_its_egress_override():
 
 
 def test_non_http_workers_disable_the_shared_web_image_healthcheck():
-    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    compose = yaml.safe_load((ROOT / "docker/docker-compose.yml").read_text(encoding="utf-8"))
     for name in ("document-worker", "analysis-worker"):
         assert compose["services"][name]["healthcheck"] == {"disable": True}
 
 
 def test_mock_reference_override_has_no_model_egress_or_external_provider_gate():
-    override = yaml.safe_load((ROOT / "docker-compose.mock-reference.yml").read_text(encoding="utf-8"))
+    override = yaml.safe_load((ROOT / "docker/docker-compose.mock-reference.yml").read_text(encoding="utf-8"))
     assert set(override["services"]) == {"web", "analysis-worker"}
     for service in override["services"].values():
         environment = service["environment"]
@@ -480,7 +474,7 @@ def test_rl04_proposal_pdf_bucket_is_provisioned_backed_up_and_verified_like_mod
     assert "NOT IN ('source', 'structure', 'quarantine', 'model-response', 'proposal-pdf')" in generate_active
     transfer = (ROOT / "scripts/transfer-check.py").read_text(encoding="utf-8")
     assert '("source", "structure", "quarantine", "model-response", "proposal-pdf")' in transfer
-    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    compose = yaml.safe_load((ROOT / "docker/docker-compose.yml").read_text(encoding="utf-8"))
     init_env = compose["services"]["minio-init"]["environment"]
     assert init_env["BIDOPS_PROPOSAL_PDF_ACCESS_KEY"].startswith("${BIDOPS_PROPOSAL_PDF_ACCESS_KEY:?")
     assert init_env["BIDOPS_PROPOSAL_PDF_SECRET_KEY"].startswith("${BIDOPS_PROPOSAL_PDF_SECRET_KEY:?")

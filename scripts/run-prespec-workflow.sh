@@ -83,6 +83,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+export BIDOPS_MODEL_ENV_FILE="${model_env}"
+export BIDOPS_ATTACHMENT_ENV_FILE="${attachment_env}"
+
 if [[ -z "${run_id}" && ("${command_name}" == "collect" || "${command_name}" == "all") ]]; then
   run_id="prespecs-$(date +%Y%m%dT%H%M%S)"
 fi
@@ -104,17 +107,13 @@ preflight() {
   [[ -n "${detected_policy}" ]] \
     || workflow_die "no active C-1 policy; activate an approved quality-gated policy first"
   workflow_note "active C-1 policy: ${detected_policy}"
-  COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose \
-    --env-file .env --env-file "${model_env}" --env-file "${attachment_env}" \
-    -f docker-compose.yml -f docker-compose.edge.yml \
-    -f docker-compose.model-egress.yml -f docker-compose.prespec-attachment.yml \
-    config -q
+  "${WORKFLOW_SCRIPT_DIR}/compose.sh" config -q
 }
 
 import_inputs() {
   workflow_common_preflight
   workflow_require_value "--actor" "${actor}"
-  COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose -f docker-compose.yml \
+  "${WORKFLOW_SCRIPT_DIR}/compose.sh" \
     exec -T web python -m app.deep_review.cli import-profile-policy --actor "${actor}"
   workflow_note "copy the returned profile_version_id and policy_version_id into .env, then recreate web and analysis-worker"
 }
@@ -154,7 +153,7 @@ ingest() {
   fi
   workflow_copy_run_if_missing "${run_id}" "${run_dir}"
   workflow_ingest_run "${run_id}"
-  COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose -f docker-compose.yml \
+  "${WORKFLOW_SCRIPT_DIR}/compose.sh" \
     exec -T web python -c \
     'from app.core.db import SessionLocal; from app.deep_review.services.prespec_attachments import refresh_fetch_eligibility; s=SessionLocal(); print(refresh_fetch_eligibility(s)); s.commit(); s.close()'
 }
@@ -165,11 +164,7 @@ start_workers() {
   workflow_require_file "${attachment_env}"
   workflow_note "starting C-1 web, document, attachment, overview, and company-fit workers"
   local resolved
-  resolved="$(COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose \
-    --env-file .env --env-file "${model_env}" --env-file "${attachment_env}" \
-    -f docker-compose.yml -f docker-compose.edge.yml \
-    -f docker-compose.model-egress.yml -f docker-compose.prespec-attachment.yml \
-    config --format json)"
+  resolved="$("${WORKFLOW_SCRIPT_DIR}/compose.sh" config --format json web analysis-worker)"
   printf '%s\n' "${resolved}" | jq -e '
     .services.web.environment.BIDOPS_PRESPEC_OVERVIEW_ENABLED == "true" and
     .services.web.environment.BIDOPS_PRESPEC_COMPANY_FIT_ENABLED == "true" and
@@ -180,11 +175,7 @@ start_workers() {
     .services["analysis-worker"].environment.BIDOPS_C2_EXECUTION_ALLOWED == "false"
   ' >/dev/null || workflow_die \
     "effective config must enable overview/company-fit/reference mode, set active profile/policy/model, and keep C-2 disabled"
-  COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose \
-    --env-file .env --env-file "${model_env}" --env-file "${attachment_env}" \
-    -f docker-compose.yml -f docker-compose.edge.yml \
-    -f docker-compose.model-egress.yml -f docker-compose.prespec-attachment.yml \
-    up -d web document-worker prespec-attachment-worker analysis-worker
+  "${WORKFLOW_SCRIPT_DIR}/compose.sh" up -d --no-deps web document-worker prespec-attachment-worker analysis-worker
   workflow_check_web
 }
 
@@ -221,12 +212,12 @@ enqueue_overview() {
   workflow_require_model_approval "${model_approved}"
   if [[ -n "${notice_id}" ]]; then
     [[ "${notice_id}" =~ ^[1-9][0-9]*$ ]] || workflow_die "--notice-id must be a positive integer"
-    COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose -f docker-compose.yml \
+    "${WORKFLOW_SCRIPT_DIR}/compose.sh" \
       exec -T web python -m app.deep_review.cli enqueue-overview --notice-id "${notice_id}"
     return
   fi
   [[ "${limit}" =~ ^[1-9][0-9]*$ ]] || workflow_die "--limit must be a positive integer"
-  COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose -f docker-compose.yml \
+  "${WORKFLOW_SCRIPT_DIR}/compose.sh" \
     exec -T web python -m app.deep_review.cli prepare-overviews --all-eligible --limit "${limit}"
 }
 
@@ -276,7 +267,7 @@ case "${command_name}" in
     workflow_note "use status --run-id ${run_id}, then status --notice-id <id> to follow overview and company fit"
     ;;
   stop-workers)
-    COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose -f docker-compose.yml \
+    "${WORKFLOW_SCRIPT_DIR}/compose.sh" \
       stop analysis-worker prespec-attachment-worker
     ;;
   *) usage >&2; workflow_die "unknown command: ${command_name}" ;;

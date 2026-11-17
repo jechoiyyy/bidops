@@ -1,0 +1,230 @@
+"""Versioned stdin/stdout boundary; only deterministic mock transport is exposed.
+
+The upstream normalizer, three-pass pipeline, gates, scoring, quote verification,
+and readiness logic execute unchanged. No upstream live transport is packaged.
+"""
+
+from __future__ import annotations
+import json
+import sys
+import tempfile
+from datetime import datetime, UTC
+from pathlib import Path
+from .analysis.pipeline import run_notice
+from .analysis.llm import CallRecord, ParseResult, LlmCallError
+from .analysis.pricing import TokenUsage
+from .analysis.schemas import (
+    RfpFacts,
+    EligibilityRule,
+    Project,
+    Evidence,
+    MatchOut,
+    RequirementFitOut,
+    SynthOut,
+    Profitability,
+)
+from .adapter import project_company, source_evidence, raw_blocks
+from .company.schema import CompanyProfile, Company
+from .ingest.models import Block, RawDoc, RawMeta, NoticeBundle
+from .ingest.normalize import build
+
+VERSION = "bid-deep-engine.v1"
+MAX_INPUT = 8 * 1024 * 1024
+
+
+class MockTransport:
+    """No generated facts: unknown qualifications, fits and numeric fields stay unknown."""
+
+    run_id = "mock_reference"
+    phase = "analyze"
+    fallbacks = False
+
+    def __init__(self, rfp):
+        self.rfp = rfp
+
+    def count_tokens(self, **kwargs):
+        return 1
+
+    def parse(self, output_model, *, purpose, **kwargs):
+        if purpose == "extract":
+            section = next((s for s in self.rfp.sections if s.text.strip()), None)
+            quote = section.text.strip().splitlines()[-1][:100] if section else ""
+            # A transparent synthetic response for the exact source phrase; no
+            # eligibility is inferred for unrelated documents. The real gate
+            # evaluates this quote against the unknown company qualification.
+            rules = []
+            for candidate in self.rfp.sections:
+                literal = "중소기업확인서를 제출해야 한다."
+                if literal in candidate.text:
+                    rules.append(
+                        EligibilityRule(
+                            code="SME_CERT",
+                            text=literal,
+                            evidence=Evidence(quote=literal, section_id=candidate.id),
+                        )
+                    )
+                    break
+            value = RfpFacts(
+                eligibility=rules,
+                project=Project(
+                    evidence=[Evidence(quote=quote, section_id=section.id)]
+                    if quote
+                    else []
+                ),
+            )
+        elif purpose == "match":
+            value = MatchOut(
+                fits=[
+                    RequirementFitOut(
+                        req_id=r.id,
+                        fit="UNKNOWN",
+                        rationale="모의 응답: 적합성 미측정",
+                        evidence=Evidence(
+                            quote=r.details[:100] or r.name, section_id=r.section_id
+                        ),
+                    )
+                    for r in self.rfp.requirements
+                ]
+            )
+        elif purpose == "synth":
+            value = SynthOut(
+                profitability=Profitability(note="모의 응답: 사업성 미측정"),
+                summary="모의 참조 실행입니다. 실제 분석 품질과 참여 판단은 미측정입니다.",
+            )
+        else:
+            raise LlmCallError("unsupported_mock_stage")
+        value = output_model.model_validate(value.model_dump(mode="json"))
+        record = CallRecord(
+            at=datetime.now(UTC).isoformat(),
+            purpose=purpose,
+            model="mock_reference",
+            served_model="mock_reference",
+            price_model=None,
+            cost_basis="exact",
+            stop_reason="end_turn",
+            input_tokens=0,
+            output_tokens=0,
+            cache_read_input_tokens=0,
+            cache_creation_5m=0,
+            cache_creation_1h=0,
+            input_tokens_counted=0,
+            estimate_usd=0,
+            cost_usd=0,
+            duration_ms=0,
+        )
+        return ParseResult(value, TokenUsage(), "mock_reference", "end_turn", record)
+
+
+def execute(payload):
+    if (
+        payload.get("schema_version") != "bidops.engine-input.v1"
+        or payload.get("mode") != "mock_reference"
+    ):
+        raise ValueError("engine_live_not_approved")
+    blocks, tables = raw_blocks(payload)
+    if not blocks or not any(b.text.strip() for b in blocks):
+        raise ValueError("structure_unavailable")
+    fmt = payload["primary_format"]
+    raw = RawDoc(
+        slug=payload["slug"],
+        format=fmt,
+        source_paths=[],
+        blocks=blocks,
+        tables=tables,
+        meta=RawMeta(
+            chars=sum(len(b.text) for b in blocks),
+            digits=sum(sum(c.isdigit() for c in b.text) for b in blocks),
+            paragraphs=len(blocks),
+            tables=len(tables),
+            extractor="rhwp"
+            if fmt == "hwp"
+            else "hwpx-lxml"
+            if fmt == "hwpx"
+            else "pypdf",
+            extractor_version="bidops-structure.v1",
+        ),
+    )
+    bundle = NoticeBundle(
+        slug=payload["slug"],
+        title=payload["title"],
+        manifest_matched=False,
+        files=[],
+        primary_format=fmt,
+        status="degraded",
+        created_at=datetime.now(UTC).isoformat(),
+        warnings=["structure_projection_partial"],
+    )
+    rfp = build(bundle, raw, None)
+    # Existing v2 profile remains frozen in payload. No unverified schema mapping
+    # promotes company qualifications; the v1 projection explicitly stays unknown.
+    profile, projected = project_company(payload)
+    client = MockTransport(rfp)
+    with tempfile.TemporaryDirectory(prefix="bid-deep-engine-") as folder:
+        root = Path(folder)
+        source = root / "rfp.json"
+        output = root / "analysis"
+        source.write_text(rfp.model_dump_json(), encoding="utf-8")
+        result = run_notice(
+            source,
+            output,
+            client_factory=lambda: client,
+            profile=profile,
+            model="mock_reference",
+            strategy="single",
+            effort="high",
+            passes=("extract", "match", "synth"),
+            force=True,
+            company_input_hash=payload["profile_sha256"],
+            run_id=payload["slug"],
+            transport="mock_reference",
+        )
+        artifacts = {p.name: json.loads(p.read_text()) for p in output.glob("*.json")}
+        analysis = artifacts.get("analysis.json")
+        if analysis is not None:
+            analysis["source_evidence"] = source_evidence(analysis, payload)
+            analysis["company_projection"] = {
+                "mapped_fields": projected,
+                "complete": False,
+            }
+        return {
+            "schema_version": "bidops.engine-output.v1",
+            "engine_version": VERSION,
+            "quality_status": "mock_reference",
+            "status": "failed" if result.status == "failed" else "partial",
+            "error_code": "engine_pipeline_failed"
+            if result.status == "failed"
+            else None,
+            "warnings": [
+                "mock_reference_not_quality_evidence",
+                "company_profile_projection_incomplete",
+                "structure_projection_partial",
+                *result.warnings,
+            ],
+            "analysis": artifacts.get("analysis.json"),
+            "artifacts": artifacts,
+        }
+
+
+def main():
+    try:
+        data = sys.stdin.buffer.read(MAX_INPUT + 1)
+        if len(data) > MAX_INPUT:
+            raise ValueError("input_too_large")
+        result = execute(json.loads(data))
+    except Exception:
+        # Source/model contents and local paths are never emitted in errors.
+        result = {
+            "schema_version": "bidops.engine-output.v1",
+            "engine_version": VERSION,
+            "quality_status": "mock_reference",
+            "status": "failed",
+            "error_code": "engine_pipeline_failed",
+            "warnings": [],
+            "analysis": None,
+            "artifacts": {},
+        }
+    sys.stdout.write(json.dumps(result, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

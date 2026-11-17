@@ -363,4 +363,3 @@
 - 원인: 사이드 리뷰의 pinned rhwp digest 재현은 6건 모두 exit0였다. 743·745·754·755는 정상 outline(전체/반환 5/5·5/5·28/28·1/1), 746·747은 67/50·111/50 부분 반환인데 BidOps가 mode와 전체=반환을 잘못 강제했다. 이는 전체 PDF 재변환 성공 근거는 아니다.
 - 수정/검증: outline·총/반환 수를 구분한 후보 v2, digest의 advisory 실패와 검증된 core 분리, 부분 후보의 수동 쪽 선택을 구현했다. native parser/processor·sidecar 소비·범위 연결 격리 검사가 통과했다(Plan(0910 안정화 Plan, 폐기됨 — git 이력 `71b9954`)).
 - 운영 확인: 후속 승인으로 수정 web/document-worker2를 반영하고 위6건만 각1회 준비해 모두 core PDF/page-text를 얻었다. 원본·기존 실패·결과·리뷰는 동일하고 새 snapshot/target각6을 추가했다. 743·745는 범위 시작 미확정,746·747은 부분 후보라 수동 확인이다. 754·755는 제안 작성 양식 오선택을 발견해 아래 후속으로 분리했다. Qwen은0, source-only 준비 뒤 OFF다. 새 실행 증거 (`../../.dryforge/prespec-mvp-deploy-20260911-OIBy24/README.md`, 실행 당시 로컬 산출물·현재 checkout 없음), 이전 실패 보존 (`../../.dryforge/prespec-0910-preparation-3vfrYK/pdf-execution.json`, 실행 당시 로컬 산출물·현재 checkout 없음).
-

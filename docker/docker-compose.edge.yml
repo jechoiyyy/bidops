@@ -1,0 +1,57 @@
+# 관리 화면을 host에 노출하는 overlay.
+#
+# 기본 스택의 network는 전부 `internal: true`다. Docker는 internal 전용
+# 컨테이너의 포트를 publish하지 않고 에러도 내지 않으므로, 화면을 여는 일은
+# 전부 이 파일이 소유한다 — 외부로 라우팅되는 bridge network와 `ports:` 선언이
+# 여기 함께 있다. 이 overlay 없이 `web`을 재생성하면 화면에 접근할 수 없다.
+#
+#   BIDOPS_ENV=dev ./scripts/compose.sh up -d web
+#
+# 대가를 분명히 한다: bridge network는 inbound DNAT과 outbound NAT이 한 몸이라
+# 이 overlay를 붙이면 web 컨테이너에 아웃바운드 경로도 함께 생긴다. 모델 호출의
+# 허용 host·배포 revision 게이트는 MVP 기간 동안 완화되어 있으므로(ADR-0050 완화
+# 항목), 이 파일을 붙인 상태를 내부망 격리와 같다고 기록하지 않는다.
+#
+# 노출 범위는 BIDOPS_WEB_BIND_HOST가 정한다. 기본값 127.0.0.1은 host loopback까지만
+# 열며, 원격 접근은 tailnet proxy처럼 loopback을 소비하는 경로로 붙인다. 이 값을
+# 0.0.0.0으로 바꾸면 LAN에 그대로 노출된다. 애플리케이션에 로그인이 없으므로
+# 접근 경계는 전적으로 이 설정과 host 방화벽이다.
+# Shared build/image definitions eliminate the old platform-only Mac overlay.
+x-app: &app
+  image: "${BIDOPS_IMAGE:-bidops-${BIDOPS_ENV:-dev}:app}"
+  platform: linux/amd64
+
+services:
+  postgres:
+    platform: linux/amd64
+  postgres-init: *app
+  migrate: *app
+  web:
+    <<: *app
+    networks: [edge]
+    ports:
+      - "${BIDOPS_WEB_BIND_HOST:-127.0.0.1}:${BIDOPS_WEB_PORT:-${BIDOPS_DEFAULT_WEB_PORT:-18789}}:8787"
+  analysis-worker: *app
+  prespec-attachment-worker: *app
+  slack-worker: *app
+  ro-backup: *app
+  document-worker:
+    image: "${BIDOPS_DOCUMENT_IMAGE:-bidops-${BIDOPS_ENV:-dev}:document}"
+    platform: "${BIDOPS_DOCUMENT_PLATFORM:-linux/arm64}"
+    build: { context: ., dockerfile: docker/Document.Dockerfile }
+  clamav:
+    platform: linux/amd64
+  minio:
+    image: cgr.dev/chainguard/minio@sha256:0f95aa412a12351a95bb43c3b54b66440eb0aa022bb3f3458942678a489e915b
+    healthcheck:
+      disable: true
+  minio-init:
+    image: "${BIDOPS_MINIO_INIT_IMAGE:-bidops-${BIDOPS_ENV:-dev}:minio-init}"
+    build: { context: ., dockerfile: docker/MinioInit.Dockerfile }
+    restart: "on-failure:10"
+    depends_on:
+      minio: { condition: service_started }
+
+networks:
+  edge:
+    driver: bridge

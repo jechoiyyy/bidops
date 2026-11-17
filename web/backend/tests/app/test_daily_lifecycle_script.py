@@ -33,7 +33,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 ROOT = Path(__file__).resolve().parents[4]
-SCRIPTS = ("run-daily-lifecycle.sh", "manual-workflow-common.sh", "run-daily-c2.sh", "c2-execution-common.sh")
+SCRIPTS = ("compose.sh", "compose-env.sh", "run-daily-lifecycle.sh", "manual-workflow-common.sh", "run-daily-c2.sh", "c2-execution-common.sh")
 
 # 가짜 적재기가 회차 행에 붙이는 generated_at. 실제 값은 수집 산출물의 generated_at에서
 # 온다(loader.py `_first_generated_at`); 테스트는 고정 값 하나로 충분하다.
@@ -129,7 +129,7 @@ case "${name}" in
         n="$(find "${state}/execs" -name '*.json' | wc -l)"; n=$((n + 1))
         final="성공"
         if [[ -s "${state}/outcomes" ]]; then
-          final="$(head -n1 "${state}/outcomes")"; sed -i 1d "${state}/outcomes"
+          final="$(head -n1 "${state}/outcomes")"; sed 1d "${state}/outcomes" > "${state}/outcomes.next"; mv "${state}/outcomes.next" "${state}/outcomes"
         fi
         id="$(printf '00000000-0000-4000-8000-%012d' "${n}")"
         jq -nc --arg id "${id}" --arg final "${final}" --argjson n "${n}" --argjson req "${data}" \
@@ -162,7 +162,7 @@ case "${name}" in
   docker)
     args="$*"
     case "${args}" in
-      "compose version") exit 0 ;;
+      *" version") exit 0 ;;
       *" cp "*) exit 0 ;;
       *"exec -T web test -e"*) exit 1 ;;
       *"--collection"*)

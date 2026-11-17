@@ -1,0 +1,84 @@
+# Production capabilities, selected only by BIDOPS_ENV=prod.
+# Model and G2B egress remain separate; neither reaches document-worker.
+# Approved C-2 inputs are read-only mounts, never image layers.
+x-production-app: &production-app
+  image: "${BIDOPS_IMAGE:?set the existing production application image tag}"
+services:
+  postgres-init: *production-app
+  migrate: *production-app
+  ro-backup: *production-app
+  slack-worker: *production-app
+  document-worker:
+    image: "${BIDOPS_DOCUMENT_IMAGE:?set the existing native arm64 document worker image tag}"
+    platform: linux/arm64
+  minio-init:
+    image: "${BIDOPS_MINIO_INIT_IMAGE:-bidops:minio-init}"
+  web:
+    <<: *production-app
+    networks:
+    - model-egress
+    environment:
+      BIDOPS_VLLM_SCREENING_BASE_URL: ${BIDOPS_VLLM_SCREENING_BASE_URL:-}
+      BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS: ${BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS:-}
+      BIDOPS_VLLM_SCREENING_API_KEY: ${BIDOPS_VLLM_SCREENING_API_KEY:-EMPTY}
+      BIDOPS_VLLM_SCREENING_MODEL_REVISION: ${BIDOPS_VLLM_SCREENING_MODEL_REVISION:-}
+      BIDOPS_VLLM_SCREENING_API_DIALECT: ${BIDOPS_VLLM_SCREENING_API_DIALECT:-vllm}
+      BIDOPS_VLLM_SCREENING_MODEL: ${BIDOPS_VLLM_SCREENING_MODEL:-qwen3.8-27B}
+      BIDOPS_VLLM_OVERVIEW_BASE_URL: ${BIDOPS_VLLM_OVERVIEW_BASE_URL:-}
+      BIDOPS_VLLM_OVERVIEW_ALLOWED_HOSTS: ${BIDOPS_VLLM_OVERVIEW_ALLOWED_HOSTS:-}
+      BIDOPS_VLLM_OVERVIEW_API_KEY: ${BIDOPS_VLLM_OVERVIEW_API_KEY:-EMPTY}
+      BIDOPS_VLLM_OVERVIEW_MODEL_REVISION: ${BIDOPS_VLLM_OVERVIEW_MODEL_REVISION:-}
+      BIDOPS_VLLM_OVERVIEW_API_DIALECT: ${BIDOPS_VLLM_OVERVIEW_API_DIALECT:-vllm}
+      BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH: ${BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH:-/app/web/backend/app/deep_review/policies/prespec-overview-policy-v7.json}
+      BIDOPS_VLLM_DEEP_REVIEW_BASE_URL: ${BIDOPS_VLLM_DEEP_REVIEW_BASE_URL:-}
+      BIDOPS_VLLM_DEEP_REVIEW_ALLOWED_HOSTS: ${BIDOPS_VLLM_DEEP_REVIEW_ALLOWED_HOSTS:-}
+      BIDOPS_VLLM_DEEP_REVIEW_API_KEY: ${BIDOPS_VLLM_DEEP_REVIEW_API_KEY:-EMPTY}
+      BIDOPS_VLLM_DEEP_REVIEW_MODEL_REVISION: ${BIDOPS_VLLM_DEEP_REVIEW_MODEL_REVISION:-}
+      BIDOPS_VLLM_DEEP_REVIEW_API_DIALECT: ${BIDOPS_VLLM_DEEP_REVIEW_API_DIALECT:-vllm}
+      BIDOPS_VLLM_BASE_URL: ${BIDOPS_VLLM_BASE_URL:-}
+      BIDOPS_VLLM_ALLOWED_HOSTS: ${BIDOPS_VLLM_ALLOWED_HOSTS:-}
+      BIDOPS_VLLM_API_KEY: ${BIDOPS_VLLM_API_KEY:-EMPTY}
+      BIDOPS_VLLM_MODEL_REVISION: ${BIDOPS_VLLM_MODEL_REVISION:-}
+      BIDOPS_C2_EXECUTION_ALLOWED: ${BIDOPS_C2_EXECUTION_ALLOWED:-false}
+      BIDOPS_C2_DAILY_TRIGGER_ENABLED: ${BIDOPS_C2_DAILY_TRIGGER_ENABLED:-false}
+      BIDOPS_C2_CAPABILITIES_PATH: /run/c2/company-capabilities.json
+      BIDOPS_C2_PROMPT_PATH: /run/c2/order-plan-prompt.txt
+    volumes:
+    - ${BIDOPS_C2_CAPABILITIES_HOST_PATH:?set an explicit approved capabilities file path}:/run/c2/company-capabilities.json:ro
+    - ${BIDOPS_C2_PROMPT_HOST_PATH:?set an explicit approved prompt file path}:/run/c2/order-plan-prompt.txt:ro
+  analysis-worker:
+    <<: *production-app
+    networks:
+    - model-egress
+    environment:
+      BIDOPS_VLLM_OVERVIEW_BASE_URL: ${BIDOPS_VLLM_OVERVIEW_BASE_URL:-}
+      BIDOPS_VLLM_OVERVIEW_ALLOWED_HOSTS: ${BIDOPS_VLLM_OVERVIEW_ALLOWED_HOSTS:-}
+      BIDOPS_VLLM_OVERVIEW_API_KEY: ${BIDOPS_VLLM_OVERVIEW_API_KEY:-EMPTY}
+      BIDOPS_VLLM_OVERVIEW_MODEL_REVISION: ${BIDOPS_VLLM_OVERVIEW_MODEL_REVISION:-}
+      BIDOPS_VLLM_OVERVIEW_API_DIALECT: ${BIDOPS_VLLM_OVERVIEW_API_DIALECT:-vllm}
+      BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH: ${BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH:-/app/web/backend/app/deep_review/policies/prespec-overview-policy-v7.json}
+      BIDOPS_VLLM_DEEP_REVIEW_BASE_URL: ${BIDOPS_VLLM_DEEP_REVIEW_BASE_URL:-}
+      BIDOPS_VLLM_DEEP_REVIEW_ALLOWED_HOSTS: ${BIDOPS_VLLM_DEEP_REVIEW_ALLOWED_HOSTS:-}
+      BIDOPS_VLLM_DEEP_REVIEW_API_KEY: ${BIDOPS_VLLM_DEEP_REVIEW_API_KEY:-EMPTY}
+      BIDOPS_VLLM_DEEP_REVIEW_MODEL_REVISION: ${BIDOPS_VLLM_DEEP_REVIEW_MODEL_REVISION:-}
+      BIDOPS_VLLM_DEEP_REVIEW_API_DIALECT: ${BIDOPS_VLLM_DEEP_REVIEW_API_DIALECT:-vllm}
+      BIDOPS_VLLM_BASE_URL: ${BIDOPS_VLLM_BASE_URL:-}
+      BIDOPS_VLLM_ALLOWED_HOSTS: ${BIDOPS_VLLM_ALLOWED_HOSTS:-}
+      BIDOPS_VLLM_API_KEY: ${BIDOPS_VLLM_API_KEY:-EMPTY}
+      BIDOPS_VLLM_MODEL_REVISION: ${BIDOPS_VLLM_MODEL_REVISION:-}
+      BIDOPS_C2_EXECUTION_ALLOWED: ${BIDOPS_C2_EXECUTION_ALLOWED:-false}
+      BIDOPS_C2_CAPABILITIES_PATH: /run/c2/company-capabilities.json
+      BIDOPS_C2_PROMPT_PATH: /run/c2/order-plan-prompt.txt
+    volumes:
+    - ${BIDOPS_C2_CAPABILITIES_HOST_PATH:?set an explicit approved capabilities file path}:/run/c2/company-capabilities.json:ro
+    - ${BIDOPS_C2_PROMPT_HOST_PATH:?set an explicit approved prompt file path}:/run/c2/order-plan-prompt.txt:ro
+  prespec-attachment-worker:
+    <<: *production-app
+    networks:
+    - prespec-egress
+    environment:
+      BIDOPS_G2B_ATTACHMENT_ENABLED: 'true'
+      BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS: ${BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS:?set approved G2B attachment hosts in env/prespec-attachment.env}
+networks:
+  model-egress: null
+  prespec-egress: null

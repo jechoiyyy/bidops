@@ -70,6 +70,7 @@ _ROUTER_REGISTRATION: tuple[tuple[str, str], ...] = (
     ("screening", "policies_router"),
     ("screening", "schedule_router"),
     ("deep_review", "document_bundles_router"),
+    ("deep_review", "engine_runs_router"),
     ("deep_review", "deep_reviews_router"),
     ("deep_review", "assumption_analysis_router"),
     ("deep_review", "bid_decision_queue_router"),
@@ -291,6 +292,10 @@ def _is_demo_only_path(path: str, method: str = "GET") -> bool:
     """
 
     if _is_demo_independent_company_read(path, method):
+        return False
+    # Offline engine reference runs use the real company authority, independently
+    # of legacy demo/RL model activation. The service rejects live execution.
+    if method in {"GET", "POST"} and _matches(path, ("api", "companies", "*", "notices", "*", "engine-runs")):
         return False
     if path in {"/companies", "/api/companies"}:
         return True

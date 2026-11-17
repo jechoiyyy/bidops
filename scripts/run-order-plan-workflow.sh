@@ -68,6 +68,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+export BIDOPS_MODEL_ENV_FILE="${model_env}"
+
 if [[ -z "${run_id}" && ("${command_name}" == "collect" || "${command_name}" == "all") ]]; then
   run_id="order-plans-$(date +%Y%m%dT%H%M%S)"
 fi
@@ -120,11 +122,7 @@ start_worker() {
   workflow_require_file "${model_env}"
   workflow_note "validating and starting the C-2 analysis worker"
   local resolved
-  resolved="$(COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose \
-    --env-file .env --env-file "${model_env}" \
-    -f docker-compose.yml -f docker-compose.edge.yml \
-    -f docker-compose.model-egress.yml -f docker-compose.c2-order-plan.yml \
-    config --format json)"
+  resolved="$("${WORKFLOW_SCRIPT_DIR}/compose.sh" config --format json web analysis-worker)"
   printf '%s\n' "${resolved}" | jq -e '
     .services.web.environment.BIDOPS_C2_EXECUTION_ALLOWED == "true" and
     .services["analysis-worker"].environment.BIDOPS_C2_EXECUTION_ALLOWED == "true" and
@@ -132,11 +130,7 @@ start_worker() {
     .services["analysis-worker"].environment.BIDOPS_PRESPEC_COMPANY_FIT_ENABLED == "false"
   ' >/dev/null || workflow_die \
     "effective config must enable C-2 in web/analysis-worker and disable pre-spec overview/company fit"
-  COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose \
-    --env-file .env --env-file "${model_env}" \
-    -f docker-compose.yml -f docker-compose.edge.yml \
-    -f docker-compose.model-egress.yml -f docker-compose.c2-order-plan.yml \
-    up -d web analysis-worker
+  "${WORKFLOW_SCRIPT_DIR}/compose.sh" up -d --no-deps web analysis-worker
   workflow_check_web
 }
 
@@ -196,7 +190,7 @@ case "${command_name}" in
     workflow_note "C-2 is queued; use: scripts/run-order-plan-workflow.sh status --run-id ${run_id}"
     ;;
   stop-worker)
-    COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME}" docker compose -f docker-compose.yml stop analysis-worker
+    "${WORKFLOW_SCRIPT_DIR}/compose.sh" stop analysis-worker
     ;;
   *) usage >&2; workflow_die "unknown command: ${command_name}" ;;
 esac
