@@ -104,13 +104,55 @@ python3 skills/bidops-collect/scripts/collect_order_plans.py \
 있는데 감사 표본이 아직 안 뽑혔으면 draw만. 회차 디렉터리는 회차 원본 불변 원칙에 따라 절대
 덮어쓰거나 지우지 않는다.
 
+**누락일 감지(2026-11-18, findings W-3·W-4).** 그날 몫(따라잡기 날짜 포함)을 끝낸 뒤 스크립트는 기준일
+(범위 모드면 `--to-date`)과 그 앞 `BIDOPS_DAILY_GAP_LOOKBACK_DAYS`일(기본 7, `0`은 끔)의 회차 디렉터리
+연속성을 본다. 완결 표식이 있는 디렉터리(기본 또는 `-retry<N>`, 0건 회차 포함)가 있으면 그날은 있는
+것이고, 없거나 불완전한 디렉터리뿐이면 빠진 날이다. 로컬 디렉터리만 읽고 web은 부르지 않는다.
+`BIDOPS_DAILY_GAP_FLOOR_DATE`(YYYY-MM-DD)보다 앞선 날은 세지 않는다 — cron을 걸기 전의 공백처럼
+사람이 확인하고 넘긴 기간을 여기서 인정한다. 빠진 날마다 `gap_detected track=<트랙> date=<날짜>` 한
+줄을 찍고 **exit 10**으로 끝난다.
+
+발주계획 트랙은 하나 더 본다(findings W-5). 창 안에서 완결이고 비어 있지 않은 회차인데 `성공`·`부분 성공`
+운영 C-2 실행이 없는 날은 판정 없이 끝난 날이다 — 날짜별 재개가 "실행부터"로 판단하는 것과 같은 기준이며
+(재개 규칙처럼 policy 버전은 가리지 않는다) **이번 호출이 방금 처리한 날도 포함한다**. 오늘 C-2가
+`active_execution_exists`·503·`policy_not_active`·`retry_limit_reached` 같은 정상 스킵으로 끝났으면 오늘
+드러난다. 그런 날마다
+`unjudged_detected track=order-plans date=<날짜> run=<디렉터리> reason=<사유>` 한 줄을 찍는다. 사유는
+`not_ingested`(`Run` 행 없음), `multiple_run_rows:<n>`(행이 둘 이상 — 고르지 않는다), `active:<상태>`(`대기`·
+`실행 중`·`중지 요청`이 잡고 있음), `last:<상태>`(실패·중단만 있음, 가장 늦게 들어온 것), `no_execution`이다.
+이 확인은 web을 읽는다 — `GET /api/runs/<디렉터리>`로 정규 id, `GET /api/runs`로 행 수, 실행 목록은 정규 id로만.
+조회가 실패하면 "누락 없음"이 아니라 실패 코드(2)로 끝난다. 0건 회차와 floor 이전 날은 세지 않는다.
+
+exit 10은 "주의 필요 — 이번 호출이 처리한 날은 모두 성공·정상 스킵이고, 창 안에 빠진 날이나 판정 없는 날이
+남았다"는 뜻이다. 요약 줄 `gap check: <n> missing, <m> unjudged day(s) …`가 둘을 따로 센다. 실제
+실패(스크립트 자체 검사 2, 실패한 명령의 코드, `timeout`의 124)와 겹치지 않는다.
+그날 몫이 실패하면 감지 전에 그 실패 코드로 끝난다. 발주계획 트랙이 `daily_trigger_off`로 수집 없이
+끝나는 날은 감지를 하지 않는다(그 기간은 다시 켠 뒤 첫 실행에서 누락일로 보인다). 공고 트랙은 창이
+4일이라 하루 빠진 날의 공고는 다음 날 창이 덮지만, 그날 실행이 없었다는 사실은 그대로 보고한다.
+
+**`--catch-up-days N`(기본 0).** 기준일 앞 N일 중 빠진 날(위와 같은 판정, floor 이전 제외)을 오래된
+날부터 위의 날짜별 재개 규칙으로 먼저 처리한 뒤 기준일을 처리한다. N은
+`BIDOPS_DAILY_GAP_LOOKBACK_DAYS` 이하여야 하고 `--from-date/--to-date`·`--collect-only`와 함께 쓸 수
+없다. 첫 실패일에서 트랙이 멈추고 뒤 날짜(기준일 포함)는 돌지 않는다 — `--from-date/--to-date`와
+같다. 발주계획 트랙은 preflight·자동 실행 확인 뒤 같은 N일 안의 **판정 없는 날**도 고른다 — 날짜별 재개가
+빠진 단계(적재 또는 C-2)만 돌린다. 단 `active:*`(실행이 잡고 있음)·`multiple_run_rows:*`(사람 판단)인 날은
+고르지 않고 보고에만 남긴다(돌려도 스킵하거나 멈출 뿐이다). `last:실패`가 이미 두 번이면 재개는
+`retry_limit_reached`로 넘어가므로 새 호출은 없고 보고는 계속된다 — `--extra-attempt`는 사람 몫이다.
+따라잡는 날마다 C-2 실행을 요청할 수 있으므로(분석 워커의 실제 모델 호출) 범위를 넓히기 전에 승인 범위를
+확인한다. 공고 트랙은 빠진 날만 고른다.
+
 `--collect-only --run-suffix <name>`은 측정·점검용이다. preflight·자동 실행 확인·회차 조회·적재·
 C-2를 전부 건너뛰고 수집만 하며 회차 id는 `lifecycle-<YYYYMMDD>-<plans|notices>-<name>`이 되어
 일일 회차 id를 차지하지 않는다(`retry<N>`은 재수집 접미사로 예약돼 쓸 수 없다).
 
 `--dry-run`은 계산한 회차 id·창·각 단계의 정확한 명령만 출력하고 수집·적재·C-2 실행·Docker 호출을
 하지 않는다(preflight의 web 헬스체크와 web `Run` 조회도 건너뛰고, 완결 회차는
-`complete_or_ingest_pending`으로만 표시한다). 기존 회차 디렉터리가 있으면 절대 덮어쓰지 않고 즉시 멈춘다(회차는
+`complete_or_ingest_pending`으로만 표시한다). `--catch-up-days`가 고른 날짜는 기준일 앞에 같은 모양으로
+나열되고, 누락일 감지는 실제 실행이 처리할 날을 뺀 나머지 중 보고할 날을
+`[dry-run] would report: gap_detected …`로, 끝날 exit 코드를 한 줄로 알린다. 발주계획 트랙의 판정 상태는
+web을 읽어야 하므로 dry-run은 확인하지 않고 "a real run would also check judged state"라고만 알린다
+(따라잡기 목록에도 판정 없는 날은 들어가지 않는다). dry-run 자체는 exit 0이다.
+기존 회차 디렉터리가 있으면 절대 덮어쓰지 않고 즉시 멈춘다(회차는
 불변). 이 스크립트는 아무것도 삭제하지 않고 cron을 설치하지 않으며, 스크립트 자체는 모델을 호출하지
 않는다 — 발주계획 트랙이 요청하는 C-2 실행은 승인된 binding 아래 분석 워커에서 돈다.
 
@@ -121,16 +163,30 @@ C-2를 전부 건너뛰고 수집만 하며 회차 id는 `lifecycle-<YYYYMMDD>-<
 | 정상 스킵(할 일 없음) | `daily_trigger_off`, `empty_population`, `active_execution_exists`, `already_executed`, `retry_limit_reached`, POST가 `policy_not_active`·`daily_trigger_off`·503으로 답함 | 0 |
 | 트랙을 그 자리에서 멈추는 스킵(따라잡기 중이면 나머지 날짜도 같은 사유로 끝난다) | `daily_trigger_off`, `policy_not_active`, 503, `active_execution_exists` | 0 |
 | 다음 날짜로 넘어가는 스킵(따라잡기가 이어진다) | `already_executed`, `empty_population`, `retry_limit_reached` | 0 |
+| 처리한 날은 끝났고 빠진 날·판정 없는 날이 남음(위 "누락일 감지") | `gap_detected`, `unjudged_detected` | 10 |
 
-그 밖의 실패는 exit 비0이며 `set -euo pipefail`로 그 트랙을 즉시 멈춘다. 같은 날 재시도까지
-실패해도 exit는 비0이다(아래 재시도 규칙).
+트랙을 멈추는 스킵 뒤에도 누락일 감지는 돈다(수집 전 `daily_trigger_off`만 예외). 발주계획 트랙에서
+그날 C-2가 정상 스킵으로 끝나면 그날이 판정 없는 날이 되므로 exit는 10이다. 빠진 날·판정 없는 날이
+없으면 위 표대로 0이다(`run-daily-c2.sh` 단독 실행은 감지가 없어 그대로 0). 그 밖의 실패는 exit 비0(10 아님)이며 `set -euo pipefail`로 그 트랙을 즉시
+멈춘다. 같은 날 재시도까지 실패해도 exit는 비0이다(아래 재시도 규칙).
 
 `active_execution_exists`에는 예외가 하나 있다. 스킵할 때 그 실행의 id·상태·경과 시간을 함께
-출력하고, 경과가 `BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS`의 **2배를 넘으면 exit 비0**이다. 워커가
-죽어 `대기`로 굳은 실행은 제품 워커의 stale 회수 대상이 아니어서(회수 대상은 `실행 중`·`중지 요청`뿐이고
-그나마 살아 있는 워커가 다음 작업을 집을 때만 돈다) 그대로 두면 매일 조용히 exit 0으로 건너뛰기만
-한다. 이 경우 워커 상태를 확인하고 실행을 `POST /api/order-plan-screening/executions/<id>/stop`으로
-닫은 뒤 다시 돌린다.
+출력하고, 경과가 `BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS`의 **2배를 넘으면 exit 비0**이다. 스크립트는
+자기 회차에 `대기` 실행이 있으면 POST하지 않으므로 이 경로에서는 서버의 `대기` 회수가 돌지 않는다.
+서버는 `queued_at`이 `BIDOPS_C2_QUEUED_MAX_DWELL_SECONDS`(기본 4시간)를 넘긴 `대기`를, 진행 중인 실행이
+없을 때 **다음 실행 생성 요청(다른 날 회차 포함)이나 워커 claim에서** `중단됨`+`stale_queued`로 닫는다
+([C-2 계약](../contracts/c2.md) "C-2 상태 의미와 전이"). 닫힌 실행은 다시 돌지 않는다 — 워커 상태를
+확인한 뒤 그날을 `--date`(또는 `scripts/run-daily-c2.sh <회차>`)로 다시 돌리면 attempt 규칙대로 새
+실행을 만든다. 아직 닫히지 않은 실행을 바로 치우려면
+`POST /api/order-plan-screening/executions/<id>/stop`을 쓴다.
+
+**서버 설정(web·analysis-worker 환경변수).** `BIDOPS_C2_QUEUED_MAX_DWELL_SECONDS`(기본 14400, `0`은 끔,
+켜면 `BIDOPS_C2_WORKER_STALE_SECONDS` 이상이어야 기동한다). 기본 4시간은 정상 대기 — 앞선 C-2 한 건(300건
+약 26분, heartbeat로 보호), GPU 휴지 최대 300초, `대기`가 들어올 때 이미 claim돼 있던 다른 분석 작업 한
+건 — 보다 넉넉하고, 일일 스크립트가 "워커가 없을 수 있다"며 비0으로 끝나는 경과(폴링 7200초의 2배)와
+같으며 하루 주기보다 짧아 다음 날 생성 요청이 전날 것을 닫는다. 다른 분석 작업(개요·심층·제안서)의
+진행은 C-2 회수의 근거로 보지 않으므로, 그런 작업 하나가 4시간을 넘기면 그 뒤에 들어온 C-2 `대기`가
+닫힐 수 있다.
 
 **발주계획 트랙 전용 환경변수** (`scripts/run-daily-c2.sh`·`scripts/c2-execution-common.sh`가 읽는다):
 
@@ -140,6 +196,13 @@ C-2를 전부 건너뛰고 수집만 하며 회차 id는 `lifecycle-<YYYYMMDD>-<
 | `BIDOPS_C2_DAILY_RETRY_WAIT_SECONDS` | 600 | 그 날짜의 실행이 `실패`·`중단됨`뿐일 때, 자동 재시도(attempt+1) 전에 기다리는 시간 |
 | `BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS` | 7200 | 실행을 종결 상태까지 기다리는 최대 시간. 넘기면 exit 비0으로 스크립트는 멈추지만 실행 자체는 분석 워커에서 계속 진행되고, 다음 호출은 `active_execution_exists`로 건너뛴다 |
 | `BIDOPS_C2_DAILY_POLL_INTERVAL_SECONDS` | 30 | 폴링 주기 |
+
+**두 트랙 공통 환경변수** (`scripts/run-daily-lifecycle.sh`가 읽는다, 위 "누락일 감지"):
+
+| 변수 | 기본값 | 뜻 |
+|---|---|---|
+| `BIDOPS_DAILY_GAP_LOOKBACK_DAYS` | 7 | 기준일 앞 며칠을 누락일 감지에 넣을지. `0`은 감지를 끈다. `--catch-up-days`의 상한이기도 하다 |
+| `BIDOPS_DAILY_GAP_FLOOR_DATE` | 없음 | `YYYY-MM-DD`. 이보다 앞선 날은 보고하지도 따라잡지도 않는다. 사람이 확인한 공백(cron 이전 등)을 인정할 때 쓴다 |
 
 **복구 절차.** 자동 재시도(attempt 2)까지 실패한 회차는 `attempt > 2`로 `retry_limit_reached`
 스킵을 낸다 — 이후로는 자동 재시도하지 않는다. 사람이 재개할 때만
@@ -158,13 +221,21 @@ always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시�
 # 먼저 한 번: mkdir -p ~/.local/state/bidops/logs
 # flock -n: 앞 실행이 아직 돌고 있으면 그 날 줄은 아무것도 하지 않고 끝난다(회차 중복 방지).
 # timeout: 멈춘 실행을 끊는다. 발주계획은 폴링 2시간 + 재시도 대기 10분 + 2회차 2시간이 최대이므로 6h로 둔다.
-#          timeout이 스크립트를 끊어도 C-2 실행 자체는 분석 워커에서 계속 돌고, 다음 날은
-#          active_execution_exists로 건너뛴다(경과가 길면 비0으로 끝나 사람이 본다).
+#          timeout이 스크립트를 끊어도 C-2 실행 자체는 분석 워커에서 계속 돌고, 다음 날은 새 회차로
+#          실행을 요청한다. 그 요청이 4시간 넘게 굳은 전날 `대기`를 stale_queued로 닫는다(진행 중인 실행이 없을 때).
+# BIDOPS_DAILY_GAP_FLOOR_DATE: 사람이 확인하고 넘긴 공백(cron 이전 등)의 다음 날. 그 앞의 날은 누락일로
+#          세지 않는다. 그 뒤로 빠진 날·판정 없는 날이 생기면 해당 줄과 exit 10이 로그에 남는다.
+# --catch-up-days N: 붙이면 빠진 날을 N일까지 거슬러 자동으로 메운다(발주계획은 날마다 C-2 실행 = 모델 호출).
+#          범위는 운영 결정이라 아래 예시에는 붙이지 않았다(감지만 한다). 붙이면 timeout도 그만큼 늘린다.
+# exit: 0 성공·정상 스킵, 10 빠진 날·판정 없는 날 남음(gap_detected·unjudged_detected), 124 timeout, 1 flock 실패, 그 밖의 비0 실패. 0이 아니면 사람이 본다.
 # crontab에서 %는 \%로 적어야 한다. 로그는 저장소 밖에 쌓아 회차·보고서와 섞지 않는다.
-30 6 * * * cd /path/to/bidops && BIDOPS_ENV=prod flock -n ~/.local/state/bidops/notices.lock timeout 3h ./scripts/run-daily-lifecycle.sh --track notices >> ~/.local/state/bidops/logs/notices-$(date +\%Y%m).log 2>&1
+30 6 * * * cd /path/to/bidops && BIDOPS_ENV=prod BIDOPS_DAILY_GAP_FLOOR_DATE=<YYYY-MM-DD> flock -n ~/.local/state/bidops/notices.lock timeout 3h ./scripts/run-daily-lifecycle.sh --track notices >> ~/.local/state/bidops/logs/notices-$(date +\%Y\%m).log 2>&1
 # C-2 활성화·일일 자동 실행이 켜진 뒤에만 설치한다. BIDOPS_C2_DAILY_ACTOR는 감사 표식이며 인증이 아니다.
-0 7 * * * cd /path/to/bidops && BIDOPS_ENV=prod BIDOPS_C2_DAILY_ACTOR=<담당자 이름> flock -n ~/.local/state/bidops/plans.lock timeout 6h ./scripts/run-daily-lifecycle.sh --track order-plans >> ~/.local/state/bidops/logs/plans-$(date +\%Y%m).log 2>&1
+0 7 * * * cd /path/to/bidops && BIDOPS_ENV=prod BIDOPS_DAILY_GAP_FLOOR_DATE=<YYYY-MM-DD> BIDOPS_C2_DAILY_ACTOR=<담당자 이름> flock -n ~/.local/state/bidops/plans.lock timeout 6h ./scripts/run-daily-lifecycle.sh --track order-plans >> ~/.local/state/bidops/logs/plans-$(date +\%Y\%m).log 2>&1
 ```
+
+`flock -n`이 앞 실행에 막혀 아무것도 하지 않은 날은 다음 날 실행의 누락일 감지가 `gap_detected`로
+드러낸다. 두 트랙 공용 lock 하나로 묶을지는 cron 설치 승인 때 정한다(설계고도화안 §4 A 관문 6).
 
 **보관**: 회차 디렉터리(`data/runs/lifecycle-*`)는 불변이며 자동으로 지우지 않는다. 보관
 기간 정책은 운영자가 수동으로 정하는 결정이며 이 스크립트는 삭제 로직을 갖지 않는다.
@@ -183,6 +254,12 @@ always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시�
   값을 추정해 채우지 말고 다음 날 재실행으로 넘긴다.
 - 발주계획 트랙에서 `daily_trigger_off`·`policy_not_active`·503이 아닌 사유로 C-2 실행이 멈춤,
   또는 `retry_limit_reached`가 반복됨 — `--extra-attempt`로 성급하게 재개하기 전에 원인을 본다.
+- exit 10. `gap_detected` 날짜는 `--from-date/--to-date`로 메우거나, 메우지 않기로 했으면
+  `BIDOPS_DAILY_GAP_FLOOR_DATE`를 그 다음 날로 올린다. `unjudged_detected`는 사유를 먼저 본다 —
+  `active:*`면 워커, `last:*`면 실패 원인(두 번째 실패 뒤엔 `--extra-attempt`), `not_ingested`면 적재,
+  `multiple_run_rows:*`면 어느 행을 판정할지 사람이 정한 뒤 `--date`나 `run-daily-c2.sh <정규 id>`로 재개한다.
+- C-2 실행이 `중단됨`+`stale_queued`로 닫힘 — 분석 워커가 4시간 넘게 그 실행을 집지 못했다는 뜻이다.
+  워커 상태를 확인한 뒤 그날을 다시 돌린다.
 
 ### C-2 발주계획 선별 활성화 절차
 
@@ -254,7 +331,8 @@ always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시�
    ```
 
    적재 결과의 `warnings`가 **네 회차 모두 빈 배열**인지 확인한다. C-2 실행 생성은 source run에
-   적재 경고가 하나라도 있으면 `409 source_run_incomplete`로 거부하며, 응답 message는 code별
+   `info`가 아닌 등급(`warning`·`error` 등)의 적재 경고가 하나라도 있으면 `409 source_run_incomplete`로
+   거부하며(`info`는 통과하고 실행 생성 audit의 `passed_ingest_warnings`에 남는다), 응답 message는 code별
    고정 문구라 사유가 보이지 않는다. 사유는 web 컨테이너 로그
    (`scripts/compose.sh logs web | grep "c2 request rejected"`)와
    `GET /api/runs/<회차>/warnings`에서 읽는다.
@@ -340,7 +418,8 @@ always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시�
     고정한다). **policy를 교체하면 자동 실행이 멈춘다.** 스위치는 이전 버전에 묶여 있으므로 새
     버전에서 다시 켜야 한다.
 12. **cron 발주계획 줄 설치.** 운영시작일부터 매 달력일. 앞선 날짜가 있으면 스크립트의
-    `--from-date`/`--to-date`로 하루씩 따라잡는다.
+    `--from-date`/`--to-date`로 하루씩 따라잡고, 따라잡지 않기로 한 기간은
+    `BIDOPS_DAILY_GAP_FLOOR_DATE`로 인정해 누락일 감지(exit 10)에서 뺀다.
 
 **교체 없이 활성 policy를 내린다(예외).** 정상 경로는 위 10번 활성화가 이전 active 행을 같은
 transaction에서 `retired`로 내리는 자동 교체다. 대체 버전 없이 자리를 비워야 할 때만 아래 명령을
