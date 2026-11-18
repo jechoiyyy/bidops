@@ -4860,16 +4860,26 @@ export async function mockDailyPlanRun(
   run: RunSummary | null,
   executions: OrderPlanScreeningExecutionSummary[] = [],
 ): Promise<void> {
+  await mockDailyPlanRuns(page, run ? [run] : [], executions);
+}
+
+/** 일일 회차 여럿(따라잡기 포함). 실제 `/api/runs`처럼 `generated_at` 내림차순이다. */
+export async function mockDailyPlanRuns(
+  page: Page,
+  dailyRuns: RunSummary[],
+  executions: OrderPlanScreeningExecutionSummary[] = [],
+): Promise<void> {
   await page.route("**/api/runs", async (route) => {
     if (route.request().method() !== "GET") { await route.fallback(); return; }
     const defaultRuns = (responses["/api/runs"] as { items?: RunSummary[] } | undefined)?.items ?? [];
-    const items = [...defaultRuns, ...(run ? [run] : [])].sort((a, b) => b.generated_at.localeCompare(a.generated_at));
+    const items = [...defaultRuns, ...dailyRuns].sort((a, b) => b.generated_at.localeCompare(a.generated_at));
     await fulfillJson(route, { items, total: items.length });
   });
+  const runIds = new Set(dailyRuns.map((run) => run.run_id));
   await page.route((url) => url.pathname === "/api/order-plan-screening/executions", async (route) => {
     const url = new URL(route.request().url());
     const sourceRunId = url.searchParams.get("source_run_id");
-    if (route.request().method() !== "GET" || !run || sourceRunId !== run.run_id) { await route.fallback(); return; }
+    if (route.request().method() !== "GET" || !sourceRunId || !runIds.has(sourceRunId)) { await route.fallback(); return; }
     const items = executions.filter((item) => item.source_run_id === sourceRunId);
     await fulfillJson(route, { schema_version: "execution-list-response.v2", producer: "screening-api", consumer: "human-review-client", items, total: items.length, limit: Number(url.searchParams.get("limit") ?? 50), offset: 0 });
   });
