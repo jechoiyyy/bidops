@@ -3,7 +3,16 @@
 # Approved C-2 inputs are read-only mounts, never image layers.
 x-production-app: &production-app
   image: "${BIDOPS_IMAGE:?set the existing production application image tag}"
+# State services come back after a host (Mac/OrbStack) restart. Only prod gets
+# this; dev/mock keep the base file's default. analysis-worker stays without a
+# restart policy on purpose (the operator starts it after a human check), and
+# one-shot init/migrate services must not loop.
+x-restart-state-service: &restart-state-service
+  restart: unless-stopped
 services:
+  postgres: *restart-state-service
+  minio: *restart-state-service
+  clamav: *restart-state-service
   postgres-init: *production-app
   migrate: *production-app
   ro-backup: *production-app
@@ -11,6 +20,7 @@ services:
   document-worker:
     image: "${BIDOPS_DOCUMENT_IMAGE:?set the existing native arm64 document worker image tag}"
     platform: linux/arm64
+    <<: *restart-state-service
   minio-init:
     image: "${BIDOPS_MINIO_INIT_IMAGE:-bidops:minio-init}"
   web:

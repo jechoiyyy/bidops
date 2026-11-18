@@ -186,18 +186,30 @@ workflow_lookup_run_row() {
 # under two different `generated_at` values, which can only happen if the run
 # artifact changed after the first ingest (the immutable-run rule forbids it).
 # Which row C-2 should judge is then a human decision, not a guess.
-workflow_require_single_run_row() {
-  local name="$1" ids count
+# Sets WORKFLOW_RUN_ROW_COUNT and WORKFLOW_RUN_ROW_IDS (space separated, sorted)
+# for the Run rows of one directory name, from the unpaginated run list. Any
+# answer other than a 200 with the expected JSON stops the caller.
+WORKFLOW_RUN_ROW_COUNT=0
+WORKFLOW_RUN_ROW_IDS=""
+workflow_count_run_rows() {
+  local name="$1"
   workflow_validate_run_id "${name}"
   workflow_get "/api/runs"
   [[ "${WORKFLOW_HTTP_CODE}" == "200" ]] \
     || workflow_die "run list returned HTTP ${WORKFLOW_HTTP_CODE}: ${BIDOPS_WORKFLOW_WEB_URL}/api/runs"
-  ids="$(jq -er --arg base "${name}" \
+  WORKFLOW_RUN_ROW_IDS="$(jq -er --arg base "${name}" \
     '[.items[].run_id | select(. == $base or startswith($base + "--"))] | sort | join(" ")' \
     <<<"${WORKFLOW_HTTP_BODY}")" \
     || workflow_die "run list is not the expected JSON: ${BIDOPS_WORKFLOW_WEB_URL}/api/runs"
   # Arithmetic strips the leading blanks BSD wc prints (macOS host, ADR-0072).
-  count="$(( $(wc -w <<<"${ids}") ))"
+  WORKFLOW_RUN_ROW_COUNT="$(( $(wc -w <<<"${WORKFLOW_RUN_ROW_IDS}") ))"
+}
+
+workflow_require_single_run_row() {
+  local name="$1" ids count
+  workflow_count_run_rows "${name}"
+  ids="${WORKFLOW_RUN_ROW_IDS}"
+  count="${WORKFLOW_RUN_ROW_COUNT}"
   case "${count}" in
     1) return 0 ;;
     0) workflow_die "the run list has no Run row for ${name} although the run lookup answered 200" ;;

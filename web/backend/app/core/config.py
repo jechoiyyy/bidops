@@ -321,6 +321,12 @@ class Settings(BaseSettings):
     # 켜도 활성 policy 버전의 DB 스위치가 켜져 있어야 실행된다.
     c2_daily_trigger_enabled: bool = Field(default=False, validation_alias="BIDOPS_C2_DAILY_TRIGGER_ENABLED")
     c2_worker_stale_seconds: int = Field(default=900, validation_alias="BIDOPS_C2_WORKER_STALE_SECONDS")
+    # `대기` C-2 실행의 최대 체류 시간(초). 넘기면 진행 중(heartbeat가 c2_worker_stale_seconds 안)인
+    # 실행이 하나도 없을 때 워커 claim·실행 생성 요청이 `중단됨`+`stale_queued`로 닫는다. 0은 끔.
+    # 기본 4시간: 정상 대기(앞선 C-2 한 건 약 26분은 heartbeat로 보호, GPU 휴지 ≤300초, claim 중이던
+    # 다른 분석 작업 한 건)보다 넉넉하고, 일일 스크립트가 "워커가 없을 수 있다"고 비0으로 끝나는
+    # 경과(폴링 7200초의 2배)와 같으며, 하루 주기(24시간)보다 짧아 다음 날 생성 요청이 닫는다.
+    c2_queued_max_dwell_seconds: int = Field(default=14400, validation_alias="BIDOPS_C2_QUEUED_MAX_DWELL_SECONDS")
     c2_response_retention_days: int = Field(default=30, validation_alias="BIDOPS_C2_RESPONSE_RETENTION_DAYS")
     prespec_attachment_worker_concurrency: int = Field(
         default=1, validation_alias="BIDOPS_PRESPEC_ATTACHMENT_WORKER_CONCURRENCY"
@@ -420,6 +426,13 @@ class Settings(BaseSettings):
             self.c2_merge_script = self.bidops_root / "skills/bidops-screen/scripts/build_order_plan_screening_results.py"
         if self.c2_worker_stale_seconds < 1 or self.c2_response_retention_days < 1:
             raise ValueError("C-2 worker limits must be positive")
+        if self.c2_queued_max_dwell_seconds < 0 or (
+            0 < self.c2_queued_max_dwell_seconds < self.c2_worker_stale_seconds
+        ):
+            raise ValueError(
+                "BIDOPS_C2_QUEUED_MAX_DWELL_SECONDS must be 0 (disabled) or at least "
+                "BIDOPS_C2_WORKER_STALE_SECONDS"
+            )
         if not (
             math.isfinite(self.gpu_busy_limit_seconds)
             and math.isfinite(self.gpu_rest_seconds)
