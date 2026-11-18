@@ -10,6 +10,8 @@ import { api } from "../lib/api";
 import type { WorkloadKey } from "../lib/types";
 import { formatNumber } from "../lib/format";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
+import { DailyRunStatusLine } from "../components/operations/DailyRunStatusLine";
+import { goNoGoReviewTotalQuery, orderPlanViewTotalQuery, preSpecDefaultViewTotalQuery } from "../lib/defaultViewCounts";
 import { LinkButton, Small } from "../components/dashboard/DashboardPrimitives";
 import { HoldReviewPanel } from "../components/dashboard/HoldReviewPanel";
 import {
@@ -87,6 +89,13 @@ function DashboardWorkspace() {
     staleTime: 60_000,
   });
 
+  // 업무 타일의 건수는 **링크한 목록의 기본 보기**와 같은 정의다(설계고도화안 C-1·A-6).
+  // 목록 API의 `total`(또는 같은 판정 함수)을 쓰며 화면이 다른 정의로 다시 세지 않는다.
+  const relevantPlanQuery = useQuery(orderPlanViewTotalQuery("relevant"));
+  const uncertainPlanQuery = useQuery(orderPlanViewTotalQuery("uncertain"));
+  const preSpecViewQuery = useQuery(preSpecDefaultViewTotalQuery());
+  const goNoGoViewQuery = useQuery(goNoGoReviewTotalQuery());
+
   const workloadItem = (key: WorkloadKey) => (workloadQuery.isSuccess
     ? workloadQuery.data.items.find(entry => entry.key === key)
     : undefined);
@@ -110,10 +119,19 @@ function DashboardWorkspace() {
     void workloadQuery.refetch(); void deadlineQuery.refetch(); void decisionQuery.refetch();
     void overviewFailedQuery.refetch(); void overviewAttentionQuery.refetch(); void blockingQuery.refetch();
     void holdReviewQuery.refetch(); void newPlanQuery.refetch();
+    void relevantPlanQuery.refetch(); void uncertainPlanQuery.refetch(); void preSpecViewQuery.refetch(); void goNoGoViewQuery.refetch();
   };
   const isRefreshing = workloadQuery.isFetching || deadlineQuery.isFetching || decisionQuery.isFetching
     || overviewFailedQuery.isFetching || overviewAttentionQuery.isFetching || blockingQuery.isFetching
-    || holdReviewQuery.isFetching || newPlanQuery.isFetching;
+    || holdReviewQuery.isFetching || newPlanQuery.isFetching
+    || relevantPlanQuery.isFetching || uncertainPlanQuery.isFetching || preSpecViewQuery.isFetching || goNoGoViewQuery.isFetching;
+  /** 목록 total 한 개. 못 받으면 0이 아니라 `미확인`이다. */
+  const listCount = (query: { isPending: boolean; isError: boolean; data?: number }) => (query.isPending ? "확인 중" : query.isError || query.data === undefined ? "미확인" : `${formatNumber(query.data)}건`);
+  const goNoGoNote = goNoGoViewQuery.isPending
+    ? "검토 대상 확인 중"
+    : goNoGoViewQuery.isError || !goNoGoViewQuery.data
+      ? "검토 대상 미확인"
+      : `검토 대상 ${formatNumber(goNoGoViewQuery.data.count)}건${goNoGoViewQuery.data.complete ? "" : " · 받은 범위 기준"}`;
 
   // 한 출처라도 실패하면 이 패널의 목록이 완전하다고 말할 수 없으므로 패널째 실패로 적는다.
   const humanCheckState = {
@@ -127,12 +145,14 @@ function DashboardWorkspace() {
       <Button label="새로고침" size="sm" variant="ghost" icon={<RefreshCw aria-hidden="true" />} isDisabled={isRefreshing} onClick={refresh} />
       <LinkButton label="실행 상태" to="/run-status" icon={<Activity aria-hidden="true" />} secondary />
     </div></PageHeaderActions>
+    {/* "어제 일일 실행이 돌았는가"(설계고도화안 A-5). 스케줄이 있다고 말하지 않고 마지막 실행 사실만 적는다. */}
+    <DailyRunStatusLine />
     <nav className="dash-journey-strip" aria-label="업무 바로가기 · 회차와 무관한 누적 업무">
       {[
-        ["01", "발주계획", "추적할 후보 선택", `${workloadNote("order_plan_pending", "검토 후보")} · 새로 ${workloadValue("order_plan_new_priority")}`, "/order-plans"],
-        ["02", "사전규격", "검토 결과·추적 여부 확인", workloadNote("pre_spec_deep_review_ready", "결정 대기"), "/pre-specs?workspace=all&auto_preparation_status=deep_review_ready_for_click&sw_only=false&sort=deadline"],
-        ["03", "사업 추적", "연결·예외 사항 확인", workloadNote("tracking_action_required", "조치 필요"), "/opportunities?section=조치 필요"],
-        ["04", "최종 Go/No-Go", "입찰 참여 여부 결정", workloadNote("bid_final_decision_pending", "결정 대기"), "/go-no-go"],
+        ["01", "발주계획", "추적할 후보 선택", `관련 ${listCount(relevantPlanQuery)} · 불확실 ${listCount(uncertainPlanQuery)} · 새로 ${workloadValue("order_plan_new_priority")}`, "/order-plans"],
+        ["02", "사전규격", "검토 결과·추적 여부 확인", `검토할 항목 ${listCount(preSpecViewQuery)} · 마감 전·미확인`, "/pre-specs"],
+        ["03", "사업기회", "연결·예외 사항 확인", workloadNote("tracking_action_required", "조치 필요"), "/opportunities"],
+        ["04", "최종 Go/No-Go", "입찰 참여 여부 결정", goNoGoNote, "/go-no-go"],
       ].map(([step, title, action, note, to]) => <Link key={step} className="dash-journey-item" to={to}>
         <div className="dash-row dash-spread"><div className="dash-row"><Small>{step}</Small><Text weight="semibold" className="dash-journey-title">{title}</Text></div><ArrowUpRight aria-hidden="true" /></div>
         <Text>{action}</Text><Small>{note}</Small>
@@ -146,7 +166,7 @@ function DashboardWorkspace() {
         footCount={workloadNote("tracking_deadline_imminent", "마감 임박", "")} />
       <FinalDecisionPanel data={decisionQuery.data} now={now}
         state={{ isPending: decisionQuery.isPending, isError: decisionQuery.isError, onRetry: () => { void decisionQuery.refetch(); } }}
-        footBasis="입찰 마감순" footCount={workloadNote("bid_final_decision_pending", "결정 없음", "")} />
+        footBasis="입찰 마감순" footCount={goNoGoNote} />
       <HumanCheckPanel failed={overviewFailedQuery.data} attention={overviewAttentionQuery.data} blocking={blockingQuery.data}
         state={humanCheckState}
         footBasis={`개요 실패·확인 필요 ${workloadValue("overview_human_review")} · 공고별 확인 항목 ${workloadValue("blocking_items_open")}`}

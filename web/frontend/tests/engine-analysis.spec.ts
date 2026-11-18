@@ -281,3 +281,15 @@ test("normal prespec retries frozen receipt after ready bundle becomes a new dra
   await panel.getByText("실행 식별 정보", { exact: true }).click();
   await expect(panel).toContainText(receiptId);
 });
+
+// 설계고도화안 C-4: 운영 회사 근거가 없는 환경에서는 실패 문구가 아니라 꺼진 사실을 먼저 말하고 요청 단추를 두지 않는다.
+test("운영 회사 근거가 없으면 사전규격 상세의 엔진 패널은 요청 전에 꺼짐을 말한다", async ({ page }) => {
+  await mockApi(page);
+  await mockPreSpecs(page);
+  await mockRealCompany(page, { notRegistered: true });
+  await page.goto("/pre-specs/991");
+  const off = page.getByTestId("engine-analysis-off");
+  await expect(off).toContainText("이 환경에서 꺼져 있음 — 운영 회사 근거가 등록되지 않아");
+  await expect(off.getByRole("button")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "mock 참조 실행" })).toHaveCount(0);
+});

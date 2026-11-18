@@ -2273,6 +2273,13 @@ export interface WorkloadItem {
   count: number | null;
   unavailable_reason: string | null;
 }
+/** `GET /api/feature-flags`(contracts.md "기능 스위치", 2026-11-18). 참·거짓만 싣는다. */
+export interface FeatureFlagsResponse {
+  schema_version: "feature-flags.v1";
+  rl_analysis: boolean;
+  prespec_overview: boolean;
+}
+
 export interface WorkloadResponse {
   generated_at: string;
   items: WorkloadItem[];

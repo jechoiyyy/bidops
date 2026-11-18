@@ -195,41 +195,6 @@ body {
   letter-spacing: 0;
 }
 
-/* 검색 자리(⌘K). 커맨드 팔레트 전까지 비활성이다. */
-.app-shell[data-astryx-theme="bidops"] .sidebar-search {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  margin: 0 0 var(--spacing-2);
-  padding: var(--spacing-1) var(--spacing-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-inner);
-  color: var(--color-text-disabled);
-  background: var(--color-background-surface);
-  box-shadow: 0 1px 1px rgb(0 0 0 / 3%);
-  font-size: var(--bo-type-body);
-  text-align: left;
-  cursor: default;
-}
-
-.app-shell[data-astryx-theme="bidops"] .sidebar-search svg {
-  flex: 0 0 15px;
-  width: 15px;
-  height: 15px;
-}
-
-.app-shell[data-astryx-theme="bidops"] .sidebar-search kbd {
-  margin-left: auto;
-  padding: 0 var(--spacing-1);
-  border: 1px solid var(--color-border-emphasized);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  color: var(--color-text-secondary);
-  background: var(--color-background-surface);
-  font-family: inherit;
-  font-size: var(--bo-type-caption);
-}
-
 .app-shell[data-astryx-theme="bidops"] .sidebar-nav {
   display: flex;
   flex: 1;
@@ -295,15 +260,6 @@ body {
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-item.is-active svg {
   color: var(--color-icon-primary);
-}
-
-.app-shell[data-astryx-theme="bidops"] .sidebar-item.is-disabled {
-  color: var(--color-text-disabled);
-  cursor: default;
-}
-
-.app-shell[data-astryx-theme="bidops"] .sidebar-item.is-disabled:hover {
-  background: transparent;
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-item-label {

@@ -64,3 +64,28 @@
 .operations-dialog-confirm:hover { border-color: var(--color-warning); color: var(--color-white); background: var(--color-alert); }
 .operations-dialog-confirm:disabled,
 .operations-dialog-cancel:disabled { cursor: not-allowed; border-color: transparent; color: var(--color-muted); background: transparent; box-shadow: none; opacity: 1; }
+
+/* 발주계획 일일 실행 한 줄(설계고도화안 A-5). 대시보드와 발주계획 판정 기준 화면이 같이 쓴다.
+ * 색만으로 상태를 말하지 않는다 — 배지 글자(`정상`·`확인 필요`)와 문장이 함께 선다. */
+.daily-run-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1) var(--spacing-3);
+  margin: 0;
+  min-width: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-surface);
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-body);
+  line-height: 1.5;
+}
+.daily-run-line.is-warning { border-color: var(--color-warning-edge); }
+.daily-run-facts { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: var(--spacing-1) var(--spacing-2); min-width: 0; }
+.daily-run-title { font-weight: var(--font-weight-semibold); }
+.daily-run-fact + .daily-run-fact::before { content: "·"; margin-right: var(--spacing-2); color: var(--color-text-secondary); }
+.daily-run-title + .daily-run-fact::before { content: "·"; margin-right: var(--spacing-2); color: var(--color-text-secondary); }
+.daily-run-problem { flex-basis: 100%; color: var(--color-warning); }
+.daily-run-link { margin-left: auto; color: var(--color-accent); font-size: var(--bo-type-caption); white-space: nowrap; }

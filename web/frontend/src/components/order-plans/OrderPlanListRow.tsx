@@ -7,7 +7,9 @@ import type { OrderPlanListItem } from "../../lib/types";
 import {
   budgetValue,
   formatKstDateShort,
+  hasNoModelJudgment,
   humanFeedbackBadgeLabel,
+  NO_MODEL_JUDGMENT_LABEL,
   plannedTiming,
   qwenBadgeVariant,
   qwenRowLabel,
@@ -108,6 +110,9 @@ export function OrderPlanListRow({
           <span className="c2l-row-state">
             {/* 모델 판단은 이 목록을 훑는 이유이므로 행마다 같은 자리에서 읽힌다. */}
             <Badge className="c2l-row-model" variant={qwenBadgeVariant(item)} label={qwenRowLabel(item)} />
+            {/* 배치 실패 등으로 모델 판정이 없는 건은 비관련이 아니다. 사람이 직접 봐야 한다는
+                사실을 이유 배지 옆에 글자로 남긴다(설계고도화안 A-6). */}
+            {hasNoModelJudgment(item) ? <Badge className="c2l-row-no-judgment" variant="warning" label={NO_MODEL_JUDGMENT_LABEL} /> : null}
             {/* 추적 결정 칩(M5 ① 승인). 모델 판단 바로 옆에 붙어 "이 건을 이미 집었는가"를
                 같은 눈길에서 읽게 한다. 사람의 결정이므로 성공·실패 의미색을 쓰지 않고
                 중립으로 둔다 — 보류·종료가 실패로, 계속 추적이 성공으로 읽히면 안 된다.

@@ -63,6 +63,7 @@ import {
   OTHER_REASON,
   TRACKING_REASONS,
   formatMoment,
+  NO_MODEL_JUDGMENT_LABEL,
   textOrUnknown,
   trackingAvailability,
 } from "../components/order-plans/orderPlanFormat";
@@ -136,20 +137,25 @@ interface Preset {
 }
 
 /**
- * 기본 보기 "추적을 정하지 않은 관련 건"(spec §7)은 기존 두 축의 조합이다 — 모델 판단
- * `relevant`·`uncertain` AND 추적 상태 `미선택`. 대시보드 `order_plan_pending`이 누적 모드에서
- * 세는 조건(`qwen_relevance=relevant,uncertain`·`tracking_status=미선택`, contracts.md)과 같다.
- * `stage1_status=selected`는 따로 걸지 않는다 — Qwen relevance가 있는 행은 BM25 선정 행뿐이다.
+ * 기본 보기는 `관련` 탭이다(2026-11-18 설계고도화안 A-6). 모델 판단 `relevant` AND 추적 상태
+ * `미선택`. 이전 기본 보기는 `relevant`·`uncertain`을 한 목록에 섞어 하루 검토량이 임계 80건을
+ * 넘었다 — 모델 판정·정책은 그대로 두고 **보기만 나눈다**. `불확실`(모델 `uncertain`, 화면 라벨
+ * `판단 보류`)은 바로 옆 탭이며, 두 탭의 합은 대시보드 `order_plan_pending`(관련·불확실 AND
+ * 미선택, contracts.md)과 같다. 옛 `검토 대상` 탭이 URL에 적던 축(`qwen=relevant,uncertain&
+ * tracking=미선택`)과 저장된 뷰는 그대로 같은 행을 보인다 — 탭 이름만 없어졌다.
+ * `stage1_status=selected`는 따로 걸지 않는다 — 모델 relevance가 있는 행은 BM25 선정 행뿐이다.
  */
-const DEFAULT_VIEW_AXES: FilterAxes = { qwen: ["relevant", "uncertain"], stage1: [], feedback: [], tracking: ["미선택"], issue: false };
+const DEFAULT_VIEW_AXES: FilterAxes = { qwen: ["relevant"], stage1: [], feedback: [], tracking: ["미선택"], issue: false };
+const UNCERTAIN_VIEW_AXES: FilterAxes = { qwen: ["uncertain"], stage1: [], feedback: [], tracking: ["미선택"], issue: false };
 
 const PRESETS: Preset[] = [
-  { key: "review", label: "검토 대상", description: "추적을 정하지 않은 관련 건", axes: DEFAULT_VIEW_AXES },
+  { key: "relevant", label: "관련", description: "모델 판단 관련 · 추적을 정하지 않은 건", axes: DEFAULT_VIEW_AXES },
+  { key: "uncertain", label: "불확실", description: "모델 판단 보류(불확실) · 추적을 정하지 않은 건", axes: UNCERTAIN_VIEW_AXES },
   { key: "all", label: "전체", description: "누적 또는 선택한 수집 회차 전체", axes: { qwen: [], stage1: [], feedback: [], tracking: [], issue: false } },
   /* 탭 이름은 사람 말이고 `key`와 URL 값은 그대로다(시안 M3 결정 2 승인) — 저장된 뷰와
      북마크가 그대로 살아 있어야 한다. */
   { key: "bm25-filtered-out", label: "1차 선별 제외", description: "1차 선별에서 제외된 건", axes: { qwen: [], stage1: ["filtered_out"], feedback: [], tracking: [], issue: false } },
-  { key: "failure", label: "선별 실패", description: "1차 선별 또는 모델 판정이 실패·거부된 건", axes: { qwen: [], stage1: [], feedback: [], tracking: [], issue: true } },
+  { key: "failure", label: "선별 실패", description: `1차 선별 또는 모델 판정이 실패·거부된 건 · ${NO_MODEL_JUDGMENT_LABEL}`, axes: { qwen: [], stage1: [], feedback: [], tracking: [], issue: true } },
 ];
 
 interface SavedView {
@@ -1374,7 +1380,7 @@ export function OrderPlansPage() {
   const filterMeaning = (() => {
     const window = firstObservedFrom ? firstObservedLabel(firstObservedFrom) : null;
     if (isDefaultView) {
-      const base = "기본 보기 · 추적을 정하지 않은 관련 건 (모델 판단 관련·판단 보류 AND 추적 미선택)";
+      const base = "기본 보기 · 관련 (모델 판단 관련 AND 추적 미선택)";
       return window ? `${base} AND ${window}` : base;
     }
     const parts: string[] = [];
@@ -1800,14 +1806,19 @@ export function OrderPlansPage() {
                   />
                 </div>
               ) : visibleItems.length === 0 && isDefaultView && total === 0 ? (
-                /* A4: 기본 보기(검토 대상)가 0건이면 "다 처리했다"는 사실과 종료한 건·
-                   전체 보기로 가는 길을 함께 준다. 다른 preset·검색 0건은 그대로 둔다. */
+                /* A4: 기본 보기(관련)가 0건이면 "다 처리했다"는 사실과 다음 길을 함께 준다.
+                   불확실 건이 남아 있으면 그 탭이 먼저다 — 관련이 0건이라고 검토가 끝난 것이
+                   아니다. 다른 preset·검색 0건은 그대로 둔다. */
                 <div className="c2l-list-empty">
                   <EmptyState
                     compact
-                    title="검토할 발주계획이 없습니다"
-                    description="추적을 정하지 않은 관련 건을 모두 처리했습니다."
-                    action={{ label: "종료한 건 보기", onClick: viewEndedTracking }}
+                    title="관련 발주계획을 모두 처리했습니다"
+                    description={(presetCounts.get("uncertain") ?? 0) > 0
+                      ? `추적을 정하지 않은 관련 건이 없습니다. 불확실 ${formatCount(presetCounts.get("uncertain") ?? 0)}건이 남아 있습니다.`
+                      : "추적을 정하지 않은 관련 건이 없습니다."}
+                    action={(presetCounts.get("uncertain") ?? 0) > 0
+                      ? { label: "불확실 보기", onClick: () => applyPreset("uncertain") }
+                      : { label: "종료한 건 보기", onClick: viewEndedTracking }}
                     secondaryAction={{ label: "전체 보기로 전환", onClick: () => applyPreset("all") }}
                   />
                 </div>

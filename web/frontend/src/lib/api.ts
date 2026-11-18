@@ -7,6 +7,7 @@ import type {
   OpportunityTrackingDecisionsResponse,
   OpportunityDeepReviewsResponse,
   WorkloadResponse,
+  FeatureFlagsResponse,
   OrderPlanScreeningExecutionCreateRequest,
   OrderPlanScreeningExecutionCreateResponse,
   OrderPlanScreeningExecutionStopRequest,
@@ -895,6 +896,8 @@ export function toPageOverviewResponse(envelope: OverviewEnvelope): PageOverview
 
 export const api = {
   getWorkload: (options?: ReadRequestOptions) => request<WorkloadResponse>("/workload", options),
+  /** `GET /api/feature-flags` — 환경 스위치의 참·거짓만(contracts.md "기능 스위치"). */
+  getFeatureFlags: (options?: ReadRequestOptions) => request<FeatureFlagsResponse>("/feature-flags", options),
 
   /** RL-01 가장 최근 브리핑. 없으면 404 `briefing_not_found`. */
   getLatestBriefing: (options?: ReadRequestOptions) => request<BriefingView>("/briefings/latest", options),

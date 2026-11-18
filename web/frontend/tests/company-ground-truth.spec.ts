@@ -114,7 +114,7 @@ test("T8: 세 수치는 사실 건수와 같고 확인이 필요한 것은 추�
   await expect(page.getByRole("heading", { name: /지금 확인하면 판정이 바뀌는 것/ })).toBeVisible();
 
   // 읽기 전용: 상단 안내 한 줄, 맞음·수정·입력·저장 버튼과 영향 공고 열은 없다.
-  await expect(page.locator(".co-notice")).toHaveText("값 수정은 회사 파일을 고쳐 다시 등록합니다(설정 › 도움말)");
+  await expect(page.locator(".co-notice")).toHaveText("값 수정은 회사 파일을 고쳐 다시 등록합니다(운영 담당자가 등록 절차를 수행)");
   for (const name of ["맞음", "수정", "입력", "저장"]) {
     await expect(page.getByRole("button", { name: new RegExp(`^${name}`) })).toHaveCount(0);
   }
@@ -322,7 +322,9 @@ test("T8: 사이드바 회사 근거는 /company로 가고 건수와 워크스�
 
 test("T8: 실회사가 없거나 활성 버전이 없으면 수치를 0으로 적지 않고 이유를 말한다", async ({ page }) => {
   await openCompany(page, "", { notRegistered: true });
-  await expect(page.getByRole("alert")).toContainText("등록된 회사가 없습니다");
+  // 실패가 아니라 "이 환경에서 꺼져 있음"으로 먼저 말한다(설계고도화안 C-4).
+  await expect(page.getByText("회사 근거 · 이 환경에서 꺼져 있음")).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(page.getByTestId("company-count-confirmed")).toHaveCount(0);
   await expect(page.locator("aside.sidebar .sidebar-brand strong")).toHaveText("BidOps");
   await expect(page.locator("aside.sidebar").getByRole("link", { name: "회사 근거", exact: true }).locator(".sidebar-item-count")).toHaveCount(0);

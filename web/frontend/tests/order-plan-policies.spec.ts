@@ -1,3 +1,4 @@
+import { dailyPlanExecutionFixture, dailyPlanRunFixture, mockDailyPlanRun } from "./api-mock";
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { mockApi } from "./api-mock";
 
@@ -396,5 +397,28 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       expect(detailOverflow).toBeLessThanOrEqual(0);
       await page.screenshot({ path: testInfo.outputPath(`order-plan-policies-${viewport.width}.png`), animations: "disabled" });
     });
+  });
+}
+
+// 설계고도화안 A-5: 스위치 줄은 앞날(일정)을 약속하지 않고, 마지막으로 실제로 돈 일일 실행을 적는다.
+for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
+  test(`켜진 스위치는 일정을 약속하지 않고 마지막 일일 실행 사실을 적는다 ${viewport.width}`, async ({ page }, info) => {
+    await page.setViewportSize(viewport);
+    await page.clock.setFixedTime(new Date("2026-11-18T03:00:00Z"));
+    const run = dailyPlanRunFixture("2026-11-17", "2026-11-17T22:10:00Z");
+    await open(page, `/order-plan-policies?c2policy=${ACTIVE}`, { switchEnabled: true, reasons: [], effective: true });
+    await mockDailyPlanRun(page, run, [dailyPlanExecutionFixture(run.run_id, { status: "성공", queued_at: "2026-11-17T22:20:00Z" })]);
+    await page.reload();
+    await waitForDetail(page, ACTIVE);
+    const row = page.getByTestId("daily-trigger-row");
+    await expect(row).toContainText("자동 실행 켜짐");
+    await expect(row).toContainText("스위치는 예약된 일일 스크립트가 이 버전으로 실행하는 것을 허용할 뿐입니다");
+    await expect(row).not.toContainText("다음 일일 스크립트가");
+    const line = row.getByTestId("daily-run-status");
+    await expect(line).toHaveAttribute("data-state", "ok");
+    await expect(line).toContainText("마지막 수집 11월 18일 (기준일 11-17)");
+    await expect(line).toContainText("C-2 성공");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+    await page.screenshot({ path: info.outputPath(`order-plan-policy-${viewport.width}.png`) });
   });
 }

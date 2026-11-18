@@ -104,7 +104,7 @@ export function DeadlineImminentPanel({ data, state, footBasis, footCount, now, 
   // 링크는 패널의 목록 호출과 **같은 조건**을 사업 추적 화면에 그대로 넘긴다(S1).
   // 구역은 `전체`로 연다 — 그 화면의 기본 구역(`조치 필요`)이 걸리면 다른 집합이 된다.
   const to = `/opportunities?section=${ALL_SECTION}&deadline_within_days=${windowDays}&sort=deadline`;
-  return <WorkPanel title="마감 임박 추적 건" to={to} linkLabel="사업 추적" state={state} rows={rows}
+  return <WorkPanel title="마감 임박 추적 건" to={to} linkLabel="사업기회" state={state} rows={rows}
     emptyTitle="7일 이내 마감인 추적 건이 없습니다" errorTitle="마감 임박 추적 건을 불러오지 못했습니다"
     footBasis={footBasis} footCount={footCount} />;
 }

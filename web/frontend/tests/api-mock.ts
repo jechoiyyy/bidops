@@ -4823,3 +4823,68 @@ export async function mockOpportunityRecord(page: Page): Promise<OpportunityReco
   });
   return trace;
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// 일일 발주계획 실행 한 줄(설계고도화안 A-5)과 기능 스위치(C-4)의 가짜.
+//
+// - 회차: 실제 `GET /api/runs`의 `RunSummary`와 같은 모양이며 id는 일일 스크립트의 디렉터리
+//   `lifecycle-<기준일>-plans`에 `--<generated_at>Z`를 붙인 정규 id다(CLAUDE.md "회차 Run의
+//   기본키"). 공용 회차 목록 뒤에 덧붙여 다른 화면의 기본 회차를 바꾸지 않는다.
+// - 실행: `GET /api/order-plan-screening/executions?source_run_id=`의 `execution-list-response.v2`.
+//   항목 모양은 `c2Execution`(screening `ExecutionSummary`와 같은 필드)이다.
+// - 기능 스위치: `app/main.py` `GET /api/feature-flags`와 같은 세 키다.
+// ─────────────────────────────────────────────────────────────────────────
+
+export function dailyPlanRunFixture(basisDate: string, generatedAt: string): RunSummary {
+  const stamp = generatedAt.replace(/[-:]/g, "").replace(/\.\d+Z$|Z$/, "");
+  return {
+    kind: "order_plans",
+    run_id: `lifecycle-${basisDate.replace(/-/g, "")}-plans--${stamp}.000000Z`,
+    window_from: basisDate,
+    window_to: basisDate,
+    timezone: "Asia/Seoul",
+    generated_at: generatedAt,
+    screening_basis: null,
+    status: "active",
+    superseded_by: null,
+    counts: { notices: 0, judgments: 0, reviews: 0, collection: { total: 1200 } },
+  };
+}
+
+export function dailyPlanExecutionFixture(sourceRunId: string, overrides: Partial<OrderPlanScreeningExecutionSummary> = {}): OrderPlanScreeningExecutionSummary {
+  return c2Execution({ source_run_id: sourceRunId, ...overrides });
+}
+
+export async function mockDailyPlanRun(
+  page: Page,
+  run: RunSummary | null,
+  executions: OrderPlanScreeningExecutionSummary[] = [],
+): Promise<void> {
+  await page.route("**/api/runs", async (route) => {
+    if (route.request().method() !== "GET") { await route.fallback(); return; }
+    const defaultRuns = (responses["/api/runs"] as { items?: RunSummary[] } | undefined)?.items ?? [];
+    const items = [...defaultRuns, ...(run ? [run] : [])].sort((a, b) => b.generated_at.localeCompare(a.generated_at));
+    await fulfillJson(route, { items, total: items.length });
+  });
+  await page.route((url) => url.pathname === "/api/order-plan-screening/executions", async (route) => {
+    const url = new URL(route.request().url());
+    const sourceRunId = url.searchParams.get("source_run_id");
+    if (route.request().method() !== "GET" || !run || sourceRunId !== run.run_id) { await route.fallback(); return; }
+    const items = executions.filter((item) => item.source_run_id === sourceRunId);
+    await fulfillJson(route, { schema_version: "execution-list-response.v2", producer: "screening-api", consumer: "human-review-client", items, total: items.length, limit: Number(url.searchParams.get("limit") ?? 50), offset: 0 });
+  });
+}
+
+export async function mockFeatureFlags(page: Page, flags: { rl_analysis: boolean; prespec_overview: boolean }): Promise<void> {
+  await page.route("**/api/feature-flags", (route) => fulfillJson(route, { schema_version: "feature-flags.v1", ...flags }));
+}
+
+/** 991 사전규격의 개요 run이 아직 없는 상태(`overview_review_status=null`). 개요 꺼짐 안내 검사가 쓴다. */
+export async function mockPreSpecOverviewAbsent(page: Page): Promise<void> {
+  const base = visualPreSpecItems[0];
+  const item = { ...base, overview_review_status: null, display_assessment: { ...base.display_assessment, latest_run_status: null } };
+  await page.route((url) => url.pathname === "/api/pre-specs", async (route) => {
+    if (route.request().method() !== "GET") { await route.fallback(); return; }
+    await fulfillJson(route, { items: [item], total: 1, limit: 50, offset: 0, overview_status_counts: overviewStatusCounts([item]), workspace_counts: { actionable: 1, recent: 1, tracking: 1, all: 1 }, deadline_scope_counts: deadlineScopeCounts([item as PreSpecListItem]) });
+  });
+}

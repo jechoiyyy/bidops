@@ -1,3 +1,4 @@
+import { isGoNoGoReviewTarget } from "../lib/defaultViewCounts";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -154,19 +155,10 @@ interface DecisionRow extends Record<string, unknown> {
   id: number;
 }
 
-/**
- * 기본 검토 대상.
- *
- * 미결정만 남기면 **오래된 Go 결정**이 목록에서 사라진다. 새 차수로 현재성이
- * `stale`이 된 결정과 현재성 `unknown`은 담당자가 다시 봐야 하는 것이지 끝난 것이
- * 아니다. 결정이 없어도 입찰공고가 연결되지 않은 사업은 결정할 공고가 없으므로
- * 검토 대상에 올리지 않고 전체 보기에 남긴다.
- */
+/** 기본 검토 대상. 정의는 대시보드 타일과 같은 한 곳(`lib/defaultViewCounts.ts`)에 있다. */
 function isReviewTarget(row: DecisionRow): boolean {
-  if (!row.item.latest_final_decision) return row.item.bid_notice_external_id !== null;
-  return row.item.decision_currentness !== "current";
+  return isGoNoGoReviewTarget(row.item);
 }
-
 function isRecheckTarget(row: DecisionRow): boolean {
   return Boolean(row.item.latest_final_decision) && row.item.decision_currentness !== "current";
 }

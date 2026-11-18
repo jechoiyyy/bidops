@@ -2,7 +2,8 @@ import { Button } from "@astryxdesign/core/Button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { ApiError } from "../../lib/api";
-import { describeApiError } from "../../lib/apiErrors";
+import { describeApiError, describeCompanyApiError } from "../../lib/apiErrors";
+import { FEATURE_OFF_LABEL } from "../../lib/featureFlags";
 import { companyContextQueryKey, getCompanyContext } from "../../lib/companyApi";
 import { engineApi, engineKeys, type EngineEvidence, type EngineRun } from "../../lib/engineApi";
 import { formatDateTime } from "../../lib/format";
@@ -25,6 +26,10 @@ function EngineProblem({ error }: { error: unknown }) {
 export function CurrentCompanyEnginePanel({ noticeId, bundleId }: { noticeId: number; bundleId: string | null }) {
   const company = useQuery({ queryKey: companyContextQueryKey, queryFn: ({ signal }) => getCompanyContext({ signal }), retry: false });
   if (company.isPending) return <p role="status">엔진 분석의 회사 기준을 확인하는 중입니다.</p>;
+  // 운영 회사 근거가 없으면 실행할 수 없다. 실패 문구가 아니라 꺼진 사실로 먼저 말한다(설계고도화안 C-4).
+  if (company.isError && describeCompanyApiError(company.error, "").code === "company_not_registered") {
+    return <section className="engine-panel" data-testid="engine-analysis-off"><h3>분석 엔진 · mock 참조</h3><p>{FEATURE_OFF_LABEL} — 운영 회사 근거가 등록되지 않아 엔진 참조 실행을 요청할 수 없습니다.</p></section>;
+  }
   if (company.isError) return <section className="engine-panel"><h3>분석 엔진 · mock 참조</h3><EngineProblem error={company.error} /><Button label="회사 기준 다시 조회" onClick={() => { void company.refetch(); }} /></section>;
   if (!company.data) return null;
   const companyId = company.data.company.company_id;
