@@ -83,9 +83,9 @@
   flex: 0 0 38%;
   border-right: var(--border-width) solid var(--review-split-line);
   /* 탐색 두 화면이 같은 목록 글자 크기를 쓴다(ADR-0062 "목록 글자"). 사업명·발주기관은
-     본문보다 2px 큰 primary, 예산·상태·마감은 본문 크기인 secondary다. 페이지가 아니라
-     목록 pane이 소유하는 토큰이며 `:root`와 테마는 그대로다. */
-  --review-list-primary: calc(var(--bo-type-body) + var(--spacing-0-5));
+     본문보다 2px 큰 primary(목록 제목 단 16px), 예산·상태·마감은 본문 크기인
+     secondary다. 페이지가 아니라 목록 pane이 소유하는 토큰이며 `:root`와 테마는 그대로다. */
+  --review-list-primary: var(--bo-type-list-title);
   --review-list-secondary: var(--bo-type-body);
 }
 
@@ -302,24 +302,6 @@
   min-width: 0;
 }
 
-.review-control-selector {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-}
-
-.review-control-label {
-  flex: 0 0 auto;
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  font-weight: var(--font-weight-medium);
-  white-space: nowrap;
-}
-
-.review-control-selector .review-filter-selector {
-  flex: 1 1 auto;
-}
-
 .review-filter-bar .review-filter-selector,
 .review-filter-bar .review-filter-text-input {
   overflow-wrap: anywhere;
@@ -382,7 +364,9 @@
 .review-filter-bar .queue-search {
   display: flex;
   flex: 1 1 0;
-  min-width: 0;
+  /* 4px 격자 이행(2026-11-18)으로 옆 필터가 커지자 1280px에서 검색 칸이 8px까지
+     줄었다. 최소 폭을 두고 모자라면 필터 바(flex-wrap)가 다음 줄로 넘긴다. */
+  min-width: 160px;
   align-items: center;
   min-height: var(--size-element-lg);
   padding: 0;

@@ -391,12 +391,12 @@
   color: var(--color-text-secondary);
   font-size: var(--bo-type-caption);
   line-height: var(--bo-type-caption-leading);
-  max-width: calc(var(--spacing-6) * 9);
+  max-width: 216px;
 }
 
 .rec-composer .actor-field input,
 .rec-owner input {
-  min-height: calc(var(--spacing-6) * 1.25);
+  min-height: 28px;
   padding: 0 var(--spacing-2);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-inner);
@@ -406,11 +406,11 @@
 }
 
 .rec-composer .actor-field input {
-  width: calc(var(--spacing-6) * 6);
+  width: 144px;
 }
 
 .rec-owner input {
-  width: calc(var(--spacing-6) * 8);
+  width: 192px;
 }
 
 .rec-composer .actor-field input[aria-invalid="true"] {

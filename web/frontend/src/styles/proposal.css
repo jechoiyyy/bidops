@@ -40,8 +40,8 @@
 }
 
 .pp-actor .actor-field input {
-  width: calc(var(--spacing-6) * 6);
-  min-height: calc(var(--spacing-6) * 1.25);
+  width: 144px;
+  min-height: 28px;
   padding: 0 var(--spacing-2);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-inner);
@@ -427,7 +427,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-3);
-  max-width: calc(var(--spacing-12) * 6);
+  max-width: 288px;
 }
 
 .pp-progress-status {

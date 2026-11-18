@@ -674,7 +674,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
         onOpenChange={(next) => { if (!next) setDialog(null); }}
         padding={6}
         purpose="info"
-        width="calc(var(--spacing-12) * 11)"
+        width="528px"
       >
         <div className="opportunity-dialog-body">
           <DialogHeader onOpenChange={(next) => { if (!next) setDialog(null); }} title="추적 되돌리기" />
@@ -692,7 +692,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
         onOpenChange={(next) => { if (!next) setDialog(null); }}
         padding={6}
         purpose="form"
-        width="calc(var(--spacing-12) * 11)"
+        width="528px"
       >
         <div className="opportunity-dialog-body">
           <DialogHeader onOpenChange={(next) => { if (!next) setDialog(null); }} title="새 공고 신호 확인" />

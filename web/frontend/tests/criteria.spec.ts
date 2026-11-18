@@ -35,7 +35,8 @@ async function open(page: Page, path: string, options: CriteriaMockOptions = {})
 const workspace = (page: Page) => page.locator(".crit-workspace");
 const summary = (page: Page) => page.locator(".crit-summary");
 const detailFooter = (page: Page) => page.locator(".crit-detail-foot");
-const UI_SCALE = 0.9;
+// 2026-11-18 ×0.9 compact 축척을 없앴다. 시안 치수가 그대로 렌더된다.
+const UI_SCALE = 1;
 const physical = (logical: number) => logical * UI_SCALE;
 
 // ── 화면 골격과 탭 ────────────────────────────────────────────────────
@@ -550,15 +551,16 @@ for (const width of [1280, 1440]) {
     expect(geometry.strip).toBeCloseTo(physical(49), 0);
     expect(geometry.footer).toBeCloseTo(physical(57), 0);
     expect(geometry.tabs).toBeCloseTo(physical(37), 0);
-    expect(geometry.buttonFont).toBe("12.6px");
-    expect(geometry.listTitleFont).toBe("13.5px");
+    expect(geometry.buttonFont).toBe("14px");
+    expect(geometry.listTitleFont).toBe("16px");
     expect(geometry.listTitleWeight).toBe("600");
-    expect(geometry.detailTitleFont).toBe("18px");
+    // 상세 머리 제목은 `--bo-type-page-title`(16px)을 읽는다. 20px 상세 단으로 옮길지는 B-4에서 정한다.
+    expect(geometry.detailTitleFont).toBe("16px");
     // 각주는 두 폭 모두 한 줄이다. 두 줄이 되면 작업 영역이 그만큼 짧아진다.
     expect(geometry.boundaryLines).toBe(1);
-    expect(geometry.boundaryFont).toBe("10.8px");
-    // The native compact shell fills the viewport while preserving the former
-    // 90%-rendered bottom inset.
+    expect(geometry.boundaryFont).toBe("12px");
+    // The shell fills the viewport and keeps the reference bottom inset (37px,
+    // rendered 1:1 since the ×0.9 compact scale was removed on 2026-11-18).
     const viewportHeight = width === 1280 ? 800 : 900;
     expect(geometry.workspaceBottom).toBeCloseTo(viewportHeight - physical(37), 0);
   });

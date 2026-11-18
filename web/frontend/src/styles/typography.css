@@ -5,9 +5,12 @@
  * 이었고 섹션 제목·본문·캡션도 제각각이었다. 같은 역할의 글자가 화면마다 다른
  * 크기로 나오면 담당자는 "여기가 더 중요한가"를 매번 다시 판단해야 한다.
  *
- * 단은 넷뿐이다.
+ * 단은 넷이고 값은 모두 정수 px다(4px 격자 이행, 2026-11-18,
+ * docs/1118_launch-hardening/설계고도화안.md §4 B).
  *
- *   page-title    20px  페이지 `<h2>` (상단바 `<h1>`과 역할이 다르다)
+ *   detail-title  20px  상세 화면 제목(사전규격 상세 보고서 머리 등)
+ *   page-title    16px  화면·목록 페이지 `<h2>` (상단바 `<h1>`과 역할이 다르다)
+ *   list-title    16px  목록 첫 줄(사업명·발주기관·기준 이름). 시안의 15px 단이다
  *   section-title 14px  패널·섹션 `<h3>` — 크기가 아니라 굵기로 구분한다
  *   body          14px  본문
  *   caption       12px  보조·표 캡션. 이보다 작은 글자는 두지 않는다.
@@ -16,28 +19,35 @@
  * 제목을 `label`(14px medium)로 그리기 때문이다. 밀도를 지키라는 규칙
  * (`web/frontend/AGENTS.md` "UI 패턴")과도 같은 방향이다.
  *
- * **값이 px인 이유.** Astryx의 `--font-size-*`는 rem이고 이 앱의 root는 14px다
- * (`theme.css`의 `:root { font-size: ... }`). 기존 화면은 전역 zoom으로 이
- * 값을 물리적으로 90%로 그렸으므로, native 전환에서는 compact 토큰이 그
- * 물리값을 직접 소유한다. root의 rem 기반 Astryx 글꼴은 `theme.css`의
- * compact root 크기로 같은 결과를 얻는다.
+ * 크기는 12·14·16·20 네 가지뿐이다. 예전에는 목록 첫 줄만 쓰는 다섯째 크기
+ * (13.5px·14.4px)가 화면마다 다른 이름(`--crit-type-list`·`--rs-list-title`·
+ * `--review-list-primary`·`--bo-type-list`)으로 있었다. 지금은 모두 list-title을
+ * 가리킨다.
  *
- * 이 토큰은 기존 화면 밀도를 보존하기 위한 것이며 브라우저 확대 기능을
- * 대체하지 않는다. 화면별로 이 스케일을 벗어나야 하면 그 자리에 이유를
- * 주석으로 남긴다.
+ * **값이 px인 이유.** Astryx의 `--font-size-*`는 rem이고 이 앱의 root는 14px다
+ * (`theme.css`의 `:root { font-size: 14px }`). 화면 글자는 root에 기대지 않고
+ * 이 px 토큰을 직접 읽는다. 2026-11-18까지 있던 ×0.9 compact 축척
+ * (`--bo-ui-scale`)은 없앴으므로 이 값이 곧 렌더 크기다.
+ *
+ * 이 토큰은 브라우저 확대 기능을 대체하지 않는다. 화면별로 이 스케일을
+ * 벗어나야 하면 그 자리에 이유를 주석으로 남긴다.
  */
 :root {
-  --bo-type-page-title: calc(20px * var(--bo-ui-scale));
+  --bo-type-detail-title: 20px;
+
+  --bo-type-page-title: 16px;
   --bo-type-page-title-leading: 1.35;
   --bo-type-page-title-weight: 600;
 
-  --bo-type-section-title: calc(14px * var(--bo-ui-scale));
+  --bo-type-list-title: 16px;
+
+  --bo-type-section-title: 14px;
   --bo-type-section-title-leading: 1.4;
   --bo-type-section-title-weight: 600;
 
-  --bo-type-body: calc(14px * var(--bo-ui-scale));
+  --bo-type-body: 14px;
   --bo-type-body-leading: 1.5;
 
-  --bo-type-caption: calc(12px * var(--bo-ui-scale));
+  --bo-type-caption: 12px;
   --bo-type-caption-leading: 1.45;
 }

@@ -20,9 +20,9 @@
  */
 
 .crit-page {
-  /* 목록 첫 줄은 본문보다 한 단 크다(시안 `--bo-type-list: 15px`). 시안과 같은
-     방식으로 본문 토큰에서 계산한다. */
-  --crit-type-list: calc(var(--bo-type-body) + 0.9px);
+  /* 목록 첫 줄은 본문보다 한 단 크다(시안 `--bo-type-list: 15px`). 정수 척도의
+     목록 제목 단(16px, typography.css)을 읽는다. */
+  --crit-type-list: var(--bo-type-list-title);
 
   display: flex;
   flex-direction: column;
@@ -33,7 +33,7 @@
   /* pane 안에서만 스크롤한다. 페이지가 통째로 길어지면 상세 바닥의 고정 액션이
      화면 밖으로 밀린다(최종 Go/No-Go 화면과 같은 골격). */
   height: 100%;
-  min-height: calc(var(--spacing-12) * 14);
+  min-height: 604px;
   font-size: var(--bo-type-body);
   line-height: var(--bo-type-body-leading);
   color: var(--color-text-primary);
@@ -574,7 +574,7 @@
 .crit-dialog pre {
   margin: 0;
   padding: var(--spacing-3);
-  max-height: calc(var(--spacing-12) * 5);
+  max-height: 216px;
   overflow: auto;
   background: var(--color-background-body);
   white-space: pre-wrap;
@@ -645,7 +645,7 @@
 }
 
 .crit-state-body {
-  max-width: calc(var(--spacing-12) * 12);
+  max-width: 576px;
 }
 
 .crit-empty-inline {
@@ -716,7 +716,7 @@
 .crit-dialog-scroll {
   display: grid;
   gap: var(--spacing-4);
-  max-height: calc(var(--spacing-12) * 8);
+  max-height: 344px;
   overflow: auto;
   padding-right: var(--spacing-1);
 }

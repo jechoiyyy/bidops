@@ -141,7 +141,13 @@ test("1440px 셸의 팔레트 색과 기준 치수를 고정한다", async ({ pa
       // 1280px 미만은 별도 레이아웃이 아니라 가로 스크롤이다(ADR-0047).
       shellMinWidth: rootStyle.minWidth,
       bodyMinWidth: getComputedStyle(document.body).minWidth,
-      uiScale: Number.parseFloat(rootStyle.getPropertyValue("--bo-ui-scale")),
+      // 2026-11-18 ×0.9 compact 축척을 없앴다. 축척 토큰이 되살아나지 않고 루트 글꼴이
+      // 14px, Astryx 간격 토큰이 native 4px 격자 값인지 본다.
+      uiScale: rootStyle.getPropertyValue("--bo-ui-scale").trim(),
+      rootFontSize: getComputedStyle(document.documentElement).fontSize,
+      spacing1: rootStyle.getPropertyValue("--spacing-1").trim(),
+      spacing4: rootStyle.getPropertyValue("--spacing-4").trim(),
+      sizeElementMd: rootStyle.getPropertyValue("--size-element-md").trim(),
       rootZoom: getComputedStyle(document.documentElement).zoom,
       accentToken: rootStyle.getPropertyValue("--color-accent").trim(),
       // legacy @theme 이 :root 로 방출되어 테마를 이기던 토큰들.
@@ -159,7 +165,11 @@ test("1440px 셸의 팔레트 색과 기준 치수를 고정한다", async ({ pa
     brandBackground: "rgba(0, 0, 0, 0)", // 워크스페이스 줄은 면 없음
     topbarBackground: "rgb(255, 255, 255)",
     canvasBackground: "rgb(255, 255, 255)",
-    uiScale: 0.9,
+    uiScale: "",
+    rootFontSize: "14px",
+    spacing1: "4px",
+    spacing4: "16px",
+    sizeElementMd: "32px",
     rootZoom: "1",
   });
   // 사이드바 240px, 상단바 44px (ui-spec §1.1). Chromium can serialize fractional values differently.
@@ -189,7 +199,9 @@ test("1440px 셸의 팔레트 색과 기준 치수를 고정한다", async ({ pa
     const style = getComputedStyle(canvas);
     return [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft];
   });
-  expect(canvasPadding).toEqual(["10.8px", "16.2px", "14.4px", "16.2px"]);
+  // 4px 격자 이행(2026-11-18) 뒤의 기본값. 화면 전체 캔버스 여백 통일(상16·좌우24·하24)은
+  // B-4에서 다시 정한다(docs/1118_launch-hardening/설계고도화안.md §4).
+  expect(canvasPadding).toEqual(["12px", "16px", "16px", "16px"]);
 });
 
 // 제목 모드는 상단바가 화면의 시각 제목을 맡는다(ui-spec §1.3: 색 점 + 15px/600).

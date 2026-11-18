@@ -24,7 +24,7 @@
   /* pane 안에서만 스크롤한다. 페이지가 통째로 길어지면 상세 바닥의 고정 액션이
      화면 밖으로 밀린다(발주계획·사전규격·사업 추적 화면과 같은 골격). */
   height: 100%;
-  min-height: calc(var(--spacing-12) * 14);
+  min-height: 604px;
   font-size: var(--bo-type-body);
   line-height: var(--bo-type-body-leading);
   color: var(--color-text-primary);
@@ -494,7 +494,7 @@
 }
 
 .gng-comparison-picker .astryx-selector {
-  min-width: calc(var(--spacing-10) * 6);
+  min-width: 240px;
 }
 
 /* --- 결정 기록 탭 --- */

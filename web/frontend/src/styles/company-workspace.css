@@ -115,7 +115,7 @@
 /* 회사 사전규격 목록 */
 .cw-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, calc(var(--spacing-6) * 13));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 312px);
   align-items: start;
   gap: var(--spacing-4);
   min-width: 0;
@@ -181,7 +181,7 @@
 
 .cw-facts {
   display: grid;
-  grid-template-columns: calc(var(--spacing-6) * 4) minmax(0, 1fr);
+  grid-template-columns: 96px minmax(0, 1fr);
   gap: var(--spacing-1) var(--spacing-3);
   margin: 0;
 }
@@ -217,7 +217,7 @@
 
 .cw-tracking-form textarea {
   width: 100%;
-  min-height: calc(var(--spacing-6) * 3);
+  min-height: 64px;
   padding: var(--spacing-2);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-inner);
@@ -351,7 +351,7 @@
 }
 
 .kg-layout.has-panel {
-  grid-template-columns: minmax(0, 1fr) minmax(0, calc(var(--spacing-6) * 13));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 312px);
 }
 
 .kg-lists {
@@ -494,7 +494,7 @@
   display: grid;
   gap: var(--spacing-3);
   min-width: 0;
-  max-height: calc(100dvh - var(--spacing-6) * 4);
+  max-height: calc(100dvh - 88px);
   overflow: auto;
   padding: var(--spacing-3);
   border: var(--border-width) solid var(--color-border-emphasized);
@@ -579,7 +579,7 @@
 }
 
 .cw-filter-search input {
-  min-width: calc(var(--spacing-6) * 6);
+  min-width: 144px;
 }
 
 .cw-filter select:focus-visible,
@@ -665,7 +665,7 @@
 }
 
 .cw-attempt-meta {
-  grid-template-columns: calc(var(--spacing-6) * 3) minmax(0, 1fr);
+  grid-template-columns: 72px minmax(0, 1fr);
 }
 
 /* 3사 비교 */

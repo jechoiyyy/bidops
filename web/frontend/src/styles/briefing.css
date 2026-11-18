@@ -70,8 +70,8 @@
 }
 
 .briefing-actor .actor-field input {
-  width: calc(var(--spacing-6) * 6);
-  min-height: calc(var(--spacing-6) * 1.25);
+  width: 144px;
+  min-height: 28px;
   padding: 0 var(--spacing-2);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-inner);
@@ -105,7 +105,7 @@
 }
 
 .briefing-workspace.has-peek {
-  /* 피크 패널 폭은 시안의 물리 치수(320~360px)이며 compact spacing 배율을 받지 않는다. */
+  /* 피크 패널 폭은 시안의 물리 치수(320~360px)이며 spacing 토큰에서 파생하지 않는다. */
   grid-template-columns: minmax(0, 1fr) 336px;
 }
 
