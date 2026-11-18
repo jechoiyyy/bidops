@@ -44,6 +44,9 @@ export interface RouteRecordCrumb {
   label: (value: string) => string;
   /** 식별자 자체가 다른 화면을 가리킬 때만 있다(입찰 변경 비교의 사업기회). */
   to?: (value: string) => string;
+  /** 목록으로 돌아가는 화면 이름 칸이 이 레코드를 고른 채 열리게 할 때(`?selected=<id>`). 사업기회
+   *  레코드가 쓴다(설계고도화안 C-3). */
+  selectInList?: boolean;
   /** `before-screen`은 식별자가 이 화면의 **상위 레코드**일 때다.
    *  예: 입찰 변경 비교는 `사업기회 › #501 › 입찰 변경 비교`다. */
   placement: "leaf" | "before-screen";
@@ -169,7 +172,7 @@ export const routeMetadata = {
     navPath: "/opportunities",
     ancestors: [],
     listPath: "/opportunities",
-    record: { param: "opportunityId", label: (value) => `#${value}`, placement: "leaf" },
+    record: { param: "opportunityId", label: (value) => `#${value}`, placement: "leaf", selectInList: true },
   },
   orderPlans: {
     // 화면 제목은 `발주계획` 한 낱말이다(승인 시안). 제목 모드의 `<h1>`이 그 이름이다.
@@ -420,9 +423,12 @@ export function resolveRouteLocation(
     crumbs.push({ label: record.label, to: record.to, role: "ancestor" });
   }
   const trailingRecord = record && record.placement === "leaf" ? record : null;
+  const listTarget = trailingRecord && listPath && metadata.record?.selectInList && recordValue
+    ? `${listPath}?selected=${encodeURIComponent(recordValue)}`
+    : listPath;
   crumbs.push({
     label: metadata.title,
-    to: trailingRecord ? listPath : null,
+    to: trailingRecord ? listTarget : null,
     role: "screen",
     ...(trailingRecord && listPath === "/pre-specs" ? { context: "pre-spec-list" as const } : {}),
   });

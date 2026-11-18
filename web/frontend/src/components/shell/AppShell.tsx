@@ -65,14 +65,19 @@ export function AppShell({ demoEnabled = false }: { demoEnabled?: boolean }) {
     staleTime: 30_000,
   });
 
+  // 공고 상세(`/judgments/:noticePk`·`/queue/:noticePk`)를 회차 없이 연 링크는 상세가 자기 회차를
+  // 정한다(설계고도화안 C-5). 셸이 먼저 기본 회차를 박으면 그 회차 목록에 없는 공고가 다른 공고로
+  // 바뀌거나 남의 회차 맥락으로 보이므로, 주소에 회차가 없는 공고 상세에서는 기본 회차를 넣지 않는다.
+  const noticeDetailWithoutRun = Boolean(activeMatch?.params.noticePk) && !queryRunId;
   useEffect(() => {
+    if (noticeDetailWithoutRun) return;
     if (!runContextEnabled || runs.length === 0 || !selectedRunId || queryRunId === selectedRunId) return;
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.set("run", selectedRunId);
       return next;
     }, { replace: true });
-  }, [queryRunId, runContextEnabled, runs.length, selectedRunId, setSearchParams]);
+  }, [noticeDetailWithoutRun, queryRunId, runContextEnabled, runs.length, selectedRunId, setSearchParams]);
 
   const onRunChange = (runId: string) => {
     setSearchParams((current) => {
