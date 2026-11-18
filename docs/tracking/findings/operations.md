@@ -2,12 +2,12 @@
 
 [전체 색인](../findings.md). 미해결 또는 일부 조치 뒤 검증이 남은 항목이다. 제목의 날짜는 마지막 관측·기록 시점이며 2026-10-21에 다시 재현했다는 뜻이 아니다. 과거 기능명·정책·환경을 현재에 적용하기 전에 소스와 마지막 실행 증거를 확인한다.
 
-## 공고 날의 수집은 끝났는데 적재가 실패하면 그날이 조용히 빠졌다 (2026-11-18 독립 검증 B2, 코드 수정·운영 미반영)
+## 공고 날의 수집은 끝났는데 적재가 실패하면 그날이 조용히 빠졌다 (2026-11-18 독립 검증 B2, 코드 수정·운영 반영)
 
 - 재현: 공고 트랙에서 수집이 완결된 뒤 적재가 실패하거나 둘 사이에서 `timeout`(124)에 끊기면 완결 디렉터리만 남고
   web에는 `Run` 행이 없다. 누락일 감지는 공고 트랙에서 로컬 디렉터리만 봤고 `--catch-up-days`도 완결 디렉터리를
   건너뛰어, 이후 매일 exit 0이면서 그날은 web에 닿지 않았다. 늦게 공개된 사전규격이 영영 빠질 수 있다.
-- 수정(코드, 운영 미반영): 두 트랙 모두 완결·비어 있지 않은 디렉터리에 `GET /api/runs/<디렉터리>`가 404면
+- 수정(코드, 2026-11-18 main `c801a69`로 운영 checkout에 반영. `not_ingested` 재개 경로는 실제 스택에서 아직 지나가지 않았다): 두 트랙 모두 완결·비어 있지 않은 디렉터리에 `GET /api/runs/<디렉터리>`가 404면
   `unjudged_detected … reason=not_ingested`(exit 10)로 보고하고, `--catch-up-days`가 그날을 고르면 날짜별 재개가
   `ingest_pending`으로 적재만 한다. 조회 실패는 재시도 뒤에도 실패면 exit 2이며 "누락 없음"이 되지 않는다. dry-run은
   web을 읽지 않고 확인할 것만 알린다.
@@ -24,7 +24,7 @@
   절차로 정했다([daily](../../operations/daily.md) "cron 진입점"). 창을 무한히 늘리지 않는 이유는 매 실행이 창 안의
   날마다 web을 읽기 때문이다. 창 밖의 날은 `--from-date/--to-date`로 사람이 메운다.
 
-## 폴링 GET 한 번의 timeout이 따라잡기 범위 전체를 멈췄다 (2026-11-18, 코드 수정·운영 미반영)
+## 폴링 GET 한 번의 timeout이 따라잡기 범위 전체를 멈췄다 (2026-11-18, 코드 수정·운영 반영)
 
 - 재현: 2026-11-18 감독 따라잡기 실행 중 같은 host에서 병렬 화면 테스트가 돌아 부하가 올랐다. C-2
   실행 상세 폴링 `GET /api/order-plan-screening/executions/<id>` 하나가
@@ -34,7 +34,7 @@
 - 영향: cron이었다면 그날 실행은 뒤에 `성공`으로 끝나지만 감사 표본 draw가 빠지고, 성공 실행이 있는 날은
   `gap_detected`도 `unjudged_detected`도 아니어서 `--catch-up-days`도 다시 오지 않았다. 범위의 나머지 날도
   그날 돌지 않았다.
-- 수정(코드, 운영 미반영): 폴링 GET의 일시 실패(응답 없음·5xx·408·429)는 `c2: poll read failed (n/N)` 한
+- 수정(코드, 2026-11-18 운영 checkout에 반영. 재시도 경로는 실제 스택에서 아직 지나가지 않았다): 폴링 GET의 일시 실패(응답 없음·5xx·408·429)는 `c2: poll read failed (n/N)` 한
   줄을 남기고 같은 주기로 다시 읽는다. 연속 `BIDOPS_C2_DAILY_POLL_MAX_READ_FAILURES`번(기본 10, `0`은 예전처럼
   즉시 실패)이나 전체 폴링 timeout이면 기존 실패 경로(exit 2)다. 그 밖의 4xx는 바로 실패하고, 실행 생성
   POST에는 재시도를 넣지 않았다. 누락일 감지는 발주계획 창에서 최신 성공 실행의 감사 표본 GET(읽기 전용)이
@@ -42,13 +42,13 @@
   보고하고, `--catch-up-days`가 그날을 재개해 draw만 한다. 가짜 web 스크립트 테스트로만 확인했고 실제 과부하
   상황의 재현은 하지 않았다.
 
-## 운영 상태 서비스가 host 재시작 뒤 올라오지 않는다 (2026-11-18, 코드 수정·운영 미반영)
+## 운영 상태 서비스가 host 재시작 뒤 올라오지 않는다 (2026-11-18, 코드 수정·운영 반영)
 
 - 재현: 운영 `bidops`의 postgres·minio·clamav·document-worker는 compose에 `restart`가 없어 정책이 `no`다. 2026-10-28 Mac/OrbStack 재시작 뒤 이 서비스들은 `Exited`로 남았다. web(`unless-stopped`)만 올라와 `failed to resolve host 'postgres'`로 3주간 1,683회 재시작했다.
 - 영향: 운영 화면·C-2 일일 실행이 사람이 알아차릴 때까지 멈춘다. 경보가 없다.
 - 지금 해결하지 않은 이유: restart 정책은 dev/mock/prod가 공유하는 `docker/docker-compose.yml` 계약 변경이다. 이번 배포 승인 범위(경로 이전·main 배포)를 넘는다.
 - 후속: prod overlay에서 상태 서비스에 `unless-stopped`를 주는 방안과 host 재시작 뒤 감독 확인 절차를 정한다. 그때까지 host 재시작 뒤 `docs/operations/host.md`의 수동 기동 명령을 쓴다. 기록은 [2026-11-18 배포](../../validation-runs/20261118-ops-main-move/README.md)다.
-- 상태(2026-11-18): **코드 수정, 운영 미반영 / 감독 시운전 대기.** 공유 base 파일은 그대로 두고 `docker/docker-compose.prod.yml`에서 postgres·minio·clamav·document-worker에 `restart: unless-stopped`를 줬다. analysis-worker(사람 확인 뒤 기동)와 postgres-init·migrate·minio-init(일회성)은 바꾸지 않았다. `BIDOPS_ENV=prod scripts/compose.sh config`를 저장소 밖 더미 env 파일로 렌더해 서비스별 restart 값만 확인했다(네 서비스 `unless-stopped`, analysis-worker·postgres-init·migrate `no`, dev 렌더는 네 서비스 모두 `no`). 운영 컨테이너는 다시 만들어야 반영되며 재배포·host 재시작 뒤 자동 기동 확인은 아직이다. 그때까지 위 수동 기동이 유효하다.
+- 상태(2026-11-18): **운영 반영·실제 재시작에서 확인.** 2026-11-18 14:53 KST host 재시작 뒤 postgres·minio·clamav·document-worker·web이 스스로 올라왔다([배포 기록](../../validation-runs/20261118-launch-hardening-deploy/README.md)). analysis-worker는 정책 `no` 그대로이며 자동 기동 여부는 사용자 결정 대기다. 공유 base 파일은 그대로 두고 `docker/docker-compose.prod.yml`에서 postgres·minio·clamav·document-worker에 `restart: unless-stopped`를 줬다. analysis-worker(사람 확인 뒤 기동)와 postgres-init·migrate·minio-init(일회성)은 바꾸지 않았다. `BIDOPS_ENV=prod scripts/compose.sh config`를 저장소 밖 더미 env 파일로 렌더해 서비스별 restart 값만 확인했다(네 서비스 `unless-stopped`, analysis-worker·postgres-init·migrate `no`, dev 렌더는 네 서비스 모두 `no`). 운영 컨테이너는 다시 만들어야 반영되며 재배포·host 재시작 뒤 자동 기동 확인은 아직이다. 그때까지 위 수동 기동이 유효하다.
 
 ## prod `make build`가 bootstrap 대상을 arm64로 빌드해 실패한다 (2026-11-18, 미해결)
 
@@ -159,7 +159,7 @@
 ## 발주계획 회차에 `info` 등급 경고 하나만 있어도 C-2가 영구히 막힌다 (W-2)
 
 - 확인: 2026-09-19 (독립 검증)
-- 상태: **코드 수정, 운영 미반영 / 감독 시운전 대기 (2026-11-18).** 2026-11-18 결정(`info`만 통과, `warning`·`error`는 차단)대로 바꿨다 — 아래 "2026-11-18 수정"
+- 상태: **운영 반영, 실제 경로 미통과 (2026-11-18).** 이미지 `bidops:main-20261118b` 이후 운영에 있으나 `info` 경고가 있는 회차가 없어 통과 경로는 실제 스택에서 지나가지 않았다. 2026-11-18 결정(`info`만 통과, `warning`·`error`는 차단)대로 바꿨다 — 아래 "2026-11-18 수정"
 - 재현 조건: 적재가 그 회차에 `IngestWarning`을 한 줄이라도 남기면
   `screening/services/order_plan_screening.py`의 source run 검사가 **등급을 보지 않고**
   `source_run_incomplete`으로 거부한다. `info`도 `warning`도 `error`와 같게 취급된다. 경고는
@@ -185,7 +185,7 @@
 ## 수집 실패일·중단일은 자동으로 따라잡지 않는다 (W-3·W-4)
 
 - 확인: 2026-09-19 (독립 검증)
-- 상태: **코드 수정, 운영 미반영 / 감독 시운전 대기 (2026-11-18).** 누락일 감지와 범위 제한 따라잡기를 넣었다 — 아래 "2026-11-18 수정"
+- 상태: **운영 반영·감독 실행 통과 (2026-11-18).** 14일 따라잡기와 cron 명령 감독 실행에서 `no gap`·공고 3일 따라잡기를 확인했다([배포 기록](../../validation-runs/20261118-launch-hardening-deploy/README.md)). `gap_detected`·`unjudged_detected`(exit 10)와 발주계획 따라잡기가 실행을 만드는 경우는 실제 스택에서 지나가지 않았다. cron은 미설치다. 누락일 감지와 범위 제한 따라잡기를 넣었다 — 아래 "2026-11-18 수정"
 - 재현 조건: `scripts/run-daily-lifecycle.sh`는 기준일 하루만 돈다(기본값 전일). 수집기가 실패하면
   그 트랙은 exit 비0으로 멈추고, 호스트(WSL)가 꺼져 있어 cron 줄이 아예 돌지 못한 날도 아무 기록이
   남지 않는다. 다음 날 실행은 그 전날을 돌아보지 않는다.
@@ -211,7 +211,7 @@
 ## 워커가 죽으면 `대기` 실행이 닫히지 않고 남는다 (W-5, 제품 쪽)
 
 - 확인: 2026-09-19 (독립 검증)
-- 상태: **코드 수정, 운영 미반영 / 감독 시운전 대기 (2026-11-18).** 제품 쪽 `대기` 회수를 넣었다 — 아래 "2026-11-18 수정"
+- 상태: **운영 반영, 실제 경로 미통과 (2026-11-18).** 이미지 `bidops:main-20261118b` 이후 운영에 있으나 `stale_queued` 회수는 실제 스택에서 한 번도 일어나지 않았다. 제품 쪽 `대기` 회수를 넣었다 — 아래 "2026-11-18 수정"
 - 재현 조건: 분석 워커가 실행을 집어 들기 전에 죽으면 그 실행은 `대기`로 남는다. 제품의 stale 회수는
   `실행 중`·`중지 요청`(`ACTIVE_STATUSES`)만 중단으로 닫고 `대기`는 대상이 아니다. 게다가 회수는
   워커가 다음 작업을 집을 때(`_claim`) 도는 코드라 워커가 아예 없으면 아무것도 회수되지 않는다. 그 회차는 계속
