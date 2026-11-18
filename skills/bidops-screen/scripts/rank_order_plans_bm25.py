@@ -42,7 +42,10 @@ RANKING_SCHEMA = "bidops.order-plan-screening-ranking.v1"
 COLLECTED_SCHEMA = "bidops.collected-order-plans.v1"
 BM25_SCHEMA = "bidops.order-plan-bm25.v1"
 BM25_METHOD_VERSION = "bm25-char-title-capability-v1"
-TOP_K = 300
+# Stage 1 cut values a frozen policy may name (``stage1.top_k``).  v1~v5 use
+# 300; v6 uses 150 (ADR-0075).  The binding's ``stage1_binding.top_k`` must
+# equal the policy value.  Anything else is rejected before any model call.
+ALLOWED_TOP_K = frozenset({150, 300})
 K1 = 1.2
 B = 0.75
 NGRAM_MIN = 2
@@ -182,6 +185,10 @@ def _finite_number(value: Any, label: str, *, minimum: float | None = None) -> f
     return float(value)
 
 
+def _allowed_top_k(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value in ALLOWED_TOP_K
+
+
 def _validate_binding_ref(value: Any, label: str) -> dict[str, Any]:
     binding = PHASE0.require_exact_keys(value, BINDING_KEYS, label)
     _string(binding["version"], f"{label}.version")
@@ -272,7 +279,7 @@ def _validate_policy_document(document: Any) -> dict[str, Any]:
     PHASE0.parse_timestamp(policy["created_at"], "policy.created_at")
 
     stage1 = PHASE0.require_exact_keys(policy["stage1"], STAGE1_KEYS, "policy.stage1")
-    if stage1["method"] != "bm25" or stage1["top_k"] != TOP_K:
+    if stage1["method"] != "bm25" or not _allowed_top_k(stage1["top_k"]):
         _error("policy_binding_mismatch", "BM25 top_k 또는 method가 다릅니다")
     config = PHASE0.require_exact_keys(stage1["config"], STAGE1_CONFIG_KEYS, "policy.stage1.config")
     _hash(config["sha256"], "policy.stage1.config.sha256")
@@ -341,7 +348,7 @@ def _validate_binding_document(document: Any) -> dict[str, Any]:
     PHASE0.parse_timestamp(binding["created_at"], "binding.created_at")
     stage1 = PHASE0.require_exact_keys(binding["stage1_binding"], {"method", "path", "schema_version", "sha256", "top_k", "tie_break"}, "binding.stage1_binding")
     _hash(stage1["sha256"], "binding.stage1_binding.sha256")
-    if stage1["method"] != "bm25" or stage1["schema_version"] != BM25_SCHEMA or stage1["top_k"] != TOP_K or stage1["tie_break"] != ["score_desc", "order_plan_unty_no_asc"]:
+    if stage1["method"] != "bm25" or stage1["schema_version"] != BM25_SCHEMA or not _allowed_top_k(stage1["top_k"]) or stage1["tie_break"] != ["score_desc", "order_plan_unty_no_asc"]:
         _error("binding_invalid", "phase0 stage1 binding이 고정값과 다릅니다")
     stage2 = PHASE0.require_exact_keys(binding["stage2_binding"], {"provider", "model_name", "model_digest", "generation_config_version", "generation_config_sha256", "prompt_version", "prompt_sha256", "company_profile_version", "company_profile_sha256", "payload_fields", "company_payload_fields", "batch_size", "max_attempts", "concurrency"}, "binding.stage2_binding")
     if (stage2["provider"], stage2["model_name"]) not in {("approved_private_vllm", "qwen3.8-27B"), ("approved_private_ollama", "qwen3.8:27b")}:
@@ -395,6 +402,7 @@ def validate_fixed_references(
         policy_stage1["method"] != binding_stage1["method"]
         or policy_stage1["config"]["sha256"] != binding_stage1["sha256"]
         or policy_stage1["config"]["method_version"] != BM25_METHOD_VERSION
+        or policy_stage1["top_k"] != binding_stage1["top_k"]
     ):
         _error("binding_mismatch", "policy와 binding stage1 ref가 다릅니다")
 
@@ -426,6 +434,7 @@ def validate_fixed_references(
         _error("binding_mismatch", "binding approved review-input ref가 stage2와 다릅니다")
     result["policy"] = policy
     result["binding"] = binding
+    result["top_k"] = policy_stage1["top_k"]
     return result
 
 
@@ -581,7 +590,7 @@ def rank_order_plans(
         _error("binding_mismatch", "company capabilities profile version이 승인된 binding과 다릅니다")
     scored = bm25_scores(frozen["items"], capabilities)
     ranked = sorted(scored, key=lambda row: (-row["score"], row["plan_id"]))
-    selected_limit = min(TOP_K, len(ranked))
+    selected_limit = min(fixed["top_k"], len(ranked))
     output_items: list[dict[str, Any]] = []
     for rank, row in enumerate(ranked, start=1):
         output_items.append(

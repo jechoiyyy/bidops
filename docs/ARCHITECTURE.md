@@ -302,7 +302,7 @@ SW=Y 사전규격 적재 시 기관·이름이 일치하는 발주계획을 자�
 ~~~mermaid
 flowchart LR
     input[수집 회차 전체 모집단 / 고정 입력 manifest]
-    bm25[BM25 ranking<br/>Top 300]
+    bm25[BM25 ranking<br/>policy top_k 300·150]
     batch[선정 후보를 최대 25건씩 배치 실행]
     qwen[Qwen 분류<br/>BM25 후보만]
     result[결과·실패·telemetry]

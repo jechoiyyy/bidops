@@ -12,13 +12,14 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from pydantic import ValidationError
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased
 
 from ...core.config import Settings, get_settings
 from ...lifecycle.ingest.contracts import OrderPlanArtifact, OrderPlanContract
 from ..c2_contracts import (
+    ALLOWED_STAGE1_TOP_K,
     OrderPlanScreeningInputArtifact,
     OrderPlanScreeningPolicyArtifact,
 )
@@ -73,6 +74,12 @@ PASSING_INGEST_WARNING_LEVELS = frozenset({"info"})
 # `X-BidOps-Trigger` 값(contracts "실행 트리거 헤더와 게이트"). 헤더 없음(None)은 사람의 수동 운영 실행이다.
 EXECUTION_TRIGGERS = frozenset({"daily_script", "manual_resume", "gate_measurement"})
 DAILY_TRIGGERS = frozenset({"daily_script", "manual_resume"})
+# 판정이 있는 완료 실행. 누적 판정 유무(`policy_versions`·워크로드 null 사유)는 이것만 센다.
+COMPLETED_EXECUTION_STATUSES = ("성공", "부분 성공")
+# 누적 목록의 결과 행은 `실패` 실행의 것도 읽는다(모델 장애일, ADR-0075). 모델이 한 건도 답하지 못한
+# 날도 merge는 전 모집단의 행(BM25 순위·점수, 2단계 실패)을 게시하고 실행은 `실패`로 끝난다.
+# 같은 발주계획에 완료 실행의 결과가 있으면 시각과 무관하게 그쪽이 이긴다.
+CUMULATIVE_RESULT_STATUSES = COMPLETED_EXECUTION_STATUSES + ("실패",)
 
 
 class OrderPlanScreeningError(RuntimeError):
@@ -281,8 +288,12 @@ class OrderPlanScreeningService:
         request_id: UUID,
         *,
         purpose: str = "operational",
-    ) -> tuple[OrderPlanScreeningPolicy, dict[str, Any], dict[str, Any], bytes, bytes]:
+    ) -> tuple[OrderPlanScreeningPolicy, dict[str, Any], dict[str, Any], tuple[Path, bytes], tuple[Path, bytes]]:
         """Gate on the DB row and pin the mounted policy·binding bytes (ADR-0060).
+
+        The files are resolved per row (``mounted_files``): the configured path,
+        else a published sibling with the row's byte digest, so a candidate can
+        be measured while another version stays active (ADR-0075).
 
         The row is the only activation authority.  The policy file's
         ``policy_status`` is a publish-time snapshot, so only its enum validity
@@ -311,11 +322,13 @@ class OrderPlanScreeningService:
         if policy_model.policy_version != policy_version:
             raise OrderPlanScreeningError("binding_mismatch", "C-2 policy binding이 유효하지 않습니다", request_id=request_id)
         # Digests are over the mounted file bytes, never a canonical re-dump.
-        # Without both regular files at the configured paths there is nothing
-        # approved to freeze into the execution directory.
-        if mounted_files(self.settings, policy).missing is not None:
+        # Without both regular files (the configured path or a published
+        # sibling with the row's digest) there is nothing approved to freeze
+        # into the execution directory.
+        files = mounted_files(self.settings, policy)
+        if files.missing is not None or files.policy_path is None or files.binding_path is None:
             raise OrderPlanScreeningError("binding_mismatch", "C-2 policy·binding 파일이 digest와 일치하지 않습니다", request_id=request_id)
-        policy_bytes = _read_pinned(Path(self.settings.c2_policy_path or ""), policy.policy_sha256, request_id)
+        policy_bytes = _read_pinned(files.policy_path, policy.policy_sha256, request_id)
         binding = policy.binding_payload_jsonb
         if not isinstance(binding, Mapping) or binding.get("schema_version") != "bidops.order-plan-screening-phase0-binding.v1":
             raise OrderPlanScreeningError("binding_mismatch", "C-2 phase0 binding이 유효하지 않습니다", request_id=request_id)
@@ -323,7 +336,18 @@ class OrderPlanScreeningService:
         stage2 = binding.get("stage2_binding")
         if not isinstance(stage1, Mapping) or not isinstance(stage2, Mapping):
             raise OrderPlanScreeningError("binding_mismatch", "C-2 stage binding이 유효하지 않습니다", request_id=request_id)
-        binding_bytes = _read_pinned(Path(self.settings.c2_binding_path or ""), policy.binding_sha256, request_id)
+        binding_bytes = _read_pinned(files.binding_path, policy.binding_sha256, request_id)
+        # 1단계 절단 값(ADR-0075): binding과 policy가 같은 허용 값을 말해야 한다. 워커·순위 스크립트도
+        # 같은 조건을 다시 보지만, 어긋난 행은 실행을 만들기 전에 거부한다.
+        top_k = stage1.get("top_k")
+        policy_stage1 = policy_model.stage1
+        if (
+            not isinstance(top_k, int)
+            or isinstance(top_k, bool)
+            or top_k not in ALLOWED_STAGE1_TOP_K
+            or policy_stage1.get("top_k") != top_k
+        ):
+            raise OrderPlanScreeningError("binding_mismatch", "C-2 1단계 top_k가 허용 값이 아니거나 policy와 다릅니다", request_id=request_id)
         # binding_consistent also rejects status=blocked with execution_allowed=true.
         policy_reference = binding.get("policy")
         if (
@@ -334,7 +358,7 @@ class OrderPlanScreeningService:
             raise OrderPlanScreeningError("binding_mismatch", "C-2 policy와 binding이 다릅니다", request_id=request_id)
         if not execution_transport_allowed(self.settings, policy):
             raise OrderPlanScreeningError("service_unavailable", "승인된 private vLLM transport를 사용할 수 없습니다", status_code=503, request_id=request_id)
-        return policy, dict(stage1), dict(stage2), policy_bytes, binding_bytes
+        return policy, dict(stage1), dict(stage2), (files.policy_path, policy_bytes), (files.binding_path, binding_bytes)
 
     @staticmethod
     def _require_measurement_run(session: Session, policy_version: str, source_run_id: str, request_id: UUID) -> None:
@@ -585,7 +609,7 @@ class OrderPlanScreeningService:
         try:
             # Row state, digests and transport approval (503) come first for
             # every trigger; the daily switch is rechecked only after them.
-            policy, stage1, stage2, policy_bytes, binding_bytes = self._policy_binding(
+            policy, stage1, stage2, (policy_source, policy_bytes), (binding_source, binding_bytes) = self._policy_binding(
                 session, payload.policy_version, request_id, purpose=purpose
             )
             if trigger in DAILY_TRIGGERS:
@@ -625,8 +649,8 @@ class OrderPlanScreeningService:
             execution_dir.mkdir()
             _safe_copy(source_path, execution_dir / "collected-order-plans.json")
             for source, name, data in (
-                (Path(self.settings.c2_policy_path or ""), "policy.json", policy_bytes),
-                (Path(self.settings.c2_binding_path or ""), "binding.json", binding_bytes),
+                (policy_source, "policy.json", policy_bytes),
+                (binding_source, "binding.json", binding_bytes),
                 (approved_inputs[0][0], "capabilities.json", approved_inputs[0][1]),
                 (approved_inputs[1][0], "prompt.txt", approved_inputs[1][1]),
                 (approved_inputs[2][0], "generation-config.json", approved_inputs[2][1]),
@@ -1216,29 +1240,45 @@ class OrderPlanScreeningService:
         }
 
     @staticmethod
-    def _cumulative_executions():
-        """누적 범위: 활성화된 적 있는 policy의 운영 목적 완료 실행 전부(현재 active 여부는 묻지 않는다)."""
+    def _cumulative_scope(statuses: tuple[str, ...]):
+        """활성화된 적 있는 policy의 운영 목적 실행 중 `statuses`인 것(현재 active 여부는 묻지 않는다)."""
         return select(OrderPlanScreeningExecution).join(
             OrderPlanScreeningPolicy,
             OrderPlanScreeningPolicy.policy_version == OrderPlanScreeningExecution.policy_version,
         ).where(
             OrderPlanScreeningPolicy.activated_at.is_not(None),
             OrderPlanScreeningExecution.purpose == "operational",
-            OrderPlanScreeningExecution.status.in_({"성공", "부분 성공"}),
+            OrderPlanScreeningExecution.status.in_(statuses),
         )
+
+    @classmethod
+    def _cumulative_executions(cls):
+        """누적 판정 범위: 운영 목적 완료(`성공`·`부분 성공`) 실행. 판정 유무는 이것으로 말한다."""
+        return cls._cumulative_scope(COMPLETED_EXECUTION_STATUSES)
+
+    @classmethod
+    def _cumulative_result_executions(cls):
+        """누적 목록·브리핑이 결과 행을 읽는 범위: 완료 실행 + `실패` 실행(우선순위는 `_ranked_results`)."""
+        return cls._cumulative_scope(CUMULATIVE_RESULT_STATUSES)
 
     @staticmethod
     def _ranked_results(executions: Any):
         """범위 실행(`executions` subquery)의 결과에 발주계획별 최신 순위(`position`)를 붙인다.
 
-        최신 = `finished_at` 내림, 같으면 `execution_id` 내림. 목록과 브리핑 후보가 같은 규칙을 쓴다.
+        완료(`성공`·`부분 성공`) 실행의 결과가 `실패` 실행의 결과보다 시각과 무관하게 먼저다. 같은
+        등급 안에서는 최신 = `finished_at` 내림, 같으면 `execution_id` 내림. 목록과 브리핑 후보가 같은
+        규칙을 쓴다.
         """
 
         return select(
             OrderPlanScreeningResult,
             func.row_number().over(
                 partition_by=OrderPlanScreeningResult.order_plan_id,
-                order_by=(executions.c.finished_at.desc(), executions.c.execution_id.desc()),
+                order_by=(
+                    case((executions.c.status.in_(COMPLETED_EXECUTION_STATUSES), 0), else_=1),
+                    executions.c.finished_at.desc(),
+                    executions.c.execution_id.desc(),
+                ),
             ).label("position"),
         ).join(executions, executions.c.execution_id == OrderPlanScreeningResult.execution_id)
 
@@ -1253,7 +1293,7 @@ class OrderPlanScreeningService:
 
         if since.tzinfo is None or until.tzinfo is None:
             raise ValueError("briefing window bounds must be timezone-aware")
-        executions = self._cumulative_executions().subquery()
+        executions = self._cumulative_result_executions().subquery()
         ranked = self._ranked_results(executions).subquery()
         statement = (
             select(OrderPlan.id)
@@ -1342,9 +1382,10 @@ class OrderPlanScreeningService:
             OrderPlanObservation.order_plan_id,
             func.min(OrderPlanObservation.observed_at).label("first_observed_at"),
         ).group_by(OrderPlanObservation.order_plan_id).subquery()
-        # 결과는 발주계획마다 범위 안 최신 1건이다. 누적 모드는 누적 범위 실행 전부, 회차 모드는 그 실행 하나.
+        # 결과는 발주계획마다 범위 안 최신 1건이다. 누적 모드는 누적 결과 범위(완료 실행 우선, 그다음
+        # `실패` 실행) 전부, 회차 모드는 그 회차의 최신 완료 실행 하나.
         executions = (
-            self._cumulative_executions()
+            self._cumulative_result_executions()
             if source_run_id is None
             else select(OrderPlanScreeningExecution).where(
                 OrderPlanScreeningExecution.execution_id == (execution.execution_id if execution is not None else None)

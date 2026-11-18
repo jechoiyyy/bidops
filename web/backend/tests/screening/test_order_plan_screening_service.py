@@ -44,7 +44,8 @@ def _sha(data: bytes) -> str:
 
 
 # (policy, binding, generation config) per published C-2 artifact set.  v2 is
-# the measured vLLM binding; v5 is the Mac LiteLLM/Ollama binding (ADR-0072).
+# the measured vLLM binding; v5 is the Mac LiteLLM/Ollama binding (ADR-0072);
+# v6 is v5 with the stage 1 cut at 150 (ADR-0075).
 C2_ARTIFACT_SETS = {
     "v2": (
         "order-plan-screening-policy.v2.json",
@@ -54,6 +55,11 @@ C2_ARTIFACT_SETS = {
     "v5": (
         "order-plan-screening-policy.v5.json",
         "order-plan-screening-phase0-binding.v5.json",
+        "order-plan-screening-generation-config.v6.json",
+    ),
+    "v6": (
+        "order-plan-screening-policy.v6.json",
+        "order-plan-screening-phase0-binding.v6.json",
         "order-plan-screening-generation-config.v6.json",
     ),
 }
@@ -915,3 +921,83 @@ def test_postgres_create_closes_stale_queued_and_passes_info_warnings(
             assert "invalid_number" in raised.value.message
         finally:
             session.close()
+
+
+# --- 1단계 절단 값과 버전별 파일 해석 (ADR-0075) -----------------------------------
+
+
+@pytest.mark.parametrize(
+    ("policy_top_k", "binding_top_k"),
+    [(200, 200), (150, 300), (300, 150), (True, True)],
+)
+def test_create_rejects_an_unapproved_or_disagreeing_top_k(tmp_path: Path, policy_top_k: object, binding_top_k: object) -> None:
+    def edit(policy: dict, binding: dict) -> None:
+        policy["stage1"]["top_k"] = policy_top_k
+        binding["stage1_binding"]["top_k"] = binding_top_k
+
+    settings, session, policy_version, _, _ = _fixture(
+        tmp_path, artifacts="v6", file_policy_status="activation_candidate", edit=edit,
+    )
+    with pytest.raises(OrderPlanScreeningError) as raised:
+        _create(OrderPlanScreeningService(settings), session, policy_version)
+    assert raised.value.code == "binding_mismatch"
+    assert session.scalar(select(OrderPlanScreeningExecution)) is None
+
+
+@pytest.mark.parametrize("artifacts", ["v5", "v6"])
+def test_create_freezes_the_policy_top_k_of_each_published_version(tmp_path: Path, artifacts: str) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path, artifacts=artifacts, file_policy_status="activation_candidate")
+    response, _ = _create(OrderPlanScreeningService(settings), session, policy_version)
+    directory = next((settings.bidops_root / "data" / "runs").glob("run-c2--c2-*"))
+    frozen_policy = json.loads((directory / "policy.json").read_bytes())
+    frozen_binding = json.loads((directory / "binding.json").read_bytes())
+    expected = {"v5": 300, "v6": 150}[artifacts]
+    assert frozen_policy["stage1"]["top_k"] == frozen_binding["stage1_binding"]["top_k"] == expected
+    assert response["policy_version"] == f"c2-order-plan-screening-{artifacts}"
+
+
+def test_mounted_files_resolve_each_row_by_digest_in_the_configured_directory(tmp_path: Path) -> None:
+    from app.screening.services.order_plan_policy import mounted_files
+
+    config = tmp_path / "config"
+    config.mkdir()
+    files = {
+        name: config / name
+        for name in (
+            "order-plan-screening-policy.v5.json", "order-plan-screening-phase0-binding.v5.json",
+            "order-plan-screening-policy.v6.json", "order-plan-screening-phase0-binding.v6.json",
+        )
+    }
+    for name, path in files.items():
+        path.write_bytes(name.encode())
+    settings = Settings(
+        bidops_root=tmp_path, database_url="sqlite://",
+        c2_policy_path=files["order-plan-screening-policy.v6.json"],
+        c2_binding_path=files["order-plan-screening-phase0-binding.v6.json"],
+    )
+
+    def row(policy_name: str, binding_name: str) -> OrderPlanScreeningPolicy:
+        return OrderPlanScreeningPolicy(policy_sha256=_sha(policy_name.encode()), binding_sha256=_sha(binding_name.encode()))
+
+    v6 = mounted_files(settings, row("order-plan-screening-policy.v6.json", "order-plan-screening-phase0-binding.v6.json"))
+    assert (v6.policy_path, v6.binding_path, v6.missing) == (
+        files["order-plan-screening-policy.v6.json"], files["order-plan-screening-phase0-binding.v6.json"], None,
+    )
+    # The active v5 row keeps resolving while the configured path names v6.
+    v5 = mounted_files(settings, row("order-plan-screening-policy.v5.json", "order-plan-screening-phase0-binding.v5.json"))
+    assert (v5.policy_path, v5.binding_path) == (
+        files["order-plan-screening-policy.v5.json"], files["order-plan-screening-phase0-binding.v5.json"],
+    )
+    # A policy file is never accepted as a binding and vice versa; unknown digests are missing.
+    crossed = mounted_files(settings, row("order-plan-screening-phase0-binding.v5.json", "order-plan-screening-policy.v5.json"))
+    assert crossed.missing == "both"
+    # Symlinks, other file names and other directories do not count, even with the right bytes.
+    linked = tmp_path / "linked.json"
+    linked.write_bytes(b"linked-policy")
+    (config / "order-plan-screening-policy.v7.json").symlink_to(linked)
+    (config / "policy-copy.json").write_bytes(b"other-policy")
+    (tmp_path / "order-plan-screening-policy.v8.json").write_bytes(b"outside-policy")
+    for name in ("linked-policy", "other-policy", "outside-policy"):
+        assert mounted_files(settings, row(name, "order-plan-screening-phase0-binding.v5.json")).missing == "policy"
+    files["order-plan-screening-policy.v5.json"].unlink()
+    assert mounted_files(settings, row("order-plan-screening-policy.v5.json", "order-plan-screening-phase0-binding.v5.json")).missing == "policy"

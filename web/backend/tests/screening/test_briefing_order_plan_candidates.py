@@ -154,18 +154,22 @@ def test_latest_cumulative_result_must_be_relevant_inside_the_window(c2) -> None
     _result(session, new, plans[1], relevance="relevant")
     for plan in plans[4:]:
         _result(session, new, plan, relevance="relevant")
-    # 완료되지 않은 실행의 결과는 빌리지 않는다.
+    # `실패` 실행의 결과 행은 완료 실행의 결과보다 늘 뒤다(ADR-0075). 판정이 없으므로 후보가 되지 않는다.
     failed = _execution(session, policy, status="실패", minute=3)
     _result(session, failed, plans[2], stage2="failed")
-    _result(session, failed, plans[3], relevance="relevant")
+    _result(session, failed, plans[3], stage2="failed")
     session.commit()
 
     assert _found(session) == sorted([plans[1].id, plans[2].id, plans[6].id])
     # 목록 누적 모드와 같은 최신 결과 규칙이다(창 조건만 다르다).
-    listed = OrderPlanScreeningService().list_order_plans(session, qwen_relevance="relevant", limit=100)
+    service = OrderPlanScreeningService()
+    listed = service.list_order_plans(session, qwen_relevance="relevant", limit=100)
     assert sorted(item["order_plan_pk"] for item in listed["items"]) == sorted(
         [plans[1].id, plans[2].id, plans[4].id, plans[5].id, plans[6].id]
     )
+    # 목록은 완료 결과가 없는 plans[3]에 장애일 결과(2단계 실패)를 보인다.
+    failed_rows = service.list_order_plans(session, stage2_status="failed", limit=100)["items"]
+    assert [(item["order_plan_pk"], item["execution_id"]) for item in failed_rows] == [(plans[3].id, failed.execution_id)]
 
 
 def test_uncertain_and_failed_latest_results_are_not_candidates(c2) -> None:

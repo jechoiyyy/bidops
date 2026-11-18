@@ -192,8 +192,8 @@ web을 읽어야 하므로 dry-run은 확인하지 않고 "a real run would also
 `POST /api/order-plan-screening/executions/<id>/stop`을 쓴다.
 
 **서버 설정(web·analysis-worker 환경변수).** `BIDOPS_C2_QUEUED_MAX_DWELL_SECONDS`(기본 14400, `0`은 끔,
-켜면 `BIDOPS_C2_WORKER_STALE_SECONDS` 이상이어야 기동한다). 기본 4시간은 정상 대기 — 앞선 C-2 한 건(300건
-약 26분, heartbeat로 보호), GPU 휴지 최대 300초, `대기`가 들어올 때 이미 claim돼 있던 다른 분석 작업 한
+켜면 `BIDOPS_C2_WORKER_STALE_SECONDS` 이상이어야 기동한다). 기본 4시간은 정상 대기 — 앞선 C-2 한 건(v5 300건
+약 26분, v6 150건은 건수 기준 약 절반으로 추정하며 아직 측정 전, heartbeat로 보호), GPU 휴지 최대 300초, `대기`가 들어올 때 이미 claim돼 있던 다른 분석 작업 한
 건 — 보다 넉넉하고, 일일 스크립트가 "워커가 없을 수 있다"며 비0으로 끝나는 경과(폴링 7200초의 2배)와
 같으며 하루 주기보다 짧아 다음 날 생성 요청이 전날 것을 닫는다. 다른 분석 작업(개요·심층·제안서)의
 진행은 C-2 회수의 근거로 보지 않으므로, 그런 작업 하나가 4시간을 넘기면 그 뒤에 들어온 C-2 `대기`가
@@ -488,6 +488,83 @@ scripts/compose.sh exec web \
 **트리거를 켜기 전 확인 항목(D-e).** 위 11을 켜기 전에 다음을 사람이 확인한다 — 수동 실행에서 본
 요청 수·소요 시간·실패 분포, 나라장터 API 일일 할당량 여유, backup·restore와 stale execution
 복구 훈련. 이 확인은 게이트 통과나 방화벽 승인을 대신하지 않는다.
+
+#### v5 active에서 v6로 교체 (ADR-0075)
+
+2026-11-18 발행한 v6(`c2-order-plan-screening-v6`, 1단계 상위 150건)는 **발행만 했다** — 운영 DB 적재·
+게이트 측정·활성화 전이고 active는 v5다. 아래는 코드(`services/order_plan_policy.py` `mounted_files`,
+`services/order_plan_screening.py` `_policy_binding`, `order_plan_daily_trigger.py` `effective_state`)에서 확인한
+순서이며 테스트 `test_v6_candidate_is_loaded_measured_and_activated_while_v5_keeps_running`이 같은 흐름을
+설정 변경 없이 돈다. 단계마다 직전에 사람 확인을 받는다(수정안 §6).
+
+| 파일 | sha256 |
+|---|---|
+| `…/order-plan-screening-policy.v5.json` (active) | `1e6d4ef1414c61c1d04d0fec491e85380ab0227d1a6a43cec86b8c3bed887465` |
+| `…/order-plan-screening-phase0-binding.v5.json` | `2e77505efd6ae87bc670fa6b04b72302b28da972d2d0e6fda3f200d77ff844e1` |
+| `…/order-plan-screening-policy.v6.json` | `57366b04f952afa6b7678f722e0eaa41a133eeaf1f5623d24024bbd59608de28` |
+| `…/order-plan-screening-phase0-binding.v6.json` | `ad583ce21ba8f834d5ae74e1d5014ec7cd9fbbdac74fa18c7cdbdabb43ded4dc` |
+| `…/order-plan-screening-generation-config.v6.json` (둘이 공유) | `c94b67e9b4c4b0ffc4da6ee240bd201932415319a706f5990dbb35cdd170834a` |
+
+**경로 규칙.** 서비스는 policy 행마다 bytes digest가 같은 파일을 찾는다. 먼저
+`BIDOPS_C2_POLICY_PATH`·`BIDOPS_C2_BINDING_PATH`(기본값 `/app/experiments/order-plan-screening/config/`의 v6
+파일)를 보고, 다르면 **같은 디렉터리**의 `order-plan-screening-policy.v*.json`·`order-plan-screening-phase0-binding.v*.json`
+에서 찾는다. compose는 web·analysis-worker에 v5·v6를 함께 마운트한다. 그래서 아래 어느 단계에서도
+경로·env를 바꾸거나 컨테이너를 다시 만들 필요가 없다. 이미지 재빌드·컨테이너 교체는 1단계 배포 한 번뿐이다.
+worker는 실행 디렉터리에 동결된 파일만 읽으므로 경로 설정과 무관하지만, **옛 이미지의 worker와 순위·병합
+스크립트는 `top_k=150`을 `binding_mismatch`로 거부한다** — v6 실행 전에 analysis-worker도 새 이미지여야 한다.
+
+1. **배포**(사람 확인). 전체 백업·롤백 태그(`before-c2-top150-<날짜>`)를 남기고 이미지를 빌드한 뒤
+   `BIDOPS_ENV=prod scripts/compose.sh up -d --no-deps --no-build --force-recreate web analysis-worker`.
+   analysis-worker를 정지해 두는 운영이면 다음 기동 때 새 이미지로 올린다. migration은 없다.
+   `env/*.env`·`.env`에 `BIDOPS_C2_POLICY_PATH`·`BIDOPS_C2_BINDING_PATH`를 두지 않는다. 이미 있으면 값의
+   디렉터리가 `/app/experiments/order-plan-screening/config`인지 본다(그 안이면 어느 버전을 가리켜도 된다,
+   밖이면 그 디렉터리에서만 찾으므로 v6를 찾지 못한다). 확인:
+   - `BIDOPS_ENV=prod scripts/compose.sh config`에서 web·analysis-worker 각각 policy·binding v5·v6와
+     generation config v6 마운트 다섯 줄, `scripts/compose.sh exec web env | grep BIDOPS_C2_`.
+   - `GET /api/order-plan-screening/daily-trigger` → `effective_enabled=true`, `policy_version=c2-order-plan-screening-v5`,
+     `reasons=[]`. `GET /api/order-plan-screening/policies/c2-order-plan-screening-v5` →
+     `policy_file_present=true`·`binding_file_present=true`.
+   - 다음 일일 실행이 v5(300건 절단)로 끝나는지 본다.
+2. **적재**(사람 확인 — binding의 전송 승인은 v5 승인을 옮긴 것이라 이 단계에서 확인한다).
+
+   ```bash
+   BIDOPS_ENV=prod scripts/compose.sh exec web python -m app.screening.c2_policy load \
+     --policy /app/experiments/order-plan-screening/config/order-plan-screening-policy.v6.json \
+     --binding /app/experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v6.json \
+     --created-by <담당자 이름>
+   # 기대: c2-order-plan-screening-v6 draft 57366b04… ad583ce2… created
+   ```
+
+   `policy_top_k_invalid`·`binding_top_k_mismatch`·`binding_policy_digest_mismatch`면 파일이 발행본과 다르다.
+   v5 행·일일 실행에는 영향이 없다.
+3. **후보 지정.** `/order-plan-policies` 화면 또는 `POST /api/order-plan-screening/policies/candidate`
+   (`base_policy_sha256`=v5 `1e6d4ef1…`, `candidate_sha256`=v6 `57366b04…`). `GET …/policies/c2-order-plan-screening-v6`
+   → `policy_file_present=true`·`binding_file_present=true`이고 blocker에 `policy_file_missing`이 없어야 한다
+   (`quality_gate_missing`은 정상). 일일 스위치는 v5에서 그대로 켜져 있다.
+4. **게이트 행.** v5 게이트(`c2gate-ab196f52…`)와 같은 gold adjudicated v3·측정 회차 네 개(정규 id는 v5 게이트의
+   `measurement_run_ids`)·임계값(recall 90·precision 35·중요 누락 3·하루 검토량 80)으로 v6 policy·binding
+   digest를 넣어 `POST /api/order-plan-screening/quality-gates`. `scoring_input_sha256`은 위 활성화 절차 7번의
+   `score-c2-gate.py scoring-input`을 gold v3 경로
+   (`data/experiments/order-plan-screening/20260827-20260830-gold-adjudicated-v3/review/gold-adjudicated-full-population.tsv`)로
+   계산한다.
+5. **측정**(사람 확인, 모델 실행 8건 — pass당 4회차 14배치 약 22분 추정).
+   `BIDOPS_C2_GATE_ACTOR=<이름> scripts/run-c2-gate-measurement.sh --policy-version c2-order-plan-screening-v6 --gate-id <v6 gate> --pass 1`,
+   이어서 `--pass 2`. 측정 실행은 후보 v6를 쓰고(`purpose=gate_measurement`) v5 일일 실행과 경로·설정을
+   공유하지 않는다. **실행 슬롯은 하나다** — 그날 C-2 일일 실행이 끝난 뒤에 시작한다. 겹치면 측정 스크립트는
+   `409 active_execution_exists`로 멈추고(같은 pass를 `--attempt 2`로 다시), 일일 스크립트는 실행을 만들지
+   않고 `active_execution_exists`로 0 종료한다(그날을 `--date`나 `scripts/run-daily-c2.sh <정규 id>`로 다시 돈다).
+6. **채점·evaluation**(사람, 위 활성화 절차 9번과 같다). 두 pass 중 하나라도 임계 미달이면 여기서 멈춘다 — v5가 active로
+   남고 일일 실행은 그대로이며 되돌릴 것이 없다(v6 행은 후보로 남는다).
+7. **활성화**(사람 확인). 화면에서 승인하면 같은 transaction에서 v5가 `retired`가 된다. 경로·env·컨테이너는
+   그대로다. 직후 `GET …/daily-trigger`는 `reasons=["switch_bound_to_other_version"]`(스위치가 v5에 묶여 있다).
+8. **일일 스위치를 v6에 켠다**(화면 또는 `POST /api/order-plan-screening/daily-trigger`, `policy_version=c2-order-plan-screening-v6`).
+   `GET …/daily-trigger` → `effective_enabled=true`, `policy_version=c2-order-plan-screening-v6`. 환경 cap
+   `BIDOPS_C2_DAILY_TRIGGER_ENABLED`는 이미 켜져 있으므로 재배포하지 않는다.
+9. **다음 날 확인.** v6 첫 일일 실행의 `stage1_selected_count=150`(모집단 150건 초과일 때)·6배치·실행 시간,
+   감사 표본 근접 창 151~175위.
+
+되돌리기: 활성화 전에는 7단계를 하지 않으면 된다. 활성화 뒤에는 retire된 v5를 되살리지 않는다 — 같은 내용의
+새 버전을 발행해 다시 게이트를 지난다. 이미지·코드는 롤백 태그로 되돌린다(옛 이미지는 v6 실행을 거부한다).
 
 ### 일일 브리핑·Slack (RL-01, 2026-10-17)
 

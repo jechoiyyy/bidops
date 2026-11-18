@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 import json
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import select
@@ -554,3 +554,218 @@ def test_worker_rejects_a_provider_that_does_not_match_the_model(tmp_path: Path,
     assert execution is not None and execution.status == "실패"
     assert execution.error_code == "binding_mismatch"
     assert adapter.calls == []
+
+
+# --- Policy-driven stage 1 cut (ADR-0075) ------------------------------------
+
+
+class AlwaysFailingAdapter(FakeAdapter):
+    """Model outage: every attempt of every batch fails with a retryable error."""
+
+    def invoke(self, *, prompt: str, payload: dict[str, object], expected_model: str) -> OrderPlanVllmResponse:
+        self.calls.append([int(row["item_id"]) for row in payload["items"]])  # type: ignore[index]
+        raise OrderPlanVllmError("timeout", "model_timeout")
+
+
+def _service(settings):
+    from app.screening.services.order_plan_screening import OrderPlanScreeningService
+
+    return OrderPlanScreeningService(settings)
+
+
+@pytest.mark.parametrize(("artifacts", "top_k"), [("v5", 300), ("v6", 150)])
+def test_worker_judges_exactly_the_policy_top_k(tmp_path: Path, artifacts: str, top_k: int) -> None:
+    settings, session, policy_version, _, _ = _fixture(
+        tmp_path, count=400, artifacts=artifacts, file_policy_status="activation_candidate",
+    )
+    assert policy_version == f"c2-order-plan-screening-{artifacts}"
+    response, _ = _create(_service(settings), session, policy_version)
+    adapter = FakeAdapter()
+    worker = C2ScreeningWorker(settings=settings, adapter=adapter, raw_response_store=MemoryResponseStore())
+    result = worker.run_once(session)
+    assert result and result["status"] == "성공"
+    assert [len(batch) for batch in adapter.calls] == [25] * (top_k // 25)
+    execution = session.get(OrderPlanScreeningExecution, UUID(str(response["execution_id"])))
+    assert execution is not None
+    assert (execution.stage1_selected_count, execution.stage1_filtered_out_count) == (top_k, 400 - top_k)
+    rows = {row.stage1_rank: row for row in session.scalars(
+        select(OrderPlanScreeningResult).where(OrderPlanScreeningResult.execution_id == execution.execution_id)
+    )}
+    assert len(rows) == 400
+    assert (rows[top_k].stage1_status, rows[top_k].stage2_status) == ("selected", "success")
+    assert (rows[top_k + 1].stage1_status, rows[top_k + 1].stage2_status) == ("filtered_out", "not_attempted")
+
+
+def test_worker_rejects_an_unapproved_top_k_before_any_model_call(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.screening.services import order_plan_screening
+
+    def top_k_200(policy: dict, binding: dict) -> None:
+        policy["stage1"]["top_k"] = 200
+        binding["stage1_binding"]["top_k"] = 200
+
+    settings, session, policy_version, _, _ = _fixture(
+        tmp_path, count=3, artifacts="v6", file_policy_status="activation_candidate", edit=top_k_200,
+    )
+    # The service already refuses this row; let it through once so the worker's own check is what runs.
+    monkeypatch.setattr(order_plan_screening, "ALLOWED_STAGE1_TOP_K", frozenset({150, 200, 300}))
+    response, _ = _create(_service(settings), session, policy_version)
+    monkeypatch.undo()
+    adapter = FakeAdapter()
+    worker = C2ScreeningWorker(settings=settings, adapter=adapter, raw_response_store=MemoryResponseStore())
+    worker.run_once(session)
+    execution = session.get(OrderPlanScreeningExecution, UUID(str(response["execution_id"])))
+    assert execution is not None and (execution.status, execution.error_code) == ("실패", "binding_mismatch")
+    assert adapter.calls == []
+    assert session.scalar(select(OrderPlanScreeningResult)) is None
+
+
+def test_a_fully_failed_execution_publishes_ranked_rows_and_ends_failed(tmp_path: Path) -> None:
+    """Model outage day: the merge publishes the whole ranked population and the execution ends ``실패``."""
+
+    settings, session, policy_version, _, plans = _fixture(
+        tmp_path, count=160, artifacts="v6", file_policy_status="activation_candidate",
+    )
+    response, _ = _create(_service(settings), session, policy_version)
+    adapter = AlwaysFailingAdapter()
+    worker = C2ScreeningWorker(settings=settings, adapter=adapter, raw_response_store=MemoryResponseStore())
+    result = worker.run_once(session)
+    assert result and result["status"] == "실패"
+    assert len(adapter.calls) == 6 * 2  # six batches, two attempts each
+    execution = session.get(OrderPlanScreeningExecution, UUID(str(response["execution_id"])))
+    assert execution is not None
+    assert (execution.status, execution.error_code, execution.partial_artifact) == ("실패", "result_failed", True)
+    assert (execution.stage1_selected_count, execution.stage2_failed_count, execution.completed_count) == (150, 150, 0)
+    rows = session.scalars(
+        select(OrderPlanScreeningResult).where(OrderPlanScreeningResult.execution_id == execution.execution_id)
+    ).all()
+    assert len(rows) == 160
+    assert all(row.stage1_rank is not None and row.stage1_score is not None for row in rows)
+    assert {(row.stage1_status, row.stage2_status) for row in rows} == {("selected", "failed"), ("filtered_out", "not_attempted")}
+    # The cumulative list shows that day's plans (ADR-0075) — ranked, without a judgment.
+    listing = _service(settings).list_order_plans(session, limit=500)
+    assert {item["execution_id"] for item in listing["items"]} == {execution.execution_id}
+    assert all(item["qwen_relevance"] is None and item["stage1_rank"] is not None for item in listing["items"])
+    assert listing["scope"]["policy_versions"] == []
+
+
+def test_v6_candidate_is_loaded_measured_and_activated_while_v5_keeps_running(tmp_path: Path) -> None:
+    """The operator sequence with v5 active: no path change and no restart between steps.
+
+    load → candidate → gate measurement (v5 daily keeps working) → activate (v5 retired) →
+    daily switch on v6.  The settings object is never touched after the fixture.
+    """
+
+    from decimal import Decimal
+
+    from app.screening.c2_policy import load_policy
+    from app.screening.models import (
+        OrderPlanScreeningDailyTrigger,
+        OrderPlanScreeningQualityEvaluation,
+        OrderPlanScreeningQualityGate,
+    )
+    from app.screening.schemas.order_plan_daily_trigger import DailyTriggerSetRequest
+    from app.screening.schemas.order_plan_policies import PolicyActivateRequest, PolicyCandidateRequest
+    from app.screening.services.order_plan_daily_trigger import OrderPlanDailyTriggerService, effective_state
+    from app.screening.services.order_plan_policy import OrderPlanPolicyService
+    from tests.screening.test_order_plan_screening_service import _canonical, _sha
+
+    settings, session, v5, _, _ = _fixture(tmp_path, count=160, artifacts="v5", file_policy_status="activation_candidate")
+    settings.c2_daily_trigger_enabled = True
+    v5_row = session.scalar(select(OrderPlanScreeningPolicy).where(OrderPlanScreeningPolicy.policy_version == v5))
+    assert v5_row is not None
+    session.add(OrderPlanScreeningDailyTrigger(
+        id=uuid4(), policy_version=v5, policy_sha256=v5_row.policy_sha256, enabled=True, reason=None,
+        set_by="operator", set_at=datetime(2026, 9, 2, tzinfo=UTC), request_id=uuid4(),
+    ))
+    session.commit()
+
+    # Publish v6 next to the configured (v5) files, as the compose mounts do.
+    config_dir = Path(str(settings.c2_policy_path)).parent
+    policy = json.loads(Path(str(settings.c2_policy_path)).read_bytes())
+    binding = json.loads(Path(str(settings.c2_binding_path)).read_bytes())
+    policy.update(policy_version="c2-order-plan-screening-v6")
+    policy["stage1"]["top_k"] = 150
+    policy_bytes = _canonical(policy)
+    binding["binding_version"] = "c2-order-plan-screening-binding-v6"
+    binding["policy"].update(policy_version="c2-order-plan-screening-v6", sha256=_sha(policy_bytes))
+    binding["stage1_binding"]["top_k"] = 150
+    (config_dir / "order-plan-screening-policy.v6.json").write_bytes(policy_bytes)
+    (config_dir / "order-plan-screening-phase0-binding.v6.json").write_bytes(_canonical(binding))
+    configured = (settings.c2_policy_path, settings.c2_binding_path)
+
+    # 1. load (CLI service) → draft row.
+    v6_row = load_policy(
+        session,
+        policy_path=config_dir / "order-plan-screening-policy.v6.json",
+        binding_path=config_dir / "order-plan-screening-phase0-binding.v6.json",
+        created_by="operator",
+    ).row
+    session.commit()
+    v6 = v6_row.policy_version
+    policies = OrderPlanPolicyService(settings)
+    # 2. candidate.
+    policies.set_candidate(session, PolicyCandidateRequest(
+        schema_version="policy-candidate-request.v1", producer="human-review-client", consumer="policy-api",
+        request_id=uuid4(), policy_version=v6, base_policy_sha256=v5_row.policy_sha256,
+        candidate_sha256=v6_row.policy_sha256, reason="Top150",
+    ), "operator")
+    inspected = policies.inspect_policy(session, v6)
+    assert (inspected["policy_file_present"], inspected["binding_file_present"]) == (True, True)
+    assert "policy_file_missing" not in {blocker["code"] for blocker in inspected["blockers"]}
+    assert effective_state(session, settings).effective_enabled is True
+
+    # 3. gate measurement of the v6 candidate, then a v5 daily run, with no restart in between.
+    gate = OrderPlanScreeningQualityGate(
+        gate_id="c2gate-" + "6" * 32, policy_version=v6, policy_sha256=v6_row.policy_sha256,
+        binding_sha256=v6_row.binding_sha256, gold_manifest_sha256="1" * 64, gold_artifact_sha256="2" * 64,
+        gold_status="queue_human_adjudicated", scoring_input_sha256="3" * 64, evaluation_basis="product_rerun",
+        scoring_unit="per_published_day", measurement_run_ids_json=["run-c2"], required_pass_count=2,
+        threshold_recall_pct=Decimal("90"), threshold_precision_pct=Decimal("35"),
+        threshold_important_missed_max=3, threshold_review_load_max=80,
+        created_by="gate-owner", created_at=datetime(2026, 9, 2, tzinfo=UTC),
+    )
+    session.add(gate)
+    session.commit()
+    service = _service(settings)
+    adapter = FakeAdapter()
+    worker = C2ScreeningWorker(settings=settings, adapter=adapter, raw_response_store=MemoryResponseStore())
+    measured, _ = _create(service, session, v6, "gate_measurement")
+    assert worker.run_once(session)["status"] == "성공"  # type: ignore[index]
+    measured_row = session.get(OrderPlanScreeningExecution, UUID(str(measured["execution_id"])))
+    assert measured_row is not None and measured_row.purpose == "gate_measurement"
+    assert (measured_row.policy_version, measured_row.stage1_selected_count, measured_row.stage1_filtered_out_count) == (v6, 150, 10)
+    daily, _ = _create(service, session, v5, "daily_script")
+    assert worker.run_once(session)["status"] == "성공"  # type: ignore[index]
+    daily_row = session.get(OrderPlanScreeningExecution, UUID(str(daily["execution_id"])))
+    assert daily_row is not None and (daily_row.policy_version, daily_row.stage1_selected_count) == (v5, 160)
+    assert [len(batch) for batch in adapter.calls] == [25] * 6 + [25] * 6 + [10]
+
+    # 4. activation (the evaluation is recorded by a person outside this test) retires v5.
+    evaluation = OrderPlanScreeningQualityEvaluation(
+        evaluation_id="c2gateeval-" + "6" * 32, gate_id=gate.gate_id, revision=1, result_status="통과",
+        pass_execution_ids_json={"pass_1": [str(measured_row.execution_id)], "pass_2": []}, metrics_json={},
+        reasons_json=[], artifact_sha256="4" * 64, evaluated_by="gate-owner",
+        evaluated_at=datetime(2026, 9, 2, 1, tzinfo=UTC),
+    )
+    session.add(evaluation)
+    session.commit()
+    policies.activate(session, v6, PolicyActivateRequest(
+        schema_version="policy-activate-request.v1", producer="human-review-client", consumer="policy-api",
+        request_id=uuid4(), policy_sha256=v6_row.policy_sha256, quality_gate_artifact_sha256="4" * 64,
+        explicit_confirmation=True,
+    ), "operator")
+    session.refresh(v5_row)
+    assert v5_row.policy_status == "retired"
+    assert effective_state(session, settings).reasons == ("switch_bound_to_other_version",)
+
+    # 5. daily switch on v6, then the next daily run uses v6.
+    OrderPlanDailyTriggerService(settings).set_switch(session, DailyTriggerSetRequest(
+        schema_version="daily-trigger-set-request.v1", producer="human-review-client", consumer="daily-trigger-api",
+        request_id=uuid4(), policy_version=v6, enabled=True, explicit_confirmation=True,
+    ), "operator")
+    assert effective_state(session, settings).effective_enabled is True
+    next_daily, _ = _create(service, session, v6, "daily_script")
+    assert worker.run_once(session)["status"] == "성공"  # type: ignore[index]
+    next_row = session.get(OrderPlanScreeningExecution, UUID(str(next_daily["execution_id"])))
+    assert next_row is not None and (next_row.policy_version, next_row.purpose, next_row.stage1_selected_count) == (v6, "operational", 150)
+    assert (settings.c2_policy_path, settings.c2_binding_path) == configured
