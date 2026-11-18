@@ -169,7 +169,7 @@ const ALL_VIEW_AXES: FilterAxes = { qwen: [], stage1: [], feedback: [], tracking
 const PRESETS: Preset[] = [
   { key: "relevant", label: "관련", description: "필수 검토 · 모델이 관련으로 판단", axes: DEFAULT_VIEW_AXES },
   { key: "uncertain", label: "불확실", description: "훑어보기 · 모델이 판단을 보류", axes: UNCERTAIN_VIEW_AXES },
-  { key: "unjudged", label: "모델 미판정", description: "모델이 판정하지 않은 건 · BM25 순위순", axes: UNJUDGED_VIEW_AXES },
+  { key: "unjudged", label: "모델 미판정", description: "모델이 판정하지 않은 건 · 1차 순위순", axes: UNJUDGED_VIEW_AXES },
   { key: "all", label: "전체", description: "누적 또는 선택한 수집 회차 전체", axes: ALL_VIEW_AXES },
 ];
 

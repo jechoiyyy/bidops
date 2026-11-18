@@ -341,9 +341,12 @@ export function orderPlanUnjudgedKind(item: { stage1_status: OrderPlanStage1Stat
   return null;
 }
 
-/** 행의 BM25 순위 표기. 순위가 없으면 지어내지 않고 미제공이다. */
+/**
+ * 행의 1차 선별 순위 표기. 실무 화면은 알고리즘 이름(`BM25`)을 쓰지 않으므로(0921 명세 §3.1) `1차 순위`다.
+ * 순위가 없으면 지어내지 않고 미제공이다.
+ */
 export function stage1RankLabel(rank: number | null): string {
-  return rank === null ? "BM25 순위 미제공" : `BM25 ${rank.toLocaleString("ko-KR")}위`;
+  return rank === null ? "1차 순위 미제공" : `1차 순위 ${rank.toLocaleString("ko-KR")}위`;
 }
 
 /**
