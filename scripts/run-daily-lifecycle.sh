@@ -108,10 +108,11 @@ this invocation processed included) without a 성공/부분 성공 operational C
 execution prints
   unjudged_detected track=order-plans date=YYYY-MM-DD run=<dir> reason=<r>
 with r = not_ingested | multiple_run_rows:<n> | active:<status> |
-last:<status> | no_execution, and also exits 10. This reads the web
+last:<status> | no_execution | audit_sample_missing, and also exits 10. This reads the web
 (GET /api/runs/<dir> for the canonical id, GET /api/runs for the row count,
-the executions list by canonical id); a failed read stops the script with a
-failure code, never as "no gap". A dry run reads no web and only says it
+the executions list by canonical id, and the read-only audit-sample GET of a
+successful day: a drawable sample never recorded is r = audit_sample_missing);
+a failed read stops the script with a failure code, never as "no gap". A dry run reads no web and only says it
 would check judged state.
 A failing day exits with its own failure code before the gap check. The
 order-plans track that ends at daily_trigger_off (nothing collected) does not
@@ -128,6 +129,13 @@ Environment (order-plans track):
   BIDOPS_C2_DAILY_RETRY_WAIT_SECONDS     default 600.
   BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS   default 7200.
   BIDOPS_C2_DAILY_POLL_INTERVAL_SECONDS  default 30.
+  BIDOPS_C2_DAILY_POLL_MAX_READ_FAILURES default 10. A polling GET that gets no
+                                         answer, 5xx, 408 or 429 prints
+                                         "c2: poll read failed (n/N)" and is
+                                         read again; N in a row (or the poll
+                                         timeout) fail the day (exit 2). 0
+                                         fails on the first one. Other 4xx
+                                         fail at once; POSTs are never retried.
 
 Exit:
 Exit 0 for success and the normal skips (daily_trigger_off, empty_population,
@@ -311,12 +319,16 @@ day_has_complete_run() {
 #   active:<status>        a 대기/실행 중/중지 요청 execution holds it
 #   last:<status>          only failed/stopped executions (newest by queued_at)
 #   no_execution           no operational execution at all
+#   audit_sample_missing   the newest 성공/부분 성공 execution (the one the resume
+#                          draws for) has a drawable sample that was never
+#                          recorded (read-only GET .../audit-sample = preview);
+#                          pending_human_approval / not_applicable are not counted
 # The executions list is read with the canonical run id only. Any web answer
 # other than the expected ones stops the script (workflow_die), so a read
 # failure never reads as "judged".
 DAY_UNJUDGED_REASON=""
 day_unjudged() {
-  local day="$1" canonical
+  local day="$1" canonical success_id
   DAY_UNJUDGED_REASON=""
   day_complete_run "${day}" || return 1
   [[ "${DAY_RUN_TOTAL}" != "0" ]] || return 1
@@ -335,7 +347,14 @@ day_unjudged() {
       ;;
   esac
   c2_list_run_executions "${canonical}"
-  if jq -e 'any(.[]; .status == "성공" or .status == "부분 성공")' <<<"${C2_RUN_EXECUTIONS}" >/dev/null; then
+  success_id="$(jq -r '[.[] | select(.status == "성공" or .status == "부분 성공")]
+    | sort_by(.finished_at // "") | last | .execution_id // empty' <<<"${C2_RUN_EXECUTIONS}")"
+  if [[ -n "${success_id}" ]]; then
+    c2_audit_sample_status "${success_id}"
+    if [[ "${C2_AUDIT_STATUS}" == "preview" ]]; then
+      DAY_UNJUDGED_REASON="audit_sample_missing"
+      return 0
+    fi
     return 1
   fi
   DAY_UNJUDGED_REASON="$(jq -r '

@@ -119,8 +119,12 @@ python3 skills/bidops-collect/scripts/collect_order_plans.py \
 드러난다. 그런 날마다
 `unjudged_detected track=order-plans date=<날짜> run=<디렉터리> reason=<사유>` 한 줄을 찍는다. 사유는
 `not_ingested`(`Run` 행 없음), `multiple_run_rows:<n>`(행이 둘 이상 — 고르지 않는다), `active:<상태>`(`대기`·
-`실행 중`·`중지 요청`이 잡고 있음), `last:<상태>`(실패·중단만 있음, 가장 늦게 들어온 것), `no_execution`이다.
-이 확인은 web을 읽는다 — `GET /api/runs/<디렉터리>`로 정규 id, `GET /api/runs`로 행 수, 실행 목록은 정규 id로만.
+`실행 중`·`중지 요청`이 잡고 있음), `last:<상태>`(실패·중단만 있음, 가장 늦게 들어온 것), `no_execution`, `audit_sample_missing`(최신 `성공`·
+`부분 성공` 실행의 감사 표본 GET이 `preview` — 뽑을 수 있는데 기록이 없음. `pending_human_approval`·
+`not_applicable`은 뽑을 것이 없으므로 세지 않는다)이다. 마지막 사유는 폴링이 끊긴 날처럼 실행은 성공했는데
+draw를 못 한 날을 잡는다(2026-11-18 감독 시운전).
+이 확인은 web을 읽기만 한다 — `GET /api/runs/<디렉터리>`로 정규 id, `GET /api/runs`로 행 수, 실행 목록은 정규
+id로만, 성공일은 `GET …/executions/<id>/audit-sample`(계산만 하고 기록하지 않는다).
 조회가 실패하면 "누락 없음"이 아니라 실패 코드(2)로 끝난다. 0건 회차와 floor 이전 날은 세지 않는다.
 
 exit 10은 "주의 필요 — 이번 호출이 처리한 날은 모두 성공·정상 스킵이고, 창 안에 빠진 날이나 판정 없는 날이
@@ -196,6 +200,7 @@ web을 읽어야 하므로 dry-run은 확인하지 않고 "a real run would also
 | `BIDOPS_C2_DAILY_RETRY_WAIT_SECONDS` | 600 | 그 날짜의 실행이 `실패`·`중단됨`뿐일 때, 자동 재시도(attempt+1) 전에 기다리는 시간 |
 | `BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS` | 7200 | 실행을 종결 상태까지 기다리는 최대 시간. 넘기면 exit 비0으로 스크립트는 멈추지만 실행 자체는 분석 워커에서 계속 진행되고, 다음 호출은 `active_execution_exists`로 건너뛴다 |
 | `BIDOPS_C2_DAILY_POLL_INTERVAL_SECONDS` | 30 | 폴링 주기 |
+| `BIDOPS_C2_DAILY_POLL_MAX_READ_FAILURES` | 10 | 폴링 GET(실행 상세)의 일시 실패 — 응답 없음(timeout 등)·5xx·408·429 — 를 `c2: poll read failed (n/N)` 한 줄로 남기고 같은 주기로 다시 읽는 연속 횟수 상한. 상한에 닿거나 전체 폴링 timeout이면 exit 2. `0`은 첫 실패에서 바로 멈춘다(2026-11-18 이전 동작). 그 밖의 4xx는 언제나 바로 멈추고, 실행 생성 POST는 다시 보내지 않는다 |
 
 **두 트랙 공통 환경변수** (`scripts/run-daily-lifecycle.sh`가 읽는다, 위 "누락일 감지"):
 
@@ -227,7 +232,8 @@ always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시�
 #          세지 않는다. 그 뒤로 빠진 날·판정 없는 날이 생기면 해당 줄과 exit 10이 로그에 남는다.
 # --catch-up-days N: 붙이면 빠진 날을 N일까지 거슬러 자동으로 메운다(발주계획은 날마다 C-2 실행 = 모델 호출).
 #          범위는 운영 결정이라 아래 예시에는 붙이지 않았다(감지만 한다). 붙이면 timeout도 그만큼 늘린다.
-# exit: 0 성공·정상 스킵, 10 빠진 날·판정 없는 날 남음(gap_detected·unjudged_detected), 124 timeout, 1 flock 실패, 그 밖의 비0 실패. 0이 아니면 사람이 본다.
+# exit: 0 성공·정상 스킵, 10 빠진 날·판정 없는 날 남음(gap_detected·unjudged_detected), 2 스크립트 검사 실패
+#       (폴링 GET이 연속 BIDOPS_C2_DAILY_POLL_MAX_READ_FAILURES번 실패한 경우 포함), 124 timeout, 1 flock 실패. 0이 아니면 사람이 본다.
 # crontab에서 %는 \%로 적어야 한다. 로그는 저장소 밖에 쌓아 회차·보고서와 섞지 않는다.
 30 6 * * * cd /path/to/bidops && BIDOPS_ENV=prod BIDOPS_DAILY_GAP_FLOOR_DATE=<YYYY-MM-DD> flock -n ~/.local/state/bidops/notices.lock timeout 3h ./scripts/run-daily-lifecycle.sh --track notices >> ~/.local/state/bidops/logs/notices-$(date +\%Y\%m).log 2>&1
 # C-2 활성화·일일 자동 실행이 켜진 뒤에만 설치한다. BIDOPS_C2_DAILY_ACTOR는 감사 표식이며 인증이 아니다.
