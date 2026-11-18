@@ -180,6 +180,67 @@ export function qwenRowLabel(item: { qwen_relevance: OrderPlanRelevance | null; 
   return stage2Label(item.stage2_status);
 }
 
+/**
+ * 발주 예정월(`YYYY-MM`). 원문은 `planned_order_month`가 `YYYY-MM`이거나(실데이터) 연도와 따로 온
+ * `M`/`MM`이다. 해석할 수 없으면 `null`(미확인)이며 지남으로 보지 않는다.
+ */
+export function plannedMonthKey(item: { planned_order_year: string | null; planned_order_month: string | null }): string | null {
+  const month = item.planned_order_month?.trim() ?? "";
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return month;
+  const year = item.planned_order_year?.trim() ?? "";
+  if (/^\d{4}$/.test(year) && /^\d{1,2}$/.test(month)) {
+    const value = Number(month);
+    if (value >= 1 && value <= 12) return `${year}-${String(value).padStart(2, "0")}`;
+  }
+  return null;
+}
+
+const KST_MONTH = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit" });
+
+/** 지금의 한국 시간 달(`YYYY-MM`). */
+export function currentKstMonth(now: number): string {
+  const parts = KST_MONTH.formatToParts(new Date(now));
+  const part = (type: string) => parts.find((entry) => entry.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}`;
+}
+
+/**
+ * 검토 순서에서 뒤로 보내는 이유. `예정월 지남`: 발주 예정월이 지금 한국 시간 달보다 앞이다(같은 달은
+ * 지나지 않았다, 예정월 미확인은 지남이 아니다). `공고 게시됨`: 공고 게시 여부 원문이 `Y`다. 둘 다
+ * 표식일 뿐이며 제외·추적 상태를 바꾸지 않는다. 둘 다면 공고 게시가 먼저다(더 확실한 사실).
+ */
+export type OrderPlanStaleReason = "공고 게시됨" | "예정월 지남";
+
+export function orderPlanStaleReason(
+  item: { planned_order_year: string | null; planned_order_month: string | null; notice_posted: string | null },
+  nowMonth: string,
+): OrderPlanStaleReason | null {
+  if (item.notice_posted === "Y") return "공고 게시됨";
+  const key = plannedMonthKey(item);
+  return key !== null && key < nowMonth ? "예정월 지남" : null;
+}
+
+/**
+ * `관련`·`불확실` 보기의 검토 순서(2026-11-18). 화면이 이미 범위 전체를 받으므로 브라우저가 정한다.
+ * 1) 예정월이 지나지 않았고 공고도 없는 건이 앞, 그 안에서 예정월이 가까운 순(미확인 월은 뒤),
+ * 2) 같으면 최근 첫 수집 순, 3) 예정월 지남·공고 게시됨은 뒤에 같은 규칙으로. 같으면 서버 순서를 지킨다.
+ */
+export function sortForReview<T extends {
+  planned_order_year: string | null; planned_order_month: string | null; notice_posted: string | null; first_observed_at: string | null;
+}>(items: readonly T[], nowMonth: string): T[] {
+  return items
+    .map((item, index) => {
+      const observed = item.first_observed_at ? Date.parse(item.first_observed_at) : Number.NaN;
+      return { item, index, stale: orderPlanStaleReason(item, nowMonth) !== null, month: plannedMonthKey(item), observed: Number.isFinite(observed) ? observed : -Infinity };
+    })
+    .sort((left, right) =>
+      Number(left.stale) - Number(right.stale)
+      || (left.stale ? 0 : (left.month ?? "9999-99").localeCompare(right.month ?? "9999-99"))
+      || (right.observed === left.observed ? 0 : right.observed > left.observed ? 1 : -1)
+      || left.index - right.index)
+    .map(({ item }) => item);
+}
+
 /** 모델 판정이 없는 건(1차 선별 실패·거부, 모델 실패·거부·미확인)에 붙는 표식. 비관련으로 읽지 않는다. */
 export const NO_MODEL_JUDGMENT_LABEL = "모델 판정 없음 — 사람 확인";
 

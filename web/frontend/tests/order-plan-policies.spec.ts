@@ -416,7 +416,8 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     await expect(row).not.toContainText("다음 일일 스크립트가");
     const line = row.getByTestId("daily-run-status");
     await expect(line).toHaveAttribute("data-state", "ok");
-    await expect(line).toContainText("마지막 수집 11월 18일 (기준일 11-17)");
+    await expect(line).toContainText("최근 기준일 11-17");
+    await expect(line).toContainText("수집 11월 18일 · 오늘");
     await expect(line).toContainText("C-2 성공");
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
     await page.screenshot({ path: info.outputPath(`order-plan-policy-${viewport.width}.png`) });

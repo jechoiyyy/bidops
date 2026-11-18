@@ -3300,3 +3300,53 @@ test("A6-배치 실패 등으로 모델 판정이 없는 건은 선별 실패 �
   await clickPreset(page, "1차 선별 제외");
   await expect(page.locator(".c2l-row .c2l-row-no-judgment")).toHaveCount(0);
 });
+
+// 2026-11-18 운영 관측: `관련` 389건의 첫 행이 이미 지난 예정월(10월)·공고 게시 건이었다. 관련·불확실 보기는
+// 예정월이 가까운 건 → 최근 첫 수집 순으로 두고, 예정월 지남·공고 게시됨은 뒤로 보내며 중립 칩으로 표시한다.
+test("F2-관련 보기는 다가오는 예정월·최근 수집 순이고 지난 예정월·공고 게시 건은 뒤에 칩과 함께 둔다", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-11-18T03:00:00Z")); // KST 2026-11
+  const item = (pk: number, title: string, month: string | null, observed: string, posted: string | null = "N") => ({
+    ...testOrderPlanItem(pk, "relevant", title), planned_order_year: month ? month.slice(0, 4) : null, planned_order_month: month,
+    first_observed_at: observed, notice_posted: posted,
+  });
+  const items = [
+    item(201, "지난달 예정 사업", "2026-10", "2026-11-17T00:00:00Z"),
+    item(202, "공고 이미 게시 사업", "2026-12", "2026-11-16T00:00:00Z", "Y"),
+    item(203, "내년 1월 예정 사업", "2027-01", "2026-11-17T00:00:00Z"),
+    item(204, "이번 달 예정 · 오래전 수집", "2026-11", "2026-10-14T00:00:00Z"),
+    item(205, "이번 달 예정 · 최근 수집", "2026-11", "2026-11-17T00:00:00Z"),
+    item(206, "예정월 미확인 사업", null, "2026-11-17T00:00:00Z"),
+  ];
+  await mockReorderedOrderPlanList(page, items);
+  await page.goto("/order-plans");
+  await expect(presetTab(page, "관련")).toHaveAttribute("aria-pressed", "true");
+  // 탭 건수는 그대로다 — 뒤로 보낼 뿐 빼지 않는다.
+  await expect(presetTab(page, "관련")).toContainText("6");
+  const rows = page.locator(".c2l-row");
+  await expect(rows.locator(".c2l-row-title")).toHaveText([
+    "이번 달 예정 · 최근 수집",
+    "이번 달 예정 · 오래전 수집",
+    "내년 1월 예정 사업",
+    "예정월 미확인 사업",
+    "지난달 예정 사업",
+    "공고 이미 게시 사업",
+  ]);
+  await expect(rows.nth(4).locator(".c2l-row-stale")).toHaveText("예정월 지남");
+  await expect(rows.nth(5).locator(".c2l-row-stale")).toHaveText("공고 게시됨");
+  // 이번 달·미확인 월은 지남이 아니다.
+  await expect(rows.locator(".c2l-row-stale")).toHaveCount(2);
+  // 추적 상태는 그대로 미선택이다.
+  await expect(rows.nth(4).locator(".c2l-row-tracking")).toContainText("미선택");
+});
+
+test("F2-전체 보기는 지금처럼 모델 판단 순서와 서버 순서를 지킨다", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-11-18T03:00:00Z"));
+  const items = [
+    { ...testOrderPlanItem(301, "relevant", "서버 첫째 · 지난 예정월"), planned_order_year: "2026", planned_order_month: "2026-09" },
+    { ...testOrderPlanItem(302, "relevant", "서버 둘째 · 다음 달"), planned_order_year: "2026", planned_order_month: "2026-12" },
+  ];
+  await mockReorderedOrderPlanList(page, items);
+  await page.goto("/order-plans");
+  await clickPreset(page, "전체");
+  await expect(page.locator(".c2l-row .c2l-row-title")).toHaveText(["서버 첫째 · 지난 예정월", "서버 둘째 · 다음 달"]);
+});

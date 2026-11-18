@@ -48,24 +48,38 @@ function agoLabel(days: number | null): string {
   return `${formatNumber(days)}일 전`;
 }
 
-/** 줄을 이루는 사실 조각. 순서: 수집일 → 경과일 → C-2 상태 → 사람 검토 건수. */
+/** 진행 시간 표기. 분 단위로 내리고 1시간이 넘으면 시간·분이다. */
+function elapsedLabel(ms: number | null): string {
+  if (ms === null) return "경과 시간 미확인";
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 60) return `${minutes}분째`;
+  return `${Math.floor(minutes / 60)}시간 ${minutes % 60}분째`;
+}
+
+/** 줄을 이루는 사실 조각. 순서: 기준일 → 수집일·경과일 → C-2 상태 → 사람 검토 건수. */
 function factParts(status: DailyRunStatus): string[] {
   if (!status.latest) return ["일일 발주계획 수집 기록이 없습니다"];
   const parts = [
+    `최근 기준일 ${status.latest.basisDate.slice(5)}`,
     status.collectedDate
-      ? `마지막 수집 ${shortDate(status.collectedDate)} (기준일 ${status.latest.basisDate.slice(5)})`
-      : `마지막 수집 날짜 미확인 (기준일 ${status.latest.basisDate.slice(5)})`,
-    agoLabel(status.daysSince),
+      ? `수집 ${shortDate(status.collectedDate)} · ${agoLabel(status.daysSince)}`
+      : "수집 날짜 미확인",
   ];
   const execution = status.execution;
   if (!execution) {
-    parts.push("C-2 실행 없음");
+    parts.push(status.problems.includes("no_execution") ? "C-2 실행 없음" : "C-2 실행 없음 · 수집 0건");
+    return parts;
+  }
+  // 대기·실행 중·중지 요청은 진행 중이다. 건수는 끝난 뒤에만 적는다.
+  if (["대기", "실행 중", "중지 요청"].includes(execution.status)) {
+    parts.push(`C-2 ${execution.status} · ${elapsedLabel(status.inProgressMs)}`);
     return parts;
   }
   parts.push(`C-2 ${execution.status}`);
+  if (status.noJudgmentCount === null) return parts;
   const counts = execution.counts;
   const breakdown = [`관련 ${formatNumber(counts.stage2_relevant_count)}`, `불확실 ${formatNumber(counts.stage2_uncertain_count)}`];
-  if (status.noJudgmentCount !== null && status.noJudgmentCount > 0) breakdown.push(`모델 판정 없음 ${formatNumber(status.noJudgmentCount)}`);
+  if (status.noJudgmentCount > 0) breakdown.push(`모델 판정 없음 ${formatNumber(status.noJudgmentCount)}`);
   parts.push(`사람 검토 ${formatNumber(counts.human_review_count)}건 (${breakdown.join(" · ")})`);
   return parts;
 }
@@ -74,11 +88,18 @@ function problemSentence(status: DailyRunStatus): string | null {
   const { problems } = status;
   if (problems.includes("no_daily_run")) return "일일 스크립트가 아직 발주계획을 수집한 적이 없습니다.";
   const sentences: string[] = [];
-  if (problems.includes("stale")) sentences.push("마지막 일일 수집이 1일보다 오래됐습니다. 일일 스크립트가 돌지 않았을 수 있습니다.");
+  if (problems.includes("stale")) sentences.push("최근 기준일이 어제보다 오래됐습니다. 일일 스크립트가 돌지 않았을 수 있습니다.");
   if (problems.includes("no_execution")) sentences.push("이 회차에는 C-2 운영 실행이 없습니다.");
+  if (problems.includes("in_progress_too_long")) sentences.push("오래 진행 중 — 실행 상태 확인.");
   if (problems.includes("execution_not_done")) sentences.push("C-2 실행이 성공·부분 성공으로 끝나지 않았습니다.");
   return sentences.length ? sentences.join(" ") : null;
 }
+
+const STATE_BADGE = {
+  ok: { label: "정상", tone: "neutral" },
+  in_progress: { label: "진행 중", tone: "neutral" },
+  warning: { label: "확인 필요", tone: "warning" },
+} as const;
 
 export function DailyRunStatusLine({ className = "", showLink = true }: { className?: string; showLink?: boolean }) {
   const { status, isPending, isError, refetch } = useDailyRunStatus();
@@ -95,15 +116,15 @@ export function DailyRunStatusLine({ className = "", showLink = true }: { classN
     );
   }
   const problem = problemSentence(status);
-  const warning = status.problems.length > 0;
+  const badge = STATE_BADGE[status.state];
   return (
     <div
-      className={`daily-run-line${warning ? " is-warning" : ""} ${className}`.trim()}
-      data-state={warning ? "warning" : "ok"}
+      className={`daily-run-line${status.state === "warning" ? " is-warning" : ""} ${className}`.trim()}
+      data-state={status.state}
       data-testid="daily-run-status"
       role="status"
     >
-      <StatusBadge label={warning ? "확인 필요" : "정상"} tone={warning ? "warning" : "neutral"} />
+      <StatusBadge label={badge.label} tone={badge.tone} />
       <span className="daily-run-facts">
         <span className="daily-run-title">발주계획 일일 실행</span>
         {factParts(status).map((part) => <span className="daily-run-fact" key={part}>{part}</span>)}
