@@ -138,6 +138,14 @@ export interface DailyRunStatus {
   state: DailyRunState;
 }
 
+/**
+ * 실행 집계의 무판정 몫(`human_review_count − 관련 − 불확실`). 화면 문구 `모델 미판정 n건`의 n이며
+ * 1차 선별 `순위 밖`은 들지 않는다(그 건은 `human_review_count`에 없다).
+ */
+export function noJudgmentCountOf(counts: Pick<OrderPlanScreeningExecutionSummary["counts"], "human_review_count" | "stage2_relevant_count" | "stage2_uncertain_count">): number {
+  return Math.max(0, counts.human_review_count - counts.stage2_relevant_count - counts.stage2_uncertain_count);
+}
+
 /** 수집 건수(`counts.collection.total`)가 0으로 확인된 회차. 모르면 비어 있다고 보지 않는다. */
 function isEmptyRun(run: RunSummary): boolean {
   return run.counts.collection?.total === 0;
@@ -173,9 +181,7 @@ export function dailyRunStatus(
     problems.push("execution_not_done");
   }
   const counts = execution && DONE_STATUSES.has(execution.status) ? execution.counts : null;
-  const noJudgmentCount = counts
-    ? Math.max(0, counts.human_review_count - counts.stage2_relevant_count - counts.stage2_uncertain_count)
-    : null;
+  const noJudgmentCount = counts ? noJudgmentCountOf(counts) : null;
   const state: DailyRunState = problems.length > 0 ? "warning" : inProgressMs !== null ? "in_progress" : "ok";
   return { latest, collectedDate, daysSince, basisLag, execution, inProgressMs, noJudgmentCount, problems, state };
 }

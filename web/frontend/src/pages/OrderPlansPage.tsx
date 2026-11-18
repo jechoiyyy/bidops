@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { searchKey, searchMatches } from "../lib/search";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
@@ -63,8 +63,11 @@ import {
   OTHER_REASON,
   TRACKING_REASONS,
   formatMoment,
-  NO_MODEL_JUDGMENT_LABEL,
   currentKstMonth,
+  isJudgmentFailure,
+  orderPlanUnjudgedKind,
+  sortByCollectionRank,
+  sortForBrowse,
   sortForReview,
   textOrUnknown,
   trackingAvailability,
@@ -121,7 +124,7 @@ const RELEVANCE_TOKENS: readonly RelevanceToken[] = ["relevant", "uncertain", "n
 const STAGE1_TOKENS: readonly Stage1Token[] = ["selected", "filtered_out", "failed", "rejected", "null"];
 const FEEDBACK_TOKENS: readonly FeedbackToken[] = ["has", "none"];
 const TRACKING_TOKENS: readonly TrackingToken[] = ["미선택", "계속 추적", "보류", "종료", "none"];
-const AXIS_KEYS = ["qwen", "stage1", "feedback", "tracking", "issue", "q"] as const;
+const AXIS_KEYS = ["qwen", "stage1", "feedback", "tracking", "issue", "unjudged", "q"] as const;
 
 interface FilterAxes {
   qwen: RelevanceToken[];
@@ -129,6 +132,11 @@ interface FilterAxes {
   feedback: FeedbackToken[];
   tracking: TrackingToken[];
   issue: boolean;
+  /**
+   * `모델 미판정` 보기(2026-11-18 수정안 3B): 1차 선별 `순위 밖`(filtered_out) **또는** 판정 실패.
+   * 축 안 OR·축끼리 AND 규칙으로는 두 축을 OR로 묶을 수 없어 별도 축(URL `unjudged=yes`)으로 둔다.
+   */
+  unjudged: boolean;
 }
 
 interface Preset {
@@ -147,18 +155,45 @@ interface Preset {
  * tracking=미선택`)과 저장된 뷰는 그대로 같은 행을 보인다 — 탭 이름만 없어졌다.
  * `stage1_status=selected`는 따로 걸지 않는다 — 모델 relevance가 있는 행은 BM25 선정 행뿐이다.
  */
-const DEFAULT_VIEW_AXES: FilterAxes = { qwen: ["relevant"], stage1: [], feedback: [], tracking: ["미선택"], issue: false };
-const UNCERTAIN_VIEW_AXES: FilterAxes = { qwen: ["uncertain"], stage1: [], feedback: [], tracking: ["미선택"], issue: false };
+const DEFAULT_VIEW_AXES: FilterAxes = { qwen: ["relevant"], stage1: [], feedback: [], tracking: ["미선택"], issue: false, unjudged: false };
+const UNCERTAIN_VIEW_AXES: FilterAxes = { qwen: ["uncertain"], stage1: [], feedback: [], tracking: ["미선택"], issue: false, unjudged: false };
+const UNJUDGED_VIEW_AXES: FilterAxes = { qwen: [], stage1: [], feedback: [], tracking: [], issue: false, unjudged: true };
+const ALL_VIEW_AXES: FilterAxes = { qwen: [], stage1: [], feedback: [], tracking: [], issue: false, unjudged: false };
 
+/**
+ * 보기 탭은 세 단 + 전체다(2026-11-18 수정안 3B): `관련`(필수 검토) → `불확실`(훑어보기) →
+ * `모델 미판정` → `전체`. 탭 이름은 짧게 두고 역할은 목록 머리 설명 줄(`filterMeaning`)이 말한다.
+ * 옛 탭 `1차 선별 제외`(`stage1=filtered_out`)·`선별 실패`(`issue=yes`)의 주소는 화면에 들어올 때
+ * `모델 미판정`으로 옮긴다(`legacyUnjudgedViewSearch`).
+ */
 const PRESETS: Preset[] = [
-  { key: "relevant", label: "관련", description: "모델 판단 관련 · 추적을 정하지 않은 건", axes: DEFAULT_VIEW_AXES },
-  { key: "uncertain", label: "불확실", description: "모델 판단 보류(불확실) · 추적을 정하지 않은 건", axes: UNCERTAIN_VIEW_AXES },
-  { key: "all", label: "전체", description: "누적 또는 선택한 수집 회차 전체", axes: { qwen: [], stage1: [], feedback: [], tracking: [], issue: false } },
-  /* 탭 이름은 사람 말이고 `key`와 URL 값은 그대로다(시안 M3 결정 2 승인) — 저장된 뷰와
-     북마크가 그대로 살아 있어야 한다. */
-  { key: "bm25-filtered-out", label: "1차 선별 제외", description: "1차 선별에서 제외된 건", axes: { qwen: [], stage1: ["filtered_out"], feedback: [], tracking: [], issue: false } },
-  { key: "failure", label: "선별 실패", description: `1차 선별 또는 모델 판정이 실패·거부된 건 · ${NO_MODEL_JUDGMENT_LABEL}`, axes: { qwen: [], stage1: [], feedback: [], tracking: [], issue: true } },
+  { key: "relevant", label: "관련", description: "필수 검토 · 모델이 관련으로 판단", axes: DEFAULT_VIEW_AXES },
+  { key: "uncertain", label: "불확실", description: "훑어보기 · 모델이 판단을 보류", axes: UNCERTAIN_VIEW_AXES },
+  { key: "unjudged", label: "모델 미판정", description: "모델이 판정하지 않은 건 · 1차 순위순", axes: UNJUDGED_VIEW_AXES },
+  { key: "all", label: "전체", description: "누적 또는 선택한 수집 회차 전체", axes: ALL_VIEW_AXES },
 ];
+
+/** 지금 주소가 옛 탭(`1차 선별 제외`·`선별 실패`) 하나와 같은가. 축 하나만 걸리고 나머지는 비어 있어야 한다. */
+function isLegacyUnjudgedView(params: URLSearchParams): boolean {
+  if (!["stage1", "issue"].some((key) => params.has(key))) return false;
+  if (params.get("unjudged") || (params.get("q") ?? "").trim()) return false;
+  if (["qwen", "feedback", "tracking"].some((key) => (params.get(key) ?? "").trim() !== "")) return false;
+  const stage1 = parseTokenSet(params.get("stage1"), STAGE1_TOKENS);
+  const issue = params.get("issue") === "yes";
+  const onlyFilteredOut = !issue && stage1.size === 1 && stage1.has("filtered_out");
+  const onlyIssue = issue && stage1.size === 0;
+  return onlyFilteredOut || onlyIssue;
+}
+
+/** 옛 탭 주소를 `모델 미판정` 보기 주소로 바꾼다. 축만 바꾸고 회차·첫 수집 창·선택 행은 그대로 둔다. */
+function legacyUnjudgedViewSearch(params: URLSearchParams): URLSearchParams {
+  const next = new URLSearchParams(params);
+  for (const key of ["qwen", "stage1", "feedback", "tracking", "issue"]) next.set(key, "");
+  next.set("unjudged", "yes");
+  next.set("q", "");
+  next.delete("offset");
+  return next;
+}
 
 interface SavedView {
   id: string;
@@ -249,9 +284,7 @@ function stage1Token(value: OrderPlanStage1Status | null): Stage1Token {
 }
 
 function isExecutionIssue(item: OrderPlanListItem): boolean {
-  const stage1Bad = item.stage1_status === "failed" || item.stage1_status === "rejected";
-  const stage2Bad = item.stage2_status === "failed" || item.stage2_status === "rejected";
-  return stage1Bad || stage2Bad;
+  return isJudgmentFailure(item);
 }
 
 /**
@@ -266,6 +299,7 @@ interface AxisSelection {
   feedbackSet: Set<FeedbackToken>;
   trackingSet: Set<TrackingToken>;
   issueOn: boolean;
+  unjudgedOn: boolean;
 }
 
 function matchesAxes(item: OrderPlanListItem, axes: AxisSelection): boolean {
@@ -277,6 +311,7 @@ function matchesAxes(item: OrderPlanListItem, axes: AxisSelection): boolean {
   }
   if (axes.trackingSet.size && !axes.trackingSet.has(trackingToken(item))) return false;
   if (axes.issueOn && !isExecutionIssue(item)) return false;
+  if (axes.unjudgedOn && orderPlanUnjudgedKind(item) === null) return false;
   return true;
 }
 
@@ -287,6 +322,7 @@ function presetSelection(preset: Preset): AxisSelection {
     feedbackSet: new Set(preset.axes.feedback),
     trackingSet: new Set(preset.axes.tracking),
     issueOn: preset.axes.issue,
+    unjudgedOn: preset.axes.unjudged,
   };
 }
 
@@ -489,7 +525,28 @@ interface FeedbackDraft {
 
 const EMPTY_FEEDBACK_DRAFT: FeedbackDraft = { relevance: "uncertain", priority: "", memo: "" };
 
+/**
+ * 옛 보기 주소의 별칭(2026-11-18 수정안 3B). **화면에 들어올 때 한 번만** 본다 — 이미 열린 화면에서
+ * 사람이 상세 필터로 같은 축(1차 선별 `순위 밖`만, `실패·거부만`)을 고르는 것은 그대로 그 필터다.
+ * 별칭을 본문보다 먼저 풀어, 본문이 옛 축으로 한 번도 그려지지 않게 한다(선택 복원 fingerprint가
+ * 옛 축으로 잡혔다 바로 바뀌어 선택을 지우는 일이 없다).
+ */
 export function OrderPlansPage() {
+  const [searchParams] = useSearchParams();
+  // 들어온 주소 하나만 본다. 렌더 중에 ref를 바꾸지 않으므로 StrictMode의 이중 렌더에도 같은 답이다.
+  const [entrySearch] = useState(() => searchParams.toString());
+  const [entryAlias] = useState(() => (isLegacyUnjudgedView(searchParams) ? legacyUnjudgedViewSearch(searchParams).toString() : null));
+  // 본문이 한 번 그려진 뒤로는 별칭을 보지 않는다(상세 필터로 같은 축을 고른 경우).
+  const workspaceShownRef = useRef(false);
+  const showWorkspace = entryAlias === null || workspaceShownRef.current || searchParams.toString() !== entrySearch;
+  useEffect(() => {
+    if (showWorkspace) workspaceShownRef.current = true;
+  }, [showWorkspace]);
+  if (!showWorkspace) return <Navigate replace to={{ pathname: "/order-plans", search: `?${entryAlias}` }} />;
+  return <OrderPlansWorkspace />;
+}
+
+function OrderPlansWorkspace() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
 
@@ -727,6 +784,7 @@ export function OrderPlansPage() {
   const feedbackSet = isDefaultView ? new Set<FeedbackToken>(DEFAULT_VIEW_AXES.feedback) : parseTokenSet(searchParams.get("feedback"), FEEDBACK_TOKENS);
   const trackingSet = isDefaultView ? new Set<TrackingToken>(DEFAULT_VIEW_AXES.tracking) : parseTokenSet(searchParams.get("tracking"), TRACKING_TOKENS);
   const issueOn = isDefaultView ? DEFAULT_VIEW_AXES.issue : searchParams.get("issue") === "yes";
+  const unjudgedOn = isDefaultView ? DEFAULT_VIEW_AXES.unjudged : searchParams.get("unjudged") === "yes";
   const qText = searchParams.get("q") ?? "";
   const offsetRaw = Number(searchParams.get("offset") ?? "0");
   const offset = Number.isFinite(offsetRaw) && offsetRaw >= 0 ? Math.floor(offsetRaw / PAGE_SIZE) * PAGE_SIZE : 0;
@@ -744,9 +802,8 @@ export function OrderPlansPage() {
     issue: issueOn,
     q: qText,
   });
-  const selectionFingerprint = firstObservedFrom
-    ? `${baseFingerprint}|first_observed_from:${firstObservedFrom}`
-    : baseFingerprint;
+  // `모델 미판정` 축도 같은 방식으로 덧붙인다 — 꺼져 있으면 지금까지와 같은 문자열이다.
+  const selectionFingerprint = `${baseFingerprint}${unjudgedOn ? "|unjudged" : ""}${firstObservedFrom ? `|first_observed_from:${firstObservedFrom}` : ""}`;
   // 기본 보기는 목록의 범위(`scope`)를 보고 정해진다. 범위를 알기 전에 선택을 복원하면
   // fingerprint가 바로 바뀌어 복원한 선택을 지운다.
   const selectionHydrationReady = !listQuery.isPending;
@@ -769,6 +826,7 @@ export function OrderPlansPage() {
         && setEqualsArray(feedbackSet, preset.axes.feedback)
         && setEqualsArray(trackingSet, preset.axes.tracking)
         && issueOn === preset.axes.issue
+        && unjudgedOn === preset.axes.unjudged
       ) return preset.key;
     }
     return null;
@@ -777,7 +835,7 @@ export function OrderPlansPage() {
   // 아래 네 함수는 확인 단계를 갖지 않는 원본이다. 확인은 사람이 누르는 자리
   // (`changeAxes`, `applyPreset`, `applySavedViewSearch`, `resetFilters`, 페이지 이동)가
   // 한 번만 건다. 원본끼리 겹쳐 부르면 같은 질문이 두 번 뜬다.
-  function applyAxes(next: { qwen?: Set<RelevanceToken>; stage1?: Set<Stage1Token>; feedback?: Set<FeedbackToken>; tracking?: Set<TrackingToken>; issue?: boolean; q?: string }) {
+  function applyAxes(next: { qwen?: Set<RelevanceToken>; stage1?: Set<Stage1Token>; feedback?: Set<FeedbackToken>; tracking?: Set<TrackingToken>; issue?: boolean; unjudged?: boolean; q?: string }) {
     // A4: 필터가 바뀌면 일괄 종료 안내를 지운다. 이 함수는 축을 바꾸는 모든 경로의
     // 공용 원본이라 여기 한 곳에 둔다.
     setBulkEndNotice(null);
@@ -787,6 +845,11 @@ export function OrderPlansPage() {
     if (next.feedback) params.set("feedback", serializeTokens(next.feedback));
     if (next.tracking) params.set("tracking", serializeTokens(next.tracking));
     if (next.issue !== undefined) params.set("issue", next.issue ? "yes" : "");
+    // 꺼진 `모델 미판정` 축은 주소에 남기지 않는다 — 다른 보기의 주소가 지금까지와 같다.
+    if (next.unjudged !== undefined) {
+      if (next.unjudged) params.set("unjudged", "yes");
+      else params.delete("unjudged");
+    }
     if (next.q !== undefined) params.set("q", next.q);
     params.delete("offset");
     setSearchParams(params, { replace: true });
@@ -794,7 +857,7 @@ export function OrderPlansPage() {
   }
 
   /** 사람이 누르는 필터 축. 필터가 바뀌면 선택한 행도 바뀌므로 먼저 확인한다. */
-  function changeAxes(next: { qwen?: Set<RelevanceToken>; stage1?: Set<Stage1Token>; feedback?: Set<FeedbackToken>; tracking?: Set<TrackingToken>; issue?: boolean; q?: string }) {
+  function changeAxes(next: { qwen?: Set<RelevanceToken>; stage1?: Set<Stage1Token>; feedback?: Set<FeedbackToken>; tracking?: Set<TrackingToken>; issue?: boolean; unjudged?: boolean; q?: string }) {
     withRowGuard(() => applyAxes(next));
   }
 
@@ -824,6 +887,7 @@ export function OrderPlansPage() {
         feedback: new Set(preset.axes.feedback),
         tracking: new Set(preset.axes.tracking),
         issue: preset.axes.issue,
+        unjudged: preset.axes.unjudged,
         q: "",
       });
       setSearchText("");
@@ -832,7 +896,9 @@ export function OrderPlansPage() {
 
   function applySavedViewSearch(search: string) {
     withRowGuard(() => {
-      const savedParams = new URLSearchParams(search);
+      // 옛 탭(`1차 선별 제외`·`선별 실패`)을 저장한 뷰도 주소 별칭과 같이 `모델 미판정`으로 연다.
+      const storedParams = new URLSearchParams(search);
+      const savedParams = isLegacyUnjudgedView(storedParams) ? legacyUnjudgedViewSearch(storedParams) : storedParams;
       const params = new URLSearchParams(searchParams);
       for (const key of AXIS_KEYS) {
         if (savedParams.has(key)) params.set(key, savedParams.get(key) ?? "");
@@ -867,6 +933,7 @@ export function OrderPlansPage() {
         feedback: new Set(),
         tracking: new Set(["종료"]),
         issue: false,
+        unjudged: false,
         q: "",
       });
       setSearchText("");
@@ -882,6 +949,7 @@ export function OrderPlansPage() {
     params.set("feedback", serializeTokens(feedbackSet));
     params.set("tracking", serializeTokens(trackingSet));
     params.set("issue", issueOn ? "yes" : "");
+    if (unjudgedOn) params.set("unjudged", "yes");
     params.set("q", qText);
     const view: SavedView = { id: generateRequestId(), name, search: params.toString(), createdAt: new Date().toISOString() };
     const next = [...savedViews, view];
@@ -919,7 +987,7 @@ export function OrderPlansPage() {
   }
 
   function matchesFilters(item: OrderPlanListItem): boolean {
-    if (!matchesAxes(item, { qwenSet, stage1Set, feedbackSet, trackingSet, issueOn })) return false;
+    if (!matchesAxes(item, { qwenSet, stage1Set, feedbackSet, trackingSet, issueOn, unjudgedOn })) return false;
     if (searchKey(qText) && !searchMatches(qText, item.title, item.agency_name, item.order_plan_unty_no)) return false;
     return true;
   }
@@ -941,10 +1009,17 @@ export function OrderPlansPage() {
   // 같은 검토 순서를 공유한다. null은 값 없음으로만 다루고 다른 상태로 보정하지 않는다.
   // `관련`·`불확실` 보기는 검토 순서(예정월이 가까운 건 → 최근 첫 수집, 예정월 지남·공고 게시됨은 뒤)로
   // 줄 세운다. 목록은 범위 전체를 받아 브라우저가 자르므로(`fetchAllOrderPlans`) 서버 계약을 바꾸지 않는다.
-  // 다른 보기는 지금처럼 모델 판단 순서와 서버 순서다.
+  // `불확실`(훑어보기)은 지난 건을 뒤로 보낸 뒤 수집일 최신 → 그날 BM25 순위순, `모델 미판정`은 수집일
+  // 최신 → 그날 BM25 순위순이다(2026-11-18 수정안 3B). 다른 보기는 지금처럼 모델 판단 순서와 서버 순서다.
   const reviewMonth = useMemo(() => currentKstMonth(Date.now()), []);
   const matched = sortByRelevance(allItems.filter((item) => matchesFilters(item) || item.order_plan_pk === retainedPk));
-  const filteredItems = activePreset === "relevant" || activePreset === "uncertain" ? sortForReview(matched, reviewMonth) : matched;
+  const filteredItems = activePreset === "relevant"
+    ? sortForReview(matched, reviewMonth)
+    : activePreset === "uncertain"
+      ? sortForBrowse(matched, reviewMonth)
+      : activePreset === "unjudged"
+        ? sortByCollectionRank(matched)
+        : matched;
   const total = filteredItems.length;
   const visibleItems = filteredItems.slice(offset, offset + PAGE_SIZE);
 
@@ -1387,7 +1462,15 @@ export function OrderPlansPage() {
   const filterMeaning = (() => {
     const window = firstObservedFrom ? firstObservedLabel(firstObservedFrom) : null;
     if (isDefaultView) {
-      const base = "기본 보기 · 관련 (모델 판단 관련 AND 추적 미선택)";
+      const base = `기본 보기 · ${PRESETS[0].description} · 추적 미선택`;
+      return window ? `${base} AND ${window}` : base;
+    }
+    // 세 단의 탭은 역할을 먼저 말한다(2026-11-18 수정안 3B). 탭 축만 걸린 상태에서만이다.
+    const tierPreset = activePreset === "relevant" || activePreset === "uncertain" || activePreset === "unjudged"
+      ? PRESETS.find((preset) => preset.key === activePreset)
+      : undefined;
+    if (tierPreset) {
+      const base = tierPreset.axes.tracking.length ? `${tierPreset.description} · 추적 미선택` : tierPreset.description;
       return window ? `${base} AND ${window}` : base;
     }
     const parts: string[] = [];
@@ -1397,6 +1480,7 @@ export function OrderPlansPage() {
     if (feedbackSet.size) parts.push(`사람 판단 ${Array.from(feedbackSet).map((token) => (token === "has" ? "있음" : "없음")).join("·")}`);
     if (trackingSet.size) parts.push(`추적 ${Array.from(trackingSet).map((token) => (token === "none" ? ORDER_PLAN_TRACKING_NONE_LABEL : token)).join("·")}`);
     if (issueOn) parts.push("실패·거부만");
+    if (unjudgedOn) parts.push("모델 미판정(순위 밖·판정 실패)");
     if (qText.trim()) parts.push(`검색 "${qText.trim()}"`);
     return parts.length ? parts.join(" AND ") : "전체";
   })();
@@ -1405,7 +1489,7 @@ export function OrderPlansPage() {
   // (명세 §2.1, S1) — 접어 두어도 걸려 있다는 사실이 토글 옆 수와 아래 문맥 줄로 드러난다.
   const activeFilterCount = (isDefaultView
     ? 0
-    : qwenSet.size + stage1Set.size + feedbackSet.size + trackingSet.size + (issueOn ? 1 : 0) + (qText.trim() ? 1 : 0))
+    : qwenSet.size + stage1Set.size + feedbackSet.size + trackingSet.size + (issueOn ? 1 : 0) + (unjudgedOn ? 1 : 0) + (qText.trim() ? 1 : 0))
     + (sourceRunId ? 1 : 0)
     + (firstObservedFrom ? 1 : 0);
 
@@ -1556,7 +1640,7 @@ export function OrderPlansPage() {
                   onChange={(value) => changeAxes({ stage1: new Set(value as Stage1Token[]) })}
                 >
                   <ToggleButton value="selected" label="선정" />
-                  <ToggleButton value="filtered_out" label="제외" />
+                  <ToggleButton value="filtered_out" label="순위 밖" />
                   <ToggleButton value="failed" label="실패" />
                   <ToggleButton value="rejected" label="거부" />
                   <ToggleButton value="null" label="값 없음" />
@@ -1837,7 +1921,7 @@ export function OrderPlansPage() {
                     title="조건에 맞는 계획이 없습니다"
                     description={searchKey(qText)
                       ? `적용된 검색어 "${qText}"와 다른 활성 필터에 맞는 계획이 없습니다.`
-                      : "필터를 바꿔보세요. 표시되지 않은 값이나 선별 실패를 다른 모델 판단으로 바꾸지 않습니다."}
+                      : "필터를 바꿔보세요. 표시되지 않은 값이나 판정 실패를 다른 모델 판단으로 바꾸지 않습니다."}
                     action={searchKey(qText)
                       ? { label: "검색어만 지우기", onClick: () => applySearch("") }
                       : { label: "필터 초기화", onClick: resetFilters }}
@@ -1862,6 +1946,7 @@ export function OrderPlansPage() {
                       onKeyDown={(event) => handleRowKeyDown(event, item.order_plan_pk)}
                       onSelect={() => selectRow(item.order_plan_pk)}
                       rowProps={rowNavigation.rowProps(item.order_plan_pk)}
+                      variant={unjudgedOn ? "unjudged" : "default"}
                     />
                   ))}
                 </DenseList>

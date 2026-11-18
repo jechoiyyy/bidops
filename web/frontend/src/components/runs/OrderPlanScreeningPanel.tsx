@@ -6,6 +6,8 @@ import { Text } from "@astryxdesign/core/Text";
 import { Caption, DataTable, Facts, Note, Section, StatusToken } from "./RunStatusPrimitives";
 import { api } from "../../lib/api";
 import { formatDateTime, formatNumber } from "../../lib/format";
+import { orderPlanReviewTierSummary } from "../../lib/glossary";
+import { noJudgmentCountOf } from "../../lib/orderPlanDaily";
 import type {
   OrderPlanListItem,
   OrderPlanScreeningAttemptStatus,
@@ -295,7 +297,16 @@ export function OrderPlanScreeningPanel({
                 ["모델 판단 보류", formatNumber(activeExecution.counts.stage2_uncertain_count)],
                 ["모델 실패", formatNumber(activeExecution.counts.stage2_failed_count)],
                 ["모델 거부", formatNumber(activeExecution.counts.stage2_rejected_count)],
-                ["사람 검토", formatNumber(activeExecution.counts.human_review_count)],
+                /* 계약 값(`human_review_count` = 관련 + 불확실 + 무판정)은 합계로 그대로 두고, 화면 문구는
+                   필수 검토·훑어보기·모델 미판정으로 나눈다(2026-11-18 수정안 3B). 무판정 몫은 일일 실행
+                   줄과 같은 차이(`lib/orderPlanDaily.ts`)다. */
+                ["검토 후보 합계", formatNumber(activeExecution.counts.human_review_count)],
+                ["검토 구분", orderPlanReviewTierSummary(
+                  activeExecution.counts.stage2_relevant_count,
+                  activeExecution.counts.stage2_uncertain_count,
+                  noJudgmentCountOf(activeExecution.counts),
+                  formatNumber,
+                )],
               ]}
             />
             <Caption>

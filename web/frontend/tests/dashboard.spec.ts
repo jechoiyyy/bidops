@@ -44,8 +44,9 @@ test("네 업무 바로가기와 발주계획 타일의 `새로`", async ({ page
   await page.goto("/");
   const links = page.locator(".dash-journey-item");
   await expect(links).toHaveCount(4);
-  // 타일 건수 = 링크한 목록 기본 보기의 건수(설계고도화안 C-1·A-6). 발주계획은 관련·불확실을 나눠 적는다.
-  await expect(links.nth(0)).toContainText("관련 1건 · 불확실 1건 · 새로 12");
+  // 타일 건수 = 링크한 목록 기본 보기의 건수(설계고도화안 C-1·A-6). 발주계획은 필수 검토·훑어보기를
+  // 나눠 적는다(2026-11-18 수정안 3B). 타일은 1280px에서 세 자리 건수까지 한 줄에 들도록 `필수`로 줄인다.
+  await expect(links.nth(0)).toContainText("필수 1건 · 훑어보기 1건 · 새로 12");
   await expect(links.nth(1)).toContainText(/검토할 항목 \d+건 · 마감 전·미확인/);
   await expect(links.nth(2)).toContainText("사업기회");
   await expect(links.nth(2)).toContainText("조치 필요 3건");
@@ -60,7 +61,7 @@ test("`새로`를 셀 수 없으면 0이 아니라 미확인으로 적는다", a
   await mockDashboard(page, { workload: workloadWith("order_plan_new_priority", null, "provider_absent") });
   await page.goto("/");
   const tile = page.locator(".dash-journey-item").first();
-  await expect(tile).toContainText("관련 1건 · 불확실 1건 · 새로 미확인");
+  await expect(tile).toContainText("필수 1건 · 훑어보기 1건 · 새로 미확인");
   await expect(tile).not.toContainText("새로 0");
   // 같은 키를 쓰는 패널 바닥도 사유를 남기고 0으로 채우지 않는다.
   const foot = panel(page, "새 우선 검토 발주계획").locator(".dash-panel-foot");
@@ -361,7 +362,8 @@ test("새 우선 검토 바로가기는 발주계획을 같은 첫 수집 창·�
   await expect.poll(() => new URL(page.url()).pathname).toBe("/order-plans");
   await expect(page.locator(".c2l-observed-context")).toContainText("09-01 이후 첫 수집");
   // 같은 세 조건(첫 수집 창 · 모델 판단 관련 · 추적 미선택)이 목록 화면에 걸린다.
-  await expect(page.locator(".c2l-list-head")).toContainText("09-01 이후 첫 수집 AND 모델 판단 관련 AND 추적 미선택");
+  // 축이 `관련` 탭과 같으므로 머리 설명은 역할(필수 검토)을 먼저 말한다(수정안 3B).
+  await expect(page.locator(".c2l-list-head")).toContainText("필수 검토 · 모델이 관련으로 판단 · 추적 미선택 AND 09-01 이후 첫 수집");
   await expect(page.locator(".c2l-row-title")).toHaveText(titles);
 });
 
@@ -426,7 +428,7 @@ for (const [width, height] of WIDTHS) {
     await page.clock.setFixedTime(new Date(DASH_NOW));
     await page.setViewportSize({ width, height }); await page.goto("/");
     const entry = page.locator(".dash-journey-item").first();
-    await expect(entry).toContainText("관련 1건");
+    await expect(entry).toContainText("필수 1건");
     await entry.click();
     await expect.poll(() => new URL(page.url()).pathname).toBe("/order-plans");
     expect(new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
@@ -450,7 +452,7 @@ test.describe("발주계획 일일 실행 한 줄", () => {
     await expect(line).not.toContainText("다음 일일");
   });
 
-  test("오늘 아침 어제 기준일을 수집·부분 성공이면 정상이고 사람 검토 건수와 모델 판정 없음 건수를 적는다", async ({ page }) => {
+  test("오늘 아침 어제 기준일을 수집·부분 성공이면 정상이고 필수 검토·훑어보기와 판정 실패 건수를 적는다", async ({ page }) => {
     await mockDashboard(page);
     // DASH_NOW = 2026-09-17 12:00 KST. 오늘 07:10 KST 수집, 기준일 09-16(전일).
     const run = dailyPlanRunFixture("2026-09-16", "2026-09-16T22:10:00Z");
@@ -465,7 +467,12 @@ test.describe("발주계획 일일 실행 한 줄", () => {
     await expect(line).toContainText("최근 기준일 09-16");
     await expect(line).toContainText("수집 9월 17일 · 오늘");
     await expect(line).toContainText("C-2 부분 성공");
-    await expect(line).toContainText("사람 검토 128건 (관련 63 · 불확실 40 · 모델 판정 없음 25)");
+    // 수정안 3B: `사람 검토 N건 (…)` 대신 필수 검토·훑어보기를 나누고, 무판정 몫(128 − 63 − 40 = 25)은 0보다 클 때만
+    // `판정 실패`로 붙인다(순위 밖을 포함하는 탭 이름 `모델 미판정`과 섞지 않는다).
+    await expect(line).toContainText("필수 검토 63건(관련) · 훑어보기 40건(불확실) · 판정 실패 25건");
+    await expect(line).not.toContainText("모델 미판정");
+    await expect(line).not.toContainText("사람 검토");
+    await expect(line).not.toContainText("모델 판정 없음");
   });
 
   test("최근 기준일이 어제보다 오래됐거나 실행이 실패로 끝났으면 확인 필요다", async ({ page }) => {
@@ -513,7 +520,9 @@ test.describe("발주계획 일일 실행 한 줄 · 기준일과 진행 중", (
     await expect(line).toHaveAttribute("data-state", "ok");
     await expect(line).toContainText("최근 기준일 09-16");
     await expect(line).toContainText("C-2 성공");
-    await expect(line).toContainText("사람 검토 100건 (관련 41 · 불확실 59)");
+    // 무판정 몫이 0이면(100 − 41 − 59) 판정 실패 조각을 붙이지 않는다.
+    await expect(line).toContainText("필수 검토 41건(관련) · 훑어보기 59건(불확실)");
+    await expect(line).not.toContainText("판정 실패");
   });
 
   test("실행 중은 문제가 아니라 진행 중이고 경과 시간을 적는다", async ({ page }) => {
@@ -526,7 +535,7 @@ test.describe("발주계획 일일 실행 한 줄 · 기준일과 진행 중", (
     await expect(line).toContainText("진행 중");
     await expect(line).toContainText("C-2 실행 중 · 1시간 40분째");
     await expect(line).not.toContainText("확인 필요");
-    await expect(line).not.toContainText("사람 검토");
+    await expect(line).not.toContainText("필수 검토");
   });
 
   test("4시간을 넘긴 진행 중은 오래 진행 중으로 확인 필요다", async ({ page }) => {
