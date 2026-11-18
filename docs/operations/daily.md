@@ -112,6 +112,13 @@ python3 skills/bidops-collect/scripts/collect_order_plans.py \
 사람이 확인하고 넘긴 기간을 여기서 인정한다. 빠진 날마다 `gap_detected track=<트랙> date=<날짜>` 한
 줄을 찍고 **exit 10**으로 끝난다.
 
+두 트랙 모두, 완결이고 비어 있지 않은 회차인데 web에 `Run` 행이 없는 날(`GET /api/runs/<디렉터리>` 404 — 수집은
+끝났는데 적재가 실패했거나 둘 사이에서 `timeout`에 끊긴 날)은
+`unjudged_detected track=<트랙> date=<날짜> run=<디렉터리> reason=not_ingested`로 보고하고 `--catch-up-days`가
+`ingest_pending`으로 재개한다(2026-11-18 독립 검증 B2). 공고 트랙은 적재 뒤 단계(`--tracked-backfill`,
+`refresh_fetch_eligibility`)가 회차가 아니라 전체를 다시 계산하는 전역 단계이고 다음 공고 날마다 다시 돌므로
+감지하지 않는다 — 그날 실패는 그날 exit 비0으로만 드러난다.
+
 발주계획 트랙은 하나 더 본다(findings W-5). 창 안에서 완결이고 비어 있지 않은 회차인데 `성공`·`부분 성공`
 운영 C-2 실행이 없는 날은 판정 없이 끝난 날이다 — 날짜별 재개가 "실행부터"로 판단하는 것과 같은 기준이며
 (재개 규칙처럼 policy 버전은 가리지 않는다) **이번 호출이 방금 처리한 날도 포함한다**. 오늘 C-2가
@@ -206,7 +213,9 @@ web을 읽어야 하므로 dry-run은 확인하지 않고 "a real run would also
 
 | 변수 | 기본값 | 뜻 |
 |---|---|---|
-| `BIDOPS_DAILY_GAP_LOOKBACK_DAYS` | 7 | 기준일 앞 며칠을 누락일 감지에 넣을지. `0`은 감지를 끈다. `--catch-up-days`의 상한이기도 하다 |
+| `BIDOPS_DAILY_GAP_LOOKBACK_DAYS` | 7(cron 래퍼는 31) | 기준일 앞 며칠을 누락일 감지에 넣을지. `0`은 감지를 끈다. `--catch-up-days`의 상한이기도 하다. **창보다 오래된 날은 다시 보지 않는다** — 창 밖으로 밀려난 빠진 날은 그 뒤로 보고되지 않으므로 cron은 31일을 쓰고, 평일 아침 확인에서 exit 10을 넘기지 않는다 |
+| `BIDOPS_DAILY_READ_ATTEMPTS` | 3 | 읽기 전용 GET(health·자동 실행 확인·회차 조회·회차 목록·실행 목록·감사 표본 상태)의 시도 횟수. 응답 없음·5xx·408·429면 `read retry (n/N) GET <경로>: …` 한 줄을 남기고 다시 읽는다. 마지막 시도도 실패하면 기존 실패 경로(exit 2). 4xx와 POST는 다시 보내지 않는다. 폴링은 아래 `BIDOPS_C2_DAILY_POLL_MAX_READ_FAILURES`를 따른다 |
+| `BIDOPS_DAILY_READ_RETRY_PAUSE_SECONDS` | 5 | 위 재시도 사이의 대기 |
 | `BIDOPS_DAILY_GAP_FLOOR_DATE` | 없음 | `YYYY-MM-DD`. 이보다 앞선 날은 보고하지도 따라잡지도 않는다. 사람이 확인한 공백(cron 이전 등)을 인정할 때 쓴다 |
 
 **복구 절차.** 자동 재시도(attempt 2)까지 실패한 회차는 `attempt > 2`로 `retry_limit_reached`
@@ -217,31 +226,61 @@ web을 읽어야 하므로 dry-run은 확인하지 않고 "a real run would also
 manual_resume`으로 실행 하나만 만들고 자동 재시도는 없다. `--dry-run`으로 먼저 계획된 요청을
 확인할 수 있다. `retry_limit_reached`를 출력할 때 이 명령을 함께 안내한다.
 
-**스케줄은 기본 비활성이다.** 아래는 실행 예시일 뿐이며 이 저장소는 이 줄을 설치하지 않는다(스케줄러·
-always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시각은 운영 결정이다. 발주계획 줄은
-아래 "C-2 발주계획 선별 활성화 절차"를 마친 뒤에만 설치하고 `BIDOPS_C2_DAILY_ACTOR`를 함께 준다.
+**스케줄은 기본 비활성이다.** 이 저장소는 cron을 설치하지 않는다(스케줄러·always-on 기본 비활성 원칙,
+`CLAUDE.md`). 설치는 cron 승인 때 사람이 한다. 발주계획 줄은 아래 "C-2 발주계획 선별 활성화 절차"를 마친
+뒤에만 둔다.
+
+**cron 진입점은 `scripts/cron-daily-track.sh <notices|order-plans>` 하나다**(2026-11-18 독립 검증 B3). crontab
+줄은 이 래퍼만 부르므로 시험한 것과 설치한 것이 같다. 래퍼가 하는 일:
+
+- 저장소 루트로 이동하고 PATH를 스스로 정한다(GNU coreutils → OrbStack docker → Homebrew → 시스템). crontab에
+  PATH 줄이 필요 없다.
+- 기본값: `BIDOPS_ENV=prod`, `BIDOPS_WORKFLOW_WEB_URL=http://127.0.0.1:18788`, `BIDOPS_DAILY_GAP_LOOKBACK_DAYS=31`,
+  따라잡기 3일(`BIDOPS_DAILY_CATCH_UP_DAYS`로 바꾼다). 환경변수로 덮을 수 있다.
+- 필수(기본값 없음): `BIDOPS_DAILY_GAP_FLOOR_DATE`, 발주계획은 `BIDOPS_C2_DAILY_ACTOR`. 비었거나 `<…>` 자리표시자가
+  남아 있으면 아무것도 돌리지 않고 exit 2로 끝나며 사유를 로그와 stderr(cron 메일)에 남긴다.
+- **두 트랙이 lock 하나를 쓴다**: `~/.local/state/bidops/daily.lock`(`BIDOPS_DAILY_LOCK_FILE`). `flock -o -w <대기>
+  -E 75`로 잡으며 대기는 공고 3600초, 발주계획 7200초다(`BIDOPS_DAILY_LOCK_WAIT_SECONDS`). `-o`는 lock fd를 트랙에
+  물려주지 않아 남은 자식 프로세스가 lock을 붙잡지 못하게 한다. 설치된 flock(discoteq 0.4.0)이 `-o`·`-w`·`-E`를
+  지원함을 2026-11-18에 확인했다.
+- 트랙을 `timeout -k 60 3h`(공고)·`6h`(발주계획)로 감싼다(`BIDOPS_DAILY_TRACK_TIMEOUT`).
+- 모든 출력을 `~/.local/state/bidops/logs/<track>-YYYYMM.log`(`BIDOPS_DAILY_LOG_DIR`)에 덧붙인다. 첫 줄은
+  `[cron] <일시> track=<트랙> start pid=… env=… floor=… catch_up=…`, 마지막 줄은 언제나
+  `[cron] <일시> track=<트랙> exit=<rc>`다. start 줄만 있고 exit 줄이 없으면 그 실행은 도중에 죽었다(host 재시작 등).
+- `--dry-run`은 같은 설정으로 트랙의 `--dry-run`을 부르며 lock·timeout을 쓰지 않고 터미널에 출력한다. 설치
+  전에 `env -i HOME=$HOME BIDOPS_DAILY_GAP_FLOOR_DATE=<날짜> [BIDOPS_C2_DAILY_ACTOR=<이름>] scripts/cron-daily-track.sh
+  <트랙> --dry-run`으로 깨끗한 환경을 확인한다. `--print-crontab`은 이 checkout 경로로 권장 두 줄을 출력한다.
 
 ```cron
-# 문서용 예시 — 설치되어 있지 않음. crontab -e로 운영자가 직접 추가할 때만 참고한다.
-# 먼저 한 번: mkdir -p ~/.local/state/bidops/logs
-# flock -n: 앞 실행이 아직 돌고 있으면 그 날 줄은 아무것도 하지 않고 끝난다(회차 중복 방지).
-# timeout: 멈춘 실행을 끊는다. 발주계획은 폴링 2시간 + 재시도 대기 10분 + 2회차 2시간이 최대이므로 6h로 둔다.
-#          timeout이 스크립트를 끊어도 C-2 실행 자체는 분석 워커에서 계속 돌고, 다음 날은 새 회차로
-#          실행을 요청한다. 그 요청이 4시간 넘게 굳은 전날 `대기`를 stale_queued로 닫는다(진행 중인 실행이 없을 때).
-# BIDOPS_DAILY_GAP_FLOOR_DATE: 사람이 확인하고 넘긴 공백(cron 이전 등)의 다음 날. 그 앞의 날은 누락일로
-#          세지 않는다. 그 뒤로 빠진 날·판정 없는 날이 생기면 해당 줄과 exit 10이 로그에 남는다.
-# --catch-up-days N: 붙이면 빠진 날을 N일까지 거슬러 자동으로 메운다(발주계획은 날마다 C-2 실행 = 모델 호출).
-#          범위는 운영 결정이라 아래 예시에는 붙이지 않았다(감지만 한다). 붙이면 timeout도 그만큼 늘린다.
-# exit: 0 성공·정상 스킵, 10 빠진 날·판정 없는 날 남음(gap_detected·unjudged_detected), 2 스크립트 검사 실패
-#       (폴링 GET이 연속 BIDOPS_C2_DAILY_POLL_MAX_READ_FAILURES번 실패한 경우 포함), 124 timeout, 1 flock 실패. 0이 아니면 사람이 본다.
-# crontab에서 %는 \%로 적어야 한다. 로그는 저장소 밖에 쌓아 회차·보고서와 섞지 않는다.
-30 6 * * * cd /path/to/bidops && BIDOPS_ENV=prod BIDOPS_DAILY_GAP_FLOOR_DATE=<YYYY-MM-DD> flock -n ~/.local/state/bidops/notices.lock timeout 3h ./scripts/run-daily-lifecycle.sh --track notices >> ~/.local/state/bidops/logs/notices-$(date +\%Y\%m).log 2>&1
-# C-2 활성화·일일 자동 실행이 켜진 뒤에만 설치한다. BIDOPS_C2_DAILY_ACTOR는 감사 표식이며 인증이 아니다.
-0 7 * * * cd /path/to/bidops && BIDOPS_ENV=prod BIDOPS_DAILY_GAP_FLOOR_DATE=<YYYY-MM-DD> BIDOPS_C2_DAILY_ACTOR=<담당자 이름> flock -n ~/.local/state/bidops/plans.lock timeout 6h ./scripts/run-daily-lifecycle.sh --track order-plans >> ~/.local/state/bidops/logs/plans-$(date +\%Y\%m).log 2>&1
+# scripts/cron-daily-track.sh --print-crontab 출력(문서용 — 설치되어 있지 않음). 자리표시자 둘을 채운다.
+30 6 * * * BIDOPS_DAILY_GAP_FLOOR_DATE=<YYYY-MM-DD> /Users/temp/orca/bidops/scripts/cron-daily-track.sh notices
+0 7 * * * BIDOPS_DAILY_GAP_FLOOR_DATE=<YYYY-MM-DD> BIDOPS_C2_DAILY_ACTOR=<담당자 이름> /Users/temp/orca/bidops/scripts/cron-daily-track.sh order-plans
 ```
 
-`flock -n`이 앞 실행에 막혀 아무것도 하지 않은 날은 다음 날 실행의 누락일 감지가 `gap_detected`로
-드러낸다. 두 트랙 공용 lock 하나로 묶을지는 cron 설치 승인 때 정한다(설계고도화안 §4 A 관문 6).
+`BIDOPS_DAILY_GAP_FLOOR_DATE`는 사람이 확인하고 넘긴 공백(cron 이전 등)의 다음 날이다. 따라잡기 3일은 날마다
+C-2 실행(모델 호출)을 요청할 수 있으므로 그 범위가 cron 승인 범위에 들어가야 한다. 발주계획 하루가 최대 약
+4시간 10분이라 따라잡을 날이 여럿이면 6시간 timeout(124)에 닿을 수 있다 — 그때는 남은 날을 다음 날 실행이나
+사람이 메운다. 공고 06:30 실행이 길어지면 07:00 발주계획은 lock을 최대 2시간 기다린 뒤 75로 끝나고, 그날은 다음
+날의 따라잡기·누락일 감지가 드러낸다.
+
+**종료 코드**(래퍼의 exit와 로그 마지막 줄 `exit=<rc>`가 같다):
+
+| rc | 뜻 | 할 일 |
+|---|---|---|
+| 0 | 성공·정상 스킵 | 없음 |
+| 10 | `gap_detected`·`unjudged_detected` — 처리한 날은 정상이고 창 안에 빠진 날·판정 없는 날이 남음 | 로그의 해당 줄 사유대로 메우거나 floor를 올린다 |
+| 75 | 공용 lock을 대기 시간 안에 얻지 못함(다른 트랙·수동 실행이 잡고 있음). 아무것도 돌지 않았다 | 잡고 있던 실행을 확인한다. 그날은 다음 실행의 따라잡기가 메운다 |
+| 124 | timeout | 어디까지 갔는지 로그를 보고 남은 날을 메운다. C-2 실행은 워커에서 계속 돌 수 있다 |
+| 2 | 스크립트 검사 실패(필수 설정 누락, web 읽기가 재시도 뒤에도 실패, 폴링 읽기 연속 실패 등) | 로그의 `error:` 줄 |
+| 그 밖의 비0 | 실패한 명령의 코드(수집기 등) | 로그 |
+
+**매 평일 아침 로그 확인.** cron 승인 때 정한 담당자(<담당자 이름 — cron 승인 때 채운다>)가 두 트랙 로그의
+마지막 `[cron] … exit=` 줄을 본다. `exit=0`이 아니거나, 그날 start 줄이 없거나, start 줄 뒤에 exit 줄이 없으면
+위 표대로 처리한다. 알림은 아직 없다 — 이 확인이 유일한 경보다.
+
+**손으로 돌리는 실행도 같은 lock을 잡는다.** 따라잡기·재개를 사람이 할 때는 cron과 겹치지 않게
+`flock -o -w 0 -E 75 ~/.local/state/bidops/daily.lock ./scripts/run-daily-lifecycle.sh …`처럼 같은 lock 파일로
+감싼다(75면 cron이나 다른 실행이 돌고 있다). `scripts/run-daily-c2.sh`·`--extra-attempt`도 같다.
 
 **보관**: 회차 디렉터리(`data/runs/lifecycle-*`)는 불변이며 자동으로 지우지 않는다. 보관
 기간 정책은 운영자가 수동으로 정하는 결정이며 이 스크립트는 삭제 로직을 갖지 않는다.
@@ -423,7 +462,7 @@ always-on 기본 비활성 원칙, `CLAUDE.md`). 트랙마다 한 줄이고 시�
     `docker/docker-compose.prod.yml`이 이 값을 web에 전달한다(base compose는 항상 `false`로
     고정한다). **policy를 교체하면 자동 실행이 멈춘다.** 스위치는 이전 버전에 묶여 있으므로 새
     버전에서 다시 켜야 한다.
-12. **cron 발주계획 줄 설치.** 운영시작일부터 매 달력일. 앞선 날짜가 있으면 스크립트의
+12. **cron 발주계획 줄 설치.** `scripts/cron-daily-track.sh order-plans`(위 "cron 진입점"). 운영시작일부터 매 달력일. 앞선 날짜가 있으면 스크립트의
     `--from-date`/`--to-date`로 하루씩 따라잡고, 따라잡지 않기로 한 기간은
     `BIDOPS_DAILY_GAP_FLOOR_DATE`로 인정해 누락일 감지(exit 10)에서 뺀다.
 
@@ -485,13 +524,13 @@ scripts/compose.sh exec web \
 
 **재시도.** 전송이 실패하면(3) 원인(토큰·네트워크·채널)을 고친 뒤 **같은 명령을 `--send`로 다시 실행**한다. 이미 보낸 메시지는 저장된 ts로 건너뛰고 빠진 메시지만 보내며, 전부 보내면 `slack_sent_at`이 찍히고 이후 재실행은 `already_sent`다. 자동 따라잡기는 없다 — 빠진 날은 `--date <D>`로 사람이 메운다(창은 직전 브리핑 이후라 한 날을 건너뛰면 다음 브리핑에 함께 들어온다). 수집이 덜 끝난 날은 `collection_incomplete`로 만들어지고 이미 만든 행은 다시 만들 수 없으므로, 기준일 수집이 끝난 뒤에 실행한다.
 
-**cron 예시(설치하지 않음).** 브리핑은 notices 트랙이 만든 D-1 회차와 발주계획 트랙의 C-2 결과를 읽으므로 **두 트랙이 끝난 뒤** 돈다. 줄은 두 트랙의 lock 파일을 둘 다 잡아(`flock -w`는 앞 실행이 끝나기를 기다린다) 수집·적재·C-2 실행 중에 끼어들지 않고, `timeout`으로 멈춘 실행을 끊는다. 시각은 운영 결정이다.
+**cron 예시(설치하지 않음).** 브리핑은 notices 트랙이 만든 D-1 회차와 발주계획 트랙의 C-2 결과를 읽으므로 **두 트랙이 끝난 뒤** 돈다. 줄은 두 트랙이 함께 쓰는 lock `daily.lock` 하나를 잡아(`flock -w`는 앞 실행이 끝나기를 기다린다) 수집·적재·C-2 실행 중에 끼어들지 않고, `timeout`으로 멈춘 실행을 끊는다. 시각은 운영 결정이다. 07:00 발주계획이 lock을 최대 2시간 기다릴 수 있으므로 09:00 브리핑의 1시간 대기가 끝날 수도 있다 — 그날은 사람이 다시 돌린다.
 
 ```cron
 # 문서용 예시 — 설치되어 있지 않음. 감독 시운전을 마치고 사람이 crontab -e로 추가할 때만 참고한다.
-# flock -w 3600: notices·plans 트랙이 lock을 쥐고 있으면 최대 1시간 기다린다(기다림이 끝나면 비0으로 끝나 로그에 남는다).
+# flock -w 3600 -E 75: 일일 트랙(공용 daily.lock)이 돌고 있으면 최대 1시간 기다린다(기다림이 끝나면 75로 끝나 로그에 남는다).
 # timeout 30m: 멈춘 실행을 끊는다. 월~금만 돌리며 주말 처리는 CLI도 한 번 더 막는다.
-0 9 * * 1-5 cd /path/to/bidops && BIDOPS_ENV=prod flock -w 3600 ~/.local/state/bidops/notices.lock flock -w 3600 ~/.local/state/bidops/plans.lock timeout 30m ./scripts/run-daily-briefing.sh --send >> ~/.local/state/bidops/logs/briefing-$(date +\%Y\%m).log 2>&1
+0 9 * * 1-5 cd /path/to/bidops && BIDOPS_ENV=prod flock -o -w 3600 -E 75 ~/.local/state/bidops/daily.lock timeout 30m ./scripts/run-daily-briefing.sh --send >> ~/.local/state/bidops/logs/briefing-$(date +\%Y\%m).log 2>&1
 ```
 
 **설치 전 감독 시운전(T12, 사람 확인 필요).** 순서: ① 깨끗한 환경에서 `env -i HOME=$HOME PATH=$PATH scripts/run-daily-briefing.sh --dry-run`으로 순서를 본 뒤 `--send` 없이 한 번 실행해 JSON·`GET /api/briefings/latest`·`/briefing` 화면을 확인한다. 이 실행은 그날 브리핑 행을 **실제로 만들고 지울 수 없으므로** 시운전 날짜가 곧 그날의 브리핑이다(행을 쓰지 않는 계산 확인은 컨테이너에서 `python -m app.lifecycle.cli build-briefing --dry-run`을 직접 준다). ② `GET /api/briefings/<날짜>/slack-preview`로 보낼 payload를 읽는다. ③ **테스트 채널**로 `--send`를 사람이 확인한 뒤 한 번 실행하고 메시지 1건과 버튼 클릭 → 화면 반영을 본다. ④ `GET /api/workload`의 `briefing_pending`이 화면의 대기 수와 같은지 본다. ⑤ 증거를 `docs/validation-runs/`에 기록한다. 차단 0이 된 뒤에만 cron을 설치한다. 가짜 docker·가짜 CLI로 도는 `tests/app/test_daily_briefing_script.py`는 호출 순서·인자·종료 코드만 증명하며 실제 컨테이너·실제 Slack 전송은 이 시운전이 증명한다.

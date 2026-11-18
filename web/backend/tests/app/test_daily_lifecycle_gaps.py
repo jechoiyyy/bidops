@@ -553,3 +553,66 @@ def test_an_audit_sample_read_failure_in_the_gap_check_fails(env: Env) -> None:
 
     assert result.returncode not in (0, GAP_EXIT)
     assert "HTTP 500" in result.stderr
+
+
+# --- 적재되지 않은 공고 날 (2026-11-18 독립 검증 B2) ---------------------------------
+#
+# 공고 트랙은 수집이 끝났는데 적재가 실패(또는 둘 사이 timeout)하면 그날이 web에 닿지 않은 채
+# 이후 매일 exit 0이었다. 완결·비어 있지 않은 디렉터리에 `GET /api/runs/<디렉터리>`가 404면
+# `reason=not_ingested`로 보고하고 따라잡기가 `ingest_pending`으로 재개한다.
+
+
+def test_notices_day_collected_but_not_ingested_is_reported(env: Env) -> None:
+    env.notices_dir(_run_id("2026-09-16", "notices"), complete=True)
+
+    result = _gaps(env, "--track", "notices", "--date", REF, lookback="1")
+
+    assert result.returncode == GAP_EXIT, result.stderr
+    assert _gap_lines(result.stdout) == []
+    assert _unjudged_lines(result.stdout) == [
+        "unjudged_detected track=notices date=2026-09-16 run=lifecycle-20260916-notices reason=not_ingested",
+    ]
+    assert "0 missing, 1 unjudged" in _summary(result.stdout)
+
+
+def test_an_empty_notices_day_needs_no_run_row(env: Env) -> None:
+    env.notices_dir(_run_id("2026-09-16", "notices"), complete=True, total=0)
+
+    result = _gaps(env, "--track", "notices", "--date", REF, lookback="1")
+
+    assert result.returncode == 0, result.stderr
+    assert _unjudged_lines(result.stdout) == []
+
+
+def test_notices_catch_up_ingests_a_collected_but_not_ingested_day(env: Env) -> None:
+    env.notices_dir(_run_id("2026-09-16", "notices"), complete=True)
+
+    result = _gaps(env, "--track", "notices", "--date", REF, "--catch-up-days", "1", floor="2026-09-16")
+
+    assert result.returncode == 0, result.stderr
+    assert "decision 2026-09-16: ingest_pending (lifecycle-20260916-notices)" in result.stdout
+    assert env.collected() == [_run_id(REF, "notices")]
+    assert env.ingested() == [_run_id("2026-09-16", "notices"), _run_id(REF, "notices")]
+    assert _unjudged_lines(result.stdout) == []
+
+
+def test_a_notices_run_lookup_failure_in_the_gap_check_fails(env: Env) -> None:
+    env.notices_dir(_run_id("2026-09-16", "notices"), complete=True)
+    env.mode(REF.replace("-", ""), "complete:0")  # 기준일은 빈 회차라 회차 조회를 하지 않는다
+    env.fail_gets("/api/runs/")
+
+    result = _gaps(env, "--track", "notices", "--date", REF, lookback="1")
+
+    assert result.returncode not in (0, GAP_EXIT)
+    assert "HTTP 500" in result.stderr
+
+
+def test_notices_dry_run_says_it_would_check_ingest_state_without_calls(env: Env) -> None:
+    env.notices_dir(_run_id("2026-09-16", "notices"), complete=True)
+
+    result = _gaps(env, "--track", "notices", "--date", REF, "--dry-run", lookback="1")
+
+    assert result.returncode == 0, result.stderr
+    assert env.calls() == []
+    assert "would also check that every complete, non-empty run in the window" in result.stdout
+    assert "has a Run row (GET /api/runs/<dir>)" in result.stdout
