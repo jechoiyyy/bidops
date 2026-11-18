@@ -7,7 +7,7 @@
 .deep-review-header h2 {
   margin: var(--space-1) 0 0;
   color: var(--color-deep);
-  font-size: var(--bo-type-page-title);
+  font-size: var(--bo-type-detail-title);
   font-weight: var(--bo-type-page-title-weight);
   line-height: var(--bo-type-page-title-leading);
   letter-spacing: -0.03em;
@@ -17,7 +17,7 @@
   margin: 0;
   color: var(--color-muted);
   font-size: var(--bo-type-caption);
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.02em;
 }
 
@@ -145,7 +145,7 @@
 
 .deep-review-report-table-cell {
   border-block-end: var(--border-width) solid var(--border-subtle);
-  padding: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
   text-align: start;
   vertical-align: top;
 }
@@ -214,14 +214,14 @@
   cursor: pointer;
   font-family: var(--font-mono);
   font-size: var(--bo-type-caption);
-  padding: 4px 9px;
+  padding: var(--spacing-1) var(--spacing-2);
 }
 
 .evidence-reference-selected {
   border: 2px solid var(--color-primary-strong);
   background: var(--surface-selected);
   color: var(--color-deep);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .evidence-viewer {
@@ -229,7 +229,7 @@
   border-top: 4px solid var(--color-primary);
   border-radius: var(--radius-lg);
   background: var(--color-paper);
-  padding: 20px;
+  padding: var(--spacing-5);
 }
 
 .evidence-viewer-header {
@@ -240,7 +240,7 @@
 }
 
 .evidence-viewer-header h3 {
-  margin: 2px 0 3px;
+  margin: 2px 0 var(--spacing-1);
   font-size: var(--bo-type-section-title);
   font-weight: var(--bo-type-section-title-weight);
   line-height: var(--bo-type-section-title-leading);
@@ -253,7 +253,7 @@
 
 .evidence-viewer-kicker {
   font-size: var(--bo-type-caption);
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.02em;
 }
 
@@ -261,15 +261,15 @@
   flex: none;
   border: 1px solid var(--border-subtle);
   border-radius: 999px;
-  padding: 5px 10px;
+  padding: var(--spacing-1) var(--spacing-3);
   font-size: var(--bo-type-caption);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .evidence-viewer-statuses {
   display: flex;
   flex: none;
-  gap: 6px;
+  gap: var(--spacing-1);
 }
 
 .evidence-analysis-status {
@@ -277,9 +277,9 @@
   border-radius: 999px;
   background: var(--color-info-bg);
   color: var(--color-info);
-  padding: 5px 10px;
+  padding: var(--spacing-1) var(--spacing-3);
   font-size: var(--bo-type-caption);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .evidence-validation-passed {
@@ -297,9 +297,9 @@
 .evidence-reference-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin: 14px 0;
-  padding: 10px;
+  gap: var(--spacing-1);
+  margin: var(--spacing-3) 0;
+  padding: var(--spacing-3);
   border-radius: var(--radius-md);
   background: var(--surface-secondary);
 }
@@ -315,7 +315,7 @@
   min-width: 0;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  padding: 16px;
+  padding: var(--spacing-4);
 }
 
 .evidence-source-heading,
@@ -335,8 +335,7 @@
 
 .evidence-source-heading span,
 .evidence-page header span,
-.evidence-quote > span,
-.evidence-hash > span {
+.evidence-quote > span {
   color: var(--color-muted);
   font-size: var(--bo-type-caption);
 }
@@ -352,20 +351,20 @@
   border-radius: 999px;
   background: var(--color-info-bg);
   color: var(--color-info) !important;
-  font-weight: 700;
-  padding: 4px 8px;
+  font-weight: 600;
+  padding: var(--spacing-1) var(--spacing-2);
 }
 
 .evidence-source-facts {
   display: grid;
-  gap: 8px;
-  margin: 14px 0;
+  gap: var(--spacing-2);
+  margin: var(--spacing-3) 0;
 }
 
 .evidence-source-facts div {
   display: grid;
   grid-template-columns: 120px minmax(0, 1fr);
-  gap: 8px;
+  gap: var(--spacing-2);
 }
 
 .evidence-source-facts dt {
@@ -382,29 +381,15 @@
 .evidence-quote {
   border-left: 4px solid var(--color-primary);
   background: var(--surface-selected);
-  padding: 12px 14px;
+  padding: var(--spacing-3) var(--spacing-4);
 }
 
 .evidence-quote blockquote {
-  margin: 5px 0 0;
+  margin: var(--spacing-1) 0 0;
   color: var(--color-deep);
-  font-size: 1.02rem;
-  font-weight: 700;
+  font-size: var(--bo-type-body);
+  font-weight: 600;
   line-height: 1.65;
-}
-
-.evidence-hash {
-  display: grid;
-  gap: 3px;
-  margin-top: 12px;
-}
-
-.evidence-hash code {
-  overflow-wrap: anywhere;
-  color: var(--color-text);
-  font-family: var(--font-mono);
-  font-size: var(--bo-type-caption);
-  line-height: 1.45;
 }
 
 .evidence-page {
@@ -413,22 +398,22 @@
 
 .evidence-page > header {
   align-items: flex-start;
-  margin-bottom: 10px;
+  margin-bottom: var(--spacing-2);
 }
 
 .evidence-page > header strong {
-  font-size: 1.05rem;
+  font-size: var(--bo-type-body);
 }
 
 .evidence-page-block {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   background: var(--color-paper);
-  padding: 11px 12px;
+  padding: var(--spacing-3) var(--spacing-3);
 }
 
 .evidence-page-block + .evidence-page-block {
-  margin-top: 8px;
+  margin-top: var(--spacing-2);
 }
 
 .evidence-page-block > div span {
@@ -437,7 +422,7 @@
 }
 
 .evidence-page-block p {
-  margin: 6px 0;
+  margin: var(--spacing-1) 0;
   white-space: pre-wrap;
 }
 
@@ -457,9 +442,9 @@
 .deep-review-polling,
 .deep-review-inline-error,
 .deep-review-unsaved {
-  margin: 14px 0 0;
+  margin: var(--spacing-3) 0 0;
   border-radius: var(--radius-sm);
-  padding: 9px 11px;
+  padding: var(--spacing-2) var(--spacing-3);
 }
 
 .deep-review-polling {
@@ -482,7 +467,7 @@
   background: var(--surface-warning);
   color: var(--color-warning);
   box-shadow: 0 4px 16px rgb(17 76 51 / 12%);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .deep-review-attempt-history,
@@ -491,7 +476,7 @@
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
   background: var(--color-paper);
-  padding: 20px;
+  padding: var(--spacing-5);
 }
 
 .deep-review-section-heading,
@@ -505,7 +490,7 @@
 
 .deep-review-section-heading h3,
 .deep-review-retry-panel h3 {
-  margin: 0 0 4px;
+  margin: 0 0 var(--spacing-1);
 }
 
 .deep-review-section-heading p,
@@ -518,10 +503,10 @@
   flex: none;
   border-radius: 999px;
   background: var(--surface-secondary);
-  padding: 5px 10px;
+  padding: var(--spacing-1) var(--spacing-3);
   color: var(--color-muted);
   font-size: var(--bo-type-caption);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .deep-review-attempt-list,
@@ -533,15 +518,15 @@
 
 .deep-review-attempt-list {
   display: grid;
-  gap: 10px;
-  margin-top: 14px;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-3);
 }
 
 .deep-review-attempt-list > li {
   min-width: 0;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  padding: 13px 14px;
+  padding: var(--spacing-3) var(--spacing-4);
 }
 
 .deep-review-attempt-list > .deep-review-attempt-current {
@@ -552,7 +537,7 @@
 .deep-review-attempt-heading > div {
   display: flex;
   min-width: 0;
-  gap: 7px;
+  gap: var(--spacing-2);
   align-items: center;
 }
 
@@ -571,9 +556,9 @@
 .deep-review-current-label {
   flex: none;
   border-radius: 999px;
-  padding: 4px 8px;
+  padding: var(--spacing-1) var(--spacing-2);
   font-size: var(--bo-type-caption);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .deep-review-attempt-status {
@@ -607,7 +592,7 @@
 }
 
 .deep-review-attempt-error {
-  margin: 10px 0 0;
+  margin: var(--spacing-2) 0 0;
   color: var(--color-danger);
   font-size: var(--bo-type-caption);
 }
@@ -615,8 +600,8 @@
 .deep-review-stage-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-  margin-top: 10px;
+  gap: var(--spacing-1);
+  margin-top: var(--spacing-2);
 }
 
 .deep-review-stage-list li {
@@ -624,7 +609,7 @@
   min-width: 0;
   gap: 2px;
   border-top: 1px solid var(--border-subtle);
-  padding-top: 8px;
+  padding-top: var(--spacing-2);
 }
 
 .deep-review-stage-list span,
@@ -637,7 +622,7 @@
 .deep-review-panel-kicker {
   color: var(--color-danger) !important;
   font-size: var(--bo-type-caption);
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.02em;
 }
 
@@ -653,22 +638,22 @@
 .deep-review-retry-controls {
   display: grid;
   flex: 0 1 360px;
-  gap: 8px;
+  gap: var(--spacing-2);
 }
 
 .deep-review-retry-controls label {
   display: grid;
-  gap: 4px;
+  gap: var(--spacing-1);
   color: var(--color-muted);
   font-size: var(--bo-type-caption);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .deep-review-retry-controls input,
 .deep-review-retry-controls button {
   min-height: var(--control-height);
   border-radius: var(--radius-sm);
-  padding: 8px 11px;
+  padding: var(--spacing-2) var(--spacing-3);
 }
 
 .deep-review-retry-controls input {
@@ -683,7 +668,7 @@
   background: var(--color-danger);
   color: var(--color-paper);
   cursor: pointer;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .deep-review-retry-controls button:disabled {
@@ -749,7 +734,7 @@
 
 .deep-review-decision-table th,
 .deep-review-decision-table td {
-  padding: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
   border-bottom: var(--border-width) solid var(--color-border);
   text-align: left;
   vertical-align: top;

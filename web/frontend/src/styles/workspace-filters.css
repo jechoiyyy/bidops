@@ -67,8 +67,9 @@
 }
 
 .workspace-view-tabs .astryx-button {
-  height: var(--size-element-md);
-  min-height: var(--size-element-md);
+  /* 탭 줄은 세 화면 묶음(목록·판정 기준·실행 상태)이 같은 36px·14px다(2026-11-18). */
+  height: var(--size-element-lg);
+  min-height: var(--size-element-lg);
   padding: 0 var(--spacing-1);
   border: 0;
   border-radius: 0;
@@ -90,9 +91,9 @@
 /* 라벨과 건수는 버튼의 접근 이름(`label`) 그대로를 두 조각으로 그린 것이다. 화면 CSS가
    `span`에 본문 크기를 주므로 여기서 캡션 단을 다시 못 박는다(특이성 0,2,0). */
 .workspace-view-tabs .workspace-view-tab-label {
-  /* 사용자 요청 2026-09-15: 보기 탭 라벨 +1px */
-  font-size: calc(var(--bo-type-caption) + 0.9px);
-  line-height: var(--bo-type-caption-leading);
+  /* 탭 이름은 본문 단(14px)이다. 판정 기준·실행 상태의 Astryx 탭과 같다(2026-11-18). */
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-section-title-leading);
 }
 
 .workspace-view-tabs .workspace-view-tab-count {
@@ -103,7 +104,7 @@
 /* 라벨과 건수 사이 6px. Astryx 는 `children`을 라벨 span 하나로 감싸므로 버튼의 gap이
    두 조각 사이로 가지 않는다. */
 .workspace-view-tabs .workspace-view-tab-count {
-  margin-left: var(--spacing-1-5);
+  margin-left: var(--spacing-1);
   color: var(--color-text-disabled);
   font-variant-numeric: tabular-nums;
 }
@@ -129,7 +130,7 @@
 
 .workspace-search-field {
   display: flex;
-  flex: 0 1 calc(var(--spacing-12) * 5.5);
+  flex: 0 1 264px;
   flex-direction: column;
   gap: var(--spacing-1);
   min-width: 0;
@@ -281,7 +282,7 @@
   line-height: var(--bo-type-body-leading);
 }
 
-.workspace-filters :where(.astryx-button, .astryx-field-label, .astryx-badge, .astryx-toggle-button) {
+.workspace-filters :where(.astryx-field-label, .astryx-badge, .astryx-toggle-button) {
   font-size: var(--bo-type-caption);
   line-height: var(--bo-type-caption-leading);
 }

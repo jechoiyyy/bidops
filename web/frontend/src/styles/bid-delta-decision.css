@@ -15,7 +15,7 @@
   gap: var(--spacing-2);
   min-width: 0;
   height: 100%;
-  min-height: calc(var(--spacing-12) * 14);
+  min-height: 604px;
   font-size: var(--bo-type-body);
   line-height: var(--bo-type-body-leading);
   color: var(--color-text-primary);
@@ -42,7 +42,7 @@
 }
 
 :is(.bid-delta-page, .bid-delta-dialog-body)
-  :where(.astryx-button, .astryx-field-label, .astryx-token, .astryx-badge, dt, small, code, summary) {
+  :where(.astryx-field-label, .astryx-token, .astryx-badge, dt, small, code, summary) {
   font-size: var(--bo-type-caption);
   line-height: var(--bo-type-caption-leading);
 }
@@ -117,7 +117,7 @@
 }
 
 .bid-delta-head-line h2 {
-  font-size: var(--bo-type-page-title);
+  font-size: var(--bo-type-detail-title);
   line-height: var(--bo-type-page-title-leading);
   font-weight: var(--bo-type-page-title-weight);
   overflow-wrap: anywhere;
@@ -170,7 +170,7 @@
 }
 
 .bid-delta-business-line h3 {
-  font-size: var(--bo-type-page-title);
+  font-size: var(--bo-type-section-title);
   line-height: var(--bo-type-page-title-leading);
   font-weight: var(--bo-type-page-title-weight);
   min-width: 0;
@@ -342,7 +342,7 @@
 
 .bid-delta-conditions-table th,
 .bid-delta-conditions-table td {
-  padding: var(--spacing-1-5) var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
   border: var(--border-width) solid var(--color-border);
   text-align: left;
   vertical-align: top;

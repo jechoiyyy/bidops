@@ -44,6 +44,9 @@ export interface RouteRecordCrumb {
   label: (value: string) => string;
   /** 식별자 자체가 다른 화면을 가리킬 때만 있다(입찰 변경 비교의 사업기회). */
   to?: (value: string) => string;
+  /** 목록으로 돌아가는 화면 이름 칸이 이 레코드를 고른 채 열리게 할 때(`?selected=<id>`). 사업기회
+   *  레코드가 쓴다(설계고도화안 C-3). */
+  selectInList?: boolean;
   /** `before-screen`은 식별자가 이 화면의 **상위 레코드**일 때다.
    *  예: 입찰 변경 비교는 `사업기회 › #501 › 입찰 변경 비교`다. */
   placement: "leaf" | "before-screen";
@@ -58,7 +61,8 @@ export interface RouteMetadata {
      없앴고(ADR-0066 §3.3, 시안 M4 결정 2) 읽는 곳이 남지 않았다. 무엇을 저장할
      수 있는지는 각 화면의 결정 UI가 말한다. */
   runSelectorVisible: boolean;
-  /** 사이드바 1차 분류 라벨. 상단 경로의 첫 칸이다. */
+  /** 사이드바 묶음 라벨(`레코드`·`리스트`). 상단 경로의 첫 칸이다. 라벨 없는 묶음(대시보드)과
+   *  하단 항목(실행 상태·판정 기준)은 `null`이다(2026-11-18, ui-spec §1.2 메모). */
   navGroup: string | null;
   /** 사이드바에서 활성으로 보일 항목의 경로. */
   navPath: string | null;
@@ -124,7 +128,7 @@ export const routeMetadata = {
     title: "대시보드",
     dataScope: "cumulative",
     runSelectorVisible: false,
-    navGroup: "오늘의 업무",
+    navGroup: null,
     navPath: "/",
     ancestors: [],
     listPath: null,
@@ -134,7 +138,7 @@ export const routeMetadata = {
     title: "공고 판정 이력",
     dataScope: "run",
     runSelectorVisible: true,
-    navGroup: "탐색과 추적",
+    navGroup: "레코드",
     navPath: "/opportunities",
     ancestors: [{ label: "사업기회", path: "/opportunities" }],
     listPath: "/queue",
@@ -146,7 +150,7 @@ export const routeMetadata = {
     title: "공고 판정 이력",
     dataScope: "run",
     runSelectorVisible: true,
-    navGroup: "탐색과 추적",
+    navGroup: "레코드",
     navPath: "/opportunities",
     ancestors: [{ label: "사업기회", path: "/opportunities" }],
     listPath: "/judgments",
@@ -164,11 +168,11 @@ export const routeMetadata = {
     // 활동 응답의 제목을 `RecordTitleContext`로 올리면 그 제목으로 바뀐다(RL-02).
     topbar: "title",
     runSelectorVisible: false,
-    navGroup: "탐색과 추적",
+    navGroup: "레코드",
     navPath: "/opportunities",
     ancestors: [],
     listPath: "/opportunities",
-    record: { param: "opportunityId", label: (value) => `#${value}`, placement: "leaf" },
+    record: { param: "opportunityId", label: (value) => `#${value}`, placement: "leaf", selectInList: true },
   },
   orderPlans: {
     // 화면 제목은 `발주계획` 한 낱말이다(승인 시안). 제목 모드의 `<h1>`이 그 이름이다.
@@ -178,7 +182,7 @@ export const routeMetadata = {
     topbar: "title",
     // 이 화면의 결정은 추적 선택이고 사람 판단 수정은 보조 저장이다.
     runSelectorVisible: false,
-    navGroup: "탐색과 추적",
+    navGroup: "레코드",
     navPath: "/order-plans",
     ancestors: [],
     listPath: null,
@@ -187,7 +191,7 @@ export const routeMetadata = {
     title: "입찰 변경 비교",
     dataScope: "cumulative",
     runSelectorVisible: false,
-    navGroup: "탐색과 추적",
+    navGroup: "레코드",
     navPath: "/opportunities",
     ancestors: [{ label: "사업기회", path: "/opportunities" }],
     listPath: null,
@@ -206,7 +210,7 @@ export const routeMetadata = {
     // 목록은 제목 모드, 상세(`/pre-specs/:noticeId`)는 record 칸 덕분에 경로 모드다.
     topbar: "title",
     runSelectorVisible: false,
-    navGroup: "탐색과 추적",
+    navGroup: "레코드",
     navPath: "/pre-specs",
     ancestors: [],
     listPath: "/pre-specs",
@@ -217,7 +221,7 @@ export const routeMetadata = {
     dataScope: "cumulative",
     topbar: "title",
     runSelectorVisible: false,
-    navGroup: "탐색과 추적",
+    navGroup: "레코드",
     navPath: "/go-no-go",
     ancestors: [],
     listPath: null,
@@ -231,7 +235,7 @@ export const routeMetadata = {
     title: "판정 기준",
     dataScope: "cumulative",
     runSelectorVisible: false,
-    navGroup: "기준과 운영",
+    navGroup: null,
     navPath: "/criteria",
     ancestors: [],
     listPath: null,
@@ -244,7 +248,7 @@ export const routeMetadata = {
     title: "실행 상태",
     dataScope: "cumulative",
     runSelectorVisible: false,
-    navGroup: "기준과 운영",
+    navGroup: null,
     navPath: "/run-status",
     ancestors: [],
     listPath: null,
@@ -327,7 +331,7 @@ export const routeMetadata = {
     title: "가정 분석 보고서",
     dataScope: "cumulative",
     runSelectorVisible: false,
-    navGroup: "탐색과 추적",
+    navGroup: "레코드",
     navPath: "/pre-specs",
     ancestors: [{ label: "사전규격", path: "/pre-specs" }],
     listPath: null,
@@ -336,7 +340,7 @@ export const routeMetadata = {
     title: "심층 검토 보고서",
     dataScope: "cumulative",
     runSelectorVisible: false,
-    navGroup: "탐색과 추적",
+    navGroup: "레코드",
     navPath: "/pre-specs",
     ancestors: [{ label: "사전규격", path: "/pre-specs" }],
     listPath: null,
@@ -419,9 +423,12 @@ export function resolveRouteLocation(
     crumbs.push({ label: record.label, to: record.to, role: "ancestor" });
   }
   const trailingRecord = record && record.placement === "leaf" ? record : null;
+  const listTarget = trailingRecord && listPath && metadata.record?.selectInList && recordValue
+    ? `${listPath}?selected=${encodeURIComponent(recordValue)}`
+    : listPath;
   crumbs.push({
     label: metadata.title,
-    to: trailingRecord ? listPath : null,
+    to: trailingRecord ? listTarget : null,
     role: "screen",
     ...(trailingRecord && listPath === "/pre-specs" ? { context: "pre-spec-list" as const } : {}),
   });

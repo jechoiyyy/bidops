@@ -226,7 +226,7 @@ export function CandidateLinkDialog({
       }}
       padding={6}
       purpose="form"
-      width="calc(var(--spacing-12) * 18)"
+      width="864px"
     >
       <div className="opportunity-dialog-body">
         <DialogHeader

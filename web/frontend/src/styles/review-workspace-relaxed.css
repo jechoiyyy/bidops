@@ -17,7 +17,7 @@
 
 .document-preparation-guidance,
 .attachment-safe-guidance {
-  padding: 12px 14px;
+  padding: var(--spacing-3) var(--spacing-4);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-soft-surface);
@@ -33,12 +33,12 @@
 
 .document-preparation-guidance p,
 .attachment-safe-guidance p {
-  margin: 5px 0 0;
+  margin: var(--spacing-1) 0 0;
   color: var(--color-muted);
 }
 
 .attachment-safe-guidance {
-  margin-top: 12px;
+  margin-top: var(--spacing-3);
   border-color: var(--color-teal);
   background: var(--color-teal-soft);
 }
@@ -46,7 +46,7 @@
 .attachment-safe-guidance a,
 .attachment-safe-guidance > span {
   display: inline-block;
-  margin-top: 8px;
+  margin-top: var(--spacing-2);
 }
 
 .attachment-safe-guidance a {
@@ -68,16 +68,15 @@
   flex: 0 0 auto;
   flex-wrap: wrap;
   align-content: center;
-  gap: 8px;
+  gap: var(--spacing-2);
   height: auto;
   min-height: 72px;
-  padding: 14px 20px;
+  padding: var(--spacing-4);
   overflow: visible;
 }
 
 .queue-search,
-.queue-filter-select,
-.queue-filter-reset {
+.queue-filter-select {
   min-height: 40px;
   height: 40px;
 }
@@ -92,8 +91,13 @@
 }
 
 .queue-filter-spacer {
-  flex: 1 1 8px;
-  min-width: 8px;
+  display: none;
+}
+
+/* 정렬은 줄 오른쪽 끝에 붙는다. 사이 칸(spacer) 대신 자동 여백을 써서 1280px에서
+   간격 하나만큼의 폭을 아낀다. */
+.queue-filters .queue-filter-sort {
+  margin-left: auto;
 }
 
 .queue-workspace,
@@ -127,12 +131,12 @@
 
 .queue-list-header,
 .judgment-list-header {
-  padding: 14px 20px 13px;
+  padding: var(--spacing-4) var(--spacing-5) var(--spacing-3);
 }
 
 .queue-list-progress {
   height: 5px;
-  margin-top: 10px;
+  margin-top: var(--spacing-2);
 }
 
 .queue-list-scroll,
@@ -143,14 +147,14 @@
 
 .queue-group-header {
   height: 34px;
-  padding-right: 20px;
-  padding-left: 20px;
+  padding-right: var(--spacing-5);
+  padding-left: var(--spacing-5);
   font-size: var(--bo-type-caption);
 }
 
 .queue-list-item,
 .judgment-notice-item {
-  padding: 16px 20px 17px;
+  padding: var(--spacing-4) var(--spacing-5) var(--spacing-4);
 }
 
 .queue-list-item {
@@ -165,20 +169,20 @@
 
 .queue-list-badges,
 .judgment-notice-badges {
-  gap: 6px;
-  margin-top: 10px;
+  gap: var(--spacing-1);
+  margin-top: var(--spacing-2);
 }
 
 .queue-list-meta,
 .judgment-notice-meta {
-  margin-top: 9px;
+  margin-top: var(--spacing-2);
   font-size: var(--bo-type-caption);
 }
 
 .queue-detail-header,
 .judgment-page-header {
-  gap: 24px;
-  padding: 20px 24px 19px;
+  gap: var(--spacing-6);
+  padding: var(--spacing-5) var(--spacing-6) var(--spacing-5);
   flex-direction: row;
 }
 
@@ -192,33 +196,33 @@
 .judgment-page-heading-meta,
 .judgment-detail-badges {
   align-items: center;
-  gap: 8px;
+  gap: var(--spacing-2);
 }
 
 .queue-detail-badges {
-  margin-bottom: 10px;
+  margin-bottom: var(--spacing-2);
 }
 
 .queue-detail-header h2,
 .judgment-page-header h2 {
   max-width: none;
   overflow-wrap: anywhere;
-  font-size: var(--bo-type-page-title);
+  font-size: var(--bo-type-detail-title);
   font-weight: var(--bo-type-page-title-weight);
   line-height: var(--bo-type-page-title-leading);
 }
 
 .queue-detail-subline,
 .judgment-page-subline {
-  gap: 8px;
-  margin-top: 8px;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-2);
   font-size: var(--bo-type-caption);
 }
 
 .judgment-page-heading-meta {
   display: flex;
   flex-wrap: wrap;
-  margin-top: 11px;
+  margin-top: var(--spacing-3);
 }
 
 .queue-detail-actions,
@@ -226,19 +230,19 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   align-self: flex-start;
-  gap: 8px;
+  gap: var(--spacing-2);
 }
 
 .notice-source-link {
   min-height: 40px;
-  padding: 0 13px;
+  padding: 0 var(--spacing-3);
   font-size: var(--bo-type-caption);
 }
 
 .queue-detail-scroll,
 .judgment-detail-scroll {
-  gap: 24px;
-  padding: 24px;
+  gap: var(--spacing-6);
+  padding: var(--spacing-6);
   overscroll-behavior: contain;
 }
 
@@ -250,14 +254,14 @@
 .review-workspace-section {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--spacing-4);
 }
 
 .review-section-heading {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--spacing-4);
   min-width: 0;
   padding: 0 2px;
 }
@@ -293,7 +297,7 @@
 .notice-facts-grid,
 .judgment-summary-grid,
 .judgment-history-grid {
-  gap: 16px;
+  gap: var(--spacing-4);
 }
 
 .notice-facts-grid {
@@ -305,29 +309,12 @@
 }
 
 .notice-review-grid {
-  gap: 16px;
-}
-
-:where(.queue-page, .judgment-page) .panel {
-  border-radius: var(--radius-lg);
-}
-
-:where(.queue-page, .judgment-page) .panel-header {
-  min-height: 52px;
-  padding: 0 20px;
-}
-
-:where(.queue-page, .judgment-page) .panel-header h3 {
-  font-size: var(--bo-type-body);
-}
-
-:where(.queue-page, .judgment-page) .panel-body {
-  padding: 20px;
+  gap: var(--spacing-4);
 }
 
 .notice-facts,
 .qualification-flags-list {
-  row-gap: 11px;
+  row-gap: var(--spacing-3);
   font-size: var(--bo-type-caption);
 }
 
@@ -383,7 +370,7 @@
 
 .perspective-table th,
 .perspective-table td {
-  padding-right: 16px;
+  padding-right: var(--spacing-4);
 }
 
 .perspective-table td {
@@ -418,7 +405,7 @@
   width: 8px;
   height: 8px;
   flex: 0 0 8px;
-  margin: 6px 8px 0 0;
+  margin: var(--spacing-1) var(--spacing-2) 0 0;
   border-right: 1px solid currentcolor;
   border-bottom: 1px solid currentcolor;
   color: var(--color-muted);
@@ -428,16 +415,16 @@
 
 .judgment-history-details[open] > .judgment-history-summary::before,
 .evidence-details[open] > summary::before {
-  margin-top: 4px;
+  margin-top: var(--spacing-1);
   transform: rotate(45deg);
 }
 
 .judgment-history-content {
-  padding-left: 16px;
+  padding-left: var(--spacing-4);
 }
 
 .evidence-details {
-  margin-top: 10px;
+  margin-top: var(--spacing-2);
 }
 
 .evidence-details summary {
@@ -461,121 +448,15 @@
 }
 
 .evidence-details .evidence-list {
-  margin-top: 9px;
-  padding-left: 16px;
+  margin-top: var(--spacing-2);
+  padding-left: var(--spacing-4);
   border-left: 2px solid var(--color-neutral-soft);
 }
 
-.evidence-row,
 .retrieval-signal-value,
 .retrieval-signal-source,
 .retrieval-signal-note {
   overflow-wrap: anywhere;
-}
-
-/* theme.css의 공통 규칙보다 우선해 모든 검토 화면에서 하단에 붙인다. */
-.queue-page .review-bar,
-.judgment-page .review-bar {
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
-}
-
-.review-bar {
-  display: grid;
-  grid-template-columns: minmax(120px, 0.7fr) minmax(0, 1fr) auto;
-  grid-template-areas:
-    "title judgment save"
-    "disposition reason reason"
-    "secondary secondary hint"
-    "error error error";
-  align-items: center;
-  gap: 10px 12px;
-  padding: 16px 24px;
-  box-shadow: 0 -4px 14px rgb(27 72 48 / 7%);
-}
-
-.review-bar-title {
-  grid-area: title;
-  margin-right: 0;
-}
-
-.review-segmented {
-  grid-area: judgment;
-  min-height: 40px;
-}
-
-.review-segmented button,
-.review-control,
-.review-reason textarea,
-.review-save-button {
-  min-height: 40px;
-}
-
-.review-segmented button {
-  flex: 1 1 0;
-  padding: 0 12px;
-  font-size: var(--bo-type-caption);
-}
-
-.review-bar > .review-control {
-  grid-area: disposition;
-}
-
-.review-secondary {
-  display: flex;
-  grid-area: secondary;
-  min-width: 0;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.review-secondary > .review-control {
-  flex: 1 1 180px;
-}
-
-.review-more-toggle {
-  display: none;
-}
-
-.review-control {
-  min-width: 0;
-  padding: 0 12px;
-  font-size: var(--bo-type-caption);
-}
-
-.review-control select {
-  max-width: none;
-  min-width: 0;
-  font-size: var(--bo-type-caption);
-}
-
-.review-reason {
-  grid-area: reason;
-  min-width: 0;
-}
-
-.review-reason textarea {
-  min-height: 40px;
-  padding: 8px 10px;
-  font-size: var(--bo-type-caption);
-}
-
-.review-save-button {
-  grid-area: save;
-  justify-content: center;
-  padding: 0 16px;
-  font-size: var(--bo-type-caption);
-  white-space: nowrap;
-}
-
-.review-shortcut-hint {
-  grid-area: hint;
-  justify-self: end;
-}
-
-.review-error {
-  grid-area: error;
 }
 
 /* --- 저장된 담당자 리뷰 (읽기 전용 이력) ---

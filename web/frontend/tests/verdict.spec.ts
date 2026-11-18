@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockApi, mockBriefing, mockOpportunityRecord, type OpportunityRecordMockTrace } from "./api-mock";
+import { mockApi, mockBriefing, mockFeatureFlags, mockOpportunityRecord, type OpportunityRecordMockTrace } from "./api-mock";
 import { BRIEFING_NOW, briefingFixture, briefingItemId } from "./fixtures/briefing";
 import { RECORD_NOW } from "./fixtures/opportunity-record";
 import {
@@ -79,16 +79,18 @@ async function waitTable(page: Page) {
   await expect(page.getByRole("table", { name: "요구사항 대조표" })).toBeVisible();
 }
 
-test("판정이 없으면 '아직 판정이 없습니다'와 다시 판정을 보이고 헤더는 분석 대기·판정 보기 비활성이다", async ({ page }) => {
+test("판정이 없으면 '아직 판정이 없습니다'와 판정 요청을 보이고 헤더는 분석 대기·판정 보기 비활성이다", async ({ page }) => {
   const trace = await openVerdict(page, null);
   const tabpanel = page.getByRole("tabpanel");
   await expect(tabpanel.getByText("아직 판정이 없습니다", { exact: true })).toBeVisible();
-  await expect(tabpanel.getByRole("button", { name: "다시 판정", exact: true })).toBeEnabled();
+  // 첫 요청은 "다시"가 아니다(설계고도화안 C-4).
+  await expect(tabpanel.getByRole("button", { name: "판정 요청", exact: true })).toBeEnabled();
+  await expect(tabpanel.getByRole("button", { name: "다시 판정", exact: true })).toHaveCount(0);
   expect(await headerPills(page)).toEqual(["입찰공고", "D-4", "분석 대기", "계속 추적"]);
-  // 판정 탭에서는 제안서 초안(판정이 없으면 비활성)·다시 판정·⋯가 헤더 액션이고 판정 보기는 없다.
+  // 판정 탭에서는 제안서 초안(판정이 없으면 비활성)·판정 요청·⋯가 헤더 액션이고 판정 보기는 없다.
   const header = page.locator('[data-testid="record-header"]');
   await expect(header.getByRole("button", { name: "제안서 초안", exact: true })).toBeDisabled();
-  await expect(header.getByRole("button", { name: "다시 판정", exact: true })).toBeEnabled();
+  await expect(header.getByRole("button", { name: "판정 요청", exact: true })).toBeEnabled();
   await expect(header.getByRole("button", { name: "판정 보기" })).toHaveCount(0);
   // 판정이 없으면 좌측은 기존 사업 정보를 그대로 둔다(판정 요약은 판정이 있을 때만).
   await expect(page.locator(".rec-attribute")).toHaveCount(8);
@@ -108,7 +110,7 @@ test("완료 판정은 좌측에 판정 이름·사유·체크리스트 5행·�
   await expect(summary.getByRole("heading", { name: "조건부 진행" })).toBeVisible();
   await expect(summary.getByRole("heading", { name: "조건부 진행" })).toHaveClass(/is-warning/);
   const weight = await summary.getByRole("heading", { name: "조건부 진행" }).evaluate((node) => getComputedStyle(node).fontWeight);
-  expect(Number(weight)).toBe(700);
+  expect(Number(weight)).toBe(600);
 
   // 사유는 두 문장으로 자르지 않고 그대로다. 길면 접고 "더 보기"로 편다.
   const reason = page.locator("#vd-verdict-reason");
@@ -255,9 +257,9 @@ test("발주계획만 있는 레코드는 판정 pill이 연차 추적으로 남
   // 사전규격이 없으면 서버는 `notice_id=null`을 준다(B14). 판정 대상이 없으므로 요청 버튼을 두지 않고
   // 이유를 말한다 — 0으로 접어 요청하지 않는다.
   await expect(tabpanel.getByText(/연결된 사전규격이 없어 판정 대상이 아닙니다/)).toBeVisible();
-  await expect(tabpanel.getByRole("button", { name: "다시 판정", exact: true })).toHaveCount(0);
+  await expect(tabpanel.getByRole("button", { name: /^(판정 요청|다시 판정)$/ })).toHaveCount(0);
   const header = page.locator('[data-testid="record-header"]');
-  await expect(header.getByRole("button", { name: "다시 판정", exact: true })).toBeDisabled();
+  await expect(header.getByRole("button", { name: "판정 요청", exact: true })).toBeDisabled();
   await expect(page.locator('.rec-action-hint[title="연결된 사전규격이 없습니다"]')).toHaveCount(1);
   expect(trace.verdictRequests).toEqual([]);
   expect(trace.unhandled).toEqual([]);
@@ -578,10 +580,11 @@ test("다시 판정은 담당자 이름과 함께 UUID 요청 식별자로 접�
   expect(trace.unhandled).toEqual([]);
 });
 
-test("판정이 없는 탭의 다시 판정 버튼도 같은 요청 대화상자를 연다", async ({ page }) => {
+test("판정이 없는 탭의 판정 요청 버튼도 같은 요청 대화상자를 연다", async ({ page }) => {
   const trace = await openVerdict(page, null);
-  await page.getByRole("tabpanel").getByRole("button", { name: "다시 판정", exact: true }).click();
+  await page.getByRole("tabpanel").getByRole("button", { name: "판정 요청", exact: true }).click();
   const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading", { name: "판정 요청" })).toBeVisible();
   await actorInput(dialog).fill("김담당");
   await dialog.getByRole("button", { name: "판정 요청", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -849,3 +852,35 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     await expect(page.getByRole("button", { name: "다시 판정", exact: true }).first()).toBeVisible();
   });
 }
+
+// 설계고도화안 C-4: 이 환경에서 RL 분석이 꺼져 있으면 실패 뒤가 아니라 처음부터 "꺼져 있음"으로 말하고
+// 요청 control을 그 이유와 함께 막는다. 404가 될 판정 조회도 보내지 않는다.
+test("RL 분석이 꺼진 환경은 판정 탭·헤더·제안서가 요청 전에 꺼짐을 말하고 조회를 보내지 않는다", async ({ page }) => {
+  await page.clock.setFixedTime(new Date(RECORD_NOW));
+  await mockApi(page);
+  const trace = await mockOpportunityRecord(page);
+  await mockFeatureFlags(page, { rl_analysis: false, prespec_overview: false });
+  await page.goto("/opportunities/7101/verdict");
+  const tabpanel = page.getByRole("tabpanel");
+  await expect(tabpanel.getByText("참여 판정 · 이 환경에서 꺼져 있음", { exact: true })).toBeVisible();
+  await expect(tabpanel.getByRole("button", { name: /^(판정 요청|다시 판정)$/ })).toHaveCount(0);
+  const header = page.locator('[data-testid="record-header"]');
+  await expect(header.getByRole("button", { name: "판정 요청", exact: true })).toBeDisabled();
+  await expect(header.getByRole("button", { name: "제안서 초안", exact: true })).toBeDisabled();
+  await expect(page.locator('.rec-action-hint[title="이 환경에서 꺼져 있음 — 참여 판정(RL 분석)이 비활성입니다"]')).toHaveCount(2);
+  await page.goto("/opportunities/7101/proposal");
+  await expect(page.getByRole("tabpanel").getByText("제안서 초안 · 이 환경에서 꺼져 있음", { exact: true })).toBeVisible();
+  expect(trace.verdictGets).toEqual([]);
+  expect(trace.verdictRequests).toEqual([]);
+});
+
+test("기능 스위치를 읽지 못하면 켜졌다고 가정하지 않고 기존 판정 조회 경로를 그대로 쓴다", async ({ page }) => {
+  await page.clock.setFixedTime(new Date(RECORD_NOW));
+  await mockApi(page);
+  const trace = await mockOpportunityRecord(page);
+  await page.route("**/api/feature-flags", (route) => route.fulfill({ status: 503, json: { detail: "합성 장애" } }));
+  await page.goto("/opportunities/7101/verdict");
+  await expect(page.getByRole("tabpanel").getByText("아직 판정이 없습니다", { exact: true })).toBeVisible();
+  await expect(page.getByText(/이 환경에서 꺼져 있음/)).toHaveCount(0);
+  expect(trace.verdictGets.length).toBeGreaterThan(0);
+});

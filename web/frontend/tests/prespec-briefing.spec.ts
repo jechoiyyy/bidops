@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mockApi, visualPreSpecNotice } from "./api-mock";
+import { mockApi, mockFeatureFlags, mockPreSpecOverviewAbsent, visualPreSpecNotice } from "./api-mock";
 
 test("담당자는 회차 판정과 사람 정정 사유를 구분하고 본공고와 품명을 읽는다", async ({ page }) => {
   await mockApi(page);
@@ -135,4 +135,22 @@ test("상세 6단이 DOM 순서대로 있고 순회는 상단바가 가지며 �
   });
   expect(gradeTexts).toEqual(["우선 검토"]);
   await expect(page.getByText("현재 추적 상태", { exact: false })).toHaveCount(1);
+});
+
+// 설계고도화안 C-4: 개요 자동 검토가 이 환경에서 꺼져 있으면 실행 기록이 없는 이유를 먼저 말한다.
+test("개요 검토가 꺼진 환경은 실행 기록이 없는 이유로 꺼짐을 먼저 말한다", async ({ page }) => {
+  await mockApi(page);
+  await mockPreSpecOverviewAbsent(page);
+  await mockFeatureFlags(page, { rl_analysis: false, prespec_overview: false });
+  await page.goto("/pre-specs/991");
+  await expect(page.locator(".pre-spec-overview-waiting")).toContainText("개요 검토 · 이 환경에서 꺼져 있음");
+});
+
+test("개요 검토가 켜진 환경은 꺼짐을 말하지 않는다", async ({ page }) => {
+  await mockApi(page);
+  await mockPreSpecOverviewAbsent(page);
+  await mockFeatureFlags(page, { rl_analysis: true, prespec_overview: true });
+  await page.goto("/pre-specs/991");
+  await expect(page.locator(".pre-spec-overview-waiting")).toContainText("개요 검토 실행 기록이 없어 주요 과업을 표시할 수 없습니다.");
+  await expect(page.locator(".pre-spec-overview-waiting")).not.toContainText("이 환경에서 꺼져 있음");
 });

@@ -180,6 +180,25 @@ export function qwenRowLabel(item: { qwen_relevance: OrderPlanRelevance | null; 
   return stage2Label(item.stage2_status);
 }
 
+/** 모델 판정이 없는 건(1차 선별 실패·거부, 모델 실패·거부·미확인)에 붙는 표식. 비관련으로 읽지 않는다. */
+export const NO_MODEL_JUDGMENT_LABEL = "모델 판정 없음 — 사람 확인";
+
+/**
+ * 판정 실행이 이 건을 다뤘는데 모델 판단을 내지 못한 경우다(배치 실패 포함). 실행 계약의
+ * `human_review_count`가 사람 검토로 세는 무판정 몫(stage1 실패·거부 + stage2 실패·거부·미확인)과
+ * 같은 조건이다. 1차 선별 `제외`나 판정이 아예 없는 범위(`policy_version=null`)는 여기 들지 않는다.
+ */
+export function hasNoModelJudgment(item: {
+  qwen_relevance: OrderPlanRelevance | null;
+  stage1_status: OrderPlanStage1Status | null;
+  stage2_status: OrderPlanStage2Status | null;
+  policy_version: string | null;
+}): boolean {
+  if (item.policy_version === null || item.qwen_relevance !== null) return false;
+  return item.stage1_status === "failed" || item.stage1_status === "rejected"
+    || item.stage2_status === "failed" || item.stage2_status === "rejected" || item.stage2_status === "unknown";
+}
+
 /** stage1과 같은 규칙이다. 판단은 라벨로 구분하고 색은 실패·거부에만 쓴다. */
 export function qwenBadgeVariant(item: { qwen_relevance: OrderPlanRelevance | null; stage2_status: OrderPlanStage2Status | null }): "error" | "neutral" {
   if (item.stage2_status === "failed" || item.stage2_status === "rejected") return "error";

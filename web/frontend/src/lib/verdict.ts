@@ -124,6 +124,14 @@ export function hasVerdictResult(view: PractitionerVerdictView | null | undefine
   return Boolean(view && view.availability === "completed" && view.result);
 }
 
+/**
+ * 판정 요청 단추의 이름. 판정 기록이 아직 없으면(`none`·미조회) `판정 요청`, 이전 판정(실패·사람 검토·
+ * 완료·기존 보고서 포함)이 있으면 `다시 판정`이다 — 처음 요청을 "다시"라고 부르지 않는다(C-4).
+ */
+export function verdictRequestLabel(view: PractitionerVerdictView | null | undefined): "판정 요청" | "다시 판정" {
+  return !view || view.availability === "none" ? "판정 요청" : "다시 판정";
+}
+
 /** 이 상태에서는 새 판정 요청이 의미 없다(진행 중인 실행이 있다). */
 export function isVerdictActive(view: PractitionerVerdictView | null | undefined): boolean {
   return view?.availability === "pending" || view?.availability === "running";

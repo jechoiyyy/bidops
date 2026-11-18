@@ -139,7 +139,7 @@ const COPY: Record<OrderPlanBulkTrackingMode, BulkDialogCopy> = {
     resultExtraNote: "종료한 건은 추적 필터 '종료'와 사업 추적의 '추적 종료' 구역에서 볼 수 있습니다.",
     failuresAriaLabel: "일괄 추적 종료 실패 항목",
     errorFallbackDescription: "일괄 추적 종료 작업을 완료하지 못했습니다.",
-    endWarning: "종료한 계획은 기본 보기(검토 대상)에서 사라집니다. 추적 필터 '종료'에서 한 건씩 되돌릴 수 있습니다.",
+    endWarning: "종료한 계획은 관련·불확실 보기에서 사라집니다. 추적 필터 '종료'에서 한 건씩 되돌릴 수 있습니다.",
     overSelectionMessage: `한 번에 ${ORDER_PLAN_BULK_END_MAX_SELECTION}건까지 종료할 수 있습니다. 선택을 줄이십시오.`,
   },
 };

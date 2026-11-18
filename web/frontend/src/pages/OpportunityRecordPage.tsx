@@ -55,7 +55,8 @@ import type {
   VerdictFeedbackKind,
 } from "../lib/types";
 import { exportBlockedReason, readyBlockedReason, regenerateDraftBlockedReason } from "../lib/proposal";
-import { hasVerdictResult, headerVerdictPill, isVerdictActive, requirementText } from "../lib/verdict";
+import { hasVerdictResult, headerVerdictPill, isVerdictActive, requirementText, verdictRequestLabel } from "../lib/verdict";
+import { FEATURE_OFF_LABEL, useFeatureFlags } from "../lib/featureFlags";
 import "../styles/opportunities-relaxed.css";
 import "../styles/opportunity-record.css";
 
@@ -187,10 +188,18 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
     retry: false,
   });
 
+  // 이 환경에서 RL 분석이 꺼져 있으면 판정·제안서를 요청 전에 "꺼져 있음"으로 보인다(설계고도화안 C-4).
+  // 신호를 모르면(조회 실패) 켜져 있다고 가정하지 않고 기존 조회·오류 경로를 그대로 쓴다.
+  const features = useFeatureFlags();
+  const rlOff = features.state("rl_analysis") === "off";
+  const rlOffReason = `${FEATURE_OFF_LABEL} — 참여 판정(RL 분석)이 비활성입니다`;
+
   // 참여 판정(RL-03). 헤더 판정 pill·`판정 보기`와 판정 탭이 같은 응답을 읽는다. 분석 중이면 주기적으로 다시 읽는다.
   const verdictQuery = useQuery({
     queryKey: ["opportunity-verdict", opportunityId],
     queryFn: ({ signal }) => api.getOpportunityVerdict(opportunityId, {}, { signal }),
+    // 꺼진 환경에서는 404가 될 조회를 보내지 않는다. 신호를 기다린 뒤에 연다.
+    enabled: features.settled && !rlOff,
     retry: false,
     refetchInterval: (query) => (isVerdictActive(query.state.data) ? VERDICT_POLL_MS : false),
   });
@@ -240,7 +249,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
   }, []);
   const proposal = useProposalController({
     opportunityId,
-    enabled: tab === "proposal",
+    enabled: tab === "proposal" && !rlOff,
     draftId: draftIdParam,
     actorName,
     onActorMissing: onProposalActorMissing,
@@ -463,14 +472,17 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
           onVerdictTab: tab === "verdict",
           hasResult: hasVerdictResult(verdictView),
           onOpenVerdict: () => goTab("verdict"),
-          requestBlockedReason: verdictView?.notice_id === null
-            ? "연결된 사전규격이 없습니다"
-            : verdictActive ? "분석이 진행 중입니다" : null,
+          requestBlockedReason: rlOff
+            ? rlOffReason
+            : verdictView?.notice_id === null
+              ? "연결된 사전규격이 없습니다"
+              : verdictActive ? "분석이 진행 중입니다" : null,
+          requestLabel: verdictRequestLabel(verdictView),
           onRequestVerdict: () => setVerdictDialog({ kind: "request" }),
           feedbackBlockedReason: hasFeedbackTarget ? null : "제보할 판정이 없습니다",
           runInfoBlockedReason: verdictView?.identity ? null : "표시할 실행 정보가 없습니다",
           onVerdictMenu,
-          proposalBlockedReason: verdictCompleted ? null : "아직 판정이 없습니다",
+          proposalBlockedReason: rlOff ? rlOffReason : verdictCompleted ? null : "아직 판정이 없습니다",
           onOpenProposal: () => goTab("proposal"),
         }}
         proposal={{
@@ -534,6 +546,18 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
               }}
               pendingNoteId={pendingNoteId}
             />
+            {/* 목록 창에만 있는 조작으로 가는 길(설계고도화안 C-3). 두 화면을 합치기 전까지 서로를 연다. */}
+            <section aria-labelledby="rec-pane-links-title" className="rec-side-block" data-testid="record-pane-links">
+              <h3 className="rec-side-title" id="rec-pane-links-title">다른 화면에서 하는 일</h3>
+              <ul className="rec-side-links">
+                <li><Link to={`/opportunities?selected=${opportunityId}&detail=checks`}>확인 항목 답변 →</Link></li>
+                <li>
+                  {reps?.["입찰공고"]
+                    ? <Link to={`/opportunities/${opportunityId}/bid-delta`}>변경 비교·Go/No-Go →</Link>
+                    : <span className="rec-side-note">변경 비교·Go/No-Go는 입찰공고가 연결되면 열 수 있습니다</span>}
+                </li>
+              </ul>
+            </section>
             <section aria-labelledby="rec-docs-title" className="rec-side-block">
               <h3 className="rec-side-title" id="rec-docs-title">제출 서류</h3>
               <p aria-disabled="true" className="rec-side-note is-disabled">제출 서류 체크는 준비 중입니다</p>
@@ -545,7 +569,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
           {tab === "activity" ? (
             <>
               {firstPage ? (
-                <StageBar stages={firstPage.stages} />
+                <StageBar links={links} stages={firstPage.stages} />
               ) : feed.isPending ? (
                 <p className="rec-status" role="status">활동을 불러오는 중입니다.</p>
               ) : null}
@@ -577,7 +601,9 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
             </>
           ) : null}
 
-          {tab === "verdict" ? (
+          {tab === "verdict" && rlOff ? (
+            <EmptyState compact description="이 환경의 운영 설정에서 참여 판정(RL 분석)이 꺼져 있어 판정을 요청하거나 볼 수 없습니다. 추적 결정과 최종 Go/No-Go는 판정 없이도 사람이 정합니다." title={`참여 판정 · ${FEATURE_OFF_LABEL}`} />
+          ) : tab === "verdict" ? (
             <OpportunityVerdictTab
               onFeedback={({ row, kind }) =>
                 setVerdictDialog({ kind: "feedback", unit: { unitId: row.unit_id, requirement: requirementText(row) }, initialKind: kind })
@@ -587,7 +613,9 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
             />
           ) : null}
 
-          {tab === "proposal" ? (
+          {tab === "proposal" && rlOff ? (
+            <EmptyState compact description="제안서 초안은 참여 판정(RL 분석)이 켜진 환경에서만 만들 수 있습니다. 이 환경에서는 꺼져 있습니다." title={`제안서 초안 · ${FEATURE_OFF_LABEL}`} />
+          ) : tab === "proposal" ? (
             <OpportunityProposalTab
               actorMissing={proposalActorMissing}
               actorName={actorName}
@@ -674,7 +702,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
         onOpenChange={(next) => { if (!next) setDialog(null); }}
         padding={6}
         purpose="info"
-        width="calc(var(--spacing-12) * 11)"
+        width="528px"
       >
         <div className="opportunity-dialog-body">
           <DialogHeader onOpenChange={(next) => { if (!next) setDialog(null); }} title="추적 되돌리기" />
@@ -692,7 +720,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
         onOpenChange={(next) => { if (!next) setDialog(null); }}
         padding={6}
         purpose="form"
-        width="calc(var(--spacing-12) * 11)"
+        width="528px"
       >
         <div className="opportunity-dialog-body">
           <DialogHeader onOpenChange={(next) => { if (!next) setDialog(null); }} title="새 공고 신호 확인" />
@@ -732,6 +760,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
 
       {verdictDialog?.kind === "request" ? (
         <VerdictRequestDialog
+          title={verdictRequestLabel(verdictView)}
           onClose={() => setVerdictDialog(null)}
           onRequested={afterVerdictRequested}
           opportunityId={opportunityId}

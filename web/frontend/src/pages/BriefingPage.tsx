@@ -41,7 +41,7 @@ import "../styles/briefing.css";
  * - 표시 금지: 정책·점수·초 단위 생성 시각·집계 분모·모델명.
  */
 
-const NOT_FOUND_TITLE = "브리핑은 아직 발송되지 않았습니다";
+const NOT_FOUND_TITLE = "이 환경에서 만들어진 브리핑이 없습니다";
 const EMPTY_TITLE = "오늘 추천할 공고가 없습니다 · 수집 정상";
 const COLLECTION_TITLE = "오늘 수집이 끝나지 않았습니다";
 const PANEL_ID = "briefing-panel";
@@ -75,7 +75,7 @@ function NotFound({ invalidDate, dated }: { invalidDate: boolean; dated: boolean
       description={
         invalidDate
           ? "주소의 날짜 형식이 올바르지 않습니다(YYYY-MM-DD). 최신 브리핑을 열거나 날짜를 고쳐 다시 여십시오."
-          : "평일 브리핑이 만들어지면 추천 목록과 반응(볼게요·무시·나중에)이 여기에 나타납니다. 지금은 사전규격·발주계획 목록에서 공고를 확인하세요."
+          : "브리핑은 일일 브리핑 스크립트가 실행되어야 만들어집니다. 이 화면은 그 일정이 있는지 알 수 없으며, 지금까지 만들어진 브리핑이 없습니다. 사전규격·발주계획 목록에서 공고를 확인하세요."
       }
       secondaryAction={dated || invalidDate ? { label: "최신 브리핑 열기", to: "/briefing" } : { label: "발주계획 열기", to: "/order-plans" }}
       title={NOT_FOUND_TITLE}

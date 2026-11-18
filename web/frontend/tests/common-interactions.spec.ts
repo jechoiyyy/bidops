@@ -267,24 +267,26 @@ test("공통 unsaved guard가 옮겨간 예외 작업 입력을 지킨다", asyn
 // docs/design/PLAN.md 단계 E 완료 게이트 (ADR-0046가 ADR-0041 결정 1·2를 개정)
 // ─────────────────────────────────────────────────────────────────────────
 
-// RL 사이드바(ui-spec §1.2, 시안 v26): 빠른 이동 / 레코드 / 리스트 / 하단.
-// 화면이 없는 항목(노트·보고서·기관·새 리스트·팀원 초대·도움말)은 링크가 아니라
-// 비활성 자리다.
+// RL 사이드바(ui-spec §1.2, 시안 v26 + 2026-11-18 메모): 빠른 이동 / 레코드 / 리스트 / 하단.
+// 항목 이름은 여는 화면의 제목이다(리스트는 사업기회·브리핑의 이름 붙은 보기). 화면이 없는
+// 자리표시(노트·보고서·기관·새 리스트·팀원 초대·도움말·검색)는 그리지 않는다.
 const SIDEBAR_LINKS = [
-  { group: null, label: "알림", path: "/" },
-  { group: null, label: "다음 행동", path: "/opportunities" },
-  { group: "레코드", label: "공고", path: "/pre-specs" },
-  { group: "레코드", label: "사업기회", path: "/opportunities" },
-  // RL-00: 회사 근거는 읽기 전용 `/company`다. `/profile`은 설정 아래 판정 기준 화면으로 남는다.
-  { group: "레코드", label: "회사 근거", path: "/company" },
-  { group: "리스트", label: "오늘의 브리핑", path: "/briefing" },
-  { group: "리스트", label: "추적 중", path: "/opportunities" },
-  { group: "리스트", label: "연차 예고", path: "/order-plans" },
-  { group: "리스트", label: "마감 임박", path: "/opportunities" },
+  { group: null, label: "대시보드", path: "/", title: "대시보드" },
+  { group: "레코드", label: "발주계획", path: "/order-plans", title: "발주계획" },
+  { group: "레코드", label: "사전규격", path: "/pre-specs", title: "사전규격" },
+  { group: "레코드", label: "사업기회", path: "/opportunities", title: "사업기회" },
+  { group: "레코드", label: "최종 Go/No-Go", path: "/go-no-go", title: "최종 Go/No-Go" },
+  // RL-00: 회사 근거는 읽기 전용 `/company`다. `/profile`은 판정 기준 화면의 탭으로 남는다.
+  { group: "레코드", label: "회사 근거", path: "/company", title: "회사 근거" },
+  { group: "리스트", label: "오늘의 브리핑", path: "/briefing", title: "오늘의 브리핑" },
+  { group: "리스트", label: "추적 중", path: "/opportunities", title: "사업기회" },
+  { group: "리스트", label: "마감 임박", path: "/opportunities", title: "사업기회" },
+  { group: "하단", label: "실행 상태", path: "/run-status", title: "실행 상태" },
+  { group: "하단", label: "판정 기준", path: "/criteria", title: "판정 기준" },
 ];
-const SIDEBAR_DISABLED = ["노트", "보고서", "기관", "새 리스트", "팀원 초대", "도움말"];
+const SIDEBAR_REMOVED = ["알림", "다음 행동", "공고", "연차 예고", "노트", "보고서", "기관", "새 리스트", "팀원 초대", "도움말", "설정", "검색"];
 
-test("사이드바는 시안 v26 구조(빠른 이동·레코드·리스트·하단)이고 미구현 항목은 비활성이다", async ({ page }) => {
+test("사이드바는 시안 v26 묶음을 유지하고 화면 없는 자리표시를 그리지 않는다", async ({ page }) => {
   await mockApi(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
@@ -294,21 +296,17 @@ test("사이드바는 시안 v26 구조(빠른 이동·레코드·리스트·하
   for (const item of SIDEBAR_LINKS) {
     await expect(sidebar.getByRole("link", { name: item.label, exact: true })).toHaveCount(1);
   }
-  for (const label of SIDEBAR_DISABLED) {
-    const entry = sidebar.locator(".sidebar-item.is-disabled", { hasText: label });
-    await expect(entry).toHaveCount(1);
-    await expect(entry).toHaveAttribute("aria-disabled", "true");
-    await expect(sidebar.getByRole("link", { name: label, exact: true })).toHaveCount(0);
+  for (const label of SIDEBAR_REMOVED) {
+    await expect(sidebar.getByText(label, { exact: true })).toHaveCount(0);
   }
-  // 하단: 설정이 운영 메뉴(판정 기준·실행 상태)로 가는 유일한 진입이다.
-  await expect(sidebar.locator(".sidebar-footer").getByRole("link", { name: "설정", exact: true })).toHaveAttribute("href", "/criteria");
+  await expect(sidebar.locator('[aria-disabled="true"]')).toHaveCount(0);
+  await expect(sidebar.locator(".sidebar-footer").getByRole("link")).toHaveText(["실행 상태", "판정 기준"]);
   await expect(sidebar.locator(".sidebar-external-link")).toHaveCount(1);
-  // 옛 1차 분류와 "준비 중" 안내는 없다.
   await expect(sidebar.getByText("준비 중")).toHaveCount(0);
   await expect(sidebar.getByText("탐색과 추적")).toHaveCount(0);
 });
 
-test("사이드바 링크가 모두 실제 화면으로 연결되고 설정이 판정 기준을 연다", async ({ page }) => {
+test("사이드바 항목 이름은 여는 화면의 제목과 같다", async ({ page }) => {
   await mockApi(page);
   await page.setViewportSize({ width: 1440, height: 900 });
 
@@ -316,21 +314,50 @@ test("사이드바 링크가 모두 실제 화면으로 연결되고 설정이 �
     await page.goto("/");
     await page.locator("aside.sidebar").getByRole("link", { name: item.label, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`^[^?]*${item.path.replace(/\//g, "\\/")}(\\?|$)`));
-    // 실제 화면이 그려진다: 빈 라우트나 오류 경계가 아니라 상단바 제목이 채워진다.
-    await expect(page.locator("header.topbar h1")).not.toHaveText("BidOps Admin");
+    await expect(page.locator("header.topbar h1")).toHaveText(item.title);
     await expect(page.locator(".lazy-route-error")).toHaveCount(0);
   }
+});
 
-  await page.goto("/");
-  await page.locator("aside.sidebar").getByRole("link", { name: "설정", exact: true }).click();
-  await expect(page.locator("header.topbar h1")).toHaveText("판정 기준");
+// 주소 하나에 활성 항목은 정확히 하나다(2026-11-18: `/opportunities`가 다음 행동, `/go-no-go`가
+// 사업기회, `/judgments`가 두 항목을 켜던 결함).
+const ACTIVE_CASES = [
+  { path: "/", active: "대시보드" },
+  { path: "/order-plans", active: "발주계획" },
+  { path: "/pre-specs", active: "사전규격" },
+  { path: "/pre-specs/991", active: "사전규격" },
+  { path: "/opportunities", active: "사업기회" },
+  { path: "/opportunities?section=전체", active: "사업기회" },
+  { path: "/opportunities?section=추적 중", active: "추적 중" },
+  { path: "/opportunities?section=전체&deadline_within_days=7&sort=deadline", active: "마감 임박" },
+  { path: "/opportunities/501/activity", active: "사업기회" },
+  { path: "/go-no-go", active: "최종 Go/No-Go" },
+  { path: "/judgments", active: "사업기회" },
+  { path: "/queue", active: "사업기회" },
+  { path: "/company", active: "회사 근거" },
+  { path: "/briefing", active: "오늘의 브리핑" },
+  { path: "/run-status", active: "실행 상태" },
+  { path: "/runs", active: "실행 상태" },
+  { path: "/criteria", active: "판정 기준" },
+  { path: "/order-plan-policies", active: "판정 기준" },
+];
+
+test("주소마다 활성 사이드바 항목은 정확히 하나다", async ({ page }) => {
+  await mockApi(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  for (const item of ACTIVE_CASES) {
+    await page.goto(item.path);
+    const active = page.locator('aside.sidebar [aria-current="page"]');
+    await expect(active, item.path).toHaveCount(1);
+    await expect(active, item.path).toHaveText(new RegExp(`^${item.active.replace("/", "\\/")}\\d*$`));
+  }
 });
 
 // 승인된 대시보드는 누적 업무 4곳을 회차 자료 위에 고정한다.
 const DECISION_STRIP_TARGETS = [
   { title: /발주계획/, pathname: "/order-plans" },
   { title: /사전규격/, pathname: "/pre-specs" },
-  { title: /사업 추적/, pathname: "/opportunities" },
+  { title: /사업기회/, pathname: "/opportunities" },
   { title: /최종 Go\/No-Go/, pathname: "/go-no-go" },
 ];
 
@@ -346,22 +373,28 @@ test("대시보드 바로가기에서 네 업무 각각으로 이동할 수 있�
   }
 });
 
-test("사전규격 결정 대기 건수를 서버 집계로 보여 주고 마감 순으로 이동한다", async ({ page }) => {
+// 타일 건수 = 링크한 목록 기본 보기의 건수(설계고도화안 C-1). 타일의 수와 도착한 목록의 수를 대조한다.
+test("사전규격 타일은 목록 기본 보기(검토할 항목·마감 전)의 건수이고 같은 보기를 연다", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
   const item = page.locator(".dash-journey-strip").getByRole("link", { name: /사전규격/ });
-  await expect(item).toContainText("결정 대기 1건");
+  await expect(item).toContainText(/검토할 항목 \d+건/);
+  const count = Number((await item.textContent())?.match(/검토할 항목 (\d+)건/)?.[1]);
+  await expect(item).toHaveAttribute("href", "/pre-specs");
   await item.click();
   await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs");
-  expect(new URL(page.url()).searchParams.get("sort")).toBe("deadline");
+  await expect(page.getByRole("button", { name: /검토할 항목/ }).first()).toContainText(String(count));
 });
 
-test("Go/No-Go 결정 대기 건수를 서버 집계로 보여 주고 이동을 제공한다", async ({ page }) => {
+test("Go/No-Go 타일은 목록 기본 보기(검토 대상)의 건수이고 같은 보기를 연다", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
   const item = page.locator(".dash-journey-strip").getByRole("link", { name: /최종 Go\/No-Go/ });
-  await expect(item).toContainText("결정 대기 2건");
+  await expect(item).toContainText(/검토 대상 \d+건/);
+  const count = Number((await item.textContent())?.match(/검토 대상 (\d+)건/)?.[1]);
   await expect(item).toHaveAttribute("href", "/go-no-go");
+  await item.click();
+  await expect(page.getByRole("button", { name: /검토 대상/ }).first()).toContainText(String(count));
 });
 
 test("회차가 없어도 누적 업무와 공고 판정 이력으로 이동할 수 있다", async ({ page }) => {
@@ -374,7 +407,7 @@ test("회차가 없어도 누적 업무와 공고 판정 이력으로 이동할 
 
 test("누적 집계 미확인을 0으로 접지 않는다", async ({ page }) => {
   await mockApi(page);
-  // 서버가 건수를 낼 수 없다고 답한 세 칸은 0으로 접히지 않고 미확인으로 남아야 한다.
+  // 서버가 건수를 낼 수 없다고 답한 칸과 목록 조회가 실패한 칸은 0으로 접히지 않고 미확인으로 남아야 한다.
   await mockWorkload(page, { generated_at: "2026-09-01T09:00:00Z", items: [
     { key: "order_plan_pending", count: 24, unavailable_reason: null },
     { key: "pre_spec_deep_review_ready", count: null, unavailable_reason: "provider_absent" },
@@ -387,8 +420,11 @@ test("누적 집계 미확인을 0으로 접지 않는다", async ({ page }) => 
     { key: "blocking_items_open", count: 3, unavailable_reason: null },
     { key: "order_plan_new_priority", count: 6, unavailable_reason: null },
   ] });
+  await page.route((url) => url.pathname === "/api/pre-specs", (route) => route.fulfill({ status: 503, json: { detail: "합성 장애" } }));
+  await page.route((url) => url.pathname === "/api/bid-delta/decision-queue", (route) => route.fulfill({ status: 503, json: { detail: "합성 장애" } }));
   await page.goto("/");
   const unmeasured = page.locator(".dash-journey-item").filter({ hasText: "미확인" });
+  // 사전규격(목록 실패)·사업기회(provider 없음)·최종 Go/No-Go(목록 실패).
   await expect(unmeasured).toHaveCount(3);
   for (const item of await unmeasured.all()) await expect(item).not.toContainText("0건");
 });

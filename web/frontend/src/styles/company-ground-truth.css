@@ -19,7 +19,7 @@
 
 .co-page.is-ready {
   display: grid;
-  grid-template-columns: calc(var(--spacing-6) * 10) minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr);
   gap: var(--spacing-5);
   align-items: start;
 }
@@ -49,7 +49,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-2);
-  min-height: calc(var(--spacing-6) * 1.4);
+  min-height: 32px;
   padding: 0 var(--spacing-2);
   border-radius: var(--radius-inner);
   color: var(--color-text-primary);
@@ -83,7 +83,7 @@
   align-items: center;
   justify-content: center;
   min-width: calc(var(--spacing-4) + var(--spacing-0-5));
-  padding: 0 var(--spacing-1-5);
+  padding: 0 var(--spacing-2);
   border-radius: var(--radius-full);
   color: var(--color-warning);
   background: var(--color-warning-muted);
@@ -170,7 +170,7 @@
 
 .co-attention-row {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) calc(var(--spacing-6) * 4) minmax(0, 3fr) auto;
+  grid-template-columns: minmax(0, 2fr) 96px minmax(0, 3fr) auto;
   align-items: start;
   gap: var(--spacing-3);
   padding: var(--spacing-2) var(--spacing-1);
@@ -252,11 +252,11 @@
 }
 
 .co-col-status {
-  width: calc(var(--spacing-6) * 4);
+  width: 96px;
 }
 
 .co-col-action {
-  width: calc(var(--spacing-6) * 5);
+  width: 120px;
   text-align: right;
 }
 
