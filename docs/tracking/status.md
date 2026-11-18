@@ -7,7 +7,7 @@
 | 범위 | 확인된 상태 | 근거·남은 경계 |
 |---|---|---|
 | 코드·DB | main에 RL-00~05 구현과 엔진 통합(RL-09 mock_reference), 코드 head `0042_engine_run` | `app/core/db.py`, migration 0042, 각 기능 status.json |
-| Mac 운영 | 11월 18일 main `4425744` 코드·0042 배포(운영 checkout을 main으로 이전), C-2 v5 active·일일 ON, analysis-worker 정지 | [운영 반영](../validation-runs/20261118-ops-main-move/README.md). 이후 main 변경이 운영에도 배포됐다고 추정하지 않음 |
+| Mac 운영 | 11월 18일 main `c801a69`·0042·이미지 `main-20261118d` 배포, C-2 v5 active·일일 ON, analysis-worker 기동(restart `no`). 발주계획 11-04~11-17 C-2 판정, 공고 같은 기간 수집·적재. cron 미설치 | [일일 트랙 보강 배포·따라잡기](../validation-runs/20261118-launch-hardening-deploy/README.md), [checkout 이전](../validation-runs/20261118-ops-main-move/README.md). 평일 실제 규모(427~627건/일)의 C-2 품질은 미측정. 이후 main 변경이 운영에도 배포됐다고 추정하지 않음 |
 | 개요·RL 운영 스위치 | 마지막 기록상 개요·상시 첨부 worker 꺼짐, RL 분석 false | 운영 회사 근거·브리핑 미등록. 코드 배포는 RL 활성화가 아님 |
 | RL-00~02 | 실회사 근거·브리핑/Slack·활동/노트 구현·격리 검증 | [RL-00](../validation-runs/2026-10-16-rl/RL-00/README.md), [RL-01](../validation-runs/2026-10-16-rl/RL-01/README.md), [RL-02](../validation-runs/2026-10-16-rl/RL-02/README.md) |
 | RL-03 | 카드 판정 구현, import 기본 정책 v11, 실제 실행 기록 있음 | [RL-03](../validation-runs/2026-10-17-rl/RL-03/README.md). 회사 대조 품질은 아래 RL-05 결과로 구분 |

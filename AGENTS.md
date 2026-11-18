@@ -134,7 +134,7 @@ RL 범위의 모든 LLM 호출은 codex-exec `gpt-6-luna`/high 하나이며 전�
 - GPU 휴지(`BIDOPS_GPU_BUSY_LIMIT_SECONDS`·`BIDOPS_GPU_REST_SECONDS`)는 기본값이 둘 다 0(꺼짐)이며 값을 주지 않으면 기존 워커 동작과 같다. 운영은 `env/c2.env`에서 600초 사용·300초 휴지로 켜 두었고, 휴지는 작업 사이에서만 들어간다.
 - 첨부 취득 실패·묶음 failed 재시작 화면, 입찰 delta 계산 worker, SSO는 아직 구현 전이다. 기존 deep-review-v2 설계와 별도로 RL 카드 기반 역할 분석·판정과 Slack 브리핑/반응은 구현됐으며 운영 활성화·품질 인수는 별개다. 문서 준비 화면과 개요 run 실행기·REST·화면은 구현돼 있다. 입찰 delta는 저장·REST·화면까지 있으나 비교를 실제로 계산하는 worker가 없어 `bid_delta_comparison`이 `pending`에 머문다.
 
-- 마지막 운영 확인은 [2026-11-18 main checkout 이전·배포 기록](docs/validation-runs/20261118-ops-main-move/README.md)이다. main `4425744`·DB `0042_engine_run`·이미지 `bidops:main-20261118`을 운영에 반영했고 C-2 v5 일일 ON을 확인했다. analysis-worker는 정지 상태이며 C-2 실행 전에 사람 확인 후 올린다. postgres 등은 restart 정책 `no`라 host 재시작 뒤 수동 기동이 필요하다(findings). RL 분석은 false, 운영 회사 근거·브리핑은 미등록이며 RL-05 reject·RL-04 partial은 그대로다. 코드 배포를 기능 활성화나 품질 합격으로 적지 않는다.
+- 마지막 운영 확인은 [2026-11-18 일일 트랙 보강 배포·따라잡기 기록](docs/validation-runs/20261118-launch-hardening-deploy/README.md)이다(그 전 단계는 [main checkout 이전 기록](docs/validation-runs/20261118-ops-main-move/README.md)). main `c801a69`·DB `0042_engine_run`·이미지 `bidops:main-20261118d`(web·analysis-worker 동일)가 운영이고 C-2 v5 일일 ON이다. 발주계획 11-04~11-17은 C-2 판정까지, 공고는 같은 기간 수집·적재까지 했다(10-15~11-03은 수집하지 않음). analysis-worker는 C-2 실행용으로 올라와 있으나 restart 정책은 `no`라 host 재시작 뒤 사람이 올린다. postgres·minio·clamav·document-worker는 `unless-stopped`로 자동 기동한다. **cron은 설치되어 있지 않다** — 진입점 `scripts/cron-daily-track.sh`의 감독 실행까지만 했고 설치는 사용자 승인 대기다. 평일 발주계획은 하루 427~627건으로 게이트 gold 규모(290~308건)를 넘어 Top300 밖은 모델 판정이 없고 검토 후보가 80건을 넘는 날이 많다(미측정). RL 분석·개요는 false, 운영 회사 근거·브리핑은 미등록이며 RL-05 reject·RL-04 partial은 그대로다. 코드 배포를 기능 활성화나 품질 합격으로 적지 않는다.
 
 ## 운영 변경·배포 시 유의
 
@@ -150,7 +150,7 @@ RL 범위의 모든 LLM 호출은 codex-exec `gpt-6-luna`/high 하나이며 전�
 - **회차 Run의 기본키는 `<디렉터리>--<generated_at>Z`다.** `GET /api/runs/{id}`만 디렉터리 이름을 풀어 주고 C-2 API는 정규 id만 받는다. 스크립트·도구는 적재 뒤 web에서 정규 id를 받아 쓰고, 한 디렉터리에 Run 행이 둘 이상이면 추정하지 않고 멈춘다.
 - **적재 경고가 하나라도 있으면 그 회차의 C-2 실행은 409 `source_run_incomplete`로 막힌다.** 적재 직후 `GET /api/runs/<회차>/warnings`를 본다. 적재 CLI와 web은 같은 lifecycle 확장점을 등록해야 한다 — 진입점을 새로 만들면 `BIDOPS_MODULES` 확장점 등록을 같이 넣는다.
 - **host에서 도는 `scripts/*.sh` 변경은 컨테이너 재배포가 필요 없다.** 대신 cron과 같은 깨끗한 환경(`env -i HOME=… PATH=…`)에서 `--dry-run`과 실제 web 조회를 한 번 돌려 본다.
-- **cron은 `flock`(두 트랙 공용 lock)과 `timeout`을 붙여 설치하고, 설치 전에 같은 명령으로 감독 시운전을 한 번 한다.** 자동 따라잡기는 없다 — 빠진 날은 `--date`·`--from-date/--to-date`로 사람이 메운다. `대기`로 굳은 실행은 제품 워커가 복구하지 않는다(findings).
+- **cron은 `flock`(두 트랙 공용 lock)과 `timeout`을 붙여 설치하고, 설치 전에 같은 명령으로 감독 시운전을 한 번 한다.** cron 진입점은 `scripts/cron-daily-track.sh <notices|order-plans>` 하나다(lock·timeout·시작/종료 코드 줄 포함). 누락·미판정 날은 실행 끝에 `gap_detected`·`unjudged_detected`(exit 10)로 보고되고, `--catch-up-days N`을 준 만큼만 자동으로 메운다(발주계획은 그만큼 모델 호출이 나가므로 승인 범위에 넣는다). 그보다 오래된 날은 `--date`·`--from-date/--to-date`로 사람이 메운다. `대기`로 굳은 실행은 체류 상한(`BIDOPS_C2_QUEUED_MAX_DWELL_SECONDS`)을 넘기면 워커·생성 경로가 `stale_queued`로 닫는다.
 - **10분을 넘는 실행은 분리해서 돌린다**(`setsid nohup … > log; echo exit=$? >> log`). 로그를 감시하되 진행·실패·종료 코드를 모두 잡는 필터를 쓴다. 조용함은 성공이 아니다.
 - **origin push와 브랜치 삭제는 요청이 있을 때만 한다.**
 

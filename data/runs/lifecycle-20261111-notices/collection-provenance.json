@@ -1,0 +1,90 @@
+{
+  "schema_version": "bidops.collection-provenance.v1",
+  "generated_at": "2026-11-18T09:17:43.290566+00:00",
+  "source_raw": null,
+  "source_window": {
+    "from": "2026-11-08",
+    "to": "2026-11-11",
+    "timezone": "Asia/Seoul"
+  },
+  "options": {
+    "rows": 500,
+    "timeout": 300,
+    "skip_bids": false,
+    "skip_prespecs": false,
+    "tag_bid_sw_industry": true
+  },
+  "sources": [
+    {
+      "source": "bid",
+      "endpoint": "https://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoServc"
+    },
+    {
+      "source": "prespec",
+      "endpoint": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch"
+    },
+    {
+      "source": "industry1468",
+      "endpoint": "https://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoServcPPSSrch"
+    }
+  ],
+  "complete": true,
+  "warnings": [],
+  "raw_pages": [
+    {
+      "path": "raw/bid-page-001.json",
+      "source_path": null,
+      "sha256": "5041ec30fcadb970d417aea85670461a4ccd7b9dfe38134c21a3ca1d29c2f347"
+    },
+    {
+      "path": "raw/bid-page-002.json",
+      "source_path": null,
+      "sha256": "1ee2e5de02fb72aa283e316a7f61750c94643d1a6ac6943abfd3517a2bd8ab8d"
+    },
+    {
+      "path": "raw/bid-page-003.json",
+      "source_path": null,
+      "sha256": "27df3f5cb824c255e9748a4ea6dbb1d630ba55f3344ddf68d62664d77118d26d"
+    },
+    {
+      "path": "raw/bid-page-004.json",
+      "source_path": null,
+      "sha256": "a07e201a4d8a5e23ac7376d6f96e540c7d37a4a9a82b00582b40b66de1a06002"
+    },
+    {
+      "path": "raw/bid-page-005.json",
+      "source_path": null,
+      "sha256": "4970c3323a105a1890bb68dac7d60c51c7713a532ab2404a8d3d790c0019e40d"
+    },
+    {
+      "path": "raw/bid-page-006.json",
+      "source_path": null,
+      "sha256": "22a2ec32ff1c32b4e8d3f9693c1cd9c7d03aab3a6bf9fe5b69cf88dcd3a80969"
+    },
+    {
+      "path": "raw/industry1468-page-001.json",
+      "source_path": null,
+      "sha256": "c8b9bd2f3883d2246562b79e5ddf6ae94d2e399893f1cb6234cd6305055f9aca"
+    },
+    {
+      "path": "raw/industry1468-page-002.json",
+      "source_path": null,
+      "sha256": "05f819c7efc49e9873409337ae1cc2ed7218e73e9652056213fa6f815c9574de"
+    },
+    {
+      "path": "raw/prespec-page-001.json",
+      "source_path": null,
+      "sha256": "fbb8f6b5521d90582488e1f572e4d440372e6154aceda7a351f2a6eecc3d8df2"
+    },
+    {
+      "path": "raw/prespec-page-002.json",
+      "source_path": null,
+      "sha256": "1ccb2c86f99c449aba382e853e605b501161e53b0636b21e19fd72204320a350"
+    },
+    {
+      "path": "raw/prespec-page-003.json",
+      "source_path": null,
+      "sha256": "4dccf34c9cc518e022f470b87ce9c61b03498d69aa51a48b73f2c7cbd6ed76d3"
+    }
+  ]
+}
