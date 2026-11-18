@@ -50,7 +50,6 @@ DECISIONS_SCHEMA = "bidops.order-plan-screening-decisions.v1"
 FAILURES_SCHEMA = "bidops.order-plan-screening-failures.v1"
 TELEMETRY_SCHEMA = "bidops.order-plan-screening-telemetry.v1"
 RESULT_SCHEMA = "bidops.order-plan-screening-result.v1"
-TOP_K = 300
 BATCH_SIZE = 25
 MAX_ATTEMPTS = 2
 RETRYABLE_FAILURE_TYPES = {"timeout", "truncated_output", "schema_violation", "id_mismatch", "transport"}
@@ -235,7 +234,9 @@ def _validate_created_at(document: Mapping[str, Any], label: str) -> None:
     PHASE0.parse_timestamp(document["created_at"], f"{label}.created_at")
 
 
-def _validate_ranking(path: Path, frozen: Mapping[str, Any]) -> dict[str, Any]:
+def _validate_ranking(path: Path, frozen: Mapping[str, Any], top_k: int) -> dict[str, Any]:
+    """``top_k`` is the validated ``stage1.top_k`` of the execution's frozen policy."""
+
     document = PHASE0.require_exact_keys(PHASE0.load_json(path), RANKING_KEYS, "ranking artifact")
     if document["schema_version"] != RANKING_SCHEMA or document["producer"] != "order-plan-screening-bm25" or document["consumer"] != "order-plan-screening-merge":
         _error("provenance_mismatch", "ranking artifact provenance가 다릅니다")
@@ -287,7 +288,7 @@ def _validate_ranking(path: Path, frozen: Mapping[str, Any]) -> dict[str, Any]:
         _error("ranking_invalid", "ranking rank가 연속·순서대로 정렬되지 않았습니다")
     if ranked_items != sorted(ranked_items, key=lambda row: (-row["score"], row["plan_id"])):
         _error("ranking_invalid", "ranking score-desc/plan_id-asc 순서가 다릅니다")
-    expected_selected = min(TOP_K, len(ranked_items))
+    expected_selected = min(top_k, len(ranked_items))
     for index, row in enumerate(ranked_items):
         expected_status = "selected" if index < expected_selected else "filtered_out"
         if row["stage1_status"] != expected_status:
@@ -675,7 +676,7 @@ def build_order_plan_screening_results(
 
     frozen = RANKER.validate_frozen_input(Path(input_path))
     fixed = RANKER.validate_fixed_references(frozen, policy_path=policy_path, binding_path=binding_path)
-    ranking = _validate_ranking(Path(ranking_path), frozen)
+    ranking = _validate_ranking(Path(ranking_path), frozen, fixed["top_k"])
     decisions = _validate_decisions(Path(decisions_path), frozen, ranking, fixed["binding"]["stage2_binding"])
     failures = _validate_failures(Path(failures_path), frozen, decisions, ranking)
     telemetry = _validate_telemetry(Path(telemetry_path), frozen, decisions, failures)

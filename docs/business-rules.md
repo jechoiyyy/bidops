@@ -411,10 +411,13 @@ C-2는 기존 공고의 적합성·참여 준비 판정과 별도의 relevance �
   warning, count 불일치, raw record hash 불일치는 실행 거부다. 원본 JSON·raw page·정규화
   projection은 기존 회차 디렉터리에서 덮어쓰지 않는다.
 - 현재 정책은 전체 제목을 NFKC·casefold·공백 축약 후 BM25로 계산하고 score 내림차순,
-  `order_plan_unty_no` 오름차순으로 tie-break한다. Top 300은 `selected`, 나머지는
-  `filtered_out`이며 탈락을 `not_relevant`라고 기록하지 않는다. 300건 이하 규칙은
-  select-all까지 문서화했지만 탈락 감사 표본은 사람 승인 전까지 비활성이다.
-- Qwen은 Top 300만 25건의 rank-contiguous batch로 순차 전송한다. 승인된 private vLLM,
+  `order_plan_unty_no` 오름차순으로 tie-break한다. 상위 `top_k`건은 `selected`, 나머지는
+  `filtered_out`이며 탈락을 `not_relevant`라고 기록하지 않는다. `top_k`는 실행이 동결한 policy
+  `stage1.top_k`이고 허용 값은 300(v1~v5, 현재 active v5)과 150(v6,
+  [ADR-0075](tracking/decisions/0075-c2-stage1-top150.md)) 둘뿐이다. v6는 발행만 했고 적재·게이트
+  측정·활성화 전이다. 모집단이 `top_k` 이하이면 전부 `selected`다. 탈락 감사 표본은 policy에
+  승인된 값으로만 돌며 근접 순위 창은 `top_k` 바로 뒤(v5 301~325위, v6 151~175위)다.
+- Qwen은 `selected`(상위 `top_k`)만 25건의 rank-contiguous batch로 순차 전송한다. 승인된 사설 모델 경로,
   정확한 model/prompt/profile/BM25 digest와 허용 payload를 모두 일치시켜야 하며 hosted
   fallback은 없다. retryable failure만 최대 2회 재시도하고, binding·model·payload·policy
   거부는 재시도하지 않는다.
@@ -423,7 +426,7 @@ C-2는 기존 공고의 적합성·참여 준비 판정과 별도의 relevance �
 
 | 상태 | 의미 | 보존 규칙 |
 |---|---|---|
-| `filtered_out` | deterministic Top 300 밖 | relevance 음성이나 적합성 제외로 바꾸지 않음 |
+| `filtered_out` | deterministic 상위 `top_k`(v5 300, v6 150) 밖 | relevance 음성이나 적합성 제외로 바꾸지 않음 |
 | `relevant` / `not_relevant` | Qwen 또는 사람의 relevance label | 등급·준비·추적·Go/No-Go로 승격하지 않음 |
 | `uncertain` | relevance 확인 보류 | 기본 사람 검토 목록에 남김 |
 | `unknown` | 정보 부족·결과 결정 불가 | 성공·비관련으로 보정하지 않음 |
@@ -434,7 +437,9 @@ C-2는 기존 공고의 적합성·참여 준비 판정과 별도의 relevance �
 실행 상태는 `대기 → 실행 중 → 성공|부분 성공|실패`, `실행 중 → 중지 요청 → 중단됨`,
 `대기 → 중단됨`만 허용한다. terminal 상태는 종료 시각을 갖고, active slot은 1이다. stale
 또는 process interruption은 자동 재개하지 않고 성공 subset·failure artifact를 보존한 뒤
-사람이 새 execution으로 재시작한다. 사람 feedback은 execution·plan별 append-only revision
+사람이 새 execution으로 재시작한다. 모델이 한 건도 답하지 못해 `실패`로 끝난 운영 실행도 전
+모집단의 결과 행(BM25 순위, 2단계 `failed`)을 남기며, 누적 목록은 그 행을 완료 실행의 결과보다
+낮은 우선순위로 보인다(판정이 아니라 "모델 미판정"이다). 사람 feedback은 execution·plan별 append-only revision
 이며 `relevance=관련|비관련|판단보류`에 대응하는 machine 값과 `priority=높음|보통|낮음|null`,
 메모를 기록한다. 이 feedback은 `grade`, `readiness`, `tracking_status`, final `go_no_go`를
 변경하지 않는다.

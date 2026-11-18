@@ -132,13 +132,17 @@ def test_worker_network_and_command_boundaries_are_explicit():
     assert "pipeline-data:/app/data" in analysis["volumes"]
     assert "document-scratch:/scratch" in analysis["volumes"]
     assert all("./experiments/order-plan-screening:" not in volume for volume in web["volumes"] + analysis["volumes"])
-    # Only the three approved C-2 artifacts are mounted, never the experiment
-    # tree.  The generation config joined them so the runtime reads the values
-    # it records instead of hardcoding them ([ADR-0044]).
+    # Only the approved C-2 artifacts are mounted, never the experiment tree.
+    # The generation config joined them so the runtime reads the values it
+    # records instead of hardcoding them ([ADR-0044]).  v5 (active) and v6
+    # (published) are mounted together so each DB row finds its own file by
+    # digest while the other version stays active (ADR-0075).
     for service in (web, analysis):
         for artifact in (
             "order-plan-screening-policy.v5.json",
             "order-plan-screening-phase0-binding.v5.json",
+            "order-plan-screening-policy.v6.json",
+            "order-plan-screening-phase0-binding.v6.json",
             "order-plan-screening-generation-config.v6.json",
         ):
             assert any(

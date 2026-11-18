@@ -238,3 +238,48 @@ def test_binding_policy_status_must_match_policy_file(session: Session, tmp_path
         _load(session, policy_path, binding_path)
     assert error.value.code == "binding_policy_status_mismatch"
     assert session.scalar(select(func.count()).select_from(OrderPlanScreeningPolicy)) == 0
+
+
+# --- Published v5/v6 files and the stage 1 cut (ADR-0075) --------------------
+
+
+@pytest.mark.parametrize(("version", "top_k"), [("v5", 300), ("v6", 150)])
+def test_published_files_load_with_their_byte_digests(session: Session, version: str, top_k: int) -> None:
+    policy_path = CONFIG / f"order-plan-screening-policy.{version}.json"
+    binding_path = CONFIG / f"order-plan-screening-phase0-binding.{version}.json"
+    row = _load(session, policy_path, binding_path).row
+    session.commit()
+    assert row.policy_version == f"c2-order-plan-screening-{version}"
+    assert (row.policy_sha256, row.binding_sha256) == (_sha(policy_path.read_bytes()), _sha(binding_path.read_bytes()))
+    assert row.policy_payload_jsonb["stage1"]["top_k"] == row.binding_payload_jsonb["stage1_binding"]["top_k"] == top_k
+    assert row.policy_status == "draft"
+
+
+def test_v6_with_one_tampered_byte_is_rejected(session: Session, tmp_path: Path) -> None:
+    original = (CONFIG / "order-plan-screening-policy.v6.json").read_bytes()
+    tampered = tmp_path / "order-plan-screening-policy.v6.json"
+    tampered.write_bytes(original.replace(b'"top_k": 150', b'"top_k": 300'))
+    assert tampered.read_bytes() != original
+    with pytest.raises(C2PolicyLoadError) as error:
+        _load(session, tampered, CONFIG / "order-plan-screening-phase0-binding.v6.json")
+    assert error.value.code == "binding_policy_digest_mismatch"
+    assert session.scalar(select(func.count()).select_from(OrderPlanScreeningPolicy)) == 0
+
+
+@pytest.mark.parametrize(
+    ("policy_top_k", "binding_top_k", "code"),
+    [(200, 200, "policy_top_k_invalid"), (None, None, "policy_top_k_invalid"), (150, 300, "binding_top_k_mismatch")],
+)
+def test_unapproved_or_disagreeing_top_k_is_not_loaded(
+    session: Session, tmp_path: Path, policy_top_k: object, binding_top_k: object, code: str
+) -> None:
+    policy = json.loads(POLICY_V2.read_bytes())
+    policy["policy_version"] = "c2-order-plan-screening-top-k-copy"
+    policy["stage1"]["top_k"] = policy_top_k
+    binding = json.loads(BINDING_V2.read_bytes())
+    binding["stage1_binding"]["top_k"] = binding_top_k
+    policy_path, binding_path = _write_pair(tmp_path, policy, binding)
+    with pytest.raises(C2PolicyLoadError) as error:
+        _load(session, policy_path, binding_path)
+    assert error.value.code == code
+    assert session.scalar(select(func.count()).select_from(OrderPlanScreeningPolicy)) == 0

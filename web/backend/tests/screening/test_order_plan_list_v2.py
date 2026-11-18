@@ -199,9 +199,15 @@ def test_no_completed_execution_keeps_original_items(listing):
     run = client.get("/api/order-plans", params={"source_run_id": "run-c2"})
     assert len(ids(run)) == 9
     assert run.json()["scope"] is None
+    # 누적 모드는 `실패` 실행의 결과 행도 읽는다(모델 장애일, ADR-0075). 판정은 아니므로 relevance는 없다.
+    # 회차 모드(감사용)는 완료 실행만 보므로 그대로 결과가 없다.
+    cumulative_items = cumulative.json()["items"]
+    assert (cumulative_items[0]["stage2_status"], cumulative_items[0]["execution_id"]) == ("failed", str(failed.execution_id))
+    assert cumulative_items[0]["qwen_relevance"] is None
+    assert all(item["stage1_status"] is None and item["execution_id"] is None for item in cumulative_items[1:])
+    assert all(item["stage1_status"] is None and item["execution_id"] is None for item in run.json()["items"])
     for response in (cumulative, run):
         items = response.json()["items"]
-        assert all(item["stage1_status"] is None and item["execution_id"] is None for item in items)
         # feedback은 실행과 무관한 발주계획별 최신 1건이다.
         assert items[0]["human_feedback"]["relevance"] == "relevant"
         assert all(item["human_feedback"] is None for item in items[1:])
@@ -612,6 +618,115 @@ def check_cumulative_projection(session):
     assert workload.workload_counts(session) == {
         "order_plan_pending": WorkloadCount(2), "order_plan_new_priority": WorkloadCount(0),
     }
+
+
+def ranked_result(session, execution, plan, *, stage1="selected", stage2="failed", relevance=None, rank=1, minute=1):
+    """BM25 순위가 남은 결과 행. 실패 실행의 행은 merge가 순위·점수를 그대로 싣는다(append-only라 한 번에 만든다)."""
+    success = stage2 == "success"
+    row = OrderPlanScreeningResult(
+        id=uuid4(), execution_id=execution.execution_id, source_run_id=execution.source_run_id,
+        order_plan_id=plan.id, schema_version="bidops.order-plan-screening-result-row.v1",
+        producer="order-plan-screening-merge", consumer="postgres-loader-and-review-api",
+        input_artifact_sha256="a" * 64, policy_version=execution.policy_version,
+        policy_sha256="b" * 64, binding_sha256="c" * 64, result_sha256="d" * 64,
+        stage1_status=stage1, stage1_rank=rank, stage1_score=10.0 / rank, nearest_capability="데이터",
+        stage2_status=stage2, qwen_relevance=relevance if success else None,
+        qwen_score=.8 if success else None, qwen_reason="제목 근거" if success else None,
+        batch_id="batch-1" if success else None, attempt_no=1 if success else None,
+        failure_code="test_failure" if stage2 in {"failed", "rejected", "unknown"} else None,
+        created_at=NOW + timedelta(minutes=minute),
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
+def check_failed_execution_fallback(session):
+    """모델이 한 건도 답하지 못한 날(`실패`)의 결과 행도 누적 목록에 보이고, 성공 결과가 언제든 이긴다."""
+    service = OrderPlanScreeningService()
+    workload = ScreeningWorkloadProjection()
+    day1 = Run(id="fb-day1", timezone="Asia/Seoul", generated_at=NOW)
+    day2 = Run(id="fb-day2", timezone="Asia/Seoul", generated_at=NOW + DAY)
+    session.add_all([day1, day2])
+    policy_row(session, "fb-v1", "active", NOW)
+    plans = [OrderPlan(order_plan_unty_no=f"FB-{index}", title=f"장애일 {index}", first_discovered_at=NOW + DAY)
+             for index in range(5)]
+    session.add_all(plans)
+    session.flush()
+    a, b, c, d, e = plans
+    for plan in plans:
+        session.add(OrderPlanObservation(order_plan_id=plan.id, run_id=day2.id, observed_at=NOW + DAY))
+    session.add(OrderPlanObservation(order_plan_id=a.id, run_id=day1.id, observed_at=NOW))
+    owner(session, a)
+    # 모델 장애일: 실행은 `실패`로 끝났지만 merge가 전 모집단의 결과 행(순위·점수, 2단계 실패)을 게시했다.
+    outage = direct_execution(session, "fb-v1", day2.id, NOW + DAY + timedelta(hours=1), status="실패")
+    ranked_result(session, outage, a, rank=1)
+    ranked_result(session, outage, b, rank=2)
+    ranked_result(session, outage, c, stage1="filtered_out", stage2="not_attempted", rank=151)
+    # 측정 전용 실행·중단된 실행의 행은 여전히 누적에 들어가지 않는다.
+    gate = direct_execution(session, "fb-v1", day2.id, NOW + DAY + timedelta(hours=2), status="실패", purpose="gate_measurement")
+    ranked_result(session, gate, d, rank=1)
+    stopped = direct_execution(session, "fb-v1", day2.id, NOW + DAY + timedelta(hours=3), status="중단됨")
+    ranked_result(session, stopped, e, stage2="unknown", rank=1)
+    session.commit()
+
+    listing = service.list_order_plans(session)
+    rows = {item["order_plan_pk"]: item for item in listing["items"]}
+    assert listing["schema_version"] == "order-plan-list-response.v5"
+    assert listing["total"] == 5
+    for plan, rank, stage1, stage2 in ((a, 1, "selected", "failed"), (b, 2, "selected", "failed"), (c, 151, "filtered_out", "not_attempted")):
+        row = rows[plan.id]
+        assert (row["execution_id"], row["stage1_rank"], row["stage1_status"], row["stage2_status"]) == (outage.execution_id, rank, stage1, stage2)
+        assert row["qwen_relevance"] is None and row["stage1_score"] == pytest.approx(10.0 / rank, rel=1e-6)
+        assert row["nearest_capability"] == "데이터"
+    assert rows[d.id]["execution_id"] is None and rows[e.id]["execution_id"] is None
+    # 실패 실행은 판정이 아니다 — 판정 유무(`policy_versions`)와 워크로드 null 사유는 그대로다.
+    assert listing["scope"] == {"mode": "cumulative", "policy_versions": [], "activated_policy_versions": ["fb-v1"]}
+    assert service.has_cumulative_execution(session) is False
+    absent = WorkloadCount(None, "no_completed_execution")
+    assert workload.workload_counts(session) == {"order_plan_pending": absent, "order_plan_new_priority": absent}
+    assert [item["order_plan_pk"] for item in service.list_order_plans(session, issue=True)["items"]] == [a.id, b.id]
+    assert [item["order_plan_pk"] for item in service.list_order_plans(session, stage1_status="filtered_out")["items"]] == [c.id]
+
+    # 같은 날을 다시 돌린 성공 실행이 생기면 그 결과로 바뀐다.
+    rerun = direct_execution(session, "fb-v1", day2.id, NOW + DAY + timedelta(hours=4))
+    ranked_result(session, rerun, b, stage2="success", relevance="not_relevant", rank=2)
+    ranked_result(session, rerun, c, stage1="filtered_out", stage2="not_attempted", rank=151)
+    # 성공 결과는 시각과 무관하게 실패 결과를 이긴다 — 장애일보다 **앞선** 성공 실행의 판정이 남는다.
+    earlier = direct_execution(session, "fb-v1", day1.id, NOW + timedelta(hours=1))
+    ranked_result(session, earlier, a, stage2="success", relevance="relevant", rank=1)
+    session.commit()
+
+    listing = service.list_order_plans(session)
+    rows = {item["order_plan_pk"]: item for item in listing["items"]}
+    assert (rows[a.id]["execution_id"], rows[a.id]["qwen_relevance"]) == (earlier.execution_id, "relevant")
+    assert (rows[b.id]["execution_id"], rows[b.id]["qwen_relevance"]) == (rerun.execution_id, "not_relevant")
+    assert (rows[c.id]["execution_id"], rows[c.id]["stage1_status"]) == (rerun.execution_id, "filtered_out")
+    assert listing["scope"]["policy_versions"] == ["fb-v1"]
+    assert service.has_cumulative_execution(session) is True
+    assert service.list_order_plans(session, issue=True)["total"] == 0
+    assert workload.workload_counts(session)["order_plan_pending"] == WorkloadCount(1)
+    # 브리핑 후보도 같은 최신 결과 규칙을 쓴다.
+    assert service.briefing_relevant_order_plan_ids(session, NOW, NOW + 2 * DAY) == [a.id]
+    # 회차 모드(감사용)는 그대로 완료 실행만 본다.
+    run_mode = service.list_order_plans(session, source_run_id=day2.id)
+    assert run_mode["scope"]["execution_id"] == rerun.execution_id
+
+
+def test_cumulative_list_reads_failed_execution_rows_below_completed_results(tmp_path):
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    try:
+        with Session(engine) as session:
+            check_failed_execution_fallback(session)
+    finally:
+        engine.dispose()
+
+
+@requires_postgres
+def test_postgres_cumulative_list_reads_failed_execution_rows(screening_extensions):
+    with migrated_engine() as engine, Session(engine) as session:
+        check_failed_execution_fallback(session)
 
 
 def test_cumulative_projection_keeps_retired_policy_results_and_excludes_reference_and_gate(tmp_path):

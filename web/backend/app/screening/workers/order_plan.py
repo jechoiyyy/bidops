@@ -39,6 +39,7 @@ from ...core.object_store import EncryptedModelResponseStore, ObjectStoreError
 from ..services.order_plan_policy import BINDING_STATUSES
 from ..services.order_plan_screening import (
     ACTIVE_STATUSES,
+    ALLOWED_STAGE1_TOP_K,
     TERMINAL_STATUSES,
     OrderPlanScreeningService,
     _canonical,
@@ -58,6 +59,10 @@ APPROVED_STAGE2_MODELS = frozenset({
     ("approved_private_vllm", "qwen3.8-27B"),
     ("approved_private_ollama", "qwen3.8:27b"),
 })
+
+
+def _allowed_top_k(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value in ALLOWED_STAGE1_TOP_K
 
 
 class C2WorkerError(RuntimeError):
@@ -318,7 +323,10 @@ class C2ScreeningWorker:
         if (
             stage1.get("method") != "bm25"
             or stage1.get("schema_version") != "bidops.order-plan-bm25.v1"
-            or stage1.get("top_k") != 300
+            # 1단계 절단 값은 동결된 policy가 정한다(ADR-0075). binding 값과 같고 허용 집합 안이어야
+            # 한다. 어긋나면 모델 호출 전에 실패한다.
+            or not _allowed_top_k(stage1.get("top_k"))
+            or stage1.get("top_k") != policy_stage1.get("top_k")
             or stage1.get("tie_break") != ["score_desc", "order_plan_unty_no_asc"]
             or not isinstance(stage1_config, Mapping)
             or stage1.get("sha256") != stage1_config.get("sha256")
@@ -407,7 +415,7 @@ class C2ScreeningWorker:
         }
         return binding, expected, company, prompt, generation
 
-    def _load_ranking(self, directory: Path, input_model: OrderPlanScreeningInputArtifact) -> OrderPlanScreeningRankingArtifact:
+    def _load_ranking(self, directory: Path, input_model: OrderPlanScreeningInputArtifact, top_k: int) -> OrderPlanScreeningRankingArtifact:
         ranking_path = directory / "screening-ranking.json"
         if not ranking_path.exists():
             self._run_cli(
@@ -434,7 +442,7 @@ class C2ScreeningWorker:
             # the frozen input; the artifact model already rejects duplicates.
             or sorted(item.plan_id for item in model.items) != sorted(input_ids)
             or model.population_count != input_model.population_count
-            or model.selected_count > 300
+            or model.selected_count > top_k
         ):
             raise C2WorkerError("ranking_invalid")
         return model
@@ -651,7 +659,7 @@ class C2ScreeningWorker:
         ranking_path = directory / "screening-ranking.json"
         if ranking_path.is_symlink() or not ranking_path.is_file():
             return
-        ranking = self._load_ranking(directory, input_model)
+        ranking = self._load_ranking(directory, input_model, binding["stage1_binding"]["top_k"])
         selected = sorted(
             (item for item in ranking.items if item.stage1_status == "selected"),
             key=lambda item: (item.rank or 0, item.plan_id),
@@ -680,7 +688,7 @@ class C2ScreeningWorker:
             raise C2WorkerError("artifact_not_ready")
         input_model = self._load_input(directory, execution)
         binding, stage2, company, prompt, generation = self._load_binding_inputs(directory, input_model)
-        ranking = self._load_ranking(directory, input_model)
+        ranking = self._load_ranking(directory, input_model, binding["stage1_binding"]["top_k"])
         selected = sorted(
             (item for item in ranking.items if item.stage1_status == "selected"),
             key=lambda item: (item.rank or 0, item.plan_id),

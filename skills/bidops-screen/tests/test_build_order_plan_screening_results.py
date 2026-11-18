@@ -26,7 +26,7 @@ def write_json(path: Path, value: Any) -> None:
     path.write_bytes(MERGE.PHASE0.canonical_json_bytes(value))
 
 
-def synthetic_references(root: Path) -> dict[str, Any]:
+def synthetic_references(root: Path, *, top_k: int | None = None) -> dict[str, Any]:
     profile = {
         "schema_version": "bidops.order-plan-capabilities.v1",
         "approval_status": "approved",
@@ -50,6 +50,8 @@ def synthetic_references(root: Path) -> dict[str, Any]:
         "sha256": profile_sha256,
     })
     policy["bindings"]["company_profile_sha256"] = profile_sha256
+    if top_k is not None:
+        policy["stage1"]["top_k"] = top_k
     policy_path = root / "synthetic-policy.json"
     write_json(policy_path, policy)
     policy_sha256 = MERGE.PHASE0.sha256_file(policy_path)
@@ -64,6 +66,8 @@ def synthetic_references(root: Path) -> dict[str, Any]:
         "active_company_capabilities_path": profile_path.name,
         "active_company_capabilities_sha256": profile_sha256,
     })
+    if top_k is not None:
+        binding["stage1_binding"]["top_k"] = top_k
     binding_path = root / "synthetic-phase0-binding.json"
     write_json(binding_path, binding)
     return {
@@ -130,10 +134,11 @@ def build_fixture(
     *,
     failure_outcome: str = "failed",
     failure_type: str = "timeout",
+    top_k: int | None = None,
 ) -> dict[str, Path]:
     failing_sequences = failing_sequences or set()
     root.mkdir(parents=True, exist_ok=True)
-    references = synthetic_references(root)
+    references = synthetic_references(root, top_k=top_k)
     items = [{"plan_id": f"plan-{index:04d}", "title": "AI 데이터 플랫폼"} for index in range(count)]
     input_path = root / "input.json"
     ranking_path = root / "ranking.json"
@@ -461,6 +466,40 @@ class BuildOrderPlanScreeningResultsTests(unittest.TestCase):
             self.assertTrue(all(item["stage2_status"] == "not_attempted" for item in filtered))
             self.assertTrue(all(item["qwen_relevance"] is None for item in filtered))
             self.assertNotEqual(325, result["counts"]["stage2_not_relevant"])
+
+    def test_policy_top_k_150_merges_150_candidates_and_checks_the_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = build_fixture(root, 400, top_k=150)
+            result = merge(paths, root / "result.json")
+            self.assertEqual("성공", result["status"])
+            self.assertEqual((150, 250), (result["counts"]["stage1_selected"], result["counts"]["stage1_filtered_out"]))
+            by_rank = {item["stage1_rank"]: item for item in result["items"]}
+            self.assertEqual("selected", by_rank[150]["stage1_status"])
+            self.assertEqual(("filtered_out", "not_attempted"), (by_rank[151]["stage1_status"], by_rank[151]["stage2_status"]))
+
+            # A ranking whose cut disagrees with the frozen policy is rejected.
+            ranking = json.loads(paths["ranking"].read_text(encoding="utf-8"))
+            ranking["items"][150]["stage1_status"] = "selected"
+            ranking.update(selected_count=151, filtered_out_count=249)
+            write_json(paths["ranking"], ranking)
+            with self.assertRaises(MERGE.ContractError) as raised:
+                merge(paths, root / "tampered-result.json")
+            self.assertEqual("ranking_invalid", raised.exception.code)
+
+    def test_every_batch_failed_still_publishes_the_ranked_population_as_failed(self) -> None:
+        """Model outage day: no batch answers, the result is ``실패`` but every row keeps its BM25 rank."""
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = build_fixture(root, 200, set(range(1, 7)), top_k=150)
+            result = merge(paths, root / "result.json")
+            self.assertEqual("실패", result["status"])
+            self.assertTrue(result["partial_artifact"])
+            self.assertEqual(200, len(result["items"]))
+            self.assertEqual((150, 50, 150), (result["counts"]["stage1_selected"], result["counts"]["stage1_filtered_out"], result["counts"]["stage2_failed"]))
+            self.assertTrue(all(item["stage1_rank"] is not None and item["stage1_score"] is not None for item in result["items"]))
+            self.assertTrue(all(item["qwen_relevance"] is None for item in result["items"]))
 
     def test_partial_batch_prefix_keeps_unprocessed_selected_items_not_attempted(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
