@@ -28,13 +28,20 @@ export function dailyPlanRunBasisDate(runId: string): string | null {
   return match ? `${match[1]}-${match[2]}-${match[3]}` : null;
 }
 
-/** 가장 최근에 수집된(`generated_at`) 일일 발주계획 회차. 없으면 `null`이다. */
+/**
+ * **기준일이 가장 늦은** 일일 발주계획 회차(같은 기준일이면 늦게 수집한 재수집 회차). 이 줄은
+ * "가장 최근 기준일이 처리됐는가"에 답한다 — 지난 날을 메우는(catch-up) 수집이 나중에 돌아도
+ * 어제 기준일의 결과를 가리지 않는다(2026-11-18 운영 관측). 없으면 `null`이다.
+ */
 export function latestDailyPlanRun(runs: readonly RunSummary[]): DailyPlanRun | null {
   let latest: DailyPlanRun | null = null;
   for (const run of runs) {
     const basisDate = dailyPlanRunBasisDate(run.run_id);
     if (basisDate === null) continue;
-    if (!latest || run.generated_at.localeCompare(latest.run.generated_at) > 0) latest = { run, basisDate };
+    const later = !latest
+      || basisDate > latest.basisDate
+      || (basisDate === latest.basisDate && run.generated_at.localeCompare(latest.run.generated_at) > 0);
+    if (later) latest = { run, basisDate };
   }
   return latest;
 }
@@ -69,25 +76,40 @@ export function daysBetween(fromIsoDate: string, toIsoDate: string): number {
   return dayIndex(toIsoDate) - dayIndex(fromIsoDate);
 }
 
-/** 이 상태만 일일 실행이 끝까지 돈 것으로 본다. 나머지(대기·실행 중·실패·중단)는 주의다. */
+/** 이 상태만 일일 실행이 끝까지 돈 것으로 본다. */
 const DONE_STATUSES = new Set(["성공", "부분 성공"]);
+/** 아직 끝나지 않은 상태. 문제가 아니라 진행 중이다. */
+const IN_PROGRESS_STATUSES = new Set(["대기", "실행 중", "중지 요청"]);
+/** 진행 중이 이보다 오래면 주의다. 서버의 `대기` 최대 체류 시간(설계고도화안 A-1)과 같은 4시간이다. */
+export const IN_PROGRESS_LIMIT_MS = 4 * 60 * 60 * 1000;
 
-export type DailyRunProblem = "no_daily_run" | "stale" | "no_execution" | "execution_not_done";
+export type DailyRunProblem = "no_daily_run" | "stale" | "no_execution" | "execution_not_done" | "in_progress_too_long";
+export type DailyRunState = "ok" | "in_progress" | "warning";
 
 export interface DailyRunStatus {
   latest: DailyPlanRun | null;
   /** 수집 시각의 한국 시간 날짜. */
   collectedDate: string | null;
-  /** 오늘(한국 시간)까지 지난 일수. 수집 날짜를 읽을 수 없으면 `null`이다. */
+  /** 수집일부터 오늘(한국 시간)까지 지난 일수. 읽을 수 없으면 `null`이다. */
   daysSince: number | null;
+  /** 기준일부터 오늘까지 지난 일수. 일일 실행은 전일 기준이라 평상시 1이다. */
+  basisLag: number | null;
   execution: OrderPlanScreeningExecutionSummary | null;
+  /** 진행 중인 실행이 대기에 들어간 뒤 지난 시간(ms). 진행 중이 아니면 `null`이다. */
+  inProgressMs: number | null;
   /**
    * 모델 판정이 없어 사람이 봐야 하는 건수. 실행 계약의 `human_review_count`가
    * `관련 + 불확실 + 무판정(1차 실패·거부, 모델 실패·거부·미확인)`이므로 그 차이다
-   * (`web/backend/app/screening/c2_contracts.py`). 실행이 없으면 `null`이다.
+   * (`web/backend/app/screening/c2_contracts.py`). 실행이 없거나 진행 중이면 `null`이다.
    */
   noJudgmentCount: number | null;
   problems: DailyRunProblem[];
+  state: DailyRunState;
+}
+
+/** 수집 건수(`counts.collection.total`)가 0으로 확인된 회차. 모르면 비어 있다고 보지 않는다. */
+function isEmptyRun(run: RunSummary): boolean {
+  return run.counts.collection?.total === 0;
 }
 
 export function dailyRunStatus(
@@ -97,19 +119,32 @@ export function dailyRunStatus(
 ): DailyRunStatus {
   const latest = latestDailyPlanRun(runs);
   if (!latest) {
-    return { latest: null, collectedDate: null, daysSince: null, execution: null, noJudgmentCount: null, problems: ["no_daily_run"] };
+    return {
+      latest: null, collectedDate: null, daysSince: null, basisLag: null, execution: null, inProgressMs: null,
+      noJudgmentCount: null, problems: ["no_daily_run"], state: "warning",
+    };
   }
   const collectedDate = kstDate(latest.run.generated_at);
   const today = kstDate(now);
   const daysSince = collectedDate && today ? daysBetween(collectedDate, today) : null;
+  const basisLag = today ? daysBetween(latest.basisDate, today) : null;
   const execution = latestOperationalExecution(executions, latest.run.run_id);
   const problems: DailyRunProblem[] = [];
-  if (daysSince === null || daysSince > 1) problems.push("stale");
-  if (!execution) problems.push("no_execution");
-  else if (!DONE_STATUSES.has(execution.status)) problems.push("execution_not_done");
-  const counts = execution?.counts;
+  if (basisLag === null || basisLag > 1) problems.push("stale");
+  let inProgressMs: number | null = null;
+  if (!execution) {
+    if (!isEmptyRun(latest.run)) problems.push("no_execution");
+  } else if (IN_PROGRESS_STATUSES.has(execution.status)) {
+    const since = Date.parse(execution.queued_at);
+    inProgressMs = Number.isFinite(since) ? Math.max(0, now - since) : null;
+    if (inProgressMs === null || inProgressMs > IN_PROGRESS_LIMIT_MS) problems.push("in_progress_too_long");
+  } else if (!DONE_STATUSES.has(execution.status)) {
+    problems.push("execution_not_done");
+  }
+  const counts = execution && DONE_STATUSES.has(execution.status) ? execution.counts : null;
   const noJudgmentCount = counts
     ? Math.max(0, counts.human_review_count - counts.stage2_relevant_count - counts.stage2_uncertain_count)
     : null;
-  return { latest, collectedDate, daysSince, execution, noJudgmentCount, problems };
+  const state: DailyRunState = problems.length > 0 ? "warning" : inProgressMs !== null ? "in_progress" : "ok";
+  return { latest, collectedDate, daysSince, basisLag, execution, inProgressMs, noJudgmentCount, problems, state };
 }

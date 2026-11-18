@@ -5,7 +5,8 @@ import {
   mockDashboard, newPlanList, opportunityList, overviewAttentionItems, preSpecList, workloadWith,
 } from "./dashboard-fixtures";
 import { settleFonts } from "./screen-fixtures";
-import { dailyPlanExecutionFixture, dailyPlanRunFixture, mockApi, mockDailyPlanRun, mockOrderPlans } from "./api-mock";
+import { dailyRunStatus, latestDailyPlanRun } from "../src/lib/orderPlanDaily";
+import { dailyPlanExecutionFixture, dailyPlanRunFixture, mockApi, mockDailyPlanRun, mockDailyPlanRuns, mockOrderPlans } from "./api-mock";
 
 // 2026-11-18 ×0.9 compact 축척을 없앴다. 시안 치수가 그대로 렌더된다.
 const UI_SCALE = 1;
@@ -449,25 +450,25 @@ test.describe("발주계획 일일 실행 한 줄", () => {
     await expect(line).not.toContainText("다음 일일");
   });
 
-  test("어제 수집·부분 성공이면 정상이고 사람 검토 건수와 모델 판정 없음 건수를 적는다", async ({ page }) => {
+  test("오늘 아침 어제 기준일을 수집·부분 성공이면 정상이고 사람 검토 건수와 모델 판정 없음 건수를 적는다", async ({ page }) => {
     await mockDashboard(page);
-    // DASH_NOW = 2026-09-17 12:00 KST. 어제(09-16) 아침 수집, 기준일 09-15.
-    const run = dailyPlanRunFixture("2026-09-15", "2026-09-15T22:10:00Z");
+    // DASH_NOW = 2026-09-17 12:00 KST. 오늘 07:10 KST 수집, 기준일 09-16(전일).
+    const run = dailyPlanRunFixture("2026-09-16", "2026-09-16T22:10:00Z");
     await mockDailyPlanRun(page, run, [dailyPlanExecutionFixture(run.run_id, {
-      status: "부분 성공", queued_at: "2026-09-15T22:20:00Z",
+      status: "부분 성공", queued_at: "2026-09-16T22:20:00Z",
       counts: { candidate_count: 1200, completed_count: 1175, failure_count: 25, stage1_selected_count: 300, stage1_filtered_out_count: 900, stage1_failed_count: 0,
         stage2_relevant_count: 63, stage2_not_relevant_count: 172, stage2_uncertain_count: 40, stage2_failed_count: 25, stage2_rejected_count: 0, human_review_count: 128 },
     })]);
     await page.goto("/");
     const line = page.getByTestId("daily-run-status");
     await expect(line).toHaveAttribute("data-state", "ok");
-    await expect(line).toContainText("마지막 수집 9월 16일 (기준일 09-15)");
-    await expect(line).toContainText("1일 전");
+    await expect(line).toContainText("최근 기준일 09-16");
+    await expect(line).toContainText("수집 9월 17일 · 오늘");
     await expect(line).toContainText("C-2 부분 성공");
     await expect(line).toContainText("사람 검토 128건 (관련 63 · 불확실 40 · 모델 판정 없음 25)");
   });
 
-  test("마지막 수집이 1일보다 오래됐거나 실행이 끝나지 않았으면 확인 필요다", async ({ page }) => {
+  test("최근 기준일이 어제보다 오래됐거나 실행이 실패로 끝났으면 확인 필요다", async ({ page }) => {
     await mockDashboard(page);
     const run = dailyPlanRunFixture("2026-08-10", "2026-08-11T22:00:00Z");
     await mockDailyPlanRun(page, run, [dailyPlanExecutionFixture(run.run_id, { status: "실패", queued_at: "2026-08-11T22:05:00Z" })]);
@@ -476,7 +477,7 @@ test.describe("발주계획 일일 실행 한 줄", () => {
     await expect(line).toHaveAttribute("data-state", "warning");
     await expect(line).toContainText("36일 전");
     await expect(line).toContainText("C-2 실패");
-    await expect(line).toContainText("마지막 일일 수집이 1일보다 오래됐습니다");
+    await expect(line).toContainText("최근 기준일이 어제보다 오래됐습니다");
     await expect(line).toContainText("C-2 실행이 성공·부분 성공으로 끝나지 않았습니다");
   });
 
@@ -491,4 +492,81 @@ test.describe("발주계획 일일 실행 한 줄", () => {
     await expect(line).toContainText("C-2 실행 없음");
     await expect(line).toContainText("이 회차에는 C-2 운영 실행이 없습니다");
   });
+});
+
+// 2026-11-18 운영 관측: 지난 날을 메우는 수집이 진행 중일 때 "확인 필요"로 잘못 보였다.
+test.describe("발주계획 일일 실행 한 줄 · 기준일과 진행 중", () => {
+  const counts = { candidate_count: 559, completed_count: 559, failure_count: 0, stage1_selected_count: 300, stage1_filtered_out_count: 259, stage1_failed_count: 0,
+    stage2_relevant_count: 41, stage2_not_relevant_count: 200, stage2_uncertain_count: 59, stage2_failed_count: 0, stage2_rejected_count: 0, human_review_count: 100 };
+
+  test("나중에 수집한 지난 기준일(따라잡기)이 최근 기준일의 결과를 가리지 않는다", async ({ page }) => {
+    await mockDashboard(page);
+    // DASH_NOW = 2026-09-17 12:00 KST. 어제 아침 09-16 기준일이 끝났고, 오늘 09-09 기준일을 메우는 중이다.
+    const yesterday = dailyPlanRunFixture("2026-09-16", "2026-09-16T22:00:00Z");
+    const catchUp = dailyPlanRunFixture("2026-09-09", "2026-09-17T02:30:00Z");
+    await mockDailyPlanRuns(page, [yesterday, catchUp], [
+      dailyPlanExecutionFixture(yesterday.run_id, { status: "성공", queued_at: "2026-09-16T22:05:00Z", counts }),
+      dailyPlanExecutionFixture(catchUp.run_id, { status: "실행 중", queued_at: "2026-09-17T02:35:00Z" }),
+    ]);
+    await page.goto("/");
+    const line = page.getByTestId("daily-run-status");
+    await expect(line).toHaveAttribute("data-state", "ok");
+    await expect(line).toContainText("최근 기준일 09-16");
+    await expect(line).toContainText("C-2 성공");
+    await expect(line).toContainText("사람 검토 100건 (관련 41 · 불확실 59)");
+  });
+
+  test("실행 중은 문제가 아니라 진행 중이고 경과 시간을 적는다", async ({ page }) => {
+    await mockDashboard(page);
+    const run = dailyPlanRunFixture("2026-09-16", "2026-09-17T01:00:00Z");
+    await mockDailyPlanRun(page, run, [dailyPlanExecutionFixture(run.run_id, { status: "실행 중", queued_at: "2026-09-17T01:20:00Z" })]);
+    await page.goto("/");
+    const line = page.getByTestId("daily-run-status");
+    await expect(line).toHaveAttribute("data-state", "in_progress");
+    await expect(line).toContainText("진행 중");
+    await expect(line).toContainText("C-2 실행 중 · 1시간 40분째");
+    await expect(line).not.toContainText("확인 필요");
+    await expect(line).not.toContainText("사람 검토");
+  });
+
+  test("4시간을 넘긴 진행 중은 오래 진행 중으로 확인 필요다", async ({ page }) => {
+    await mockDashboard(page);
+    const run = dailyPlanRunFixture("2026-09-16", "2026-09-16T21:00:00Z");
+    await mockDailyPlanRun(page, run, [dailyPlanExecutionFixture(run.run_id, { status: "대기", queued_at: "2026-09-16T22:00:00Z" })]);
+    await page.goto("/");
+    const line = page.getByTestId("daily-run-status");
+    await expect(line).toHaveAttribute("data-state", "warning");
+    await expect(line).toContainText("C-2 대기 · 5시간 0분째");
+    await expect(line).toContainText("오래 진행 중 — 실행 상태 확인");
+  });
+
+  test("수집 0건 회차에 실행이 없는 것은 문제가 아니다", async ({ page }) => {
+    await mockDashboard(page);
+    const run = { ...dailyPlanRunFixture("2026-09-16", "2026-09-16T22:00:00Z"), counts: { notices: 0, judgments: 0, reviews: 0, collection: { total: 0 } } };
+    await mockDailyPlanRun(page, run, []);
+    await page.goto("/");
+    const line = page.getByTestId("daily-run-status");
+    await expect(line).toHaveAttribute("data-state", "ok");
+    await expect(line).toContainText("C-2 실행 없음 · 수집 0건");
+  });
+});
+
+test("dailyRunStatus: 기준일 선택·진행 중·4시간·종료 실패·부분 성공 건수를 순수 함수로 가른다", () => {
+  const now = Date.parse("2026-11-18T03:00:00Z"); // 11-18 12:00 KST
+  const y = dailyPlanRunFixture("2026-11-17", "2026-11-17T22:00:00Z");
+  const old = dailyPlanRunFixture("2026-11-09", "2026-11-18T02:00:00Z"); // 따라잡기: 늦게 수집한 지난 기준일
+  const retry = { ...dailyPlanRunFixture("2026-11-17", "2026-11-18T01:00:00Z"), run_id: "lifecycle-20261117-plans-retry1--20261118T010000.000000Z" };
+  expect(latestDailyPlanRun([old, y])?.basisDate).toBe("2026-11-17");
+  expect(latestDailyPlanRun([old, y, retry])?.run.run_id).toBe(retry.run_id);
+
+  const at = (status: string, queued: string, extra = {}) => dailyPlanExecutionFixture(y.run_id, { status: status as never, queued_at: queued, ...extra });
+  expect(dailyRunStatus([y], [at("실행 중", "2026-11-18T01:00:00Z")], now)).toMatchObject({ state: "in_progress", inProgressMs: 2 * 3_600_000, problems: [], noJudgmentCount: null });
+  expect(dailyRunStatus([y], [at("중지 요청", "2026-11-17T22:59:00Z")], now)).toMatchObject({ state: "warning", problems: ["in_progress_too_long"] });
+  expect(dailyRunStatus([y], [at("실패", "2026-11-17T22:10:00Z")], now)).toMatchObject({ state: "warning", problems: ["execution_not_done"] });
+  expect(dailyRunStatus([y], [], now)).toMatchObject({ state: "warning", problems: ["no_execution"] });
+  const partial = dailyRunStatus([y], [at("부분 성공", "2026-11-17T22:10:00Z", { counts: {
+    candidate_count: 1, completed_count: 1, failure_count: 0, stage1_selected_count: 0, stage1_filtered_out_count: 0, stage1_failed_count: 0,
+    stage2_relevant_count: 63, stage2_not_relevant_count: 0, stage2_uncertain_count: 40, stage2_failed_count: 25, stage2_rejected_count: 0, human_review_count: 128 } })], now);
+  expect(partial).toMatchObject({ state: "ok", noJudgmentCount: 25, basisLag: 1 });
+  expect(dailyRunStatus([old], [], now).problems).toEqual(["stale", "no_execution"]);
 });
