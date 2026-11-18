@@ -252,6 +252,113 @@ def test_stop_leaves_unprocessed_batches_not_attempted(tmp_path: Path) -> None:
     assert all(result.stage2_status == "not_attempted" for result in results)
 
 
+# `BIDOPS_C2_QUEUED_MAX_DWELL_SECONDS` 기본값. 값을 박아 두어 옛 코드에서도 같은 시각으로 돈다.
+QUEUED_MAX_DWELL_SECONDS = 14400
+
+
+def _service(settings):
+    from app.screening.services.order_plan_screening import OrderPlanScreeningService
+
+    return OrderPlanScreeningService(settings)
+
+
+def test_worker_closes_a_stale_queued_execution_instead_of_running_it(tmp_path: Path) -> None:
+    """A-1: 워커가 오래 비어 있다 돌아오면 체류 한도를 넘긴 `대기`는 실행하지 않고 닫는다."""
+
+    settings, session, policy_version, _, _ = _fixture(tmp_path, count=2)
+    response, _ = _create(_service(settings), session, policy_version)
+    execution_id = UUID(str(response["execution_id"]))
+    queued = session.get(OrderPlanScreeningExecution, execution_id)
+    assert queued is not None
+    later = queued.queued_at + timedelta(seconds=QUEUED_MAX_DWELL_SECONDS + 1)
+    adapter = FakeAdapter()
+    worker = C2ScreeningWorker(
+        settings=settings, adapter=adapter, raw_response_store=MemoryResponseStore(), clock=lambda: later
+    )
+
+    assert worker.run_once(session) is None
+
+    assert adapter.calls == []
+    execution = session.get(OrderPlanScreeningExecution, execution_id)
+    assert execution is not None
+    assert (execution.status, execution.error_code, execution.active_slot) == ("중단됨", "stale_queued", None)
+    event = session.scalar(select(AuditEvent).where(AuditEvent.action == "c2.execution_stale_queued_closed"))
+    assert event is not None and event.aggregate_id == str(execution_id)
+    assert event.actor_kind == "system" and event.claimed_name == settings.worker_id
+    assert event.safe_metadata["reclaimed_by"] == "worker_claim"
+
+
+def test_worker_still_runs_a_queued_execution_inside_the_dwell_limit(tmp_path: Path) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path, count=2)
+    response, _ = _create(_service(settings), session, policy_version)
+    execution_id = UUID(str(response["execution_id"]))
+    queued = session.get(OrderPlanScreeningExecution, execution_id)
+    assert queued is not None
+    later = queued.queued_at + timedelta(seconds=QUEUED_MAX_DWELL_SECONDS - 1)
+    adapter = FakeAdapter()
+    worker = C2ScreeningWorker(
+        settings=settings, adapter=adapter, raw_response_store=MemoryResponseStore(), clock=lambda: later
+    )
+
+    result = worker.run_once(session)
+
+    assert result and result["status"] == "성공"
+    assert adapter.calls != []
+
+
+def test_worker_closes_the_stale_running_one_first_then_the_queue_behind_it(tmp_path: Path) -> None:
+    """멈춘 `실행 중`을 stale 회수로 닫은 뒤에는 진행 중인 실행이 없으므로 오래된 `대기`도 닫힌다.
+    한도 안의 `대기`는 그대로 claim된다."""
+
+    settings, session, policy_version, _, _ = _fixture(tmp_path, count=2)
+    service = _service(settings)
+    first, _ = _create(service, session, policy_version)
+    old, _ = _create(service, session, policy_version)
+    running = session.get(OrderPlanScreeningExecution, UUID(str(first["execution_id"])))
+    old_queued = session.get(OrderPlanScreeningExecution, UUID(str(old["execution_id"])))
+    assert running is not None and old_queued is not None
+    later = old_queued.queued_at + timedelta(seconds=QUEUED_MAX_DWELL_SECONDS + 1)
+    running.status = "실행 중"
+    running.active_slot = 1
+    running.started_at = later - timedelta(hours=2)
+    running.heartbeat_at = later - timedelta(seconds=settings.c2_worker_stale_seconds + 1)
+    session.commit()
+    adapter = FakeAdapter()
+    worker = C2ScreeningWorker(
+        settings=settings, adapter=adapter, raw_response_store=MemoryResponseStore(), clock=lambda: later
+    )
+
+    assert worker.run_once(session) is None
+
+    session.expire_all()
+    assert (running.status, running.error_code) == ("중단됨", "stale_execution")
+    assert (old_queued.status, old_queued.error_code) == ("중단됨", "stale_queued")
+    assert adapter.calls == []
+
+
+def test_worker_keeps_the_queue_while_a_running_execution_heartbeats(tmp_path: Path) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path, count=2)
+    service = _service(settings)
+    first, _ = _create(service, session, policy_version)
+    second, _ = _create(service, session, policy_version)
+    running = session.get(OrderPlanScreeningExecution, UUID(str(first["execution_id"])))
+    waiting = session.get(OrderPlanScreeningExecution, UUID(str(second["execution_id"])))
+    assert running is not None and waiting is not None
+    later = waiting.queued_at + timedelta(seconds=QUEUED_MAX_DWELL_SECONDS + 1)
+    running.status = "실행 중"
+    running.active_slot = 1
+    running.started_at = later - timedelta(hours=5)
+    running.heartbeat_at = later - timedelta(seconds=5)
+    session.commit()
+
+    worker = C2ScreeningWorker(settings=settings, clock=lambda: later)
+    assert worker.run_once(session) is None
+
+    session.expire_all()
+    assert running.status == "실행 중"
+    assert (waiting.status, waiting.error_code) == ("대기", None)
+
+
 @requires_postgres
 def test_postgres_heartbeat_guard_allows_active_and_rejects_terminal() -> None:
     with temporary_database() as database_url:

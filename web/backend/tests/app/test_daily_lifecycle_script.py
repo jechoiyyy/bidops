@@ -72,6 +72,11 @@ case "${name}" in
     respond() { printf '%s\n%s' "$2" "$1"; exit 0; }
     # 파일 첫 줄이 상태 코드, 나머지가 본문이다.
     respond_file() { respond "$(head -n1 "$1")" "$(tail -n +2 "$1")"; }
+    # 시험 제어(계약 아님): get_fail 파일에 적은 경로 접두사의 GET은 500으로 답한다 —
+    # 실제 서버도 장애 때 비200을 낸다. 읽기 실패가 "누락 없음"으로 바뀌지 않는지 본다.
+    if [[ "${method}" == GET && -f "${state}/get_fail" && "${path}" == "$(cat "${state}/get_fail")"* ]]; then
+      respond 500 '{"detail": "injected failure"}'
+    fi
     if [[ "${method}" == POST ]]; then
       jq -nc --arg path "${path}" --argjson body "${data:-null}" \
         '{path: $path, body: $body, headers: $ARGS.positional}' --args "${headers[@]}" \
@@ -224,6 +229,11 @@ class Env:
         env["BIDOPS_C2_DAILY_ACTOR"] = "cron-operator"
         env["BIDOPS_C2_DAILY_RETRY_WAIT_SECONDS"] = "0"
         env["BIDOPS_C2_DAILY_POLL_INTERVAL_SECONDS"] = "0"
+        # 누락일 감지(A-3)는 기본 7일을 본다. 감지와 무관한 기존 검사가 앞날의 회차
+        # fixture 없이도 뜻이 바뀌지 않도록 여기서는 끄고, 감지 검사
+        # (`test_daily_lifecycle_gaps.py`)가 값을 명시해 켠다.
+        env["BIDOPS_DAILY_GAP_LOOKBACK_DAYS"] = "0"
+        env.pop("BIDOPS_DAILY_GAP_FLOOR_DATE", None)
         for key, value in extra_env.items():
             if value is None:
                 env.pop(key, None)

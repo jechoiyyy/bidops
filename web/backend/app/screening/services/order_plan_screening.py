@@ -64,6 +64,12 @@ STOP_OPERATION = "c2_execution_stop"
 FEEDBACK_OPERATION = "c2_feedback_create"
 TERMINAL_STATUSES = {"성공", "부분 성공", "실패", "중단됨"}
 ACTIVE_STATUSES = {"실행 중", "중지 요청"}
+# 체류 한도를 넘긴 `대기`를 닫을 때의 error_code와 audit action(A-1, findings W-5).
+STALE_QUEUED_ERROR_CODE = "stale_queued"
+STALE_QUEUED_AUDIT_ACTION = "c2.execution_stale_queued_closed"
+# 실행 생성을 막지 않는 적재 경고 등급. 이 값과 정확히 같은 것만 통과하고 `warning`·`error`·
+# 알 수 없는 등급은 `source_run_incomplete`로 막는다(A-2, findings W-2).
+PASSING_INGEST_WARNING_LEVELS = frozenset({"info"})
 # `X-BidOps-Trigger` 값(contracts "실행 트리거 헤더와 게이트"). 헤더 없음(None)은 사람의 수동 운영 실행이다.
 EXECUTION_TRIGGERS = frozenset({"daily_script", "manual_resume", "gate_measurement"})
 DAILY_TRIGGERS = frozenset({"daily_script", "manual_resume"})
@@ -405,6 +411,101 @@ class OrderPlanScreeningService:
             "execution_allowed": True,
         }
 
+    @staticmethod
+    def ingest_warning_summary(session: Session, run_id: str) -> list[tuple[str, str, int]]:
+        """회차 적재 경고를 `(level, code, 건수)`로 묶어 등급·code 순으로 돌려준다."""
+
+        rows = session.execute(
+            select(IngestWarning.level, IngestWarning.code, func.count())
+            .where(IngestWarning.run_id == run_id)
+            .group_by(IngestWarning.level, IngestWarning.code)
+            .order_by(IngestWarning.level, IngestWarning.code)
+        ).all()
+        return [(str(level), str(code), int(count)) for level, code, count in rows]
+
+    def reclaim_stale_queued(
+        self,
+        session: Session,
+        *,
+        now: datetime,
+        reclaimed_by: str,
+        claimed_name: str | None,
+    ) -> list[UUID]:
+        """체류 한도를 넘긴 `대기` 실행을 `중단됨`으로 닫고 닫은 id를 돌려준다(A-1).
+
+        진행 중인 실행이 있으면 아무것도 닫지 않는다 — `실행 중`·`중지 요청` 중 heartbeat
+        (없으면 `started_at`)가 `c2_worker_stale_seconds` 안에 있는 행이 진행의 근거다. 그런
+        실행 뒤에서 기다리는 `대기`는 정상 대기다. 앞선 실행이 멈춰 있으면 진행이 없는 것으로
+        본다. 멈춘 `실행 중` 자체는 여기서 닫지 않는다(부분 산출물 복구가 필요한 워커 stale
+        회수의 몫이다).
+
+        닫은 실행을 다시 큐에 넣거나 재시도하지 않는다(실행 불변 조건: 자동 resume 없음).
+        audit은 워커 stale 회수와 같은 모양(system actor, 실행의 request_id)으로 남기고
+        `reclaimed_by`(`worker_claim`·`execution_create`)로 경로를 구분한다. 닫은 행이
+        있으면 그 자리에서 commit한다 — 뒤따르는 생성이 거부돼도 회수는 남는다. 조회
+        경로에서는 부르지 않는다(GET은 상태를 바꾸지 않는다).
+        """
+
+        limit = int(self.settings.c2_queued_max_dwell_seconds)
+        if limit <= 0:
+            return []
+        progress_cutoff = now - timedelta(seconds=self.settings.c2_worker_stale_seconds)
+        progressing = session.scalar(
+            select(func.count()).select_from(OrderPlanScreeningExecution).where(
+                OrderPlanScreeningExecution.status.in_(ACTIVE_STATUSES),
+                or_(
+                    OrderPlanScreeningExecution.heartbeat_at >= progress_cutoff,
+                    and_(
+                        OrderPlanScreeningExecution.heartbeat_at.is_(None),
+                        OrderPlanScreeningExecution.started_at >= progress_cutoff,
+                    ),
+                ),
+            )
+        )
+        if progressing:
+            return []
+        rows = session.scalars(
+            select(OrderPlanScreeningExecution)
+            .where(
+                OrderPlanScreeningExecution.status == "대기",
+                OrderPlanScreeningExecution.queued_at < now - timedelta(seconds=limit),
+            )
+            .order_by(OrderPlanScreeningExecution.queued_at, OrderPlanScreeningExecution.execution_id)
+            .with_for_update(skip_locked=True)
+        ).all()
+        closed: list[UUID] = []
+        for execution in rows:
+            queued_at = execution.queued_at
+            if queued_at.tzinfo is None:
+                queued_at = queued_at.replace(tzinfo=UTC)
+            execution.status = "중단됨"
+            execution.active_slot = None
+            execution.started_at = now
+            execution.finished_at = now
+            execution.partial_artifact = True
+            execution.error_code = STALE_QUEUED_ERROR_CODE
+            session.add(AuditEvent(
+                id=uuid4(),
+                actor_kind="system",
+                claimed_name=claimed_name,
+                action=STALE_QUEUED_AUDIT_ACTION,
+                aggregate_type="order_plan_screening_execution",
+                aggregate_id=str(execution.execution_id),
+                safe_metadata={
+                    "status": "중단됨",
+                    "error_code": STALE_QUEUED_ERROR_CODE,
+                    "reclaimed_by": reclaimed_by,
+                    "queued_seconds": int((now - queued_at).total_seconds()),
+                    "max_queued_seconds": limit,
+                },
+                request_id=str(execution.request_id),
+                created_at=now,
+            ))
+            closed.append(execution.execution_id)
+        if closed:
+            session.commit()
+        return closed
+
     def require_complete_source_run(
         self,
         session: Session,
@@ -414,33 +515,34 @@ class OrderPlanScreeningService:
     ) -> tuple[Run, Path, bytes, list[dict[str, str]]]:
         """C-2가 실행을 만들 수 있는 source run인지 확인하고 모집단을 돌려준다.
 
-        세 가지를 차례로 본다 — 회차가 있는가, 적재 경고가 하나도 없는가,
+        세 가지를 차례로 본다 — 회차가 있는가, 차단 등급의 적재 경고가 없는가,
         DB projection이 수집 원본 모집단과 정확히 같은가. 셋 다 실패 code는
         `source_run_incomplete` 하나이고 사유만 다르다. **어긋난 사유는 응답이
         아니라 서버 로그로 나간다**(`docs/contracts.md`가 이 code의 `details`를
         `null`로 고정하고 message를 일반 문구로 고정한다).
 
-        회차 적재 경고는 그 자체로 "이 회차는 계약대로 다 적재되지 않았다"는
-        뜻이므로 하나라도 있으면 거부한다. 적재 경로가 확장점을 등록하지 않아
-        생기는 `judgment_ingest_skipped`도 여기서 걸린다 — 그것이 적재 프로세스
-        결함일 뿐이더라도, 이 검사를 code로 예외 처리하면 진짜 부분 적재까지
-        함께 통과한다.
+        적재 경고는 **등급**으로 가른다(2026-11-18 결정). `info`는 적재기가 값을
+        버리지 않은 기록(`unknown_field`: 계약 밖 필드를 무시, `order_plans_legacy_field`:
+        호환 목록 필드를 읽음)이라 통과시키고, 통과한 경고는 실행 생성 audit에 남긴다
+        (`passed_ingest_warnings`). `warning`·`error`와 그 밖의 모든 등급은 "이 회차는
+        계약대로 다 적재되지 않았다"는 뜻으로 보고 지금처럼 거부한다. 적재 경로가
+        확장점을 등록하지 않아 생기는 `judgment_ingest_skipped`(`warning`)도 여기서
+        걸린다 — code로 예외를 두면 진짜 부분 적재까지 함께 통과한다. 통과한 `info`가
+        항목을 떨어뜨렸더라도 세 번째 검사(모집단 대조)가 따로 잡는다.
         """
 
         run = session.get(Run, source_run_id)
         if run is None:
             raise OrderPlanScreeningError("source_run_incomplete", "source run을 찾을 수 없습니다", request_id=request_id)
-        warning_codes = list(
-            dict.fromkeys(
-                session.scalars(
-                    select(IngestWarning.code).where(IngestWarning.run_id == run.id).limit(20)
-                ).all()
-            )
-        )
-        if warning_codes:
+        blocking_codes = list(dict.fromkeys(
+            code
+            for level, code, _count in self.ingest_warning_summary(session, run.id)
+            if level not in PASSING_INGEST_WARNING_LEVELS
+        ))[:20]
+        if blocking_codes:
             raise OrderPlanScreeningError(
                 "source_run_incomplete",
-                "source run에 ingest warning이 있습니다 (" + ", ".join(warning_codes) + ")",
+                "source run에 차단 등급 ingest warning이 있습니다 (" + ", ".join(blocking_codes) + ")",
                 request_id=request_id,
             )
         source_path = _source_directory(self.settings, run.id) / "collected-order-plans.json"
@@ -490,6 +592,11 @@ class OrderPlanScreeningService:
                 self._require_daily_trigger(session, payload.policy_version, request_id)
             if purpose == "gate_measurement":
                 self._require_measurement_run(session, policy.policy_version, payload.source_run_id, request_id)
+            # 워커가 아예 없어도 큐가 굳지 않도록 생성 요청도 오래된 `대기`를 닫는다(A-1).
+            # 따로 commit하므로 아래에서 생성이 거부돼도 회수는 남는다.
+            self.reclaim_stale_queued(
+                session, now=_now(), reclaimed_by="execution_create", claimed_name="screening-api"
+            )
             active = session.scalar(
                 select(OrderPlanScreeningExecution).where(
                     OrderPlanScreeningExecution.status.in_(ACTIVE_STATUSES)
@@ -502,6 +609,12 @@ class OrderPlanScreeningService:
             run, source_path, source_bytes, source_population = self.require_complete_source_run(
                 session, payload.source_run_id, request_id=request_id
             )
+            # 통과시킨(`info`) 적재 경고. 실행 생성 audit에 남겨 우회를 감사할 수 있게 한다(A-2).
+            passed_ingest_warnings = [
+                {"level": level, "code": code, "count": count}
+                for level, code, count in self.ingest_warning_summary(session, run.id)
+                if level in PASSING_INGEST_WARNING_LEVELS
+            ]
             population = [
                 {"plan_id": row["plan_id"], "title": row["title"]}
                 for row in source_population
@@ -613,6 +726,7 @@ class OrderPlanScreeningService:
                     "binding_sha256": policy.binding_sha256,
                     "trigger": trigger,
                     "purpose": purpose,
+                    "passed_ingest_warnings": passed_ingest_warnings,
                 },
                 request_id=str(request_id),
                 created_at=created_at,
