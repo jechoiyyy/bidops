@@ -20,6 +20,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 # Schema ``if/then`` rule expresses.
 
 
+#: 1단계 BM25 절단 값으로 policy `stage1.top_k`가 가질 수 있는 값(ADR-0075). v1~v5는 300, v6는 150이다.
+#: binding `stage1_binding.top_k`는 policy 값과 같아야 한다. 순위 스크립트(`rank_order_plans_bm25.py`
+#: `ALLOWED_TOP_K`)도 같은 집합을 따로 검사한다 — subprocess 계약이라 import하지 않는다.
+ALLOWED_STAGE1_TOP_K: frozenset[int] = frozenset({150, 300})
+
+
 class C2StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 

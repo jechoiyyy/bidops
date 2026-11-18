@@ -75,12 +75,26 @@ def _blocker(code: str, detail: str | None = None) -> dict[str, str | None]:
 # policy blocker, 일일 스위치 reasons, 실행 게이트(S4b)가 모두 이 함수로 판정한다.
 
 
+#: 설정 경로의 파일이 행 digest와 다를 때 **같은 디렉터리**에서 찾는 발행 파일 이름(ADR-0075).
+#: 버전마다 파일이 하나씩 마운트되므로 active 버전과 후보 버전이 동시에 읽힌다.
+POLICY_FILE_PATTERN = "order-plan-screening-policy.v*.json"
+BINDING_FILE_PATTERN = "order-plan-screening-phase0-binding.v*.json"
+
+
 @dataclass(frozen=True)
 class MountedFiles:
-    """컨테이너 경로에 행 digest와 같은 bytes의 일반 파일이 있는가."""
+    """컨테이너에 행 digest와 같은 bytes의 일반 파일이 있는가, 있으면 그 경로."""
 
-    policy_present: bool
-    binding_present: bool
+    policy_path: Path | None
+    binding_path: Path | None
+
+    @property
+    def policy_present(self) -> bool:
+        return self.policy_path is not None
+
+    @property
+    def binding_present(self) -> bool:
+        return self.binding_path is not None
 
     @property
     def missing(self) -> str | None:
@@ -104,15 +118,39 @@ def _file_matches(path: Path | None, expected_sha256: str) -> bool:
         return False
 
 
-def mounted_files(settings: Settings, policy: OrderPlanScreeningPolicy) -> MountedFiles:
-    """`settings.c2_policy_path`·`c2_binding_path`의 파일 bytes digest를 행과 대조한다.
+def _resolve_file(configured: Path | None, pattern: str, expected_sha256: str) -> Path | None:
+    """설정 경로, 아니면 그 디렉터리의 같은 이름 규칙 파일 중 bytes digest가 행과 같은 것.
 
+    digest가 정본이므로 어느 파일이 골라져도 bytes는 승인된 그 파일과 같다. 디렉터리 밖은 보지
+    않고 symlink·일반 파일이 아닌 것은 없는 것으로 본다.
+    """
+
+    if configured is None:
+        return None
+    if _file_matches(configured, expected_sha256):
+        return configured
+    try:
+        siblings = sorted(configured.parent.glob(pattern))
+    except OSError:
+        return None
+    for candidate in siblings:
+        if candidate != configured and _file_matches(candidate, expected_sha256):
+            return candidate
+    return None
+
+
+def mounted_files(settings: Settings, policy: OrderPlanScreeningPolicy) -> MountedFiles:
+    """행의 policy·binding digest와 bytes가 같은 마운트 파일을 찾는다.
+
+    먼저 `settings.c2_policy_path`·`c2_binding_path`를 보고, 다르면 같은 디렉터리의
+    `order-plan-screening-policy.v*.json`·`order-plan-screening-phase0-binding.v*.json`에서 찾는다.
+    그래서 v5가 active인 채로 v6 후보를 측정할 수 있다(설정 경로를 바꾸거나 재시작하지 않는다).
     digest는 파일 bytes 기준이다(canonical 재직렬화 아님). symlink는 없는 것으로 본다.
     """
 
     return MountedFiles(
-        policy_present=_file_matches(settings.c2_policy_path, policy.policy_sha256),
-        binding_present=_file_matches(settings.c2_binding_path, policy.binding_sha256),
+        policy_path=_resolve_file(settings.c2_policy_path, POLICY_FILE_PATTERN, policy.policy_sha256),
+        binding_path=_resolve_file(settings.c2_binding_path, BINDING_FILE_PATTERN, policy.binding_sha256),
     )
 
 
