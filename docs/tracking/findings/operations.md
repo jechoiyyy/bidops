@@ -2,6 +2,24 @@
 
 [전체 색인](../findings.md). 미해결 또는 일부 조치 뒤 검증이 남은 항목이다. 제목의 날짜는 마지막 관측·기록 시점이며 2026-10-21에 다시 재현했다는 뜻이 아니다. 과거 기능명·정책·환경을 현재에 적용하기 전에 소스와 마지막 실행 증거를 확인한다.
 
+## 폴링 GET 한 번의 timeout이 따라잡기 범위 전체를 멈췄다 (2026-11-18, 코드 수정·운영 미반영)
+
+- 재현: 2026-11-18 감독 따라잡기 실행 중 같은 host에서 병렬 화면 테스트가 돌아 부하가 올랐다. C-2
+  실행 상세 폴링 `GET /api/order-plan-screening/executions/<id>` 하나가
+  `curl: (28) Operation timed out after 31106 milliseconds`로 끝나자 `c2_poll_execution`이 이를 치명 오류로
+  보고(`error: request failed: GET …`, exit 2) 범위가 첫날에서 멈췄다. **실행 자체는 영향이 없었다** —
+  분석 워커에서 계속 돌아 정상 종결했다.
+- 영향: cron이었다면 그날 실행은 뒤에 `성공`으로 끝나지만 감사 표본 draw가 빠지고, 성공 실행이 있는 날은
+  `gap_detected`도 `unjudged_detected`도 아니어서 `--catch-up-days`도 다시 오지 않았다. 범위의 나머지 날도
+  그날 돌지 않았다.
+- 수정(코드, 운영 미반영): 폴링 GET의 일시 실패(응답 없음·5xx·408·429)는 `c2: poll read failed (n/N)` 한
+  줄을 남기고 같은 주기로 다시 읽는다. 연속 `BIDOPS_C2_DAILY_POLL_MAX_READ_FAILURES`번(기본 10, `0`은 예전처럼
+  즉시 실패)이나 전체 폴링 timeout이면 기존 실패 경로(exit 2)다. 그 밖의 4xx는 바로 실패하고, 실행 생성
+  POST에는 재시도를 넣지 않았다. 누락일 감지는 발주계획 창에서 최신 성공 실행의 감사 표본 GET(읽기 전용)이
+  `preview`(뽑을 수 있는데 기록 없음)인 날을 `unjudged_detected … reason=audit_sample_missing`(exit 10)으로
+  보고하고, `--catch-up-days`가 그날을 재개해 draw만 한다. 가짜 web 스크립트 테스트로만 확인했고 실제 과부하
+  상황의 재현은 하지 않았다.
+
 ## 운영 상태 서비스가 host 재시작 뒤 올라오지 않는다 (2026-11-18, 코드 수정·운영 미반영)
 
 - 재현: 운영 `bidops`의 postgres·minio·clamav·document-worker는 compose에 `restart`가 없어 정책이 `no`다. 2026-10-28 Mac/OrbStack 재시작 뒤 이 서비스들은 `Exited`로 남았다. web(`unless-stopped`)만 올라와 `failed to resolve host 'postgres'`로 3주간 1,683회 재시작했다.

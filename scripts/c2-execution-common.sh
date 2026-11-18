@@ -34,6 +34,11 @@ C2_RETRY_WAIT_SECONDS="${BIDOPS_C2_DAILY_RETRY_WAIT_SECONDS:-600}"
 # running in the worker and the next invocation skips it as active.
 C2_POLL_TIMEOUT_SECONDS="${BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS:-7200}"
 C2_POLL_INTERVAL_SECONDS="${BIDOPS_C2_DAILY_POLL_INTERVAL_SECONDS:-30}"
+# Consecutive transient read failures (no answer, 5xx, 408, 429) a poll
+# tolerates before it fails; 0 fails on the first one (the behaviour before
+# 2026-11-18). A loaded host once timed out one poll GET and stopped a whole
+# catch-up range while the execution kept running fine in the worker.
+C2_POLL_MAX_READ_FAILURES="${BIDOPS_C2_DAILY_POLL_MAX_READ_FAILURES:-10}"
 
 C2_GUIDANCE="policy를 교체하면 자동 실행이 멈춥니다. 새 버전에서 다시 켜야 합니다."
 
@@ -63,6 +68,7 @@ c2_validate_settings() {
   c2_require_non_negative_int BIDOPS_C2_DAILY_RETRY_WAIT_SECONDS "${C2_RETRY_WAIT_SECONDS}"
   c2_require_non_negative_int BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS "${C2_POLL_TIMEOUT_SECONDS}"
   c2_require_non_negative_int BIDOPS_C2_DAILY_POLL_INTERVAL_SECONDS "${C2_POLL_INTERVAL_SECONDS}"
+  c2_require_non_negative_int BIDOPS_C2_DAILY_POLL_MAX_READ_FAILURES "${C2_POLL_MAX_READ_FAILURES}"
 }
 
 # BIDOPS_C2_DAILY_ACTOR is required and has no default (spec §8 actor). It is a
@@ -119,9 +125,10 @@ c2_audit_sample_request_id() {
   c2_uuid5 "audit-sample|$1"
 }
 
-# c2_request METHOD PATH BODY [HEADER...] — sets C2_HTTP_CODE and C2_HTTP_BODY.
-# An empty BODY sends no body. A transport failure stops the caller.
-c2_request() {
+# c2_try_request METHOD PATH BODY [HEADER...] — sets C2_HTTP_CODE and
+# C2_HTTP_BODY. An empty BODY sends no body. On a transport failure (no answer,
+# e.g. curl timeout) it returns 1 with C2_HTTP_CODE=000 instead of stopping.
+c2_try_request() {
   local method="$1" path="$2" body="$3" header response
   shift 3
   local args=(--connect-timeout 3 --max-time 30 --silent --show-error -X "${method}")
@@ -132,14 +139,24 @@ c2_request() {
     args+=(-H "Content-Type: application/json" --data-binary "${body}")
   fi
   args+=(--write-out '\n%{http_code}')
-  response="$(curl "${args[@]}" "${BIDOPS_WORKFLOW_WEB_URL}${path}")" \
-    || workflow_die "request failed: ${method} ${BIDOPS_WORKFLOW_WEB_URL}${path}"
+  if ! response="$(curl "${args[@]}" "${BIDOPS_WORKFLOW_WEB_URL}${path}")"; then
+    C2_HTTP_CODE="000"
+    C2_HTTP_BODY=""
+    return 1
+  fi
   C2_HTTP_CODE="${response##*$'\n'}"
   if [[ "${response}" == *$'\n'* ]]; then
     C2_HTTP_BODY="${response%$'\n'*}"
   else
     C2_HTTP_BODY=""
   fi
+}
+
+# c2_request METHOD PATH BODY [HEADER...] — c2_try_request, but a transport
+# failure stops the caller. Writes (POST) always go through here: they are
+# never retried.
+c2_request() {
+  c2_try_request "$@" || workflow_die "request failed: $1 ${BIDOPS_WORKFLOW_WEB_URL}$2"
 }
 
 c2_error_code() {
@@ -259,19 +276,45 @@ c2_report_active_executions() {
 }
 
 # Polls until the execution reaches a terminal status; sets C2_EXECUTION_STATUS.
+# A transient read failure (no answer, 5xx, 408, 429) prints one
+# "c2: poll read failed (n/N)" line and is read again at the poll interval;
+# C2_POLL_MAX_READ_FAILURES consecutive ones, or the overall poll timeout, stop
+# the caller. Any other non-200 answer stops it at once. Only this GET is
+# retried — the execution is never re-created.
 c2_poll_execution() {
-  local execution_id="$1" started="${SECONDS}"
+  local execution_id="$1" started="${SECONDS}" failures=0 path
+  path="/api/order-plan-screening/executions/${execution_id}"
+  C2_EXECUTION_STATUS="대기"
   while true; do
-    c2_request GET "/api/order-plan-screening/executions/${execution_id}" ""
-    [[ "${C2_HTTP_CODE}" == "200" ]] || c2_die_http "execution ${execution_id} lookup"
-    C2_EXECUTION_STATUS="$(jq -er '.status' <<<"${C2_HTTP_BODY}")" \
-      || workflow_die "execution ${execution_id} response has no status"
-    case "${C2_EXECUTION_STATUS}" in
-      성공|"부분 성공"|실패|중단됨)
-        workflow_note "c2: execution ${execution_id} finished: ${C2_EXECUTION_STATUS}"
-        return 0
-        ;;
-    esac
+    if c2_try_request GET "${path}" "" && [[ "${C2_HTTP_CODE}" == "200" ]]; then
+      failures=0
+      C2_EXECUTION_STATUS="$(jq -er '.status' <<<"${C2_HTTP_BODY}")" \
+        || workflow_die "execution ${execution_id} response has no status"
+      case "${C2_EXECUTION_STATUS}" in
+        성공|"부분 성공"|실패|중단됨)
+          workflow_note "c2: execution ${execution_id} finished: ${C2_EXECUTION_STATUS}"
+          return 0
+          ;;
+      esac
+    else
+      case "${C2_HTTP_CODE}" in
+        000|408|429|5??) ;;
+        *) c2_die_http "execution ${execution_id} lookup" ;;
+      esac
+      if (( C2_POLL_MAX_READ_FAILURES == 0 )); then
+        [[ "${C2_HTTP_CODE}" != "000" ]] || workflow_die "request failed: GET ${BIDOPS_WORKFLOW_WEB_URL}${path}"
+        c2_die_http "execution ${execution_id} lookup"
+      fi
+      failures=$((failures + 1))
+      if [[ "${C2_HTTP_CODE}" == "000" ]]; then
+        workflow_note "c2: poll read failed (${failures}/${C2_POLL_MAX_READ_FAILURES}) for execution ${execution_id}: no answer (GET ${path}); reading again"
+      else
+        workflow_note "c2: poll read failed (${failures}/${C2_POLL_MAX_READ_FAILURES}) for execution ${execution_id}: HTTP ${C2_HTTP_CODE}; reading again"
+      fi
+      if (( failures >= C2_POLL_MAX_READ_FAILURES )); then
+        workflow_die "execution ${execution_id} lookup: ${failures} consecutive poll read failures (BIDOPS_C2_DAILY_POLL_MAX_READ_FAILURES=${C2_POLL_MAX_READ_FAILURES}); the execution may still be running in the worker"
+      fi
+    fi
     if (( SECONDS - started >= C2_POLL_TIMEOUT_SECONDS )); then
       workflow_die "execution ${execution_id} is still ${C2_EXECUTION_STATUS} after ${C2_POLL_TIMEOUT_SECONDS}s; it keeps running in the worker and the next run skips it as active"
     fi
@@ -279,14 +322,26 @@ c2_poll_execution() {
   done
 }
 
+# Read-only audit-sample state of one execution (GET .../audit-sample computes,
+# it never records): drawn, preview (drawable, nothing recorded yet),
+# pending_human_approval or not_applicable. Sets C2_AUDIT_STATUS; any answer
+# other than 200 stops the caller.
+C2_AUDIT_STATUS=""
+c2_audit_sample_status() {
+  local execution_id="$1"
+  c2_request GET "/api/order-plan-screening/executions/${execution_id}/audit-sample" ""
+  [[ "${C2_HTTP_CODE}" == "200" ]] \
+    || c2_die_http "audit-sample lookup for ${execution_id} (execution results are kept)"
+  C2_AUDIT_STATUS="$(jq -er '.status' <<<"${C2_HTTP_BODY}")" \
+    || workflow_die "audit-sample lookup for ${execution_id} answered without a status"
+}
+
 # Audit-sample draw for a successful execution (spec §5·§8). A failure exits
 # non-zero; the execution's result rows are kept either way.
 c2_draw_audit_sample() {
   local execution_id="$1" trigger="$2" request_id body status
-  c2_request GET "/api/order-plan-screening/executions/${execution_id}/audit-sample" ""
-  [[ "${C2_HTTP_CODE}" == "200" ]] \
-    || c2_die_http "audit-sample lookup for ${execution_id} (execution results are kept)"
-  if [[ "$(jq -r '.status' <<<"${C2_HTTP_BODY}")" == "drawn" ]]; then
+  c2_audit_sample_status "${execution_id}"
+  if [[ "${C2_AUDIT_STATUS}" == "drawn" ]]; then
     workflow_note "audit sample already drawn for ${execution_id}"
     return 0
   fi

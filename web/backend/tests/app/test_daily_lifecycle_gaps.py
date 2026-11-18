@@ -61,7 +61,9 @@ def _judged(env: Env, days: list[str], status: str = "성공") -> None:
     """그날 회차 행(기본키)에 판정 결과가 있는 실행 하나."""
 
     for day in days:
-        env.execution(_run_id(day, "plans"), status)
+        execution_id = env.execution(_run_id(day, "plans"), status)
+        if status in {"성공", "부분 성공"}:
+            env.drawn(execution_id)
 
 
 def _gaps(env: Env, *args: str, lookback: str | None = "7", floor: str | None = None, **extra: str | None):
@@ -488,3 +490,66 @@ def test_order_plans_dry_run_says_it_would_check_judged_state_without_calls(env:
     assert env.calls() == []
     assert "would also check judged state" in result.stdout
     assert _unjudged_lines(result.stdout) == []
+
+
+# --- 감사 표본이 빠진 성공일 (2026-11-18 감독 시운전) -------------------------------
+#
+# 성공 실행이 있으면 빠진 날도 판정 없는 날도 아니어서, 폴링이 끊긴 날의 표본 draw가 영영 빠졌다.
+# 그날의 최신 `성공`·`부분 성공` 실행의 감사 표본 GET(읽기 전용)이 `preview`(뽑을 수 있는데 기록 없음)면
+# `reason=audit_sample_missing`으로 보고하고 따라잡기가 재개해 draw한다. `pending_human_approval`·
+# `not_applicable`은 뽑을 것이 없으므로 보고하지 않는다.
+
+
+def test_a_successful_day_without_a_drawn_sample_is_reported(env: Env) -> None:
+    env.trigger_on()
+    _complete_days(env, "plans", ["2026-09-16"])
+    env.execution(_run_id("2026-09-16", "plans"), "성공")
+
+    result = _gaps(env, "--track", "order-plans", "--date", REF, lookback="1")
+
+    assert result.returncode == GAP_EXIT, result.stderr
+    assert _unjudged_lines(result.stdout) == [
+        "unjudged_detected track=order-plans date=2026-09-16 run=lifecycle-20260916-plans reason=audit_sample_missing",
+    ]
+    assert "1 unjudged" in _summary(result.stdout)
+
+
+def test_a_sample_waiting_for_a_human_decision_is_not_reported(env: Env) -> None:
+    env.trigger_on()
+    _complete_days(env, "plans", ["2026-09-16"])
+    env.execution(_run_id("2026-09-16", "plans"), "성공")
+    env.respond("audit_get", 200, {"status": "pending_human_approval", "pending_decision": "audit_sample_settings"})
+
+    result = _gaps(env, "--track", "order-plans", "--date", REF, lookback="1")
+
+    assert result.returncode == 0, result.stderr
+    assert _unjudged_lines(result.stdout) == []
+
+
+def test_catch_up_draws_the_missing_sample_without_a_new_execution(env: Env) -> None:
+    env.trigger_on()
+    _complete_days(env, "plans", ["2026-09-16"])
+    execution_id = env.execution(_run_id("2026-09-16", "plans"), "성공")
+
+    result = _gaps(env, "--track", "order-plans", "--date", REF, "--catch-up-days", "1", floor="2026-09-16")
+
+    assert result.returncode == 0, result.stderr
+    assert env.collected() == [_run_id(REF, "plans")]
+    assert [post["body"]["source_run_id"].split("--")[0] for post in env.execution_posts()] == [_run_id(REF, "plans")]
+    draws = [post["path"] for post in env.draw_posts()]
+    assert draws[0] == f"/api/order-plan-screening/executions/{execution_id}/audit-sample"
+    assert len(draws) == 2
+    assert _unjudged_lines(result.stdout) == []
+
+
+def test_an_audit_sample_read_failure_in_the_gap_check_fails(env: Env) -> None:
+    env.trigger_on()
+    _complete_days(env, "plans", ["2026-09-16"])
+    execution_id = env.execution(_run_id("2026-09-16", "plans"), "성공")
+    env.mode(REF.replace("-", ""), "complete:0")
+    env.fail_gets(f"/api/order-plan-screening/executions/{execution_id}/audit-sample")
+
+    result = _gaps(env, "--track", "order-plans", "--date", REF, lookback="1")
+
+    assert result.returncode not in (0, GAP_EXIT)
+    assert "HTTP 500" in result.stderr
