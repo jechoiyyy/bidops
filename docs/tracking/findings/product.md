@@ -346,3 +346,20 @@
   `quality_gate_status=passed`는 이력으로 그대로 남는다 — 품질 근거가 아니다. 화면 확인: 활성화 탭 "운영 활성
   없음", 발주계획 "누적 판정 없음"(참조 실행을 "최근 운영 실행"으로 적지 않음), 자동 실행 배너 없음, 대시보드
   "완료된 선별 실행 없음". 활성화 탭은 교체 없이 내린 v2도 "교체됨"으로 표시한다(문구 미수정).
+
+## 발주계획 목록 검색 테스트 6건이 PostgreSQL에서 실패한다 (2026-11-18, 미해결·원인 미확인)
+
+- 재현: 일회용 `postgres:17.11`과 `BIDOPS_TEST_POSTGRES_URL`로 `tests/screening/test_order_plan_list_v2.py`를
+  돌리면 `test_search_preserves_unicode_casefold_with_sql_total_and_page[…]` 5건과
+  `test_postgres_list_filters_pagination_and_tracking_projection` 1건이 `assert searched["total"] == 2`에서
+  0으로 실패한다. C-2 Top150 변경(`d7e9186`) 전 코드(`d1ce3ae`)에서도 같은 6건이 실패했다 — 이번 변경과
+  무관한 기존 실패다. PostgreSQL URL 없이 파일만 지정하면 skip되어 보이지 않는다.
+- 영향: 실패 사례는 독일어·그리스어 등 대소문자 변환(casefold) 문자를 쓴 검색이다. 운영 화면의 한글·영문
+  검색은 2026-11-18에 동작을 확인했다. 그 외 문자의 검색 결과가 빠질 수 있는지는 확인하지 않았다.
+- 지금 해결하지 않은 이유: 원인(테스트 fixture, DB collation, 검색 SQL 중 어느 쪽인지)을 가리지 않았고
+  Top150 작업 범위 밖이다.
+- 후속 방향: 실패 1건을 골라 생성 SQL과 fixture의 정규화 값을 대조해 제품 결함인지 테스트 환경 문제인지
+  먼저 구분한다.
+- 함께 본 것: 화면 스위트 `tests/order-plans.spec.ts:1309`("사람 피드백 축과 텍스트 검색도 다른 축과 AND로
+  조합된다")가 197건 실행 중 한 번 실패했고 단독·파일 전체 재실행에서는 통과했다. 원인 미확인(같은 시간에
+  백엔드 테스트가 돌고 있었다). `tests/design-shell.spec.ts:234`는 변경 전 commit에서도 실패한다.
