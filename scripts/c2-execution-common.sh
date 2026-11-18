@@ -225,12 +225,14 @@ c2_create_execution() {
 
 # Prints every execution that holds the run back and dies when one of them has
 # been queued or running for more than twice the poll budget. Without this the
-# skip is silent and repeats every day: the worker only reclaims stale 실행 중 and
-# 중지 요청 rows (ACTIVE_STATUSES), and only while a worker is alive to claim, so
-# a 대기 row left behind by a worker that died never closes and the daily track
-# keeps exiting 0 (docs/tracking/findings.md, W-5). Age counts
-# from started_at when the worker picked the execution up, from queued_at
-# otherwise.
+# skip is silent: this script never POSTs while its own run has a 대기 row, so
+# the server-side reclaim (a 대기 row older than BIDOPS_C2_QUEUED_MAX_DWELL_SECONDS,
+# default 4h, closed as 중단됨/stale_queued at the next execution create or
+# worker claim while nothing else makes progress) does not run on this path
+# (docs/tracking/findings/operations.md, W-5). The skip still ends the day
+# without a judged result; run-daily-lifecycle.sh's gap check reports such a
+# day as unjudged_detected (exit 10) on this and later runs. Age counts from
+# started_at when the worker picked the execution up, from queued_at otherwise.
 c2_report_active_executions() {
   local run_id="$1" limit now id status since age stale=0
   limit=$(( C2_POLL_TIMEOUT_SECONDS * 2 ))
@@ -252,7 +254,7 @@ c2_report_active_executions() {
     | [.execution_id, .status, (.started_at // .queued_at // "")]
     | @tsv' <<<"${C2_RUN_EXECUTIONS}")
   if (( stale == 1 )); then
-    workflow_die "an execution of ${run_id} has been active for more than ${limit}s (2x BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS); the analysis worker may be gone. A 대기 execution is never reclaimed automatically — check the worker and stop the execution (POST /api/order-plan-screening/executions/<id>/stop) before the next daily run."
+    workflow_die "an execution of ${run_id} has been active for more than ${limit}s (2x BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS); the analysis worker may be gone. The server closes a 대기 execution past BIDOPS_C2_QUEUED_MAX_DWELL_SECONDS (default 4h) as 중단됨/stale_queued at the next execution create or worker claim but never restarts it — check the worker, stop a stuck execution (POST /api/order-plan-screening/executions/<id>/stop) if needed, then rerun this day by hand."
   fi
 }
 
@@ -374,7 +376,9 @@ c2_run_source_run() {
 
 # Outcomes after which later days of the same invocation cannot proceed either:
 # the switch or the policy changed, transport is down, or the active slot is
-# taken. The track ends with exit 0 (spec §8 정상 스킵).
+# taken. The track ends there as a normal skip (spec §8 정상 스킵);
+# run-daily-lifecycle.sh then reports the unjudged day in its gap check (exit 10)
+# while run-daily-c2.sh exits 0.
 c2_outcome_stops_track() {
   case "$1" in
     daily_trigger_off|policy_not_active|service_unavailable|active_execution_exists) return 0 ;;

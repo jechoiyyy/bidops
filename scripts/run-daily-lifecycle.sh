@@ -10,7 +10,7 @@ source "${SCRIPT_DIR}/c2-execution-common.sh"
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/run-daily-lifecycle.sh --track <order-plans|notices> [--date YYYY-MM-DD] [--dry-run]
+  scripts/run-daily-lifecycle.sh --track <order-plans|notices> [--date YYYY-MM-DD] [--catch-up-days N] [--dry-run]
   scripts/run-daily-lifecycle.sh --track <order-plans|notices> --from-date YYYY-MM-DD --to-date YYYY-MM-DD [--dry-run]
   scripts/run-daily-lifecycle.sh --track <order-plans|notices> --collect-only --run-suffix NAME [--date YYYY-MM-DD] [--dry-run]
   scripts/run-daily-lifecycle.sh -h|--help
@@ -63,6 +63,18 @@ Options:
                       required together; not combinable with --date or
                       --collect-only. No sleep between days. The first
                       failing day stops the track; later days do not run.
+  --catch-up-days N   Before the reference day, process the missing days
+                      (no complete run directory, see "Gap check") among the
+                      N days before it, oldest first, each resumed stage by
+                      stage as above; then the reference day. On the
+                      order-plans track the unjudged days of that window join
+                      too (only their missing stages run), except days held
+                      by an active execution or with several Run rows. Default 0 (only
+                      the reference day). N must not exceed
+                      BIDOPS_DAILY_GAP_LOOKBACK_DAYS; days before
+                      BIDOPS_DAILY_GAP_FLOOR_DATE are not caught up. Not
+                      combinable with --from-date/--to-date or --collect-only.
+                      The first failing day stops the track as above.
   --collect-only      Collect only; skip preflight, the daily C-2 trigger
                       check, run lookup, ingest, and C-2 entirely. Requires --run-suffix so it does not occupy
                       the daily run id.
@@ -75,8 +87,40 @@ Options:
                       or touch Docker or the web. Local run directories are
                       read; the web Run lookup is skipped, so a complete
                       collection shows as complete_or_ingest_pending and the
-                      canonical run id C-2 needs is not resolved.
+                      canonical run id C-2 needs is not resolved. The
+                      catch-up days are listed with their decisions, and the
+                      gap check prints the days a real run would still report
+                      ("[dry-run] would report: gap_detected ...") and the
+                      exit code it would end with; a dry run itself exits 0.
   -h, --help          Show this help.
+
+Gap check (both tracks): after the day's own work (and any catch-up days) the
+script looks at the reference day (the last day of a range) and the
+BIDOPS_DAILY_GAP_LOOKBACK_DAYS days before it. A day counts as present when it
+has a run directory (base or -retry<N>) whose collection is marked complete,
+an empty one included; only local directories are read. Days before
+BIDOPS_DAILY_GAP_FLOOR_DATE are not counted. Each missing day prints
+  gap_detected track=<track> date=YYYY-MM-DD
+and the script then exits 10 (see Exit). Fill a gap with --from-date/--to-date
+or --catch-up-days, or acknowledge an outage with BIDOPS_DAILY_GAP_FLOOR_DATE.
+On the order-plans track a complete, non-empty day of the window (the days
+this invocation processed included) without a 성공/부분 성공 operational C-2
+execution prints
+  unjudged_detected track=order-plans date=YYYY-MM-DD run=<dir> reason=<r>
+with r = not_ingested | multiple_run_rows:<n> | active:<status> |
+last:<status> | no_execution, and also exits 10. This reads the web
+(GET /api/runs/<dir> for the canonical id, GET /api/runs for the row count,
+the executions list by canonical id); a failed read stops the script with a
+failure code, never as "no gap". A dry run reads no web and only says it
+would check judged state.
+A failing day exits with its own failure code before the gap check. The
+order-plans track that ends at daily_trigger_off (nothing collected) does not
+run the gap check.
+
+Environment (both tracks):
+  BIDOPS_DAILY_GAP_LOOKBACK_DAYS         default 7; 0 disables the gap check.
+  BIDOPS_DAILY_GAP_FLOOR_DATE            optional YYYY-MM-DD; earlier days are
+                                         neither reported nor caught up.
 
 Environment (order-plans track):
   BIDOPS_C2_DAILY_ACTOR                  required, no default; not needed for
@@ -85,6 +129,7 @@ Environment (order-plans track):
   BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS   default 7200.
   BIDOPS_C2_DAILY_POLL_INTERVAL_SECONDS  default 30.
 
+Exit:
 Exit 0 for success and the normal skips (daily_trigger_off, empty_population,
 active_execution_exists, already_executed, retry_limit_reached, and an
 execution POST answered with policy_not_active, daily_trigger_off, or 503).
@@ -93,7 +138,14 @@ BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS is not a normal skip: it is printed with
 its id, status and age and exits non-zero so somebody looks at the worker.
 daily_trigger_off, policy_not_active, 503, and active_execution_exists end the
 track there (later days of a range would get the same answer); the other skips
-continue with the next day.
+continue with the next day. The gap check still runs after a skip that ends
+the track (except daily_trigger_off before collection).
+Exit 10 means attention needed (gap_detected and/or unjudged_detected): every
+day this invocation processed ended in success or a normal skip, and at least
+one day of the gap window is missing or, on order-plans, unjudged. The
+summary line counts both.
+Real failures exit with another non-zero code (2 for the script's own checks,
+or the failing command's code).
 
 Safety:
   - Stops on the first failure (no partial silent continuation).
@@ -112,10 +164,12 @@ opt_track=""
 dry_run="false"
 collect_only="false"
 run_suffix=""
+opt_catch_up=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --date) opt_date="${2:-}"; shift 2 ;;
+    --catch-up-days) opt_catch_up="${2:-}"; shift 2 ;;
     --from-date) opt_from_date="${2:-}"; shift 2 ;;
     --to-date) opt_to_date="${2:-}"; shift 2 ;;
     --track) opt_track="${2:-}"; shift 2 ;;
@@ -189,10 +243,209 @@ else
   ref_dates=("$(TZ=Asia/Seoul date -d 'yesterday' +%Y-%m-%d)")
 fi
 
+# Gap check and catch-up settings (docs/operations/daily.md "누락일 감지").
+# Validated before any call so a bad value never half-runs a day.
+gap_lookback_days="${BIDOPS_DAILY_GAP_LOOKBACK_DAYS:-7}"
+[[ "${gap_lookback_days}" =~ ^[0-9]+$ ]] \
+  || workflow_die "BIDOPS_DAILY_GAP_LOOKBACK_DAYS must be a non-negative integer: ${gap_lookback_days}"
+gap_lookback_days=$((10#${gap_lookback_days}))
+gap_floor_date=""
+if [[ -n "${BIDOPS_DAILY_GAP_FLOOR_DATE:-}" ]]; then
+  gap_floor_date="$(canonical_date BIDOPS_DAILY_GAP_FLOOR_DATE "${BIDOPS_DAILY_GAP_FLOOR_DATE}")"
+fi
+catch_up_days=0
+if [[ -n "${opt_catch_up}" ]]; then
+  [[ "${opt_catch_up}" =~ ^[0-9]+$ ]] \
+    || workflow_die "--catch-up-days must be a non-negative integer: ${opt_catch_up}"
+  catch_up_days=$((10#${opt_catch_up}))
+  [[ "${range_mode}" != "true" ]] \
+    || workflow_die "--catch-up-days cannot be combined with --from-date/--to-date"
+  [[ "${collect_only}" != "true" ]] \
+    || workflow_die "--catch-up-days cannot be combined with --collect-only"
+  (( catch_up_days <= gap_lookback_days )) \
+    || workflow_die "--catch-up-days (${catch_up_days}) must not exceed BIDOPS_DAILY_GAP_LOOKBACK_DAYS (${gap_lookback_days})"
+fi
+# Exit code that means only "gap_detected" (every processed day succeeded or
+# ended in a normal skip). Distinct from workflow_die (2) and command failures.
+GAP_EXIT_CODE=10
+
 case "${opt_track}" in
   order-plans) track_kind="plans" ;;
   notices) track_kind="notices" ;;
 esac
+
+# The day's run: the first directory (base, then -retry<N> ascending) whose
+# collection is marked complete, as resolve_run_state picks it. Sets
+# DAY_RUN_ID and DAY_RUN_TOTAL (counts.total) and exits 0; exits 1 when the day
+# has no such directory. Reads local directories only.
+DAY_RUN_ID=""
+DAY_RUN_TOTAL=""
+day_complete_run() {
+  local day="$1" base candidate total
+  base="lifecycle-$(date -d "${day}" +%Y%m%d)-${track_kind}"
+  DAY_RUN_ID=""
+  DAY_RUN_TOTAL=""
+  while IFS= read -r candidate; do
+    [[ -n "${candidate}" ]] || continue
+    total="$(workflow_complete_collection_total "${track_kind}" "$(workflow_run_dir "${candidate}")")"
+    if [[ -n "${total}" ]]; then
+      DAY_RUN_ID="${candidate}"
+      DAY_RUN_TOTAL="${total}"
+      return 0
+    fi
+  done < <(workflow_run_candidates "${base}")
+  return 1
+}
+
+# Exit 0 when the day has a complete run directory, an empty one included.
+day_has_complete_run() {
+  day_complete_run "$1"
+}
+
+# Order-plans only, reads the web. Exit 0 when the day's complete, non-empty
+# run has no 성공/부분 성공 operational C-2 execution — the same "done" the
+# per-day resume uses before it decides to execute (c2_run_source_run counts a
+# success of any policy version) — and sets DAY_UNJUDGED_REASON:
+#   not_ingested           no Run row for the directory (GET /api/runs/<dir> 404)
+#   multiple_run_rows:<n>  more than one Run row; which one to judge is a human call
+#   active:<status>        a 대기/실행 중/중지 요청 execution holds it
+#   last:<status>          only failed/stopped executions (newest by queued_at)
+#   no_execution           no operational execution at all
+# The executions list is read with the canonical run id only. Any web answer
+# other than the expected ones stops the script (workflow_die), so a read
+# failure never reads as "judged".
+DAY_UNJUDGED_REASON=""
+day_unjudged() {
+  local day="$1" canonical
+  DAY_UNJUDGED_REASON=""
+  day_complete_run "${day}" || return 1
+  [[ "${DAY_RUN_TOTAL}" != "0" ]] || return 1
+  if ! workflow_lookup_run_row "${DAY_RUN_ID}"; then
+    DAY_UNJUDGED_REASON="not_ingested"
+    return 0
+  fi
+  canonical="${WORKFLOW_RUN_ROW_ID}"
+  workflow_count_run_rows "${DAY_RUN_ID}"
+  case "${WORKFLOW_RUN_ROW_COUNT}" in
+    1) ;;
+    0) workflow_die "the run list has no Run row for ${DAY_RUN_ID} although the run lookup answered 200" ;;
+    *)
+      DAY_UNJUDGED_REASON="multiple_run_rows:${WORKFLOW_RUN_ROW_COUNT}"
+      return 0
+      ;;
+  esac
+  c2_list_run_executions "${canonical}"
+  if jq -e 'any(.[]; .status == "성공" or .status == "부분 성공")' <<<"${C2_RUN_EXECUTIONS}" >/dev/null; then
+    return 1
+  fi
+  DAY_UNJUDGED_REASON="$(jq -r '
+    ([.[] | select(.status == "대기" or .status == "실행 중" or .status == "중지 요청")] | first | .status) as $active
+    | if $active then "active:" + $active
+      elif length > 0 then "last:" + (sort_by(.queued_at // "") | last | .status)
+      else "no_execution" end' <<<"${C2_RUN_EXECUTIONS}")" \
+    || workflow_die "execution list for ${canonical} is not the expected JSON"
+  return 0
+}
+
+# True when the day is before BIDOPS_DAILY_GAP_FLOOR_DATE.
+day_before_floor() {
+  [[ -n "${gap_floor_date}" && "$1" < "${gap_floor_date}" ]]
+}
+
+# --catch-up-days N: the missing days among the N days before the reference
+# day run first, oldest first, then the reference day itself. In a real
+# order-plans run (mode=real, after the trigger check) an unjudged day joins
+# too, so the per-day resume runs only its missing C-2 stage; days held by an
+# active execution or with more than one Run row are left to the gap report
+# (resuming them would only skip or stop). mode=dry reads no web: missing days
+# only.
+select_catch_up_dates() {
+  local mode="$1" n day catch_up_dates=()
+  (( catch_up_days > 0 )) || return 0
+  for (( n = catch_up_days; n >= 1; n-- )); do
+    day="$(date -d "${ref_dates[0]} -${n} days" +%Y-%m-%d)"
+    if day_before_floor "${day}"; then
+      continue
+    fi
+    if day_has_complete_run "${day}"; then
+      [[ "${mode}" == "real" && "${opt_track}" == "order-plans" ]] || continue
+      day_unjudged "${day}" || continue
+      case "${DAY_UNJUDGED_REASON}" in
+        active:*|multiple_run_rows:*) continue ;;
+      esac
+    fi
+    catch_up_dates+=("${day}")
+  done
+  ref_dates=(${catch_up_dates[@]+"${catch_up_dates[@]}"} "${ref_dates[@]}")
+}
+
+# True when this invocation processes (or, in a dry run, would process) the day.
+day_is_planned() {
+  local planned
+  for planned in "${ref_dates[@]}"; do
+    [[ "${planned}" != "$1" ]] || return 0
+  done
+  return 1
+}
+
+# Gap check (A-3, findings W-3·W-4·W-5). Looks at the last processed day and
+# the BIDOPS_DAILY_GAP_LOOKBACK_DAYS days before it, minus days before the
+# floor. A day without a complete run directory prints gap_detected; on the
+# order-plans track a complete, non-empty day without a judged result
+# (day_unjudged, web reads) prints unjudged_detected — the days processed by
+# this invocation included, so a normal skip today surfaces today. Either kind
+# ends the run with GAP_EXIT_CODE. mode=dry reads no web: it skips the days this
+# invocation would process (a real run handles them first or fails), does not
+# check judged state, and only says which exit code a real run would end with.
+gap_check() {
+  local mode="$1" anchor first="" day n missing=0 unjudged=0 prefix=""
+  anchor="${ref_dates[${#ref_dates[@]}-1]}"
+  [[ "${mode}" != "dry" ]] || prefix="[dry-run] "
+  if (( gap_lookback_days == 0 )); then
+    workflow_note "${prefix}gap check: disabled (BIDOPS_DAILY_GAP_LOOKBACK_DAYS=0)"
+    return 0
+  fi
+  for (( n = gap_lookback_days; n >= 0; n-- )); do
+    day="$(date -d "${anchor} -${n} days" +%Y-%m-%d)"
+    if day_before_floor "${day}"; then
+      continue
+    fi
+    [[ -n "${first}" ]] || first="${day}"
+    if [[ "${mode}" == "dry" ]] && day_is_planned "${day}"; then
+      continue
+    fi
+    if day_has_complete_run "${day}"; then
+      if [[ "${mode}" == "real" && "${opt_track}" == "order-plans" ]] && day_unjudged "${day}"; then
+        unjudged=$((unjudged + 1))
+        workflow_note "unjudged_detected track=${opt_track} date=${day} run=${DAY_RUN_ID} reason=${DAY_UNJUDGED_REASON}"
+      fi
+      continue
+    fi
+    missing=$((missing + 1))
+    if [[ "${mode}" == "dry" ]]; then
+      workflow_note "[dry-run] would report: gap_detected track=${opt_track} date=${day}"
+    else
+      workflow_note "gap_detected track=${opt_track} date=${day}"
+    fi
+  done
+  if [[ "${mode}" == "dry" && "${opt_track}" == "order-plans" ]]; then
+    workflow_note "[dry-run] a real run would also check judged state: every complete, non-empty run in the window (the days above included) needs a 성공/부분 성공 C-2 execution (GET /api/runs/<dir>, GET /api/runs, executions list by canonical id); otherwise unjudged_detected and exit ${GAP_EXIT_CODE}. Not read here."
+  fi
+  if [[ -z "${first}" ]]; then
+    workflow_note "${prefix}gap check: no gap; no day on or after the floor ${gap_floor_date} up to ${anchor}"
+    return 0
+  fi
+  if (( missing == 0 && unjudged == 0 )); then
+    workflow_note "${prefix}gap check: no gap for ${opt_track} in ${first}..${anchor}${gap_floor_date:+ (floor ${gap_floor_date})}"
+    return 0
+  fi
+  if [[ "${mode}" == "dry" ]]; then
+    workflow_note "[dry-run] gap check: ${missing} missing day(s) for ${opt_track} in ${first}..${anchor}; a real run would exit ${GAP_EXIT_CODE} (gap_detected)"
+    return 0
+  fi
+  workflow_note "gap check: ${missing} missing, ${unjudged} unjudged day(s) for ${opt_track} in ${first}..${anchor}${gap_floor_date:+ (floor ${gap_floor_date})}; exit ${GAP_EXIT_CODE} (attention needed; every processed day ended in success or a normal skip). Fill missing days with --from-date/--to-date or --catch-up-days, resume unjudged days with --date (or scripts/run-daily-c2.sh <run>), or acknowledge an outage with BIDOPS_DAILY_GAP_FLOOR_DATE."
+  exit "${GAP_EXIT_CODE}"
+}
 
 # Per-day context, set by set_day_context and resolve_run_state.
 ref_date=""
@@ -468,10 +721,14 @@ collect_and_ingest_day() {
   esac
 }
 
+# Set by c2_day when an outcome later days would share ends the track (a
+# normal skip). The day loop stops there; the gap check still runs.
+track_stopped=""
+
 # C-2 stage of one order-plans day (spec §8): an empty run ends as
 # empty_population; a complete run executes (or, when already executed, only
 # draws the audit sample). Outcomes that later days would share end the track
-# with exit 0.
+# (track_stopped); without a gap the invocation then exits 0.
 c2_day() {
   local source_run_id
   if [[ "${state}" == "empty" ]]; then
@@ -490,7 +747,7 @@ c2_day() {
   workflow_note "C-2 stage for ${source_run_id} done: ${C2_OUTCOME}"
   if c2_outcome_stops_track "${C2_OUTCOME}"; then
     workflow_note "daily ${opt_track} track stopped at ${ref_date}: ${C2_OUTCOME} (normal skip)"
-    exit 0
+    track_stopped="${C2_OUTCOME}"
   fi
 }
 
@@ -502,6 +759,7 @@ run_day() {
   collect_and_ingest_day
   if [[ "${opt_track}" == "order-plans" ]]; then
     c2_day
+    [[ -z "${track_stopped}" ]] || return 0
   fi
   workflow_note "daily ${opt_track} track done for ${ref_date}: ${state} (${run_id})"
 }
@@ -534,7 +792,14 @@ if [[ "${dry_run}" == "true" ]]; then
     if [[ -z "${BIDOPS_C2_DAILY_ACTOR:-}" ]]; then
       workflow_note "BIDOPS_C2_DAILY_ACTOR is not set; a real run would not start"
     fi
-    workflow_note "[dry-run] would check GET /api/order-plan-screening/daily-trigger once before any collection (effective_enabled=false -> daily_trigger_off, exit 0, nothing collected)"
+    workflow_note "[dry-run] would check GET /api/order-plan-screening/daily-trigger once before any collection (effective_enabled=false -> daily_trigger_off, exit 0, nothing collected, no gap check)"
+  fi
+  if (( catch_up_days > 0 )); then
+    select_catch_up_dates dry
+    workflow_note "[dry-run] catch-up: $(( ${#ref_dates[@]} - 1 )) missing day(s) within ${catch_up_days} day(s) before ${ref_dates[${#ref_dates[@]}-1]} run first"
+    if [[ "${opt_track}" == "order-plans" ]]; then
+      workflow_note "[dry-run] a real run would also catch up unjudged days of that window (judged state is not read here)"
+    fi
   fi
   for day in "${ref_dates[@]}"; do
     set_day_context "${day}"
@@ -543,6 +808,7 @@ if [[ "${dry_run}" == "true" ]]; then
     print_decision
     print_dry_run_day
   done
+  gap_check dry
   exit 0
 fi
 
@@ -561,9 +827,17 @@ if [[ "${opt_track}" == "order-plans" ]]; then
   fi
   workflow_note "daily C-2 trigger on: policy ${C2_POLICY_VERSION}"
 fi
+if (( catch_up_days > 0 )); then
+  # After the preflight and, for order-plans, the trigger check: the
+  # unjudged-day selection reads the web.
+  select_catch_up_dates real
+  workflow_note "catch-up: $(( ${#ref_dates[@]} - 1 )) missing or unjudged day(s) within ${catch_up_days} day(s) before ${ref_dates[${#ref_dates[@]}-1]} run first"
+fi
 for day in "${ref_dates[@]}"; do
   run_day "${day}"
+  [[ -z "${track_stopped}" ]] || break
 done
-if [[ "${range_mode}" == "true" ]]; then
+if [[ -z "${track_stopped}" && "${range_mode}" == "true" ]]; then
   workflow_note "daily ${opt_track} track caught up: ${ref_dates[0]}..${ref_dates[${#ref_dates[@]}-1]}"
 fi
+gap_check real

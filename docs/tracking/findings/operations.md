@@ -2,12 +2,13 @@
 
 [전체 색인](../findings.md). 미해결 또는 일부 조치 뒤 검증이 남은 항목이다. 제목의 날짜는 마지막 관측·기록 시점이며 2026-10-21에 다시 재현했다는 뜻이 아니다. 과거 기능명·정책·환경을 현재에 적용하기 전에 소스와 마지막 실행 증거를 확인한다.
 
-## 운영 상태 서비스가 host 재시작 뒤 올라오지 않는다 (2026-11-18, 미해결)
+## 운영 상태 서비스가 host 재시작 뒤 올라오지 않는다 (2026-11-18, 코드 수정·운영 미반영)
 
 - 재현: 운영 `bidops`의 postgres·minio·clamav·document-worker는 compose에 `restart`가 없어 정책이 `no`다. 2026-10-28 Mac/OrbStack 재시작 뒤 이 서비스들은 `Exited`로 남았다. web(`unless-stopped`)만 올라와 `failed to resolve host 'postgres'`로 3주간 1,683회 재시작했다.
 - 영향: 운영 화면·C-2 일일 실행이 사람이 알아차릴 때까지 멈춘다. 경보가 없다.
 - 지금 해결하지 않은 이유: restart 정책은 dev/mock/prod가 공유하는 `docker/docker-compose.yml` 계약 변경이다. 이번 배포 승인 범위(경로 이전·main 배포)를 넘는다.
 - 후속: prod overlay에서 상태 서비스에 `unless-stopped`를 주는 방안과 host 재시작 뒤 감독 확인 절차를 정한다. 그때까지 host 재시작 뒤 `docs/operations/host.md`의 수동 기동 명령을 쓴다. 기록은 [2026-11-18 배포](../../validation-runs/20261118-ops-main-move/README.md)다.
+- 상태(2026-11-18): **코드 수정, 운영 미반영 / 감독 시운전 대기.** 공유 base 파일은 그대로 두고 `docker/docker-compose.prod.yml`에서 postgres·minio·clamav·document-worker에 `restart: unless-stopped`를 줬다. analysis-worker(사람 확인 뒤 기동)와 postgres-init·migrate·minio-init(일회성)은 바꾸지 않았다. `BIDOPS_ENV=prod scripts/compose.sh config`를 저장소 밖 더미 env 파일로 렌더해 서비스별 restart 값만 확인했다(네 서비스 `unless-stopped`, analysis-worker·postgres-init·migrate `no`, dev 렌더는 네 서비스 모두 `no`). 운영 컨테이너는 다시 만들어야 반영되며 재배포·host 재시작 뒤 자동 기동 확인은 아직이다. 그때까지 위 수동 기동이 유효하다.
 
 ## prod `make build`가 bootstrap 대상을 arm64로 빌드해 실패한다 (2026-11-18, 미해결)
 
@@ -118,7 +119,7 @@
 ## 발주계획 회차에 `info` 등급 경고 하나만 있어도 C-2가 영구히 막힌다 (W-2)
 
 - 확인: 2026-09-19 (독립 검증)
-- 상태: 미해결 — 등급별 차단 기준이 사람 결정 대기
+- 상태: **코드 수정, 운영 미반영 / 감독 시운전 대기 (2026-11-18).** 2026-11-18 결정(`info`만 통과, `warning`·`error`는 차단)대로 바꿨다 — 아래 "2026-11-18 수정"
 - 재현 조건: 적재가 그 회차에 `IngestWarning`을 한 줄이라도 남기면
   `screening/services/order_plan_screening.py`의 source run 검사가 **등급을 보지 않고**
   `source_run_incomplete`으로 거부한다. `info`도 `warning`도 `error`와 같게 취급된다. 경고는
@@ -131,11 +132,20 @@
   넣기 시작하면 진짜 부분 적재까지 통과한다.
 - 후속 방향: 차단 등급(예: `error`만)과 그때 화면에 무엇을 보여 줄지를 정한 뒤 검사 조건을 바꾸고,
   통과시킨 경고를 실행 metadata에 남긴다. 그 전에는 회차별로 사람이 경고를 읽고 판단한다.
+- 2026-11-18 수정: source run 검사가 `ingest_warning.level`을 본다. 정확히 `info`인 것만 통과하고 `warning`·
+  `error`·그 밖의 값(대소문자 다른 `INFO`, 빈 문자열 포함)은 `source_run_incomplete`이다. 적재기가 `info`로 남기는
+  code는 `unknown_field`(계약 밖 필드를 무시)·`order_plans_legacy_field`(호환 목록 필드를 읽음) 둘이며 둘 다
+  항목을 버리지 않는다. 항목을 버리는 경고는 `error`(`order_plan_invalid` 등)·`warning`이고, 통과한 `info`가 혹시
+  항목을 떨어뜨려도 뒤의 모집단 대조가 잡는다. 통과시킨 경고는 audit `c2.execution_created`의
+  `safe_metadata.passed_ingest_warnings`(`[{level, code, count}]`)에 남는다. 실행 응답 body에는 넣지 않았다 — C-2
+  wire schema는 field를 더하면 새 version이 필요하다([계약](../../contracts/c2.md)). 화면 표시는 아직 없다.
+  옛 코드에서 새 검사가 실패하는 것을 본 뒤 고쳤고 PostgreSQL 변형까지 돌렸다. 운영 반영·실제 회차 확인은 재배포와
+  감독 시운전 뒤다.
 
 ## 수집 실패일·중단일은 자동으로 따라잡지 않는다 (W-3·W-4)
 
 - 확인: 2026-09-19 (독립 검증)
-- 상태: 미해결 — 설계대로의 한계이며 자동 보정을 넣지 않는다
+- 상태: **코드 수정, 운영 미반영 / 감독 시운전 대기 (2026-11-18).** 누락일 감지와 범위 제한 따라잡기를 넣었다 — 아래 "2026-11-18 수정"
 - 재현 조건: `scripts/run-daily-lifecycle.sh`는 기준일 하루만 돈다(기본값 전일). 수집기가 실패하면
   그 트랙은 exit 비0으로 멈추고, 호스트(WSL)가 꺼져 있어 cron 줄이 아예 돌지 못한 날도 아무 기록이
   남지 않는다. 다음 날 실행은 그 전날을 돌아보지 않는다.
@@ -148,11 +158,20 @@
 - 후속 방향: 알림이 생기면 "어제 회차 디렉터리가 없다"를 그 알림의 첫 항목으로 넣는다. 그 전에는
   운영자가 `data/runs/lifecycle-*`의 날짜 연속성을 눈으로 확인하고 `--from-date/--to-date`로
   따라잡는다.
+- 2026-11-18 수정: `scripts/run-daily-lifecycle.sh`가 그날 몫을 끝낸 뒤 기준일과 그 앞
+  `BIDOPS_DAILY_GAP_LOOKBACK_DAYS`일(기본 7, `0`은 끔)의 완결 회차 디렉터리를 보고, 빠진 날마다
+  `gap_detected track=… date=…`를 찍고 exit 10으로 끝난다(실제 실패 코드와 다르다).
+  `BIDOPS_DAILY_GAP_FLOOR_DATE` 이전은 세지 않는다. `--catch-up-days N`(기본 0, N ≤ lookback)을 주면 기준일 앞
+  N일 중 빠진 날을 오래된 날부터 기존 날짜별 재개 규칙으로 먼저 처리한다. 기본값은 감지만 하고 메우지 않으므로
+  "자동 보정 없음" 원칙은 그대로이며, 따라잡기 범위는 cron 줄에서 사람이 정한다. 회복의 정본은 여전히
+  `--from-date/--to-date`다. 실제 계약을 따르는 가짜 web으로 스크립트 테스트를 더했고 옛 스크립트에서 실패하는
+  것을 먼저 봤다. cron 환경에서의 실제 동작은 감독 시운전 전이다. 알림(Slack 등)은 없다 — exit 10과 로그 줄이
+  신호다.
 
 ## 워커가 죽으면 `대기` 실행이 닫히지 않고 남는다 (W-5, 제품 쪽)
 
 - 확인: 2026-09-19 (독립 검증)
-- 상태: 미해결(제품) — 스크립트 쪽 가시성만 2026-09-19에 붙였다
+- 상태: **코드 수정, 운영 미반영 / 감독 시운전 대기 (2026-11-18).** 제품 쪽 `대기` 회수를 넣었다 — 아래 "2026-11-18 수정"
 - 재현 조건: 분석 워커가 실행을 집어 들기 전에 죽으면 그 실행은 `대기`로 남는다. 제품의 stale 회수는
   `실행 중`·`중지 요청`(`ACTIVE_STATUSES`)만 중단으로 닫고 `대기`는 대상이 아니다. 게다가 회수는
   워커가 다음 작업을 집을 때(`_claim`) 도는 코드라 워커가 아예 없으면 아무것도 회수되지 않는다. 그 회차는 계속
@@ -166,6 +185,24 @@
   워커의 회수 범위는 바꾸지 않았다.
 - 후속 방향: 큐 회수 규칙을 정할 때 `대기`의 최대 체류 시간과 그때의 상태(`중단됨` + 사유)를 함께
   정한다.
+- 2026-11-18 수정: `queued_at`이 `BIDOPS_C2_QUEUED_MAX_DWELL_SECONDS`(기본 14400초, `0`은 끔, 켜면
+  `BIDOPS_C2_WORKER_STALE_SECONDS` 이상)를 넘긴 `대기`를 `중단됨`+`error_code=stale_queued`로 닫는다. 워커 claim과
+  실행 생성 POST 둘 다에서 돌아 워커가 아예 없어도 다음 날 생성 요청이 전날 것을 닫는다. GET은 바꾸지 않는다.
+  진행의 근거는 기존 heartbeat다 — `실행 중`·`중지 요청` 중 heartbeat(없으면 `started_at`)가
+  `BIDOPS_C2_WORKER_STALE_SECONDS` 안인 실행이 있으면 아무것도 닫지 않으므로, 진행 중인 실행 뒤의 정상 대기는
+  남는다. audit은 `c2.execution_stale_queued_closed`(system actor, `reclaimed_by=worker_claim|execution_create`)이고
+  닫힌 실행은 재시작·재시도하지 않는다. migration은 없다(기존 `대기 → 중단됨` 전이). 한계: 다른 분석 작업
+  (개요·심층·제안서)의 진행은 근거로 보지 않아, 그런 작업 하나가 4시간을 넘기면 그 뒤의 C-2 `대기`가 닫힐 수 있다.
+  스크립트는 자기 회차에 `대기`가 있으면 POST하지 않으므로 같은 회차를 다시 돌리는 경로에서는 회수가 돌지 않고
+  기존 "2배 경과면 비0" 규칙이 남는다. 멈춘 `실행 중`은 생성 경로가 닫지 않는다(워커 stale 회수 몫).
+  그래서 같은 날 `run-daily-lifecycle.sh`의 누락일 감지가 발주계획 창의 **판정 없는 날**(완결·비어 있지 않은 회차에
+  `성공`·`부분 성공` 실행이 없음, 방금 처리한 날 포함)을 `unjudged_detected … reason=active:실행 중|last:…|no_execution|
+  not_ingested|multiple_run_rows:<n>`과 exit 10으로 보고한다. 워커가 없거나 `실행 중`이 굳었거나 정상 스킵
+  (`active_execution_exists`·503·`policy_not_active`·`retry_limit_reached`)으로 끝난 날이 더는 exit 0으로 숨지 않는다.
+  web 조회 실패는 실패 코드로 끝난다. `--catch-up-days`는 그 창의 판정 없는 날도 재개한다(`active:*`·
+  `multiple_run_rows:*` 제외). 가짜 web 스크립트 테스트로만 확인했다. 옛 코드에서
+  새 검사가 실패하는 것을 본 뒤 고쳤고 PostgreSQL 변형까지 돌렸다. 워커 없는 실제 스택에서 다음 날 생성이 닫는지는
+  감독 시운전 전이다.
 
 ## model_digest를 바꾸면 generation config도 함께 새로 발행해야 한다
 

@@ -135,6 +135,11 @@ class C2ScreeningWorker:
 
     def _claim(self, session: Session) -> OrderPlanScreeningExecution | None:
         self._recover_stale(session)
+        # 멈춘 실행을 닫은 뒤, 체류 한도를 넘긴 `대기`는 claim하지 않고 닫는다(A-1). 실행
+        # 생성 요청도 같은 규칙을 부르므로 워커가 없을 때도 큐가 굳지 않는다.
+        self.service.reclaim_stale_queued(
+            session, now=self.clock(), reclaimed_by="worker_claim", claimed_name=self.settings.worker_id
+        )
         active = session.scalar(
             select(func.count()).select_from(OrderPlanScreeningExecution).where(
                 OrderPlanScreeningExecution.status.in_(ACTIVE_STATUSES)

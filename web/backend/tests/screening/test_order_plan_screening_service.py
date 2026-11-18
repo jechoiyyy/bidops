@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 import hashlib
 import json
@@ -9,14 +9,15 @@ from typing import Callable
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.config import Settings
 from app.core.db import Base
 from app.core.models import AuditEvent
-from app.lifecycle.models import OrderPlan, OrderPlanObservation, Run
+from app.lifecycle.models import IngestWarning, OrderPlan, OrderPlanObservation, Run
 from app.screening.models import (
     OrderPlanScreeningBatchAttempt,
     OrderPlanScreeningDailyTrigger,
@@ -28,6 +29,7 @@ from app.screening.models import (
 )
 from app.screening.schemas.order_plans import ExecutionCreateRequest, ExecutionStopRequest, FeedbackCreateRequest
 from app.screening.services.order_plan_screening import OrderPlanScreeningError, OrderPlanScreeningService
+from tests.postgres import migrated_engine, requires_postgres
 
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -65,7 +67,10 @@ def _fixture(
     binding_status: str = "approved",
     artifacts: str = "v2",
     edit: Callable[[dict, dict], None] | None = None,
+    engine: Engine | None = None,
 ) -> tuple[Settings, Session, str, str, list[OrderPlan]]:
+    """C-2 실행을 만들 수 있는 회차·policy 한 벌. `engine`을 주면(PostgreSQL 변형)
+    migration이 이미 만든 schema를 쓰고 `create_all`을 하지 않는다."""
     root = tmp_path / "project"
     source_dir = root / "data" / "runs" / "run-c2"
     source_dir.mkdir(parents=True)
@@ -147,8 +152,9 @@ def _fixture(
         c2_bm25_script=(REPO_ROOT / "skills/bidops-screen/scripts/rank_order_plans_bm25.py").resolve(),
         c2_merge_script=(REPO_ROOT / "skills/bidops-screen/scripts/build_order_plan_screening_results.py").resolve(),
     )
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
+    if engine is None:
+        engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+        Base.metadata.create_all(engine)
     session = Session(engine)
     run = Run(id="run-c2", timezone="Asia/Seoul", generated_at=datetime(2026, 9, 2, tzinfo=UTC))
     session.add(run)
@@ -654,3 +660,258 @@ def test_create_rejects_an_unknown_trigger(tmp_path: Path, trigger: str) -> None
         _create(OrderPlanScreeningService(settings), session, policy_version, trigger)
     assert raised.value.code == "invalid_request"
     assert raised.value.status_code == 422
+
+
+# --- 대기 실행 회수 (A-1, findings W-5) -------------------------------------------
+#
+# 워커가 죽었거나 없으면 `대기` 실행은 영영 닫히지 않았다. 최대 체류 시간
+# (`BIDOPS_C2_QUEUED_MAX_DWELL_SECONDS`)을 넘긴 `대기`는 진행 중인 실행이 하나도 없을 때
+# `중단됨`+`stale_queued`로 닫힌다. 워커 claim뿐 아니라 실행 생성 요청에서도 돌므로
+# 워커가 아예 없어도 다음 날 생성 요청이 전날 것을 닫는다. 자동 재시작은 없다.
+
+QUEUE_NOW = datetime(2026, 11, 18, 3, 0, tzinfo=UTC)
+
+
+def _clock(monkeypatch: pytest.MonkeyPatch, value: datetime) -> None:
+    monkeypatch.setattr("app.screening.services.order_plan_screening._now", lambda: value)
+
+
+def _queued_at(
+    monkeypatch: pytest.MonkeyPatch,
+    service: OrderPlanScreeningService,
+    session: Session,
+    policy_version: str,
+    when: datetime,
+) -> UUID:
+    """`when`에 큐에 들어간 실행 하나(생성 시각은 서비스 시계에서 온다)."""
+
+    _clock(monkeypatch, when)
+    response, _ = _create(service, session, policy_version)
+    return UUID(str(response["execution_id"]))
+
+
+def _stale_queued_events(session: Session) -> list[AuditEvent]:
+    return list(session.scalars(
+        select(AuditEvent).where(AuditEvent.action == "c2.execution_stale_queued_closed")
+    ).all())
+
+
+def _assert_closed_as_stale_queued(session: Session, execution_id: UUID, *, reclaimed_by: str) -> None:
+    session.expire_all()
+    execution = session.get(OrderPlanScreeningExecution, execution_id)
+    assert execution is not None
+    assert execution.status == "중단됨"
+    assert execution.error_code == "stale_queued"
+    assert execution.active_slot is None
+    assert execution.started_at is not None and execution.finished_at is not None
+    events = [event for event in _stale_queued_events(session) if event.aggregate_id == str(execution_id)]
+    assert len(events) == 1
+    event = events[0]
+    assert event.actor_kind == "system"
+    assert event.request_id == str(execution.request_id)
+    assert event.safe_metadata["status"] == "중단됨"
+    assert event.safe_metadata["error_code"] == "stale_queued"
+    assert event.safe_metadata["reclaimed_by"] == reclaimed_by
+    assert event.safe_metadata["max_queued_seconds"] == 14400
+
+
+def test_next_create_closes_a_stale_queued_execution_without_any_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    service = OrderPlanScreeningService(settings)
+    stale = _queued_at(monkeypatch, service, session, policy_version, QUEUE_NOW - timedelta(days=1))
+
+    _clock(monkeypatch, QUEUE_NOW)
+    response, _ = _create(service, session, policy_version)
+
+    _assert_closed_as_stale_queued(session, stale, reclaimed_by="execution_create")
+    event = _stale_queued_events(session)[0]
+    assert event.safe_metadata["queued_seconds"] == 86400
+    created = session.get(OrderPlanScreeningExecution, UUID(str(response["execution_id"])))
+    assert created is not None and created.status == "대기"
+    # 닫힌 실행은 다시 큐에 넣지 않는다(자동 재시작 없음): 새 실행은 요청한 것 하나뿐이다.
+    assert session.scalar(select(func.count()).select_from(OrderPlanScreeningExecution)) == 2
+
+
+def test_create_keeps_a_queued_execution_younger_than_the_dwell_limit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    service = OrderPlanScreeningService(settings)
+    recent = _queued_at(monkeypatch, service, session, policy_version, QUEUE_NOW - timedelta(seconds=14399))
+
+    _clock(monkeypatch, QUEUE_NOW)
+    _create(service, session, policy_version)
+
+    execution = session.get(OrderPlanScreeningExecution, recent)
+    assert execution is not None and execution.status == "대기" and execution.error_code is None
+    assert _stale_queued_events(session) == []
+
+
+def test_create_keeps_a_queued_execution_waiting_behind_a_progressing_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    service = OrderPlanScreeningService(settings)
+    running = _queued_at(monkeypatch, service, session, policy_version, QUEUE_NOW - timedelta(hours=6))
+    waiting = _queued_at(monkeypatch, service, session, policy_version, QUEUE_NOW - timedelta(hours=5))
+    execution = session.get(OrderPlanScreeningExecution, running)
+    assert execution is not None
+    execution.status = "실행 중"
+    execution.active_slot = 1
+    execution.started_at = QUEUE_NOW - timedelta(hours=1)
+    execution.heartbeat_at = QUEUE_NOW - timedelta(seconds=60)
+    session.commit()
+
+    _clock(monkeypatch, QUEUE_NOW)
+    with pytest.raises(OrderPlanScreeningError, match="active_execution_exists"):
+        _create(service, session, policy_version)
+
+    session.expire_all()
+    assert session.get(OrderPlanScreeningExecution, waiting).status == "대기"  # type: ignore[union-attr]
+    assert _stale_queued_events(session) == []
+
+
+def test_a_running_execution_without_a_fresh_heartbeat_does_not_protect_the_queue(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    service = OrderPlanScreeningService(settings)
+    running = _queued_at(monkeypatch, service, session, policy_version, QUEUE_NOW - timedelta(hours=6))
+    waiting = _queued_at(monkeypatch, service, session, policy_version, QUEUE_NOW - timedelta(hours=5))
+    execution = session.get(OrderPlanScreeningExecution, running)
+    assert execution is not None
+    execution.status = "실행 중"
+    execution.active_slot = 1
+    execution.started_at = QUEUE_NOW - timedelta(hours=5)
+    execution.heartbeat_at = QUEUE_NOW - timedelta(hours=4)
+    session.commit()
+
+    _clock(monkeypatch, QUEUE_NOW)
+    # 멈춘 `실행 중`은 생성 경로가 닫지 않는다(워커의 stale 회수 몫). 슬롯은 여전히 막혀 있다.
+    with pytest.raises(OrderPlanScreeningError, match="active_execution_exists"):
+        _create(service, session, policy_version)
+
+    _assert_closed_as_stale_queued(session, waiting, reclaimed_by="execution_create")
+    assert session.get(OrderPlanScreeningExecution, running).status == "실행 중"  # type: ignore[union-attr]
+
+
+def test_queued_reclaim_is_disabled_with_zero(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    settings.c2_queued_max_dwell_seconds = 0
+    service = OrderPlanScreeningService(settings)
+    stale = _queued_at(monkeypatch, service, session, policy_version, QUEUE_NOW - timedelta(days=3))
+
+    _clock(monkeypatch, QUEUE_NOW)
+    _create(service, session, policy_version)
+
+    assert session.get(OrderPlanScreeningExecution, stale).status == "대기"  # type: ignore[union-attr]
+    assert _stale_queued_events(session) == []
+
+
+def test_reading_executions_never_closes_a_stale_queued_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    service = OrderPlanScreeningService(settings)
+    stale = _queued_at(monkeypatch, service, session, policy_version, QUEUE_NOW - timedelta(days=1))
+
+    _clock(monkeypatch, QUEUE_NOW)
+    assert service.list_executions(session)["items"][0]["status"] == "대기"
+    assert service.execution_detail(session, stale)["status"] == "대기"
+    assert _stale_queued_events(session) == []
+
+
+def test_queued_dwell_setting_is_validated() -> None:
+    assert Settings(database_url="sqlite://").c2_queued_max_dwell_seconds == 14400
+    assert Settings(database_url="sqlite://", c2_queued_max_dwell_seconds=0).c2_queued_max_dwell_seconds == 0
+    with pytest.raises(ValueError):
+        Settings(database_url="sqlite://", c2_queued_max_dwell_seconds=-1)
+    # 대기의 한도가 실행 중 stale 판정보다 짧으면 진행 중인 실행 뒤의 대기를 먼저 닫게 된다.
+    with pytest.raises(ValueError):
+        Settings(database_url="sqlite://", c2_queued_max_dwell_seconds=600, c2_worker_stale_seconds=900)
+
+
+# --- 적재 경고 등급별 차단 (A-2, findings W-2) ----------------------------------
+#
+# `info`만 통과한다. 통과시킨 경고는 실행 생성 audit(`c2.execution_created`)의
+# `safe_metadata.passed_ingest_warnings`에 남는다. `warning`·`error`와 알 수 없는 등급은
+# 지금처럼 `source_run_incomplete`다.
+
+
+def _warn(session: Session, level: str, code: str, count: int = 1) -> None:
+    for index in range(count):
+        session.add(IngestWarning(run_id="run-c2", level=level, code=code, message=f"{code} {index}", context_json=None))
+    session.commit()
+
+
+def test_info_ingest_warnings_pass_and_are_recorded_on_the_execution(tmp_path: Path) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    _warn(session, "info", "unknown_field", count=2)
+    _warn(session, "info", "order_plans_legacy_field")
+    service = OrderPlanScreeningService(settings)
+
+    response, _ = _create(service, session, policy_version)
+
+    execution_id = UUID(str(response["execution_id"]))
+    assert session.get(OrderPlanScreeningExecution, execution_id).status == "대기"  # type: ignore[union-attr]
+    assert _audit_created(session, execution_id).safe_metadata["passed_ingest_warnings"] == [
+        {"level": "info", "code": "order_plans_legacy_field", "count": 1},
+        {"level": "info", "code": "unknown_field", "count": 2},
+    ]
+
+
+def test_a_clean_run_records_an_empty_passed_warning_list(tmp_path: Path) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    response, _ = _create(OrderPlanScreeningService(settings), session, policy_version)
+    assert _audit_created(session, response["execution_id"]).safe_metadata["passed_ingest_warnings"] == []
+
+
+@pytest.mark.parametrize("level", ["warning", "error", "notice", "INFO", ""])
+def test_any_level_other_than_info_still_blocks(tmp_path: Path, level: str) -> None:
+    settings, session, policy_version, _, _ = _fixture(tmp_path)
+    _warn(session, "info", "unknown_field")
+    _warn(session, level, "order_plans_count_mismatch")
+
+    with pytest.raises(OrderPlanScreeningError) as raised:
+        _create(OrderPlanScreeningService(settings), session, policy_version)
+
+    assert raised.value.code == "source_run_incomplete"
+    assert "order_plans_count_mismatch" in raised.value.message
+    assert "unknown_field" not in raised.value.message
+    assert session.scalar(select(OrderPlanScreeningExecution)) is None
+
+
+# --- PostgreSQL 변형 ----------------------------------------------------------
+
+
+@requires_postgres
+def test_postgres_create_closes_stale_queued_and_passes_info_warnings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with migrated_engine() as engine:
+        settings, session, policy_version, _, _ = _fixture(tmp_path, engine=engine)
+        try:
+            service = OrderPlanScreeningService(settings)
+            stale = _queued_at(monkeypatch, service, session, policy_version, QUEUE_NOW - timedelta(days=1))
+            waiting = _queued_at(monkeypatch, service, session, policy_version, QUEUE_NOW - timedelta(minutes=5))
+            _warn(session, "info", "unknown_field", count=2)
+
+            _clock(monkeypatch, QUEUE_NOW)
+            response, _ = _create(service, session, policy_version)
+
+            # 대기 → 중단됨은 DB 전이 trigger와 lifecycle CHECK가 받는 전이다.
+            _assert_closed_as_stale_queued(session, stale, reclaimed_by="execution_create")
+            assert session.get(OrderPlanScreeningExecution, waiting).status == "대기"  # type: ignore[union-attr]
+            assert _audit_created(session, response["execution_id"]).safe_metadata["passed_ingest_warnings"] == [
+                {"level": "info", "code": "unknown_field", "count": 2},
+            ]
+
+            _warn(session, "warning", "invalid_number")
+            with pytest.raises(OrderPlanScreeningError) as raised:
+                _create(service, session, policy_version)
+            assert raised.value.code == "source_run_incomplete"
+            assert "invalid_number" in raised.value.message
+        finally:
+            session.close()

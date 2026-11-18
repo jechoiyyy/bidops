@@ -116,8 +116,11 @@ scripts/c2-mac-model-preflight.sh        # 별칭 경로·Ollama digest·컨테�
 
   ```bash
   # Mac 발주계획 cron 예시 — 설치되어 있지 않음
-  30 7 * * * cd /Users/temp/orca/bidops && BIDOPS_ENV=prod PATH=/opt/homebrew/opt/coreutils/libexec/gnubin:/Applications/OrbStack.app/Contents/MacOS/xbin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin BIDOPS_ENV=prod BIDOPS_WORKFLOW_WEB_URL=http://127.0.0.1:18788 BIDOPS_C2_DAILY_ACTOR=jechoi flock -n /Users/temp/.local/state/bidops/plans.lock timeout 6h ./scripts/run-daily-lifecycle.sh --track order-plans >> /Users/temp/.local/state/bidops/logs/plans-$(date +\%Y\%m).log 2>&1
+  30 7 * * * cd /Users/temp/orca/bidops && BIDOPS_ENV=prod PATH=/opt/homebrew/opt/coreutils/libexec/gnubin:/Applications/OrbStack.app/Contents/MacOS/xbin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin BIDOPS_ENV=prod BIDOPS_WORKFLOW_WEB_URL=http://127.0.0.1:18788 BIDOPS_DAILY_GAP_FLOOR_DATE=<YYYY-MM-DD> BIDOPS_C2_DAILY_ACTOR=jechoi flock -n /Users/temp/.local/state/bidops/plans.lock timeout 6h ./scripts/run-daily-lifecycle.sh --track order-plans >> /Users/temp/.local/state/bidops/logs/plans-$(date +\%Y\%m).log 2>&1
   ```
+
+  `BIDOPS_DAILY_GAP_FLOOR_DATE`는 cron을 걸기 전 공백 중 따라잡지 않기로 한 기간의 다음 날이다.
+  그 뒤로 빠진 날은 `gap_detected`, 판정 없이 끝난 발주계획 날은 `unjudged_detected`와 exit 10으로 드러난다([daily](daily.md) "누락일 감지").
 
   운영 checkout은 2026-11-18부터 main checkout `/Users/temp/orca/bidops`다. env 파일 4개와
   `data/runs`·`backups`를 옛 `bidops-c2mac`에서 옮겼다
@@ -125,9 +128,13 @@ scripts/c2-mac-model-preflight.sh        # 별칭 경로·Ollama digest·컨테�
 - 앱 이미지는 `BIDOPS_ENV=prod scripts/compose.sh build web`으로 빌드한다. `make build`는
   bootstrap 대상을 arm64로 빌드해 lock hash 검사에서 실패한다(findings). postgres-init·migrate는
   web과 같은 `BIDOPS_IMAGE`를 쓴다. 문서 worker는 `build document-worker`다.
-- postgres·minio·clamav·document-worker는 restart 정책이 `no`다. Mac·OrbStack 재시작 뒤에는
+- postgres·minio·clamav·document-worker는 운영 컨테이너의 restart 정책이 `no`다. Mac·OrbStack 재시작 뒤에는
   `up -d --no-deps --no-build --scale document-worker=2 postgres minio clamav web document-worker`로
-  다시 올리고, C-2를 돌릴 때는 analysis-worker도 사람 확인 후 올린다.
+  다시 올리고, C-2를 돌릴 때는 analysis-worker도 사람 확인 후 올린다. 2026-11-18 코드 수정으로
+  `docker/docker-compose.prod.yml`이 이 네 서비스에 `restart: unless-stopped`를 준다(dev·mock은 그대로,
+  analysis-worker·init·migrate는 정책 없음). 컨테이너를 다시 만들어야 반영되므로 재배포 전까지는 위 수동
+  기동이 그대로 필요하고, 반영 뒤에도 host 재시작 다음에는 `scripts/compose.sh ps`로 상태 서비스가
+  올라왔는지 사람이 확인한다.
 - `alembic check`를 운영 형태의 postgres(server `search_path=bidops,public`)에 돌리면 모든 테이블이
   없는 것으로 보고된다. `PGOPTIONS='-c search_path=public'`을 주고 실행한다.
 
