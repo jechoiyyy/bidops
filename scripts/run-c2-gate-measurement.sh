@@ -61,6 +61,10 @@ Environment:
   BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS   default 7200 (shared with the daily
                                          scripts' polling).
   BIDOPS_C2_DAILY_POLL_INTERVAL_SECONDS  default 30.
+  BIDOPS_C2_DAILY_POLL_MAX_READ_FAILURES default 10; consecutive transient poll
+                                         read failures (no answer, 5xx, 408,
+                                         429) tolerated, "c2: poll read failed
+                                         (n/N)"; 0 fails on the first one.
 
 Exit 0 only when every run id in the pass reaches 성공. Anything else,
 including a bad --gate-id/--pass/--attempt, a missing actor, a gate that is
