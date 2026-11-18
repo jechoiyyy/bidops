@@ -1,0 +1,85 @@
+{
+  "schema_version": "bidops.collection-provenance.v1",
+  "generated_at": "2026-11-18T09:11:38.165568+00:00",
+  "source_raw": null,
+  "source_window": {
+    "from": "2026-11-01",
+    "to": "2026-11-04",
+    "timezone": "Asia/Seoul"
+  },
+  "options": {
+    "rows": 500,
+    "timeout": 300,
+    "skip_bids": false,
+    "skip_prespecs": false,
+    "tag_bid_sw_industry": true
+  },
+  "sources": [
+    {
+      "source": "bid",
+      "endpoint": "https://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoServc"
+    },
+    {
+      "source": "prespec",
+      "endpoint": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch"
+    },
+    {
+      "source": "industry1468",
+      "endpoint": "https://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoServcPPSSrch"
+    }
+  ],
+  "complete": true,
+  "warnings": [],
+  "raw_pages": [
+    {
+      "path": "raw/bid-page-001.json",
+      "source_path": null,
+      "sha256": "95b1425319378b0ebbff3eac473d51927363c480bb1b8ec44419f6a6b4f50a6d"
+    },
+    {
+      "path": "raw/bid-page-002.json",
+      "source_path": null,
+      "sha256": "17dcfb3ff981115c5b2ae0d1fb1426715d1ec88a1782d2f00e91b8ffff3ec86b"
+    },
+    {
+      "path": "raw/bid-page-003.json",
+      "source_path": null,
+      "sha256": "2b4b3b4db9cebe2fa202901386f716259c542adc14623a0250d84c925b56851d"
+    },
+    {
+      "path": "raw/bid-page-004.json",
+      "source_path": null,
+      "sha256": "f9d669d5e9c694894eee9b000e29216435eb432d0f3e2ab9c3e1f4c3be237881"
+    },
+    {
+      "path": "raw/bid-page-005.json",
+      "source_path": null,
+      "sha256": "29907feb9ea7d439e3e20b4ebc1104488e94441a406a9d2444e08866d1549638"
+    },
+    {
+      "path": "raw/bid-page-006.json",
+      "source_path": null,
+      "sha256": "884470275fdaf512b63443aaa0858dfb4a33b8bf2335067a2fdde63eb94d47fe"
+    },
+    {
+      "path": "raw/industry1468-page-001.json",
+      "source_path": null,
+      "sha256": "059beb662f30a6e29ed5735ac2002a35ff849899cce5ca84519dfaa71992a9f3"
+    },
+    {
+      "path": "raw/prespec-page-001.json",
+      "source_path": null,
+      "sha256": "eacb1d0a70c4428d1653955b6cb9a8292066fb58a4da19fc22d0761c42065cfc"
+    },
+    {
+      "path": "raw/prespec-page-002.json",
+      "source_path": null,
+      "sha256": "ad3e2e046a69952074c487887b93b2ada0f2b2ad26f264a2f28e575f97854c04"
+    },
+    {
+      "path": "raw/prespec-page-003.json",
+      "source_path": null,
+      "sha256": "308b8382b6ff547bad512041cc34deee0fe2af8de48fe21944413318e5958815"
+    }
+  ]
+}

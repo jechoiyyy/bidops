@@ -1,0 +1,70 @@
+{
+  "schema_version": "bidops.collection-provenance.v1",
+  "generated_at": "2026-11-18T09:16:22.575539+00:00",
+  "source_raw": null,
+  "source_window": {
+    "from": "2026-11-06",
+    "to": "2026-11-09",
+    "timezone": "Asia/Seoul"
+  },
+  "options": {
+    "rows": 500,
+    "timeout": 300,
+    "skip_bids": false,
+    "skip_prespecs": false,
+    "tag_bid_sw_industry": true
+  },
+  "sources": [
+    {
+      "source": "bid",
+      "endpoint": "https://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoServc"
+    },
+    {
+      "source": "prespec",
+      "endpoint": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch"
+    },
+    {
+      "source": "industry1468",
+      "endpoint": "https://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoServcPPSSrch"
+    }
+  ],
+  "complete": true,
+  "warnings": [],
+  "raw_pages": [
+    {
+      "path": "raw/bid-page-001.json",
+      "source_path": null,
+      "sha256": "4b14e0c3d119a296eabe7a2b6570b298f082e7b4fd35606c25d95bf4a5d63dc7"
+    },
+    {
+      "path": "raw/bid-page-002.json",
+      "source_path": null,
+      "sha256": "cea199aa521c073a53350bf2fe32e1c6cd76f4fdfb9a2920511ebe481649c785"
+    },
+    {
+      "path": "raw/bid-page-003.json",
+      "source_path": null,
+      "sha256": "5ed4225c3bf743bd581724629153fb167f3d9588aac15d40a8a96c7206661bbb"
+    },
+    {
+      "path": "raw/bid-page-004.json",
+      "source_path": null,
+      "sha256": "71bac9da6e8b5a2d9fe82aba991942d9c82d992cb48ee9d223c1a6661fe51e6b"
+    },
+    {
+      "path": "raw/industry1468-page-001.json",
+      "source_path": null,
+      "sha256": "32d9a7a87263c6ecd50bafea84cc4a2f5b764ff2c516c18e262238489a625105"
+    },
+    {
+      "path": "raw/prespec-page-001.json",
+      "source_path": null,
+      "sha256": "953a9855da795a7a995e4144b0737ecc73fa9353e6b38eae1b4ed399009403c3"
+    },
+    {
+      "path": "raw/prespec-page-002.json",
+      "source_path": null,
+      "sha256": "eb4c29617e66021f7e91538d5e73b481762d8825cfc3d19b4d535036ab7a528f"
+    }
+  ]
+}

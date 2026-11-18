@@ -1,0 +1,75 @@
+{
+  "schema_version": "bidops.collection-provenance.v1",
+  "generated_at": "2026-11-18T09:23:12.759111+00:00",
+  "source_raw": null,
+  "source_window": {
+    "from": "2026-11-14",
+    "to": "2026-11-17",
+    "timezone": "Asia/Seoul"
+  },
+  "options": {
+    "rows": 500,
+    "timeout": 300,
+    "skip_bids": false,
+    "skip_prespecs": false,
+    "tag_bid_sw_industry": true
+  },
+  "sources": [
+    {
+      "source": "bid",
+      "endpoint": "https://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoServc"
+    },
+    {
+      "source": "prespec",
+      "endpoint": "https://apis.data.go.kr/1230000/ao/HrcspSsstndrdInfoService/getPublicPrcureThngInfoServcPPSSrch"
+    },
+    {
+      "source": "industry1468",
+      "endpoint": "https://apis.data.go.kr/1230000/ad/BidPublicInfoService/getBidPblancListInfoServcPPSSrch"
+    }
+  ],
+  "complete": true,
+  "warnings": [],
+  "raw_pages": [
+    {
+      "path": "raw/bid-page-001.json",
+      "source_path": null,
+      "sha256": "db9bed2a4f5b83f5dfd7a068390afb1b1bb69a70e9746f4c77489eded9120300"
+    },
+    {
+      "path": "raw/bid-page-002.json",
+      "source_path": null,
+      "sha256": "d125134ebc78705849d965217b9773236a701d0c7d9ed81678c446098a57ded1"
+    },
+    {
+      "path": "raw/bid-page-003.json",
+      "source_path": null,
+      "sha256": "9c085fced0e5a67974b3d67558a32c062179aa32ba7646c156d761538ce6c422"
+    },
+    {
+      "path": "raw/bid-page-004.json",
+      "source_path": null,
+      "sha256": "db2dd15ebe2d7c97cacbb4dd0985bb0c4693a277c26aa1331d51188408f886fa"
+    },
+    {
+      "path": "raw/bid-page-005.json",
+      "source_path": null,
+      "sha256": "1805f04d236c9577a8e625598f8a3c3127170f30a918a7f6c1eadf08e1eb5e5e"
+    },
+    {
+      "path": "raw/industry1468-page-001.json",
+      "source_path": null,
+      "sha256": "acda7532c3f7ebb910ec005c12ceed6975cba8e11f19ef153541c65676229c57"
+    },
+    {
+      "path": "raw/prespec-page-001.json",
+      "source_path": null,
+      "sha256": "43dbfc42a699852fd371b1712ee4f99d8c4c8d3341768a8c470a06e681e96a47"
+    },
+    {
+      "path": "raw/prespec-page-002.json",
+      "source_path": null,
+      "sha256": "778b101bded30a5d920e9bdbb3a3f2676f2f6192859b522da36d4fbf403d9635"
+    }
+  ]
+}
