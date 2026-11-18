@@ -8,8 +8,10 @@ import {
   budgetValue,
   formatKstDateShort,
   hasNoModelJudgment,
+  currentKstMonth,
   humanFeedbackBadgeLabel,
   NO_MODEL_JUDGMENT_LABEL,
+  orderPlanStaleReason,
   plannedTiming,
   qwenBadgeVariant,
   qwenRowLabel,
@@ -67,6 +69,7 @@ export function OrderPlanListRow({
 }) {
   // 1차 선별의 기본값 둘(`선정`·`제외`)은 그리지 않는다(0921 명세 §3.1). 남는 것은
   // 실패·거부·값 없음뿐이며, 실패한 사실과 값이 없는 사실은 서로 다른 문구로 보인다.
+  const staleReason = orderPlanStaleReason(item, currentKstMonth(Date.now()));
   const stage1Label = stage1BadgeLabel(item.stage1_status);
   const stage1Badge = stage1Label
     ? <Badge variant={stage1BadgeVariant(item.stage1_status)} label={stage1Label} />
@@ -118,6 +121,9 @@ export function OrderPlanListRow({
                 중립으로 둔다 — 보류·종료가 실패로, 계속 추적이 성공으로 읽히면 안 된다.
                 **판단 근거 한 줄은 행에 싣지 않는다**(M5 승인 — 근거는 상세에서만). */}
             <Badge className="c2l-row-tracking" variant="neutral" label={trackingChipLabel(item)} />
+            {/* 예정월이 지났거나 공고가 이미 게시된 건(검토 순서에서 뒤로 간다). 사실 표식일 뿐 제외·추적
+                상태를 바꾸지 않으므로 중립 칩 하나만 둔다(2026-11-18). */}
+            {staleReason ? <Badge className="c2l-row-stale" variant="neutral" label={staleReason} /> : null}
             {/* 그릴 배지가 하나도 없으면 줄 자체를 만들지 않는다 — 빈 묶음이 행마다 다른
                 높이를 만들면 밀집 목록이 흔들린다. */}
             {stage1Badge || feedbackBadge ? (

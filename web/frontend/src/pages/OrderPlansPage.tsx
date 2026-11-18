@@ -64,6 +64,8 @@ import {
   TRACKING_REASONS,
   formatMoment,
   NO_MODEL_JUDGMENT_LABEL,
+  currentKstMonth,
+  sortForReview,
   textOrUnknown,
   trackingAvailability,
 } from "../components/order-plans/orderPlanFormat";
@@ -937,7 +939,12 @@ export function OrderPlansPage() {
   }, [listQuery.data]);
   // 필터 결과 전체를 먼저 relevance 우선순위로 정렬한 뒤 잘라야 페이지와 ↑↓ 이동이
   // 같은 검토 순서를 공유한다. null은 값 없음으로만 다루고 다른 상태로 보정하지 않는다.
-  const filteredItems = sortByRelevance(allItems.filter((item) => matchesFilters(item) || item.order_plan_pk === retainedPk));
+  // `관련`·`불확실` 보기는 검토 순서(예정월이 가까운 건 → 최근 첫 수집, 예정월 지남·공고 게시됨은 뒤)로
+  // 줄 세운다. 목록은 범위 전체를 받아 브라우저가 자르므로(`fetchAllOrderPlans`) 서버 계약을 바꾸지 않는다.
+  // 다른 보기는 지금처럼 모델 판단 순서와 서버 순서다.
+  const reviewMonth = useMemo(() => currentKstMonth(Date.now()), []);
+  const matched = sortByRelevance(allItems.filter((item) => matchesFilters(item) || item.order_plan_pk === retainedPk));
+  const filteredItems = activePreset === "relevant" || activePreset === "uncertain" ? sortForReview(matched, reviewMonth) : matched;
   const total = filteredItems.length;
   const visibleItems = filteredItems.slice(offset, offset + PAGE_SIZE);
 
