@@ -413,9 +413,9 @@ C-2는 기존 공고의 적합성·참여 준비 판정과 별도의 relevance �
 - 현재 정책은 전체 제목을 NFKC·casefold·공백 축약 후 BM25로 계산하고 score 내림차순,
   `order_plan_unty_no` 오름차순으로 tie-break한다. 상위 `top_k`건은 `selected`, 나머지는
   `filtered_out`이며 탈락을 `not_relevant`라고 기록하지 않는다. `top_k`는 실행이 동결한 policy
-  `stage1.top_k`이고 허용 값은 300(v1~v5, 현재 active v5)과 150(v6,
-  [ADR-0075](tracking/decisions/0075-c2-stage1-top150.md)) 둘뿐이다. v6는 발행만 했고 적재·게이트
-  측정·활성화 전이다. 모집단이 `top_k` 이하이면 전부 `selected`다. 탈락 감사 표본은 policy에
+  `stage1.top_k`이고 허용 값은 300(v1~v5)과 150(현재 active v6,
+  [ADR-0075](tracking/decisions/0075-c2-stage1-top150.md)) 둘뿐이다. v6는 2026-11-19 게이트를 통과해
+  활성화됐다. 모집단이 `top_k` 이하이면 전부 `selected`다. 탈락 감사 표본은 policy에
   승인된 값으로만 돌며 근접 순위 창은 `top_k` 바로 뒤(v5 301~325위, v6 151~175위)다.
 - Qwen은 `selected`(상위 `top_k`)만 25건의 rank-contiguous batch로 순차 전송한다. 승인된 사설 모델 경로,
   정확한 model/prompt/profile/BM25 digest와 허용 payload를 모두 일치시켜야 하며 hosted

@@ -491,8 +491,8 @@ scripts/compose.sh exec web \
 
 #### v5 active에서 v6로 교체 (ADR-0075)
 
-2026-11-18 발행한 v6(`c2-order-plan-screening-v6`, 1단계 상위 150건)는 **발행만 했다** — 운영 DB 적재·
-게이트 측정·활성화 전이고 active는 v5다. 아래는 코드(`services/order_plan_policy.py` `mounted_files`,
+2026-11-18 발행한 v6(`c2-order-plan-screening-v6`, 1단계 상위 150건)는 **2026-11-19 아래 순서로 적재·측정·활성화했다**
+([기록](../validation-runs/20261119-c2-top150/README.md), 9단계 첫 일일 실행 확인만 남았다). active는 v6, v5는 retired다. 아래는 코드(`services/order_plan_policy.py` `mounted_files`,
 `services/order_plan_screening.py` `_policy_binding`, `order_plan_daily_trigger.py` `effective_state`)에서 확인한
 순서이며 테스트 `test_v6_candidate_is_loaded_measured_and_activated_while_v5_keeps_running`이 같은 흐름을
 설정 변경 없이 돈다. 단계마다 직전에 사람 확인을 받는다(수정안 §6).

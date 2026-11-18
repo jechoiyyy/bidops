@@ -1,0 +1,43 @@
+{
+  "agreement_pct": 100.0,
+  "artifact_sha256": "739767c4a01e5a0f33193a67fe89f579f43b95578ea5eeaca399497a49cf1272",
+  "consumer": "quality-gate-api",
+  "pass_execution_ids": {
+    "pass_1": [
+      "97c4ef64-3591-443f-b51e-22716dff831a",
+      "84a32270-93cd-4484-af21-09072685b9a3",
+      "ac684c8c-480b-4fac-a061-0d5780eb81c2",
+      "3b1f31f6-8e81-4349-a332-ef97215f5af6"
+    ],
+    "pass_2": [
+      "809a95f8-4484-44c4-9ee0-b864f91ff221",
+      "4a096c99-b32b-41bd-a3d7-b31d11cb15eb",
+      "fee21e07-aa8a-43a2-ab67-0852298ef499",
+      "552e8447-8c0b-46a9-8779-a5ec1144ed51"
+    ]
+  },
+  "pass_metrics": {
+    "pass_1": {
+      "important_missed": 0,
+      "precision_pct": 45.614,
+      "recall_pct": 96.2963,
+      "review_load": 59
+    },
+    "pass_2": {
+      "important_missed": 0,
+      "precision_pct": 45.614,
+      "recall_pct": 96.2963,
+      "review_load": 59
+    }
+  },
+  "producer": "human-review-client",
+  "reasons": [],
+  "reference_full_window": {
+    "important_missed": 0,
+    "precision_pct": 45.614,
+    "recall_pct": 96.2963,
+    "review_load": 114
+  },
+  "request_id": "9f126339-85e1-5985-a563-0bf2c64d844f",
+  "schema_version": "order-plan-quality-evaluation-create-request.v1"
+}

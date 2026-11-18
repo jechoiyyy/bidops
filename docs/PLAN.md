@@ -12,7 +12,7 @@
 | RL-03 | 카드 추출·회사 대조·역할 판단·종합·화면 구현. import 기본 정책 v11 | [실제 실행](validation-runs/2026-10-17-rl/RL-03/README.md), `app/core/config.py` |
 | RL-04 | 제안서 6절·수정·검토·PDF 구현. 실제 1건은 partial(4/6절 완료) | [초안 실행](validation-runs/2026-10-17-rl/RL-04/README.md) |
 | RL-05 | 평가·사람 결정 완료, 인수 reject | [인수 결과](validation-runs/2026-10-19-rl/RL-05/README.md): 판정 일치 3/10, 차단 조건 recall 0/7 |
-| 운영 배포 | 11월 18일 main c801a69·0042·이미지 main-20261118d, C-2 v5 일일 ON, analysis-worker 기동, RL 분석·개요 false, cron 미설치 | [운영 기록](validation-runs/20261118-launch-hardening-deploy/README.md). 운영은 Mac 전용 |
+| 운영 배포 | 11월 19일 main cfc5942·0042·이미지 main-20261119, C-2 v6(상위 150건) 게이트 통과·active·일일 ON, analysis-worker 기동, RL 분석·개요 false, cron 미설치 | [C-2 Top150 기록](validation-runs/20261119-c2-top150/README.md), [앞 단계 운영 기록](validation-runs/20261118-launch-hardening-deploy/README.md). 운영은 Mac 전용 |
 
 기존 C-2 Phase 0~5의 완료된 구현 계획·과거 실패 기준선은 git 이력에서 찾는다. C-2 계약과 결정은 [contracts](contracts.md), [ADR-0037](tracking/decisions/0037-order-plan-c2-bm25-top300-qwen.md), [ADR-0060](tracking/decisions/0060-c2-policy-db-row-authority.md), [ADR-0061](tracking/decisions/0061-daily-collection-window.md)에 유지한다. 기존의 P5-0 회귀 수정·gold 승인 대기를 현재 착수점으로 반복하지 않는다.
 
