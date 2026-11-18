@@ -110,7 +110,7 @@ test("완료 판정은 좌측에 판정 이름·사유·체크리스트 5행·�
   await expect(summary.getByRole("heading", { name: "조건부 진행" })).toBeVisible();
   await expect(summary.getByRole("heading", { name: "조건부 진행" })).toHaveClass(/is-warning/);
   const weight = await summary.getByRole("heading", { name: "조건부 진행" }).evaluate((node) => getComputedStyle(node).fontWeight);
-  expect(Number(weight)).toBe(700);
+  expect(Number(weight)).toBe(600);
 
   // 사유는 두 문장으로 자르지 않고 그대로다. 길면 접고 "더 보기"로 편다.
   const reason = page.locator("#vd-verdict-reason");
