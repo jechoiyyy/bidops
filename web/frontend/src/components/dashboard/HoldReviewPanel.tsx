@@ -44,7 +44,7 @@ export function HoldReviewPanel({ data, isPending, isError, onRetry, overdueNote
   }
   return <DashboardPanel title="보류 재검토" caption="보류는 선택 후 14일이 지나면 다시 검토합니다." className="dash-hold-panel"
     action={<Small>{overdueNote}</Small>}
-    footer={<><Small>{summary}</Small><LinkButton label="사업 추적에서 모두 보기" to={HOLD_REVIEW_LIST_PATH} icon={<ArrowRight aria-hidden="true" />} /></>}>
+    footer={<><Small>{summary}</Small><LinkButton label="사업기회에서 모두 보기" to={HOLD_REVIEW_LIST_PATH} icon={<ArrowRight aria-hidden="true" />} /></>}>
     {body}
   </DashboardPanel>;
 }

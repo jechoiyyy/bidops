@@ -63,6 +63,12 @@ C-1 `candidate_selection`의 기존 `collect-candidate.v2 / candidate_pool_all /
 - 새 API와 Lean API 응답은 내부 filesystem path, 객체 저장소 key의 자격증명, prompt, 모델 원응답, 회사 프로필 전문을 포함하지 않는다. `AttachmentResponse`에도 서버 내부 `stored_path`를 포함하지 않는다.
 - Lean mutation과 actor·감사 경계에 편입된 legacy mutation은 `X-BidOps-Actor-Name`을 요구한다. 대상은 문서·심층 검토·리포트·사업기회·첨부·기관 포털·정책 mutation이다. 이 값은 감사 표식이지 인증 정보가 아니다. 비ASCII 이름은 `X-BidOps-Actor-Name-Format: utf-8-percent-v1`과 canonical UTF-8 percent encoding을 함께 사용한다. 형식이 없으면 printable ASCII를 그대로 보존하며 malformed·제어문자 입력은 `actor_name_invalid`로 거부한다.
 
+### 기능 스위치 `GET /api/feature-flags` (2026-11-18)
+
+- core가 소유하며 `BIDOPS_MODULES`와 무관하게 항상 있다(`/api/demo-config`와 같은 자리). 읽기 전용이고 다른 method는 405다. seed·migration·enqueue를 하지 않는다.
+- 응답: `{"schema_version":"feature-flags.v1","rl_analysis":bool,"prespec_overview":bool}`. `rl_analysis`=`BIDOPS_RL_ANALYSIS_ENABLED`, `prespec_overview`=`BIDOPS_PRESPEC_OVERVIEW_ENABLED`. 값은 참·거짓뿐이며 비밀값·host·모델 이름·정책 경로를 싣지 않는다.
+- 소비자(관리 화면)는 `false`인 기능을 요청 전에 "이 환경에서 꺼져 있음"으로 보이고 요청 control을 막는다(설계고도화안 C-4). `true`는 그 기능의 다른 전제(실회사 등록·정책 행·전송 승인)가 갖춰졌다는 뜻이 아니며 각 API는 지금처럼 fail closed한다. 조회에 실패하면 화면은 켜져 있다고 가정하지 않고 기존 오류 경로를 그대로 쓴다.
+
 ### 목록 검색 `q`
 
 발주계획·사전규격·사업 추적의 raw `q`는 URL/API에서 보존한다. 비교 시 Unicode White_Space 25자(`U+0009`–`000D`, `0020`, `0085`, `00A0`, `1680`, `2000`–`200A`, `2028`, `2029`, `202F`, `205F`, `3000`)와 `U+FEFF`를 제거하고 ASCII `A`–`Z`만 소문자로 바꾼다. 각 필드의 연속 부분 문자열을 독립적으로 비교한다. `%`, `_`, 역슬래시는 literal이며 공백/BOM만 있는 `q`는 검색 해제다. 서버 검색은 다른 필터와 AND이고 `total`·집계·페이지 분할 전에 적용한다.

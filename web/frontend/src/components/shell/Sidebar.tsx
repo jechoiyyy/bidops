@@ -2,49 +2,53 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import { api } from "../../lib/api";
 import { companyContextQueryKey, getCompanyContext } from "../../lib/companyApi";
+import { orderPlanViewTotalQuery, preSpecDefaultViewTotalQuery } from "../../lib/defaultViewCounts";
 import type { WorkloadKey } from "../../lib/types";
 import { runSearchFor } from "./route-meta";
 
 /**
  * RL 사이드바 — docs/1016_rootlab-redefinition/ui-spec.md §1.2 (시안 v26, mockups/v26).
  *
- * 위에서 아래로: 워크스페이스 → 검색(⌘K) → 빠른 이동(알림·다음 행동·노트·보고서)
- * → 레코드(공고·사업기회·기관·회사 근거) → 리스트(오늘의 브리핑·추적 중·연차
- * 예고·마감 임박·새 리스트) → 하단(팀원 초대·도움말·설정·사용자).
+ * 2026-11-18 개정(설계고도화안 A-7·C-1·C-2, ui-spec §1.2 날짜 메모): 시안의 묶음과 모양은 그대로
+ * 두되 **항목 이름 = 여는 화면의 제목**이다. 화면이 없는 자리표시(노트·보고서·기관·새 리스트·
+ * 팀원 초대·도움말·검색)는 그리지 않는다. 최종 Go/No-Go와 실행 상태에 고정 항목을 둔다.
  *
- * 아직 화면이 없는 항목(노트·보고서·기관·새 리스트·팀원 초대·도움말)은 자리만
- * 두고 `aria-disabled`로 비활성이다. 스스로 "준비 중" 화면을 만들지 않는다.
- * 건수는 `GET /api/workload`의 값만 쓰고(ADR-0067) 없으면 그리지 않는다.
+ * - 빠른 이동: 대시보드
+ * - 레코드: 발주계획 · 사전규격 · 사업기회 · 최종 Go/No-Go · 회사 근거
+ * - 리스트(사업기회·브리핑의 이름 붙은 보기): 오늘의 브리핑 · 추적 중 · 마감 임박
+ * - 하단: 실행 상태 · 판정 기준
+ *
+ * 건수는 **도착 화면의 기본 보기가 보이는 건수**만 그린다(목록 API `total` 또는 같은 정의의
+ * `GET /api/workload` 키). 그런 값이 없는 항목은 건수를 그리지 않는다.
+ * 활성 항목은 주소 하나당 정확히 하나다(`resolveActiveItemId`).
  */
 type IconName =
-  | "search"
-  | "bell"
-  | "task"
-  | "note"
-  | "chart"
+  | "home"
+  | "plan"
   | "doc"
   | "opp"
-  | "org"
+  | "decision"
   | "shield"
-  | "plus"
-  | "users"
-  | "help"
+  | "activity"
   | "gear"
   | "external";
 
+/** 건수 출처. workload 키이거나 목록 기본 보기의 total이다. */
+type CountSource = { kind: "workload"; key: WorkloadKey } | { kind: "order-plan-default" } | { kind: "pre-spec-default" };
+
 interface NavItem {
+  id: string;
   label: string;
-  /** 이동할 주소. `null`이면 화면이 아직 없는 비활성 항목이다. */
-  path: string | null;
+  /** 이동할 주소(검색어 포함 가능). */
+  path: string;
   icon?: IconName;
   /** 리스트 항목의 색 점. 상태를 색 점만으로 말하지 않으며 식별용이다. */
   dot?: "accent" | "teal" | "warning" | "error";
-  /** 활성 판단에 쓰는 `navPath`. 없으면 `path`의 pathname이다. */
+  /** 화면 metadata의 `navPath`와 맞추는 값. 없으면 `path`의 pathname이다. */
   navPath?: string;
-  /** 이 항목이 흡수한 옛 경로. 그 주소에서도 이 항목이 활성으로 보인다. */
+  /** metadata가 없는 주소에서 이 항목이 활성이 되는 옛 경로. */
   absorbs?: string[];
-  /** `GET /api/workload`에서 읽는 건수 키. */
-  count?: WorkloadKey;
+  count?: CountSource;
 }
 
 interface NavGroup {
@@ -56,73 +60,62 @@ const groups: NavGroup[] = [
   {
     label: null,
     items: [
-      // 알림은 대시보드가 누적 업무 집계를 맡고 있으므로 그 화면으로 간다.
-      { label: "알림", path: "/", icon: "bell", count: "human_check_required" },
-      { label: "다음 행동", path: "/opportunities?section=조치 필요", icon: "task", navPath: "/opportunities?section=조치 필요", count: "tracking_action_required" },
-      { label: "노트", path: null, icon: "note" },
-      { label: "보고서", path: null, icon: "chart" },
+      // 대시보드는 목록이 아니라 여러 업무의 요약이므로 건수를 그리지 않는다.
+      { id: "dashboard", label: "대시보드", path: "/", icon: "home" },
     ],
   },
   {
     label: "레코드",
     items: [
-      // 공고 오브젝트. 사전규격 목록이 현재 정본이고 발주계획·심층 보고서·판정 이력을 흡수한다.
-      { label: "공고", path: "/pre-specs", icon: "doc", absorbs: ["/deep-reviews", "/assumption-analyses", "/queue", "/judgments", "/reviews", "/deadlines"] },
-      // 사업기회 오브젝트의 전체 보기. 리스트 `추적 중`과 같은 화면이라 활성은 리스트 쪽이 받는다.
-      { label: "사업기회", path: "/opportunities?section=전체", icon: "opp", navPath: "/opportunities?section=전체", absorbs: ["/go-no-go"] },
-      { label: "기관", path: null, icon: "org" },
-      // 회사 근거(RL-00)는 읽기 전용 `/company`다. `/profile`은 설정 아래 판정 기준 화면으로 남는다.
-      { label: "회사 근거", path: "/company", icon: "shield", absorbs: ["/companies"], count: "company_attention" },
+      // 건수 = 발주계획 기본 보기 `관련`(모델 판단 관련 AND 추적 미선택)의 건수.
+      { id: "order-plans", label: "발주계획", path: "/order-plans", icon: "plan", count: { kind: "order-plan-default" } },
+      // 건수 = 사전규격 기본 보기 `검토할 항목`(마감 전·미확인, SW사업대상)의 건수.
+      { id: "pre-specs", label: "사전규격", path: "/pre-specs", icon: "doc", absorbs: ["/deep-reviews", "/assumption-analyses"], count: { kind: "pre-spec-default" } },
+      // 건수 = 사업기회 기본 구역 `조치 필요`(workload `tracking_action_required`가 같은 식으로 센다).
+      { id: "opportunities", label: "사업기회", path: "/opportunities", icon: "opp", absorbs: ["/queue", "/judgments", "/reviews", "/deadlines"], count: { kind: "workload", key: "tracking_action_required" } },
+      // 기본 보기 `검토 대상`은 목록 전체를 받아야 셀 수 있어 사이드바에서는 그리지 않는다.
+      { id: "go-no-go", label: "최종 Go/No-Go", path: "/go-no-go", icon: "decision" },
+      // 회사 근거(RL-00)는 읽기 전용 `/company`다. 건수는 기본 묶음 `확인 필요`의 건수다.
+      { id: "company", label: "회사 근거", path: "/company", icon: "shield", absorbs: ["/companies"], count: { kind: "workload", key: "company_attention" } },
     ],
   },
   {
     label: "리스트",
     items: [
-      // 건수는 가장 최근 브리핑의 반응 대기 추천 수다(`briefing_pending`, RL-01). 브리핑이 없으면 그리지 않는다.
-      { label: "오늘의 브리핑", path: "/briefing", dot: "accent", count: "briefing_pending" },
-      { label: "추적 중", path: "/opportunities?section=추적 중", dot: "teal", navPath: "/opportunities?section=추적 중" },
-      // 연차 예고는 발주계획에서 나온다. 발주계획 목록이 현재 그 리스트다.
-      { label: "연차 예고", path: "/order-plans", dot: "warning", count: "order_plan_new_priority" },
-      { label: "마감 임박", path: "/opportunities?section=전체&deadline_within_days=7&sort=deadline", dot: "error", navPath: "/opportunities?deadline", count: "tracking_deadline_imminent" },
-      { label: "새 리스트", path: null, icon: "plus" },
+      // 건수는 가장 최근 브리핑의 반응 대기 추천 수다(`briefing_pending`) — 기본 탭 `반응 대기`.
+      { id: "briefing", label: "오늘의 브리핑", path: "/briefing", dot: "accent", count: { kind: "workload", key: "briefing_pending" } },
+      // 사업기회의 `추적 중` 구역. 이름은 그 보기 탭의 이름이다.
+      { id: "tracking", label: "추적 중", path: "/opportunities?section=추적 중", navPath: "/opportunities?section=추적 중", dot: "teal" },
+      // 사업기회의 7일 이내 마감 보기. 건수는 같은 조건의 workload `tracking_deadline_imminent`.
+      { id: "deadline", label: "마감 임박", path: "/opportunities?section=전체&deadline_within_days=7&sort=deadline", navPath: "/opportunities?deadline_within_days", dot: "error", count: { kind: "workload", key: "tracking_deadline_imminent" } },
     ],
   },
 ];
 
 const footerItems: NavItem[] = [
-  { label: "팀원 초대", path: null, icon: "users" },
-  { label: "도움말", path: null, icon: "help" },
-  // 운영 메뉴(판정 기준·실행 상태·회차·첨부·감사)는 설정 아래로 옮겼다(ui-spec §1.2).
-  { label: "설정", path: "/criteria", icon: "gear", absorbs: ["/run-status", "/runs", "/attachments", "/operations", "/audit", "/policies", "/quality-gates", "/metrics", "/order-plan-policies"] },
+  // 운영 화면(실행 상태·회차·첨부·상시 운영·감사)은 한 화면의 탭이다.
+  { id: "run-status", label: "실행 상태", path: "/run-status", icon: "activity", absorbs: ["/runs", "/attachments", "/operations", "/audit"] },
+  // 판정 기준(회사 프로필·판정 정책·품질 게이트·검증 지표·발주계획 판정 기준)도 한 화면의 탭이다.
+  { id: "criteria", label: "판정 기준", path: "/criteria", icon: "gear", absorbs: ["/profile", "/policies", "/quality-gates", "/metrics", "/order-plan-policies"] },
 ];
 
 function NavIcon({ name }: { name: IconName }) {
   const common = { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
   switch (name) {
-    case "search":
-      return <svg {...common}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>;
-    case "bell":
-      return <svg {...common}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10 21a2 2 0 0 0 4 0" /></svg>;
-    case "task":
-      return <svg {...common}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="m8 12 3 3 5-6" /></svg>;
-    case "note":
-      return <svg {...common}><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><path d="M14 3v6h6" /></svg>;
-    case "chart":
-      return <svg {...common}><path d="M3 3v18h18" /><path d="M7 15l4-5 4 3 5-7" /></svg>;
+    case "home":
+      return <svg {...common}><path d="M3 11 12 4l9 7" /><path d="M5 10v10h14V10" /></svg>;
+    case "plan":
+      return <svg {...common}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>;
     case "doc":
       return <svg {...common}><path d="M4 4h12l4 4v12H4z" /><path d="M8 12h8M8 16h8" /></svg>;
     case "opp":
       return <svg {...common}><path d="M3 12h4l3-7 4 14 3-7h4" /></svg>;
-    case "org":
-      return <svg {...common}><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6" /></svg>;
+    case "decision":
+      return <svg {...common}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="m8 12 3 3 5-6" /></svg>;
     case "shield":
       return <svg {...common}><path d="M12 3 4 7v5c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V7z" /><path d="m9 12 2 2 4-4" /></svg>;
-    case "plus":
-      return <svg {...common}><path d="M12 5v14M5 12h14" /></svg>;
-    case "users":
-      return <svg {...common}><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M16 4a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4.5-6.2" /></svg>;
-    case "help":
-      return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7" /><path d="M12 17h.01" /></svg>;
+    case "activity":
+      return <svg {...common}><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>;
     case "gear":
       return <svg {...common}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></svg>;
     case "external":
@@ -140,32 +133,25 @@ function isCurrentPath(pathname: string, path: string): boolean {
 }
 
 /**
- * 활성 항목은 화면 metadata가 정한 `activeNavPath`가 먼저 정한다. 같은 pathname을
- * 쓰는 항목(사업기회 전체 보기·추적 중·마감 임박)은 항목의 `navPath`가 주소의
- * 검색어까지 포함해 구분한다. metadata가 없는 주소에서만 경로·흡수 목록으로 돌아간다.
+ * 활성 항목을 **하나만** 고른다. 화면 metadata의 `activeNavPath`가 먼저이고, 같은 화면을 여는
+ * 항목(사업기회·추적 중·마감 임박)은 목록 주소의 검색어로만 가른다 — 레코드·상세·Go/No-Go
+ * 같은 다른 화면은 자기 항목을 갖는다. metadata가 없는 주소만 경로·흡수 목록으로 돌아간다.
  */
-function isActiveItem(item: NavItem, activeNavPath: string | null, pathname: string, search: string): boolean {
-  if (item.path === null) return false;
-  const itemNav = item.navPath ?? pathnameOf(item.path);
-  if (activeNavPath !== null) {
-    if (activeNavPath !== pathnameOf(itemNav)) {
-      return (item.absorbs ?? []).some((absorbed) => isCurrentPath(pathname, absorbed));
-    }
-    // 같은 화면을 가리키는 항목이 여럿이면 검색어가 가장 많이 맞는 하나만 활성이다.
+export function resolveActiveItemId(items: readonly NavItem[], activeNavPath: string | null, pathname: string, search: string): string | null {
+  if (activeNavPath === "/opportunities" && pathname === "/opportunities") {
     const params = new URLSearchParams(search);
-    const section = params.get("section");
-    const deadline = params.has("deadline_within_days");
-    const isDetail = pathname.startsWith("/opportunities/") || pathname.startsWith("/go-no-go");
-    if (itemNav === "/opportunities?deadline") return deadline && !isDetail;
-    // 사업기회 레코드: 전체 보기와 상세·최종 Go/No-Go.
-    if (itemNav === "/opportunities?section=전체") return isDetail || (section === "전체" && !deadline);
-    // 다음 행동: 기본 구역(조치 필요). 화면이 기본 구역의 section 파라미터를 지우므로 비어 있어도 활성이다.
-    if (itemNav === "/opportunities?section=조치 필요") return !isDetail && !deadline && (section === null || section === "조치 필요");
-    if (itemNav === "/opportunities?section=추적 중") return !isDetail && !deadline && section === "추적 중";
-    return true;
+    if (params.has("deadline_within_days")) return "deadline";
+    if (params.get("section") === "추적 중") return "tracking";
+    return "opportunities";
   }
-  if (isCurrentPath(pathname, pathnameOf(item.path))) return true;
-  return (item.absorbs ?? []).some((absorbed) => isCurrentPath(pathname, absorbed));
+  const navOf = (item: NavItem) => item.navPath ?? pathnameOf(item.path);
+  const target = activeNavPath ?? pathname;
+  const exact = items.find((item) => navOf(item) === target);
+  if (exact) return exact.id;
+  const byPrefix = items.find((item) => navOf(item) !== "/" && isCurrentPath(target, navOf(item)));
+  if (byPrefix) return byPrefix.id;
+  const absorbed = items.find((item) => (item.absorbs ?? []).some((path) => isCurrentPath(target, path) || isCurrentPath(pathname, path)));
+  return absorbed?.id ?? null;
 }
 
 /**
@@ -173,11 +159,11 @@ function isActiveItem(item: NavItem, activeNavPath: string | null, pathname: str
  * 그 회사의 화면 항목을 보이며, 회사를 몰래 고르지 않는다(`docs/work/demo-contract.md` §1).
  */
 function demoGroup(companyId: string | null): NavGroup {
-  const items: NavItem[] = [{ label: "회사 선택", path: "/companies", icon: "org" }];
+  const items: NavItem[] = [{ id: "demo-companies", label: "회사 선택", path: "/companies", icon: "plan" }];
   if (companyId) {
     items.push(
-      { label: "회사 사전규격", path: `/companies/${companyId}/pre-specs`, icon: "doc" },
-      { label: "회사 프로필", path: `/companies/${companyId}/profile`, icon: "shield" },
+      { id: "demo-pre-specs", label: "회사 사전규격", path: `/companies/${companyId}/pre-specs`, icon: "doc" },
+      { id: "demo-profile", label: "회사 프로필", path: `/companies/${companyId}/profile`, icon: "shield" },
     );
   }
   return { label: "가상회사 데모", items };
@@ -198,15 +184,26 @@ export interface SidebarDemoNav {
 export function Sidebar({ activeNavPath, runSearch, demoNav = null }: { activeNavPath: string | null; runSearch: string; demoNav?: SidebarDemoNav | null }) {
   const { pathname, search } = useLocation();
   const workload = useQuery({ queryKey: ["workload"], queryFn: () => api.getWorkload(), staleTime: 60_000 });
-  const counts = new Map<WorkloadKey, number>();
+  // 목록 기본 보기의 건수는 그 목록 API의 total이다. 대시보드 타일과 같은 query key를 쓴다.
+  const orderPlanDefault = useQuery(orderPlanViewTotalQuery("relevant"));
+  const preSpecDefault = useQuery(preSpecDefaultViewTotalQuery());
+  const workloadCounts = new Map<WorkloadKey, number>();
   for (const item of workload.data?.items ?? []) {
-    if (typeof item.count === "number") counts.set(item.key, item.count);
+    if (typeof item.count === "number") workloadCounts.set(item.key, item.count);
   }
+  const countOf = (source: CountSource | undefined): number | null => {
+    if (!source) return null;
+    if (source.kind === "workload") return workloadCounts.get(source.key) ?? null;
+    const value = source.kind === "order-plan-default" ? orderPlanDefault.data : preSpecDefault.data;
+    return typeof value === "number" ? value : null;
+  };
   // 워크스페이스 이름은 `GET /api/company`가 준다. 읽지 못하면 이름을 지어내지 않고
   // 제품 이름을 둔다(회사 화면이 같은 key로 오류를 설명한다).
   const company = useQuery({ queryKey: companyContextQueryKey, queryFn: ({ signal }) => getCompanyContext({ signal }), retry: false, staleTime: 60_000 });
   const workspace = workspaceIdentity(company.data?.company.name ?? null);
   const visibleGroups = demoNav ? [...groups, demoGroup(demoNav.companyId)] : groups;
+  const allItems = [...visibleGroups.flatMap((group) => group.items), ...footerItems];
+  const activeId = resolveActiveItemId(allItems, activeNavPath, pathname, search);
   return (
     <aside aria-label="주 메뉴" className="sidebar" data-shell-region="sidebar">
       {/* 워크스페이스 줄(시안: 머리글자 아이콘 + 회사명). 로그인·워크스페이스 전환이
@@ -215,12 +212,6 @@ export function Sidebar({ activeNavPath, runSearch, demoNav = null }: { activeNa
         <span aria-hidden="true" className="sidebar-brand-mark">{workspace.mark}</span>
         <strong>{workspace.name}</strong>
       </Link>
-      {/* 검색은 커맨드 팔레트가 들어오기 전까지 자리만 둔다(ui-spec §1.2). */}
-      <button aria-disabled="true" className="sidebar-search" disabled type="button">
-        <NavIcon name="search" />
-        <span>검색</span>
-        <kbd>⌘K</kbd>
-      </button>
       <nav aria-label="주 메뉴" className="sidebar-nav">
         {visibleGroups.map((group, index) => (
           <div className="sidebar-group" key={group.label ?? `quick-${index}`}>
@@ -228,10 +219,10 @@ export function Sidebar({ activeNavPath, runSearch, demoNav = null }: { activeNa
             <div className="sidebar-items">
               {group.items.map((item) => (
                 <NavEntry
-                  active={isActiveItem(item, activeNavPath, pathname, search)}
-                  count={item.count ? counts.get(item.count) ?? null : null}
+                  active={item.id === activeId}
+                  count={countOf(item.count)}
                   item={item}
-                  key={item.label}
+                  key={item.id}
                   runSearch={runSearch}
                 />
               ))}
@@ -252,10 +243,10 @@ export function Sidebar({ activeNavPath, runSearch, demoNav = null }: { activeNa
       <div className="sidebar-footer">
         {footerItems.map((item) => (
           <NavEntry
-            active={isActiveItem(item, activeNavPath, pathname, search)}
+            active={item.id === activeId}
             count={null}
             item={item}
-            key={item.label}
+            key={item.id}
             runSearch={runSearch}
           />
         ))}
@@ -282,13 +273,6 @@ function NavEntry({ item, active, count, runSearch }: { item: NavItem; active: b
       ) : null}
     </>
   );
-  if (item.path === null) {
-    return (
-      <span aria-disabled="true" className="sidebar-item is-disabled" title="아직 준비되지 않은 항목">
-        {body}
-      </span>
-    );
-  }
   const pathname = pathnameOf(item.path);
   const query = item.path.includes("?") ? item.path.slice(item.path.indexOf("?")) : "";
   const runQuery = runSearchFor(pathname, runSearch);
