@@ -66,10 +66,11 @@ Options:
   --catch-up-days N   Before the reference day, process the missing days
                       (no complete run directory, see "Gap check") among the
                       N days before it, oldest first, each resumed stage by
-                      stage as above; then the reference day. On the
-                      order-plans track the unjudged days of that window join
-                      too (only their missing stages run), except days held
-                      by an active execution or with several Run rows. Default 0 (only
+                      stage as above; then the reference day. The unjudged
+                      days of that window join too (only their missing stages
+                      run: ingest for not_ingested on both tracks, C-2 or the
+                      sample draw on order-plans), except days held by an
+                      active execution or with several Run rows. Default 0 (only
                       the reference day). N must not exceed
                       BIDOPS_DAILY_GAP_LOOKBACK_DAYS; days before
                       BIDOPS_DAILY_GAP_FLOOR_DATE are not caught up. Not
@@ -103,25 +104,39 @@ BIDOPS_DAILY_GAP_FLOOR_DATE are not counted. Each missing day prints
   gap_detected track=<track> date=YYYY-MM-DD
 and the script then exits 10 (see Exit). Fill a gap with --from-date/--to-date
 or --catch-up-days, or acknowledge an outage with BIDOPS_DAILY_GAP_FLOOR_DATE.
-On the order-plans track a complete, non-empty day of the window (the days
-this invocation processed included) without a 성공/부분 성공 operational C-2
-execution prints
-  unjudged_detected track=order-plans date=YYYY-MM-DD run=<dir> reason=<r>
-with r = not_ingested | multiple_run_rows:<n> | active:<status> |
+A complete, non-empty day of the window (the days this invocation processed
+included) whose run has no Run row in the web prints
+  unjudged_detected track=<track> date=YYYY-MM-DD run=<dir> reason=not_ingested
+on both tracks (a notices day whose ingest failed is otherwise never seen by
+the web). On the order-plans track such a day without a 성공/부분 성공
+operational C-2 execution prints the same line with
+r = not_ingested | multiple_run_rows:<n> | active:<status> |
 last:<status> | no_execution | audit_sample_missing, and also exits 10. This reads the web
 (GET /api/runs/<dir> for the canonical id, GET /api/runs for the row count,
 the executions list by canonical id, and the read-only audit-sample GET of a
 successful day: a drawable sample never recorded is r = audit_sample_missing);
-a failed read stops the script with a failure code, never as "no gap". A dry run reads no web and only says it
-would check judged state.
+a failed read stops the script with a failure code, never as "no gap". A dry
+run reads no web and only says it would check ingest/judged state.
 A failing day exits with its own failure code before the gap check. The
 order-plans track that ends at daily_trigger_off (nothing collected) does not
 run the gap check.
 
 Environment (both tracks):
   BIDOPS_DAILY_GAP_LOOKBACK_DAYS         default 7; 0 disables the gap check.
+                                         A day older than the window is never
+                                         looked at again (cron uses 31 through
+                                         scripts/cron-daily-track.sh).
   BIDOPS_DAILY_GAP_FLOOR_DATE            optional YYYY-MM-DD; earlier days are
                                          neither reported nor caught up.
+  BIDOPS_DAILY_READ_ATTEMPTS             default 3. Every read-only GET (health,
+                                         trigger, run lookup/list, executions
+                                         list, audit-sample state) is tried up
+                                         to this many times on no answer, 5xx,
+                                         408 or 429, printing
+                                         "read retry (n/N) GET <path>: ..."
+                                         per retried failure; 4xx and POSTs
+                                         are never retried.
+  BIDOPS_DAILY_READ_RETRY_PAUSE_SECONDS  default 5; pause between those attempts.
 
 Environment (order-plans track):
   BIDOPS_C2_DAILY_ACTOR                  required, no default; not needed for
@@ -310,8 +325,10 @@ day_has_complete_run() {
   day_complete_run "$1"
 }
 
-# Order-plans only, reads the web. Exit 0 when the day's complete, non-empty
-# run has no 성공/부분 성공 operational C-2 execution — the same "done" the
+# Reads the web. Both tracks: exit 0 with not_ingested when the day's complete,
+# non-empty run has no Run row in the web (a collection whose ingest failed or
+# was cut off; GET /api/runs/<dir> 404). Order-plans also: exit 0 when that run
+# has no 성공/부분 성공 operational C-2 execution — the same "done" the
 # per-day resume uses before it decides to execute (c2_run_source_run counts a
 # success of any policy version) — and sets DAY_UNJUDGED_REASON:
 #   not_ingested           no Run row for the directory (GET /api/runs/<dir> 404)
@@ -336,6 +353,10 @@ day_unjudged() {
     DAY_UNJUDGED_REASON="not_ingested"
     return 0
   fi
+  # The notices day ends at ingest for this check: its later stages
+  # (--tracked-backfill, refresh_fetch_eligibility) are global and run again
+  # on every later notices day.
+  [[ "${opt_track}" == "order-plans" ]] || return 1
   canonical="${WORKFLOW_RUN_ROW_ID}"
   workflow_count_run_rows "${DAY_RUN_ID}"
   case "${WORKFLOW_RUN_ROW_COUNT}" in
@@ -372,9 +393,11 @@ day_before_floor() {
 }
 
 # --catch-up-days N: the missing days among the N days before the reference
-# day run first, oldest first, then the reference day itself. In a real
-# order-plans run (mode=real, after the trigger check) an unjudged day joins
-# too, so the per-day resume runs only its missing C-2 stage; days held by an
+# day run first, oldest first, then the reference day itself. In a real run
+# (mode=real, after the preflight and, for order-plans, the trigger check) an
+# unjudged day joins too, so the per-day resume runs only its missing stage
+# (ingest for a not_ingested day of either track, C-2 or the audit-sample
+# draw on order-plans); days held by an
 # active execution or with more than one Run row are left to the gap report
 # (resuming them would only skip or stop). mode=dry reads no web: missing days
 # only.
@@ -387,7 +410,7 @@ select_catch_up_dates() {
       continue
     fi
     if day_has_complete_run "${day}"; then
-      [[ "${mode}" == "real" && "${opt_track}" == "order-plans" ]] || continue
+      [[ "${mode}" == "real" ]] || continue
       day_unjudged "${day}" || continue
       case "${DAY_UNJUDGED_REASON}" in
         active:*|multiple_run_rows:*) continue ;;
@@ -409,9 +432,9 @@ day_is_planned() {
 
 # Gap check (A-3, findings W-3·W-4·W-5). Looks at the last processed day and
 # the BIDOPS_DAILY_GAP_LOOKBACK_DAYS days before it, minus days before the
-# floor. A day without a complete run directory prints gap_detected; on the
-# order-plans track a complete, non-empty day without a judged result
-# (day_unjudged, web reads) prints unjudged_detected — the days processed by
+# floor. A day without a complete run directory prints gap_detected; a complete,
+# non-empty day without a Run row (both tracks) or, on order-plans, without a
+# judged result (day_unjudged, web reads) prints unjudged_detected — the days processed by
 # this invocation included, so a normal skip today surfaces today. Either kind
 # ends the run with GAP_EXIT_CODE. mode=dry reads no web: it skips the days this
 # invocation would process (a real run handles them first or fails), does not
@@ -434,7 +457,7 @@ gap_check() {
       continue
     fi
     if day_has_complete_run "${day}"; then
-      if [[ "${mode}" == "real" && "${opt_track}" == "order-plans" ]] && day_unjudged "${day}"; then
+      if [[ "${mode}" == "real" ]] && day_unjudged "${day}"; then
         unjudged=$((unjudged + 1))
         workflow_note "unjudged_detected track=${opt_track} date=${day} run=${DAY_RUN_ID} reason=${DAY_UNJUDGED_REASON}"
       fi
@@ -449,6 +472,8 @@ gap_check() {
   done
   if [[ "${mode}" == "dry" && "${opt_track}" == "order-plans" ]]; then
     workflow_note "[dry-run] a real run would also check judged state: every complete, non-empty run in the window (the days above included) needs a 성공/부분 성공 C-2 execution (GET /api/runs/<dir>, GET /api/runs, executions list by canonical id); otherwise unjudged_detected and exit ${GAP_EXIT_CODE}. Not read here."
+  elif [[ "${mode}" == "dry" ]]; then
+    workflow_note "[dry-run] a real run would also check that every complete, non-empty run in the window (the days above included) has a Run row (GET /api/runs/<dir>); otherwise unjudged_detected reason=not_ingested and exit ${GAP_EXIT_CODE}. Not read here."
   fi
   if [[ -z "${first}" ]]; then
     workflow_note "${prefix}gap check: no gap; no day on or after the floor ${gap_floor_date} up to ${anchor}"
@@ -816,9 +841,7 @@ if [[ "${dry_run}" == "true" ]]; then
   if (( catch_up_days > 0 )); then
     select_catch_up_dates dry
     workflow_note "[dry-run] catch-up: $(( ${#ref_dates[@]} - 1 )) missing day(s) within ${catch_up_days} day(s) before ${ref_dates[${#ref_dates[@]}-1]} run first"
-    if [[ "${opt_track}" == "order-plans" ]]; then
-      workflow_note "[dry-run] a real run would also catch up unjudged days of that window (judged state is not read here)"
-    fi
+    workflow_note "[dry-run] a real run would also catch up unjudged days of that window (not_ingested on both tracks, judged state on order-plans; not read here)"
   fi
   for day in "${ref_dates[@]}"; do
     set_day_context "${day}"
