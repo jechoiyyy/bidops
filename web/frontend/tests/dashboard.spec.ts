@@ -5,8 +5,8 @@ import {
   mockDashboard, newPlanList, opportunityList, overviewAttentionItems, preSpecList, workloadWith,
 } from "./dashboard-fixtures";
 import { settleFonts } from "./screen-fixtures";
-import { dailyRunStatus, latestDailyPlanRun } from "../src/lib/orderPlanDaily";
-import { dailyPlanExecutionFixture, dailyPlanRunFixture, mockApi, mockDailyPlanRun, mockDailyPlanRuns, mockOrderPlans } from "./api-mock";
+import { dailyNoticeStatus, dailyRunStatus, isBasisStale, latestDailyPlanRun } from "../src/lib/orderPlanDaily";
+import { dailyNoticeRunFixture, dailyPlanExecutionFixture, dailyPlanRunFixture, mockApi, mockDailyPlanRun, mockDailyPlanRuns, mockOrderPlans, mockRunWarnings } from "./api-mock";
 
 // 2026-11-18 ×0.9 compact 축척을 없앴다. 시안 치수가 그대로 렌더된다.
 const UI_SCALE = 1;
@@ -380,7 +380,7 @@ for (const [width, height] of WIDTHS) {
       });
       return {
         overflow: document.documentElement.scrollWidth - innerWidth,
-        strip: { top: rect(".daily-run-line").top, left: rect(".daily-run-line").left },
+        strip: { top: rect(".daily-collection").top, left: rect(".daily-collection").left },
         gridWidth: rect(".dash-work-grid").width,
         panels,
       };
@@ -477,7 +477,7 @@ test.describe("발주계획 일일 실행 한 줄", () => {
     await expect(line).toHaveAttribute("data-state", "warning");
     await expect(line).toContainText("36일 전");
     await expect(line).toContainText("C-2 실패");
-    await expect(line).toContainText("최근 기준일이 어제보다 오래됐습니다");
+    await expect(line).toContainText("최근 기준일이 늦었습니다");
     await expect(line).toContainText("C-2 실행이 성공·부분 성공으로 끝나지 않았습니다");
   });
 
@@ -569,4 +569,67 @@ test("dailyRunStatus: 기준일 선택·진행 중·4시간·종료 실패·부�
     stage2_relevant_count: 63, stage2_not_relevant_count: 0, stage2_uncertain_count: 40, stage2_failed_count: 25, stage2_rejected_count: 0, human_review_count: 128 } })], now);
   expect(partial).toMatchObject({ state: "ok", noJudgmentCount: 25, basisLag: 1 });
   expect(dailyRunStatus([old], [], now).problems).toEqual(["stale", "no_execution"]);
+});
+
+// 2026-11-18 G1·G2: 공고 트랙도 같은 묶음의 한 행이고, 자정~정오에는 그저께 기준일까지를 정상으로 본다.
+test("isBasisStale·dailyNoticeStatus: 정오 기준 규칙과 공고 트랙 최근 기준일", () => {
+  const morning = Date.parse("2026-11-18T02:59:00Z"); // 11:59 KST
+  const noon = Date.parse("2026-11-18T03:00:00Z"); // 12:00 KST
+  expect(isBasisStale("2026-11-16", morning)).toBe(false);
+  expect(isBasisStale("2026-11-15", morning)).toBe(true);
+  expect(isBasisStale("2026-11-16", noon)).toBe(true);
+  expect(isBasisStale("2026-11-17", noon)).toBe(false);
+  expect(isBasisStale("2026-11-16", Date.parse("2026-11-17T15:30:00Z"))).toBe(false); // 00:30 KST
+  const y = dailyNoticeRunFixture("2026-11-17", "2026-11-17T22:00:00Z");
+  const old = dailyNoticeRunFixture("2026-11-10", "2026-11-18T01:00:00Z");
+  const plan = dailyPlanRunFixture("2026-11-17", "2026-11-17T22:00:00Z");
+  expect(dailyNoticeStatus([old, y, plan], 3, noon)).toMatchObject({ state: "ok", warningCount: 3, problems: [] });
+  expect(dailyNoticeStatus([old, y, plan], 3, noon).latest?.run.run_id).toBe(y.run_id);
+  expect(dailyNoticeStatus([old], null, noon)).toMatchObject({ state: "warning", problems: ["stale"] });
+  expect(dailyNoticeStatus([plan], null, noon)).toMatchObject({ state: "warning", problems: ["no_daily_run"] });
+});
+
+test.describe("일일 수집 묶음 · 공고 트랙", () => {
+  test("두 트랙은 한 묶음의 두 행이고 공고 행은 최근 기준일·적재일·적재 경고 수를 적는다", async ({ page }) => {
+    await mockDashboard(page);
+    const plan = dailyPlanRunFixture("2026-09-16", "2026-09-16T22:10:00Z");
+    const notice = dailyNoticeRunFixture("2026-09-16", "2026-09-16T21:40:00Z");
+    await mockDailyPlanRuns(page, [plan, notice], [dailyPlanExecutionFixture(plan.run_id, { status: "성공", queued_at: "2026-09-16T22:20:00Z" })]);
+    await mockRunWarnings(page, notice.run_id, 2);
+    await page.goto("/");
+    const block = page.getByTestId("daily-collection");
+    await expect(block).toContainText("일일 수집");
+    await expect(block).toContainText("오늘 기준일은 아직 수집 전일 수 있습니다");
+    await expect(block.locator(".daily-run-line")).toHaveCount(2);
+    const row = page.getByTestId("daily-notice-status");
+    await expect(row).toHaveAttribute("data-state", "ok");
+    await expect(row).toContainText("최근 기준일 09-16");
+    await expect(row).toContainText("적재 9월 17일 · 오늘");
+    await expect(row).toContainText("적재 경고 2건");
+  });
+
+  test("공고 트랙의 최근 기준일이 늦으면 그 행만 확인 필요다", async ({ page }) => {
+    await mockDashboard(page);
+    const plan = dailyPlanRunFixture("2026-09-16", "2026-09-16T22:10:00Z");
+    const notice = dailyNoticeRunFixture("2026-09-10", "2026-09-10T21:40:00Z");
+    await mockDailyPlanRuns(page, [plan, notice], [dailyPlanExecutionFixture(plan.run_id, { status: "성공", queued_at: "2026-09-16T22:20:00Z" })]);
+    await mockRunWarnings(page, notice.run_id, 0);
+    await page.goto("/");
+    await expect(page.getByTestId("daily-run-status")).toHaveAttribute("data-state", "ok");
+    const row = page.getByTestId("daily-notice-status");
+    await expect(row).toHaveAttribute("data-state", "warning");
+    await expect(row).toContainText("최근 기준일이 늦었습니다");
+  });
+
+  test("자정과 정오 사이에는 그저께 기준일도 정상이다", async ({ page }) => {
+    await mockDashboard(page, { skipClock: true });
+    await page.clock.setFixedTime(new Date("2026-09-16T16:00:00Z")); // 09-17 01:00 KST
+    const plan = dailyPlanRunFixture("2026-09-15", "2026-09-15T22:10:00Z");
+    const notice = dailyNoticeRunFixture("2026-09-15", "2026-09-15T21:40:00Z");
+    await mockDailyPlanRuns(page, [plan, notice], [dailyPlanExecutionFixture(plan.run_id, { status: "성공", queued_at: "2026-09-15T22:20:00Z" })]);
+    await mockRunWarnings(page, notice.run_id, 0);
+    await page.goto("/");
+    await expect(page.getByTestId("daily-run-status")).toHaveAttribute("data-state", "ok");
+    await expect(page.getByTestId("daily-notice-status")).toHaveAttribute("data-state", "ok");
+  });
 });

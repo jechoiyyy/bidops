@@ -10,7 +10,7 @@ import { api } from "../lib/api";
 import type { WorkloadKey } from "../lib/types";
 import { formatNumber } from "../lib/format";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
-import { DailyRunStatusLine } from "../components/operations/DailyRunStatusLine";
+import { DailyCollectionStatus } from "../components/operations/DailyRunStatusLine";
 import { goNoGoReviewTotalQuery, orderPlanViewTotalQuery, preSpecDefaultViewTotalQuery } from "../lib/defaultViewCounts";
 import { LinkButton, Small } from "../components/dashboard/DashboardPrimitives";
 import { HoldReviewPanel } from "../components/dashboard/HoldReviewPanel";
@@ -146,7 +146,7 @@ function DashboardWorkspace() {
       <LinkButton label="실행 상태" to="/run-status" icon={<Activity aria-hidden="true" />} secondary />
     </div></PageHeaderActions>
     {/* "어제 일일 실행이 돌았는가"(설계고도화안 A-5). 스케줄이 있다고 말하지 않고 마지막 실행 사실만 적는다. */}
-    <DailyRunStatusLine />
+    <DailyCollectionStatus />
     <nav className="dash-journey-strip" aria-label="업무 바로가기 · 회차와 무관한 누적 업무">
       {[
         ["01", "발주계획", "추적할 후보 선택", `관련 ${listCount(relevantPlanQuery)} · 불확실 ${listCount(uncertainPlanQuery)} · 새로 ${workloadValue("order_plan_new_priority")}`, "/order-plans"],
