@@ -546,6 +546,18 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
               }}
               pendingNoteId={pendingNoteId}
             />
+            {/* 목록 창에만 있는 조작으로 가는 길(설계고도화안 C-3). 두 화면을 합치기 전까지 서로를 연다. */}
+            <section aria-labelledby="rec-pane-links-title" className="rec-side-block" data-testid="record-pane-links">
+              <h3 className="rec-side-title" id="rec-pane-links-title">다른 화면에서 하는 일</h3>
+              <ul className="rec-side-links">
+                <li><Link to={`/opportunities?selected=${opportunityId}&detail=checks`}>확인 항목 답변 →</Link></li>
+                <li>
+                  {reps?.["입찰공고"]
+                    ? <Link to={`/opportunities/${opportunityId}/bid-delta`}>변경 비교·Go/No-Go →</Link>
+                    : <span className="rec-side-note">변경 비교·Go/No-Go는 입찰공고가 연결되면 열 수 있습니다</span>}
+                </li>
+              </ul>
+            </section>
             <section aria-labelledby="rec-docs-title" className="rec-side-block">
               <h3 className="rec-side-title" id="rec-docs-title">제출 서류</h3>
               <p aria-disabled="true" className="rec-side-note is-disabled">제출 서류 체크는 준비 중입니다</p>
@@ -557,7 +569,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
           {tab === "activity" ? (
             <>
               {firstPage ? (
-                <StageBar stages={firstPage.stages} />
+                <StageBar links={links} stages={firstPage.stages} />
               ) : feed.isPending ? (
                 <p className="rec-status" role="status">활동을 불러오는 중입니다.</p>
               ) : null}

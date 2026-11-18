@@ -164,6 +164,20 @@
   opacity: 0.7;
 }
 
+/* 목록 창 조작으로 가는 링크 목록(설계고도화안 C-3). */
+.rec-side-links {
+  display: grid;
+  gap: var(--spacing-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--bo-type-body);
+}
+
+.rec-side-links a {
+  color: var(--color-accent);
+}
+
 /* 속성 목록: 2열 grid(라벨 96px 보조색 / 값), 행 높이 34, 하단 1px */
 .rec-attributes {
   display: grid;
@@ -335,6 +349,18 @@
 
 .rec-stage-unknown {
   color: var(--color-text-secondary);
+}
+
+/* 연결이 있는 단계 칸은 원천 화면 링크다(설계고도화안 C-3). 상태 색은 그대로 두고 밑줄로만 구분한다. */
+.rec-stage-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-0-5);
+}
+
+.rec-stage-link:focus-visible {
+  outline: var(--focus-outline-width) solid var(--color-accent);
+  outline-offset: var(--spacing-0-5);
 }
 
 .rec-stage-day {

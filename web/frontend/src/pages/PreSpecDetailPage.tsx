@@ -935,7 +935,11 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
           ) : null}
         </div>
 
-        <CurrentCompanyEnginePanel noticeId={noticeId} bundleId={latestBundle?.status === "ready" ? latestBundle.id : null} />
+        {/* 분석 엔진 mock 참조 패널은 실험 경로라 개발·mock 서버에서만 그린다(설계고도화안 C-9).
+            운영 번들에는 들어가지 않으며 live 전송은 원래부터 fail closed다. */}
+        {import.meta.env.BIDOPS_REVIEW_MOCK
+          ? <CurrentCompanyEnginePanel noticeId={noticeId} bundleId={latestBundle?.status === "ready" ? latestBundle.id : null} />
+          : null}
 
         {/* 발주계획 후보(docs/0917_opportunity-tracking/spec.md §11.4). 6단 구조를 늘리지
             않도록 ⑥의 `처리 이력과 연결` 바로 위에 둔다. 연결 확인은 사람이 한다. */}
