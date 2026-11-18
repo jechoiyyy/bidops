@@ -755,12 +755,12 @@ export function OrderPlanPolicyPage() {
                       <div className="opp-switch-guide">
                         <span className="opp-gate-surface-head">
                           <StatusToken label={trigger.effective_enabled ? "자동 실행 켜짐" : "자동 실행 꺼짐"} />
-                          {/* 앞날을 약속하지 않는다(설계고도화안 A-5). 스위치는 예약된 일일 스크립트의
-                              실행을 허용할 뿐이며 cron이 있는지는 이 화면이 알 수 없다. */}
-                          <Text weight="semibold">{trigger.effective_enabled
-                            ? "스위치는 예약된 일일 스크립트가 이 버전으로 실행하는 것을 허용할 뿐입니다. 일정이 있는지는 이 화면이 확인하지 않습니다."
-                            : "일일 스크립트가 실행되어도 이 버전으로 판정하지 않습니다."}</Text>
                         </span>
+                        {/* 앞날을 약속하지 않는다(설계고도화안 A-5). 스위치는 예약된 일일 스크립트의
+                            실행을 허용할 뿐이며 cron이 있는지는 이 화면이 알 수 없다. */}
+                        <Text weight="semibold">{trigger.effective_enabled
+                          ? "스위치는 예약된 일일 스크립트가 이 버전으로 실행하는 것을 허용할 뿐입니다. 일정이 있는지는 이 화면이 확인하지 않습니다."
+                          : "일일 스크립트가 실행되어도 이 버전으로 판정하지 않습니다."}</Text>
                         {/* 마지막으로 실제로 돈 일일 실행의 사실(날짜·C-2 상태). */}
                         <DailyRunStatusLine showLink={false} />
                         {trigger.reasons.length > 0 ? (
