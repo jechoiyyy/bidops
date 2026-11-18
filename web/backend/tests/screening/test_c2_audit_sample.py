@@ -64,8 +64,8 @@ _DROP = object()
 
 
 def _seed(session: Session, policy: dict, *, codes: list[str | None], status: str = "성공",
-          purpose: str = "operational", population: int = 320) -> OrderPlanScreeningExecution:
-    """``codes[i]``는 i번째 탈락 건의 ``service_type_code``이고 stage1 순위는 301부터다."""
+          purpose: str = "operational", population: int = 320, top_k: int = TOP_K) -> OrderPlanScreeningExecution:
+    """``codes[i]``는 i번째 탈락 건의 ``service_type_code``이고 stage1 순위는 ``top_k + 1``부터다."""
 
     policy_bytes = _canonical(policy)
     session.add(Run(id="run-c2", timezone="Asia/Seoul", generated_at=NOW))
@@ -98,7 +98,7 @@ def _seed(session: Session, policy: dict, *, codes: list[str | None], status: st
              for index, code in enumerate(codes)]
     session.add_all([selected, *plans])
     session.flush()
-    rows = [(selected, "selected", 1)] + [(plan, "filtered_out", TOP_K + 1 + index) for index, plan in enumerate(plans)]
+    rows = [(selected, "selected", 1)] + [(plan, "filtered_out", top_k + 1 + index) for index, plan in enumerate(plans)]
     for plan, stage1, rank in rows:
         session.add(OrderPlanScreeningResult(
             id=uuid4(), execution_id=execution.execution_id, source_run_id="run-c2", order_plan_id=plan.id,
@@ -184,6 +184,37 @@ def test_not_applicable(api, kwargs, reason):
     drawn = client.post(URL.format(execution.execution_id), json=_body(), headers=ACTOR)
     assert drawn.status_code == 200 and drawn.json()["status"] == "not_applicable"
     assert _rows(session, execution.execution_id) == []
+
+
+def _v6_policy_payload(**audit: object) -> dict:
+    """v6처럼 ``stage1.top_k=150``인 policy. 감사 표본 값은 v5·v6와 같은 근접 순위 창 25다."""
+
+    policy = _policy_payload(**audit)
+    policy["stage1"]["top_k"] = 150
+    return policy
+
+
+def test_v6_top_k_150_moves_the_proximity_window_to_ranks_151_to_175(api):
+    session, client = api
+    rules = {
+        "classification_proximity": {"field": "service_type_code", "values": ["SW"]},
+        "performance_similarity_proximity": {"rank_window": 25},
+    }
+    execution = _seed(session, _v6_policy_payload(max_per_execution=40, strata_rules=rules),
+                      codes=[None] * 30, population=181, top_k=150)
+    body = client.get(URL.format(execution.execution_id)).json()
+    assert body["status"] == "preview"
+    strata = {item["stage1_rank"]: item["stratum"] for item in body["sample"]}
+    assert sorted(strata) == list(range(151, 181))
+    assert {strata[rank] for rank in range(151, 176)} == {"performance_similarity_proximity"}
+    assert {strata[rank] for rank in range(176, 181)} == {"uniform_hash"}
+
+
+def test_v6_population_at_or_below_150_is_not_applicable(api):
+    session, client = api
+    execution = _seed(session, _v6_policy_payload(strata_rules=RULES), codes=[None] * 3, population=150, top_k=150)
+    body = client.get(URL.format(execution.execution_id)).json()
+    assert (body["status"], body["reason"]) == ("not_applicable", "stage1.population.at_or_below_top_k")
 
 
 def test_execution_not_completed_is_409_and_unknown_is_404(api):

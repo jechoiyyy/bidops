@@ -411,10 +411,13 @@ class Settings(BaseSettings):
             self.data_dir = self.bidops_root / "web" / "data"
         if self.attachments_dir is None:
             self.attachments_dir = self.data_dir / "attachments"
+        # 기본 경로는 최신 발행 파일(v6)이다. 행 digest와 다르면 같은 디렉터리의 다른 발행 버전
+        # (`order-plan-screening-policy.v*.json`·`…-phase0-binding.v*.json`)을 digest로 찾으므로
+        # v5가 active인 채로 v6를 적재·측정·활성화할 수 있다(ADR-0075, `mounted_files`).
         if self.c2_policy_path is None:
-            self.c2_policy_path = self.bidops_root / "experiments/order-plan-screening/config/order-plan-screening-policy.v5.json"
+            self.c2_policy_path = self.bidops_root / "experiments/order-plan-screening/config/order-plan-screening-policy.v6.json"
         if self.c2_binding_path is None:
-            self.c2_binding_path = self.bidops_root / "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v5.json"
+            self.c2_binding_path = self.bidops_root / "experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v6.json"
         if self.c2_generation_config_path is None:
             self.c2_generation_config_path = self.bidops_root / "experiments/order-plan-screening/config/order-plan-screening-generation-config.v6.json"
         # Capabilities and prompt are deployment/company inputs.  They are

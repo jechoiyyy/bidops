@@ -118,7 +118,7 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0034](tracking/decisions/0034-bid-delta-final-decision.md) | 입찰 delta와 최종 사람 결정을 불변 비교와 append-only 기록으로 분리 | 채택 — 계약/구현 경계 | worker·운영 활성화는 별도 |
 | [0035](tracking/decisions/0035-prespec-overview-attempt-result-lifecycle.md) | 개요 모델 attempt의 상태 전이와 검증 결과를 분리 | 채택 | result/event와 안전한 v2 projection |
 | [0036](tracking/decisions/0036-judgment-model-lineage-source.md) | 판정의 모델 계보는 revision→execution 경로를 정본으로 함 | 채택 | legacy 계보는 `unknown` |
-| [0037](tracking/decisions/0037-order-plan-c2-bm25-top300-qwen.md) | C-2 발주계획 선별은 BM25 Top 300 뒤 Qwen으로 확정 | 채택 | 현재 선택; 운영 활성화와 별개 |
+| [0037](tracking/decisions/0037-order-plan-c2-bm25-top300-qwen.md) | C-2 발주계획 선별은 BM25 Top 300 뒤 Qwen으로 확정 | 채택 | 현재 선택; 운영 활성화와 별개; 절단 값은 [0075](tracking/decisions/0075-c2-stage1-top150.md)가 policy `stage1.top_k`로 옮김(v6 150, 발행만) |
 | [0038](tracking/decisions/0038-order-plan-c2-phase0-contracts.md) | C-2 Phase 0 전용 파일·REST·DB 계약과 상태 경계 고정 | 채택 — 계약만 | 제품 adapter·DB·실행은 후속 phase; binding `status` 허용값과 파일 상태성 필드의 게이트 제외는 [0060](tracking/decisions/0060-c2-policy-db-row-authority.md)이 개정 |
 | 0039(git 이력 docs/design/ADR.md, 삭제됨) | Astryx 디자인 시스템 채택과 승인 범위 | 채택 | 고정 빌드 산출물; 테마는 0048이 개정; 화면 이행은 후속 단계 |
 | 0040(git 이력 docs/design/ADR.md, 삭제됨) | 레이아웃 소유권과 화면 단위 이행 | 채택 | 레이아웃은 프로젝트 소유; 화면별 이행 |
@@ -351,3 +351,5 @@ ADR-0021은 “운영 제품 전에 동일 모집단과 사람 정답으로 비�
 - ADR-0073 RL-05 gold 인수 결정(2026-10-19, run rlc-20261019): gold 표본은 실제 수집 사전규격 10건(fixture 4건은 DB 공고가 아니라 attempt를 만들 수 없고 폴리텍은 RL-03 smoke 노출로 제외), 홀드아웃은 두 겹(선정 공고의 `verdict_request` `rejected`·`gold_holdout` 행 + RL-03 트리거 조건 (7), 선정 전 `BIDOPS_RL_ANALYSIS_AUTO_START_ENABLED=false`), 제품은 읽기 전용 `export-evaluation --cards|--actual`만 두고 채점은 제품 밖 `scripts/rl-gold.py`가 하며 인수(`accept|reject|defer`)는 사람이 `acceptance.json`에 적는다(도구는 `decision=null`). 기준 수치는 HP criteria v1(8/10·0.8·0.7·0)을 그대로 쓰고 `company_sha256`은 활성 `graph_sha256`이다(HP-06의 "DB graph SHA 금지"를 의도적으로 뒤집음). spec 정정 C7(사용자 승인): `quality_status`는 제품 규칙 `quality_status_for_reviews`로 읽고, gold 작성 시각 이전의 RL review가 있으면 자동 시작은 `holdout_violated`·수동 요청은 `gold_after_model`(둘 다면 전자). 결과는 사람이 `accept`하기 전까지 `unmeasured_reference`이며 품질 근거가 아니다. [spec](work/groups/RL/features/RL-05-gold-acceptance/spec.md)·[운영](operations/rl.md#rl-판정-gold-인수-평가-rl-05-2026-10-19)·[품질 게이트](model-quality-gate.md#rl-판정-gold-인수-rl-05).
 
 - [ADR-0074 분석 엔진 통합 개발 기준선](tracking/decisions/0074-deep-engine-development-baseline.md): 분석 코어 패키지·기존 작업 슬롯·mock_reference adapter, Compose 선택 통합. 품질 인수·운영 활성화 제외.
+
+- [ADR-0075 C-2 1단계 절단 300 → 150(정책 v6)](tracking/decisions/0075-c2-stage1-top150.md) (2026-11-18): 절단 값은 동결 policy `stage1.top_k`(허용 `{150, 300}`, binding과 같아야 함)가 정하고 v6 policy·binding을 발행, 파일은 행마다 digest로 같은 디렉터리에서 찾아 v5 active 중 v6 측정·활성화에 재시작이 필요 없음, 누적 목록은 `실패` 실행의 결과 행을 완료 결과보다 낮은 우선순위로 읽음. migration 없음. v6는 적재·게이트 측정·활성화 전이며 ADR-0037은 대체하지 않는다.

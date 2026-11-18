@@ -40,7 +40,7 @@ from sqlalchemy.orm import Session
 
 from ..core.api_errors import BundleServiceError, validate_actor
 from ..core.models import AuditEvent, utc_now
-from .c2_contracts import OrderPlanScreeningPolicyArtifact
+from .c2_contracts import ALLOWED_STAGE1_TOP_K, OrderPlanScreeningPolicyArtifact
 from .models import OrderPlanScreeningPolicy
 from .policy import PolicyError, _reject_duplicate_keys
 
@@ -113,6 +113,13 @@ def _validate_binding(binding: Mapping[str, Any], policy: OrderPlanScreeningPoli
     status = binding.get("status")
     if status not in BINDING_STATUSES:
         raise C2PolicyLoadError("binding_status_invalid")
+    # 1단계 절단 값(ADR-0075). 행은 immutable이라 실행에서 거부될 파일은 적재하지 않는다.
+    top_k = policy.stage1.get("top_k")
+    if not isinstance(top_k, int) or isinstance(top_k, bool) or top_k not in ALLOWED_STAGE1_TOP_K:
+        raise C2PolicyLoadError("policy_top_k_invalid")
+    stage1_binding = binding.get("stage1_binding")
+    if not isinstance(stage1_binding, Mapping) or stage1_binding.get("top_k") != top_k:
+        raise C2PolicyLoadError("binding_top_k_mismatch")
     transport = binding.get("external_transport")
     if status == "blocked" and isinstance(transport, Mapping) and transport.get("execution_allowed") is True:
         # ADR-0060 §3: a blocked binding that allows execution contradicts itself.

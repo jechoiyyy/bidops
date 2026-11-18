@@ -26,7 +26,11 @@ def write_json(path: Path, value: Any) -> None:
     path.write_bytes(RANKER.PHASE0.canonical_json_bytes(value))
 
 
-def synthetic_references(root: Path) -> dict[str, Any]:
+CONFIG_DIR = REPO_ROOT / "experiments/order-plan-screening/config"
+
+
+def synthetic_references(root: Path, *, top_k: int | None = None, binding_top_k: int | None = None) -> dict[str, Any]:
+    """v2 template references; ``top_k``/``binding_top_k`` override the stage 1 cut."""
     profile = {
         "schema_version": "bidops.order-plan-capabilities.v1",
         "approval_status": "approved",
@@ -50,6 +54,8 @@ def synthetic_references(root: Path) -> dict[str, Any]:
         "sha256": profile_sha256,
     })
     policy["bindings"]["company_profile_sha256"] = profile_sha256
+    if top_k is not None:
+        policy["stage1"]["top_k"] = top_k
     policy_path = root / "synthetic-policy.json"
     write_json(policy_path, policy)
     policy_sha256 = RANKER.PHASE0.sha256_file(policy_path)
@@ -64,6 +70,8 @@ def synthetic_references(root: Path) -> dict[str, Any]:
         "active_company_capabilities_path": profile_path.name,
         "active_company_capabilities_sha256": profile_sha256,
     })
+    if binding_top_k is not None or top_k is not None:
+        binding["stage1_binding"]["top_k"] = binding_top_k if binding_top_k is not None else top_k
     binding_path = root / "synthetic-phase0-binding.json"
     write_json(binding_path, binding)
     return {
@@ -194,6 +202,87 @@ class RankOrderPlansBm25Tests(unittest.TestCase):
             self.assertEqual(300, artifact["selected_count"])
             self.assertEqual(0, artifact["filtered_out_count"])
             self.assertTrue(all(row["stage1_status"] == "selected" for row in artifact["items"]))
+
+    def test_policy_top_k_150_selects_exactly_150_and_the_151st_is_filtered_out(self) -> None:
+        items = [{"plan_id": f"plan-{index:04d}", "title": f"AI 데이터 플랫폼 {index}"} for index in range(400)]
+        for top_k, expected in ((150, 150), (300, 300)):
+            with self.subTest(top_k=top_k), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                references = synthetic_references(root, top_k=top_k)
+                input_path = root / "input.json"
+                write_json(input_path, input_document(items, references))
+                artifact = rank(input_path, root / "ranking.json", references)
+                self.assertEqual((expected, 400 - expected), (artifact["selected_count"], artifact["filtered_out_count"]))
+                self.assertEqual("selected", artifact["items"][expected - 1]["stage1_status"])
+                self.assertEqual("filtered_out", artifact["items"][expected]["stage1_status"])
+                self.assertEqual(expected + 1, artifact["items"][expected]["rank"])
+                # The cut never changes the BM25 order or scores.
+                self.assertEqual(list(range(1, 401)), [row["rank"] for row in artifact["items"]])
+
+    def test_population_at_or_below_top_k_150_selects_all(self) -> None:
+        items = [{"plan_id": f"p-{index:03d}", "title": "AI"} for index in range(150)]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            references = synthetic_references(root, top_k=150)
+            input_path = root / "input.json"
+            write_json(input_path, input_document(items, references))
+            artifact = rank(input_path, root / "ranking.json", references)
+            self.assertEqual((150, 0), (artifact["selected_count"], artifact["filtered_out_count"]))
+
+    def test_rejects_unapproved_top_k_and_policy_binding_disagreement(self) -> None:
+        items = [{"plan_id": "p-1", "title": "AI"}]
+        for top_k, binding_top_k, code in (
+            (200, 200, "policy_binding_mismatch"),
+            (0, 0, "policy_binding_mismatch"),
+            (True, True, "policy_binding_mismatch"),
+            (150, 300, "binding_mismatch"),
+            (300, 150, "binding_mismatch"),
+            (150, 200, "binding_invalid"),
+        ):
+            with self.subTest(top_k=top_k, binding_top_k=binding_top_k), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                references = synthetic_references(root, top_k=top_k, binding_top_k=binding_top_k)
+                input_path = root / "input.json"
+                output_path = root / "ranking.json"
+                write_json(input_path, input_document(items, references))
+                with self.assertRaises(RANKER.ContractError) as raised:
+                    rank(input_path, output_path, references)
+                self.assertEqual(code, raised.exception.code)
+                self.assertFalse(output_path.exists())
+
+    def test_published_v5_and_v6_files_pass_the_fixed_reference_checks(self) -> None:
+        """Dry-check the immutable files the worker freezes into an execution."""
+
+        for version, top_k in (("v5", 300), ("v6", 150)):
+            with self.subTest(version=version):
+                policy_path = CONFIG_DIR / f"order-plan-screening-policy.{version}.json"
+                binding_path = CONFIG_DIR / f"order-plan-screening-phase0-binding.{version}.json"
+                policy = json.loads(policy_path.read_bytes())
+                binding = json.loads(binding_path.read_bytes())
+                frozen = {
+                    "policy": {"version": policy["policy_version"], "sha256": RANKER.PHASE0.sha256_file(policy_path)},
+                    "stage1_binding": {"version": "bm25", "sha256": binding["stage1_binding"]["sha256"]},
+                    "stage2_binding": {"version": binding["binding_version"], "sha256": RANKER.PHASE0.sha256_file(binding_path)},
+                }
+                fixed = RANKER.validate_fixed_references(frozen, policy_path=policy_path, binding_path=binding_path)
+                self.assertEqual(top_k, fixed["top_k"])
+                self.assertEqual(f"c2-order-plan-screening-{version}", fixed["policy"]["policy_version"])
+                self.assertEqual(binding["policy"]["path"], f"experiments/order-plan-screening/config/{policy_path.name}")
+                generation = json.loads((CONFIG_DIR / "order-plan-screening-generation-config.v6.json").read_bytes())
+                self.assertEqual(binding["stage2_binding"]["model_digest"], generation["model_revision"])
+                self.assertEqual(
+                    binding["stage2_binding"]["generation_config_sha256"],
+                    RANKER.PHASE0.sha256_file(CONFIG_DIR / "order-plan-screening-generation-config.v6.json"),
+                )
+                self.assertEqual(
+                    binding["stage1_binding"]["sha256"], RANKER.PHASE0.sha256_file(CONFIG_DIR / "bm25.json")
+                )
+        v5 = json.loads((CONFIG_DIR / "order-plan-screening-policy.v5.json").read_bytes())
+        v6 = json.loads((CONFIG_DIR / "order-plan-screening-policy.v6.json").read_bytes())
+        # v6 is v5 with a new version, publication time and stage 1 cut — nothing else.
+        for document in (v5, v6):
+            document.pop("policy_version"), document.pop("created_at"), document["stage1"].pop("top_k")
+        self.assertEqual(v5, v6)
 
     def test_same_input_is_byte_stable_and_output_is_not_overwritten(self) -> None:
         items = [{"plan_id": "p-1", "title": " ＡＩ   데이터 "}]

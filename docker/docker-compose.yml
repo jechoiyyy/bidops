@@ -171,9 +171,14 @@ services:
       - web-data:/app/web/data
       # Only the tracked policy and binding are supplied to the default image;
       # company capabilities and the prompt require the remote overlay's
-      # explicit operator paths below.
+      # explicit operator paths below.  v5 (active) and v6 (published, not yet
+      # loaded) are both mounted: the service finds each DB row's file by its
+      # byte digest in this directory, so a candidate can be measured while
+      # another version stays active (ADR-0075).
       - ./experiments/order-plan-screening/config/order-plan-screening-policy.v5.json:/app/experiments/order-plan-screening/config/order-plan-screening-policy.v5.json:ro
       - ./experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v5.json:/app/experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v5.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-policy.v6.json:/app/experiments/order-plan-screening/config/order-plan-screening-policy.v6.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v6.json:/app/experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v6.json:ro
       - ./experiments/order-plan-screening/config/order-plan-screening-generation-config.v6.json:/app/experiments/order-plan-screening/config/order-plan-screening-generation-config.v6.json:ro
       # Profile-related inputs are deployment data, not image layers. The web
       # process owns both the profile snapshot boundary and the collection
@@ -245,6 +250,8 @@ services:
       - pipeline-data:/app/data
       - ./experiments/order-plan-screening/config/order-plan-screening-policy.v5.json:/app/experiments/order-plan-screening/config/order-plan-screening-policy.v5.json:ro
       - ./experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v5.json:/app/experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v5.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-policy.v6.json:/app/experiments/order-plan-screening/config/order-plan-screening-policy.v6.json:ro
+      - ./experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v6.json:/app/experiments/order-plan-screening/config/order-plan-screening-phase0-binding.v6.json:ro
       - ./experiments/order-plan-screening/config/order-plan-screening-generation-config.v6.json:/app/experiments/order-plan-screening/config/order-plan-screening-generation-config.v6.json:ro
     # scanning: ClamAV 검사.
     networks: [database, analysis, scanning]
