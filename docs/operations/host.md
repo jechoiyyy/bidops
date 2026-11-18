@@ -90,7 +90,8 @@ scripts/c2-mac-model-preflight.sh        # 별칭 경로·Ollama digest·컨테�
   만든다. 다시 켤 때는 대상 범위를 먼저 정한다.
 - 노출: web `127.0.0.1:18788`, tailnet은 `tailscale serve --bg --tcp=8188 tcp://127.0.0.1:18788`.
   tailnet ACL이 허용하는 inbound 포트가 정해져 있어(8101–8199 등) `18788`을 직접 열지 않는다.
-  같은 Mac의 데모 스택 `bidops-local`은 `:18787`/`:8187`이며 volume·network를 나누지 않는다.
+  같은 Mac의 데모 스택 `bidops-local`(`:18787`/`:8187`)은 2026-11-18 종료했다(volume 보존,
+  옛 `.env`는 `backups/env-demo-local-20261118`). 운영은 Mac에서만 한다.
 - 모델 설정은 공유 `BIDOPS_VLLM_*` 네 값과 overview 절(`env/model.env`)이다. C-2 adapter와
   개요가 같은 LiteLLM을 쓰고 심층·C-1은 이 배포에서 꺼져 있다. `BIDOPS_VLLM_MODEL_REVISION`은 Ollama
   `/api/tags`의 digest이고 preflight가 binding·generation config와 대조한다.
@@ -115,18 +116,25 @@ scripts/c2-mac-model-preflight.sh        # 별칭 경로·Ollama digest·컨테�
 
   ```bash
   # Mac 발주계획 cron 예시 — 설치되어 있지 않음
-  30 7 * * * cd /Users/temp/orca/bidops-c2mac && BIDOPS_ENV=prod PATH=/opt/homebrew/opt/coreutils/libexec/gnubin:/Applications/OrbStack.app/Contents/MacOS/xbin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin BIDOPS_ENV=prod BIDOPS_WORKFLOW_WEB_URL=http://127.0.0.1:18788 BIDOPS_C2_DAILY_ACTOR=jechoi flock -n /Users/temp/.local/state/bidops/plans.lock timeout 6h ./scripts/run-daily-lifecycle.sh --track order-plans >> /Users/temp/.local/state/bidops/logs/plans-$(date +\%Y\%m).log 2>&1
+  30 7 * * * cd /Users/temp/orca/bidops && BIDOPS_ENV=prod PATH=/opt/homebrew/opt/coreutils/libexec/gnubin:/Applications/OrbStack.app/Contents/MacOS/xbin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin BIDOPS_ENV=prod BIDOPS_WORKFLOW_WEB_URL=http://127.0.0.1:18788 BIDOPS_C2_DAILY_ACTOR=jechoi flock -n /Users/temp/.local/state/bidops/plans.lock timeout 6h ./scripts/run-daily-lifecycle.sh --track order-plans >> /Users/temp/.local/state/bidops/logs/plans-$(date +\%Y\%m).log 2>&1
   ```
 
-  운영 checkout 경로는 브랜치가 병합되면 main checkout으로 옮긴다. 그때 env 파일 4개와
-  `data/runs`의 회차 디렉터리를 함께 옮기고 cron의 `cd` 경로를 바꾼다.
+  운영 checkout은 2026-11-18부터 main checkout `/Users/temp/orca/bidops`다. env 파일 4개와
+  `data/runs`·`backups`를 옛 `bidops-c2mac`에서 옮겼다
+  ([기록](../validation-runs/20261118-ops-main-move/README.md)).
+- 앱 이미지는 `BIDOPS_ENV=prod scripts/compose.sh build web`으로 빌드한다. `make build`는
+  bootstrap 대상을 arm64로 빌드해 lock hash 검사에서 실패한다(findings). postgres-init·migrate는
+  web과 같은 `BIDOPS_IMAGE`를 쓴다. 문서 worker는 `build document-worker`다.
+- postgres·minio·clamav·document-worker는 restart 정책이 `no`다. Mac·OrbStack 재시작 뒤에는
+  `up -d --no-deps --no-build --scale document-worker=2 postgres minio clamav web document-worker`로
+  다시 올리고, C-2를 돌릴 때는 analysis-worker도 사람 확인 후 올린다.
+- `alembic check`를 운영 형태의 postgres(server `search_path=bidops,public`)에 돌리면 모든 테이블이
+  없는 것으로 보고된다. `PGOPTIONS='-c search_path=public'`을 주고 실행한다.
 
 ### 이전 조합의 처리
 
-종료된 overlay의 이름은 과거 배포 기록과 Git 이력에 남는다. 실행 중인 컨테이너 label에
-옛 `config_files`가 남아 있는 것은 새 소스 적용을 뜻하지 않는다. 새 조합은 이 작업에서
-운영에 배포하지 않았다. 2026-11-17 읽기 전용 확인에서 운영·기존 데모 web은 이미
-restarting/unhealthy였으며 이 변경에서 고치거나 재시작하지 않았다. 활성 BidOps cron도 없었다.
+종료된 overlay의 이름은 과거 배포 기록과 Git 이력에 남는다. 2026-11-18 배포로 운영 컨테이너는
+main checkout의 base+edge+prod 조합으로 다시 만들어졌다. 활성 BidOps cron은 없다.
 
 ## 현재 배포 차단 조건
 

@@ -6,8 +6,8 @@
 
 | 범위 | 확인된 상태 | 근거·남은 경계 |
 |---|---|---|
-| 코드·DB | main에 RL-00~05 구현, 코드 head `0041_proposal_draft` | `app/core/db.py`, migration 0041, 각 기능 status.json |
-| Mac 운영 | 10월 19일 main `b8005ef` 코드·0041 배포, C-2 v5 active·일일 ON | [운영 반영](../validation-runs/20261019-ops-rl-rollout/README.md). 이후 main 변경이 운영에도 배포됐다고 추정하지 않음 |
+| 코드·DB | main에 RL-00~05 구현과 엔진 통합(RL-09 mock_reference), 코드 head `0042_engine_run` | `app/core/db.py`, migration 0042, 각 기능 status.json |
+| Mac 운영 | 11월 18일 main `4425744` 코드·0042 배포(운영 checkout을 main으로 이전), C-2 v5 active·일일 ON, analysis-worker 정지 | [운영 반영](../validation-runs/20261118-ops-main-move/README.md). 이후 main 변경이 운영에도 배포됐다고 추정하지 않음 |
 | 개요·RL 운영 스위치 | 마지막 기록상 개요·상시 첨부 worker 꺼짐, RL 분석 false | 운영 회사 근거·브리핑 미등록. 코드 배포는 RL 활성화가 아님 |
 | RL-00~02 | 실회사 근거·브리핑/Slack·활동/노트 구현·격리 검증 | [RL-00](../validation-runs/2026-10-16-rl/RL-00/README.md), [RL-01](../validation-runs/2026-10-16-rl/RL-01/README.md), [RL-02](../validation-runs/2026-10-16-rl/RL-02/README.md) |
 | RL-03 | 카드 판정 구현, import 기본 정책 v11, 실제 실행 기록 있음 | [RL-03](../validation-runs/2026-10-17-rl/RL-03/README.md). 회사 대조 품질은 아래 RL-05 결과로 구분 |
@@ -34,7 +34,7 @@ RL-00~05의 저장된 phase는 `done`이다. `feature_status.py queue _ show`는
 | 범위 | 실행 기록 |
 |---|---|
 | Mac 이전·C-2 v5 측정 | [2026-10-14](../validation-runs/20261014-c2-mac-v5-gate/README.md) |
-| RL 운영 배포 | [2026-10-19](../validation-runs/20261019-ops-rl-rollout/README.md) |
+| RL 운영 배포 | [2026-10-19](../validation-runs/20261019-ops-rl-rollout/README.md), main 이전 [2026-11-18](../validation-runs/20261118-ops-main-move/README.md) |
 | RL 기능·실제 인수 | 위 현재 요약의 RL-00~05 링크 |
 | 과거 PDF·회사 핏의 제한된 참조 인수 | [PDF 선행](../validation-runs/20260908-prespec-pdf-preflight.md), [회사 핏](../validation-runs/20260908-prespec-company-fit.md) |
 | 나머지 실행 | [validation-runs](../validation-runs/)의 날짜·환경·입력·결과를 함께 확인 |
