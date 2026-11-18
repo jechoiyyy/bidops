@@ -254,6 +254,9 @@ class Env:
         # fixture 없이도 뜻이 바뀌지 않도록 여기서는 끄고, 감지 검사
         # (`test_daily_lifecycle_gaps.py`)가 값을 명시해 켠다.
         env["BIDOPS_DAILY_GAP_LOOKBACK_DAYS"] = "0"
+        # 읽기 재시도 사이의 대기(기본 5초)를 시험에서는 없앤다. 시도 횟수(기본 3)는 그대로다.
+        env["BIDOPS_DAILY_READ_RETRY_PAUSE_SECONDS"] = "0"
+        env.pop("BIDOPS_DAILY_READ_ATTEMPTS", None)
         env.pop("BIDOPS_DAILY_GAP_FLOOR_DATE", None)
         for key, value in extra_env.items():
             if value is None:

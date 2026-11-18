@@ -7,7 +7,10 @@ cd "${WORKFLOW_ROOT}"
 
 source "${WORKFLOW_SCRIPT_DIR}/compose-env.sh"
 workflow_default_web_port="${BIDOPS_WEB_PORT:-}"
-if [[ -z "${workflow_default_web_port}" ]] && command -v docker >/dev/null 2>&1; then
+# The published-port probe asks Docker; skip it when the caller already names
+# the web (scripts/cron-daily-track.sh does), so a dry run never touches Docker.
+if [[ -z "${BIDOPS_WORKFLOW_WEB_URL:-}" && -z "${workflow_default_web_port}" ]] \
+    && command -v docker >/dev/null 2>&1; then
   workflow_published_web="$(
     "${WORKFLOW_SCRIPT_DIR}/compose.sh" \
       port web 8787 2>/dev/null || true
@@ -132,19 +135,65 @@ WORKFLOW_HTTP_BODY=""
 # Canonical run id of the last successful workflow_lookup_run_row.
 WORKFLOW_RUN_ROW_ID=""
 
-# workflow_get PATH — sets WORKFLOW_HTTP_CODE and WORKFLOW_HTTP_BODY. A
-# transport failure stops the caller.
+# --- Bounded retry for read-only GETs ---------------------------------------
+# A loaded host (2026-11-18: parallel UI tests during a supervised catch-up)
+# makes a single read time out or answer 5xx while the web is otherwise fine.
+# Every read-only GET of the daily path therefore gets BIDOPS_DAILY_READ_ATTEMPTS
+# attempts (default 3) with BIDOPS_DAILY_READ_RETRY_PAUSE_SECONDS between them
+# (default 5). Transient = no answer (curl failure), 5xx, 408 or 429; each
+# retried failure prints one "read retry (n/N) GET <path>: <reason>" line. Any
+# other answer (4xx included) goes straight back to the caller. POSTs never
+# go through this. The C-2 execution poll keeps its own consecutive-failure
+# limit (c2_poll_execution).
+WORKFLOW_READ_ATTEMPTS="${BIDOPS_DAILY_READ_ATTEMPTS:-3}"
+WORKFLOW_READ_RETRY_PAUSE_SECONDS="${BIDOPS_DAILY_READ_RETRY_PAUSE_SECONDS:-5}"
+[[ "${WORKFLOW_READ_ATTEMPTS}" =~ ^[1-9][0-9]*$ ]] \
+  || workflow_die "BIDOPS_DAILY_READ_ATTEMPTS must be a positive integer: ${WORKFLOW_READ_ATTEMPTS}"
+[[ "${WORKFLOW_READ_RETRY_PAUSE_SECONDS}" =~ ^[0-9]+$ ]] \
+  || workflow_die "BIDOPS_DAILY_READ_RETRY_PAUSE_SECONDS must be a non-negative integer: ${WORKFLOW_READ_RETRY_PAUSE_SECONDS}"
+
+# Exit 0 for an HTTP code worth reading again (000 = no answer).
+workflow_transient_http() {
+  case "$1" in
+    000|408|429|5??) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# workflow_read_retry ATTEMPT WHAT REASON — exit 0 after logging and pausing
+# when another attempt is allowed, exit 1 when ATTEMPT was the last one.
+workflow_read_retry() {
+  local attempt="$1" what="$2" reason="$3"
+  (( attempt < WORKFLOW_READ_ATTEMPTS )) || return 1
+  workflow_note "read retry (${attempt}/${WORKFLOW_READ_ATTEMPTS}) ${what}: ${reason}; reading again in ${WORKFLOW_READ_RETRY_PAUSE_SECONDS}s"
+  sleep "${WORKFLOW_READ_RETRY_PAUSE_SECONDS}"
+  return 0
+}
+
+# workflow_get PATH — sets WORKFLOW_HTTP_CODE and WORKFLOW_HTTP_BODY, with the
+# bounded read retry above. No answer after the last attempt stops the caller;
+# a non-200 answer is left to the caller.
 workflow_get() {
-  local path="$1" response
-  response="$(curl --connect-timeout 3 --max-time 10 --silent --show-error \
-    --write-out '\n%{http_code}' "${BIDOPS_WORKFLOW_WEB_URL}${path}")" \
-    || workflow_die "request failed: GET ${BIDOPS_WORKFLOW_WEB_URL}${path}"
-  WORKFLOW_HTTP_CODE="${response##*$'\n'}"
-  if [[ "${response}" == *$'\n'* ]]; then
-    WORKFLOW_HTTP_BODY="${response%$'\n'*}"
-  else
-    WORKFLOW_HTTP_BODY=""
-  fi
+  local path="$1" response attempt=1
+  while true; do
+    if response="$(curl --connect-timeout 3 --max-time 10 --silent --show-error \
+        --write-out '\n%{http_code}' "${BIDOPS_WORKFLOW_WEB_URL}${path}")"; then
+      WORKFLOW_HTTP_CODE="${response##*$'\n'}"
+      if [[ "${response}" == *$'\n'* ]]; then
+        WORKFLOW_HTTP_BODY="${response%$'\n'*}"
+      else
+        WORKFLOW_HTTP_BODY=""
+      fi
+      workflow_transient_http "${WORKFLOW_HTTP_CODE}" || return 0
+      workflow_read_retry "${attempt}" "GET ${path}" "HTTP ${WORKFLOW_HTTP_CODE}" || return 0
+    else
+      WORKFLOW_HTTP_CODE="000"
+      WORKFLOW_HTTP_BODY=""
+      workflow_read_retry "${attempt}" "GET ${path}" "no answer" \
+        || workflow_die "request failed: GET ${BIDOPS_WORKFLOW_WEB_URL}${path}"
+    fi
+    attempt=$((attempt + 1))
+  done
 }
 
 # The directory a run id belongs to: a canonical id without its `--<stamp>Z`
@@ -217,10 +266,17 @@ workflow_require_single_run_row() {
   esac
 }
 
+# Health check with the bounded read retry (curl --fail: any failure, an HTTP
+# error included, counts as transient here — the health endpoint has no
+# meaningful 4xx).
 workflow_check_web() {
-  curl --connect-timeout 3 --max-time 10 --fail --silent --show-error \
-    "${BIDOPS_WORKFLOW_WEB_URL}/api/health" >/dev/null \
-    || workflow_die "web health check failed: ${BIDOPS_WORKFLOW_WEB_URL}/api/health"
+  local attempt=1
+  until curl --connect-timeout 3 --max-time 10 --fail --silent --show-error \
+      "${BIDOPS_WORKFLOW_WEB_URL}/api/health" >/dev/null; do
+    workflow_read_retry "${attempt}" "GET /api/health" "health check failed" \
+      || workflow_die "web health check failed: ${BIDOPS_WORKFLOW_WEB_URL}/api/health"
+    attempt=$((attempt + 1))
+  done
 }
 
 workflow_copy_run_if_missing() {
