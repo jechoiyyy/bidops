@@ -29,7 +29,7 @@ interface RowTypeSpec {
   title: string;
   agency: string;
   /**
-   * 그 두 줄의 물리 글자 크기. 네 화면이 모두 공용 `--review-list-primary`(목록 제목 단 16px)를
+   * 그 두 줄의 물리 글자 크기. 네 화면이 모두 공용 `--review-list-primary`(목록 제목 단 14px)를
    * 읽는다(2026-09-21 M1c 승인, 명세 §2.4). selector는 행 구조가 화면마다 달라
    * 화면이 주지만 값은 하나다.
    */
@@ -88,7 +88,7 @@ const screens: ScreenSpec[] = [
     detailHead: ".c2l-detail-head",
     unifiedFrame: true,
     unifiedListParts: true,
-    rowType: { title: ".c2l-row-title", agency: ".c2l-row-agency", size: "16px", titleWeight: "600" },
+    rowType: { title: ".c2l-row-title", agency: ".c2l-row-agency", size: "14px", titleWeight: "600" },
   },
   {
     path: "/pre-specs?sw_only=false", // S3: 기본 보기 fixture는 추적 결정으로 0건
@@ -99,7 +99,7 @@ const screens: ScreenSpec[] = [
     detailHead: ".pre-specs-detail-header",
     unifiedFrame: true,
     unifiedListParts: true,
-    rowType: { title: ".pre-specs-row-title", agency: ".pre-specs-row-agency", size: "16px", titleWeight: "600" },
+    rowType: { title: ".pre-specs-row-title", agency: ".pre-specs-row-agency", size: "14px", titleWeight: "600" },
   },
   {
     // 사업 추적도 공용 분할 골격으로 옮겼다(시안 M1c A안). 여기 selector가 공용
@@ -114,7 +114,7 @@ const screens: ScreenSpec[] = [
     unifiedFrame: true,
     // 목록은 Astryx `Table`을 유지하고(M1c A안) 묶음 선택이 없어 열 이름 줄·선택
     // 도구줄 부품이 없다. 행 글자 단은 아래 `rowType`이 따로 본다.
-    rowType: { title: ".opportunity-row-title", agency: ".opportunity-row-agency", size: "16px" },
+    rowType: { title: ".opportunity-row-title", agency: ".opportunity-row-agency", size: "14px" },
     mock: (page) => mockOpportunities(page),
   },
   {
@@ -129,7 +129,7 @@ const screens: ScreenSpec[] = [
     unifiedFrame: true,
     // 목록은 Astryx `Table`을 유지하고(M1c A안) 묶음 선택이 없어 열 이름 줄·선택
     // 도구줄 부품이 없다 — `unifiedListParts`는 켜지 않는다.
-    rowType: { title: ".gng-row-title", agency: ".gng-row-agency", size: "16px" },
+    rowType: { title: ".gng-row-title", agency: ".gng-row-agency", size: "14px" },
     // 조회가 느린 시나리오가 응답을 붙들고 있어도 목록·상세 골격은 그려진다.
     // `slowMs`는 **선택한 사업의 상세 조회**만 붙들고 대기열은 그대로 오므로
     // 행(`.gng-row-*`)과 상세 머리는 그려진다.
@@ -275,9 +275,10 @@ test("탐색과 추적 목록 4화면은 두 지원 폭에서 같은 상단바·
 
       // 상단바 — 제목 하나가 화면 이름이고 경로·편집 범위 칩은 없다. 화면 액션은
       // 상단바 오른쪽 가장자리에 붙는다(떨어지는 것은 상단바 padding 만큼뿐이다).
-      expect(metrics.titleFont, `${where} 제목 크기`).toBe("18px");
+      // 상단바 화면 제목은 모든 화면 16px/600이다(2026-11-18 결정).
+      expect(metrics.titleFont, `${where} 제목 크기`).toBe("16px");
       expect(metrics.titleWeight, `${where} 제목 굵기`).toBe("600");
-      expect(metrics.topbarHeight, `${where} 상단바 높이`).toBeCloseTo(physical(76), 0);
+      expect(metrics.topbarHeight, `${where} 상단바 높이`).toBeCloseTo(44, 0);
       expect(metrics.crumbCount, `${where} 제목 모드에는 경로 칸이 없다`).toBe(0);
       expect(metrics.statusCount, `${where} 제목 모드에는 편집 범위 칩이 없다`).toBe(0);
       expect(metrics.actionsGap, `${where} 액션이 상단바 오른쪽 끝에 붙는다`)

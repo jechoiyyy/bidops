@@ -85,7 +85,8 @@ export const bidopsTheme = defineTheme({
   // Typography: Pretendard across body, heading, and display sizes (display
   // size tokens inherit from heading.family). Pretendard is proportional, so
   // code keeps the project's monospace stack (styles/theme.css --font-mono).
-  // Scale: base=14, ratio=1.2. Bold weights on h3/h4 for subsection hierarchy.
+  // Scale: base=14, ratio=1.2. h3/h4 use semibold (600): the app's weight set is
+  // 400/500/600 only (2026-11-18, 설계고도화안 §4 B).
   typography: {
     scale: {base: 14, ratio: 1.2},
     body: {
@@ -97,7 +98,7 @@ export const bidopsTheme = defineTheme({
       family: 'Pretendard',
       fallbacks:
         'system-ui, sans-serif',
-      weights: {3: 'bold', 4: 'bold'},
+      weights: {3: 'semibold', 4: 'semibold'},
     },
     code: {
       family: 'ui-monospace',
@@ -357,6 +358,22 @@ export const bidopsTheme = defineTheme({
     '--color-border-gray': ['#d4d4d4', '#262626'],
     '--color-icon-gray': ['#525252', '#a3a3a3'],
     '--color-text-gray': ['#262626', '#e5e5e5'],
+
+    // =========================================================================
+    // Font sizes — integer px on the app scale 12/14/16/20 (2026-11-18,
+    // 설계고도화안 §4 B). The generated rem sizes assumed a 16px root; this app's
+    // root is 14px, so 0.875rem rendered as 12.25px. Display sizes stay rem
+    // (unused in this app).
+    // =========================================================================
+    '--font-size-4xs': '12px',
+    '--font-size-3xs': '12px',
+    '--font-size-2xs': '12px',
+    '--font-size-xs': '12px',
+    '--font-size-sm': '12px',
+    '--font-size-base': '14px',
+    '--font-size-lg': '16px',
+    '--font-size-xl': '20px',
+    '--font-size-2xl': '20px',
 
     // =========================================================================
     // Radius — integer px on the 4px grid (2026-11-18, 설계고도화안 §4 B-2).

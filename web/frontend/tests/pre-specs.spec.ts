@@ -532,8 +532,8 @@ test("기본 보기 빈 상태의 전체 사전규격 보기는 sw_only=false를
 });
 
 // 행 구조: 사업명 → 기관 → 예산·발견 구분 → 개요 상태·추적 상태(사용자 정정으로
-// 시안의 첫 두 줄을 맞바꿨다). 크기는 사업명·기관이 목록 제목 단 16px, 나머지가
-// 본문 14px이며 굵은 글자는 사업명 하나뿐이다(×0.9 축척 때는 14.4px·12.6px).
+// 시안의 첫 두 줄을 맞바꿨다). 크기는 사업명·기관이 14px, 나머지가 12px이며 굵은
+// 글자는 사업명 하나뿐이다(2026-11-18 조밀 목록 결정. ×0.9 축척 때는 14.4px·12.6px).
 test("목록 행은 사업명·기관·예산·상태를 정해진 순서와 글자 크기로 보여준다", async ({ page }) => {
   await mockPreSpecs(page);
   await page.goto("/pre-specs");
@@ -546,15 +546,15 @@ test("목록 행은 사업명·기관·예산·상태를 정해진 순서와 글
 
   const fontSize = (locator: ReturnType<typeof preSpecRow>) => locator
     .evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
-  expect(await fontSize(agency)).toBe(16);
-  expect(await fontSize(title)).toBe(16);
+  expect(await fontSize(agency)).toBe(14);
+  expect(await fontSize(title)).toBe(14);
   const fontWeight = (locator: ReturnType<typeof preSpecRow>) => locator
     .evaluate((element) => Number(getComputedStyle(element).fontWeight));
   expect(await fontWeight(title)).toBeGreaterThanOrEqual(600);
   expect(await fontWeight(agency)).toBeLessThan(600);
-  expect(await fontSize(row.locator(".pre-specs-row-meta"))).toBe(14);
-  expect(await fontSize(row.locator(".pre-specs-row-state"))).toBe(14);
-  expect(await fontSize(row.locator(".pre-specs-deadline"))).toBe(14);
+  expect(await fontSize(row.locator(".pre-specs-row-meta"))).toBe(12);
+  expect(await fontSize(row.locator(".pre-specs-row-state"))).toBe(12);
+  expect(await fontSize(row.locator(".pre-specs-deadline"))).toBe(12);
 
   // 사업명이 기관보다 위에 있고, 마감은 행의 오른쪽 절반에 있다.
   const positions = await row.evaluate((element) => {
@@ -771,9 +771,10 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     expect(styles.caption.fontSize).toBe(12);
     expect(styles.fieldLabel.fontSize).toBe(12);
     expect(styles.scale.fontSize).toBe(12);
-    expect(styles.sectionLabel.fontWeight).toBeGreaterThanOrEqual(700);
-    expect(styles.fieldLabel.fontWeight).toBeGreaterThanOrEqual(700);
-    expect(styles.scaleLabel.fontWeight).toBeGreaterThanOrEqual(700);
+    // 굵기는 400·500·600만 쓴다(2026-11-18). 라벨 강조는 600이다.
+    expect(styles.sectionLabel.fontWeight).toBeGreaterThanOrEqual(600);
+    expect(styles.fieldLabel.fontWeight).toBeGreaterThanOrEqual(600);
+    expect(styles.scaleLabel.fontWeight).toBeGreaterThanOrEqual(600);
     expect(styles.validation.fontWeight).toBeLessThan(600);
     expect(styles.taskText.fontWeight).toBeLessThan(600);
     expect(styles.scaleText.fontWeight).toBeLessThan(600);

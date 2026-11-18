@@ -1388,11 +1388,10 @@ test("상세 본문을 끝까지 스크롤해도 상세 머리가 뷰포트 안�
   expect(after.y + after.height, "머리가 뷰포트 안에 있다").toBeLessThanOrEqual(800);
 });
 
-// 목록 첫 줄은 공용 `--review-list-primary`(목록 제목 단 16px)를 읽는다 — 2026-09-21 M1c 승인:
-// 네 목록의 첫 줄은 공용 값이다(명세 §2.4). 사업 추적만 갖고 있던 별도 단
-// (`--opportunity-row-primary`)은 없앴고, 표 자체는 그대로 둔다(M1c A안). 둘째 줄은
-// 본문(14px)이다. 2026-11-18 ×0.9 축척을 없애기 전에는 14.4px·12.6px였다.
-test("목록의 글자 크기가 정수 척도의 16px·14px 단을 지킨다", async ({ page }) => {
+// 목록 첫 줄(사업명·발주기관)은 공용 `--review-list-primary`(14px)를, 메타 줄은
+// secondary(12px)를 읽는다 — 2026-11-18 조밀 목록 결정(설계고도화안 §4 B-4 결정 1).
+// 상세 제목은 상세 단(20px)이다. ×0.9 축척 때는 14.4px·12.6px·18px였다.
+test("목록의 글자 크기가 정수 척도의 14px·12px 단을 지킨다", async ({ page }) => {
   await mockOpportunities(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/opportunities");
@@ -1410,11 +1409,10 @@ test("목록의 글자 크기가 정수 척도의 16px·14px 단을 지킨다", 
       detailAgency: size(".opportunity-agency-name"),
     };
   });
-  expect(sizes.title).toBe("16px");
-  expect(sizes.agency).toBe("16px");
-  expect(sizes.meta).toBe("14px");
-  expect(sizes.next).toBe("14px");
-  // 상세 제목은 `--bo-type-page-title`(16px)이다. 20px 상세 단으로 옮길지는 B-4에서 정한다.
-  expect(sizes.detailTitle).toBe("16px");
+  expect(sizes.title).toBe("14px");
+  expect(sizes.agency).toBe("14px");
+  expect(sizes.meta).toBe("12px");
+  expect(sizes.next).toBe("12px");
+  expect(sizes.detailTitle).toBe("20px");
   expect(sizes.detailAgency).toBe("16px");
 });

@@ -83,7 +83,7 @@
   align-items: center;
   justify-content: center;
   min-width: calc(var(--spacing-4) + var(--spacing-0-5));
-  padding: 0 var(--spacing-1-5);
+  padding: 0 var(--spacing-2);
   border-radius: var(--radius-full);
   color: var(--color-warning);
   background: var(--color-warning-muted);

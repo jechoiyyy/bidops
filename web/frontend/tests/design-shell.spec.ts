@@ -199,15 +199,15 @@ test("1440px 셸의 팔레트 색과 기준 치수를 고정한다", async ({ pa
     const style = getComputedStyle(canvas);
     return [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft];
   });
-  // 4px 격자 이행(2026-11-18) 뒤의 기본값. 화면 전체 캔버스 여백 통일(상16·좌우24·하24)은
-  // B-4에서 다시 정한다(docs/1118_launch-hardening/설계고도화안.md §4).
-  expect(canvasPadding).toEqual(["12px", "16px", "16px", "16px"]);
+  // 모든 화면 같은 캔버스 여백: 상16·좌우24·하24(2026-11-18, 설계고도화안 §4 B-4).
+  expect(canvasPadding).toEqual(["16px", "24px", "24px", "24px"]);
 });
 
-// 제목 모드는 상단바가 화면의 시각 제목을 맡는다(ui-spec §1.3: 색 점 + 15px/600).
+// 제목 모드는 상단바가 화면의 시각 제목을 맡는다(ui-spec §1.3: 색 점 + 제목). 2026-11-18
+// 결정으로 상단바 화면 제목은 모든 화면에서 16px/600이다(설계고도화안 §4 B-4).
 // 상단바 높이는 두 모드가 같은 44px이어야 한다 — 모드에 따라 셸이 흔들리면
 // 목록과 상세를 오갈 때마다 본문이 위아래로 튄다.
-test("제목 모드 상단바가 15px 제목을 쓰고 높이는 44px다", async ({ page }, testInfo) => {
+test("제목 모드 상단바가 16px 제목을 쓰고 높이는 44px다", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "layout-desktop", "치수 기준은 시안 폭에서만 고정한다");
 
   await page.goto("/order-plans", { waitUntil: "domcontentloaded" });
@@ -227,7 +227,7 @@ test("제목 모드 상단바가 15px 제목을 쓰고 높이는 44px다", async
       topbarHeight: element.getBoundingClientRect().height,
     };
   });
-  expect(metrics).toMatchObject({ fontSize: "15px", fontWeight: "600" });
+  expect(metrics).toMatchObject({ fontSize: "16px", fontWeight: "600" });
   expect(metrics.topbarHeight).toBeCloseTo(44, 1);
 });
 

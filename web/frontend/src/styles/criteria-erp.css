@@ -50,7 +50,7 @@
  * 작다(`docs/engineering-notes.md`, `styles/typography.css`). root를 키우면 앱
  * 전체가 커지므로 이 화면이 쓰는 컴포넌트에만 프로젝트 4단을 되돌린다. */
 :is(.crit-page, .crit-dialog)
-  :where(.astryx-text, .astryx-button, .astryx-field-label, .astryx-selector, .astryx-tab, dd, li, span, input, textarea) {
+  :where(.astryx-text, .astryx-field-label, .astryx-selector, .astryx-tab, dd, li, span, input, textarea) {
   font-size: var(--bo-type-body);
   line-height: var(--bo-type-body-leading);
 }
@@ -82,12 +82,6 @@
   border-radius: var(--radius-inner);
 }
 
-:is(.crit-page, .crit-dialog) .astryx-button {
-  min-height: var(--spacing-8);
-  border-radius: var(--radius-inner);
-  white-space: nowrap;
-}
-
 .crit-page .astryx-heading,
 .crit-dialog .astryx-heading {
   margin: 0;
@@ -104,10 +98,6 @@
   width: 100%;
 }
 
-.crit-tabs .astryx-tab {
-  font-size: var(--bo-type-body);
-}
-
 /* --- 요약 한 줄 (시안 `.context-strip`) ---
  * 탭이 바뀌어도 남는 자리다. 기준 프로필 · 운영 활성 정책 · 미확인 항목 수를
  * 여기서만 말하고, 탭마다 되풀이하지 않는다. */
@@ -121,7 +111,7 @@
   /* 시안 실측 49px = 내용 32 + 위아래 패딩 16 + 아래 테두리 1. */
   min-height: calc(var(--spacing-8) + var(--spacing-4) + var(--border-width));
   min-width: 0;
-  margin-top: var(--spacing-3);
+  margin-top: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-4);
   border: 0;
   border-radius: var(--radius-container) var(--radius-container) 0 0;
@@ -323,9 +313,7 @@
   outline-offset: var(--focus-outline-offset);
 }
 
-.crit-queue .astryx-table-cell {
-  padding: var(--spacing-4);
-}
+
 
 .crit-queue-scroll thead {
   display: none;
@@ -347,6 +335,8 @@
 
 .crit-detail-head .astryx-heading.level-2 {
   overflow-wrap: anywhere;
+  font-size: var(--bo-type-detail-title);
+  line-height: var(--bo-type-page-title-leading);
 }
 
 .crit-detail-eyebrow-row {
@@ -483,10 +473,6 @@
 }
 
 /* 경고는 색만으로 말하지 않는다. 표제 문구가 이유를 직접 적는다. */
-.crit-note .astryx-button {
-  font-size: var(--bo-type-caption);
-}
-
 .crit-note[data-tone="warning"] {
   border-left-color: var(--color-warning);
 }
@@ -534,14 +520,12 @@
 }
 
 .crit-page .astryx-table-cell {
-  padding: var(--spacing-3);
   font-size: var(--bo-type-body);
   overflow-wrap: anywhere;
   vertical-align: top;
 }
 
 .crit-page .astryx-table-header-cell {
-  padding: var(--spacing-2) var(--spacing-3);
   font-size: var(--bo-type-caption);
   background: var(--color-background-body);
 }
