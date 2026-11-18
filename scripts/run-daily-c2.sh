@@ -54,6 +54,10 @@ Environment:
   BIDOPS_C2_DAILY_RETRY_WAIT_SECONDS     default 600.
   BIDOPS_C2_DAILY_POLL_TIMEOUT_SECONDS   default 7200.
   BIDOPS_C2_DAILY_POLL_INTERVAL_SECONDS  default 30.
+  BIDOPS_C2_DAILY_POLL_MAX_READ_FAILURES default 10; consecutive transient poll
+                                         read failures (no answer, 5xx, 408,
+                                         429) tolerated, "c2: poll read failed
+                                         (n/N)"; 0 fails on the first one.
 
 Exit 0 for success and the normal skips (daily_trigger_off, empty_population,
 active_execution_exists, already_executed, retry_limit_reached, and a POST

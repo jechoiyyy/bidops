@@ -72,10 +72,25 @@ case "${name}" in
     respond() { printf '%s\n%s' "$2" "$1"; exit 0; }
     # 파일 첫 줄이 상태 코드, 나머지가 본문이다.
     respond_file() { respond "$(head -n1 "$1")" "$(tail -n +2 "$1")"; }
-    # 시험 제어(계약 아님): get_fail 파일에 적은 경로 접두사의 GET은 500으로 답한다 —
-    # 실제 서버도 장애 때 비200을 낸다. 읽기 실패가 "누락 없음"으로 바뀌지 않는지 본다.
+    # 시험 제어(계약 아님): get_fail 파일에 적은 경로 접두사의 GET은 실패한다 — 실제 서버도
+    # 장애·과부하 때 비200을 내거나 응답하지 않는다. get_fail_count가 있으면 그 횟수만 실패하고
+    # (호출마다 1씩 줄어든다), get_fail_code가 HTTP 코드면 그 코드로, `transport`면 curl처럼
+    # 응답 없이 exit 28(timeout)로 끝난다. 기본은 500.
     if [[ "${method}" == GET && -f "${state}/get_fail" && "${path}" == "$(cat "${state}/get_fail")"* ]]; then
-      respond 500 '{"detail": "injected failure"}'
+      fail_now=true
+      if [[ -f "${state}/get_fail_count" ]]; then
+        left="$(cat "${state}/get_fail_count")"
+        if (( left > 0 )); then printf '%s' "$((left - 1))" > "${state}/get_fail_count"; else fail_now=false; fi
+      fi
+      if [[ "${fail_now}" == true ]]; then
+        fail_code=500
+        [[ -f "${state}/get_fail_code" ]] && fail_code="$(cat "${state}/get_fail_code")"
+        if [[ "${fail_code}" == transport ]]; then
+          printf 'curl: (28) Operation timed out after 30001 milliseconds with 0 bytes received\n' >&2
+          exit 28
+        fi
+        respond "${fail_code}" '{"detail": "injected failure"}'
+      fi
     fi
     if [[ "${method}" == POST ]]; then
       jq -nc --arg path "${path}" --argjson body "${data:-null}" \
@@ -145,10 +160,16 @@ case "${name}" in
           > "${state}/execs/$(printf '%03d' "${n}").json"
         respond 202 "$(jq -nc --arg id "${id}" --arg rid "${rid}" '{execution_id: $id, request_id: $rid, status: "대기"}')" ;;
       "GET /api/order-plan-screening/executions/"*/audit-sample)
+        # 실제 GET은 쓰지 않고 상태만 계산한다: 기록된 표본이 있으면 drawn, 없으면 preview
+        # (services/order_plan_audit_sample.py preview).
         [[ -f "${state}/audit_get" ]] && respond_file "${state}/audit_get"
+        exec_id="${path%/audit-sample}"; exec_id="${exec_id##*/}"
+        [[ -e "${state}/drawn/${exec_id}" ]] && respond 200 '{"status": "drawn", "sample": [{"order_plan_pk": 1}]}'
         respond 200 '{"status": "preview", "sample": []}' ;;
       "POST /api/order-plan-screening/executions/"*/audit-sample)
         [[ -f "${state}/audit_post" ]] && respond_file "${state}/audit_post"
+        exec_id="${path%/audit-sample}"; exec_id="${exec_id##*/}"
+        : > "${state}/drawn/${exec_id}"
         respond 201 '{"status": "drawn", "sample": [{"order_plan_pk": 1}]}' ;;
       "GET /api/order-plan-screening/executions/"*)
         id="${path##*/}"
@@ -300,6 +321,19 @@ class Env:
         )
         return execution_id
 
+    def drawn(self, execution_id: str) -> None:
+        """그 실행의 감사 표본이 이미 기록돼 있다(실제 GET이 `drawn`으로 답한다)."""
+
+        (self.state / "drawn" / execution_id).touch()
+
+    def fail_gets(self, prefix: str, *, count: int | None = None, code: str = "500") -> None:
+        """`prefix`로 시작하는 GET을 실패시킨다. `count`가 있으면 그 횟수만, `code=transport`는 응답 없음."""
+
+        (self.state / "get_fail").write_text(prefix, encoding="utf-8")
+        (self.state / "get_fail_code").write_text(code, encoding="utf-8")
+        if count is not None:
+            (self.state / "get_fail_count").write_text(str(count), encoding="utf-8")
+
     def outcomes(self, *statuses: str) -> None:
         """다음 실행 생성들이 차례로 도달할 terminal 상태."""
 
@@ -395,6 +429,7 @@ def make_env(tmp_path: Path) -> Env:
     (state / "rows").mkdir(parents=True)
     (state / "modes").mkdir()
     (state / "execs").mkdir()
+    (state / "drawn").mkdir()
     bin_dir = tmp_path / "fake-bin"
     bin_dir.mkdir()
     for name in ("docker", "python3", "curl"):

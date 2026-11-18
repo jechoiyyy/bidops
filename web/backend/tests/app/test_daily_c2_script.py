@@ -632,3 +632,92 @@ def test_request_id_is_uuidv5_of_run_policy_attempt_and_deterministic(env: Env) 
     assert first == again == _request_id(RUN, "v3", 1)
     assert second == _request_id(RUN, "v3", 2)
     assert korean == str(uuid.uuid5(NAMESPACE, "한글-run|v3|1"))
+
+
+# --- 폴링 읽기 실패 허용 (2026-11-18 감독 시운전) ------------------------------------
+#
+# 따라잡기 중 host 과부하로 폴링 GET 하나가 30초 timeout에 걸리자 범위 전체가 첫날에 exit 2로
+# 멈췄다(실행 자체는 워커에서 정상 진행). 폴링 GET의 일시 실패(응답 없음·5xx·408·429)는 한 줄 남기고
+# 같은 주기로 다시 읽는다. 연속 `BIDOPS_C2_DAILY_POLL_MAX_READ_FAILURES`번(기본 10, 0은 즉시 실패)이나
+# 전체 폴링 timeout이면 기존 실패 경로다. 그 밖의 4xx는 바로 실패다. POST는 다시 보내지 않는다.
+
+POLL = "/api/order-plan-screening/executions/0"  # 실행 상세·감사 표본 GET(목록 GET은 아니다)
+
+
+def _poll_failures(stdout: str) -> list[str]:
+    return [line.split("] ", 1)[-1] for line in stdout.splitlines() if "c2: poll read failed" in line]
+
+
+@pytest.mark.parametrize("code", ["transport", "503", "408", "429"])
+def test_a_transient_poll_read_failure_is_retried_and_the_day_completes(env: Env, code: str) -> None:
+    env.trigger_on()
+    env.fail_gets(POLL, count=2, code=code)
+
+    result = env.run("--track", "order-plans", "--date", "2026-09-17")
+
+    assert result.returncode == 0, result.stderr
+    failures = _poll_failures(result.stdout)
+    assert len(failures) == 2
+    assert failures[0].startswith("c2: poll read failed (1/10)")
+    assert failures[1].startswith("c2: poll read failed (2/10)")
+    assert "finished: 성공" in result.stdout
+    assert len(env.execution_posts()) == 1  # 쓰기는 다시 보내지 않는다
+    assert len(env.draw_posts()) == 1
+
+
+def test_one_poll_timeout_no_longer_stops_a_catch_up_range(env: Env) -> None:
+    env.trigger_on()
+    env.fail_gets(POLL, count=1, code="transport")
+
+    result = env.run("--track", "order-plans", "--from-date", "2026-09-15", "--to-date", "2026-09-16")
+
+    assert result.returncode == 0, result.stderr
+    assert len(env.execution_posts()) == 2
+    assert len(env.draw_posts()) == 2
+    assert "caught up: 2026-09-15..2026-09-16" in result.stdout
+
+
+def test_consecutive_poll_read_failures_up_to_the_limit_fail_the_day(env: Env) -> None:
+    env.trigger_on()
+    env.fail_gets(POLL, code="transport")
+
+    result = env.run("--track", "order-plans", "--date", "2026-09-17", BIDOPS_C2_DAILY_POLL_MAX_READ_FAILURES="3")
+
+    assert result.returncode not in (0, 10)
+    assert [line[:31] for line in _poll_failures(result.stdout)] == [
+        "c2: poll read failed (1/3) for ",
+        "c2: poll read failed (2/3) for ",
+        "c2: poll read failed (3/3) for ",
+    ]
+    assert "3 consecutive poll read failures" in result.stderr
+    assert env.draw_posts() == []
+
+
+def test_a_zero_limit_keeps_the_old_fail_fast_behaviour(env: Env) -> None:
+    env.trigger_on()
+    env.fail_gets(POLL, code="transport")
+
+    result = env.run("--track", "order-plans", "--date", "2026-09-17", BIDOPS_C2_DAILY_POLL_MAX_READ_FAILURES="0")
+
+    assert result.returncode not in (0, 10)
+    assert "request failed: GET" in result.stderr
+    assert _poll_failures(result.stdout) == []
+
+
+def test_a_client_error_while_polling_stays_fatal(env: Env) -> None:
+    env.trigger_on()
+    env.fail_gets(POLL, code="404")
+
+    result = env.run("--track", "order-plans", "--date", "2026-09-17")
+
+    assert result.returncode not in (0, 10)
+    assert "HTTP 404" in result.stderr
+    assert _poll_failures(result.stdout) == []
+
+
+@pytest.mark.parametrize("value", ["x", "-1"])
+def test_an_invalid_read_failure_limit_fails_before_any_call(env: Env, value: str) -> None:
+    result = env.run("--track", "order-plans", "--date", "2026-09-17", BIDOPS_C2_DAILY_POLL_MAX_READ_FAILURES=value)
+
+    assert result.returncode not in (0, 10)
+    assert env.calls() == []
