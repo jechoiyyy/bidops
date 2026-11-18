@@ -516,7 +516,8 @@ test("지표 목록은 서버가 준 key·label·상태를 그대로 쓴다", as
 /**
  * 승인 시안을 실제로 렌더해 잰 값이다(부모가 잰 `reference-geometry.json`).
  * 요약 줄 49 = 내용 32 + 위아래 패딩 16 + 테두리 1, 하단 액션 57 = 32 + 24 + 1,
- * 탭 37(Astryx 밑줄), 요약 줄과 작업 영역 사이 이음매 0, 하단 단추 본문 14px.
+ * 탭 37(Astryx 밑줄, 2026-11-18부터 공용 36), 요약 줄과 작업 영역 사이 이음매 0,
+ * 하단 단추는 sm 12px(2026-11-18 결정 4).
  */
 for (const width of [1280, 1440]) {
   test(`시안 실측 치수를 ${width}px에서 유지한다`, async ({ page }) => {
@@ -550,19 +551,22 @@ for (const width of [1280, 1440]) {
     expect(geometry.seam).toBe(0);
     expect(geometry.strip).toBeCloseTo(physical(49), 0);
     expect(geometry.footer).toBeCloseTo(physical(57), 0);
-    expect(geometry.tabs).toBeCloseTo(physical(37), 0);
-    expect(geometry.buttonFont).toBe("14px");
-    expect(geometry.listTitleFont).toBe("16px");
+    // 탭 줄은 세 화면 묶음이 같은 36px다(2026-11-18 결정 3). 시안 실측은 37이었다.
+    expect(geometry.tabs).toBeCloseTo(36, 0);
+    // 하단 단추는 Astryx size="sm"이고 sm 단추는 앱 전체에서 12px 한 벌이다(2026-11-18 결정 4).
+    expect(geometry.buttonFont).toBe("12px");
+    expect(geometry.listTitleFont).toBe("14px");
     expect(geometry.listTitleWeight).toBe("600");
-    // 상세 머리 제목은 `--bo-type-page-title`(16px)을 읽는다. 20px 상세 단으로 옮길지는 B-4에서 정한다.
-    expect(geometry.detailTitleFont).toBe("16px");
+    // 상세 머리 제목은 상세 단(20px)이다(2026-11-18 결정).
+    expect(geometry.detailTitleFont).toBe("20px");
     // 각주는 두 폭 모두 한 줄이다. 두 줄이 되면 작업 영역이 그만큼 짧아진다.
     expect(geometry.boundaryLines).toBe(1);
     expect(geometry.boundaryFont).toBe("12px");
     // The shell fills the viewport and keeps the reference bottom inset (37px,
     // rendered 1:1 since the ×0.9 compact scale was removed on 2026-11-18).
     const viewportHeight = width === 1280 ? 800 : 900;
-    expect(geometry.workspaceBottom).toBeCloseTo(viewportHeight - physical(37), 0);
+    // 2026-11-18부터 캔버스 하단 여백 24px이 모든 화면에 같다(결정 3).
+    expect(geometry.workspaceBottom).toBeCloseTo(viewportHeight - physical(37) - 24, 0);
   });
 
   test(`하단 액션이 ${width}px에서 스크롤 없이 보이고 화면이 가로로 넘치지 않는다`, async ({ page }) => {

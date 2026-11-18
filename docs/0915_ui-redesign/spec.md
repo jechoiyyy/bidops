@@ -122,7 +122,7 @@ native compact CSS 토큰으로 옮겼으므로 전역 배율을 적용하지 �
 | 사이드바 | 폭 223.2px. 배경 `--color-background-body`, 우측 테두리 없음. 브랜드 줄: 면 없이 아이콘 25.2px(`--color-accent`, mask) + `BidOps` 18/700, 아래 부제 10.8/500, 좌우 14.4px 안쪽 1px `--color-border` 구분선(C안). 항목 최소 높이 32.4px이며 활성은 배경 `--color-background-surface` + `--shadow-low`, 글자 `--color-text-accent` 600. 사이드바 본문은 `--color-on-dark`를 더는 읽지 않는다 |
 | 상단바 | 높이 68.4px. 배경 `--color-background-body`, 하단 테두리 없음. 제목 모드 h1 18/600, 경로 모드 10.8px |
 | canvas 여백 | `10.8px 16.2px 14.4px`. `design-shell.spec.ts`의 기본 여백 기대값을 함께 바꾼다 |
-| 화면 밀도 | 전역 zoom 없이 기존 90% 물리 크기의 native compact 토큰 유지 |
+| 화면 밀도 | 전역 zoom 없이 기존 90% 물리 크기의 native compact 토큰 유지 (2026-11-18 변경: 밀도 축척을 없애고 4px 격자로 옮겼다. 이 표의 소수 px 값은 당시 기록이다. 현재 값은 `docs/1118_launch-hardening/설계고도화안.md` §4 B를 따른다) |
 
 `design-shell.spec.ts` "1440px 셸의 무드보드 색과 기준 치수" 기대값을 위 값으로
 바꾸고, `accentToken`이 `587A2B`를 포함하고 `5B687C`를 포함하지 않는지로 뒤집는다.

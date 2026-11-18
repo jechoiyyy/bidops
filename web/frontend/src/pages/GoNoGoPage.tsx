@@ -430,12 +430,14 @@ export function GoNoGoPage() {
     {
       key: "deadline",
       header: "입찰 마감",
-      width: pixel(104),
+      // "마감 지남 · 09.20"(12px 본문 글꼴, tabular-nums) 약 85px + 좌우 12px.
+      // 104px·mono 글꼴에서는 날짜가 잘렸다(2026-11-18).
+      width: pixel(112),
       renderCell: (row: DecisionRow) => {
         const deadline = deadlineCellLabel(row.item.deadline_at);
         return (
           <Text
-            className={`gng-deadline-cell mono tabular-nums${deadline.urgency === "critical" ? " gng-deadline-critical" : ""}`}
+            className={`gng-deadline-cell tabular-nums${deadline.urgency === "critical" ? " gng-deadline-critical" : ""}`}
             as="span"
           >
             {deadline.text}

@@ -48,7 +48,7 @@
   line-height: var(--bo-type-body-leading);
 }
 
-:is(.c2l-page, .c2l-dialog-body, .c2l-header-actions) :where(.astryx-text.supporting, .astryx-badge, .astryx-button, .astryx-toggle-button, .astryx-field-label, .astryx-tab),
+:is(.c2l-page, .c2l-dialog-body, .c2l-header-actions) :where(.astryx-text.supporting, .astryx-badge, .astryx-toggle-button, .astryx-field-label, .astryx-tab),
 :is(.c2l-page, .c2l-dialog-body, .c2l-header-actions) :where(dt, code) {
   font-size: var(--bo-type-caption);
   line-height: var(--bo-type-caption-leading);
@@ -63,7 +63,7 @@
 /* 선택한 사업명은 시안의 페이지 제목과 같은 크기로 읽힌다. 문서 구조상으로는 페이지
  * `<h2>` 아래의 `<h4>`이므로 의미 계층은 그대로 두고 크기만 준다. */
 .c2l-page .c2l-detail-head .astryx-heading.level-4 {
-  font-size: var(--bo-type-page-title);
+  font-size: var(--bo-type-detail-title);
   line-height: var(--bo-type-page-title-leading);
   font-weight: var(--bo-type-page-title-weight);
 }
@@ -204,7 +204,7 @@
  * 시안과 기본값의 차이다.
  *
  * 값은 새로 만들지 않고 토큰만 읽는다(ADR-0048). */
-.c2l-filters :where(.astryx-button, .astryx-toggle-button) {
+.c2l-filters :where(.astryx-toggle-button) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -218,17 +218,17 @@
   cursor: pointer;
 }
 
-.c2l-filters :where(.astryx-button, .astryx-toggle-button):hover {
+.c2l-filters :where(.astryx-toggle-button):hover {
   background: var(--color-background-muted);
 }
 
-.c2l-filters :where(.astryx-button, .astryx-toggle-button):focus-visible {
+.c2l-filters :where(.astryx-toggle-button):focus-visible {
   outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
   outline-offset: var(--focus-outline-offset);
 }
 
-.c2l-filters :where(.astryx-button, .astryx-toggle-button)[aria-disabled="true"],
-.c2l-filters :where(.astryx-button, .astryx-toggle-button):disabled {
+.c2l-filters :where(.astryx-toggle-button)[aria-disabled="true"],
+.c2l-filters :where(.astryx-toggle-button):disabled {
   color: var(--color-text-disabled);
   background: var(--color-background-muted);
   cursor: default;
@@ -278,7 +278,7 @@
 }
 
 .c2l-filters .astryx-toggle-button {
-  gap: var(--spacing-1-5);
+  gap: var(--spacing-1);
   padding: var(--spacing-1) var(--spacing-2);
   border-radius: var(--radius-full);
   color: var(--color-text-secondary);
@@ -354,7 +354,7 @@ header.c2l-list-head .c2l-list-scope {
 .c2l-bulk-end-notice {
   flex: 0 0 auto;
   margin: 0;
-  padding: var(--spacing-1-5) var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-4);
   background: var(--color-accent-muted);
   color: var(--color-text-accent);
   font-size: var(--bo-type-caption);
@@ -534,7 +534,7 @@ header.c2l-list-head .c2l-list-scope {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--spacing-1-5);
+  gap: var(--spacing-1);
 }
 
 /* 배지의 좌우 여백도 전역 preflight 가 지운다(위 필터 주석 참조). 여백이 없으면
@@ -647,7 +647,7 @@ header.c2l-list-head .c2l-list-scope {
   gap: var(--spacing-2);
   margin: 0;
   min-width: 0;
-  padding: var(--spacing-1-5) var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-2);
   border: var(--border-width) solid var(--color-error);
   border-radius: var(--radius-sm);
   color: var(--color-error);
@@ -743,7 +743,7 @@ header.c2l-list-head .c2l-list-scope {
 .c2l-detail-warn {
   margin: 0;
   min-width: 0;
-  padding: var(--spacing-1-5) var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-2);
   border: var(--border-width) solid var(--color-warning-edge);
   border-radius: var(--radius-sm);
   color: var(--color-warning);
@@ -875,10 +875,6 @@ header.c2l-list-head .c2l-list-scope {
   margin-left: auto;
 }
 
-.c2l-page .c2l-detail-actions .review-decision-bar-actions .astryx-button {
-  min-height: var(--size-element-md);
-}
-
 .c2l-tracking {
   display: flex;
   min-width: 0;
@@ -957,7 +953,7 @@ header.c2l-list-head .c2l-list-scope {
 .c2l-selection-storage-warning {
   flex: 0 0 auto;
   margin: 0;
-  padding: var(--spacing-1-5) var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-2);
   border: var(--border-width) solid var(--color-warning-edge);
   border-radius: var(--radius-sm);
   color: var(--color-warning);

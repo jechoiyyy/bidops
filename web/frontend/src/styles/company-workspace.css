@@ -129,7 +129,7 @@
 
 .cw-table th,
 .cw-table td {
-  padding: var(--spacing-2) var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
   border-bottom: var(--border-width) solid var(--color-border);
   text-align: left;
   vertical-align: top;

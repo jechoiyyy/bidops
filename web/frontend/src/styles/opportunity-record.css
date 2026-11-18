@@ -48,7 +48,7 @@
   color: var(--color-text-teal);
   background: var(--color-background-teal);
   font-size: var(--bo-type-page-title);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
 }
 
@@ -60,15 +60,15 @@
 }
 
 .rec-title {
-  font-size: var(--bo-type-page-title);
-  font-weight: 700;
+  font-size: var(--bo-type-detail-title);
+  font-weight: 600;
   line-height: var(--bo-type-page-title-leading);
 }
 
 .rec-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--spacing-1-5);
+  gap: var(--spacing-1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -432,7 +432,7 @@
 
 .rec-chips {
   display: flex;
-  gap: var(--spacing-1-5);
+  gap: var(--spacing-1);
 }
 
 .rec-chip {
@@ -515,7 +515,7 @@
 .rec-activity-pill {
   display: inline-flex;
   align-items: center;
-  margin-left: var(--spacing-1-5);
+  margin-left: var(--spacing-1);
   padding: 0 var(--spacing-2);
   border-radius: var(--radius-full);
   color: var(--color-text-secondary);

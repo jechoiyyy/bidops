@@ -6,17 +6,14 @@
  * `--color-background-muted` 1px (docs/0915_ui-redesign/spec.md §2.3). 우선 검토
  * KPI 강조는 §2.4. */
 /* 2026-09-17: 보류 재검토 패널(spec §11.2)이 차면 한 화면을 넘을 수 있어 세로만 스크롤한다. */
-.app-shell[data-astryx-theme="bidops"] .page-canvas:has(> .dash-page) { padding: 0; overflow-x: hidden; overflow-y: auto; }
-.app-shell[data-astryx-theme="bidops"] .app-content:has(> .page-canvas > .dash-page) > .topbar { padding-inline: var(--spacing-6); }
-.app-shell[data-astryx-theme="bidops"] .app-content:has(> .page-canvas > .dash-page) > .topbar h1 { font-size: var(--bo-type-page-title); font-weight: var(--bo-type-page-title-weight); }
+/* 캔버스 여백과 상단바 제목은 셸 한 벌을 쓴다(2026-11-18). 가로 넘침만 막는다. */
+.app-shell[data-astryx-theme="bidops"] .page-canvas:has(> .dash-page) { overflow-x: hidden; }
 .dash-header-actions { margin-left: auto; }
 .dash-page { --bo-type-list: var(--bo-type-list-title); --bo-line: var(--border-width); color: var(--color-text-primary); font-size: var(--bo-type-body); line-height: 1.5; }
 .dash-page .astryx-text { font: inherit; color: inherit; }
 .dash-page .astryx-heading { margin: 0; font-family: inherit; font-weight: var(--font-weight-semibold); }
 .dash-page h2 { font-size: var(--bo-type-page-title); }
-.dash-page .dash-small { font-size: var(--bo-type-caption); line-height: 1.5; color: var(--color-text-secondary); }
-:is(.dash-page, .dash-header-actions) .astryx-button { font-size: var(--bo-type-body); min-height: var(--spacing-8); border-radius: var(--radius-inner); white-space: nowrap; }
-.dash-page .astryx-token { font-size: var(--bo-type-caption); min-height: var(--spacing-6); height: auto; border-radius: var(--radius-inner); white-space: nowrap; }
+.dash-page .dash-small { font-size: var(--bo-type-caption); line-height: 1.5; color: var(--color-text-secondary); }.dash-page .astryx-token { font-size: var(--bo-type-caption); min-height: var(--spacing-6); height: auto; border-radius: var(--radius-inner); white-space: nowrap; }
 .dash-page .astryx-selector, .dash-page .astryx-field-label { font-size: var(--bo-type-body); }
 :is(.dash-page, .dash-header-actions) svg { width: var(--spacing-4); height: var(--spacing-4); flex-shrink: 0; }
 .dash-page :is(a, button):focus-visible { outline: var(--focus-outline-width) solid var(--color-accent); outline-offset: var(--spacing-0-5); }
@@ -30,7 +27,6 @@
   flex: 1;
   min-height: 100%;
   min-width: 0;
-  padding: var(--spacing-4) var(--spacing-6) var(--spacing-3);
   gap: var(--spacing-3);
 }
 .dash-journey-strip {
@@ -106,9 +102,8 @@
 .dash-page .astryx-table-header-cell {
   background: var(--color-background-body);
   font-size: var(--bo-type-caption);
-  padding: var(--spacing-2) var(--spacing-4);
 }
-.dash-page .astryx-table-cell { padding: var(--spacing-2) var(--spacing-4); font-size: var(--bo-type-body); }
+.dash-page .astryx-table-cell { font-size: var(--bo-type-body); }
 .dash-page .astryx-table-cell:has(.dash-deadline-cell) { vertical-align: top; }
 .dash-cell-stack { display: grid; gap: var(--spacing-1); min-width: 0; }
 /* 대시보드 KPI 카드의 강조(우선 검토), spec §2.4. */
