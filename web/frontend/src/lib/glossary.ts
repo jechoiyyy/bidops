@@ -117,7 +117,8 @@ export const ORDER_PLAN_UNJUDGED_KIND_LABEL = {
 /**
  * 일일 실행 요약의 검토 건수 한 줄. 서버 집계(`stage2_relevant_count`·`stage2_uncertain_count`)와
  * 그 차이로 얻은 무판정 몫(`lib/orderPlanDaily.ts`의 `noJudgmentCount`)을 그대로 적는다.
- * 무판정 몫은 0보다 클 때만 붙인다.
+ * 무판정 몫은 0보다 클 때만 붙인다. 그 몫은 실패·거부·미확인뿐이고 `순위 밖`이 들지 않으므로
+ * `모델 미판정`(순위 밖 포함 탭 이름)이 아니라 `판정 실패`로 부른다.
  */
 export function orderPlanReviewTierSummary(
   relevantCount: number,
@@ -129,7 +130,7 @@ export function orderPlanReviewTierSummary(
     `${ORDER_PLAN_REVIEW_TIER_LABEL.relevant} ${format(relevantCount)}건(관련)`,
     `${ORDER_PLAN_REVIEW_TIER_LABEL.uncertain} ${format(uncertainCount)}건(불확실)`,
   ];
-  if (unjudgedCount !== null && unjudgedCount > 0) parts.push(`${ORDER_PLAN_UNJUDGED_LABEL} ${format(unjudgedCount)}건`);
+  if (unjudgedCount !== null && unjudgedCount > 0) parts.push(`${ORDER_PLAN_UNJUDGED_KIND_LABEL.judgment_failed} ${format(unjudgedCount)}건`);
   return parts.join(" · ");
 }
 

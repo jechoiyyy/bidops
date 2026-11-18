@@ -72,8 +72,8 @@ export function OrderPlanListRow({
   rowProps: RowKeyboardNavigationRowProps;
   /**
    * `unjudged`: `모델 미판정` 보기의 행(2026-11-18 수정안 3B). 순위 밖·판정 실패를 칩으로 가르고
-   * 그날 BM25 순위와 가까운 회사 역량을 metadata 줄에 싣는다. 칩이 무판정 사실을 말하므로
-   * `모델 미판정 — 사람 확인` 표식과 1차 선별 실패 배지는 이 보기에서 겹쳐 그리지 않는다.
+   * 그날 1차 순위와 가까운 회사 역량을 metadata 줄에 싣는다. 칩이 무판정 사실을 말하므로 모델
+   * 상태 배지·`모델 판정 없음 — 사람 확인` 표식·1차 선별 실패 배지는 이 보기에서 겹쳐 그리지 않는다.
    */
   variant?: "default" | "unjudged";
 }) {
@@ -134,8 +134,9 @@ export function OrderPlanListRow({
             ) : null}
           </span>
           <span className="c2l-row-state">
-            {/* 모델 판단은 이 목록을 훑는 이유이므로 행마다 같은 자리에서 읽힌다. */}
-            <Badge className="c2l-row-model" variant={qwenBadgeVariant(item)} label={qwenRowLabel(item)} />
+            {/* 모델 판단은 이 목록을 훑는 이유이므로 행마다 같은 자리에서 읽힌다. `모델 미판정` 보기에서는
+                갈래 칩 하나(`순위 밖`·`판정 실패`)가 그 자리를 대신한다 — 같은 사실을 두 배지로 겹치지 않는다. */}
+            {variant === "unjudged" ? null : <Badge className="c2l-row-model" variant={qwenBadgeVariant(item)} label={qwenRowLabel(item)} />}
             {/* 배치 실패 등으로 모델 판정이 없는 건은 비관련이 아니다. 사람이 직접 봐야 한다는
                 사실을 이유 배지 옆에 글자로 남긴다(설계고도화안 A-6). */}
             {unjudgedKind ? (

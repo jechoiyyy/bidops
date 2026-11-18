@@ -681,7 +681,7 @@ test.describe("실행 상태", () => {
   });
 
   // 2026-11-18 수정안 3B: 집계의 `사람 검토`는 계약 합계(`검토 후보 합계`)와 필수 검토·훑어보기 구분으로 나뉜다.
-  test("집계는 검토 후보 합계와 필수 검토·훑어보기 구분을 적고 무판정 몫이 0이면 모델 미판정을 붙이지 않는다", async ({ page }) => {
+  test("집계는 검토 후보 합계와 필수 검토·훑어보기 구분을 적고 무판정 몫이 0이면 판정 실패를 붙이지 않는다", async ({ page }) => {
     await installRunStatusMock(page);
     await gotoOrderPlanScreeningTab(page);
     const counts = section(page, "집계");
@@ -689,7 +689,7 @@ test.describe("실행 상태", () => {
     await expect(counts).toContainText("필수 검토 29건(관련) · 훑어보기 13건(불확실)");
     await expect(counts).not.toContainText("사람 검토");
     // fixture의 human_review_count(4)는 관련 + 불확실(42)보다 작아 무판정 몫이 0이다 — 음수로 적지 않는다.
-    await expect(counts).not.toContainText("모델 미판정");
+    await expect(counts).not.toContainText("판정 실패");
   });
 
   // 실무 화면의 문제 칩은 실행 하나를 가리켜 `/runs?run=…&execution=…`로 보낸다

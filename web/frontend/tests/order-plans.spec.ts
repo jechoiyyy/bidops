@@ -787,7 +787,7 @@ test("1200건 결과에서 기본 review 필터·실패·거부 필터와 페이
   await expect(page.locator(".c2l-row")).toHaveCount(500);
   await expect(page.locator(".c2l-pager")).toContainText("501–1,000 / 1,200");
 
-  // 판정 실패 300건은 `모델 미판정`에 든다. 같은 수집일이므로 BM25 순위(901위부터)순이다.
+  // 판정 실패 300건은 `모델 미판정`에 든다. 같은 수집일이므로 1차 순위(901위부터)순이다.
   await clickPreset(page, "모델 미판정");
   await expect(page.locator(".c2l-row")).toHaveCount(300);
   await expect(page.locator(".c2l-row").first()).toContainText("대규모 페이지네이션 회귀 발주계획 901");
@@ -3286,7 +3286,7 @@ test("A6-기본 보기는 관련이고 탭은 관련·불확실·모델 미판�
   await expect(page).toHaveURL(/unjudged=yes/);
   await expect(presetTab(page, "모델 미판정")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".c2l-row")).toHaveCount(4);
-  await expect(page.locator(".c2l-list-head .c2l-list-scope")).toHaveText("모델이 판정하지 않은 건 · BM25 순위순");
+  await expect(page.locator(".c2l-list-head .c2l-list-scope")).toHaveText("모델이 판정하지 않은 건 · 1차 순위순");
 
   // 다른 탭으로 돌아가면 주소에서 `unjudged`가 빠진다(다른 보기의 주소는 지금까지와 같다).
   await clickPreset(page, "전체");
@@ -3347,12 +3347,20 @@ test("3B-모델 판정이 없는 건은 전체 보기에서 '모델 판정 없�
   await expect(rows).toHaveCount(4);
   await expect(rows.locator(".c2l-row-no-judgment")).toHaveCount(0);
   await expect(rows.locator(".c2l-row-unjudged")).toHaveCount(4);
-  await expect(rows.filter({ hasText: "복지서비스 운영 지원 발주계획" }).locator(".c2l-row-unjudged")).toHaveText("순위 밖");
-  await expect(rows.filter({ hasText: "모델 판정 실패" }).locator(".c2l-row-unjudged")).toHaveText("판정 실패");
-  await expect(rows.filter({ hasText: "모델 응답 거부" }).locator(".c2l-row-unjudged")).toHaveText("판정 실패");
-  // 칩이 같은 사실을 말하므로 1차 선별 실패 배지는 이 보기에서 겹쳐 그리지 않는다.
-  await expect(rows.locator(".c2l-row-badges", { hasText: "모델 미판정(판정 실패)" })).toHaveCount(0);
-  await expect(rows.filter({ hasText: "지역 데이터 활용 사업 사전 조사" }).locator(".c2l-row-unjudged")).toHaveText("판정 실패");
+  // 행마다 갈래 칩 하나와 추적 칩만 선다. 모델 상태 배지·1차 선별 실패 배지는 같은 사실이라 겹쳐 그리지 않는다.
+  const chips = async (title: string) => (await rows.filter({ hasText: title }).locator(".c2l-row-state .astryx-badge").allTextContents()).map((text) => text.trim());
+  expect(await chips("복지서비스 운영 지원 발주계획")).toEqual(["순위 밖", "추적 미선택"]);
+  expect(await chips("공공기관 업무시스템 개선 검토")).toEqual(["판정 실패", "추적 미선택"]);
+  expect(await chips("지역 데이터 활용 사업 사전 조사")).toEqual(["판정 실패", "추적 미선택"]);
+  // 공고 게시됨은 모델 상태가 아니라 발주계획의 사실이라 이 보기에서도 남는다.
+  expect(await chips("행정정보 공동이용 확대 사업 발주계획")).toEqual(["판정 실패", "추적 미선택", "공고 게시됨"]);
+  await expect(rows.locator(".c2l-row-model")).toHaveCount(0);
+  await expect(rows.locator(".c2l-row-badges")).toHaveCount(0);
+
+  // 다른 보기(전체)는 기존 배지를 그대로 둔다.
+  await clickPreset(page, "전체");
+  await expect(page.locator(".c2l-row").filter({ hasText: "공공기관 업무시스템 개선 검토" }).locator(".c2l-row-model")).toHaveText("모델 판정 실패");
+  await expect(page.locator(".c2l-row .c2l-row-unjudged")).toHaveCount(0);
 });
 
 // 2026-11-18 운영 관측: `관련` 389건의 첫 행이 이미 지난 예정월(10월)·공고 게시 건이었다. 관련·불확실 보기는
@@ -3428,7 +3436,7 @@ function tierItem(pk: number, title: string, overrides: {
   };
 }
 
-test("3B-불확실은 지난 건을 뒤로 보낸 뒤 수집일 최신 → 그날 BM25 순위순이고 다른 날의 순위끼리 섞지 않는다", async ({ page }) => {
+test("3B-불확실은 지난 건을 뒤로 보낸 뒤 수집일 최신 → 그날 1차 순위순이고 다른 날의 순위끼리 섞지 않는다", async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-11-18T03:00:00Z")); // KST 2026-11-18 12:00
   const uncertain = (pk: number, title: string, observed: string, rank: number | null, month: string | null = "2026-12") =>
     tierItem(pk, title, { relevance: "uncertain", observed, rank, month });
@@ -3464,14 +3472,14 @@ test("3B-불확실은 지난 건을 뒤로 보낸 뒤 수집일 최신 → 그�
   await expect(rows.locator(".c2l-row-title")).toHaveText(["관련 건은 이 보기 밖"]);
 });
 
-test("3B-모델 미판정은 순위 밖과 판정 실패를 함께 보이고 수집일 최신 → 그날 BM25 순위순이며 순위·가까운 역량을 싣는다", async ({ page }) => {
+test("3B-모델 미판정은 순위 밖과 판정 실패를 함께 보이고 수집일 최신 → 그날 1차 순위순이며 순위·가까운 역량을 싣는다", async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-11-18T03:00:00Z"));
   const items = [
     tierItem(501, "관련 건", { relevance: "relevant", observed: "2026-11-17T01:00:00Z", rank: 1 }),
     tierItem(502, "17일 160위 순위 밖", { observed: "2026-11-17T01:00:00Z", rank: 160, stage1: "filtered_out", capability: "웹 서비스 구축·운영" }),
     tierItem(503, "16일 151위 순위 밖", { observed: "2026-11-16T01:00:00Z", rank: 151, stage1: "filtered_out" }),
     tierItem(504, "16일 20위 모델 실패", { observed: "2026-11-16T01:00:00Z", rank: 20, stage2: "failed" }),
-    // 모델이 한 건도 답하지 못한 실행의 행: 1차 선별은 선정, 모델 판정은 실패, BM25 순위는 남아 있다.
+    // 모델이 한 건도 답하지 못한 실행의 행: 1차 선별은 선정, 모델 판정은 실패, 1차 순위는 남아 있다.
     tierItem(505, "17일 7위 전체 실패 실행", { observed: "2026-11-17T02:00:00Z", rank: 7, stage2: "failed" }),
     tierItem(506, "17일 순위 없음 1차 선별 실패", { observed: "2026-11-17T01:00:00Z", rank: null, stage1: "failed" }),
     tierItem(507, "모델 상태 미확인은 이 보기 밖", { observed: "2026-11-17T01:00:00Z", rank: 3, stage2: "unknown" }),
@@ -3489,7 +3497,9 @@ test("3B-모델 미판정은 순위 밖과 판정 실패를 함께 보이고 수
     "16일 151위 순위 밖",
   ]);
   await expect(rows.locator(".c2l-row-unjudged")).toHaveText(["판정 실패", "순위 밖", "판정 실패", "판정 실패", "순위 밖"]);
-  await expect(rows.locator(".c2l-row-rank")).toHaveText(["BM25 7위", "BM25 160위", "BM25 순위 미제공", "BM25 20위", "BM25 151위"]);
+  await expect(rows.locator(".c2l-row-rank")).toHaveText(["1차 순위 7위", "1차 순위 160위", "1차 순위 미제공", "1차 순위 20위", "1차 순위 151위"]);
+  // 실무 화면에는 알고리즘 이름을 쓰지 않는다(0921 명세 §3.1).
+  await expect(page.locator(".c2l-list-pane")).not.toContainText("BM25");
   // 가까운 회사 역량은 값이 있을 때만 싣는다.
   await expect(rows.locator(".c2l-row-capability")).toHaveText([/가까운 역량 웹 서비스 구축·운영$/]);
   await expect(rows.nth(1).locator(".c2l-row-capability")).toBeVisible();

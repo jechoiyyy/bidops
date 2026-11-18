@@ -9,6 +9,7 @@ import { Activity, ArrowUpRight, RefreshCw } from "lucide-react";
 import { api } from "../lib/api";
 import type { WorkloadKey } from "../lib/types";
 import { formatNumber } from "../lib/format";
+// 타일 보조줄은 1280px에서 세 자리 건수까지 한 줄에 들도록 `필수 검토`를 `필수`로 줄인다(수정안 3B 리뷰).
 import { ORDER_PLAN_REVIEW_TIER_LABEL } from "../lib/glossary";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
 import { DailyCollectionStatus } from "../components/operations/DailyRunStatusLine";
@@ -128,11 +129,7 @@ function DashboardWorkspace() {
     || relevantPlanQuery.isFetching || uncertainPlanQuery.isFetching || preSpecViewQuery.isFetching || goNoGoViewQuery.isFetching;
   /** 목록 total 한 개. 못 받으면 0이 아니라 `미확인`이다. */
   const listCount = (query: { isPending: boolean; isError: boolean; data?: number }) => (query.isPending ? "확인 중" : query.isError || query.data === undefined ? "미확인" : `${formatNumber(query.data)}건`);
-  /** 발주계획 검토 단 하나의 건수(`필수 검토 3건(관련)`). 못 받으면 0이 아니라 `확인 중`·`미확인`이다(수정안 3B). */
-  const tierCount = (tier: string, view: string, query: { isPending: boolean; isError: boolean; data?: number }) => {
-    const value = listCount(query);
-    return query.isPending || query.isError || query.data === undefined ? `${tier} ${value}` : `${tier} ${value}(${view})`;
-  };
+
   const goNoGoNote = goNoGoViewQuery.isPending
     ? "검토 대상 확인 중"
     : goNoGoViewQuery.isError || !goNoGoViewQuery.data
@@ -155,7 +152,7 @@ function DashboardWorkspace() {
     <DailyCollectionStatus />
     <nav className="dash-journey-strip" aria-label="업무 바로가기 · 회차와 무관한 누적 업무">
       {[
-        ["01", "발주계획", "추적할 후보 선택", `${tierCount(ORDER_PLAN_REVIEW_TIER_LABEL.relevant, "관련", relevantPlanQuery)} · ${tierCount(ORDER_PLAN_REVIEW_TIER_LABEL.uncertain, "불확실", uncertainPlanQuery)} · 새로 ${workloadValue("order_plan_new_priority")}`, "/order-plans"],
+        ["01", "발주계획", "추적할 후보 선택", `필수 ${listCount(relevantPlanQuery)} · ${ORDER_PLAN_REVIEW_TIER_LABEL.uncertain} ${listCount(uncertainPlanQuery)} · 새로 ${workloadValue("order_plan_new_priority")}`, "/order-plans"],
         ["02", "사전규격", "검토 결과·추적 여부 확인", `검토할 항목 ${listCount(preSpecViewQuery)} · 마감 전·미확인`, "/pre-specs"],
         ["03", "사업기회", "연결·예외 사항 확인", workloadNote("tracking_action_required", "조치 필요"), "/opportunities"],
         ["04", "최종 Go/No-Go", "입찰 참여 여부 결정", goNoGoNote, "/go-no-go"],
