@@ -36,7 +36,7 @@ export function RunInfoDialog({ open, onClose, view }: RunInfoDialogProps) {
       onOpenChange={(next) => { if (!next) onClose(); }}
       padding={6}
       purpose="info"
-      width="calc(var(--spacing-12) * 14)"
+      width="672px"
     >
       <div className="opportunity-dialog-body">
         <DialogHeader onOpenChange={(next) => { if (!next) onClose(); }} title="실행 정보" />

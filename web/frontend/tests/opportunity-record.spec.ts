@@ -76,7 +76,8 @@ test("상단 경로는 사업기회 / 제목이고 제목이 오기 전에는 #i
   release();
   await expect(crumbs(page)).toHaveText(["사업기회", FULL_TITLE]);
   await expect(page.locator('[data-testid="record-title"]')).toHaveText(FULL_TITLE);
-  await expect(page.locator("header.topbar").getByRole("link", { name: "사업기회", exact: true })).toHaveAttribute("href", "/opportunities");
+  // 목록 복귀 링크는 이 사업기회를 고른 채 연다(설계고도화안 C-3).
+  await expect(page.locator("header.topbar").getByRole("link", { name: "사업기회", exact: true })).toHaveAttribute("href", "/opportunities?selected=7101");
 
   // 같은 앱 안에서 다른 레코드로 옮겨도 이전 제목이 경로에 남지 않는다(둘 다 새 레코드의 값이 오기 전에는 #id).
   await page.evaluate(() => {
@@ -667,3 +668,29 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     await expect(page.getByRole("button", { name: "노트", exact: true })).toBeVisible();
   });
 }
+
+// 설계고도화안 C-3: 목록 창과 레코드가 서로를 연다. 단계 바의 연결된 단계는 원천 화면 링크다.
+test("C-3 레코드는 단계 바·목록 창 조작·목록 복귀 링크로 다른 표면을 연다", async ({ page }) => {
+  await openRecord(page, "/opportunities/7101/activity");
+  const bar = page.getByTestId("stage-bar");
+  await expect(bar.getByRole("link", { name: /발주계획/ })).toHaveAttribute("href", "/order-plans?selected=7001");
+  await expect(bar.getByRole("link", { name: /사전규격/ })).toHaveAttribute("href", "/pre-specs/9102");
+  await expect(bar.getByRole("link", { name: /입찰공고/ })).toHaveAttribute("href", "/judgments/9103");
+  // 마감·개찰·계약은 입찰공고 대표를 따르거나 연결이 없어 링크가 아니다.
+  await expect(bar.getByRole("link")).toHaveCount(3);
+  const links = page.getByTestId("record-pane-links");
+  await expect(links.getByRole("link", { name: "확인 항목 답변 →" })).toHaveAttribute("href", "/opportunities?selected=7101&detail=checks");
+  await expect(links.getByRole("link", { name: "변경 비교·Go/No-Go →" })).toHaveAttribute("href", "/opportunities/7101/bid-delta");
+  // 상단 경로의 `사업기회` 칸은 이 사업기회를 고른 채 목록으로 돌아간다.
+  await expect(page.locator("header.topbar .topbar-crumb-link", { hasText: "사업기회" })).toHaveAttribute("href", "/opportunities?selected=7101");
+});
+
+test("C-3 레코드의 확인 항목 링크는 목록 창에서 그 사업기회의 확인 사항을 열고 창은 레코드를 연다", async ({ page }) => {
+  await openRecord(page, "/opportunities/7101/activity");
+  await page.getByTestId("record-pane-links").getByRole("link", { name: "확인 항목 답변 →" }).click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/opportunities");
+  const pane = page.locator(".opportunity-detail-pane");
+  await expect(pane.locator(".opportunity-detail-title")).toContainText("통합정보시스템");
+  await expect(pane.getByRole("tab", { name: /확인 사항/ })).toHaveAttribute("aria-selected", "true");
+  await expect(pane.getByRole("link", { name: "레코드 열기 →" })).toHaveAttribute("href", "/opportunities/7101/activity");
+});

@@ -33,7 +33,7 @@ const TITLE = {
   3: "2027년 차세대 민원 포털 구축",
   7: "도로 관리 시스템 재구축(정정공고)",
 } as const;
-const NOT_FOUND = "브리핑은 아직 발송되지 않았습니다";
+const NOT_FOUND = "이 환경에서 만들어진 브리핑이 없습니다";
 
 test.beforeEach(async ({ page }) => {
   await page.route("**://fonts.googleapis.com/**", (route) => route.fulfill({ status: 200, contentType: "text/css", body: "" }));

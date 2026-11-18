@@ -6,25 +6,19 @@
  * `--color-background-muted` 1px (docs/0915_ui-redesign/spec.md §2.3). 우선 검토
  * KPI 강조는 §2.4. */
 /* 2026-09-17: 보류 재검토 패널(spec §11.2)이 차면 한 화면을 넘을 수 있어 세로만 스크롤한다. */
-.app-shell[data-astryx-theme="bidops"] .page-canvas:has(> .dash-page) { padding: 0; overflow-x: hidden; overflow-y: auto; }
-.app-shell[data-astryx-theme="bidops"] .app-content:has(> .page-canvas > .dash-page) > .topbar { padding-inline: var(--spacing-6); }
-.app-shell[data-astryx-theme="bidops"] .app-content:has(> .page-canvas > .dash-page) > .topbar h1 { font-size: var(--bo-type-page-title); font-weight: var(--bo-type-page-title-weight); }
+/* 캔버스 여백과 상단바 제목은 셸 한 벌을 쓴다(2026-11-18). 가로 넘침만 막는다. */
+.app-shell[data-astryx-theme="bidops"] .page-canvas:has(> .dash-page) { overflow-x: hidden; }
 .dash-header-actions { margin-left: auto; }
-.dash-page { --bo-type-list: calc(var(--bo-type-body) + 0.9px); --bo-line: var(--border-width); color: var(--color-text-primary); font-size: var(--bo-type-body); line-height: 1.5; }
+.dash-page { --bo-type-list: var(--bo-type-list-title); --bo-line: var(--border-width); color: var(--color-text-primary); font-size: var(--bo-type-body); line-height: 1.5; }
 .dash-page .astryx-text { font: inherit; color: inherit; }
 .dash-page .astryx-heading { margin: 0; font-family: inherit; font-weight: var(--font-weight-semibold); }
 .dash-page h2 { font-size: var(--bo-type-page-title); }
-.dash-page .dash-small { font-size: var(--bo-type-caption); line-height: 1.5; color: var(--color-text-secondary); }
-:is(.dash-page, .dash-header-actions) .astryx-button { font-size: var(--bo-type-body); min-height: var(--spacing-8); border-radius: var(--radius-inner); white-space: nowrap; }
-.dash-page .astryx-token { font-size: var(--bo-type-caption); min-height: var(--spacing-6); height: auto; border-radius: var(--radius-inner); white-space: nowrap; }
+.dash-page .dash-small { font-size: var(--bo-type-caption); line-height: 1.5; color: var(--color-text-secondary); }.dash-page .astryx-token { font-size: var(--bo-type-caption); min-height: var(--spacing-6); height: auto; border-radius: var(--radius-inner); white-space: nowrap; }
 .dash-page .astryx-selector, .dash-page .astryx-field-label { font-size: var(--bo-type-body); }
 :is(.dash-page, .dash-header-actions) svg { width: var(--spacing-4); height: var(--spacing-4); flex-shrink: 0; }
 .dash-page :is(a, button):focus-visible { outline: var(--focus-outline-width) solid var(--color-accent); outline-offset: var(--spacing-0-5); }
 .dash-row, .dash-header-actions { display: flex; align-items: center; gap: var(--spacing-2); min-width: 0; }
 .dash-spread { justify-content: space-between; }
-.dash-page .dash-request-list { list-style: none; padding: 0; margin: 0; }
-.dash-request-list > li + li { border-top: var(--bo-line) solid var(--color-background-muted); }
-.dash-page .dash-runs-error { display: flex; align-items: center; gap: var(--spacing-3); color: var(--color-error); }
 /* Desktop ERP dashboard. Shell and typography are shared with the approved
  * six-page previews. Dimensions use project or Astryx tokens; color belongs to bidops. */
 .dash-page {
@@ -33,7 +27,6 @@
   flex: 1;
   min-height: 100%;
   min-width: 0;
-  padding: var(--spacing-4) var(--spacing-6) var(--spacing-3);
   gap: var(--spacing-3);
 }
 .dash-journey-strip {
@@ -93,7 +86,7 @@
   flex-shrink: 0;
 }
 .dash-page .dash-panel-head h2 { font-size: var(--bo-type-section-title); white-space: nowrap; }
-.dash-panel-head .astryx-selector { width: calc(var(--spacing-10) * 3); }
+.dash-panel-head .astryx-selector { width: 120px; }
 .dash-panel-body { flex: 1; overflow-y: auto; min-height: 0; min-width: 0; }
 .dash-panel-foot {
   display: flex;
@@ -109,51 +102,17 @@
 .dash-page .astryx-table-header-cell {
   background: var(--color-background-body);
   font-size: var(--bo-type-caption);
-  padding: var(--spacing-2) var(--spacing-4);
 }
-.dash-page .astryx-table-cell { padding: var(--spacing-2) var(--spacing-4); font-size: var(--bo-type-body); }
-.dash-notice-link { display: grid; gap: var(--spacing-0-5); color: inherit; text-align: left; background: transparent; border: 0; padding: 0; width: 100%; }
-.dash-page .dash-notice-title, .dash-page .dash-notice-agency { font-size: var(--bo-type-list); font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
-.dash-notice-link:hover .dash-notice-title { text-decoration: underline; }
-.dash-notice-link .dash-notice-agency { color: var(--color-text-secondary); }
+.dash-page .astryx-table-cell { font-size: var(--bo-type-body); }
 .dash-page .astryx-table-cell:has(.dash-deadline-cell) { vertical-align: top; }
-.dash-deadline-cell { display: grid; gap: var(--spacing-1); padding-top: var(--spacing-0-5); font-variant-numeric: tabular-nums; }
-.dash-deadline-cell .dash-urgent { color: var(--color-warning); }
 .dash-cell-stack { display: grid; gap: var(--spacing-1); min-width: 0; }
-.dash-align-end { justify-items: end; }
-.dash-request-list { display: flex; flex-direction: column; }
-.dash-request-row { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-2); padding: var(--spacing-3) var(--spacing-4); color: inherit; text-decoration: none; }
-.dash-request-row + .dash-request-row { border-top: var(--bo-line) solid var(--color-background-muted); }
-.dash-request-row:hover { background: var(--color-accent-muted); }
-.dash-request-row .dash-row { flex-shrink: 0; }
-.dash-request-count { font-variant-numeric: tabular-nums; }
-.dash-request-row svg { color: var(--color-text-secondary); }
-.dash-page .dash-kpi-value { display: flex; align-items: baseline; gap: var(--spacing-1); font-size: var(--bo-type-page-title); line-height: 1.35; font-variant-numeric: tabular-nums; }
-.dash-page .dash-kpi-value.dash-unknown-value { font-size: var(--bo-type-list); }
-.dash-grade-section { border-top: var(--bo-line) solid var(--color-background-muted); padding: var(--spacing-3) var(--spacing-4); display: flex; align-items: center; gap: var(--spacing-3); }
-.dash-grade-legend { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-2); }
-.dash-grade-item { display: flex; align-items: center; gap: var(--spacing-1); border: 0; padding: 0; background: transparent; color: inherit; }
-.dash-grade-item:hover { text-decoration: underline; }
-.dash-grade-item i { width: var(--spacing-2); height: var(--spacing-2); background: var(--color-border); }
-.dash-grade-item.dash-grade-0 i { background: var(--color-accent); }
-.dash-grade-item.dash-grade-1 i { background: var(--color-text-secondary); }
-.dash-grade-item.dash-grade-2 i { background: var(--color-accent-muted); border: var(--bo-line) solid var(--color-border); }
 /* 대시보드 KPI 카드의 강조(우선 검토), spec §2.4. */
-.dash-grade-item.dash-grade-0 {
-  padding: var(--spacing-0-5) var(--spacing-1);
-  border-radius: var(--radius-inner);
-  background: var(--color-accent-muted);
-  box-shadow: inset 0 0 0 1px var(--bo-brand-edge);
-}
 .dash-dashboard-foot { flex-shrink: 0; line-height: 1; }
-.dash-empty-inline { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--spacing-2); text-align: center; min-height: calc(var(--spacing-12) * 3); padding: var(--spacing-5); }
+.dash-empty-inline { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--spacing-2); text-align: center; min-height: 128px; padding: var(--spacing-5); }
 .dash-run-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--spacing-3); border: 0; border-radius: var(--radius-container); box-shadow: var(--shadow-low); background: var(--color-background-surface); padding: var(--spacing-6); text-align: center; }
 .dash-run-state > svg { width: var(--spacing-6); height: var(--spacing-6); color: var(--color-text-secondary); }
 .dash-run-state > .astryx-button { margin-top: var(--spacing-2); }
 
-.dash-page .dash-grade-legend { flex-wrap: wrap; }
-.dash-page .dash-grade-item { text-decoration: none; }
-.dash-page .dash-grade-item:hover { text-decoration: underline; }
 .dash-page .dash-panel-foot > .dash-small { min-width: 0; }
 
 /* 누적 업무 패널의 행. 목록은 상위 5건이고 오른쪽 칸은 D-day 또는 표식 하나다. */

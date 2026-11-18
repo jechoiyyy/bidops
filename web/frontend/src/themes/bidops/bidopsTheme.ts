@@ -85,7 +85,8 @@ export const bidopsTheme = defineTheme({
   // Typography: Pretendard across body, heading, and display sizes (display
   // size tokens inherit from heading.family). Pretendard is proportional, so
   // code keeps the project's monospace stack (styles/theme.css --font-mono).
-  // Scale: base=14, ratio=1.2. Bold weights on h3/h4 for subsection hierarchy.
+  // Scale: base=14, ratio=1.2. h3/h4 use semibold (600): the app's weight set is
+  // 400/500/600 only (2026-11-18, 설계고도화안 §4 B).
   typography: {
     scale: {base: 14, ratio: 1.2},
     body: {
@@ -97,7 +98,7 @@ export const bidopsTheme = defineTheme({
       family: 'Pretendard',
       fallbacks:
         'system-ui, sans-serif',
-      weights: {3: 'bold', 4: 'bold'},
+      weights: {3: 'semibold', 4: 'semibold'},
     },
     code: {
       family: 'ui-monospace',
@@ -359,16 +360,37 @@ export const bidopsTheme = defineTheme({
     '--color-text-gray': ['#262626', '#e5e5e5'],
 
     // =========================================================================
-    // Radius — slightly larger than default (kept as-is)
+    // Font sizes — integer px on the app scale 12/14/16/20 (2026-11-18,
+    // 설계고도화안 §4 B). The generated rem sizes assumed a 16px root; this app's
+    // root is 14px, so 0.875rem rendered as 12.25px. Display sizes stay rem
+    // (unused in this app).
+    // =========================================================================
+    '--font-size-4xs': '12px',
+    '--font-size-3xs': '12px',
+    '--font-size-2xs': '12px',
+    '--font-size-xs': '12px',
+    '--font-size-sm': '12px',
+    '--font-size-base': '14px',
+    '--font-size-lg': '16px',
+    '--font-size-xl': '20px',
+    '--font-size-2xl': '20px',
+
+    // =========================================================================
+    // Radius — integer px on the 4px grid (2026-11-18, 설계고도화안 §4 B-2).
+    // The app root font-size is 14px, so the former rem values rendered as
+    // fractional px (0.375rem = 5.25px, 0.5rem = 7px). px keeps the scale
+    // independent of the root: 4 small parts, 8 controls/cards, 9999 pill.
+    // --radius-element stays 8 because Astryx derives nested button radius
+    // as `element - spacing-1`; 4 would square those buttons off (0px).
     // --radius-none and --radius-full are always fixed and must never be
     // scaled by a theme (see defineTheme's radius config docs) — 0 and
     // 9999px respectively, matching @astryxdesign/core's own defaults.
     // =========================================================================
     '--radius-none': '0px',
-    '--radius-inner': '0.375rem', // 6px 버튼·칩·입력 (시안 v26)
-    '--radius-element': '0.5rem', // 8px 카드
-    '--radius-container': '0.5rem', // 8px 카드 (시안 v26: 표면은 경계선만, 큰 라운드 없음)
-    '--radius-page': '1.75rem',
+    '--radius-inner': '4px', // 칩·입력 안쪽·작은 버튼
+    '--radius-element': '8px', // 버튼·입력·카드 (Astryx 기본과 같다)
+    '--radius-container': '8px', // 카드·패널·대화상자 (시안 v26: 표면은 경계선만, 큰 라운드 없음)
+    '--radius-page': '28px',
     '--radius-full': '9999px',
 
     // =========================================================================

@@ -29,6 +29,8 @@ import {
   detailFactValue,
   formatKstDateShort,
   formatMoment,
+  hasNoModelJudgment,
+  NO_MODEL_JUDGMENT_LABEL,
   noticePostedLabel,
   plannedTiming,
   qwenBadgeVariant,
@@ -417,6 +419,12 @@ export function OrderPlanDetailPane({
                   <Badge variant={qwenBadgeVariant(selectedItem)} label={qwenRowLabel(selectedItem)} />
                 </span>
               </div>
+              {/* 모델 판정이 없는 건(배치 실패 포함)은 비관련이 아니다. 이유와 할 일을 한 줄로 남긴다. */}
+              {hasNoModelJudgment(selectedItem) ? (
+                <p className="c2l-detail-warn" role="note">
+                  {NO_MODEL_JUDGMENT_LABEL} · {qwenRowLabel(selectedItem)}. 모델 판단이 없으므로 비관련으로 보지 않습니다. 사업명·발주기관을 직접 보고 추적 여부를 정하십시오.
+                </p>
+              ) : null}
               {/* 없앤 `선별 신호 · 실행 기록` 다이얼로그에서 판단에 쓰는 두 값만 본문으로
                   올렸다(시안 M3 결정 3 승인). 나머지 신호(순위·점수·실행 기록)는 운영
                   화면의 `발주계획 선별` 탭이 진다. */}

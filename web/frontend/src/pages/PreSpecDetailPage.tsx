@@ -1,3 +1,4 @@
+import { FEATURE_OFF_LABEL, useFeatureFlags } from "../lib/featureFlags";
 import { CurrentCompanyEnginePanel } from "../components/engine/EngineAnalysisPanel";
 import { Button } from "@astryxdesign/core/Button";
 import { InternationalizationProvider } from "@astryxdesign/core/i18n";
@@ -385,6 +386,8 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
   // 정하는 기본값을 따른다. 응답이 늦게 와도 기본값이 다시 계산된다.
   const [documentPanelOverride, setDocumentPanelOverride] = useState<boolean | null>(null);
   const documentPanelInitialRef = useRef<boolean | null>(null);
+  // 개요 자동 검토가 이 환경에서 꺼져 있으면 실행 기록이 없는 이유를 먼저 말한다(설계고도화안 C-4).
+  const overviewOff = useFeatureFlags().state("prespec_overview") === "off";
   if (noticeId === null) {
     return (
       <EmptyState
@@ -751,7 +754,9 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
             <strong>{overviewStatusForStep ?? "개요 검토 상태 미확인"}</strong>
             <p>{preSpecItem?.overview_review_status
               ? PRE_SPEC_OVERVIEW_WAITING_DESCRIPTION[preSpecItem.overview_review_status]
-              : "개요 검토 실행 기록이 없어 주요 과업을 표시할 수 없습니다."}</p>
+              : overviewOff
+                ? `개요 검토 · ${FEATURE_OFF_LABEL}. 이 환경의 운영 설정에서 개요 자동 검토가 꺼져 있어 실행 기록이 없고 주요 과업을 표시할 수 없습니다.`
+                : "개요 검토 실행 기록이 없어 주요 과업을 표시할 수 없습니다."}</p>
           </div>
         )}
       </section>
@@ -930,7 +935,11 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
           ) : null}
         </div>
 
-        <CurrentCompanyEnginePanel noticeId={noticeId} bundleId={latestBundle?.status === "ready" ? latestBundle.id : null} />
+        {/* 분석 엔진 mock 참조 패널은 실험 경로라 개발·mock 서버에서만 그린다(설계고도화안 C-9).
+            운영 번들에는 들어가지 않으며 live 전송은 원래부터 fail closed다. */}
+        {import.meta.env.BIDOPS_REVIEW_MOCK
+          ? <CurrentCompanyEnginePanel noticeId={noticeId} bundleId={latestBundle?.status === "ready" ? latestBundle.id : null} />
+          : null}
 
         {/* 발주계획 후보(docs/0917_opportunity-tracking/spec.md §11.4). 6단 구조를 늘리지
             않도록 ⑥의 `처리 이력과 연결` 바로 위에 둔다. 연결 확인은 사람이 한다. */}
@@ -991,7 +1000,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
               {currentPageOverviewForView ? <PageOverviewCurrentFacts current={currentPageOverviewForView} /> : null}
               {shown ? <PageOverviewResultFacts review={shown} claimIds={evidenceClaims.map((fact) => fact.claim_id)} /> : null}
               {shown ? <PageOverviewExecutionInfo review={shown} /> : null}
-              {!currentPageOverviewForView && !shown ? <p>개요 검토 실행 기록이 없습니다.</p> : null}
+              {!currentPageOverviewForView && !shown ? <p>{overviewOff ? `개요 검토 실행 기록이 없습니다 · ${FEATURE_OFF_LABEL}.` : "개요 검토 실행 기록이 없습니다."}</p> : null}
               <PageOverviewHistoryFacts reviews={pageOverviewValid ? pageOverviewHistory : []} />
             </section>
             <CompanyFitExecutionSection

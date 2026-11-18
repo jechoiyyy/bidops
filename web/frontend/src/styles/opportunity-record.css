@@ -48,7 +48,7 @@
   color: var(--color-text-teal);
   background: var(--color-background-teal);
   font-size: var(--bo-type-page-title);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
 }
 
@@ -60,15 +60,15 @@
 }
 
 .rec-title {
-  font-size: var(--bo-type-page-title);
-  font-weight: 700;
+  font-size: var(--bo-type-detail-title);
+  font-weight: 600;
   line-height: var(--bo-type-page-title-leading);
 }
 
 .rec-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--spacing-1-5);
+  gap: var(--spacing-1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -162,6 +162,20 @@
 
 .rec-side-note.is-disabled {
   opacity: 0.7;
+}
+
+/* 목록 창 조작으로 가는 링크 목록(설계고도화안 C-3). */
+.rec-side-links {
+  display: grid;
+  gap: var(--spacing-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--bo-type-body);
+}
+
+.rec-side-links a {
+  color: var(--color-accent);
 }
 
 /* 속성 목록: 2열 grid(라벨 96px 보조색 / 값), 행 높이 34, 하단 1px */
@@ -337,6 +351,18 @@
   color: var(--color-text-secondary);
 }
 
+/* 연결이 있는 단계 칸은 원천 화면 링크다(설계고도화안 C-3). 상태 색은 그대로 두고 밑줄로만 구분한다. */
+.rec-stage-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-0-5);
+}
+
+.rec-stage-link:focus-visible {
+  outline: var(--focus-outline-width) solid var(--color-accent);
+  outline-offset: var(--spacing-0-5);
+}
+
 .rec-stage-day {
   color: var(--color-text-secondary);
   font-size: var(--bo-type-caption);
@@ -391,12 +417,12 @@
   color: var(--color-text-secondary);
   font-size: var(--bo-type-caption);
   line-height: var(--bo-type-caption-leading);
-  max-width: calc(var(--spacing-6) * 9);
+  max-width: 216px;
 }
 
 .rec-composer .actor-field input,
 .rec-owner input {
-  min-height: calc(var(--spacing-6) * 1.25);
+  min-height: 28px;
   padding: 0 var(--spacing-2);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-inner);
@@ -406,11 +432,11 @@
 }
 
 .rec-composer .actor-field input {
-  width: calc(var(--spacing-6) * 6);
+  width: 144px;
 }
 
 .rec-owner input {
-  width: calc(var(--spacing-6) * 8);
+  width: 192px;
 }
 
 .rec-composer .actor-field input[aria-invalid="true"] {
@@ -432,7 +458,7 @@
 
 .rec-chips {
   display: flex;
-  gap: var(--spacing-1-5);
+  gap: var(--spacing-1);
 }
 
 .rec-chip {
@@ -515,7 +541,7 @@
 .rec-activity-pill {
   display: inline-flex;
   align-items: center;
-  margin-left: var(--spacing-1-5);
+  margin-left: var(--spacing-1);
   padding: 0 var(--spacing-2);
   border-radius: var(--radius-full);
   color: var(--color-text-secondary);

@@ -82,11 +82,24 @@
 .review-split-list {
   flex: 0 0 38%;
   border-right: var(--border-width) solid var(--review-split-line);
-  /* 탐색 두 화면이 같은 목록 글자 크기를 쓴다(ADR-0062 "목록 글자"). 사업명·발주기관은
-     본문보다 2px 큰 primary, 예산·상태·마감은 본문 크기인 secondary다. 페이지가 아니라
-     목록 pane이 소유하는 토큰이며 `:root`와 테마는 그대로다. */
-  --review-list-primary: calc(var(--bo-type-body) + var(--spacing-0-5));
-  --review-list-secondary: var(--bo-type-body);
+  /* 조밀 목록 네 화면이 같은 목록 글자 크기를 쓴다(ADR-0062 "목록 글자"). 2026-11-18
+     결정: 사업명 14/600, 발주기관 14/400(primary), 예산·상태·마감·칩은 12(secondary).
+     페이지가 아니라 목록 pane이 소유하는 토큰이며 `:root`와 테마는 그대로다. */
+  --review-list-primary: var(--bo-type-list-title);
+  --review-list-secondary: var(--bo-type-caption);
+}
+
+/* 목록 행 안의 상태 칩(Astryx Token·Badge)도 secondary 단이다. 화면마다 따로 덮지
+   않고 목록 pane 한 곳에서 준다. */
+.review-split-list :where(tbody, [data-row-key]) :is(.astryx-token, .astryx-badge),
+.review-split-list :where(tbody, [data-row-key]) :is(.astryx-token, .astryx-badge) * {
+  font-size: var(--review-list-secondary);
+}
+
+/* 목록 행의 보조 줄(메타·상태) 안 낱 span은 화면 root의 "span은 본문" 재적용을
+   받지 않고 그 줄의 secondary 크기를 잇는다. */
+.review-split-list :is(.c2l-row-meta, .c2l-row-state, .pre-specs-row-meta, .pre-specs-row-state) span {
+  font-size: inherit;
 }
 
 .review-split-detail {
@@ -238,7 +251,7 @@
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
-  gap: var(--spacing-1-5);
+  gap: var(--spacing-1);
   padding: var(--spacing-3) var(--spacing-4);
   border-bottom: var(--border-width) solid var(--review-split-line);
   background: var(--color-background-surface);
@@ -302,24 +315,6 @@
   min-width: 0;
 }
 
-.review-control-selector {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-}
-
-.review-control-label {
-  flex: 0 0 auto;
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  font-weight: var(--font-weight-medium);
-  white-space: nowrap;
-}
-
-.review-control-selector .review-filter-selector {
-  flex: 1 1 auto;
-}
-
 .review-filter-bar .review-filter-selector,
 .review-filter-bar .review-filter-text-input {
   overflow-wrap: anywhere;
@@ -334,7 +329,7 @@
   align-items: center;
   gap: var(--spacing-1);
   min-height: var(--size-element-lg);
-  padding: var(--spacing-0-5) var(--spacing-2);
+  padding: var(--spacing-0-5) var(--spacing-1) var(--spacing-0-5) var(--spacing-2);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-inner);
   color: var(--color-text-secondary);
@@ -365,6 +360,12 @@
   background: transparent;
 }
 
+/* 이름표가 바깥에 있으므로 안쪽 선택기의 좌우 여백은 4px만 둔다. 1280px에서도 검색 칸과
+   필터 다섯 개·정렬이 한 줄에 들어간다(2026-11-18). */
+.review-filter-bar .queue-filter-select .astryx-selector {
+  padding-inline: var(--spacing-1);
+}
+
 .review-filter-bar .queue-filter-control button {
   min-width: 0;
   padding-inline: var(--spacing-1);
@@ -382,7 +383,10 @@
 .review-filter-bar .queue-search {
   display: flex;
   flex: 1 1 0;
-  min-width: 0;
+  /* 4px 격자 이행(2026-11-18)으로 옆 필터가 커지자 1280px에서 검색 칸이 8px까지
+     줄었다. 자리표시 글자가 다 보이는 120px을 최소로 두고, 필터 여백을 줄여
+     1280px에서도 한 줄에 들어가게 했다. 남는 폭은 검색 칸이 가져간다. */
+  min-width: 120px;
   align-items: center;
   min-height: var(--size-element-lg);
   padding: 0;
@@ -606,7 +610,7 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: var(--spacing-1-5);
+  gap: var(--spacing-1);
   overflow-wrap: anywhere;
 }
 

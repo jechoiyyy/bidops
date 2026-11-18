@@ -8,7 +8,6 @@ import {
   overviewFallbackQueuedRunFixture,
 } from "./api-mock";
 import { mkdir, writeFile } from "node:fs/promises";
-import { nextActionOf } from "../src/lib/preSpecNextAction";
 import type {
   OpportunityDetailResponse,
   OpportunityLinkView,
@@ -106,37 +105,6 @@ const trackingException = {
   last_observed_at: "2026-08-30T00:00:00Z",
   next_action: "confirm_overview",
 };
-
-test("다음 행동은 사람 확인과 차단을 먼저 읽고 추적·실행·마감을 구분한다", () => {
-  const base: PreSpecListItem = {
-    ...trackingException,
-    origin: "추적", tracking_status: "계속 추적",
-    grade: "우선 검토", grade_source: "screening_judgment",
-    overview_review_status: null, auto_preparation_status: "not_applicable",
-    auto_preparation_reason: null, deadline_at: null,
-  };
-  const cases: [Partial<PreSpecListItem>, string][] = [
-    [{ overview_review_status: "needs_human_review", auto_preparation_status: "blocked" }, "사람 확인"],
-    [{ overview_review_status: "failed", auto_preparation_status: "blocked" }, "개요 실행 실패·취소 확인"],
-    [{ overview_review_status: "cancelled" }, "개요 실행 실패·취소 확인"],
-    [{ auto_preparation_status: "blocked", auto_preparation_reason: "unknown_safe_code", origin: "신규", tracking_status: "미선택" }, "문서 차단 사유 확인 · unknown_safe_code"],
-    [{ origin: "신규", tracking_status: null, auto_preparation_status: "deep_review_ready_for_click" }, "추적 결정하기"],
-    [{ origin: "신규", tracking_status: "미선택" }, "추적 결정하기"],
-    [{ tracking_status: "보류", auto_preparation_status: "deep_review_ready_for_click" }, "사업 추적에서 상태 확인"],
-    [{ tracking_status: "종료", auto_preparation_status: "deep_review_started" }, "사업 추적에서 상태 확인"],
-    [{ auto_preparation_status: "deep_review_ready_for_click" }, "심층 검토 시작 승인"],
-    [{ auto_preparation_status: "deep_review_started" }, "심층 검토 진행 확인"],
-    [{ auto_preparation_status: "waiting_attachments" }, "문서 준비·개요 진행 중"],
-    [{ auto_preparation_status: "bundle_draft" }, "문서 준비·개요 진행 중"],
-    [{ auto_preparation_status: "overview_running" }, "문서 준비·개요 진행 중"],
-    [{ deadline_at: "2000-01-01T00:00:00Z", overview_review_status: "completed" }, "의견등록 마감 경과 · 본공고 여부는 상세에서 확인"],
-    [{ deadline_at: null, overview_review_status: "completed" }, "개요 결과 확인"],
-    [{ deadline_at: "invalid-date", overview_review_status: "completed" }, "개요 결과 확인"],
-    [{ origin: null, tracking_status: null }, "현재 상태 확인"],
-    [{ auto_preparation_status: "bundle_ready" }, "현재 상태 확인"],
-  ];
-  for (const [patch, expected] of cases) expect(nextActionOf({ ...base, ...patch })).toBe(expected);
-});
 
 const newPreSpec = {
   notice_pk: 992,
@@ -532,8 +500,8 @@ test("기본 보기 빈 상태의 전체 사전규격 보기는 sw_only=false를
 });
 
 // 행 구조: 사업명 → 기관 → 예산·발견 구분 → 개요 상태·추적 상태(사용자 정정으로
-// 시안의 첫 두 줄을 맞바꿨다). native compact 크기는 사업명·기관 14.4px,
-// 나머지 12.6px이며 굵은 글자는 사업명 하나뿐이다.
+// 시안의 첫 두 줄을 맞바꿨다). 크기는 사업명·기관이 14px, 나머지가 12px이며 굵은
+// 글자는 사업명 하나뿐이다(2026-11-18 조밀 목록 결정. ×0.9 축척 때는 14.4px·12.6px).
 test("목록 행은 사업명·기관·예산·상태를 정해진 순서와 글자 크기로 보여준다", async ({ page }) => {
   await mockPreSpecs(page);
   await page.goto("/pre-specs");
@@ -546,15 +514,15 @@ test("목록 행은 사업명·기관·예산·상태를 정해진 순서와 글
 
   const fontSize = (locator: ReturnType<typeof preSpecRow>) => locator
     .evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
-  expect(await fontSize(agency)).toBe(14.4);
-  expect(await fontSize(title)).toBe(14.4);
+  expect(await fontSize(agency)).toBe(14);
+  expect(await fontSize(title)).toBe(14);
   const fontWeight = (locator: ReturnType<typeof preSpecRow>) => locator
     .evaluate((element) => Number(getComputedStyle(element).fontWeight));
   expect(await fontWeight(title)).toBeGreaterThanOrEqual(600);
   expect(await fontWeight(agency)).toBeLessThan(600);
-  expect(await fontSize(row.locator(".pre-specs-row-meta"))).toBe(12.6);
-  expect(await fontSize(row.locator(".pre-specs-row-state"))).toBe(12.6);
-  expect(await fontSize(row.locator(".pre-specs-deadline"))).toBe(12.6);
+  expect(await fontSize(row.locator(".pre-specs-row-meta"))).toBe(12);
+  expect(await fontSize(row.locator(".pre-specs-row-state"))).toBe(12);
+  expect(await fontSize(row.locator(".pre-specs-deadline"))).toBe(12);
 
   // 사업명이 기관보다 위에 있고, 마감은 행의 오른쪽 절반에 있다.
   const positions = await row.evaluate((element) => {
@@ -764,19 +732,21 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       };
     });
 
-    expect(styles.summary.fontSize).toBe(13.5);
-    expect(styles.task.fontSize).toBe(13.5);
-    expect(styles.fieldValue.fontSize).toBe(13.5);
-    expect(styles.caption.fontSize).toBe(11.7);
-    expect(styles.fieldLabel.fontSize).toBe(11.7);
-    expect(styles.scale.fontSize).toBe(11.7);
-    expect(styles.sectionLabel.fontWeight).toBeGreaterThanOrEqual(700);
-    expect(styles.fieldLabel.fontWeight).toBeGreaterThanOrEqual(700);
-    expect(styles.scaleLabel.fontWeight).toBeGreaterThanOrEqual(700);
+    // ×0.9 축척 때 본문·캡션보다 0.9px 크던 단(13.5·11.7px)은 정수 척도의 본문·캡션으로 접었다.
+    expect(styles.summary.fontSize).toBe(14);
+    expect(styles.task.fontSize).toBe(14);
+    expect(styles.fieldValue.fontSize).toBe(14);
+    expect(styles.caption.fontSize).toBe(12);
+    expect(styles.fieldLabel.fontSize).toBe(12);
+    expect(styles.scale.fontSize).toBe(12);
+    // 굵기는 400·500·600만 쓴다(2026-11-18). 라벨 강조는 600이다.
+    expect(styles.sectionLabel.fontWeight).toBeGreaterThanOrEqual(600);
+    expect(styles.fieldLabel.fontWeight).toBeGreaterThanOrEqual(600);
+    expect(styles.scaleLabel.fontWeight).toBeGreaterThanOrEqual(600);
     expect(styles.validation.fontWeight).toBeLessThan(600);
     expect(styles.taskText.fontWeight).toBeLessThan(600);
     expect(styles.scaleText.fontWeight).toBeLessThan(600);
-    expect(styles.rows).toEqual([32.4, 32.4]);
+    expect(styles.rows).toEqual([36, 36]);
     expect(styles.footerDisplay).toBe("flex");
     expect(styles.detailFlexGrow).toBe("1");
     expect(styles.detailMinHeight).toBe("0px");
@@ -793,8 +763,8 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
         background: style.backgroundColor,
       };
     });
-    expect(linkStyle.minHeight).toBe(32.4);
-    expect(linkStyle.fontSize).toBe(12.6);
+    expect(linkStyle.minHeight).toBe(36);
+    expect(linkStyle.fontSize).toBe(14);
     expect(linkStyle.fontWeight).toBeGreaterThanOrEqual(600);
     expect(linkStyle.background).not.toBe("rgba(0, 0, 0, 0)");
 

@@ -4,6 +4,16 @@ import type { RunSummary } from "../../lib/types";
 import { BasisPopover } from "./BasisPopover";
 import { RunSelector } from "./RunSelector";
 import { runSearchFor, type RouteCrumb, type RouteDataScope, type RouteTopbarMode } from "./route-meta";
+
+/** 칸의 목적지. 목록 주소에 붙은 검색어(`?selected=`)는 유지하고 회차 선택은 목적지가 읽을 때만 붙인다. */
+function crumbDestination(to: string, runSearch: string): { pathname: string; search: string } {
+  const index = to.indexOf("?");
+  const pathname = index === -1 ? to : to.slice(0, index);
+  const own = index === -1 ? "" : to.slice(index + 1);
+  const run = runSearchFor(pathname, runSearch).replace(/^\?/, "");
+  const search = [own, run].filter(Boolean).join("&");
+  return { pathname, search: search ? `?${search}` : "" };
+}
 import { preSpecReviewListUrl } from "../../lib/preSpecSelectionReview";
 
 interface TopBarProps {
@@ -141,7 +151,7 @@ function CrumbLabel({
   const destination = crumb.context === "pre-spec-list" && preSpecListUrl
     ? preSpecListUrl
     : crumb.to
-      ? { pathname: crumb.to, search: runSearchFor(crumb.to, runSearch) }
+      ? crumbDestination(crumb.to, runSearch)
       : null;
   const label = crumb.to
     ? <Link className="topbar-crumb-link" to={destination!}>{crumb.label}</Link>

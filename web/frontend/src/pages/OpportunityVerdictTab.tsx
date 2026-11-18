@@ -22,7 +22,7 @@ import "../styles/verdict.css";
  * 사업기회 레코드의 판정 탭 본문(`/opportunities/:id/verdict`, RL-03 spec "화면", ui-spec §4.4).
  *
  * 상태 6종은 서버 `availability`를 그대로 읽는다 — 화면이 판정이나 진행 상태를 다시 계산하지 않는다.
- *   none                  "아직 판정이 없습니다" + 다시 판정
+ *   none                  "아직 판정이 없습니다" + 판정 요청(첫 요청은 "다시"가 아니다)
  *                         (권위 연결 사전규격이 없으면 `notice_id=null` — 판정 대상이 없으므로 요청 버튼 없이 안내만)
  *   pending · running     "분석 중" + 검증이 끝난 부분표
  *   failed · needs_human_review  "사람 검토가 필요합니다" + 부분표 + 다시 판정(자동 보정·재시도 없음)
@@ -100,9 +100,9 @@ export function OpportunityVerdictTab({ query, onRequest, onFeedback }: Opportun
   if (view.availability === "none") {
     return (
       <EmptyState
-        action={{ label: "다시 판정", onClick: onRequest }}
+        action={{ label: "판정 요청", onClick: onRequest }}
         compact
-        description="판정은 SW사업 사전규격의 문서 준비가 끝나고 분석이 승인되어 있을 때 시작됩니다. 지금 바로 분석을 요청할 수도 있습니다."
+        description="판정은 SW사업 사전규격의 문서 준비가 끝나고 분석이 승인되어 있을 때 시작됩니다. 문서 준비가 끝났으면 판정을 요청할 수 있습니다."
         title="아직 판정이 없습니다"
       />
     );

@@ -305,6 +305,8 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
           <p className="opportunity-caption">
             사업 #{String(item.id).padStart(3, "0")} · {originDescription(item.first_registered_stage)}
           </p>
+          {/* 목록 창과 레코드가 서로를 연다(설계고도화안 C-3). 활동·판정·제안서는 레코드에 있다. */}
+          <Link className="opportunity-linked-link" to={`/opportunities/${item.id}/activity`}>레코드 열기 →</Link>
           <Token label={item.tracking_status} size="sm" />
         </div>
       </StickyDecisionHeader>

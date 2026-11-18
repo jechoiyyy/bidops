@@ -618,7 +618,8 @@ export function DocumentPreparationPanel({ noticeId, currentGrade, onDeepReviewC
               </div>
             </div>
           ) : null}
-          {noticeId === 1489 && selectedBundle.status === "ready" && <AssumptionRequest key={`assumption:${selectedBundle.id}:${actorName}`} noticeId={noticeId} bundleId={selectedBundle.id} actor={actorName}/>}
+          {/* 1489번 가정 분석 요청은 고정 공고 하나의 실험이라 개발·mock 서버에서만 그린다(설계고도화안 C-9). */}
+          {import.meta.env.BIDOPS_REVIEW_MOCK && noticeId === 1489 && selectedBundle.status === "ready" && <AssumptionRequest key={`assumption:${selectedBundle.id}:${actorName}`} noticeId={noticeId} bundleId={selectedBundle.id} actor={actorName}/>}
           {deepReviewProblem ? (
         <MutationFeedback tone="error" problem={deepReviewProblem}>
           {/* fail-closed 사실은 서버 message가 아니라 이 화면의 규칙이다. */}

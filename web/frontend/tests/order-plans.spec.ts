@@ -15,6 +15,13 @@ import type {
   OrderPlanBulkStartResponse,
 } from "../src/lib/types";
 
+/**
+ * 옛 기본 보기(관련·불확실 AND 추적 미선택). 2026-11-18부터 기본 보기는 `관련`이다(설계고도화안 A-6).
+ * 행 두 개(101 관련·102 불확실)로 행 이동·저장 뒤 이동을 보는 검사는 이 축을 주소로 건다 — 같은 행을
+ * 보이는 기존 필터이며 의미는 바뀌지 않았다.
+ */
+const REVIEW_SET_URL = "/order-plans?qwen=relevant,uncertain&tracking=미선택";
+
 test.beforeEach(async ({ page }) => {
   await mockApi(page);
 });
@@ -268,7 +275,7 @@ async function mockReorderedOrderPlanList(
 // 보조 글자에서 본문 굵은 글자로 키운다.
 test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, 신호·실행 기록은 운영 화면이 진다", async ({ page }) => {
   await mockOrderPlans(page);
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
 
   // 화면 제목은 상단바의 h1 하나다. 페이지는 같은 이름을 다시 그리지 않는다(제목 모드).
   await expect(page.locator("header.topbar h1")).toHaveText("발주계획");
@@ -388,7 +395,7 @@ test("실행 표시는 최근 실행에 문제가 있을 때만 서고 성공만
   // (a) 성공만 있는 날: 칩 없음.
   await mockOrderPlans(page);
   await mockExecutionList(page, [c2ExecutionFixture({ finished_at: "2026-09-01T02:05:00Z" })]);
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
   await expect(page.locator(".c2l-row").first()).toBeVisible();
   await expect(chip()).toHaveCount(0);
 
@@ -404,7 +411,7 @@ test("실행 표시는 최근 실행에 문제가 있을 때만 서고 성공만
       finished_at: "2026-09-01T03:01:00Z",
     }),
   ]);
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
   await expect(page.locator(".c2l-row").first()).toBeVisible();
   await expect(chip()).toContainText("최근 선별 실행 실패");
   // 칩이 운영 화면 링크를 겸하며 회차뿐 아니라 실행까지 특정한다.
@@ -450,7 +457,8 @@ test("기본 상세는 실제 모델 근거와 알려진 출처 필드만 보여
   await expect(head.locator(".c2l-agency-label")).toHaveText("발주기관");
   await expect(head.locator(".c2l-agency-name")).toHaveText("서울특별시 디지털정책관");
 
-  // 전역 zoom 때의 물리 크기: 사업명 18px, 발주기관 12.6px 굵게.
+  // 정수 척도: 상세 머리 사업명은 상세 단(20px), 발주기관·근거 본문은 본문(14px).
+  // ×0.9 축척 때는 18px·12.6px였다(2026-11-18 제거).
   const type = await page.locator(".c2l-detail-pane").evaluate((pane) => {
     const size = (selector: string) => {
       const element = pane.querySelector<HTMLElement>(selector);
@@ -459,10 +467,10 @@ test("기본 상세는 실제 모델 근거와 알려진 출처 필드만 보여
     };
     return { title: size("h4"), agency: size(".c2l-agency-name"), body: size(".c2l-evidence-body") };
   });
-  expect(type.title.fontSize).toBe(18);
-  expect(type.agency.fontSize).toBe(12.6);
+  expect(type.title.fontSize).toBe(20);
+  expect(type.agency.fontSize).toBe(14);
   expect(type.agency.weight).toBeGreaterThanOrEqual(600);
-  expect(type.body.fontSize).toBe(12.6);
+  expect(type.body.fontSize).toBe(14);
 });
 
 // F1(spec §6.1) — 상세 응답은 **선택 행마다 1회**이고 선택이 바뀔 때만 다시 나간다.
@@ -471,7 +479,7 @@ test("기본 상세는 실제 모델 근거와 알려진 출처 필드만 보여
 test("상세 API는 선택한 행마다 한 번만 나가고 선택이 바뀔 때만 다시 조회한다", async ({ page }) => {
   await mockOrderPlans(page);
   const detailRequests = traceDetailRequests(page);
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
 
   const identity = page.locator(".c2l-detail-identity p");
   // 첫 행은 화면이 자동으로 고른다. 그 한 건의 상세만 조회한다.
@@ -499,7 +507,7 @@ test("상세 API는 선택한 행마다 한 번만 나가고 선택이 바뀔 �
 // 신규/계속 절은 만들지 않는다(뜻이 다른 빈 값을 합치지 않는다, spec §1.1).
 test("상세는 계약 조건과 총괄기관·첫 수집·신규/계속을 보이고 값이 없으면 미제공이거나 절을 만들지 않는다", async ({ page }) => {
   await mockOrderPlans(page);
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
 
   const head = page.locator(".c2l-detail-head");
   // 총괄기관은 발주기관 블록 바로 아래의 부제다. 발주기관 자체는 그대로 있다.
@@ -676,9 +684,9 @@ test("토큰 필터는 축끼리 AND, 축 안에서는 OR로 조합되고 프리
   await expect(issueRows.filter({ hasText: "모델 응답 거부" })).toHaveCount(1);
   await expect(issueRows.filter({ hasText: "모델 상태 미확인" })).toHaveCount(0);
 
-  // 필터 초기화는 검토 대상(기본) 조합으로 되돌린다.
+  // 필터 초기화는 기본 보기(관련) 조합으로 되돌린다.
   await resetFilters(page);
-  await expect(page.locator(".c2l-row")).toHaveCount(2);
+  await expect(page.locator(".c2l-row")).toHaveCount(1);
 });
 
 test("검토 목록은 relevance 우선순위로 정렬하고 선택 순서와 같은 relevance의 원래 순서를 보존한다", async ({ page }) => {
@@ -889,7 +897,7 @@ test("사람 판단 수정은 접힌 영역에서 새 revision만 저장하고 �
 // wire shape 를 mock 하며 구현 완료의 근거가 아니다.
 test("추적 결정은 별도 요청으로 저장되고 선택 즉시 다음 발주계획으로 이동한다", async ({ page }) => {
   const trace = await mockOrderPlans(page);
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
   const pathnameBefore = new URL(page.url()).pathname;
 
   await page.locator(".c2l-row").first().click();
@@ -931,7 +939,7 @@ test("추적 결정은 별도 요청으로 저장되고 선택 즉시 다음 발
 // 사전규격(TrackingDecisionControl)·사업 추적(OpportunitiesPage)과 같은 자리에서 만든다.
 test("발주계획 추적 종료는 확인 없이는 요청이 나가지 않고 취소하면 초안만 남는다", async ({ page }) => {
   const trace = await mockOrderPlans(page);
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
   await page.locator(".c2l-row").first().click();
   await selectReason(page, "후속 사전규격·공고 확인");
   await page.getByLabel("담당자 이름 · 감사 표식").fill("홍길동");
@@ -963,7 +971,7 @@ test("발주계획 추적 종료는 확인 없이는 요청이 나가지 않고 
 // 확인이 뜻을 잃는다.
 test("계속 추적과 보류는 확인 단계 없이 그대로 저장된다", async ({ page }) => {
   const trace = await mockOrderPlans(page);
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
   await page.locator(".c2l-row").first().click();
   await selectReason(page, "후속 사전규격·공고 확인");
   await page.getByLabel("담당자 이름 · 감사 표식").fill("홍길동");
@@ -978,7 +986,7 @@ test("계속 추적과 보류는 확인 단계 없이 그대로 저장된다", a
 // 그 사실을 확인한 뒤에만 일어난다.
 test("행을 바꾸기 전에 저장하지 않은 사람 판단 입력을 확인하고 취소하면 입력이 남는다", async ({ page }) => {
   await mockOrderPlans(page);
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
   await page.locator(".c2l-row").first().click();
 
   await page.getByRole("button", { name: "사람 판단 수정 열기" }).click();
@@ -1012,7 +1020,7 @@ test("행을 바꾸기 전에 저장하지 않은 사람 판단 입력을 확인
 // 필터는 보이는 모집단과 선택된 행을 함께 바꾼다. 같은 확인을 건다.
 test("필터를 바꾸기 전에도 저장하지 않은 사람 판단 입력을 확인한다", async ({ page }) => {
   await mockOrderPlans(page);
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
   await page.locator(".c2l-row").first().click();
   await page.getByRole("button", { name: "사람 판단 수정 열기" }).click();
   await page.getByLabel("메모").fill("필터 확인용 미저장 입력");
@@ -1074,7 +1082,7 @@ test("화면을 떠나기 전에 저장하지 않은 입력을 화면 다이얼�
 
 test("이번 건 넘기기는 아무것도 저장하지 않고 미선택을 종료로 바꾸지 않는다", async ({ page }) => {
   const trace = await mockOrderPlans(page);
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
   await page.locator(".c2l-row").first().click();
 
   // 담당자 이름 없이도 넘기기는 가능하다. 저장하지 않기 때문이다.
@@ -1257,8 +1265,8 @@ test("저장된 뷰: 이름 붙여 저장한 조합만 localStorage에 남고 �
   expect(JSON.parse(stored ?? "[]")[0]).toMatchObject({ name: "탈락 확인용" });
 
   // 프리셋 클릭 후에도 저장된 뷰를 다시 골라 복원할 수 있다.
-  await clickPreset(page, "검토 대상");
-  await expect(page.locator(".c2l-row")).toHaveCount(2);
+  await clickPreset(page, "관련");
+  await expect(page.locator(".c2l-row")).toHaveCount(1);
 
   await page.getByRole("combobox", { name: "저장된 뷰", exact: true }).click();
   await page.getByRole("option", { name: "탈락 확인용" }).click();
@@ -1273,7 +1281,7 @@ test("저장된 뷰: 이름 붙여 저장한 조합만 localStorage에 남고 �
 // 바꾸며 페이지를 이동하지 않는다(PLAN 단계 B).
 test("지원 폭 전체에서 목록과 상세 두 pane이 함께 남고 행 선택은 상세만 제자리에서 바꾼다", async ({ page }) => {
   await mockOrderPlans(page);
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
 
   const workspace = page.locator('[data-review-primitive="split-workspace"]');
   await expect(workspace).not.toHaveAttribute("data-mobile-view", /.*/);
@@ -1372,7 +1380,7 @@ test("선별 전 수집 회차도 전체 원본을 조회하고 URL의 회차를
 // 사유는 화면이 만들어 내지 않는다. 초기값이 비어 있고, 공백만 적은 `기타`는 사유가 아니다.
 test("추적 사유는 초기값이 비어 있고 공백만 있는 직접 입력으로는 저장할 수 없다", async ({ page }) => {
   const trace = await mockOrderPlans(page);
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
   await page.locator(".c2l-row").first().click();
   await page.getByLabel("담당자 이름 · 감사 표식").fill("홍길동");
 
@@ -1418,7 +1426,7 @@ test("추적 사유는 초기값이 비어 있고 공백만 있는 직접 입력
 // 그대로 실리고 "저장되지 않은 입력" 경고도 계속 뜬다.
 test("목록의 마지막 건을 저장하면 사유를 비우고 이동하지 않았다고 밝힌다", async ({ page }) => {
   const trace = await mockOrderPlans(page);
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
 
   // 기본 보기는 두 건이다. 두 번째(마지막) 건을 고른다.
   await expect(page.locator(".c2l-row")).toHaveCount(2);
@@ -1512,7 +1520,7 @@ test("결정 버튼은 같은 높이의 한 줄이고 비활성 사유는 그 �
 // 마우스로 돌아가야 하고, 그 순간 검토 속도가 마우스 이동 거리에 묶인다.
 test("검토 목록에서 ↑↓로 행을 옮기면 선택·초점·URL이 함께 따라간다", async ({ page }) => {
   await mockOrderPlans(page);
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
 
   const rows = page.locator(".c2l-row");
   await expect(rows).toHaveCount(2);
@@ -1648,7 +1656,7 @@ test("행 배지는 모델 판단을 상태 칩 줄에 두고 1차 선별 기본
 // 한 키가 사유를 지어내면 감사 기록이 사람의 판단이 아니게 되므로, 그때는 안내만 한다.
 test("목록 행의 Ctrl+Enter는 준비됐을 때만 추적을 시작한다", async ({ page }) => {
   const trace = await mockOrderPlans(page);
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
 
   const rows = page.locator(".c2l-row");
   await rows.first().focus();
@@ -1675,7 +1683,7 @@ test("목록 행의 Ctrl+Enter는 준비됐을 때만 추적을 시작한다", a
 // 같은 사유를 손으로 다시 고르는 일이 잦으므로 **사람이 누를 때에만** 채우는 지름길을 둔다.
 test("저장한 뒤에는 직전 사유를 한 번에 다시 쓸 수 있다", async ({ page }) => {
   const trace = await mockOrderPlans(page);
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
 
   await page.locator(".c2l-row").first().click();
   await selectReason(page, "후속 사전규격·공고 확인");
@@ -2096,7 +2104,7 @@ test("LS-selection-toolbar-has-four-tools-in-the-pre-specs-order-and-names", asy
 
 test("LS-checkbox-space-and-input-events-remain-independent-from-active-row", async ({ page }) => {
   await mockOrderPlans(page);
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
   const rows = page.locator(".c2l-row");
   await rows.nth(1).click();
   const firstCheckbox = rows.first().locator('input[type="checkbox"]');
@@ -2468,7 +2476,7 @@ test("BT-late-preview-from-closed-dialog-cannot-overwrite-reopened-binding", asy
     if (previewCalls === 1) await firstPreview;
     await route.fallback();
   });
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
   const rows = page.locator(".c2l-row");
   await rows.nth(0).locator('input[type="checkbox"]').check();
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
@@ -2531,7 +2539,8 @@ test("BT-valid-receipt-stays-definitive-when-post-result-invalidation-fails", as
   await mockOrderPlanBulkTracking(page, "all-eligible");
   let listReads = 0;
   await page.route("**/api/order-plans**", async (route) => {
-    if (route.request().method() !== "GET") {
+    // 사이드바 건수(기본 보기 `관련`의 total, `qwen_relevance` 질의)는 이 목록 읽기가 아니다.
+    if (route.request().method() !== "GET" || new URL(route.request().url()).searchParams.has("qwen_relevance")) {
       await route.fallback();
       return;
     }
@@ -2546,7 +2555,7 @@ test("BT-valid-receipt-stays-definitive-when-post-result-invalidation-fails", as
     }
     await route.fallback();
   });
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
@@ -2591,7 +2600,7 @@ test("BE-select-three-end-tracking-confirm-and-result-hides-ended-plans-from-def
     "기타 · 직접 입력",
   ]);
   await page.getByRole("option", { name: "현재 검토 범위와 맞지 않음", exact: true }).click();
-  await expect(dialog).toContainText("종료한 계획은 기본 보기(검토 대상)에서 사라집니다");
+  await expect(dialog).toContainText("종료한 계획은 관련·불확실 보기에서 사라집니다");
   await expect(bulkSaveButton(dialog, "end")).toHaveText("3건 추적 종료");
   await bulkSaveButton(dialog, "end").click();
   await expect(dialog).toContainText("일괄 추적 종료 결과를 확인했습니다");
@@ -2611,13 +2620,13 @@ test("BE-select-three-end-tracking-confirm-and-result-hides-ended-plans-from-def
   await expect(page.getByRole("status").filter({ hasText: "건을 추적 종료했습니다" }))
     .toContainText("3건을 추적 종료했습니다 · 추적 필터 '종료'에서 볼 수 있습니다");
 
-  // 기본 보기(검토 대상)는 관련·불확실 AND 미선택만 보인다. 101·102는 이제 종료라 빠진다.
-  // `검토 대상` 탭은 축 값을 URL에 그대로 적어 `isDefaultView`를 벗어나므로, 축이
-  // 전혀 없는 진짜 기본 진입(빈 URL)으로 다시 들어가 확인한다.
+  // 기본 보기(관련)는 관련 AND 미선택만 보인다. 101·102는 이제 종료라 관련·불확실 모두 빠진다.
+  // 탭은 축 값을 URL에 그대로 적어 `isDefaultView`를 벗어나므로, 축이 전혀 없는 진짜 기본
+  // 진입(빈 URL)으로 다시 들어가 확인한다.
   await page.goto("/order-plans");
   await expect(page.locator(".c2l-list-head")).toContainText("발주계획 목록 · 0건");
-  await expect(page.locator(".c2l-list-pane").getByText("검토할 발주계획이 없습니다")).toBeVisible();
-  await expect(page.locator(".c2l-list-pane").getByText("추적을 정하지 않은 관련 건을 모두 처리했습니다.")).toBeVisible();
+  await expect(page.locator(".c2l-list-pane").getByText("관련 발주계획을 모두 처리했습니다")).toBeVisible();
+  await expect(page.locator(".c2l-list-pane").getByText("추적을 정하지 않은 관련 건이 없습니다.")).toBeVisible();
 });
 
 test("BE-blank-reason-blocks-confirm-and-sends-no-request", async ({ page }) => {
@@ -2812,7 +2821,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       const scope = page.getByTestId("order-plan-list-scope");
       const runLine = page.locator(".c2l-filters .source-run-context");
       const activeCount = page.locator(".c2l-filters .workspace-filter-count");
-      await expect(page.locator(".c2l-row")).toHaveCount(2);
+      await expect(page.locator(".c2l-row")).toHaveCount(1);
       await expect(scope).toHaveCount(0);
       await expect(runLine).toHaveCount(0);
       await expect(activeCount).toHaveCount(0);
@@ -2820,10 +2829,10 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       expect(listRequests.every((params) => !params.has("source_run_id"))).toBe(true);
       expect(new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
 
-      // 기본 보기 = 추적을 정하지 않은 관련 건. 조합 문장과 행의 판정 표식을 함께 밝힌다.
+      // 기본 보기 = 관련(모델 판단 관련 AND 추적 미선택). 조합 문장과 행의 판정 표식을 함께 밝힌다.
       await expect(page.locator(".c2l-list-scope").filter({ hasText: "기본 보기" }))
-        .toHaveText("기본 보기 · 추적을 정하지 않은 관련 건 (모델 판단 관련·판단 보류 AND 추적 미선택)");
-      await expect(presetTab(page, "검토 대상")).toHaveAttribute("aria-pressed", "true");
+        .toHaveText("기본 보기 · 관련 (모델 판단 관련 AND 추적 미선택)");
+      await expect(presetTab(page, "관련")).toHaveAttribute("aria-pressed", "true");
       // 행에는 첫 수집일만 남는다(한국 날짜 2026-08-31T16:30Z → 09-01, 올해라 연도 생략).
       // 판정한 policy 이름은 운영 화면이 지고, 판정이 있는 행에는 `판정 없음`도 없다.
       const verdict = page.locator(".c2l-row").first().locator(".c2l-row-verdict");
@@ -2862,7 +2871,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       const requestsBeforeClear = listRequests.length;
       await runLine.getByRole("button", { name: "모든 회차로", exact: true }).click();
       await expect.poll(() => new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
-      await expect(page.locator(".c2l-row")).toHaveCount(2);
+      await expect(page.locator(".c2l-row")).toHaveCount(1);
       // 회차 줄도 범위 줄도 평상시 누적으로 돌아오면 사라진다.
       await expect(runLine).toHaveCount(0);
       await expect(activeCount).toHaveCount(0);
@@ -2917,7 +2926,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       // 형식이 아닌 값은 보내지 않고 줄도 그리지 않는다 — 422를 받는 대신 창이 없다.
       const before = listRequests.length;
       await page.goto("/order-plans?first_observed_from=2026-9-1");
-      await expect(page.locator(".c2l-row")).toHaveCount(2);
+      await expect(page.locator(".c2l-row")).toHaveCount(1);
       await expect(page.locator(".c2l-observed-context")).toHaveCount(0);
       expect(listRequests.slice(before).every((params) => !params.has("first_observed_from"))).toBe(true);
     });
@@ -2931,7 +2940,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
         reasons: ["env_cap_off", "switch_bound_to_other_version", "quality_gate_not_passed", "execution_transport_not_allowed", "policy_file_missing", "future_reason"],
       }));
       await page.goto("/order-plans");
-      await expect(page.locator(".c2l-row")).toHaveCount(2);
+      await expect(page.locator(".c2l-row")).toHaveCount(1);
 
       const banner = page.getByRole("alert").filter({ hasText: "자동 선별이 꺼져 있습니다." });
       await expect(banner).toBeVisible();
@@ -3164,7 +3173,7 @@ test("자동 실행 배너는 active policy가 없거나 자동 실행이 켜져
   const triggerRequests: string[] = [];
   page.on("request", (request) => { if (request.url().includes("/api/order-plan-screening/daily-trigger")) triggerRequests.push(request.method()); });
   await page.goto("/order-plans");
-  await expect(page.locator(".c2l-row")).toHaveCount(2);
+  await expect(page.locator(".c2l-row")).toHaveCount(1);
   await expect.poll(() => triggerRequests).toEqual(["GET"]);
   await expect(page.getByText("자동 선별이 꺼져 있습니다.", { exact: false })).toHaveCount(0);
 
@@ -3176,7 +3185,7 @@ test("자동 실행 배너는 active policy가 없거나 자동 실행이 켜져
     reasons: [],
   }));
   await page.reload();
-  await expect(page.locator(".c2l-row")).toHaveCount(2);
+  await expect(page.locator(".c2l-row")).toHaveCount(1);
   await expect.poll(() => triggerRequests.length).toBe(2);
   await expect(page.getByText("자동 선별이 꺼져 있습니다.", { exact: false })).toHaveCount(0);
 });
@@ -3192,10 +3201,10 @@ test("누적 기본 보기는 추적을 이미 정한 건을 숨기고, 결과 �
   const trace = await mockReorderedOrderPlanList(page, items);
   await page.goto("/order-plans");
 
-  // 기본 보기: 관련·불확실 AND 추적 미선택 → 101만 남는다.
+  // 기본 보기: 관련 AND 추적 미선택 → 101만 남는다.
   await expect(page.locator(".c2l-row")).toHaveCount(1);
   await expect(page.locator(".c2l-row")).toContainText("누적 관련 사업");
-  await expect(presetTab(page, "검토 대상")).toContainText("1");
+  await expect(presetTab(page, "관련")).toContainText("1");
 
   await clickPreset(page, "전체");
   await expect(page.locator(".c2l-row")).toHaveCount(3);
@@ -3240,4 +3249,54 @@ test("사람 판단 수정은 화면의 최신 실행이 아니라 그 행의 ex
     relevance: "not_relevant",
     expected_revision: 0,
   });
+});
+
+// 설계고도화안 A-6(2026-11-18): 검토량이 임계를 넘어 관련과 불확실(판단 보류)을 다른 보기로 나눈다.
+// 모델 판정·정책·기존 필터 의미는 그대로이고, 판정이 없는 건은 비관련이 아니라 사람 확인으로 남는다.
+test("A6-기본 보기는 관련이고 불확실은 바로 옆 탭이며 두 탭이 건수를 따로 보인다", async ({ page }) => {
+  await mockOrderPlans(page);
+  await page.goto("/order-plans");
+  await expect(presetTab(page, "관련")).toHaveAttribute("aria-pressed", "true");
+  await expect(presetTab(page, "관련")).toContainText("1");
+  await expect(presetTab(page, "불확실")).toContainText("1");
+  await expect(page.locator(".c2l-filters .workspace-view-tabs").getByRole("button"))
+    .toHaveText([/^관련/, /^불확실/, /^전체/, /^1차 선별 제외/, /^선별 실패/]);
+  await expect(page.locator(".c2l-row")).toHaveCount(1);
+  await expect(page.locator(".c2l-row")).toContainText("모델 · 관련");
+  expect(new URL(page.url()).searchParams.has("qwen")).toBe(false);
+
+  await clickPreset(page, "불확실");
+  await expect(page).toHaveURL(/qwen=uncertain/);
+  await expect(page).toHaveURL(/tracking=%EB%AF%B8%EC%84%A0%ED%83%9D|tracking=미선택/);
+  await expect(presetTab(page, "불확실")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".c2l-row")).toHaveCount(1);
+  await expect(page.locator(".c2l-row")).toContainText("모델 · 판단 보류");
+  await expect(page.locator(".c2l-list-scope")).toContainText("모델 판단 판단 보류");
+});
+
+test("A6-옛 검토 대상 주소와 저장된 뷰는 같은 행(관련·불확실)을 그대로 보인다", async ({ page }) => {
+  await mockOrderPlans(page);
+  await page.goto("/order-plans?qwen=relevant,uncertain&tracking=미선택");
+  await expect(page.locator(".c2l-row")).toHaveCount(2);
+  // 탭 이름만 없어졌다 — 어느 탭도 눌린 것으로 보이지 않는다.
+  await expect(page.locator(".c2l-filters .workspace-view-tabs [aria-pressed=\"true\"]")).toHaveCount(0);
+});
+
+test("A6-배치 실패 등으로 모델 판정이 없는 건은 선별 실패 탭에서 '모델 판정 없음 — 사람 확인'으로 보인다", async ({ page }) => {
+  await mockOrderPlans(page);
+  await page.goto("/order-plans");
+  await expect(presetTab(page, "선별 실패")).toContainText("3");
+  await clickPreset(page, "선별 실패");
+  const rows = page.locator(".c2l-row");
+  await expect(rows).toHaveCount(3);
+  await expect(rows.locator(".c2l-row-no-judgment")).toHaveText(Array(3).fill("모델 판정 없음 — 사람 확인"));
+  const failed = rows.filter({ hasText: "모델 판정 실패" });
+  await failed.click();
+  await expect(page.locator(".c2l-detail-warn").filter({ hasText: "모델 판정 없음 — 사람 확인" }))
+    .toContainText("비관련으로 보지 않습니다");
+  // 판정이 있는 행과 1차 선별 제외 행에는 표식이 없다.
+  await clickPreset(page, "전체");
+  await expect(page.locator(".c2l-row").filter({ hasText: "모델 · 관련" }).locator(".c2l-row-no-judgment")).toHaveCount(0);
+  await clickPreset(page, "1차 선별 제외");
+  await expect(page.locator(".c2l-row .c2l-row-no-judgment")).toHaveCount(0);
 });

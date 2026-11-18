@@ -26,6 +26,8 @@ export interface RecordVerdictActions {
   onOpenVerdict: () => void;
   /** `다시 판정`을 막는 이유. 열 수 있으면 `null`이다. */
   requestBlockedReason: string | null;
+  /** 요청 단추 이름. 판정 기록이 없으면 `판정 요청`, 있으면 `다시 판정`이다(`verdictRequestLabel`). */
+  requestLabel: string;
   onRequestVerdict: () => void;
   /** ⋯의 판정 오류 제보·실행 정보를 막는 이유(없으면 `null`). */
   feedbackBlockedReason: string | null;
@@ -186,7 +188,7 @@ export function RecordHeader({ title, agency, pills, menu, verdict, proposal }: 
               <Button
                 aria-describedby={verdict.requestBlockedReason ? "rec-request-hint" : undefined}
                 isDisabled={verdict.requestBlockedReason !== null}
-                label="다시 판정"
+                label={verdict.requestLabel}
                 onClick={verdict.onRequestVerdict}
                 size="sm"
                 variant="secondary"

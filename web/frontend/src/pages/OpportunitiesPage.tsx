@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Selector } from "@astryxdesign/core/Selector";
@@ -177,7 +177,14 @@ export function OpportunitiesPage() {
   const allCount = counts ? Object.values(counts).reduce((sum, value) => sum + value, 0) : 0;
 
   const selectedParam = Number(searchParams.get("selected") ?? "");
-  const selectedId = rows.some((item) => item.id === selectedParam) ? selectedParam : rows[0]?.id ?? null;
+  /**
+   * 레코드·다른 화면에서 `?selected=<id>`로 들어온 사업기회는 지금 구역·페이지에 행이 없어도 그
+   * 사업기회를 연다(설계고도화안 C-3) — 첫 행으로 조용히 바꾸지 않는다. 진입 뒤 사람이 행·필터를
+   * 바꾸면 그 규칙(지금 목록의 행)으로 돌아간다.
+   */
+  const entrySelectedRef = useRef<number | null>(Number.isInteger(selectedParam) && selectedParam > 0 ? selectedParam : null);
+  const entrySelected = entrySelectedRef.current !== null && entrySelectedRef.current === selectedParam ? selectedParam : null;
+  const selectedId = rows.some((item) => item.id === selectedParam) ? selectedParam : entrySelected ?? rows[0]?.id ?? null;
   const returnSearch = searchParams.toString();
 
   function applyParams(
@@ -260,7 +267,12 @@ export function OpportunitiesPage() {
 
   // 행의 주 행동은 그 사업기회를 열고 상세의 해당 자리(확인 사항·후보 대화상자·추적
   // 상태 대화상자)를 연다. 같은 행을 다시 눌러도 다시 열리도록 요청마다 번호를 바꾼다.
-  const [intent, setIntent] = useState<{ id: number; action: OpportunityDetailIntent; nonce: number } | null>(null);
+  const [intent, setIntent] = useState<{ id: number; action: OpportunityDetailIntent; nonce: number } | null>(() => (
+    // 레코드의 `확인 항목 답변` 링크(`?selected=<id>&detail=checks`)는 그 사업기회의 확인 사항을 연다.
+    entrySelectedRef.current !== null && searchParams.get("detail") === "checks"
+      ? { id: entrySelectedRef.current, action: { kind: "checks" }, nonce: 0 }
+      : null
+  ));
   const intentNonce = useRef(0);
   function runRowAction(item: OpportunityListItem) {
     const action = rowPrimaryAction(item);
@@ -680,7 +692,7 @@ export function OpportunitiesPage() {
         onOpenChange={(next) => setDataDialog(next)}
         padding={6}
         purpose="info"
-        width="calc(var(--spacing-12) * 13)"
+        width="624px"
       >
         <div className="opportunity-dialog-body">
           <DialogHeader title="이 목록의 기준" onOpenChange={(next) => setDataDialog(next)} />
@@ -710,54 +722,6 @@ export function OpportunitiesPage() {
           </div>
         </div>
       </Dialog>
-
-      {toast ? <Toast message={toast.message} onDismiss={dismissToast} variant={toast.variant} /> : null}
-    </section>
-  );
-}
-
-/**
- * 단독 상세 route. 목록의 구역·필터·정렬·페이지 문맥을 그대로 유지한 채 사업기회
- * 하나만 연다. 분할 화면과 같은 상세 컴포넌트를 쓴다.
- */
-export function OpportunityDetailPage() {
-  const { opportunityId: opportunityIdParam } = useParams();
-  const [searchParams] = useSearchParams();
-  const { toast, showToast, dismissToast } = useToast();
-  const [dirty, setDirty] = useState(false);
-  const opportunityId = Number(opportunityIdParam);
-  const validOpportunityId = Number.isInteger(opportunityId) && opportunityId > 0;
-  const handleDirtyChange = useCallback((next: boolean) => setDirty(next), []);
-  useUnsavedGuard(dirty, {
-    blockSpaNavigation: true,
-    title: "사업 추적 상세를 떠납니다",
-    message: "저장하지 않은 입력이 있습니다. 지금 이동하면 사라지며 저장된 추적 상태와 연결은 바뀌지 않습니다.",
-  });
-  const returnSearch = searchParams.toString();
-
-  return (
-    <section aria-labelledby="page-title" className="opportunities-page opportunity-detail-page">
-      <header className="opportunity-page-header">
-        <h2 id="page-title">사업 추적 상세{validOpportunityId ? ` #${opportunityId}` : ""}</h2>
-        <Link className="opportunity-linked-link" to={{ pathname: "/opportunities", search: returnSearch }}>
-          목록으로 →
-        </Link>
-      </header>
-
-      <div className="opportunity-standalone-pane">
-        {validOpportunityId ? (
-          <OpportunityDetail
-            onDirtyChange={handleDirtyChange}
-            onSaved={showToast}
-            opportunityId={opportunityId}
-            returnSearch={returnSearch}
-          />
-        ) : (
-          <div className="opportunity-empty">
-            <h3>사업기회 식별자가 올바르지 않습니다</h3>
-          </div>
-        )}
-      </div>
 
       {toast ? <Toast message={toast.message} onDismiss={dismissToast} variant={toast.variant} /> : null}
     </section>

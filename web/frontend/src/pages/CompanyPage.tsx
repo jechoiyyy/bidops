@@ -1,3 +1,4 @@
+import { FEATURE_OFF_LABEL } from "../lib/featureFlags";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
@@ -37,7 +38,7 @@ import "../styles/company-ground-truth.css";
  * - 활성 버전이 없으면 수치를 0으로 적지 않고 "아직 활성화되지 않았습니다"라고 말한다.
  */
 
-const NOTICE_LINE = "값 수정은 회사 파일을 고쳐 다시 등록합니다(설정 › 도움말)";
+const NOTICE_LINE = "값 수정은 회사 파일을 고쳐 다시 등록합니다(운영 담당자가 등록 절차를 수행)";
 const TABLE_GROUPS: readonly CompanyFactTableGroup[] = ["qualification", "performance", "staff", "preference"];
 
 /** 서버 시각을 한국 날짜로 적는다(`2026년 10월 16일`). 읽을 수 없으면 원문을 그대로 둔다. */
@@ -198,6 +199,15 @@ export function CompanyPage() {
   let ready = false;
   if (contextQuery.isPending) {
     body = <p className="co-status" role="status">회사 근거를 불러오는 중입니다.</p>;
+  } else if (contextQuery.isError && describeCompanyApiError(contextQuery.error, "").code === "company_not_registered") {
+    // 운영 회사 근거가 등록되지 않은 환경이다. 실패가 아니라 "이 환경에서 꺼져 있음"으로 먼저 말한다
+    // (설계고도화안 C-4). 수치를 0으로 적지 않는다.
+    body = (
+      <EmptyState
+        description="이 환경에는 운영 회사 근거가 등록되지 않았습니다. 회사 파일 등록·활성화는 운영 담당자가 하며, 그 전에는 회사 기준 판정·브리핑·분석 엔진도 쓸 수 없습니다."
+        title={`회사 근거 · ${FEATURE_OFF_LABEL}`}
+      />
+    );
   } else if (contextQuery.isError || !context) {
     const problem = describeCompanyApiError(contextQuery.error, "회사 근거를 불러오지 못했습니다.");
     body = (

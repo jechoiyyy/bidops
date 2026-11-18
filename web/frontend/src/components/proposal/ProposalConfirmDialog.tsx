@@ -69,7 +69,7 @@ export function ProposalConfirmDialog({ confirm, pending, onConfirm, onClose }: 
       onOpenChange={(next) => { if (!next && !pending) onClose(); }}
       padding={6}
       purpose="info"
-      width="calc(var(--spacing-12) * 13)"
+      width="624px"
     >
       <div className="opportunity-dialog-body" data-testid="proposal-confirm">
         <DialogHeader onOpenChange={(next) => { if (!next && !pending) onClose(); }} title={copy?.title ?? "확인"} />

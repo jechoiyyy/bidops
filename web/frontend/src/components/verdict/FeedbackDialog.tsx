@@ -79,7 +79,7 @@ export function FeedbackDialog({ companyId, noticeId, attemptId, unit, initialKi
       onOpenChange={(next) => { if (!next && !mutation.isPending) onClose(); }}
       padding={6}
       purpose="form"
-      width="calc(var(--spacing-12) * 13)"
+      width="624px"
     >
       <div className="opportunity-dialog-body">
         <DialogHeader onOpenChange={(next) => { if (!next && !mutation.isPending) onClose(); }} title="판정 오류 제보" />

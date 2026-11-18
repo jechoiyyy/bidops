@@ -1,5 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mockApi, visualPreSpecNotice } from "./api-mock";
+import routeFixtures from "./fixtures/api.json" with { type: "json" };
+
+const routeNotice29 = (routeFixtures as Record<string, unknown>)["/api/notices/29"];
 
 const RUN_ID = "20260817-20260823--20260824T090927.138116Z";
 
@@ -182,17 +185,17 @@ test("누적 화면은 회차 API 실패와 무관하게 열린다", async ({ pa
 type BreadcrumbCase = { name: string; path: string; crumbs: string[] };
 
 const breadcrumbCases: BreadcrumbCase[] = [
-  { name: "dashboard", path: "/", crumbs: ["오늘의 업무", "대시보드"] },
-  { name: "pre-spec detail", path: "/pre-specs/991", crumbs: ["탐색과 추적", "사전규격", "notice 991"] },
-  { name: "opportunity detail", path: "/opportunities/501", crumbs: ["탐색과 추적", "사업기회", "#501"] },
+  { name: "dashboard", path: "/", crumbs: ["대시보드"] },
+  { name: "pre-spec detail", path: "/pre-specs/991", crumbs: ["사전규격", "notice 991"] },
+  { name: "opportunity detail", path: "/opportunities/501", crumbs: ["사업기회", "#501"] },
   // 되돌릴 수 없는 결정 화면은 어느 사업기회의 결정인지 경로에 남긴다.
-  { name: "bid delta", path: "/opportunities/501/bid-delta", crumbs: ["탐색과 추적", "사업기회", "#501", "입찰 변경 비교"] },
-  { name: "queue detail", path: "/queue/29", crumbs: ["탐색과 추적", "사업기회", "공고 판정 이력", "공고 29"] },
-  { name: "judgments detail", path: "/judgments/29", crumbs: ["탐색과 추적", "사업기회", "공고 판정 이력", "공고 29"] },
+  { name: "bid delta", path: "/opportunities/501/bid-delta", crumbs: ["사업기회", "#501", "입찰 변경 비교"] },
+  { name: "queue detail", path: "/queue/29", crumbs: ["사업기회", "공고 판정 이력", "공고 29"] },
+  { name: "judgments detail", path: "/judgments/29", crumbs: ["사업기회", "공고 판정 이력", "공고 29"] },
   // 심층 검토 보고서는 사전규격이 여는 화면이다(ADR-0049의 자동 시작 진입점도 거기다).
-  { name: "deep review", path: "/deep-reviews/fixture-review", crumbs: ["탐색과 추적", "사전규격", "심층 검토 보고서", "fixture-…"] },
-  { name: "criteria", path: "/criteria", crumbs: ["기준과 운영", "판정 기준"] },
-  { name: "run-status", path: "/run-status", crumbs: ["기준과 운영", "실행 상태"] },
+  { name: "deep review", path: "/deep-reviews/fixture-review", crumbs: ["사전규격", "심층 검토 보고서", "fixture-…"] },
+  { name: "criteria", path: "/criteria", crumbs: ["판정 기준"] },
+  { name: "run-status", path: "/run-status", crumbs: ["실행 상태"] },
 ];
 
 for (const context of breadcrumbCases) {
@@ -241,7 +244,8 @@ test("대시보드는 경로 모드이면서 상단바 액션 슬롯을 그대�
 
 const DETAIL_BACK_LINKS: Array<{ name: string; path: string; back: string; keepsRun: boolean; settles?: RegExp }> = [
   { name: "pre-spec detail", path: "/pre-specs/991", back: "/pre-specs", keepsRun: false },
-  { name: "opportunity detail", path: "/opportunities/501", back: "/opportunities", keepsRun: false },
+  // 사업기회 레코드의 목록 링크는 이 사업기회를 고른 채 연다(설계고도화안 C-3).
+  { name: "opportunity detail", path: "/opportunities/501", back: "/opportunities", keepsRun: false, href: "/opportunities?selected=501" },
   { name: "bid delta", path: "/opportunities/501/bid-delta", back: "/opportunities", keepsRun: false },
   // 검토 대기열·공고 판정 이력은 목록·상세가 한 화면이라, 목록 주소로 가면
   // 화면이 첫 공고를 스스로 다시 고른다(QueuePage·NoticeDetailPage의 replace
@@ -263,7 +267,7 @@ for (const context of DETAIL_BACK_LINKS) {
     // 돌아갈 때는 옛 회차 선택이 되살아나지 않아야 한다.
     await expect(back).toHaveAttribute(
       "href",
-      context.keepsRun ? `${context.back}?run=${encodeURIComponent(RUN_ID)}` : context.back,
+      "href" in context && context.href ? context.href : context.keepsRun ? `${context.back}?run=${encodeURIComponent(RUN_ID)}` : context.back,
     );
     await back.click();
     await expect.poll(() => new URL(page.url()).pathname).toMatch(context.settles ?? new RegExp(`^${context.back}$`));
@@ -276,7 +280,7 @@ test("심층 검토 보고서에서 사이드바의 사전규격 항목이 활�
   await page.goto("/deep-reviews/fixture-review");
   const active = page.locator("aside.sidebar .sidebar-item.is-active");
   await expect(active).toHaveCount(1);
-  await expect(active).toHaveText("사전규격");
+  await expect(active.locator(".sidebar-item-label")).toHaveText("사전규격");
   await expect(active).toHaveAttribute("aria-current", "page");
 });
 
@@ -284,9 +288,9 @@ test("사업기회에서 연 심층 검토 보고서는 사업기회 아래로 �
   await page.goto("/deep-reviews/fixture-review?from=opportunities");
   const active = page.locator("aside.sidebar .sidebar-item.is-active");
   await expect(active).toHaveCount(1);
-  await expect(active).toHaveText("사업기회");
+  await expect(active.locator(".sidebar-item-label")).toHaveText("사업기회");
+  // 묶음 라벨 칸(role "group")은 상단바가 그리지 않는다.
   await expect(page.locator("header.topbar .topbar-crumb")).toHaveText([
-    "탐색과 추적",
     "사업기회",
     "심층 검토 보고서",
     "fixture-…",
@@ -505,4 +509,29 @@ test("PN-06 record key가 문서 패널 상태를 초기화하고 guard 취소�
   await expect(reason).toContainText("후속 입찰공고 확인");
   await expect(actor).toHaveValue("PN-06 담당자");
   await expect(navigation.locator("strong")).toHaveText("2 / 2");
+});
+
+// 설계고도화안 C-5: `run` 없이 연 공고 상세(사업기회 레코드·추적 흐름의 링크)는 그 공고 상세가 알려 준
+// 회차를 쓰고, 기본 회차 목록(최대 500건)에 그 공고가 없어도 다른 공고로 조용히 바꾸지 않는다.
+test("run 없이 연 공고 상세는 자기 회차를 쓰고 목록에 없어도 다른 공고로 바꾸지 않는다", async ({ page }) => {
+  const OTHER_RUN = "20260901-20260907--20260908T090000.000000Z";
+  // 그 회차는 회차 목록에도 있다(실제 공고는 적재된 회차에 속한다). 기본(최신) 회차는 아니다.
+  const runs = (routeFixtures as Record<string, { items: Array<Record<string, unknown>> }>)["/api/runs"].items;
+  await page.route("**/api/runs", (route) => route.fulfill({ json: {
+    items: [...runs, { ...runs[0], run_id: OTHER_RUN, generated_at: "2026-08-01T00:00:00Z" }], total: runs.length + 1,
+  } }));
+  await page.route("**/api/notices/777", (route) => route.fulfill({ json: {
+    ...(routeNotice29 as Record<string, unknown>), id: 777, run_id: OTHER_RUN, title: "기본 회차 목록에 없는 합성 공고",
+  } }));
+  await page.goto("/judgments/777");
+  await expect(page.locator(".judgment-page h2")).toHaveText("기본 회차 목록에 없는 합성 공고");
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/judgments/777");
+  await expect.poll(() => new URL(page.url()).searchParams.get("run")).toBe(OTHER_RUN);
+});
+
+test("없는 공고 번호는 다른 공고를 보이지 않고 찾을 수 없다고 말한다", async ({ page }) => {
+  await page.route("**/api/notices/888", (route) => route.fulfill({ status: 404, json: { detail: "공고를 찾을 수 없습니다" } }));
+  await page.goto("/judgments/888");
+  await expect(page.getByText("공고 888을(를) 찾을 수 없습니다.")).toBeVisible();
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/judgments/888");
 });

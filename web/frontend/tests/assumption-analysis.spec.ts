@@ -51,7 +51,9 @@ test('가정 분석 실패에도 앞선 부분 결과를 표시한다',async({pa
 });
 
 
-test('1489 상세에서 승인 전 호출 금지·변경 시 무효화·중복 제출 방지', async ({page})=>{
+// 설계고도화안 C-9(2026-11-18): 1489번 가정 분석 요청은 개발·mock 서버에서만 그린다. 화면 검사는 운영 번들을
+// 보므로 요청 흐름 검사는 대상이 없어 건너뛰고, 운영 번들에 요청이 없다는 사실을 아래에서 본다.
+test.skip('1489 상세에서 승인 전 호출 금지·변경 시 무효화·중복 제출 방지', async ({page})=>{
   await mockApi(page); await mockDocumentPreparationVisual(page,'ready',1489);
   const requests: Record<string,unknown>[]=[];
   await page.route('**/api/notices/1489/assumption-analyses', async route=>{
@@ -76,4 +78,16 @@ test('1489 상세에서 승인 전 호출 금지·변경 시 무효화·중복 �
   await expect(page.getByRole('region',{name:'가정 분석 요청'})).toContainText('입력 변경');
   expect(requests).toHaveLength(1);
   await expect(page.getByRole('region',{name:'가정 분석 전송 승인'})).toHaveCount(0);
+});
+
+test('운영 번들의 1489 상세에는 가정 분석 요청을 그리지 않는다', async ({page})=>{
+  await mockApi(page); await mockDocumentPreparationVisual(page,'ready',1489);
+  const requests: string[] = [];
+  page.on('request', request => { if (request.url().includes('/assumption-analys')) requests.push(request.url()); });
+  await page.goto('/pre-specs/1489');
+  // 문서 준비 패널은 그려진다(같은 자리의 기존 조작은 그대로). 가정 분석 요청만 없다.
+  await expect(page.getByLabel('문서 준비 담당자 이름')).toBeVisible();
+  await expect(page.getByRole('region', { name: '가정 분석 요청' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '가정 분석 입력 미리보기' })).toHaveCount(0);
+  expect(requests).toEqual([]);
 });

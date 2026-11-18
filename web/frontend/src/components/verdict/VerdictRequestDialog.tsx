@@ -22,9 +22,11 @@ interface VerdictRequestDialogProps {
   opportunityId: number;
   onClose: () => void;
   onRequested: () => void;
+  /** 대화상자 제목. 판정 기록이 없으면 `판정 요청`, 있으면 `다시 판정`이다. */
+  title?: string;
 }
 
-export function VerdictRequestDialog({ opportunityId, onClose, onRequested }: VerdictRequestDialogProps) {
+export function VerdictRequestDialog({ opportunityId, onClose, onRequested, title = "다시 판정" }: VerdictRequestDialogProps) {
   const [requestId] = useState(generateRequestId);
   const [actorName, setActorName] = useState("");
   const [problem, setProblem] = useState<ApiErrorDescription | null>(null);
@@ -52,10 +54,10 @@ export function VerdictRequestDialog({ opportunityId, onClose, onRequested }: Ve
       onOpenChange={(next) => { if (!next && !mutation.isPending) onClose(); }}
       padding={6}
       purpose="form"
-      width="calc(var(--spacing-12) * 13)"
+      width="624px"
     >
       <div className="opportunity-dialog-body">
-        <DialogHeader onOpenChange={(next) => { if (!next && !mutation.isPending) onClose(); }} title="다시 판정" />
+        <DialogHeader onOpenChange={(next) => { if (!next && !mutation.isPending) onClose(); }} title={title} />
         <p>
           같은 공고 문서와 현재 회사 근거로 새 판정을 요청합니다. 이전 판정은 지워지지 않고 남습니다.
           분석이 끝나면 이 탭에 결과가 보입니다. 판정은 참고 의견이며 추적 여부와 참여 결정은 바뀌지 않습니다.

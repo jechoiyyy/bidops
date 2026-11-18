@@ -32,7 +32,7 @@
   line-height: var(--bo-type-body-leading);
 }
 
-:is(.bulk-dialog-body, .bulk-dialog-footer) :where(.astryx-text.supporting, .astryx-badge, .astryx-button, .astryx-field-label),
+:is(.bulk-dialog-body, .bulk-dialog-footer) :where(.astryx-text.supporting, .astryx-badge, .astryx-field-label),
 :is(.bulk-dialog-body, .bulk-dialog-footer) :where(dt, code) {
   font-size: var(--bo-type-caption);
   line-height: var(--bo-type-caption-leading);
@@ -115,7 +115,7 @@
 
 .bulk-dialog-warning {
   margin: 0;
-  padding: var(--spacing-1-5) var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-2);
   border: var(--border-width) solid var(--color-warning-edge);
   border-radius: var(--radius-sm);
   color: var(--color-warning);

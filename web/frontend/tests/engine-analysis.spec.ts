@@ -155,7 +155,10 @@ test("delayed engine detail shows loading until its result arrives", async ({ pa
 });
 
 
-test("normal prespec preserves actor draft when its bundle arrives late with unavailable actor storage", async ({ page }) => {
+// 설계고도화안 C-9(2026-11-18): 사전규격 상세의 엔진 mock 패널은 개발·mock 서버(`BIDOPS_MOCK_API`)에서만
+// 그린다. 화면 검사는 운영 번들(`vite build`)을 보므로 이 두 검사는 그 번들에서 대상이 없어 건너뛴다.
+// 회사 데모 경로의 엔진 패널 검사(위)는 그대로 돈다.
+test.skip("normal prespec preserves actor draft when its bundle arrives late with unavailable actor storage", async ({ page }) => {
   // Remembering is optional. A delayed server response must preserve the in-page draft
   // even when this browser cannot persist actor names (ActorField's supported fallback).
   await page.addInitScript(() => {
@@ -204,7 +207,7 @@ test("normal prespec preserves actor draft when its bundle arrives late with una
   expect(posts[0]).toMatchObject({ bundle_id: result.bundle_id, mode: "mock_reference" });
 });
 
-test("normal prespec retries frozen receipt after ready bundle becomes a new draft", async ({ page }) => {
+test.skip("normal prespec retries frozen receipt after ready bundle becomes a new draft", async ({ page }) => {
   await mockApi(page);
   await mockPreSpecs(page);
   await mockRealCompany(page);
@@ -280,4 +283,16 @@ test("normal prespec retries frozen receipt after ready bundle becomes a new dra
   await expect(panel.getByLabel("엔진 실행 이력")).toHaveValue(receiptId);
   await panel.getByText("실행 식별 정보", { exact: true }).click();
   await expect(panel).toContainText(receiptId);
+});
+
+// 설계고도화안 C-9: 운영 번들의 사전규격 상세에는 엔진 mock 패널이 없다(꺼진 기능을 실패 뒤에 드러내지 않는다).
+test("운영 번들의 사전규격 상세에는 분석 엔진 mock 패널을 그리지 않는다", async ({ page }) => {
+  await mockApi(page);
+  await mockPreSpecs(page);
+  await mockRealCompany(page, { notRegistered: true });
+  await page.goto("/pre-specs/991");
+  await expect(page.locator(".pre-spec-detail-header")).toBeVisible();
+  await expect(page.getByText("분석 엔진 · mock 참조")).toHaveCount(0);
+  await expect(page.getByTestId("engine-analysis-panel")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "mock 참조 실행" })).toHaveCount(0);
 });

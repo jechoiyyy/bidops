@@ -10,71 +10,30 @@
  * 재작성하지 않기 위해 legacy 이름은 이 파일의 단일 bridge에서만
  * 테마 의미 토큰으로 연결하고, 셸 골격 자체는 테마 토큰을 읽는다.
  * bridge는 새 색 값을 만들지 않고 legacy 이름을 테마 토큰에 잇기만 한다.
- * 브라우저 배율 100%에서도 현재의 조밀한 화면 치수를 유지하되 전역 `zoom`은
- * 사용하지 않는다. `--bo-ui-scale`은 현재 물리 치수를 native CSS 값으로 옮긴
- * compact 토큰의 기준이며, viewport·최소 폭은 실제 지원 폭으로 둔다.
- * 사전규격 상세는 이 compact 토큰을 다시 원래 시안 치수로 덮어써 현재의 100%
- * 보고서 크기를 유지한다.
+ * 전역 `zoom`과 ×0.9 compact 축척(`--bo-ui-scale`)은 2026-11-18에 없앴다.
+ * 간격·컨트롤 높이는 Astryx native 토큰(4px 격자)을 그대로 쓰고 루트 글꼴은
+ * 14px다. 사전규격 상세도 같은 값을 쓰므로 별도 복원 블록이 없다.
  * 레이아웃은 ADR-0040에 따라 프로젝트가 소유한다.
  */
 
 :root {
-  --bo-ui-scale: 0.9;
   --bo-ui-viewport-height: 100vh;
   --bo-ui-viewport-dynamic-height: 100dvh;
   --bo-ui-viewport-width: 100vw;
 
-  /* Native compact geometry. Keep the scale explicit so the relationship with
-     the former 90% rendering contract remains reviewable without applying CSS
-     zoom to the document. One CSS pixel remains one device-independent pixel;
-     borders intentionally stay at a native 1px. */
-  --bo-compact-spacing-0-5: 1.8px;
-  --bo-compact-spacing-1: 3.6px;
-  --bo-compact-spacing-1-5: 5.4px;
-  --bo-compact-spacing-2: 7.2px;
-  --bo-compact-spacing-3: 10.8px;
-  --bo-compact-spacing-4: 14.4px;
-  --bo-compact-spacing-5: 18px;
-  --bo-compact-spacing-6: 21.6px;
-  --bo-compact-spacing-7: 25.2px;
-  --bo-compact-spacing-8: 28.8px;
-  --bo-compact-spacing-9: 32.4px;
-  --bo-compact-spacing-10: 36px;
-  --bo-compact-spacing-11: 39.6px;
-  --bo-compact-spacing-12: 43.2px;
-  --bo-compact-size-element-sm: 25.2px;
-  --bo-compact-size-element-md: 28.8px;
-  --bo-compact-size-element-lg: 32.4px;
+  /* Astryx의 `--spacing-*`(2·4·6·8·12…48px)와 `--size-element-*`(28·32·36px)는
+     라이브러리 값을 그대로 쓴다. 2026-11-18 전역 ×0.9 축척을 없애고 4px 격자로
+     옮겼다(docs/1118_launch-hardening/설계고도화안.md §4 B-2). 여기서 다시
+     덮어쓰지 않는다.
 
-  /* Astryx spacing/size tokens are pixel tokens. Override them after the
-     library stylesheet so its native components keep the previous physical
-     density at browser zoom 100%. */
-  --spacing-0-5: var(--bo-compact-spacing-0-5);
-  --spacing-1: var(--bo-compact-spacing-1);
-  --spacing-1-5: var(--bo-compact-spacing-1-5);
-  --spacing-2: var(--bo-compact-spacing-2);
-  --spacing-3: var(--bo-compact-spacing-3);
-  --spacing-4: var(--bo-compact-spacing-4);
-  --spacing-5: var(--bo-compact-spacing-5);
-  --spacing-6: var(--bo-compact-spacing-6);
-  --spacing-7: var(--bo-compact-spacing-7);
-  --spacing-8: var(--bo-compact-spacing-8);
-  --spacing-9: var(--bo-compact-spacing-9);
-  --spacing-10: var(--bo-compact-spacing-10);
-  --spacing-11: var(--bo-compact-spacing-11);
-  --spacing-12: var(--bo-compact-spacing-12);
-  --size-element-sm: var(--bo-compact-size-element-sm);
-  --size-element-md: var(--bo-compact-size-element-md);
-  --size-element-lg: var(--bo-compact-size-element-lg);
-
-  /* Legacy aliases are consumed by screens that have not moved to Astryx
-     spacing tokens yet. */
-  --space-1: var(--bo-compact-spacing-2);
-  --space-2: var(--bo-compact-spacing-4);
-  --space-3: var(--bo-compact-spacing-6);
-  --space-4: 28.8px;
-  --control-height: 37.8px;
-  --card-padding: 21.6px;
+     아직 Astryx 간격 토큰으로 옮기지 않은 화면이 읽는 legacy 별칭은 이 한 곳에서만
+     정의한다(이전에는 theme.css `@theme`과 아래 셸 bridge에 값이 따로 있었다). */
+  --space-1: var(--spacing-2); /* 8px */
+  --space-2: var(--spacing-4); /* 16px */
+  --space-3: var(--spacing-6); /* 24px */
+  --space-4: var(--spacing-8); /* 32px */
+  --control-height: var(--size-element-lg); /* 36px */
+  --card-padding: var(--spacing-6); /* 24px */
 }
 
 body {
@@ -135,27 +94,22 @@ body {
   --surface-error: var(--color-error-muted);
   --border-subtle: var(--color-border);
   --border-strong: var(--color-border-emphasized);
-  --space-1: var(--spacing-2);
-  --space-2: var(--spacing-4);
-  --space-3: var(--spacing-6);
-  --space-4: var(--spacing-8);
-  --control-height: calc(var(--size-element-lg) + var(--spacing-1-5));
-  --card-padding: var(--spacing-6);
   --radius-sm: var(--radius-inner);
   --radius-md: var(--radius-element);
   --radius-lg: var(--radius-container);
   --font-sans: var(--font-family-body);
   --font-mono: var(--font-family-code);
 
-  /* These shell tokens capture the reference's structural gutters. */
-  --shell-canvas-inline-padding: 16.2px;
+  /* 캔버스·상단바 좌우 여백. 2026-11-18 모든 화면을 상16·좌우24·하24 한 벌로
+     통일했다(설계고도화안 §4 B-4). 화면별 캔버스 여백 재정의를 두지 않는다. */
+  --shell-canvas-inline-padding: var(--spacing-6);
   /* 어두운 사이드바에서 파생하던 `--shell-sidebar-line/hover/active/muted`는
      제거했다(spec §2.1). 밝은 셸은 테마 토큰을 그대로 읽는다. */
-  /* 사용자 요청 2026-09-15: 사이드바 글자 +1px */
-  --shell-sidebar-group-label-size: calc(var(--bo-type-caption) + 0.9px);
-  /* 사용자 요청 2026-09-15: 사이드바 글자 +1px */
-  --shell-sidebar-item-size: 13.725px;
-  --shell-sidebar-icon-size: 16.2px;
+  /* 사용자 요청 2026-09-15: 사이드바 글자 +1px. ×0.9 축척 때 11.7px·13.725px였고
+     축척을 없애면서 정수 척도(캡션 12·본문 14)로 옮겼다. 둘 다 이전보다 크다. */
+  --shell-sidebar-group-label-size: var(--bo-type-caption);
+  --shell-sidebar-item-size: var(--bo-type-body);
+  --shell-sidebar-icon-size: 16px;
 
   display: flex;
   height: var(--bo-ui-viewport-height);
@@ -180,7 +134,7 @@ body {
   height: var(--bo-ui-viewport-height);
   min-height: 0;
   max-height: var(--bo-ui-viewport-height);
-  padding: 10px 10px 12px;
+  padding: var(--spacing-3) var(--spacing-3) var(--spacing-3);
   overflow-x: hidden;
   overflow-y: auto;
   /* RL 셸(ui-spec §1.1·§1.2, 시안 v26): 회색 사이드바 면 + 우측 1px 경계.
@@ -189,7 +143,7 @@ body {
   background: var(--bo-sidebar-bg);
   border-top: 0;
   border-right: 1px solid var(--color-border);
-  font-size: 13px;
+  font-size: var(--bo-type-body);
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar :where(a, button):focus-visible {
@@ -202,9 +156,9 @@ body {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 8px;
-  margin: 0 0 8px;
-  padding: 6px 8px;
+  gap: var(--spacing-2);
+  margin: 0 0 var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-2);
   border: 0;
   border-radius: var(--radius-inner);
   color: var(--color-text-primary);
@@ -228,52 +182,17 @@ body {
   border-radius: var(--radius-inner);
   color: var(--color-on-accent);
   background: var(--color-accent);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--bo-type-caption);
+  font-weight: 600;
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-brand strong {
   margin: 0;
   color: var(--color-text-primary);
-  font-size: 13px;
+  font-size: var(--bo-type-body);
   font-weight: 600;
   line-height: 1.3;
   letter-spacing: 0;
-}
-
-/* 검색 자리(⌘K). 커맨드 팔레트 전까지 비활성이다. */
-.app-shell[data-astryx-theme="bidops"] .sidebar-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 10px;
-  padding: 5px 8px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-inner);
-  color: var(--color-text-disabled);
-  background: var(--color-background-surface);
-  box-shadow: 0 1px 1px rgb(0 0 0 / 3%);
-  font-size: 13px;
-  text-align: left;
-  cursor: default;
-}
-
-.app-shell[data-astryx-theme="bidops"] .sidebar-search svg {
-  flex: 0 0 15px;
-  width: 15px;
-  height: 15px;
-}
-
-.app-shell[data-astryx-theme="bidops"] .sidebar-search kbd {
-  margin-left: auto;
-  padding: 0 5px;
-  border: 1px solid var(--color-border-emphasized);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  color: var(--color-text-secondary);
-  background: var(--color-background-surface);
-  font-family: inherit;
-  font-size: 11px;
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-nav {
@@ -289,9 +208,9 @@ body {
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-group-label {
-  padding: 12px 8px 4px;
+  padding: var(--spacing-2) var(--spacing-2) var(--spacing-1);
   color: var(--color-text-disabled);
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: none;
@@ -306,14 +225,15 @@ body {
 .app-shell[data-astryx-theme="bidops"] .sidebar-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 30px;
-  padding: 5px 8px;
+  gap: var(--spacing-2);
+  /* 28px 한 줄(4 + 20 + 4). 1280×800에서 사이드바 맨 아래 사용자 줄까지 보이게 한다. */
+  min-height: var(--size-element-sm);
+  padding: var(--spacing-1) var(--spacing-2);
   border: 0;
   border-radius: var(--radius-inner);
   color: var(--color-text-primary);
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: var(--bo-type-body);
+  line-height: 20px;
   text-decoration: none;
   transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease;
 }
@@ -342,15 +262,6 @@ body {
   color: var(--color-icon-primary);
 }
 
-.app-shell[data-astryx-theme="bidops"] .sidebar-item.is-disabled {
-  color: var(--color-text-disabled);
-  cursor: default;
-}
-
-.app-shell[data-astryx-theme="bidops"] .sidebar-item.is-disabled:hover {
-  background: transparent;
-}
-
 .app-shell[data-astryx-theme="bidops"] .sidebar-item-label {
   min-width: 0;
   overflow: hidden;
@@ -363,7 +274,7 @@ body {
   flex: 0 0 8px;
   width: 8px;
   height: 8px;
-  margin: 0 3px;
+  margin: 0 var(--spacing-1);
   border-radius: 3px;
 }
 
@@ -375,16 +286,16 @@ body {
 .app-shell[data-astryx-theme="bidops"] .sidebar-item-count {
   margin-left: auto;
   color: var(--color-text-secondary);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   font-weight: 400;
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-item-count.is-active {
-  padding: 0 7px;
+  padding: 0 var(--spacing-2);
   border-radius: var(--radius-full);
   color: var(--color-success);
   background: var(--color-success-muted);
-  font-size: 11px;
+  font-size: var(--bo-type-caption);
   font-weight: 600;
 }
 
@@ -398,18 +309,18 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding: 12px 0 0;
+  padding: var(--spacing-3) 0 0;
   border-top: 0;
   color: var(--color-text-secondary);
-  font-size: 13px;
+  font-size: var(--bo-type-body);
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-user {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-  padding: 10px 8px 4px;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-1);
+  padding: var(--spacing-3) var(--spacing-2) var(--spacing-1);
   border-top: 1px solid var(--color-border);
   color: var(--color-text-primary);
 }
@@ -419,12 +330,12 @@ body {
   flex: 0 0 22px;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: var(--radius-full);
   color: var(--color-text-primary);
   background: var(--bo-avatar-bg);
-  font-size: 10px;
+  font-size: var(--bo-type-caption);
   font-weight: 600;
 }
 
@@ -440,10 +351,10 @@ body {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 10px;
+  gap: var(--spacing-2);
   min-height: 44px;
   height: 44px;
-  padding: 0 16px;
+  padding: 0 var(--shell-canvas-inline-padding);
   overflow: visible;
   color: var(--color-text-primary);
   /* RL 상단바(ui-spec §1.3): 흰 면 44px + 하단 1px 경계. */
@@ -455,7 +366,7 @@ body {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 8px;
+  gap: var(--spacing-2);
   min-width: 0;
 }
 
@@ -470,18 +381,18 @@ body {
 /* 상단 경로. 화면 이름(`<h1>`)만 강조하고 앞뒤 칸은 보조 문구로 둔다.
    페이지의 `<h2>`가 시각 제목을 계속 맡으므로 여기서 제목을 반복하지 않는다. */
 .app-shell[data-astryx-theme="bidops"] .topbar-breadcrumb ol {
-  gap: 0 var(--spacing-1-5);
+  gap: 0 var(--spacing-1);
   row-gap: var(--spacing-0-5);
 }
 
 .app-shell[data-astryx-theme="bidops"] .topbar-crumb {
-  gap: var(--spacing-1-5);
+  gap: var(--spacing-1);
 }
 
 .app-shell[data-astryx-theme="bidops"] .topbar-crumb + .topbar-crumb::before,
 .app-shell[data-astryx-theme="bidops"] .topbar-crumb-text {
   color: var(--color-text-secondary);
-  font-size: 12px;
+  font-size: var(--bo-type-caption);
   line-height: 1.4;
 }
 
@@ -507,7 +418,7 @@ body {
 .app-shell[data-astryx-theme="bidops"] .topbar h1 {
   overflow-wrap: anywhere;
   color: var(--color-text-primary);
-  font-size: 13px;
+  font-size: var(--bo-type-page-title);
   font-weight: 600;
   line-height: 1.4;
   white-space: normal;
@@ -520,7 +431,7 @@ body {
 .app-shell[data-astryx-theme="bidops"] .topbar[data-topbar-mode="title"] h1 {
   flex: 0 0 auto;
   color: var(--color-text-primary);
-  font-size: 15px;
+  font-size: var(--bo-type-page-title);
   font-weight: 600;
   line-height: 1.35;
   white-space: nowrap;
@@ -546,7 +457,6 @@ body {
 /* portal로 들어온 화면 액션은 화면 root 밖이라 화면별 4단 재적용이 닿지 않는다.
    셸이 한 번 준다(typography.css의 네 단만 쓴다). */
 .app-shell[data-astryx-theme="bidops"] .topbar-page-actions :where(
-  .astryx-button,
   .astryx-badge,
   .astryx-field-label,
   .review-status-label,
@@ -630,34 +540,53 @@ body {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
-  /* 필터 줄이 상단바에 붙어 보이도록 위만 4px 줄인다(spec §2.1). */
-  padding: var(--spacing-3) var(--shell-canvas-inline-padding) var(--spacing-4);
+  /* 모든 화면 같은 여백: 상16·좌우24·하24(2026-11-18, 설계고도화안 §4 B-4). */
+  padding: var(--spacing-4) var(--shell-canvas-inline-padding) var(--spacing-6);
   overflow: auto;
   background: var(--color-background-surface);
-}
-
-/* 승인된 판정 기준·실행 상태 ERP 시안의 바깥 프레임.
- * 페이지 본문은 공통 셸이 소유한 여백을 다시 더하지 않는다. 이 두 화면은
- * 좌우 24px, 하단은 각주 자체의 여백으로 끝난다. 제목은 경로 안의 기존 h1
- * 하나를 사용하며 시안의 20px 위계를 따른다 (design/PRD.md §3.3).
- * 현재 DOM에 해당 페이지가 있을 때만 적용해 다른 검토 화면의 골격을 보존한다. */
-.app-shell[data-astryx-theme="bidops"] .page-canvas:has(> :is(.crit-page, .rs-page)) {
-  padding-inline: var(--spacing-6);
-  padding-bottom: 0;
-}
-
-.app-shell[data-astryx-theme="bidops"] .app-content:has(> .page-canvas > :is(.crit-page, .rs-page)) > .topbar {
-  padding-inline: var(--spacing-6);
-}
-
-.app-shell[data-astryx-theme="bidops"] .app-content:has(> .page-canvas > :is(.crit-page, .rs-page)) > .topbar h1 {
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.35;
 }
 
 .app-shell[data-astryx-theme="bidops"] .shell-notice {
   padding: 0 var(--shell-canvas-inline-padding);
   background: var(--color-background-surface);
   border-bottom: 1px solid var(--color-border);
+}
+
+/* Astryx 버튼의 공용 정의(2026-11-18, 설계고도화안 §4 B-4 결정 4).
+ * 높이와 반경은 Astryx size(sm 28·md 32·lg 36)와 테마 반경을 그대로 쓴다.
+ * 글자는 sm만 12, 나머지는 14다. 화면 root의 "span은 본문/캡션" 재적용이 버튼
+ * 이름 span까지 닿지 않도록 여기서 한 번 정한다. 화면 CSS는 버튼의 크기·글자·
+ * 반경을 다시 정하지 않는다(탭·칩처럼 버튼을 다른 부품으로 바꿔 그리는 경우만 예외). */
+.app-shell[data-astryx-theme="bidops"] .astryx-button,
+.app-shell[data-astryx-theme="bidops"] .astryx-button :where(span) {
+  font-size: var(--bo-type-body);
+  line-height: var(--bo-type-section-title-leading);
+  white-space: nowrap;
+}
+
+.app-shell[data-astryx-theme="bidops"] .astryx-button.sm,
+.app-shell[data-astryx-theme="bidops"] .astryx-button.sm :where(span) {
+  font-size: var(--bo-type-caption);
+}
+
+/* 표 셀의 공용 정의(2026-11-18, 설계고도화안 §4 B-4 결정 5). 머리 셀 8×12,
+ * 조밀 목록 셀 8×12, 설정형 표(판정 기준·실행 상태) 셀 12×12. 화면 CSS는 Astryx
+ * 표 셀의 padding을 다시 정하지 않는다. */
+.app-shell[data-astryx-theme="bidops"] .astryx-table-header-cell,
+.app-shell[data-astryx-theme="bidops"] .astryx-table-cell {
+  padding: var(--spacing-2) var(--spacing-3);
+}
+
+.app-shell[data-astryx-theme="bidops"] :is(.crit-page, .rs-page) .astryx-table-cell {
+  padding: var(--spacing-3);
+}
+
+/* Astryx 탭의 공용 정의(2026-11-18, 결정 3). 탭 이름 14px, 탭 줄 높이 36px
+ * (탭 32 + 밑줄 자리 4). 목록 묶음의 보기 탭(workspace-filters.css)도 같은 높이다. */
+.app-shell[data-astryx-theme="bidops"] .astryx-tab {
+  font-size: var(--bo-type-body);
+}
+
+.app-shell[data-astryx-theme="bidops"] .astryx-tab-strip {
+  padding-bottom: var(--spacing-1);
 }
