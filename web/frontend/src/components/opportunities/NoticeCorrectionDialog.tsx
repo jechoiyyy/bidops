@@ -126,7 +126,7 @@ export function NoticeCorrectionDialog({
       }}
       padding={6}
       purpose="form"
-      width="calc(var(--spacing-12) * 13)"
+      width="624px"
     >
       <div className="opportunity-dialog-body">
         <DialogHeader

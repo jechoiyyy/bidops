@@ -7,7 +7,8 @@ import {
 import { settleFonts } from "./screen-fixtures";
 import { mockApi, mockOrderPlans } from "./api-mock";
 
-const UI_SCALE = 0.9;
+// 2026-11-18 ×0.9 compact 축척을 없앴다. 시안 치수가 그대로 렌더된다.
+const UI_SCALE = 1;
 const physical = (logical: number) => logical * UI_SCALE;
 const WIDTHS: [number, number][] = [[1280, 800], [1440, 900]];
 

@@ -5,44 +5,10 @@
 
 /* ---- 화면 틀 ---------------------------------------------------------- */
 .app-shell[data-astryx-theme="bidops"] .page-canvas:has(> .ps-record) {
-  /* 사전규격 상세는 기존에 전역 90% zoom을 상쇄하던 화면이다. 이제
-     document zoom 없이 상세 subtree만 원래 시안 치수로 되돌린다. */
-  --spacing-0-5: 2px;
-  --spacing-1: 4px;
-  --spacing-1-5: 6px;
-  --spacing-2: 8px;
-  --spacing-3: 12px;
-  --spacing-4: 16px;
-  --spacing-5: 20px;
-  --spacing-6: 24px;
-  --spacing-7: 28px;
-  --spacing-8: 32px;
-  --spacing-9: 36px;
-  --spacing-10: 40px;
-  --spacing-11: 44px;
-  --spacing-12: 48px;
-  --size-element-sm: 28px;
-  --size-element-md: 32px;
-  --size-element-lg: 36px;
-  --bo-type-page-title: 20px;
-  --bo-type-section-title: 14px;
-  --bo-type-body: 14px;
-  --bo-type-caption: 12px;
-  --font-size-4xs: calc(0.375rem / var(--bo-ui-scale));
-  --font-size-3xs: calc(0.4375rem / var(--bo-ui-scale));
-  --font-size-2xs: calc(0.5rem / var(--bo-ui-scale));
-  --font-size-xs: calc(0.625rem / var(--bo-ui-scale));
-  --font-size-sm: calc(0.75rem / var(--bo-ui-scale));
-  --font-size-base: calc(0.875rem / var(--bo-ui-scale));
-  --font-size-lg: calc(1.0625rem / var(--bo-ui-scale));
-  --font-size-xl: calc(1.25rem / var(--bo-ui-scale));
-  --font-size-2xl: calc(1.5rem / var(--bo-ui-scale));
-  --font-size-3xl: calc(1.8125rem / var(--bo-ui-scale));
-  --font-size-4xl: calc(2.1875rem / var(--bo-ui-scale));
-  --font-size-5xl: calc(2.625rem / var(--bo-ui-scale));
-  --radius-inner: calc(0.375rem / var(--bo-ui-scale));
-  --radius-element: calc(0.625rem / var(--bo-ui-scale));
-  --radius-container: calc(1rem / var(--bo-ui-scale));
+  /* 사전규격 상세는 전역 ×0.9 축척을 원래 시안 치수로 되돌리던 화면이다. 축척을
+     없앤 뒤(2026-11-18)에는 간격·컨트롤·글자 토큰이 전역 값과 같으므로 복원
+     블록을 지웠다. 상세 화면 제목만 상세 단(20px)을 쓴다. */
+  --bo-type-page-title: var(--bo-type-detail-title);
   padding: var(--spacing-4) var(--spacing-6) var(--spacing-10);
 }
 .ps-record {
@@ -51,8 +17,9 @@
   --ps-line: var(--color-background-muted);
   /* ② 카드 머리 띠(#F9FBF5) — spec §4 ②. 새 색 토큰을 만들지 않고 섞는다. */
   --ps-brand-band: color-mix(in srgb, var(--color-accent-muted) 50%, var(--color-background-surface));
-  /* 시안 값은 px 이고 앱의 루트 글꼴은 14px 이라 rem 기반 `--radius-*`·
-     `--font-size-*` 는 시안보다 0.875배로 나온다. 시안과 같은 픽셀을 내기 위해
+  /* 시안 값은 px 이고 앱의 루트 글꼴은 14px 이라 rem 기반 `--font-size-*` 는
+     시안보다 0.875배로 나온다. 테마 `--radius-*` 는 2026-11-18부터 px(4·8)지만
+     시안의 상세 전용 반경(12·10·8·6·4)과 다르다. 시안과 같은 픽셀을 내기 위해
      px 단위인 spacing·bo-type 토큰에서 파생한 별칭만 둔다. 새 색·새 척도를
      만들지 않으며 `:root` 도 손대지 않는다. */
   --ps-radius-card: var(--spacing-3);                              /* 12px */
@@ -74,7 +41,7 @@
 }
 .ps-record > * {
   width: 100%;
-  max-width: calc(var(--spacing-12) * 21 + var(--spacing-8));  /* 1040px */
+  max-width: 1040px;
   min-width: 0;
 }
 .ps-record a { color: var(--color-text-accent); }
@@ -186,9 +153,6 @@
   border-radius: var(--radius-full);
   flex: 0 0 var(--spacing-2);
 }
-.ps-record .ps-dot-ok { background: var(--color-success); }
-.ps-record .ps-dot-warn { background: var(--color-warning); }
-.ps-record .ps-dot-err { background: var(--color-error); }
 .ps-record .ps-dot-neutral { background: var(--color-data-neutral); }
 .ps-record .ps-btn {
   display: inline-flex;
@@ -208,11 +172,6 @@
   white-space: nowrap;
   cursor: pointer;
 }
-.ps-record .ps-btn-primary {
-  background: var(--color-background-inverted);
-  border-color: var(--color-background-inverted);
-  color: var(--color-on-accent);
-}
 .ps-record .ps-btn-sm {
   height: var(--spacing-8);
   min-height: var(--spacing-8);
@@ -220,7 +179,6 @@
   border-radius: var(--ps-radius-btn-sm);
   font-size: var(--bo-type-caption);
 }
-.ps-record .ps-divider { height: var(--border-width); background: var(--color-border); }
 
 /* 여섯 칸 사실 띠 */
 .ps-record .ps-facts {
@@ -420,32 +378,6 @@
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
-.ps-record .ps-refs {
-  display: inline-flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--spacing-2);
-  margin-left: var(--spacing-1-5);
-  padding: 0;
-  vertical-align: baseline;
-}
-
-/* 이름·값 */
-.ps-record .ps-kv {
-  display: grid;
-  grid-template-columns: calc(var(--spacing-12) * 2 + var(--spacing-6)) minmax(0, 1fr);
-  gap: var(--spacing-2) var(--spacing-4);
-  margin: 0;
-}
-.ps-record .ps-kv > div { display: contents; }
-.ps-record .ps-kv .ps-k {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: calc(var(--bo-type-caption) + var(--border-width));
-  font-weight: var(--font-weight-normal);
-  line-height: 1.45;
-}
-.ps-record .ps-kv dd { margin: 0; font-size: var(--bo-type-body); line-height: 1.5; overflow-wrap: anywhere; }
 
 .ps-record .ps-note {
   display: block;
@@ -491,19 +423,6 @@
   line-height: var(--bo-type-caption-leading);
 }
 .ps-record .ps-check .ps-t > p { margin: 0; font-size: inherit; line-height: inherit; }
-.ps-record .ps-how {
-  display: block;
-  margin-top: var(--border-width);
-  color: var(--color-text-disabled);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
-  overflow-wrap: anywhere;
-}
-.ps-record .ps-how strong {
-  margin-right: var(--spacing-1);
-  color: var(--color-text-secondary);
-  font-weight: 500;
-}
 
 /* 근거 목록 */
 .ps-record .ps-ev {
@@ -729,7 +648,7 @@
 .ps-record-tracking-card {
   --ps-tracking-label: var(--spacing-6);
   --ps-tracking-control: var(--spacing-10);
-  --ps-tracking-action: calc(var(--spacing-12) * 4 + var(--spacing-7));
+  --ps-tracking-action: 220px;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -906,30 +825,6 @@
 .ps-record .badge-danger { background: var(--color-error-muted); color: var(--color-error); }
 
 /* ---- 검토 요약·개요 카드 ---------------------------------------------- */
-.ps-record .pre-spec-overview-content { display: grid; gap: var(--spacing-3); }
-.ps-record .pre-spec-overview-section { display: grid; gap: var(--spacing-3); padding: 0; border: 0; min-width: 0; }
-.ps-record .pre-spec-overview-summary {
-  margin: 0;
-  font-size: var(--bo-type-body);
-  line-height: 1.5;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
-}
-.ps-record .pre-spec-overview-validation-warning {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--spacing-2);
-  margin: 0;
-  padding: var(--spacing-2) var(--spacing-3);
-  border: 0;
-  border-radius: var(--ps-radius-chip);
-  background: var(--color-background-body);
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
-}
-.ps-record .pre-spec-overview-validation-warning p { margin: 0; font-size: inherit; line-height: inherit; }
 .ps-record .pre-spec-overview-waiting {
   display: grid;
   gap: var(--spacing-0-5);
@@ -945,46 +840,6 @@
 .ps-record .pre-spec-overview-evidence-content { flex: 1; min-width: 0; }
 .ps-record .pre-spec-overview-evidence-content > p { margin: 0; font-size: var(--bo-type-body); line-height: 1.5; overflow-wrap: anywhere; }
 .ps-record .pre-spec-overview-evidence-open { flex: 0 0 auto; }
-
-/* ---- 원문 뷰어 (시안에 없는 기능 요소) -------------------------------- */
-.ps-record .pre-spec-overview-source {
-  display: grid;
-  gap: var(--spacing-3);
-  margin-top: var(--spacing-3);
-  padding: var(--spacing-3) var(--spacing-4);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--ps-radius-control);
-  background: var(--color-background-body);
-  scroll-margin-top: var(--spacing-3);
-}
-.ps-record .pre-spec-overview-source-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--spacing-3); }
-.ps-record .pre-spec-overview-source-eyebrow { display: block; color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
-.ps-record .pre-spec-overview-source-header h5 { margin: var(--spacing-0-5) 0 0; font-size: calc(var(--bo-type-caption) + var(--border-width)); font-weight: 600; }
-.ps-record .pre-spec-overview-source-close {
-  height: var(--spacing-8);
-  padding: 0 var(--spacing-3);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--ps-radius-btn-sm);
-  background: var(--color-background-surface);
-  color: var(--color-text-primary);
-  font-size: var(--bo-type-caption);
-  cursor: pointer;
-}
-.ps-record .pre-spec-overview-source-page { color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
-.ps-record .pre-spec-overview-source-mismatch { display: grid; gap: var(--spacing-1); color: var(--color-error); font-size: var(--bo-type-caption); }
-.ps-record .pre-spec-overview-source-mismatch p { margin: 0; font-size: inherit; line-height: var(--bo-type-caption-leading); }
-.ps-record .pre-spec-overview-source-blocks { display: grid; gap: var(--spacing-2); margin: 0; padding: 0; list-style: none; }
-.ps-record .pre-spec-overview-source-block {
-  padding: var(--spacing-2) var(--spacing-3);
-  border: var(--border-width) solid var(--ps-line);
-  border-radius: var(--ps-radius-chip);
-  background: var(--color-background-surface);
-}
-.ps-record .pre-spec-overview-source-block.is-target { border-color: var(--color-border-emphasized); }
-.ps-record .pre-spec-overview-source-block-header { display: flex; align-items: center; flex-wrap: wrap; gap: var(--spacing-2); color: var(--color-text-disabled); font-size: var(--bo-type-caption); }
-.ps-record .pre-spec-overview-source-block-header code { font-family: var(--font-family-code); font-size: calc(var(--bo-type-caption) - var(--border-width)); }
-.ps-record .pre-spec-overview-source-block > p { margin: var(--spacing-1) 0 0; font-size: var(--bo-type-body); line-height: 1.6; }
-.ps-record .pre-spec-overview-source-highlight-label { color: var(--color-text-secondary); font-weight: 500; }
 
 /* ---- 문서 준비 패널 --------------------------------------------------- */
 .ps-record .ps-record-documents { display: flex; flex-direction: column; gap: var(--spacing-3); min-width: 0; scroll-margin-top: var(--spacing-3); }
@@ -1052,8 +907,6 @@
   overflow-wrap: anywhere;
 }
 .ps-record .ps-plan-candidate-facts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-1-5) var(--spacing-2); }
-.ps-record .ps-plan-candidates-conflict ul { display: grid; gap: var(--spacing-1); margin: var(--spacing-1) 0 0; padding: 0; list-style: none; }
-.ps-record .ps-plan-candidates-conflict li { font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); overflow-wrap: anywhere; }
 .ps-record .ps-collapsed > .astryx-collapsible { gap: var(--spacing-3); }
 .ps-record .ps-collapsed .astryx-collapsible-trigger {
   justify-content: space-between;
@@ -1085,38 +938,13 @@
 .ps-record .detail-skeleton-rail-panel { padding: var(--spacing-4); border: var(--border-width) solid var(--color-border); border-radius: var(--ps-radius-control); background: var(--color-background-surface); }
 .ps-record .detail-skeleton-rail-title { font-size: calc(var(--bo-type-caption) + var(--border-width)); }
 .ps-record .detail-skeleton-rail-links a { font-size: var(--bo-type-caption); }
-.ps-record .pre-spec-overview-lineage > div { display: block; }
-.ps-record .pre-spec-overview-lineage dd { margin: var(--spacing-1) 0 0; overflow-wrap: anywhere; }
-.ps-record .pre-spec-overview-digests { margin-top: var(--spacing-3); }
-.ps-record .pre-spec-overview-attempts li { padding: var(--spacing-2) 0; border-radius: 0; background: transparent; border-bottom: var(--border-width) solid var(--ps-line); }
 .ps-record .astryx-collapsible-trigger { font-size: var(--bo-type-caption); }
 
 /* ---- 현재 판단 카드 --------------------------------------------------- */
-.ps-record .pre-spec-overview-quality { display: inline-flex; align-items: center; width: max-content; max-width: 100%; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
-.ps-record .pre-spec-overview-quality .badge { white-space: normal; }
-.ps-record .pre-spec-overview-validation-state { display: flex; align-items: center; flex-wrap: wrap; gap: var(--spacing-2); color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
-.ps-record .page-overview-current, .ps-record .pre-spec-cut-state, .ps-record .ps-record-quality-details { font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
-.ps-record .pre-spec-cut-state { display: grid; gap: var(--spacing-1); padding: 0; border: 0; border-radius: 0; background: transparent; }
-.ps-record .pre-spec-cut-state p, .ps-record .ps-record-quality-details > p { margin: 0; color: var(--color-text-secondary); font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
-.ps-record .ps-record-quality-details { display: grid; gap: var(--spacing-2); padding: 0; border: 0; }
-.ps-record .ps-record-quality-details > summary { color: var(--color-text-accent); font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); font-weight: 500; cursor: pointer; }
-.ps-record .ps-record-quality-details dl { display: grid; gap: var(--spacing-1); margin: 0; }
-.ps-record .ps-record-quality-details dl > div { display: flex; align-items: center; flex-wrap: wrap; gap: var(--spacing-2); }
-.ps-record .ps-record-quality-details dt { color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
-.ps-record .ps-record-quality-details dd { margin: 0; }
-.ps-record .ps-record-quality-details .pre-spec-overview-limitations { padding: 0; background: transparent; }
-.ps-record .pre-spec-overview-limitations h4 { margin: 0 0 var(--spacing-1); font-size: var(--bo-type-caption); font-weight: 600; }
-.ps-record .pre-spec-overview-list { display: grid; gap: var(--spacing-1); margin: 0; padding-left: var(--spacing-4); }
-.ps-record .pre-spec-overview-limit { margin: 0; color: var(--color-text-secondary); font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
-.ps-record .ps-judgment-note { display: grid; gap: var(--spacing-2); }
+.ps-record .page-overview-current { font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
 
 /* ---- 확인이 필요한 것 -------------------------------------------------- */
-.ps-record .ps-check-groups { display: grid; gap: var(--spacing-3); }
-.ps-record .ps-check-group { display: grid; gap: var(--spacing-2); min-width: 0; }
-.ps-record .ps-check-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--spacing-2); }
-.ps-record .ps-check-heading .pre-spec-overview-due { margin: 0; color: var(--color-text-disabled); font-size: var(--bo-type-caption); font-weight: var(--font-weight-normal); line-height: var(--bo-type-caption-leading); }
 .ps-record .pre-spec-overview-empty { margin: 0; color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
-.ps-record .pre-spec-overview-unverifiable { color: var(--color-text-disabled); }
 
 /* ---- 지켜야 할 조건 ---------------------------------------------------- */
 .ps-record .ps-record-conditions { display: flex; flex-direction: column; gap: calc(var(--spacing-2) + var(--spacing-0-5)); margin: 0; padding: 0; list-style: none; }
@@ -1194,14 +1022,6 @@
   font-size: var(--bo-type-caption);
   line-height: var(--bo-type-caption-leading);
 }
-.ps-record .ps-briefing-subgroup {
-  display: grid;
-  gap: var(--spacing-1);
-  min-width: 0;
-}
-.ps-record .ps-briefing-subgroup .ps-sub {
-  margin-top: var(--spacing-1);
-}
 .ps-record .ps-briefing-reviews {
   gap: var(--spacing-3);
 }
@@ -1210,25 +1030,6 @@
   border-bottom: var(--border-width) solid var(--ps-line);
 }
 .ps-record .ps-briefing-reviews > li:last-child { border-bottom: 0; padding-bottom: 0; }
-.ps-record .ps-briefing-facts {
-  display: grid;
-  gap: var(--spacing-2);
-  margin: 0;
-}
-.ps-record .ps-briefing-facts > div {
-  display: grid;
-  grid-template-columns: calc(var(--spacing-12) + var(--spacing-4)) minmax(0, 1fr);
-  gap: var(--spacing-3);
-  min-width: 0;
-}
-.ps-record .ps-briefing-facts dt {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-}
-.ps-record .ps-briefing-facts dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
 
 /* ---- 범위 확정 알림·변경 기록 ---------------------------------------- */
 .ps-record .ps-record-range {
@@ -1262,12 +1063,6 @@
   overflow-wrap: anywhere;
 }
 .ps-record .page-overview-fact-line[id] { scroll-margin-top: var(--spacing-3); }
-.ps-record .page-overview-claim-links {
-  display: inline-flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--spacing-1);
-}
 
 /* ---- 선택 상세 순회 (상단바 액션 슬롯) ------------------------------- */
 /* 순회는 `PageHeaderActions` portal 로 상단바에 들어가 `.ps-record` 밖에 있다

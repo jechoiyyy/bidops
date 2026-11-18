@@ -450,7 +450,8 @@ test("기본 상세는 실제 모델 근거와 알려진 출처 필드만 보여
   await expect(head.locator(".c2l-agency-label")).toHaveText("발주기관");
   await expect(head.locator(".c2l-agency-name")).toHaveText("서울특별시 디지털정책관");
 
-  // 전역 zoom 때의 물리 크기: 사업명 18px, 발주기관 12.6px 굵게.
+  // 정수 척도: 사업명은 `--bo-type-page-title`(16px), 발주기관·근거 본문은 본문(14px).
+  // ×0.9 축척 때는 18px·12.6px였다(2026-11-18 제거).
   const type = await page.locator(".c2l-detail-pane").evaluate((pane) => {
     const size = (selector: string) => {
       const element = pane.querySelector<HTMLElement>(selector);
@@ -459,10 +460,10 @@ test("기본 상세는 실제 모델 근거와 알려진 출처 필드만 보여
     };
     return { title: size("h4"), agency: size(".c2l-agency-name"), body: size(".c2l-evidence-body") };
   });
-  expect(type.title.fontSize).toBe(18);
-  expect(type.agency.fontSize).toBe(12.6);
+  expect(type.title.fontSize).toBe(16);
+  expect(type.agency.fontSize).toBe(14);
   expect(type.agency.weight).toBeGreaterThanOrEqual(600);
-  expect(type.body.fontSize).toBe(12.6);
+  expect(type.body.fontSize).toBe(14);
 });
 
 // F1(spec §6.1) — 상세 응답은 **선택 행마다 1회**이고 선택이 바뀔 때만 다시 나간다.

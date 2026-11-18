@@ -335,8 +335,7 @@
 
 .evidence-source-heading span,
 .evidence-page header span,
-.evidence-quote > span,
-.evidence-hash > span {
+.evidence-quote > span {
   color: var(--color-muted);
   font-size: var(--bo-type-caption);
 }
@@ -391,20 +390,6 @@
   font-size: 1.02rem;
   font-weight: 700;
   line-height: 1.65;
-}
-
-.evidence-hash {
-  display: grid;
-  gap: 3px;
-  margin-top: 12px;
-}
-
-.evidence-hash code {
-  overflow-wrap: anywhere;
-  color: var(--color-text);
-  font-family: var(--font-mono);
-  font-size: var(--bo-type-caption);
-  line-height: 1.45;
 }
 
 .evidence-page {

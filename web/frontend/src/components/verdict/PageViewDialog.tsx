@@ -36,7 +36,7 @@ export function PageViewDialog({ open, onClose, structureId, page, highlightBloc
       onOpenChange={(next) => { if (!next) onClose(); }}
       padding={6}
       purpose="info"
-      width="calc(var(--spacing-12) * 16)"
+      width="768px"
     >
       <div className="opportunity-dialog-body">
         <DialogHeader onOpenChange={(next) => { if (!next) onClose(); }} title={page === null ? "원문 쪽 전체" : `원문 ${page}쪽 전체`} />

@@ -680,7 +680,7 @@ export function OpportunitiesPage() {
         onOpenChange={(next) => setDataDialog(next)}
         padding={6}
         purpose="info"
-        width="calc(var(--spacing-12) * 13)"
+        width="624px"
       >
         <div className="opportunity-dialog-body">
           <DialogHeader title="이 목록의 기준" onOpenChange={(next) => setDataDialog(next)} />

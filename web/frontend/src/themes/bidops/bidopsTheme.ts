@@ -359,16 +359,21 @@ export const bidopsTheme = defineTheme({
     '--color-text-gray': ['#262626', '#e5e5e5'],
 
     // =========================================================================
-    // Radius — slightly larger than default (kept as-is)
+    // Radius — integer px on the 4px grid (2026-11-18, 설계고도화안 §4 B-2).
+    // The app root font-size is 14px, so the former rem values rendered as
+    // fractional px (0.375rem = 5.25px, 0.5rem = 7px). px keeps the scale
+    // independent of the root: 4 small parts, 8 controls/cards, 9999 pill.
+    // --radius-element stays 8 because Astryx derives nested button radius
+    // as `element - spacing-1`; 4 would square those buttons off (0px).
     // --radius-none and --radius-full are always fixed and must never be
     // scaled by a theme (see defineTheme's radius config docs) — 0 and
     // 9999px respectively, matching @astryxdesign/core's own defaults.
     // =========================================================================
     '--radius-none': '0px',
-    '--radius-inner': '0.375rem', // 6px 버튼·칩·입력 (시안 v26)
-    '--radius-element': '0.5rem', // 8px 카드
-    '--radius-container': '0.5rem', // 8px 카드 (시안 v26: 표면은 경계선만, 큰 라운드 없음)
-    '--radius-page': '1.75rem',
+    '--radius-inner': '4px', // 칩·입력 안쪽·작은 버튼
+    '--radius-element': '8px', // 버튼·입력·카드 (Astryx 기본과 같다)
+    '--radius-container': '8px', // 카드·패널·대화상자 (시안 v26: 표면은 경계선만, 큰 라운드 없음)
+    '--radius-page': '28px',
     '--radius-full': '9999px',
 
     // =========================================================================
