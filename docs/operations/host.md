@@ -111,16 +111,20 @@ scripts/c2-mac-model-preflight.sh        # 별칭 경로·Ollama digest·컨테�
   Mac이 잠자기 중이거나 OrbStack·Tailscale·LiteLLM·Ollama가 내려가 있으면 그날 실행은
   fail closed로 끝나며 빠진 날은 `--date`로 사람이 메운다. OrbStack은 로그인 시 자동 시작한다.
 
-  **cron은 설치하지 않았다**(2026-10-14 사용자 결정). 일일 실행은 사람이 아래와 같은 명령을
-  `--date`로 직접 돌린다. 나중에 cron을 켤 때 쓸 줄은 다음과 같다.
+  **cron은 설치하지 않았다**(2026-10-14 사용자 결정). 일일 실행은 사람이 `--date`로 직접 돌린다.
+  cron을 켤 때는 [daily](daily.md) "cron 진입점"의 `scripts/cron-daily-track.sh`만 부른다 — PATH·
+  `BIDOPS_ENV=prod`·web 주소·공용 lock(`~/.local/state/bidops/daily.lock`)·timeout·로그를 래퍼가 정하므로 줄에는
+  floor 날짜와 담당자만 남는다. 줄은 `scripts/cron-daily-track.sh --print-crontab`이 이 checkout 경로로 출력한다.
 
   ```bash
-  # Mac 발주계획 cron 예시 — 설치되어 있지 않음
-  30 7 * * * cd /Users/temp/orca/bidops && BIDOPS_ENV=prod PATH=/opt/homebrew/opt/coreutils/libexec/gnubin:/Applications/OrbStack.app/Contents/MacOS/xbin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin BIDOPS_ENV=prod BIDOPS_WORKFLOW_WEB_URL=http://127.0.0.1:18788 BIDOPS_DAILY_GAP_FLOOR_DATE=<YYYY-MM-DD> BIDOPS_C2_DAILY_ACTOR=jechoi flock -n /Users/temp/.local/state/bidops/plans.lock timeout 6h ./scripts/run-daily-lifecycle.sh --track order-plans >> /Users/temp/.local/state/bidops/logs/plans-$(date +\%Y\%m).log 2>&1
+  # Mac cron 예시 — 설치되어 있지 않음(--print-crontab 출력)
+  30 6 * * * BIDOPS_DAILY_GAP_FLOOR_DATE=<YYYY-MM-DD> /Users/temp/orca/bidops/scripts/cron-daily-track.sh notices
+  0 7 * * * BIDOPS_DAILY_GAP_FLOOR_DATE=<YYYY-MM-DD> BIDOPS_C2_DAILY_ACTOR=<담당자 이름> /Users/temp/orca/bidops/scripts/cron-daily-track.sh order-plans
   ```
 
   `BIDOPS_DAILY_GAP_FLOOR_DATE`는 cron을 걸기 전 공백 중 따라잡지 않기로 한 기간의 다음 날이다.
-  그 뒤로 빠진 날은 `gap_detected`, 판정 없이 끝난 발주계획 날은 `unjudged_detected`와 exit 10으로 드러난다([daily](daily.md) "누락일 감지").
+  그 뒤로 빠진 날은 `gap_detected`, 적재되지 않았거나 판정 없이 끝난 날은 `unjudged_detected`와 exit 10으로
+  드러난다([daily](daily.md) "누락일 감지"). 손으로 따라잡을 때도 같은 `daily.lock`을 잡는다.
 
   운영 checkout은 2026-11-18부터 main checkout `/Users/temp/orca/bidops`다. env 파일 4개와
   `data/runs`·`backups`를 옛 `bidops-c2mac`에서 옮겼다
@@ -128,13 +132,13 @@ scripts/c2-mac-model-preflight.sh        # 별칭 경로·Ollama digest·컨테�
 - 앱 이미지는 `BIDOPS_ENV=prod scripts/compose.sh build web`으로 빌드한다. `make build`는
   bootstrap 대상을 arm64로 빌드해 lock hash 검사에서 실패한다(findings). postgres-init·migrate는
   web과 같은 `BIDOPS_IMAGE`를 쓴다. 문서 worker는 `build document-worker`다.
-- postgres·minio·clamav·document-worker는 운영 컨테이너의 restart 정책이 `no`다. Mac·OrbStack 재시작 뒤에는
-  `up -d --no-deps --no-build --scale document-worker=2 postgres minio clamav web document-worker`로
-  다시 올리고, C-2를 돌릴 때는 analysis-worker도 사람 확인 후 올린다. 2026-11-18 코드 수정으로
-  `docker/docker-compose.prod.yml`이 이 네 서비스에 `restart: unless-stopped`를 준다(dev·mock은 그대로,
-  analysis-worker·init·migrate는 정책 없음). 컨테이너를 다시 만들어야 반영되므로 재배포 전까지는 위 수동
-  기동이 그대로 필요하고, 반영 뒤에도 host 재시작 다음에는 `scripts/compose.sh ps`로 상태 서비스가
-  올라왔는지 사람이 확인한다.
+- `docker/docker-compose.prod.yml`이 postgres·minio·clamav·document-worker에 `restart: unless-stopped`를 준다
+  (2026-11-18, dev·mock은 그대로). 이 정책은 그 overlay로 컨테이너를 다시 만들어야 붙으므로, 실제 운영 컨테이너에
+  붙었는지는 `docker inspect -f '{{.Name}} {{.HostConfig.RestartPolicy.Name}}' <컨테이너>`로 확인한다. analysis-worker는
+  정책이 없다(사람 확인 뒤 기동, 소유자 결정 대기). Mac·OrbStack 재시작 뒤에는 `scripts/compose.sh ps`로 상태
+  서비스가 올라왔는지 사람이 확인하고, 정책이 붙지 않은 컨테이너가 있으면
+  `up -d --no-deps --no-build --scale document-worker=2 postgres minio clamav web document-worker`로 올린다. C-2를
+  돌릴 때는 analysis-worker도 사람 확인 후 올린다.
 - `alembic check`를 운영 형태의 postgres(server `search_path=bidops,public`)에 돌리면 모든 테이블이
   없는 것으로 보고된다. `PGOPTIONS='-c search_path=public'`을 주고 실행한다.
 

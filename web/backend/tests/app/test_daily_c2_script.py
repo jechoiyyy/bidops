@@ -721,3 +721,82 @@ def test_an_invalid_read_failure_limit_fails_before_any_call(env: Env, value: st
 
     assert result.returncode not in (0, 10)
     assert env.calls() == []
+
+
+# --- 모든 읽기 GET의 일시 실패 재시도 (2026-11-18 독립 검증) --------------------------
+#
+# 폴링 밖의 읽기(자동 실행 확인·회차 조회·회차 목록·실행 목록·감사 표본)도 일시 실패(응답 없음·
+# 5xx·408·429)를 `read retry (n/N) GET …` 한 줄씩 남기고 짧게 쉬었다 다시 읽는다(기본 3번 시도).
+# 끝내 실패하면 기존 실패 경로이고, 4xx는 바로 실패하며, POST는 다시 보내지 않는다.
+
+
+def _read_retries(stdout: str) -> list[str]:
+    return [line.split("] ", 1)[-1] for line in stdout.splitlines() if "read retry (" in line]
+
+
+@pytest.mark.parametrize(
+    "prefix",
+    [
+        "/api/order-plan-screening/daily-trigger",
+        "/api/runs/",
+        "/api/runs",
+        "/api/order-plan-screening/executions",
+    ],
+)
+@pytest.mark.parametrize("code", ["transport", "503"])
+def test_a_transient_read_failure_is_retried_and_the_day_completes(env: Env, prefix: str, code: str) -> None:
+    env.trigger_on()
+    env.fail_gets(prefix, count=2, code=code)
+
+    result = env.run("--track", "order-plans", "--date", "2026-09-17")
+
+    assert result.returncode == 0, result.stderr
+    retries = _read_retries(result.stdout)
+    assert [line[:16] for line in retries] == ["read retry (1/3)", "read retry (2/3)"]
+    assert all(" GET " + prefix in line for line in retries)
+    assert len(env.execution_posts()) == 1
+    assert len(env.draw_posts()) == 1
+
+
+def test_a_read_that_keeps_failing_ends_the_day_after_the_last_attempt(env: Env) -> None:
+    env.trigger_on()
+    _ready_run(env)
+    env.fail_gets("/api/order-plan-screening/executions")
+
+    result = env.c2(RUN)
+
+    assert result.returncode not in (0, 10)
+    assert "HTTP 500" in result.stderr
+    assert len(_read_retries(result.stdout)) == 2
+    assert env.posts() == []
+
+
+def test_a_read_without_any_answer_keeps_the_request_failed_message(env: Env) -> None:
+    env.trigger_on()
+    env.fail_gets("/api/order-plan-screening/daily-trigger", code="transport")
+
+    result = env.run("--track", "order-plans", "--date", "2026-09-17")
+
+    assert result.returncode not in (0, 10)
+    assert "request failed: GET" in result.stderr
+    assert len(_read_retries(result.stdout)) == 2
+
+
+def test_a_client_error_on_a_read_is_not_retried(env: Env) -> None:
+    env.trigger_on()
+    env.fail_gets("/api/order-plan-screening/daily-trigger", code="404")
+
+    result = env.run("--track", "order-plans", "--date", "2026-09-17")
+
+    assert result.returncode not in (0, 10)
+    assert "HTTP 404" in result.stderr
+    assert _read_retries(result.stdout) == []
+
+
+def test_a_transient_health_check_failure_is_retried(env: Env) -> None:
+    env.fail_gets("/api/health", count=1, code="transport")
+
+    result = env.run("--track", "notices", "--date", "2026-09-17")
+
+    assert result.returncode == 0, result.stderr
+    assert [line[:16] for line in _read_retries(result.stdout)] == ["read retry (1/3)"]

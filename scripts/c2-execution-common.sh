@@ -153,10 +153,23 @@ c2_try_request() {
 }
 
 # c2_request METHOD PATH BODY [HEADER...] — c2_try_request, but a transport
-# failure stops the caller. Writes (POST) always go through here: they are
-# never retried.
+# failure stops the caller. A GET gets the shared bounded read retry
+# (workflow_read_retry in manual-workflow-common.sh: no answer, 5xx, 408, 429);
+# a POST is sent exactly once and never retried.
 c2_request() {
-  c2_try_request "$@" || workflow_die "request failed: $1 ${BIDOPS_WORKFLOW_WEB_URL}$2"
+  local method="$1" path="$2" attempt=1
+  while true; do
+    if c2_try_request "$@"; then
+      [[ "${method}" == "GET" ]] || return 0
+      workflow_transient_http "${C2_HTTP_CODE}" || return 0
+      workflow_read_retry "${attempt}" "GET ${path%%\?*}" "HTTP ${C2_HTTP_CODE}" || return 0
+    else
+      [[ "${method}" == "GET" ]] || workflow_die "request failed: ${method} ${BIDOPS_WORKFLOW_WEB_URL}${path}"
+      workflow_read_retry "${attempt}" "GET ${path%%\?*}" "no answer" \
+        || workflow_die "request failed: ${method} ${BIDOPS_WORKFLOW_WEB_URL}${path}"
+    fi
+    attempt=$((attempt + 1))
+  done
 }
 
 c2_error_code() {
