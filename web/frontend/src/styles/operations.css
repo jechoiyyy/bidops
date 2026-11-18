@@ -89,3 +89,20 @@
 .daily-run-title + .daily-run-fact::before { content: "·"; margin-right: var(--spacing-2); color: var(--color-text-secondary); }
 .daily-run-problem { flex-basis: 100%; color: var(--color-warning); }
 .daily-run-link { margin-left: auto; color: var(--color-accent); font-size: var(--bo-type-caption); white-space: nowrap; }
+
+/* 대시보드 `일일 수집` 묶음(G1): 두 트랙을 한 덩어리 안의 두 행으로 그린다. */
+.daily-collection {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+  padding: var(--spacing-1) var(--spacing-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-container);
+  background: var(--color-background-surface);
+}
+.daily-collection:has(.daily-run-line.is-warning) { border-color: var(--color-warning-edge); }
+.daily-collection-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--spacing-1) var(--spacing-3); padding: var(--spacing-1) 0; font-size: var(--bo-type-caption); }
+.daily-collection-title { font-weight: var(--font-weight-semibold); color: var(--color-text-primary); }
+.daily-collection-aux { color: var(--color-text-secondary); }
+.daily-run-line.is-row { padding: var(--spacing-1) 0; border: 0; border-radius: 0; background: transparent; }
+.daily-run-line.is-row + .daily-run-line.is-row { border-top: var(--border-width) solid var(--color-border); }

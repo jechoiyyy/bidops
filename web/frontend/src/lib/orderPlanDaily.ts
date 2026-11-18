@@ -15,7 +15,12 @@ import type { OrderPlanScreeningExecutionSummary, RunSummary } from "./types";
  * - 화면은 스케줄이 있다고 말하지 않는다. 스위치는 일일 스크립트의 실행을 허용할 뿐이고 cron이
  *   있는지는 이 화면이 알 수 없다.
  */
-const DAILY_PLAN_RUN = /^lifecycle-(\d{4})(\d{2})(\d{2})-plans(?:-retry\d+)?(?:--|$)/;
+const DAILY_RUN = {
+  plans: /^lifecycle-(\d{4})(\d{2})(\d{2})-plans(?:-retry\d+)?(?:--|$)/,
+  notices: /^lifecycle-(\d{4})(\d{2})(\d{2})-notices(?:-retry\d+)?(?:--|$)/,
+} as const;
+/** 일일 수집 트랙(`scripts/run-daily-lifecycle.sh --track`). 공고 트랙은 사전규격·입찰공고를 함께 모은다. */
+export type DailyTrack = keyof typeof DAILY_RUN;
 
 export interface DailyPlanRun {
   run: RunSummary;
@@ -23,20 +28,24 @@ export interface DailyPlanRun {
   basisDate: string;
 }
 
-export function dailyPlanRunBasisDate(runId: string): string | null {
-  const match = DAILY_PLAN_RUN.exec(runId);
+export function dailyRunBasisDate(runId: string, track: DailyTrack): string | null {
+  const match = DAILY_RUN[track].exec(runId);
   return match ? `${match[1]}-${match[2]}-${match[3]}` : null;
 }
 
+export function dailyPlanRunBasisDate(runId: string): string | null {
+  return dailyRunBasisDate(runId, "plans");
+}
+
 /**
- * **기준일이 가장 늦은** 일일 발주계획 회차(같은 기준일이면 늦게 수집한 재수집 회차). 이 줄은
+ * **기준일이 가장 늦은** 일일 회차(같은 기준일이면 늦게 수집한 재수집 회차). 이 줄은
  * "가장 최근 기준일이 처리됐는가"에 답한다 — 지난 날을 메우는(catch-up) 수집이 나중에 돌아도
  * 어제 기준일의 결과를 가리지 않는다(2026-11-18 운영 관측). 없으면 `null`이다.
  */
-export function latestDailyPlanRun(runs: readonly RunSummary[]): DailyPlanRun | null {
+export function latestDailyRun(runs: readonly RunSummary[], track: DailyTrack): DailyPlanRun | null {
   let latest: DailyPlanRun | null = null;
   for (const run of runs) {
-    const basisDate = dailyPlanRunBasisDate(run.run_id);
+    const basisDate = dailyRunBasisDate(run.run_id, track);
     if (basisDate === null) continue;
     const later = !latest
       || basisDate > latest.basisDate
@@ -44,6 +53,10 @@ export function latestDailyPlanRun(runs: readonly RunSummary[]): DailyPlanRun | 
     if (later) latest = { run, basisDate };
   }
   return latest;
+}
+
+export function latestDailyPlanRun(runs: readonly RunSummary[]): DailyPlanRun | null {
+  return latestDailyRun(runs, "plans");
 }
 
 /** 같은 회차의 운영 실행 중 가장 최근(대기 시각) 하나. 측정 전용 실행은 제외한다. */
@@ -66,6 +79,24 @@ export function kstDate(value: string | number): string | null {
   const time = typeof value === "number" ? value : Date.parse(value);
   return Number.isFinite(time) ? KST_DATE.format(new Date(time)) : null;
 }
+
+const KST_HOUR = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", hourCycle: "h23" });
+
+/**
+ * 최근 기준일이 늦었는가(2026-11-18 G2). 일정을 가정하지 않는 규칙이다: 한국 시간 **정오가 지나면**
+ * 최근 기준일이 (오늘 − 1) 이상이어야 하고, **정오 전에는** (오늘 − 2) 이상이면 된다 — 자정과 아침
+ * 수집 사이에 어제 기준일이 아직 없다는 이유로 경고하지 않기 위해서다. 오늘 기준일은 아직 수집 전일
+ * 수 있다. 오늘을 읽을 수 없으면 늦은 것으로 본다.
+ */
+export function isBasisStale(basisDate: string, now: number): boolean {
+  const today = kstDate(now);
+  if (!today) return true;
+  const beforeNoon = Number(KST_HOUR.format(new Date(now))) < 12;
+  return daysBetween(basisDate, today) > (beforeNoon ? 2 : 1);
+}
+
+/** 기준일 규칙을 사람 말로(줄의 보조 글). 일정이 있다고 말하지 않는다. */
+export const BASIS_RULE_TEXT = "정오가 지나면 어제 기준일, 정오 전에는 그저께 기준일까지 수집돼 있어야 정상으로 봅니다. 오늘 기준일은 아직 수집 전일 수 있습니다.";
 
 function dayIndex(isoDate: string): number {
   return Date.UTC(Number(isoDate.slice(0, 4)), Number(isoDate.slice(5, 7)) - 1, Number(isoDate.slice(8, 10))) / 86_400_000;
@@ -130,7 +161,7 @@ export function dailyRunStatus(
   const basisLag = today ? daysBetween(latest.basisDate, today) : null;
   const execution = latestOperationalExecution(executions, latest.run.run_id);
   const problems: DailyRunProblem[] = [];
-  if (basisLag === null || basisLag > 1) problems.push("stale");
+  if (isBasisStale(latest.basisDate, now)) problems.push("stale");
   let inProgressMs: number | null = null;
   if (!execution) {
     if (!isEmptyRun(latest.run)) problems.push("no_execution");
@@ -147,4 +178,25 @@ export function dailyRunStatus(
     : null;
   const state: DailyRunState = problems.length > 0 ? "warning" : inProgressMs !== null ? "in_progress" : "ok";
   return { latest, collectedDate, daysSince, basisLag, execution, inProgressMs, noJudgmentCount, problems, state };
+}
+
+/** 공고 트랙(사전규격·입찰공고) 일일 수집의 사실. 목록에 있으면 적재된 회차다. */
+export interface DailyNoticeStatus {
+  latest: DailyPlanRun | null;
+  collectedDate: string | null;
+  daysSince: number | null;
+  /** 그 회차의 적재 경고 수. 조회하지 않았거나 실패했으면 `null`이다. */
+  warningCount: number | null;
+  problems: Array<"no_daily_run" | "stale">;
+  state: "ok" | "warning";
+}
+
+export function dailyNoticeStatus(runs: readonly RunSummary[], warningCount: number | null, now: number): DailyNoticeStatus {
+  const latest = latestDailyRun(runs, "notices");
+  if (!latest) return { latest: null, collectedDate: null, daysSince: null, warningCount: null, problems: ["no_daily_run"], state: "warning" };
+  const collectedDate = kstDate(latest.run.generated_at);
+  const today = kstDate(now);
+  const daysSince = collectedDate && today ? daysBetween(collectedDate, today) : null;
+  const problems: DailyNoticeStatus["problems"] = isBasisStale(latest.basisDate, now) ? ["stale"] : [];
+  return { latest, collectedDate, daysSince, warningCount, problems, state: problems.length ? "warning" : "ok" };
 }
