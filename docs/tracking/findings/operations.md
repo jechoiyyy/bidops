@@ -2,6 +2,20 @@
 
 [전체 색인](../findings.md). 미해결 또는 일부 조치 뒤 검증이 남은 항목이다. 제목의 날짜는 마지막 관측·기록 시점이며 2026-10-21에 다시 재현했다는 뜻이 아니다. 과거 기능명·정책·환경을 현재에 적용하기 전에 소스와 마지막 실행 증거를 확인한다.
 
+## 운영 상태 서비스가 host 재시작 뒤 올라오지 않는다 (2026-11-18, 미해결)
+
+- 재현: 운영 `bidops`의 postgres·minio·clamav·document-worker는 compose에 `restart`가 없어 정책이 `no`다. 2026-10-28 Mac/OrbStack 재시작 뒤 이 서비스들은 `Exited`로 남았다. web(`unless-stopped`)만 올라와 `failed to resolve host 'postgres'`로 3주간 1,683회 재시작했다.
+- 영향: 운영 화면·C-2 일일 실행이 사람이 알아차릴 때까지 멈춘다. 경보가 없다.
+- 지금 해결하지 않은 이유: restart 정책은 dev/mock/prod가 공유하는 `docker/docker-compose.yml` 계약 변경이다. 이번 배포 승인 범위(경로 이전·main 배포)를 넘는다.
+- 후속: prod overlay에서 상태 서비스에 `unless-stopped`를 주는 방안과 host 재시작 뒤 감독 확인 절차를 정한다. 그때까지 host 재시작 뒤 `docs/operations/host.md`의 수동 기동 명령을 쓴다. 기록은 [2026-11-18 배포](../../validation-runs/20261118-ops-main-move/README.md)다.
+
+## prod `make build`가 bootstrap 대상을 arm64로 빌드해 실패한다 (2026-11-18, 미해결)
+
+- 재현: Apple Silicon Mac에서 `BIDOPS_ENV=prod make build`를 실행한다. 렌더된 구성에서는 postgres-init·migrate가 `platform: linux/amd64`인데, 실제 빌드에서는 aarch64 wheel을 받는다. `argon2-cffi-bindings==26.1.0` hash가 `requirements.lock`과 맞지 않아 실패하고, 같은 빌드의 web도 취소된다.
+- 영향: 문서에 적힌 운영 빌드 명령이 그대로는 실패한다. 우회는 `scripts/compose.sh build web`과 `build document-worker`다. postgres-init·migrate는 web과 같은 `BIDOPS_IMAGE`를 쓴다.
+- 원인 후보: 비활성 profile(`bootstrap`) 서비스는 build 때 overlay의 platform이 적용되지 않는다는 추정이다. 확인하지 않았다.
+- 후속: Make `build` 대상을 web·document-worker·minio-init으로 줄이거나 bootstrap 대상에 build platform을 명시한다. 옛 코드에서 실패하는 것을 먼저 본 뒤 고친다.
+
 ## 2026-11-17 통합 개발 Compose의 응답 대기와 worker 경고
 
 - 재현 환경: `integration/deep-agent-baseline`, `bidops-dev:18789`, amd64 app·arm64 문서 worker. 합성 HWPX/회사로 실제 공용 worker와 versioned MinIO/PostgreSQL을 연결했다.
