@@ -5,6 +5,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { StatusBadge } from "../common/StatusBadge";
 import { api } from "../../lib/api";
 import { formatNumber } from "../../lib/format";
+import { orderPlanReviewTierSummary } from "../../lib/glossary";
 import { BASIS_RULE_TEXT, dailyNoticeStatus, dailyRunStatus, latestDailyRun, type DailyNoticeStatus, type DailyRunStatus } from "../../lib/orderPlanDaily";
 
 /**
@@ -56,7 +57,7 @@ function elapsedLabel(ms: number | null): string {
   return `${Math.floor(minutes / 60)}시간 ${minutes % 60}분째`;
 }
 
-/** 줄을 이루는 사실 조각. 순서: 기준일 → 수집일·경과일 → C-2 상태 → 사람 검토 건수. */
+/** 줄을 이루는 사실 조각. 순서: 기준일 → 수집일·경과일 → C-2 상태 → 필수 검토·훑어보기(·모델 미판정) 건수. */
 function factParts(status: DailyRunStatus): string[] {
   if (!status.latest) return ["일일 발주계획 수집 기록이 없습니다"];
   const parts = [
@@ -77,10 +78,9 @@ function factParts(status: DailyRunStatus): string[] {
   }
   parts.push(`C-2 ${execution.status}`);
   if (status.noJudgmentCount === null) return parts;
+  // 필수 검토(관련)와 훑어보기(불확실)를 나눠 적는다(2026-11-18 수정안 3B). 무판정 몫은 0보다 클 때만이다.
   const counts = execution.counts;
-  const breakdown = [`관련 ${formatNumber(counts.stage2_relevant_count)}`, `불확실 ${formatNumber(counts.stage2_uncertain_count)}`];
-  if (status.noJudgmentCount > 0) breakdown.push(`모델 판정 없음 ${formatNumber(status.noJudgmentCount)}`);
-  parts.push(`사람 검토 ${formatNumber(counts.human_review_count)}건 (${breakdown.join(" · ")})`);
+  parts.push(orderPlanReviewTierSummary(counts.stage2_relevant_count, counts.stage2_uncertain_count, status.noJudgmentCount, formatNumber));
   return parts;
 }
 

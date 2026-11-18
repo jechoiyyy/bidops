@@ -656,12 +656,15 @@ test("토큰 필터는 축끼리 AND, 축 안에서는 OR로 조합되고 프리
   await expect(page).toHaveURL(/qwen=(&|$)/);
   await expect(page.locator(".c2l-row")).toHaveCount(9);
 
-  // 탭 이름만 사람 말로 바뀌고 `key`·URL 값은 그대로다(시안 M3 결정 2 승인).
-  await clickPreset(page, "1차 선별 제외");
+  // 1차 선별 축의 `순위 밖`은 상세 필터의 한 값이다. 이미 열린 화면에서 고르면 그 필터 그대로다 —
+  // 옛 탭 주소의 별칭(`모델 미판정`)은 화면에 들어올 때만 적용된다.
+  await openAdvancedFilters(page);
+  await page.locator(".c2l-filter-axis", { hasText: "1차 선별" }).getByRole("button", { name: "순위 밖", exact: true }).click();
   await expect(page).toHaveURL(/stage1=filtered_out/);
   await expect(page.locator(".c2l-row")).toHaveCount(1);
-  // 제외 배지는 그리지 않는다 — 이 탭에 들어온 것 자체가 같은 사실이다.
-  await expect(page.locator(".c2l-row")).not.toContainText("1차 선별 제외");
+  await expect(page.locator(".c2l-list-scope")).toContainText("1차 선별 순위 밖");
+  // 순위 밖 배지는 그리지 않는다 — `모델 미판정` 보기의 칩이 그 사실을 따로 말한다.
+  await expect(page.locator(".c2l-row .c2l-row-badges")).toHaveCount(0);
 
   // 비관련은 고정 프리셋이 아니라 모델 판단 축의 한 값이다. 라벨은 한글이고 URL 값은 그대로다.
   await clickPreset(page, "전체");
@@ -671,15 +674,15 @@ test("토큰 필터는 축끼리 AND, 축 안에서는 OR로 조합되고 프리
   await expect(page.locator(".c2l-row")).toHaveCount(1);
   await expect(page.locator(".c2l-row")).toContainText("모델 · 비관련");
 
-  // `선별 실패` 프리셋은 1차 선별 실패(106)와 모델 판정 실패(105)·응답 거부(108)를 모두
+  // 상세 필터 `실패·거부만`은 1차 선별 실패(106)와 모델 판정 실패(105)·응답 거부(108)를 모두
   // 포함하고, 미판정(104)이나 상태 미확인(107)은 포함하지 않는다. 행은 제목이 아니라 상태
   // 문구로 식별한다.
   await clickPreset(page, "전체");
-  await clickPreset(page, "선별 실패");
+  await page.locator(".c2l-filter-axis", { hasText: "선별 처리 상태" }).getByRole("button", { name: "실패·거부만", exact: true }).click();
   await expect(page).toHaveURL(/issue=yes/);
   const issueRows = page.locator(".c2l-row");
   await expect(issueRows).toHaveCount(3);
-  await expect(issueRows.filter({ hasText: "선별 실패" })).toHaveCount(1);
+  await expect(issueRows.filter({ hasText: "모델 미판정(판정 실패)" })).toHaveCount(1);
   await expect(issueRows.filter({ hasText: "모델 판정 실패" })).toHaveCount(1);
   await expect(issueRows.filter({ hasText: "모델 응답 거부" })).toHaveCount(1);
   await expect(issueRows.filter({ hasText: "모델 상태 미확인" })).toHaveCount(0);
@@ -784,7 +787,8 @@ test("1200건 결과에서 기본 review 필터·실패·거부 필터와 페이
   await expect(page.locator(".c2l-row")).toHaveCount(500);
   await expect(page.locator(".c2l-pager")).toContainText("501–1,000 / 1,200");
 
-  await clickPreset(page, "선별 실패");
+  // 판정 실패 300건은 `모델 미판정`에 든다. 같은 수집일이므로 1차 순위(901위부터)순이다.
+  await clickPreset(page, "모델 미판정");
   await expect(page.locator(".c2l-row")).toHaveCount(300);
   await expect(page.locator(".c2l-row").first()).toContainText("대규모 페이지네이션 회귀 발주계획 901");
   // B3(0920 검수): 페이저 줄은 한 페이지뿐이어도 "전체 N건"과 범위를 보이며,
@@ -1455,7 +1459,7 @@ test("목록의 마지막 건을 저장하면 사유를 비우고 이동하지 �
 });
 
 // 결정 줄에서 뺀 상태 설명은 사라지지 않고 `목록 기준` 대화상자가 진다.
-test("`목록 기준` 대화상자가 미선택·1차 선별 제외·비관련의 뜻을 그대로 보존한다", async ({ page }) => {
+test("`목록 기준` 대화상자가 미선택·모델 미판정(순위 밖)·비관련의 뜻을 그대로 보존한다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
 
@@ -1469,7 +1473,8 @@ test("`목록 기준` 대화상자가 미선택·1차 선별 제외·비관련�
   // 강제 게이트 문장은 뜻을 바꾸지 않고 한글 라벨로만 적는다.
   await expect(dialog).toContainText("모델 판단은 추적 선택·적합성 등급·참여 준비·최종 Go/No-Go가 아닙니다.");
   // 네 값의 구분은 한글 라벨로 남는다(서로 바꾸지 않는다).
-  await expect(dialog).toContainText("1차 선별 제외");
+  await expect(dialog).toContainText("모델 미판정(순위 밖)");
+  await expect(dialog).not.toContainText("1차 선별 제외");
   await expect(dialog).toContainText("비관련");
   await expect(dialog).toContainText("모델 상태 미확인");
   await expect(dialog).toContainText("값 없음");
@@ -1637,19 +1642,18 @@ test("행 배지는 모델 판단을 상태 칩 줄에 두고 1차 선별 기본
   // 발주 예정은 오른쪽 열이다.
   expect(geometry.plannedLeft).toBeGreaterThan(geometry.titleRight);
 
-  // 제외된 건도 배지를 갖지 않는다(탭 이름이 같은 사실을 말한다). 대신 그 행의 모델
-  // 상태는 그대로 남는다 — 값 없음과 실패를 감추는 것이 아니다.
-  await clickPreset(page, "1차 선별 제외");
-  const filteredRow = page.locator(".c2l-row");
+  // 순위 밖 건은 1차 선별 배지를 갖지 않는다. 대신 그 행의 모델 상태는 그대로 남는다 —
+  // 값 없음과 실패를 감추는 것이 아니다.
+  await clickPreset(page, "전체");
+  const filteredRow = page.locator(".c2l-row").filter({ hasText: "복지서비스 운영 지원 발주계획" });
   await expect(filteredRow).toHaveCount(1);
-  await expect(filteredRow).not.toContainText("1차 선별 제외");
+  await expect(filteredRow.locator(".c2l-row-badges")).toHaveCount(0);
   await expect(filteredRow.locator(".c2l-row-model")).toHaveText("모델 미판정");
 
-  // 예외(실패)는 그대로 배지로 남는다.
-  await clickPreset(page, "선별 실패");
-  const failedRow = page.locator(".c2l-row").filter({ hasText: "선별 실패" });
+  // 예외(1차 선별 실패)는 다른 보기에서 그대로 배지로 남는다.
+  const failedRow = page.locator(".c2l-row").filter({ hasText: "모델 미판정(판정 실패)" });
   await expect(failedRow).toHaveCount(1);
-  await expect(failedRow.locator(".c2l-row-badges")).toContainText("선별 실패");
+  await expect(failedRow.locator(".c2l-row-badges")).toContainText("모델 미판정(판정 실패)");
 });
 
 // 방안 1의 한 손 동선: [↓] → [직전 사유 다시 쓰기] → [Ctrl+Enter]. 준비되지 않은 상태에서
@@ -2831,7 +2835,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
 
       // 기본 보기 = 관련(모델 판단 관련 AND 추적 미선택). 조합 문장과 행의 판정 표식을 함께 밝힌다.
       await expect(page.locator(".c2l-list-scope").filter({ hasText: "기본 보기" }))
-        .toHaveText("기본 보기 · 관련 (모델 판단 관련 AND 추적 미선택)");
+        .toHaveText("기본 보기 · 필수 검토 · 모델이 관련으로 판단 · 추적 미선택");
       await expect(presetTab(page, "관련")).toHaveAttribute("aria-pressed", "true");
       // 행에는 첫 수집일만 남는다(한국 날짜 2026-08-31T16:30Z → 09-01, 올해라 연도 생략).
       // 판정한 policy 이름은 운영 화면이 지고, 판정이 있는 행에는 `판정 없음`도 없다.
@@ -2893,7 +2897,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       // 걸린 조건은 셋이다 — 모델 판단·추적·첫 수집 창.
       await expect(activeCount).toHaveText("3");
       await expect(page.locator(".c2l-list-scope"))
-        .toHaveText("09-01 이후 첫 수집 AND 모델 판단 관련 AND 추적 미선택");
+        .toHaveText("필수 검토 · 모델이 관련으로 판단 · 추적 미선택 AND 09-01 이후 첫 수집");
       expect(listRequests.at(-1)?.get("first_observed_from")).toBe("2026-09-01");
       expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
 
@@ -3253,25 +3257,41 @@ test("사람 판단 수정은 화면의 최신 실행이 아니라 그 행의 ex
 
 // 설계고도화안 A-6(2026-11-18): 검토량이 임계를 넘어 관련과 불확실(판단 보류)을 다른 보기로 나눈다.
 // 모델 판정·정책·기존 필터 의미는 그대로이고, 판정이 없는 건은 비관련이 아니라 사람 확인으로 남는다.
-test("A6-기본 보기는 관련이고 불확실은 바로 옆 탭이며 두 탭이 건수를 따로 보인다", async ({ page }) => {
+test("A6-기본 보기는 관련이고 탭은 관련·불확실·모델 미판정·전체 순서이며 각 탭이 건수를 따로 보인다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
   await expect(presetTab(page, "관련")).toHaveAttribute("aria-pressed", "true");
   await expect(presetTab(page, "관련")).toContainText("1");
   await expect(presetTab(page, "불확실")).toContainText("1");
+  // 모델 미판정 = 순위 밖(104) + 판정 실패(105 모델 실패·106 1차 선별 실패·108 응답 거부). 상태 미확인(107)·선별 관측 없음(109)은 아니다.
+  await expect(presetTab(page, "모델 미판정")).toContainText("4");
+  await expect(presetTab(page, "전체")).toContainText("9");
   await expect(page.locator(".c2l-filters .workspace-view-tabs").getByRole("button"))
-    .toHaveText([/^관련/, /^불확실/, /^전체/, /^1차 선별 제외/, /^선별 실패/]);
+    .toHaveText([/^관련/, /^불확실/, /^모델 미판정/, /^전체/]);
   await expect(page.locator(".c2l-row")).toHaveCount(1);
   await expect(page.locator(".c2l-row")).toContainText("모델 · 관련");
   expect(new URL(page.url()).searchParams.has("qwen")).toBe(false);
+  await expect(page.locator(".c2l-list-head .c2l-list-scope")).toHaveText("기본 보기 · 필수 검토 · 모델이 관련으로 판단 · 추적 미선택");
 
   await clickPreset(page, "불확실");
   await expect(page).toHaveURL(/qwen=uncertain/);
   await expect(page).toHaveURL(/tracking=%EB%AF%B8%EC%84%A0%ED%83%9D|tracking=미선택/);
+  expect(new URL(page.url()).searchParams.has("unjudged")).toBe(false);
   await expect(presetTab(page, "불확실")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".c2l-row")).toHaveCount(1);
   await expect(page.locator(".c2l-row")).toContainText("모델 · 판단 보류");
-  await expect(page.locator(".c2l-list-scope")).toContainText("모델 판단 판단 보류");
+  await expect(page.locator(".c2l-list-head .c2l-list-scope")).toHaveText("훑어보기 · 모델이 판단을 보류 · 추적 미선택");
+
+  await clickPreset(page, "모델 미판정");
+  await expect(page).toHaveURL(/unjudged=yes/);
+  await expect(presetTab(page, "모델 미판정")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".c2l-row")).toHaveCount(4);
+  await expect(page.locator(".c2l-list-head .c2l-list-scope")).toHaveText("모델이 판정하지 않은 건 · 1차 순위순");
+
+  // 다른 탭으로 돌아가면 주소에서 `unjudged`가 빠진다(다른 보기의 주소는 지금까지와 같다).
+  await clickPreset(page, "전체");
+  expect(new URL(page.url()).searchParams.has("unjudged")).toBe(false);
+  await expect(page.locator(".c2l-row")).toHaveCount(9);
 });
 
 test("A6-옛 검토 대상 주소와 저장된 뷰는 같은 행(관련·불확실)을 그대로 보인다", async ({ page }) => {
@@ -3282,23 +3302,65 @@ test("A6-옛 검토 대상 주소와 저장된 뷰는 같은 행(관련·불확�
   await expect(page.locator(".c2l-filters .workspace-view-tabs [aria-pressed=\"true\"]")).toHaveCount(0);
 });
 
-test("A6-배치 실패 등으로 모델 판정이 없는 건은 선별 실패 탭에서 '모델 판정 없음 — 사람 확인'으로 보인다", async ({ page }) => {
+// 2026-11-18 수정안 3B: 옛 탭 `1차 선별 제외`·`선별 실패`의 주소(북마크·다른 화면 링크)는 화면에 들어올 때
+// `모델 미판정` 보기로 옮겨 간다. 회차·선택 행 같은 다른 인자는 그대로다.
+test("3B-옛 1차 선별 제외·선별 실패 주소는 모델 미판정 보기로 열리고 선택 행은 그대로다", async ({ page }) => {
+  await mockOrderPlans(page);
+  await page.goto("/order-plans?qwen=&stage1=filtered_out&feedback=&tracking=&issue=&q=");
+  await expect.poll(() => new URL(page.url()).searchParams.get("unjudged")).toBe("yes");
+  expect(new URL(page.url()).searchParams.get("stage1")).toBe("");
+  await expect(presetTab(page, "모델 미판정")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".c2l-row")).toHaveCount(4);
+
+  await page.goto("/order-plans?qwen=&stage1=&feedback=&tracking=&issue=yes&q=&selected=105");
+  await expect.poll(() => new URL(page.url()).searchParams.get("unjudged")).toBe("yes");
+  expect(new URL(page.url()).searchParams.get("issue")).toBe("");
+  expect(new URL(page.url()).searchParams.get("selected")).toBe("105");
+  await expect(presetTab(page, "모델 미판정")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".c2l-row")).toHaveCount(4);
+  await expect(page.locator(".c2l-row[aria-current=\"true\"]")).toContainText("공공기관 업무시스템 개선 검토");
+
+  // 축 하나만 적은 손 주소도 같은 옛 탭이다.
+  await page.goto("/order-plans?issue=yes");
+  await expect.poll(() => new URL(page.url()).searchParams.get("unjudged")).toBe("yes");
+  await expect(page.locator(".c2l-row")).toHaveCount(4);
+});
+
+test("3B-모델 판정이 없는 건은 전체 보기에서 '모델 판정 없음 — 사람 확인'으로 보이고 모델 미판정 보기에서는 판정 실패 칩이 대신한다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
-  await expect(presetTab(page, "선별 실패")).toContainText("3");
-  await clickPreset(page, "선별 실패");
-  const rows = page.locator(".c2l-row");
-  await expect(rows).toHaveCount(3);
-  await expect(rows.locator(".c2l-row-no-judgment")).toHaveText(Array(3).fill("모델 판정 없음 — 사람 확인"));
-  const failed = rows.filter({ hasText: "모델 판정 실패" });
+  await clickPreset(page, "전체");
+  // 판정 실패 셋(105·106·108)과 상태 미확인(107)은 무판정 표식을 갖는다. 판정이 있는 행과 순위 밖 행에는 없다.
+  await expect(page.locator(".c2l-row .c2l-row-no-judgment")).toHaveText(Array(4).fill("모델 판정 없음 — 사람 확인"));
+  await expect(page.locator(".c2l-row").filter({ hasText: "모델 · 관련" }).locator(".c2l-row-no-judgment")).toHaveCount(0);
+  await expect(page.locator(".c2l-row").filter({ hasText: "복지서비스 운영 지원 발주계획" }).locator(".c2l-row-no-judgment")).toHaveCount(0);
+  // 순위·가까운 역량 metadata는 모델 미판정 보기에서만 싣는다.
+  await expect(page.locator(".c2l-row .c2l-row-rank")).toHaveCount(0);
+
+  const failed = page.locator(".c2l-row").filter({ hasText: "모델 판정 실패" });
   await failed.click();
   await expect(page.locator(".c2l-detail-warn").filter({ hasText: "모델 판정 없음 — 사람 확인" }))
     .toContainText("비관련으로 보지 않습니다");
-  // 판정이 있는 행과 1차 선별 제외 행에는 표식이 없다.
+
+  await clickPreset(page, "모델 미판정");
+  const rows = page.locator(".c2l-row");
+  await expect(rows).toHaveCount(4);
+  await expect(rows.locator(".c2l-row-no-judgment")).toHaveCount(0);
+  await expect(rows.locator(".c2l-row-unjudged")).toHaveCount(4);
+  // 행마다 갈래 칩 하나와 추적 칩만 선다. 모델 상태 배지·1차 선별 실패 배지는 같은 사실이라 겹쳐 그리지 않는다.
+  const chips = async (title: string) => (await rows.filter({ hasText: title }).locator(".c2l-row-state .astryx-badge").allTextContents()).map((text) => text.trim());
+  expect(await chips("복지서비스 운영 지원 발주계획")).toEqual(["순위 밖", "추적 미선택"]);
+  expect(await chips("공공기관 업무시스템 개선 검토")).toEqual(["판정 실패", "추적 미선택"]);
+  expect(await chips("지역 데이터 활용 사업 사전 조사")).toEqual(["판정 실패", "추적 미선택"]);
+  // 공고 게시됨은 모델 상태가 아니라 발주계획의 사실이라 이 보기에서도 남는다.
+  expect(await chips("행정정보 공동이용 확대 사업 발주계획")).toEqual(["판정 실패", "추적 미선택", "공고 게시됨"]);
+  await expect(rows.locator(".c2l-row-model")).toHaveCount(0);
+  await expect(rows.locator(".c2l-row-badges")).toHaveCount(0);
+
+  // 다른 보기(전체)는 기존 배지를 그대로 둔다.
   await clickPreset(page, "전체");
-  await expect(page.locator(".c2l-row").filter({ hasText: "모델 · 관련" }).locator(".c2l-row-no-judgment")).toHaveCount(0);
-  await clickPreset(page, "1차 선별 제외");
-  await expect(page.locator(".c2l-row .c2l-row-no-judgment")).toHaveCount(0);
+  await expect(page.locator(".c2l-row").filter({ hasText: "공공기관 업무시스템 개선 검토" }).locator(".c2l-row-model")).toHaveText("모델 판정 실패");
+  await expect(page.locator(".c2l-row .c2l-row-unjudged")).toHaveCount(0);
 });
 
 // 2026-11-18 운영 관측: `관련` 389건의 첫 행이 이미 지난 예정월(10월)·공고 게시 건이었다. 관련·불확실 보기는
@@ -3349,4 +3411,96 @@ test("F2-전체 보기는 지금처럼 모델 판단 순서와 서버 순서를 
   await page.goto("/order-plans");
   await clickPreset(page, "전체");
   await expect(page.locator(".c2l-row .c2l-row-title")).toHaveText(["서버 첫째 · 지난 예정월", "서버 둘째 · 다음 달"]);
+});
+
+
+/** 수정안 3B 정렬 검사용 행. 수집일·순위·단계 상태만 바꾼다. */
+function tierItem(pk: number, title: string, overrides: {
+  relevance?: "relevant" | "uncertain" | null; observed: string; rank: number | null;
+  month?: string | null; stage1?: string; stage2?: string; capability?: string | null;
+}) {
+  const relevance = overrides.relevance === undefined ? null : overrides.relevance;
+  const month = overrides.month === undefined ? "2026-12" : overrides.month;
+  return {
+    ...testOrderPlanItem(pk, relevance, title),
+    planned_order_year: month ? month.slice(0, 4) : null,
+    planned_order_month: month,
+    notice_posted: "N",
+    first_observed_at: overrides.observed,
+    stage1_rank: overrides.rank,
+    stage1_status: overrides.stage1 ?? "selected",
+    stage2_status: overrides.stage2 ?? (relevance === null ? "not_attempted" : "success"),
+    nearest_capability: (overrides.capability ?? null) as null,
+    execution_id: TEST_LATEST_EXECUTION_ID as string | null,
+    policy_version: "c2-policy.v1" as string | null,
+  };
+}
+
+test("3B-불확실은 지난 건을 뒤로 보낸 뒤 수집일 최신 → 그날 1차 순위순이고 다른 날의 순위끼리 섞지 않는다", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-11-18T03:00:00Z")); // KST 2026-11-18 12:00
+  const uncertain = (pk: number, title: string, observed: string, rank: number | null, month: string | null = "2026-12") =>
+    tierItem(pk, title, { relevance: "uncertain", observed, rank, month });
+  const items = [
+    uncertain(401, "16일 5위", "2026-11-16T01:00:00Z", 5),
+    uncertain(402, "17일 40위", "2026-11-17T01:00:00Z", 40),
+    uncertain(403, "17일 3위", "2026-11-17T02:00:00Z", 3, "2027-01"),
+    uncertain(404, "16일 2위", "2026-11-16T03:00:00Z", 2),
+    uncertain(405, "17일 1위 · 지난 예정월", "2026-11-17T01:00:00Z", 1, "2026-10"),
+    uncertain(406, "17일 순위 없음", "2026-11-17T01:00:00Z", null),
+    // UTC로는 16일이지만 한국 시간 17일 00:30이다 — 수집일은 한국 날짜로 가른다.
+    uncertain(407, "17일 10위 · 자정 직후", "2026-11-16T15:30:00Z", 10),
+    tierItem(408, "관련 건은 이 보기 밖", { relevance: "relevant", observed: "2026-11-17T01:00:00Z", rank: 4 }),
+  ];
+  await mockReorderedOrderPlanList(page, items);
+  await page.goto("/order-plans");
+  await clickPreset(page, "불확실");
+  await expect(presetTab(page, "불확실")).toContainText("7");
+  const rows = page.locator(".c2l-row");
+  await expect(rows.locator(".c2l-row-title")).toHaveText([
+    "17일 3위",
+    "17일 10위 · 자정 직후",
+    "17일 40위",
+    "17일 순위 없음",
+    "16일 2위",
+    "16일 5위",
+    "17일 1위 · 지난 예정월",
+  ]);
+  await expect(rows.nth(6).locator(".c2l-row-stale")).toHaveText("예정월 지남");
+
+  // `관련`은 지금 순서(예정월이 가까운 순) 그대로다.
+  await clickPreset(page, "관련");
+  await expect(rows.locator(".c2l-row-title")).toHaveText(["관련 건은 이 보기 밖"]);
+});
+
+test("3B-모델 미판정은 순위 밖과 판정 실패를 함께 보이고 수집일 최신 → 그날 1차 순위순이며 순위·가까운 역량을 싣는다", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-11-18T03:00:00Z"));
+  const items = [
+    tierItem(501, "관련 건", { relevance: "relevant", observed: "2026-11-17T01:00:00Z", rank: 1 }),
+    tierItem(502, "17일 160위 순위 밖", { observed: "2026-11-17T01:00:00Z", rank: 160, stage1: "filtered_out", capability: "웹 서비스 구축·운영" }),
+    tierItem(503, "16일 151위 순위 밖", { observed: "2026-11-16T01:00:00Z", rank: 151, stage1: "filtered_out" }),
+    tierItem(504, "16일 20위 모델 실패", { observed: "2026-11-16T01:00:00Z", rank: 20, stage2: "failed" }),
+    // 모델이 한 건도 답하지 못한 실행의 행: 1차 선별은 선정, 모델 판정은 실패, 1차 순위는 남아 있다.
+    tierItem(505, "17일 7위 전체 실패 실행", { observed: "2026-11-17T02:00:00Z", rank: 7, stage2: "failed" }),
+    tierItem(506, "17일 순위 없음 1차 선별 실패", { observed: "2026-11-17T01:00:00Z", rank: null, stage1: "failed" }),
+    tierItem(507, "모델 상태 미확인은 이 보기 밖", { observed: "2026-11-17T01:00:00Z", rank: 3, stage2: "unknown" }),
+  ];
+  await mockReorderedOrderPlanList(page, items);
+  await page.goto("/order-plans");
+  await expect(presetTab(page, "모델 미판정")).toContainText("5");
+  await clickPreset(page, "모델 미판정");
+  const rows = page.locator(".c2l-row");
+  await expect(rows.locator(".c2l-row-title")).toHaveText([
+    "17일 7위 전체 실패 실행",
+    "17일 160위 순위 밖",
+    "17일 순위 없음 1차 선별 실패",
+    "16일 20위 모델 실패",
+    "16일 151위 순위 밖",
+  ]);
+  await expect(rows.locator(".c2l-row-unjudged")).toHaveText(["판정 실패", "순위 밖", "판정 실패", "판정 실패", "순위 밖"]);
+  await expect(rows.locator(".c2l-row-rank")).toHaveText(["1차 순위 7위", "1차 순위 160위", "1차 순위 미제공", "1차 순위 20위", "1차 순위 151위"]);
+  // 실무 화면에는 알고리즘 이름을 쓰지 않는다(0921 명세 §3.1).
+  await expect(page.locator(".c2l-list-pane")).not.toContainText("BM25");
+  // 가까운 회사 역량은 값이 있을 때만 싣는다.
+  await expect(rows.locator(".c2l-row-capability")).toHaveText([/가까운 역량 웹 서비스 구축·운영$/]);
+  await expect(rows.nth(1).locator(".c2l-row-capability")).toBeVisible();
 });

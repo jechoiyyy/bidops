@@ -75,7 +75,8 @@ export const ORDER_PLAN_RELEVANCE_LABEL = {
 /** 1차 선별(`stage1_status`). 배지로 그릴지는 화면이 정한다(선정·제외는 그리지 않는다). */
 export const ORDER_PLAN_STAGE1_LABEL = {
   selected: "선정",
-  filtered_out: "제외",
+  /* 2026-11-18 수정안 3B: 모델 판정 범위(BM25 상위 N건) 밖이라는 뜻을 그대로 말한다. 값(`filtered_out`)은 그대로다. */
+  filtered_out: "순위 밖",
   failed: "실패",
   rejected: "거부",
 } as const;
@@ -91,6 +92,47 @@ export const ORDER_PLAN_STAGE2_LABEL = {
   rejected: "모델 응답 거부",
   unknown: "모델 상태 미확인",
 } as const;
+
+/**
+ * 발주계획 검토의 세 단(2026-11-18 수정안 3B). **화면 문구만 나눈다** — 실행 계약의
+ * `human_review_count`(관련 + 불확실 + 무판정)와 게이트의 검토 후보 규칙은 그대로다.
+ *
+ * - 필수 검토: 모델 판단 `관련`.
+ * - 훑어보기: 모델 판단 `불확실`(판단 보류).
+ * - 모델 미판정: 모델이 판정하지 않은 건. 두 갈래다 — 순위 밖(1차 선별 `filtered_out`, 모델 판정
+ *   범위 밖)과 판정 실패(1차 선별·모델 판정의 실패·거부). 옛 용어 `1차 선별 제외`·`선별 실패`의 자리다.
+ */
+export const ORDER_PLAN_REVIEW_TIER_LABEL = {
+  relevant: "필수 검토",
+  uncertain: "훑어보기",
+} as const;
+
+export const ORDER_PLAN_UNJUDGED_LABEL = "모델 미판정";
+
+export const ORDER_PLAN_UNJUDGED_KIND_LABEL = {
+  out_of_rank: "순위 밖",
+  judgment_failed: "판정 실패",
+} as const;
+
+/**
+ * 일일 실행 요약의 검토 건수 한 줄. 서버 집계(`stage2_relevant_count`·`stage2_uncertain_count`)와
+ * 그 차이로 얻은 무판정 몫(`lib/orderPlanDaily.ts`의 `noJudgmentCount`)을 그대로 적는다.
+ * 무판정 몫은 0보다 클 때만 붙인다. 그 몫은 실패·거부·미확인뿐이고 `순위 밖`이 들지 않으므로
+ * `모델 미판정`(순위 밖 포함 탭 이름)이 아니라 `판정 실패`로 부른다.
+ */
+export function orderPlanReviewTierSummary(
+  relevantCount: number,
+  uncertainCount: number,
+  unjudgedCount: number | null,
+  format: (value: number) => string,
+): string {
+  const parts = [
+    `${ORDER_PLAN_REVIEW_TIER_LABEL.relevant} ${format(relevantCount)}건(관련)`,
+    `${ORDER_PLAN_REVIEW_TIER_LABEL.uncertain} ${format(uncertainCount)}건(불확실)`,
+  ];
+  if (unjudgedCount !== null && unjudgedCount > 0) parts.push(`${ORDER_PLAN_UNJUDGED_KIND_LABEL.judgment_failed} ${format(unjudgedCount)}건`);
+  return parts.join(" · ");
+}
 
 /** 사람 판단 수정의 우선순위. 값이 없는 것(`null`)은 `미지정`이며 여기 넣지 않는다. */
 export const ORDER_PLAN_PRIORITY_LABEL = {

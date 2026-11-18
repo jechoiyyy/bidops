@@ -506,6 +506,14 @@ header.c2l-list-head .c2l-list-scope {
   align-items: baseline;
 }
 
+/* `모델 미판정` 행의 가까운 회사 역량(수정안 3B). 역량 문장은 길 수 있어 묶음 하나로 두고 그 안에서
+   줄바꿈한다(말줄임하지 않는다 — 판단에 쓰는 값이다). 구분점은 같은 묶음의 앞에 붙는다. */
+.c2l-row-capability {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 /* 누적 목록의 행별 판정 표식(policy 버전·첫 관측일). B2(0920 검수): 항목 두 개를
    자체 flex-wrap 컨테이너로 두어 항목 사이에서만 줄바꿈되게 한다. */
 .c2l-row-verdict {

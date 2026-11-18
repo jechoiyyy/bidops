@@ -9,6 +9,8 @@ import {
   ORDER_PLAN_RELEVANCE_LABEL,
   ORDER_PLAN_STAGE1_LABEL,
   ORDER_PLAN_STAGE2_LABEL,
+  ORDER_PLAN_UNJUDGED_KIND_LABEL,
+  ORDER_PLAN_UNJUDGED_LABEL,
   orderPlanLabel,
 } from "../../lib/glossary";
 
@@ -124,7 +126,8 @@ export function trackingChipLabel(item: Pick<OrderPlanListItem, "tracking">): st
  * 값이 없는 것은 실패가 아니다.
  */
 export function stage1RowLabel(value: OrderPlanStage1Status | null): string {
-  if (value === "failed") return "선별 실패";
+  // 2026-11-18 수정안 3B: `선별 실패` 용어를 `모델 미판정(판정 실패)`로 바꿨다.
+  if (value === "failed") return `${ORDER_PLAN_UNJUDGED_LABEL}(${ORDER_PLAN_UNJUDGED_KIND_LABEL.judgment_failed})`;
   if (value === "rejected") return "선별 거부";
   if (value === null) return "선별 결과 없음";
   return `1차 선별 ${orderPlanLabel(ORDER_PLAN_STAGE1_LABEL, value)}`;
@@ -134,7 +137,7 @@ export function stage1RowLabel(value: OrderPlanStage1Status | null): string {
  * 행·상세에 그릴 1차 선별 배지. `선정`과 `제외`는 그리지 않는다(0921 명세 §3.1).
  *
  * - `선정`은 목록의 거의 모든 행에 붙는 기본값이라 아무것도 구분하지 못한다.
- * - `제외`는 `1차 선별 제외` 보기 탭에 들어온 것 자체가 같은 사실을 말한다.
+ * - `제외`(순위 밖)는 `모델 미판정` 보기 탭이 행마다 `순위 밖` 칩으로 따로 말한다.
  *
  * 남기는 것은 경고뿐이다: 실패·거부·값 없음. 숨기는 것은 기본값 둘이고 실패나
  * 값 없음을 감추지 않는다.
@@ -241,7 +244,118 @@ export function sortForReview<T extends {
     .map(({ item }) => item);
 }
 
-/** 모델 판정이 없는 건(1차 선별 실패·거부, 모델 실패·거부·미확인)에 붙는 표식. 비관련으로 읽지 않는다. */
+/**
+ * 수집일: `first_observed_at`의 한국 시간 날짜(`YYYY-MM-DD`). 읽을 수 없으면 `null`(미확인)이다.
+ * BM25 순위는 **수집일마다** 따로 매겨지므로(일일 실행 하나가 그날 모집단 하나를 줄 세운다)
+ * 순위를 비교하려면 이 값이 먼저 같아야 한다.
+ */
+export function collectionDayKst(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const parts = Object.fromEntries(KST_DATE_PARTS.formatToParts(parsed).map((part) => [part.type, part.value])) as
+    Record<"year" | "month" | "day", string>;
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+interface RankSortable {
+  first_observed_at: string | null;
+  stage1_rank: number | null;
+}
+
+interface RankSortKey {
+  index: number;
+  day: string | null;
+  rank: number | null;
+  observed: number;
+}
+
+function rankSortKey(item: RankSortable, index: number): RankSortKey {
+  const observed = item.first_observed_at ? Date.parse(item.first_observed_at) : Number.NaN;
+  return {
+    index,
+    day: collectionDayKst(item.first_observed_at),
+    rank: item.stage1_rank,
+    observed: Number.isFinite(observed) ? observed : -Infinity,
+  };
+}
+
+/**
+ * 수집일 최신 → 그날 BM25 순위 오름차순(순위 없음은 뒤) → 최근 첫 수집 → 서버 순서.
+ *
+ * 수집일이 다르면 순위를 보지 않는다 — 다른 날의 1위와 2위는 서로 비교할 수 없다. 수집일을
+ * 모르는 건(`null`)은 맨 뒤이며 그 안에서도 순위를 비교하지 않는다(같은 날인지 모른다).
+ */
+function compareByDayThenRank(left: RankSortKey, right: RankSortKey): number {
+  if (left.day !== right.day) {
+    if (left.day === null) return 1;
+    if (right.day === null) return -1;
+    return right.day.localeCompare(left.day);
+  }
+  if (left.day !== null && left.rank !== right.rank) {
+    if (left.rank === null) return 1;
+    if (right.rank === null) return -1;
+    return left.rank - right.rank;
+  }
+  return (right.observed === left.observed ? 0 : right.observed > left.observed ? 1 : -1)
+    || left.index - right.index;
+}
+
+/**
+ * `불확실`(훑어보기) 보기의 순서(2026-11-18 수정안 3B). 지난 건(예정월 지남·공고 게시됨, `sortForReview`와
+ * 같은 규칙)을 뒤로 보낸 뒤, 각 묶음 안에서 수집일 최신 → 그날 BM25 순위순이다.
+ */
+export function sortForBrowse<T extends RankSortable & {
+  planned_order_year: string | null; planned_order_month: string | null; notice_posted: string | null;
+}>(items: readonly T[], nowMonth: string): T[] {
+  return items
+    .map((item, index) => ({ item, stale: orderPlanStaleReason(item, nowMonth) !== null, key: rankSortKey(item, index) }))
+    .sort((left, right) => Number(left.stale) - Number(right.stale) || compareByDayThenRank(left.key, right.key))
+    .map(({ item }) => item);
+}
+
+/** `모델 미판정` 보기의 순서(2026-11-18 수정안 3B): 수집일 최신 → 그날 BM25 순위순. 지난 건을 따로 보내지 않는다. */
+export function sortByCollectionRank<T extends RankSortable>(items: readonly T[]): T[] {
+  return items
+    .map((item, index) => ({ item, key: rankSortKey(item, index) }))
+    .sort((left, right) => compareByDayThenRank(left.key, right.key))
+    .map(({ item }) => item);
+}
+
+/**
+ * 판정 실패: 1차 선별 또는 모델 판정이 실패·거부된 건. 상세 필터 `실패·거부만`과 같은 조건이며,
+ * 모델이 한 건도 답하지 못한 실행의 행(stage2 `failed`)도 여기 든다.
+ */
+export function isJudgmentFailure(item: { stage1_status: OrderPlanStage1Status | null; stage2_status: OrderPlanStage2Status | null }): boolean {
+  return item.stage1_status === "failed" || item.stage1_status === "rejected"
+    || item.stage2_status === "failed" || item.stage2_status === "rejected";
+}
+
+/** `모델 미판정` 보기에 드는 두 갈래. 서버가 준 상태만 읽으며 판정을 새로 만들지 않는다. */
+export type OrderPlanUnjudgedKind = keyof typeof ORDER_PLAN_UNJUDGED_KIND_LABEL;
+
+/** 판정 실패가 먼저다 — 실패는 사람이 조치할 사실이고 순위 밖은 정책의 절단 결과다. 둘 다 아니면 `null`이다. */
+export function orderPlanUnjudgedKind(item: { stage1_status: OrderPlanStage1Status | null; stage2_status: OrderPlanStage2Status | null }): OrderPlanUnjudgedKind | null {
+  if (isJudgmentFailure(item)) return "judgment_failed";
+  if (item.stage1_status === "filtered_out") return "out_of_rank";
+  return null;
+}
+
+/**
+ * 행의 1차 선별 순위 표기. 실무 화면은 알고리즘 이름(`BM25`)을 쓰지 않으므로(0921 명세 §3.1) `1차 순위`다.
+ * 순위가 없으면 지어내지 않고 미제공이다.
+ */
+export function stage1RankLabel(rank: number | null): string {
+  return rank === null ? "1차 순위 미제공" : `1차 순위 ${rank.toLocaleString("ko-KR")}위`;
+}
+
+/**
+ * 모델 판정이 없는 건(1차 선별 실패·거부, 모델 실패·거부·미확인)에 붙는 표식. 비관련으로 읽지 않는다.
+ *
+ * 수정안 3B의 `모델 미판정`으로 바꾸지 않았다: 그 말은 이미 모델 처리 상태 `not_attempted`의 라벨이고
+ * (`ORDER_PLAN_STAGE2_LABEL`), 이 표식은 `unknown`(정보 부족) 행에도 붙는다. 둘을 같은 말로 쓰면 상태
+ * 미확인 행이 미판정으로 읽힌다(F1). `모델 미판정` 보기에서는 이 표식 대신 `순위 밖`·`판정 실패` 칩이 선다.
+ */
 export const NO_MODEL_JUDGMENT_LABEL = "모델 판정 없음 — 사람 확인";
 
 /**
