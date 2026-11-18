@@ -4898,3 +4898,18 @@ export async function mockPreSpecOverviewAbsent(page: Page): Promise<void> {
     await fulfillJson(route, { items: [item], total: 1, limit: 50, offset: 0, overview_status_counts: overviewStatusCounts([item]), workspace_counts: { actionable: 1, recent: 1, tracking: 1, all: 1 }, deadline_scope_counts: deadlineScopeCounts([item as PreSpecListItem]) });
   });
 }
+
+/** 일일 공고 트랙 회차(`lifecycle-<기준일>-notices--<generated_at>Z`). 모양은 `dailyPlanRunFixture`와 같다. */
+export function dailyNoticeRunFixture(basisDate: string, generatedAt: string): RunSummary {
+  const plan = dailyPlanRunFixture(basisDate, generatedAt);
+  return { ...plan, kind: "notices", run_id: plan.run_id.replace("-plans--", "-notices--"), counts: { notices: 40, judgments: 0, reviews: 0, collection: { total: 40 } } };
+}
+
+/** `GET /api/runs/{id}/warnings`(`WarningListResponse`: run_id·items·total·level·code). */
+export async function mockRunWarnings(page: Page, runId: string, total: number): Promise<void> {
+  await page.route((url) => url.pathname === `/api/runs/${encodeURIComponent(runId)}/warnings` || url.pathname === `/api/runs/${runId}/warnings`, (route) =>
+    fulfillJson(route, {
+      run_id: runId, total, level: null, code: null,
+      items: Array.from({ length: total }, (_, index) => ({ id: index + 1, run_id: runId, level: "warning", code: "fixture_warning", message: "합성 적재 경고", context: null })),
+    }));
+}

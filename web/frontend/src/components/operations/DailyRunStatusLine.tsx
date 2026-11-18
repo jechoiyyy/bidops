@@ -5,7 +5,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { StatusBadge } from "../common/StatusBadge";
 import { api } from "../../lib/api";
 import { formatNumber } from "../../lib/format";
-import { dailyRunStatus, type DailyRunStatus } from "../../lib/orderPlanDaily";
+import { BASIS_RULE_TEXT, dailyNoticeStatus, dailyRunStatus, latestDailyRun, type DailyNoticeStatus, type DailyRunStatus } from "../../lib/orderPlanDaily";
 
 /**
  * "어제 일일 실행이 돌았는가"에 답하는 한 줄(설계고도화안 A-5, 2026-11-18).
@@ -84,11 +84,13 @@ function factParts(status: DailyRunStatus): string[] {
   return parts;
 }
 
+const STALE_SENTENCE = "최근 기준일이 늦었습니다. 일일 스크립트가 돌지 않았을 수 있습니다.";
+
 function problemSentence(status: DailyRunStatus): string | null {
   const { problems } = status;
   if (problems.includes("no_daily_run")) return "일일 스크립트가 아직 발주계획을 수집한 적이 없습니다.";
   const sentences: string[] = [];
-  if (problems.includes("stale")) sentences.push("최근 기준일이 어제보다 오래됐습니다. 일일 스크립트가 돌지 않았을 수 있습니다.");
+  if (problems.includes("stale")) sentences.push(STALE_SENTENCE);
   if (problems.includes("no_execution")) sentences.push("이 회차에는 C-2 운영 실행이 없습니다.");
   if (problems.includes("in_progress_too_long")) sentences.push("오래 진행 중 — 실행 상태 확인.");
   if (problems.includes("execution_not_done")) sentences.push("C-2 실행이 성공·부분 성공으로 끝나지 않았습니다.");
@@ -101,7 +103,10 @@ const STATE_BADGE = {
   warning: { label: "확인 필요", tone: "warning" },
 } as const;
 
-export function DailyRunStatusLine({ className = "", showLink = true }: { className?: string; showLink?: boolean }) {
+/**
+ * `embedded`: 대시보드 `일일 수집` 묶음 안의 한 행이다. 테두리 없이 그리고 행 제목은 트랙 이름이다.
+ */
+export function DailyRunStatusLine({ className = "", showLink = true, embedded = false }: { className?: string; showLink?: boolean; embedded?: boolean }) {
   const { status, isPending, isError, refetch } = useDailyRunStatus();
   if (isPending) {
     return <p className={`daily-run-line ${className}`.trim()} data-testid="daily-run-status" role="status">발주계획 일일 실행 · 기록을 확인하는 중입니다.</p>;
@@ -119,18 +124,90 @@ export function DailyRunStatusLine({ className = "", showLink = true }: { classN
   const badge = STATE_BADGE[status.state];
   return (
     <div
-      className={`daily-run-line${status.state === "warning" ? " is-warning" : ""} ${className}`.trim()}
+      className={`daily-run-line${embedded ? " is-row" : ""}${status.state === "warning" ? " is-warning" : ""} ${className}`.trim()}
       data-state={status.state}
       data-testid="daily-run-status"
       role="status"
+      title={BASIS_RULE_TEXT}
     >
       <StatusBadge label={badge.label} tone={badge.tone} />
       <span className="daily-run-facts">
-        <span className="daily-run-title">발주계획 일일 실행</span>
+        <span className="daily-run-title">{embedded ? "발주계획" : "발주계획 일일 실행"}</span>
         {factParts(status).map((part) => <span className="daily-run-fact" key={part}>{part}</span>)}
       </span>
       {problem ? <span className="daily-run-problem">{problem}</span> : null}
       {showLink ? <Link className="daily-run-link" to="/runs">회차 기록 →</Link> : null}
     </div>
+  );
+}
+
+/**
+ * 공고 트랙(사전규격·입찰공고) 일일 수집의 한 행(2026-11-18 G1). 기존 GET만 쓴다: `/api/runs`에서
+ * 기준일이 가장 늦은 `lifecycle-<기준일>-notices` 회차를 고르고(목록에 있으면 적재된 회차다), 그 회차
+ * 하나의 `/api/runs/<id>/warnings` 건수를 붙인다(추가 호출은 그 하나뿐이다).
+ */
+export function DailyNoticeStatusLine() {
+  const runsQuery = useQuery({ queryKey: ["runs"], queryFn: api.getRuns, staleTime: 30_000 });
+  const latestId = useMemo(() => latestDailyRun(runsQuery.data?.items ?? [], "notices")?.run.run_id ?? null, [runsQuery.data]);
+  const warningsQuery = useQuery({
+    queryKey: ["run-warnings", latestId],
+    queryFn: () => api.getRunWarnings(latestId as string),
+    enabled: latestId !== null,
+    staleTime: 30_000,
+    retry: false,
+  });
+  const now = useMemo(() => Date.now(), []);
+  if (runsQuery.isPending) return <p className="daily-run-line is-row" data-testid="daily-notice-status" role="status">공고 · 기록을 확인하는 중입니다.</p>;
+  if (runsQuery.isError) {
+    return (
+      <div className="daily-run-line is-row is-warning" data-state="error" data-testid="daily-notice-status" role="status">
+        <StatusBadge label="확인 불가" tone="warning" />
+        <span>공고 일일 수집 기록을 불러오지 못했습니다. 돌았다고 가정하지 않습니다.</span>
+      </div>
+    );
+  }
+  const status = dailyNoticeStatus(runsQuery.data.items, warningsQuery.isSuccess ? warningsQuery.data.total : null, now);
+  const badge = STATE_BADGE[status.state];
+  return (
+    <div
+      className={`daily-run-line is-row${status.state === "warning" ? " is-warning" : ""}`}
+      data-state={status.state}
+      data-testid="daily-notice-status"
+      role="status"
+      title={BASIS_RULE_TEXT}
+    >
+      <StatusBadge label={badge.label} tone={badge.tone} />
+      <span className="daily-run-facts">
+        <span className="daily-run-title">공고(사전규격·입찰공고)</span>
+        {noticeFactParts(status, warningsQuery.isError).map((part) => <span className="daily-run-fact" key={part}>{part}</span>)}
+      </span>
+      {status.problems.includes("no_daily_run")
+        ? <span className="daily-run-problem">일일 스크립트가 아직 공고를 수집한 적이 없습니다.</span>
+        : status.problems.includes("stale") ? <span className="daily-run-problem">{STALE_SENTENCE}</span> : null}
+    </div>
+  );
+}
+
+function noticeFactParts(status: DailyNoticeStatus, warningsFailed: boolean): string[] {
+  if (!status.latest) return ["일일 공고 수집 기록이 없습니다"];
+  return [
+    `최근 기준일 ${status.latest.basisDate.slice(5)}`,
+    status.collectedDate ? `적재 ${shortDate(status.collectedDate)} · ${agoLabel(status.daysSince)}` : "적재 날짜 미확인",
+    status.warningCount !== null ? `적재 경고 ${formatNumber(status.warningCount)}건` : warningsFailed ? "적재 경고 미확인" : "적재 경고 확인 중",
+  ];
+}
+
+/** 대시보드의 `일일 수집` 묶음: 발주계획·공고 두 트랙을 한 덩어리 두 행으로 그린다(G1). */
+export function DailyCollectionStatus() {
+  return (
+    <section aria-label="일일 수집" className="daily-collection" data-testid="daily-collection">
+      <header className="daily-collection-head">
+        <span className="daily-collection-title">일일 수집</span>
+        <span className="daily-collection-aux">오늘 기준일은 아직 수집 전일 수 있습니다 · 정오 전에는 그저께 기준일까지를 정상으로 봅니다</span>
+        <Link className="daily-run-link" to="/runs">회차 기록 →</Link>
+      </header>
+      <DailyRunStatusLine embedded showLink={false} />
+      <DailyNoticeStatusLine />
+    </section>
   );
 }
