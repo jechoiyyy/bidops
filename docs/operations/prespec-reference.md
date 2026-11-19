@@ -575,8 +575,8 @@ prespec-attachment-worker(취득 종결 뒤 자동 준비·enqueue) 셋이다. �
    ```
    이 단계에서는 플래그가 아직 `false`여야 한다.
 4. **web·analysis-worker 교체(플래그 off).** `BIDOPS_ENV=prod scripts/compose.sh up -d --no-deps --no-build
-   --force-recreate web analysis-worker`. analysis-worker의 재시작 정책은 바꾸지 않는다(별도 사용자 결정 대기) —
-   host 재시작 뒤에는 사람이 올린다. 올린 뒤 컨테이너 안에서 정책 파일 sha256을 세 서비스 모두 같은 값으로 본다
+   --force-recreate web analysis-worker`. analysis-worker의 재시작 정책은 이 절차에서 바꾸지 않는다(현재 운영 값을
+   따른다). 올린 뒤 컨테이너 안에서 정책 파일 sha256을 세 서비스 모두 같은 값으로 본다
    (`sha256sum <정책 경로>`; 값은 `0e69ae43…`로 시작해야 한다).
 5. **첨부 worker 재생성.** `BIDOPS_ENV=prod scripts/compose.sh --profile prespec up -d --no-deps --no-build
    --force-recreate prespec-attachment-worker`. 이 서비스만 `restart: unless-stopped`이고 나라장터 첨부 host로만
