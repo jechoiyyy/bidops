@@ -274,9 +274,42 @@ C-2 실행(모델 호출)을 요청할 수 있으므로 그 범위가 cron 승�
 | 2 | 스크립트 검사 실패(필수 설정 누락, web 읽기가 재시도 뒤에도 실패, 폴링 읽기 연속 실패 등) | 로그의 `error:` 줄 |
 | 그 밖의 비0 | 실패한 명령의 코드(수집기 등) | 로그 |
 
-**매 평일 아침 로그 확인.** cron 승인 때 정한 담당자(<담당자 이름 — cron 승인 때 채운다>)가 두 트랙 로그의
+**매 평일 아침 로그 확인.** cron 승인 때 정한 담당자(`jechoi`, 2026-11-19 사용자 결정)가 두 트랙 로그의
 마지막 `[cron] … exit=` 줄을 본다. `exit=0`이 아니거나, 그날 start 줄이 없거나, start 줄 뒤에 exit 줄이 없으면
 위 표대로 처리한다. 알림은 아직 없다 — 이 확인이 유일한 경보다.
+
+종료 코드만 보면 놓치는 경우가 셋 있다(2026-11-19 설치 전 독립 검증). 담당자는 함께 확인한다.
+
+- **오늘 날짜의 start 줄과 exit 줄이 둘 다 있는가.** cron이 아예 돌지 않으면 파일의 마지막 `exit=` 줄은 어제의 `exit=0`이다.
+  대시보드는 정오까지 그저께 기준일을 정상으로 보므로 오전에는 화면만으로 알 수 없다.
+- **`daily_trigger_off`가 없는가.** 일일 스위치가 꺼져 있으면(새 policy를 활성화하면 자동으로 꺼진다) 발주계획 트랙은 수집 없이
+  exit 0으로 끝나고 누락일 검사도 건너뛴다.
+- **`부분 성공`이 없는가.** 부분 성공은 판정 완료로 세어 다시 시도하지 않는다(150건 중 일부만 판정됐어도). 화면의
+  `모델 미판정` 탭에서 판정 실패 건을 본다.
+
+```bash
+L=~/.local/state/bidops/logs; d=$(date +%F)
+grep -c "\[cron\] $d .*start" $L/notices-$(date +%Y%m).log $L/order-plans-$(date +%Y%m).log
+grep "\[cron\] $d .*exit=" $L/notices-$(date +%Y%m).log $L/order-plans-$(date +%Y%m).log
+grep -n "$d" -A 400 $L/order-plans-$(date +%Y%m).log | grep -E "daily_trigger_off|부분 성공|gap_detected|unjudged_detected" || echo "none"
+```
+
+**host 재시작 뒤에는 누군가 화면에서 로그인해야 한다.** 자동 로그인이 없고 OrbStack·LiteLLM·Ollama가 로그인 때 뜬다
+(11-18에 host는 14:53에 부팅했지만 컨테이너는 콘솔 로그인한 15:44에 올라왔다). 로그인 전에 cron이 돌면 health 확인 3회 실패 뒤
+수집·모델 호출 없이 exit 2로 끝난다(안전하고 로그에 남지만 스스로 복구되지는 않는다). 빠진 날은 다음 실행이 3일까지 메운다.
+실행 도중 끊긴 판정은 `stale_execution`으로 닫히고 그날의 시도 2회 중 1회를 쓴다.
+
+**이 checkout의 `scripts/` 변경은 운영 변경이다.** cron은 main checkout의 스크립트를 그대로 돌리고 컨테이너만 고정 이미지다.
+`scripts/{cron-daily-track,run-daily-lifecycle,manual-workflow-common,c2-execution-common,compose,compose-env}.sh`를 건드리는
+병합은 다음 날 아침 실행을 바꾸므로, 병합 전에 깨끗한 환경 `--dry-run`과 실제 web 조회를 한 번 돌린다. 이 checkout에서
+브랜치를 바꾸거나 `git clean`·`git stash -u`를 하지 않는다 — cron이 만든 `data/runs/` 회차 디렉터리가 사라질 수 있다.
+
+**한 날이 계속 실패하면 새 날도 최대 3일 막힌다.** 따라잡기는 오래된 날부터 돌고 첫 실패에서 트랙을 멈춘다. 매번 exit 2로
+보이지만 사람이 원인(예: 적재 경고로 인한 `source_run_incomplete`)을 풀어야 한다.
+
+**07:00 수집의 완전성은 측정된 적이 없다.** 지금까지의 실제 수집은 모두 오전 10:46 이후였다. 창이 1일이라 07:00 뒤에
+전일 날짜로 올라오는 건은 수집되지 않는다. 첫 cron 실행 날 오후에 같은 날을 `--collect-only --run-suffix`로 다시 받아
+id를 비교한다(적재·모델 호출 없음).
 
 **손으로 돌리는 실행도 같은 lock을 잡는다.** 따라잡기·재개를 사람이 할 때는 cron과 겹치지 않게
 `flock -o -w 0 -E 75 ~/.local/state/bidops/daily.lock ./scripts/run-daily-lifecycle.sh …`처럼 같은 lock 파일로
