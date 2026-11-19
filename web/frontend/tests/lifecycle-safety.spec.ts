@@ -68,12 +68,11 @@ test("legacy 첨부는 mutation control 없이 provenance와 안전한 문서 �
   await expect(panel.getByRole("button", { name: /삭제/ })).toHaveCount(0);
   await expect(panel.getByRole("link", { name: /내려받기|다운로드/ })).toHaveCount(0);
 
-  const safePreparationLink = panel.getByRole("link", { name: "문서 준비 상태 확인" });
-  await safePreparationLink.focus();
-  await expect(safePreparationLink).toBeFocused();
-  await safePreparationLink.click();
-  await expect(page.locator("#document-preparation")).toBeVisible();
-  await expect(page.locator("#document-preparation [role='status']")).toContainText("legacy 첨부 이력으로 대신할 수 없습니다.");
+  // 2026-11-19: 입찰공고 상세의 `심층 검토` 문서 준비 구역(기존 심층 검토 시작 진입점)은 내려갔다.
+  // 그 구역으로 가던 `문서 준비 상태 확인` 링크도 함께 없다(사전규격 단계 수정안 §3 B).
+  await expect(panel.getByRole("link", { name: "문서 준비 상태 확인" })).toHaveCount(0);
+  await expect(page.locator("#document-preparation")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "심층 검토 시작" })).toHaveCount(0);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   expect(legacyMutationRequests).toEqual([]);
@@ -92,8 +91,16 @@ test("기억된 담당자 이름은 인증으로 표현되지 않고 스스로 �
     }
   });
 
-  await page.goto("/deep-reviews/fixture-review");
-  const actor = page.getByLabel("담당자 이름");
+  // 옛 검사 대상인 기존 심층 검토 보고서 화면은 2026-11-19에 내려갔다. 같은 공용 담당자 칸
+  // (`ActorField`)을 쓰는 사전규격 상세의 문서 준비 패널에서 같은 계약을 본다.
+  const openPanel = async () => {
+    const toggle = page.getByRole("button", { name: /^문서 준비 (열기|닫기)$/ });
+    await expect(toggle).toBeVisible();
+    if ((await toggle.textContent())?.includes("열기")) await toggle.click();
+  };
+  await page.goto("/pre-specs/991");
+  await openPanel();
+  const actor = page.getByLabel("문서 준비 담당자 이름");
   await actor.fill("기억되는 담당자");
 
   const describedBy = await actor.getAttribute("aria-describedby");
@@ -104,7 +111,8 @@ test("기억된 담당자 이름은 인증으로 표현되지 않고 스스로 �
   await expect(description).toContainText("로그인이나 신원 인증이 아닙니다");
 
   await page.reload();
-  await expect(page.getByLabel("담당자 이름")).toHaveValue("기억되는 담당자");
+  await openPanel();
+  await expect(page.getByLabel("문서 준비 담당자 이름")).toHaveValue("기억되는 담당자");
   // 이름이 채워졌다고 해서 저장이 일어나지 않는다.
   expect(mutations).toEqual([]);
 });

@@ -139,7 +139,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         waiting = [
             notice["notice_key"]
             for notice in evidence["notices"]
-            if notice["auto_preparation_status"] == "deep_review_ready_for_click"
+            if notice["auto_preparation_status"] == "overview_settled"
         ]
         print(json.dumps(
             {

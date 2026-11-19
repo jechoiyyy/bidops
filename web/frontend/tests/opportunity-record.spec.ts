@@ -551,7 +551,7 @@ test("판정(없음)·제안서·서류 탭은 빈 상태 문장만 그리고 �
 test("원문 탭은 공고 상세로 가는 링크를 주고 비슷한 공고는 가장 뒤 단계 공고의 관련 목록을 쓴다", async ({ page }) => {
   const trace = await openRecord(page, "/opportunities/7101/source");
   await expect(page.getByRole("tabpanel")).toContainText("원문은 공고 상세에서 봅니다");
-  await expect(page.getByRole("tabpanel").getByRole("link", { name: /공고 판정 이력 열기/ })).toHaveAttribute("href", "/judgments/9103");
+  await expect(page.getByRole("tabpanel").getByRole("link", { name: /입찰공고 상세 열기/ })).toHaveAttribute("href", "/judgments/9103");
   await expect(page.getByRole("tabpanel").getByRole("link", { name: /나라장터 공고 원문 열기/ })).toHaveAttribute("href", EXTERNAL_BID_URL);
 
   await page.getByRole("tab", { name: "비슷한 공고", exact: true }).click();

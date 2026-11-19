@@ -582,5 +582,6 @@ export function recordRoute(link: OpportunityLinkView): string | null {
 export function recordRouteLabel(link: OpportunityLinkView): string {
   if (link.order_plan_id !== null) return "발주계획 검토목록 열기";
   if (isPreSpecSourceType(link.source_type)) return "사전규격 상세 열기";
-  return "공고 판정 이력 열기";
+  // `/judgments/:id`는 입찰공고 상세다(2026-11-19 이름 개정, 화면 제목과 같다).
+  return "입찰공고 상세 열기";
 }

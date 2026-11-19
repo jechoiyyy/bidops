@@ -15,7 +15,9 @@ export const PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL: Record<PreSpecAutoPreparati
   bundle_ready: "묶음 확정",
   overview_running: "개요 검토 실행 중",
   deep_review_started: "심층 검토 시작됨",
-  deep_review_ready_for_click: "심층 검토 클릭 대기",
+  // 2026-11-19: 옛 `deep_review_ready_for_click`(심층 검토 클릭 대기). 개요 결과(완료·사람
+  // 확인 필요·실패·취소)는 개요 상태가 따로 말한다.
+  overview_settled: "개요 검토 종료",
   blocked: "자동 준비 중단",
 };
 
@@ -40,8 +42,10 @@ export const COMPANY_FIT_REASON_LABEL: Record<string, string> = {
 
 const REASON_LABEL: Record<string, string> = {
   ...COMPANY_FIT_REASON_LABEL,
-  manual_request_required: "전송 내용을 확인하고 심층검토를 요청하십시오.",
-  grade_not_priority: "우선 검토 등급이 아닙니다.",
+  // 자동 문서 준비 자격이 없다 — 개요 자동 검토가 꺼져 있거나 SW사업대상이 아니다
+  // (`우선 검토` 등급 규칙은 그대로지만 C-1 판정이 돌지 않아 등급은 없다).
+  grade_not_priority: "자동 문서 준비 대상이 아닙니다.",
+  deadline_passed_untracked: "의견 마감이 지났고 추적 중이 아니라 자동으로 처리하지 않습니다. 추적을 시작하면 처리합니다.",
   awaiting_fetch: "첨부 원문 취득이 끝나지 않았습니다.",
   no_ready_document: "구조화가 끝난 문서가 없습니다.",
   bundle_has_blocking_issues: "묶음에 차단 issue가 있습니다.",
@@ -55,7 +59,6 @@ const REASON_LABEL: Record<string, string> = {
   overview_not_completed: "개요 run이 completed가 아닙니다.",
   service_unavailable: "필요한 버전이나 서비스를 확인할 수 없습니다.",
   attachments_failed: "첨부 원문 취득이 모두 차단·실패로 끝났습니다.",
-  deep_review_exists: "심층 검토가 이미 있습니다.",
 };
 
 /** 사유가 없으면 `null`을 돌려준다. 사유 `null`은 정상이므로 호출부는 아무것도

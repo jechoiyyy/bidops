@@ -49,6 +49,26 @@ export function preSpecDefaultViewTotalQuery() {
 }
 
 /**
+ * 사전규격 `확인 필요` 보기(2026-11-19): 기본 보기와 같은 축에서 업무 보기만 `needs_check`다.
+ * `/pre-specs?workspace=needs_check`가 열릴 때 목록 화면이 보내는 질의와 같다(마감 `마감 전·미확인`).
+ * 서버 workload `pre_spec_needs_check`와 같은 값이다.
+ */
+export const PRE_SPEC_NEEDS_CHECK_QUERY: PreSpecListQuery = {
+  ...PRE_SPEC_DEFAULT_VIEW_QUERY,
+  workspace: "needs_check",
+};
+
+export function preSpecNeedsCheckTotalQuery() {
+  return {
+    queryKey: ["pre-specs", "needs-check-total"] as const,
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      api.getPreSpecs({ ...PRE_SPEC_NEEDS_CHECK_QUERY, limit: 1, offset: 0 }, { signal }),
+    select: (response: PreSpecListResponse) => response.total,
+    staleTime: 60_000,
+  };
+}
+
+/**
  * 사전규격 `최근 수집` 보기에 첫 관측일 하한을 건 질의(대시보드 `새로 볼 것`, 설계고도화안 C-8).
  * `/pre-specs?workspace=recent&observed_from=<YYYY-MM-DD>`가 열릴 때 목록 화면이 보내는 것과 같은 축이다 —
  * 마감 구간은 `검토할 항목` 밖에서는 `current`, SW사업대상만, 개요 상태 전체, 검토 제외 전체, 상한 없음.

@@ -147,15 +147,6 @@ export interface PreSpecTrackingDecisionControlProps {
    * 함께 넘겨 두 자리가 다른 말을 하지 않게 한다. */
   onDecisionStateChange?: (state: { ready: boolean; disabledReason: string | null; hasForm: boolean; saveLabel: string }) => void;
   /**
-   * 신규 사전규격에서 `추적 시작하고 심층 검토`를 한 조작으로 제공할 때 이어지는 자리.
-   *
-   * 주어지면 저장 버튼 이름이 `추적 시작하고 심층 검토`가 되고 저장 성공 뒤 호출된다.
-   * **이력에는 추적 시작과 심층 검토 실행이 별도 항목으로 남는다**(ADR-0046 결정 6) —
-   * 이 조작은 두 결정을 한 기록으로 합치지 않고, 추적 시작만 지금 기록한 뒤 심층 검토
-   * 실행 승인 자리로 데려간다.
-   */
-  onStartedForDeepReview?: () => void;
-  /**
    * 자주 쓰는 선택 사유 예시. 주면 빈 드롭다운에서 사유를 고르고, `기타`를
    * 고른 경우에만 직접 입력한다. 주지 않으면 기존 자유 입력을 유지한다.
    * 어느 경우에도 공백만 있는 사유는 저장할 수 없다.
@@ -195,7 +186,6 @@ function PreSpecTrackingDecisionControl({
   compact = false,
   formId,
   onDecisionStateChange,
-  onStartedForDeepReview,
   onDirtyChange,
   reasonPresets,
   presentation = "default",
@@ -259,7 +249,7 @@ function PreSpecTrackingDecisionControl({
   const guard = useUnsavedGuard(dirty, {
     blockSpaNavigation: true,
     scope: "pathname",
-    title: "심층 검토 추적 선택을 저장하지 않고 떠납니다",
+    title: "추적 결정을 저장하지 않고 떠납니다",
     message: "저장하지 않은 추적 결정 사유와 담당자 이름이 있습니다. 지금 이동하면 사라지며 저장된 추적 상태는 바뀌지 않습니다.",
     summary: [
       { label: "사유", value: reasonValue || "값 없음" },
@@ -280,17 +270,16 @@ function PreSpecTrackingDecisionControl({
     ),
     onSuccess: (saved) => {
       if (!item) return;
-      // 저장이 끝났으므로 잃을 입력이 없다. `onStartedForDeepReview`가 곧바로
-      // 이동시키는데, 그 시점의 dirty 계산은 아직 이전 렌더 값이라 먼저 푼다.
+      // 저장이 끝났으므로 잃을 입력이 없다. 부르는 화면이 저장 뒤 곧바로 이동할 수 있는데,
+      // 그 시점의 dirty 계산은 아직 이전 렌더 값이라 먼저 푼다.
       guard.release();
       if (record) setSavedDecision({ reason: saved.tracking_reason ?? "기록된 사유 미확인", actor: saved.tracking_selected_by ?? "담당자 미확인" });
       setChoice("");
       setCustom("");
       setActorName("");
       setProblem(null);
+      // 추적 결정은 추적만 정한다(2026-11-19). 분석 실행 승인으로 이어지지 않는다.
       onSaved(saved);
-      // 추적 시작이 기록된 뒤에만 심층 검토 실행 자리로 넘어간다. 두 결정은 별개다.
-      onStartedForDeepReview?.();
     },
     onError: (caught: unknown) => {
       // 서버 응답 본문에는 provider·검증 상세가 실릴 수 있다. 화면에 내는 것은
@@ -370,8 +359,8 @@ function PreSpecTrackingDecisionControl({
   }
 
   // 발주계획에서 승계한 건은 이 화면이 추적 상태를 **다시 묻지 않는다**(ADR-0046 결정 6).
-  // 승계 사실을 배지로 밝히고 결정 form 자체를 그리지 않는다. 심층 검토가 정상
-  // 완료돼도 마찬가지이며, `보류`·`추적 종료`는 사업 추적에서만 사람이 고른다.
+  // 승계 사실을 배지로 밝히고 결정 form 자체를 그리지 않는다. `보류`·`추적 종료`는
+  // 사업 추적에서만 사람이 고른다.
   if (isInheritedTracking(item)) {
     return (
       <section
@@ -395,7 +384,7 @@ function PreSpecTrackingDecisionControl({
         {!compact ? <PreSpecDocumentSummary item={item} /> : null}
 
         <p className="pre-spec-tracking-elsewhere">
-          <Link to={`/opportunities/${item.opportunity_id}`}>사업 추적</Link>에서만 <strong>보류</strong>와 <strong>추적 종료</strong>를 고릅니다. 이 화면의 결정은 심층 검토 실행 승인입니다.
+          <Link to={`/opportunities/${item.opportunity_id}`}>사업 추적</Link>에서만 <strong>보류</strong>와 <strong>추적 종료</strong>를 고릅니다. 추적 결정은 추적만 정하며 분석 실행 승인이 아닙니다.
         </p>
       </section>
     );
@@ -433,7 +422,7 @@ function PreSpecTrackingDecisionControl({
 
       {!hasOpportunity ? (
         <MutationFeedback tone="warning">
-          아직 사업기회에 연결되지 않아 추적 상태를 결정할 수 없습니다. 사업기회 연결이 생긴 뒤 이 화면에서 심층 검토 추적을 선택할 수 있습니다.
+          아직 사업기회에 연결되지 않아 추적 상태를 결정할 수 없습니다. 사업기회 연결이 생긴 뒤 이 화면에서 추적을 시작할 수 있습니다.
         </MutationFeedback>
       ) : null}
 
@@ -479,11 +468,6 @@ function PreSpecTrackingDecisionControl({
             {disabledReason ? <DisabledReason id="pre-spec-tracking-save-disabled">{disabledReason}</DisabledReason> : null}
           </div>
         )}
-        {onStartedForDeepReview ? (
-          <p className="pre-spec-tracking-combined-note">
-            한 조작이지만 기록은 둘입니다. 추적 시작을 지금 남기고, 심층 검토 실행 승인은 문서 묶음이 준비된 상세에서 이어서 남깁니다.
-          </p>
-        ) : null}
         {/* spec §3.3에서 `보류·추적 종료는 사업 추적에서 변경` 캡션은 줄 1이 소유하므로
             inline 폼은 같은 문장을 한 번 더 적지 않는다. 승계·기록된 사업의 상태 블록은
             record와 똑같이 이 문장을 그대로 그린다. */}

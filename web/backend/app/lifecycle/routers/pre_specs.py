@@ -41,6 +41,10 @@ from ..schemas.opportunities import OpportunityTrackingStatus
 from ..services.pre_spec_review_exclusions import change_review_exclusions
 from ..services.opportunity_candidates import pre_spec_order_plan_candidates
 from ..services.opportunity_connections import tracked_order_plan_connection_predicate
+from ..services.pre_spec_scope import (
+    TRACKING_ACTIVE_STATUSES,
+    deadline_passed_expression,
+)
 from ..services.opportunity_integrity import (
     active_opportunity_predicate,
     authoritative_link_predicate,
@@ -112,7 +116,7 @@ def _count(value: Any) -> int:
 
 _SEOUL = ZoneInfo("Asia/Seoul")
 _TRACKING_PENDING_STATUSES = ("미선택",)
-_TRACKING_ACTIVE_STATUSES = ("계속 추적", "보류")
+_TRACKING_ACTIVE_STATUSES = TRACKING_ACTIVE_STATUSES
 _OVERVIEW_PENDING_STATUSES = (
     "awaiting_document",
     "awaiting_structure",
@@ -240,39 +244,85 @@ def _tracking_decision_absent(status: Any) -> bool:
     return status is None or status in _TRACKING_PENDING_STATUSES
 
 
-def _tracking_pending(first_stage: Any, status: Any) -> bool:
-    """The existing 신규 + null/미선택 tracking-decision rule."""
-
-    return first_stage in {"pre_spec", "bid_notice"} and _tracking_decision_absent(status)
+#: `검토할 항목`을 여는 개요 상태 (2026-11-19 사전규격 단계 수정안 §3 B).
+#: 사람이 읽을 개요가 있거나(`completed`) 사람이 범위를 확정해야 한다
+#: (`needs_human_review`). 실패·취소는 읽을 것이 없으므로 `확인 필요`로 간다.
+_ACTIONABLE_OVERVIEW_STATUSES = frozenset({"completed", "needs_human_review"})
+#: `확인 필요`를 여는 개요 상태 — 개요가 결과 없이 끝났다.
+_NEEDS_CHECK_OVERVIEW_STATUSES = frozenset({"failed", "cancelled"})
+#: `확인 필요`를 여는 자동 준비 상태 — 문서 준비가 사람 없이는 끝나지 않는다.
+#: `blocked`는 차단 issue가 있는 초안이거나 첨부 취득이 모두 `차단`·`실패`로
+#: 끝난 경우, `bundle_draft`는 확정되지 않은 초안(사람이 만든 초안 포함)이다.
+_NEEDS_CHECK_PREPARATION_STATUSES = frozenset({"blocked", "bundle_draft"})
+#: `확인 필요`를 여는 자동 준비 사유 — 대기·진행 중인 취득 행이 없는데 묶음에
+#: 넣을 준비된 문서가 없다(첨부가 없거나 구조가 준비되지 않았다).
+_NEEDS_CHECK_PREPARATION_REASONS = frozenset({"no_ready_document"})
 
 
 def _workspace_actionable(
     notice_id: int,
     *,
     overview_status: Mapping[int, str],
-    status_fields: Mapping[int, Mapping[str, Any]],
-    tracking_pending: Mapping[int, bool],
     tracking_decision_absent: Mapping[int, bool],
 ) -> bool:
-    """`검토할 항목` 술어 (2026-09-22 개정, 시안 M7 ③ 승인).
+    """`검토할 항목` 술어 (2026-11-19 개정, 사전규격 단계 수정안 §3 B).
 
-    바깥 AND가 먼저다 — 사람이 추적 결정을 내린 공고는 개요 상태·자동 준비
-    상태와 무관하게 빠진다. 셋째 항만 추적 상태를 보던 옛 규칙에서는 `보류`를
-    고른 건이 개요 `needs_human_review`라는 이유로 남았다. 결정한 건은
-    `추적 중`(계속 추적·보류)과 `전체 이력`에서 계속 보인다.
+    추적 결정 없음(추적 상태 null 또는 `미선택`) ∧ 개요 `completed` 또는
+    `needs_human_review`. 마감 구간은 이 함수 밖 ``workspace_matches``의
+    actionable 분기가 건다(ADR-0064 결정 4).
+
+    옛 술어는 기존 심층 검토의 "클릭 대기"(`deep_review_ready_for_click`)를 같이
+    보았기 때문에 **실패로 끝난 개요**도 검토할 항목에 올렸다. 그 건은 이제
+    `확인 필요`(`_workspace_needs_check`)에서 센다.
     """
 
     if not tracking_decision_absent.get(notice_id, True):
         return False
-    auto_status = status_fields.get(notice_id, {}).get("auto_preparation_status")
+    return overview_status.get(notice_id) in _ACTIONABLE_OVERVIEW_STATUSES
+
+
+def _workspace_needs_check(
+    notice_id: int,
+    *,
+    overview_status: Mapping[int, str],
+    status_fields: Mapping[int, Mapping[str, Any]],
+    tracking_decision_absent: Mapping[int, bool],
+) -> bool:
+    """`확인 필요` 술어 (2026-11-19, 사전규격 단계 수정안 §3 B·§5 #4).
+
+    추적 결정 없음 ∧ `검토할 항목`이 아님 ∧ (개요 `failed`·`cancelled` ∨ 자동 준비
+    `blocked`·`bundle_draft` ∨ 자동 준비 사유 `no_ready_document`). 둘째 항 때문에
+    `검토할 항목`과 서로소다 — 같은 공고를 두 칸에서 세지 않는다.
+    """
+
+    if not tracking_decision_absent.get(notice_id, True):
+        return False
+    status = overview_status.get(notice_id)
+    if status in _ACTIONABLE_OVERVIEW_STATUSES:
+        return False
+    if status in _NEEDS_CHECK_OVERVIEW_STATUSES:
+        return True
+    fields = status_fields.get(notice_id, {})
     return (
-        overview_status.get(notice_id) == "needs_human_review"
-        or auto_status == "deep_review_ready_for_click"
-        or (
-            overview_status.get(notice_id) == "completed"
-            and tracking_pending.get(notice_id, False)
-        )
+        fields.get("auto_preparation_status") in _NEEDS_CHECK_PREPARATION_STATUSES
+        or fields.get("auto_preparation_reason") in _NEEDS_CHECK_PREPARATION_REASONS
     )
+
+
+def _next_action(overview: str | None, tracking_decision_absent: bool) -> str | None:
+    """다음 행동 안내 (2026-11-19 개정).
+
+    `confirm_overview`(개요 확인 필요)는 사람이 개요 범위를 확정해야 진행되므로 추적
+    결정과 무관하게 남는다. `review_overview`(개요 확인)는 개요를 읽고 추적을
+    정하라는 안내라서 추적 결정이 없을 때만 나온다. 기존 심층 검토를 여는
+    `open_deep_review`는 더 이상 나오지 않는다.
+    """
+
+    if overview == "needs_human_review":
+        return "confirm_overview"
+    if overview == "completed" and tracking_decision_absent:
+        return "review_overview"
+    return None
 
 
 def _deadline_condition(status: PreSpecDeadlineStatus, now: datetime):
@@ -302,11 +352,12 @@ def _deadline_window_condition(days: int, now: datetime):
 def _deadline_passed_expression(now: datetime):
     """SQL로 평가하는 "의견등록 마감이 지났다" 술어.
 
-    비교는 SQL이 한다 — 파이썬에서 naive/aware datetime을 섞어 비교하지 않는다
-    (ADR-0064 결과). `deadline_at`이 null이면 false이므로 미확인은 `current`에 남는다.
+    정의는 `services/pre_spec_scope.deadline_passed_expression` 하나다 — 사전규격
+    자동 처리 범위(deep_review)가 같은 정의를 쓴다. `deadline_at`이 null이면
+    false이므로 미확인은 `current`에 남는다(ADR-0064).
     """
 
-    return and_(Notice.deadline_at.is_not(None), Notice.deadline_at < now)
+    return deadline_passed_expression(now)
 
 
 def _deadline_scope_matches(scope: PreSpecDeadlineScope, passed: bool) -> bool:
@@ -537,7 +588,6 @@ def list_pre_specs(
     included_ids: set[int] = set()
     base_ids: list[int] = []
     seen_ids: set[int] = set()
-    first_stage_by_id: dict[int, Any] = {}
     tracking_status_by_id: dict[int, Any] = {}
     deadline_passed_by_id: dict[int, bool] = {}
     for row in base_id_rows:
@@ -548,7 +598,6 @@ def list_pre_specs(
         if notice_id not in seen_ids:
             seen_ids.add(notice_id)
             base_ids.append(notice_id)
-        first_stage_by_id[notice_id] = mapping["first_stage"]
         tracking_status_by_id[notice_id] = mapping["selected_tracking_status"]
         recent_membership[notice_id] = bool(mapping["recent_membership"])
         deadline_passed_by_id[notice_id] = bool(mapping["deadline_passed"])
@@ -557,10 +606,6 @@ def list_pre_specs(
     overview_status = _normalise_projection_statuses(registry_statuses)
     registry_fields = projection.prespec_status_fields(session, base_ids)
     status_fields = _normalise_projection_fields(registry_fields)
-    tracking_pending_by_id = {
-        notice_id: _tracking_pending(first_stage_by_id.get(notice_id), tracking_status_by_id.get(notice_id))
-        for notice_id in base_ids
-    }
     tracking_decision_absent_by_id = {
         notice_id: _tracking_decision_absent(tracking_status_by_id.get(notice_id))
         for notice_id in base_ids
@@ -619,7 +664,7 @@ def list_pre_specs(
     ) -> bool:
         # 검토 제외 숨김 가드가 구간 술어보다 **먼저** 온다 — 제외 건이 구간 분할의
         # 분모에 들어가면 탭 건수와 집계가 어긋난다(ADR-0064 결정 4).
-        if selected_workspace in {"actionable", "recent"} and notice_id not in included_ids:
+        if selected_workspace in {"actionable", "needs_check", "recent"} and notice_id not in included_ids:
             return False
         if selected_workspace == "all":
             return True
@@ -627,16 +672,21 @@ def list_pre_specs(
             return notice_id in recent_workspace_ids
         if selected_workspace == "tracking":
             return tracking_status_by_id.get(notice_id) in _TRACKING_ACTIVE_STATUSES
-        # 구간은 actionable 분기 한 곳에만 산다. 위 세 분기는 ``scope``를 읽지 않으므로
-        # ``workspace_counts``의 ``recent``·``tracking``·``all`` 칸과 그 workspace의
-        # ``items``·``total``은 구간에 대해 구조적으로 불변이다.
+        # 구간은 결정 대기 두 분기(actionable·needs_check)에만 산다. 위 세 분기는
+        # ``scope``를 읽지 않으므로 ``workspace_counts``의 ``recent``·``tracking``·``all``
+        # 칸과 그 workspace의 ``items``·``total``은 구간에 대해 구조적으로 불변이다.
         if not _deadline_scope_matches(scope, deadline_passed_by_id.get(notice_id, False)):
             return False
+        if selected_workspace == "needs_check":
+            return _workspace_needs_check(
+                notice_id,
+                overview_status=overview_status,
+                status_fields=status_fields,
+                tracking_decision_absent=tracking_decision_absent_by_id,
+            )
         return _workspace_actionable(
             notice_id,
             overview_status=overview_status,
-            status_fields=status_fields,
-            tracking_pending=tracking_pending_by_id,
             tracking_decision_absent=tracking_decision_absent_by_id,
         )
 
@@ -681,6 +731,20 @@ def list_pre_specs(
     deadline_scope_counts = PreSpecDeadlineScopeCounts(
         current=deadline_scope_current,
         passed=deadline_scope_passed,
+    )
+    # `확인 필요`의 같은 분할(2026-11-19). 정의는 위와 같고 분기만 needs_check다.
+    needs_check_current = 0
+    needs_check_passed = 0
+    for notice_id in overview_filtered_ids:
+        if not workspace_matches(notice_id, "needs_check", "all"):
+            continue
+        if deadline_passed_by_id.get(notice_id, False):
+            needs_check_passed += 1
+        else:
+            needs_check_current += 1
+    needs_check_deadline_scope_counts = PreSpecDeadlineScopeCounts(
+        current=needs_check_current,
+        passed=needs_check_passed,
     )
 
     # Status grouping deliberately omits `overview_view`: it describes the
@@ -736,17 +800,10 @@ def list_pre_specs(
             origin_value = None
         counts = document_counts.get(notice.id, absent_counts)
         status = status_fields.get(notice.id, absent_status)
-        current_overview_status = overview_status.get(notice.id)
-        if current_overview_status == "needs_human_review":
-            next_action = "confirm_overview"
-        elif status.get("auto_preparation_status") == "deep_review_ready_for_click":
-            next_action = "open_deep_review"
-        elif current_overview_status == "completed" and tracking_pending_by_id.get(
-            notice.id, False
-        ):
-            next_action = "decide_tracking"
-        else:
-            next_action = None
+        next_action = _next_action(
+            overview_status.get(notice.id),
+            tracking_decision_absent_by_id.get(notice.id, True),
+        )
         items.append(
             PreSpecListItem(
                 notice_pk=notice.id,
@@ -798,7 +855,43 @@ def list_pre_specs(
         overview_status_counts=overview_status_counts,
         workspace_counts=workspace_counts,
         deadline_scope_counts=deadline_scope_counts,
+        needs_check_deadline_scope_counts=needs_check_deadline_scope_counts,
     )
+
+
+def default_view_totals(session: Session) -> tuple[int, int] | None:
+    """대시보드·사이드바 건수: (`검토할 항목` 기본 보기 total, `확인 필요` 기본 보기 total).
+
+    둘 다 화면이 여는 목록 질의 **그 자체**로 센다 — `workspace=actionable`·
+    `deadline_scope=current`·`sw_only=true`이고 나머지 필터는 없다. `확인 필요`는
+    같은 응답의 `workspace_counts["needs_check"]`(같은 구간)이며 이것이
+    `workspace=needs_check&deadline_scope=current` 목록의 total과 같다. 같은 식을
+    다른 곳에 다시 쓰면 타일 건수와 목록 건수가 갈린다(옛 `pre_spec_deep_review_ready`는
+    마감·검토 제외·SW 조건을 보지 않아 목록과 달랐다).
+
+    개요·문서 projection 제공자가 없으면 ``None``이다 — 검토할 항목을 판정할 수
+    없으므로 0으로 접지 않는다.
+    """
+
+    if not extension_registry().overview_filters_supported:
+        return None
+    response = list_pre_specs(
+        notice_pk=None,
+        sw_only=True,
+        business_division=None,
+        origin=None,
+        auto_preparation_status=None,
+        workspace="actionable",
+        review_exclusion="all",
+        deadline_scope="current",
+        overview_view="all",
+        q=None,
+        sort="published",
+        limit=1,
+        offset=0,
+        session=session,
+    )
+    return response.total, int(response.workspace_counts.get("needs_check", 0))
 
 
 @router.post("/review-exclusions", response_model=PreSpecReviewExclusionResponse)

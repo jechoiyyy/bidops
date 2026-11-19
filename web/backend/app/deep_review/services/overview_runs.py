@@ -829,8 +829,14 @@ def enqueue_overview_run(
     page_end: int | None = None,
     actor_name: str | None = None,
     settings: Any | None = None,
+    automatic: bool | None = None,
 ) -> PrespecOverviewRun | None:
     """개요 run 하나를 대기열에 넣는다. 조건 미충족은 예외가 아니라 ``None``이다.
+
+    `automatic`은 자동 처리 범위(의견 마감 전·미확인 또는 추적 중, 2026-11-19)를
+    자격에 걸지 정한다. 생략하면 `range_source == "auto"`일 때만 건다 — 묶음 ready
+    hook의 자동 enqueue가 그 경우다. 사람이 범위를 확정한 재실행(`human`)과
+    운영자 단건 CLI(`automatic=False`를 명시)는 범위를 보지 않는다.
 
     조건은 네 가지다 — 플래그 on(사람이 범위를 확정한 경우는 플래그와 무관),
     활성 run 없음, `overview_eligible`이 연 자격, `ready` 묶음에 제안요청서 문서.
@@ -866,7 +872,11 @@ def enqueue_overview_run(
         return None
     grades = effective_grades(session, [int(notice_id)])
     if int(notice_id) not in overview_eligible(
-        session, [int(notice_id)], settings=settings, grades=grades
+        session,
+        [int(notice_id)],
+        settings=settings,
+        grades=grades,
+        automatic=(range_source == "auto") if automatic is None else bool(automatic),
     ):
         return None
     document = ready_bundle_document(session, notice_id)
