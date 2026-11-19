@@ -746,6 +746,13 @@
   font-weight: 500;
 }
 .ps-record-tracking-card .pre-spec-tracking-save:disabled { opacity: 0.55; cursor: not-allowed; }
+/* 결정 버튼은 추적 결정 입력 한 벌(C-7)의 Astryx 버튼이다. 칸 폭·높이만 이 카드가 정한다. */
+.ps-record-tracking-card .pre-spec-tracking-action > .review-decision-action,
+.ps-record-tracking-card .pre-spec-tracking-action > .review-decision-action .astryx-button { width: 100%; }
+.ps-record-tracking-card .pre-spec-tracking-action > .review-decision-action .astryx-button {
+  height: var(--ps-tracking-control);
+  min-height: var(--ps-tracking-control);
+}
 .ps-record-tracking-card .disabled-reason {
   margin: 0;
   color: var(--color-text-secondary);
