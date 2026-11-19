@@ -4,6 +4,14 @@ import re
 from .company.schema import CompanyProfile
 
 
+class EngineError(ValueError):
+    """A defined, content-free failure code of the engine boundary."""
+
+    def __init__(self, code):
+        self.code = code
+        super().__init__(code)
+
+
 def project_company(payload):
     facts = payload.get("profile_payload", {}).get("facts", [])
     nodes = {
@@ -175,11 +183,11 @@ def _project_blocks(payload):
                 or c["attributes"]["column"] < 0
                 for c in group
             ):
-                raise ValueError("invalid_table_coordinates")
+                raise EngineError("invalid_table_coordinates")
             maxrow = max(c["attributes"]["row"] for c in group)
             maxcol = max(c["attributes"]["column"] for c in group)
             if maxrow > 10000 or maxcol > 1000 or (maxrow + 1) * (maxcol + 1) > 200000:
-                raise ValueError("table_too_large")
+                raise EngineError("table_too_large")
             rows = [[""] * (maxcol + 1) for _ in range(maxrow + 1)]
             for cell in group:
                 rows[cell["attributes"]["row"]][cell["attributes"]["column"]] = cell[

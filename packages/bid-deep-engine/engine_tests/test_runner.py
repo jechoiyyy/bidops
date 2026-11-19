@@ -2,6 +2,11 @@
 
 import copy
 import hashlib
+import io
+import json
+import sys
+
+import pytest
 
 from bid_deep_engine import runner
 from bid_deep_engine.company.provenance import CompanyEvidenceView
@@ -94,3 +99,71 @@ def test_fingerprint_of_a_different_profile_still_goes_stale(monkeypatch):
     out = runner.execute(make_payload())
     assert "stale_stage" in _assessment(out)["reason_codes"]
     assert "stale_analysis" in _condition_kinds(out)
+
+
+def _run_main(monkeypatch, data: bytes):
+    out = io.StringIO()
+    monkeypatch.setattr(sys, "stdin", io.TextIOWrapper(io.BytesIO(data)))
+    monkeypatch.setattr(sys, "stdout", out)
+    runner.main()
+    return json.loads(out.getvalue())
+
+
+def _cell(row, column):
+    return _block(f"bad-{row}-{column}", "셀", "table_cell", table_key="t", row=row, column=column)
+
+
+def _with(**changes):
+    payload = make_payload()
+    payload.update(changes)
+    return json.dumps(payload, ensure_ascii=False).encode()
+
+
+def _without(key):
+    payload = make_payload()
+    del payload[key]
+    return json.dumps(payload, ensure_ascii=False).encode()
+
+
+@pytest.mark.parametrize(
+    ("data", "code", "error_class"),
+    [
+        (_with(mode="live"), "engine_live_not_approved", "EngineError"),
+        (_with(schema_version="bidops.engine-input.v0"), "engine_live_not_approved", "EngineError"),
+        (_with(blocks=[_block("p", "   ")]), "structure_unavailable", "EngineError"),
+        (
+            _with(blocks=make_payload()["blocks"] + [_cell(-1, 0)]),
+            "invalid_table_coordinates",
+            "EngineError",
+        ),
+        (
+            _with(blocks=make_payload()["blocks"] + [_cell(10001, 0)]),
+            "table_too_large",
+            "EngineError",
+        ),
+        (b"{not json", "engine_input_invalid", "EngineError"),
+        (b"\xff\xfe", "engine_input_invalid", "EngineError"),
+        (b"[]", "engine_input_invalid", "EngineError"),
+        (_without("primary_format"), "engine_pipeline_failed", "KeyError"),
+    ],
+)
+def test_each_failure_keeps_its_defined_code_and_no_content(monkeypatch, data, code, error_class):
+    out = _run_main(monkeypatch, data)
+    assert out["status"] == "failed" and out["quality_status"] == "mock_reference"
+    assert out["error_code"] == code and out["error_code"] in runner.ERROR_CODES
+    assert out["error_class"] == error_class
+    assert out["analysis"] is None and out["artifacts"] == {}
+    rendered = json.dumps(out, ensure_ascii=False)
+    assert ELIGIBILITY not in rendered and "primary_format" not in rendered
+
+
+def test_oversized_input_is_rejected_before_parsing(monkeypatch):
+    monkeypatch.setattr(runner, "MAX_INPUT", 16)
+    out = _run_main(monkeypatch, _with())
+    assert out["error_code"] == "input_too_large"
+
+
+def test_successful_main_has_no_error_fields(monkeypatch):
+    out = _run_main(monkeypatch, _with())
+    assert out["status"] == "partial"
+    assert out["error_code"] is None and out["error_class"] is None
