@@ -1,0 +1,124 @@
+{
+  "slug": "mini",
+  "title": "2027년 미니 홈페이지 유지관리 용역",
+  "source_files": [
+    "mini/제안요청서.hwpx"
+  ],
+  "primary_format": "hwpx",
+  "sections": [
+    {
+      "id": "S000",
+      "heading": "전문",
+      "level": 0,
+      "kind": "other",
+      "parent_id": null,
+      "block_start": 0,
+      "block_end": 1,
+      "text": "2027년 미니 홈페이지 유지관리 용역 제안요청서\n공고번호: R27BK00000001",
+      "table_ids": [],
+      "page_start": null,
+      "page_end": null
+    },
+    {
+      "id": "S001",
+      "heading": "Ⅰ. 입찰참가자격",
+      "level": 1,
+      "kind": "eligibility",
+      "parent_id": null,
+      "block_start": 2,
+      "block_end": 4,
+      "text": "소프트웨어사업자(컴퓨터관련서비스사업, 업종코드 1468)로 신고한 자\n중소기업기본법 제2조에 따른 중소기업",
+      "table_ids": [],
+      "page_start": 31,
+      "page_end": 33
+    },
+    {
+      "id": "S002",
+      "heading": "1. 공동수급 및 하도급",
+      "level": 2,
+      "kind": "eligibility",
+      "parent_id": "S001",
+      "block_start": 5,
+      "block_end": 7,
+      "text": "공동수급은 허용하지 않는다.",
+      "table_ids": [
+        "T001"
+      ],
+      "page_start": null,
+      "page_end": null
+    },
+    {
+      "id": "S003",
+      "heading": "Ⅱ. 사업 개요",
+      "level": 1,
+      "kind": "overview",
+      "parent_id": null,
+      "block_start": 8,
+      "block_end": 10,
+      "text": "사업기간: 계약일로부터 12개월\n사업금액: 120,000,000원(부가세 포함)",
+      "table_ids": [],
+      "page_start": 40,
+      "page_end": null
+    }
+  ],
+  "requirements": [
+    {
+      "id": "SFR-001",
+      "category": "SFR",
+      "name": "통합검색 기능 개선",
+      "definition": "통합검색 결과의 정확도를 높인다",
+      "details": "o 검색어 자동완성 제공\n- 오타 교정 기능 포함",
+      "mandatory": true,
+      "section_id": "S001",
+      "table_id": null,
+      "source": "text"
+    },
+    {
+      "id": "SER-001",
+      "category": "SER",
+      "name": "정기 점검",
+      "definition": null,
+      "details": "월 1회 정기 점검 보고서 제출",
+      "mandatory": null,
+      "section_id": null,
+      "table_id": null,
+      "source": "text"
+    }
+  ],
+  "tables": [
+    {
+      "id": "T001",
+      "section_id": "S002",
+      "kind": "other",
+      "rows": [
+        [
+          "구분",
+          "내용"
+        ],
+        [
+          "공동수급",
+          "불허"
+        ],
+        [
+          "하도급",
+          "사전 승인 시 허용"
+        ]
+      ],
+      "markdown": "| 구분 | 내용 |\n|---|---|\n| 공동수급 | 불허 |\n| 하도급 | 사전 승인 시 허용 |"
+    }
+  ],
+  "full_text": "2027년 미니 홈페이지 유지관리 용역 제안요청서\n공고번호: R27BK00000001\n# Ⅰ. 입찰참가자격\n소프트웨어사업자(컴퓨터관련서비스사업, 업종코드 1468)로 신고한 자\n중소기업기본법 제2조에 따른 중소기업\n## 1. 공동수급 및 하도급\n공동수급은 허용하지 않는다.\n| 구분 | 내용 |\n|---|---|\n| 공동수급 | 불허 |\n| 하도급 | 사전 승인 시 허용 |\n# Ⅱ. 사업 개요\n사업기간: 계약일로부터 12개월\n사업금액: 120,000,000원(부가세 포함)",
+  "source_quality": {
+    "primary_format": "hwpx",
+    "primary_chars": 265,
+    "primary_digits": 31,
+    "reference_pdf_chars": null,
+    "reference_pdf_digits": null,
+    "has_tables": true,
+    "requirements_found": 2,
+    "requirements_expected": 2,
+    "sections_mapped_to_pages": 2,
+    "warnings": []
+  },
+  "schema_version": 1
+}
