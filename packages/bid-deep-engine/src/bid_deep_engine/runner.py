@@ -24,6 +24,7 @@ from .analysis.schemas import (
     Profitability,
 )
 from .adapter import project_company, source_evidence, raw_blocks
+from .company.provenance import CompanyEvidenceView
 from .company.schema import CompanyProfile, Company
 from .ingest.models import Block, RawDoc, RawMeta, NoticeBundle
 from .ingest.normalize import build
@@ -115,6 +116,16 @@ class MockTransport:
         return ParseResult(value, TokenUsage(), "mock_reference", "end_turn", record)
 
 
+def engine_company_input_hash(profile):
+    """The company fingerprint the engine's readiness recomputes for this profile.
+
+    `pipeline` wraps a bare profile in `CompanyEvidenceView(profile)` and compares every
+    stage stamp with `CompanyEvidenceView.company_input_hash`. Passing any other value
+    (for example BidOps' `profile_sha256`) marks every fresh stage stale.
+    """
+    return CompanyEvidenceView(profile).company_input_hash
+
+
 def execute(payload):
     if (
         payload.get("schema_version") != "bidops.engine-input.v1"
@@ -158,12 +169,17 @@ def execute(payload):
     # Existing v2 profile remains frozen in payload. No unverified schema mapping
     # promotes company qualifications; the v1 projection explicitly stays unknown.
     profile, projected = project_company(payload)
+    company_hash = engine_company_input_hash(profile)
     client = MockTransport(rfp)
     with tempfile.TemporaryDirectory(prefix="bid-deep-engine-") as folder:
         root = Path(folder)
         source = root / "rfp.json"
         output = root / "analysis"
         source.write_text(rfp.model_dump_json(), encoding="utf-8")
+        # The facts stage fingerprints rfp.json together with the bundle.json beside
+        # it (`provenance.rfp_input_payload`); without it the facts stamp is dropped
+        # and readiness reports the stage as unknown legacy metadata.
+        (root / "bundle.json").write_text(bundle.model_dump_json(), encoding="utf-8")
         result = run_notice(
             source,
             output,
@@ -174,7 +190,7 @@ def execute(payload):
             effort="high",
             passes=("extract", "match", "synth"),
             force=True,
-            company_input_hash=payload["profile_sha256"],
+            company_input_hash=company_hash,
             run_id=payload["slug"],
             transport="mock_reference",
         )
@@ -185,6 +201,10 @@ def execute(payload):
             analysis["company_projection"] = {
                 "mapped_fields": projected,
                 "complete": False,
+                # BidOps binding (frozen profile version hash) and the engine's own
+                # fingerprint of the projected profile are kept apart for audit.
+                "source_profile_sha256": payload["profile_sha256"],
+                "engine_company_input_hash": company_hash,
             }
         return {
             "schema_version": "bidops.engine-output.v1",

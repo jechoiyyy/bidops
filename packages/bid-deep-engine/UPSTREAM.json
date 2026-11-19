@@ -267,7 +267,7 @@
     {
       "path": "src/bid_deep_engine/runner.py",
       "purpose": "bidops.engine-input.v1/output.v1 subprocess boundary and mock_reference transport",
-      "sha256": "2ed0d606d0e9d4c86de01ef7c6f80d4ac0d209bdf105368058aeccc08f2e96d8"
+      "sha256": "9fd43d5c0c689d1b7178b88dc5ef74ff6511de49716d0385f056fe684a591366"
     },
     {
       "path": "engine_tests/test_adapter.py",
@@ -278,6 +278,11 @@
       "path": "engine_tests/test_manifest.py",
       "purpose": "checks this manifest against the vendored bytes offline",
       "sha256": "3c7ebb5a855f8b452f853a651d1fdc624f048c0c32557e7809c0d86580601596"
+    },
+    {
+      "path": "engine_tests/test_runner.py",
+      "purpose": "runner boundary tests (readiness, mock transport, error codes)",
+      "sha256": "07b23193843410be574f18763b1effd4be738a145716d86a594e527cb881e293"
     }
   ],
   "excluded_transport_files": [
