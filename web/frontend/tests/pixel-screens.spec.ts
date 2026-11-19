@@ -23,7 +23,7 @@ const REPRESENTATIVE = [
   "order-plans-list", // 목록·상세 split과 pane 바닥 결정 (2e232b7 이후 상세도 이 작업면 안에 있다)
   "pre-specs-list", // 접이식 상태 그룹
   "opportunities-list", // 사업 추적 구역
-  "deep-review-complete", // 본문 반복 목록 · 근거 rail
+  // "deep-review-complete"는 2026-11-19에 route 등록이 내려가 빠졌다(기준 이미지는 승인 없이 지우지 않는다).
   "bid-delta-changed", // 비교 표
 ] as const;
 

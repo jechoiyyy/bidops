@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { mockApi, mockDeepReviewLifecycle, mockWorkload } from "./api-mock";
+import { mockApi, mockWorkload } from "./api-mock";
 import type { BidDeltaDecisionQueueItem } from "../src/lib/types";
 
 const opportunity = {
@@ -198,24 +198,6 @@ test("UC-03은 키보드만으로 draft bundle 생성 직전까지 이동한다"
   expect(trace.createCount()).toBe(0);
 });
 
-test("UC-04는 키보드만으로 append-only 재시작 직전까지 이동한다", async ({ page }) => {
-  const trace = await mockDeepReviewLifecycle(page, "failed");
-  await page.goto("/deep-reviews/fixture-review");
-
-  const actor = page.getByLabel("담당자 이름");
-  const retry = page.getByRole("button", { name: "새 분석 회차로 재시도" });
-  await expect(retry).toBeDisabled();
-  await expect(page.locator(`#${await retry.getAttribute("aria-describedby")}`)).toContainText("이름을 입력하십시오");
-  await tabTo(page, actor);
-  await page.keyboard.type("심층 검토자");
-  await tabTo(page, retry);
-
-  await expectKeyboardTarget(retry);
-  await expect(retry).toBeEnabled();
-  await expect(page.getByText("1회차", { exact: true })).toBeVisible();
-  expect(trace.attemptPosts).toHaveLength(0);
-});
-
 test("사업 추적 상세는 변경 비교로 이동하고 추적 저장과 최종 결정 저장을 분리한다", async ({ page }) => {
   await mockOpportunity(page);
   await openOpportunityDetail(page);
@@ -402,7 +384,8 @@ test("누적 집계 미확인을 0으로 접지 않는다", async ({ page }) => 
   // 서버가 건수를 낼 수 없다고 답한 칸과 목록 조회가 실패한 칸은 0으로 접히지 않고 미확인으로 남아야 한다.
   await mockWorkload(page, { generated_at: "2026-09-01T09:00:00Z", items: [
     { key: "order_plan_pending", count: 24, unavailable_reason: null },
-    { key: "pre_spec_deep_review_ready", count: null, unavailable_reason: "provider_absent" },
+    { key: "pre_spec_actionable", count: null, unavailable_reason: "provider_absent" },
+    { key: "pre_spec_needs_check", count: null, unavailable_reason: "provider_absent" },
     { key: "tracking_action_required", count: null, unavailable_reason: "provider_absent" },
     { key: "tracking_hold_review_due", count: 2, unavailable_reason: null },
     { key: "bid_final_decision_pending", count: null, unavailable_reason: null },
@@ -416,8 +399,9 @@ test("누적 집계 미확인을 0으로 접지 않는다", async ({ page }) => 
   await page.route((url) => url.pathname === "/api/bid-delta/decision-queue", (route) => route.fulfill({ status: 503, json: { detail: "합성 장애" } }));
   await page.goto("/");
   const unmeasured = page.locator(".dash-count-item").filter({ hasText: "미확인" });
-  // 사전규격 목록 실패(검토할 항목·개요 사람 확인·개요 실패·새 사전규격)와 Go/No-Go 대기열 실패.
+  // 사전규격 목록 실패(검토할 항목·확인 필요·개요 사람 확인·새 사전규격)와 Go/No-Go 대기열 실패.
   // 사업기회 조치 필요는 workload가 아니라 목록 total을 쓰므로 provider 없음의 영향을 받지 않는다.
+  // 2026-11-19: 옛 `개요 실패` 칸 자리에 `사전규격 확인 필요` 칸이 왔다(같은 목록 실패로 미확인).
   await expect(unmeasured).toHaveCount(5);
   for (const item of await unmeasured.all()) await expect(item).not.toContainText("0건");
 });
@@ -588,26 +572,6 @@ test("최종 Go/No-Go 목록은 결정 대기열 한 번으로 그리고 행마�
 
 // 저장 알림은 읽는 동안 사라지면 안 된다. 자동 소멸 시간을 늘리고, hover·focus
 // 중에는 시간을 세지 않는다.
-test("저장 알림은 hover 중에 사라지지 않고 명시적으로 닫을 수 있다", async ({ page }) => {
-  const trace = await mockDeepReviewLifecycle(page, "failed");
-  await page.goto("/deep-reviews/fixture-review");
-
-  await page.getByLabel("담당자 이름").fill("알림 담당자");
-  await page.getByRole("button", { name: "새 분석 회차로 재시도" }).click();
-
-  const toast = page.locator(".toast");
-  await expect(toast).toBeVisible();
-  await toast.hover();
-  await expect(toast).toHaveAttribute("data-toast-held", "true");
-  // 옛 자동 소멸 시간(6초)을 넘겨도 hover 중에는 남아 있다.
-  await page.waitForTimeout(7_000);
-  await expect(toast).toBeVisible();
-
-  await toast.getByRole("button", { name: "알림 닫기" }).click();
-  await expect(page.locator(".toast")).toHaveCount(0);
-  expect(trace.attemptPosts).toHaveLength(1);
-});
-
 // 되돌릴 수 없는 결정의 확인 단계는 키보드만으로도 취소할 수 있어야 한다.
 // 열릴 때 초점은 취소에 있고 Esc는 취소이며, 확인 전에는 요청이 나가지 않는다.
 test("UC-05 추적 종료 확인 단계는 취소에 초점이 오고 Esc로 요청 없이 닫힌다", async ({ page }) => {

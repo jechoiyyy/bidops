@@ -80,7 +80,9 @@ test("unknown, stale, no result and failed states stay distinct", async ({ page 
   await expect(section.getByText("판단 보류 · 정보 부족", { exact: true })).toBeVisible();
   await expect(section.getByText("이전 입력 기준의 판정입니다.", { exact: false })).toBeVisible();
   await expect(section.getByText("인용된 회사 정보가 없습니다. 역량이 없다는 뜻이 아닙니다.")).toBeVisible();
-  await expect(section.getByRole("link", { name: "심층 검토 열기" })).toHaveAttribute("href", "/deep-reviews/review-existing");
+  // 2026-11-19: 응답에 기존 심층 검토 id가 있어도 그 진입점은 그리지 않는다(사전규격 단계 수정안 §3 B).
+  await expect(section.getByRole("link", { name: "심층 검토 열기" })).toHaveCount(0);
+  await expect(section.locator('a[href^="/deep-reviews/"]')).toHaveCount(0);
   data.attempts[0].result!.decision = "matched";
   data.attempts[0].result!.summary = "공고 과업과 확인된 회사 업무가 부합합니다.";
   data.attempts[0].result!.reasons = [];

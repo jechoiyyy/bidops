@@ -10,8 +10,7 @@ import { Fragment, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge, type BadgeVariant } from "../components/common/Badge";
 import { BUNDLE_STATUS_LABELS, DocumentPreparationPanel } from "../components/deep-review/DocumentPreparationPanel";
-import { getDeepReview, getDocumentBundles, getReport } from "../components/deep-review/api";
-import type { ReportSection } from "../components/deep-review/types";
+import { getDocumentBundles } from "../components/deep-review/api";
 import { EmptyState } from "../components/common/EmptyState";
 import { Panel } from "../components/common/Panel";
 import { ReviewHistoryLinkRail } from "../components/common/ReviewPrimitives";
@@ -19,6 +18,7 @@ import { PreSpecAgencyFeature, PreSpecExclusionRecord } from "../components/pre-
 import { SkeletonPanel } from "../components/common/Skeleton";
 import { PreSpecDocumentSummary, TrackingDecisionControl, updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
 import { PreSpecBriefingSection } from "../components/pre-specs/PreSpecBriefingSection";
+import { PreSpecVerdictColumn } from "../components/pre-specs/PreSpecVerdictColumn";
 import { PreSpecAttachmentList } from "../components/pre-specs/PreSpecAttachmentList";
 import { OrderPlanCandidatesSection } from "../components/pre-specs/OrderPlanCandidatesSection";
 import { documentPanelDefaultOpen } from "../lib/documentPanelDefaultOpen";
@@ -41,19 +41,17 @@ import {
   PageOverviewVerificationDetails,
   pageOverviewPdfUrl,
   useCurrentPageOverview,
-  type PageOverviewRisk,
 } from "../components/pre-specs/PageOverviewSection";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
 import { apiErrorRecoveryAction, describeApiError } from "../lib/apiErrors";
 import { describeDeadline } from "../lib/deadline";
 import { formatNumber, present } from "../lib/format";
-import { displayAssessmentLabel, displayAssessmentSemanticLabel, displayAssessmentSourceLabel, gradeVariant } from "../lib/grade";
+import { displayAssessmentSemanticLabel } from "../lib/grade";
 import { preSpecCautions } from "../lib/preSpecCautions";
 import { qualityStatusLabel, qualityStatusVariant } from "../lib/qualityStatus";
 import {
   PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL,
   preSpecAutoPreparationReasonLabel,
-  preSpecAutoPreparationVariant,
 } from "../lib/preSpecAutoPreparation";
 import {
   PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL,
@@ -104,20 +102,6 @@ const ASSESSMENT_RELATION_LABEL = {
   unrelated: "무관",
   unknown: "미확인",
 } as const;
-
-/**
- * ④ `참여 조건` 열이 심층 검토 보고서의 `eligibility_matrix` 절에서 읽는 항목.
- * 개요는 앞부분 요약만 맡으므로(ADR-0057 결정 1) 참여 조건은 심층 검토 결과가
- * 있을 때만 그 결과에서 읽는다 — 새 분석·문장 생성은 하지 않고 이미 받은 절의
- * 표 행·본문만 고른다.
- */
-function reportSectionBullets(section: ReportSection | undefined): string[] {
-  if (!section) return [];
-  return section.blocks.flatMap((block) => {
-    if (block.rows.length > 0) return block.rows.map((row) => `${row.label} · ${row.cells.join(" · ")}`);
-    return block.body ? [block.body] : [];
-  });
-}
 
 /**
  * 상세 화면이 기다리는 것을 자리로 먼저 보여 준다. 쿼리마다 다른 문장이 뜨고
@@ -239,13 +223,14 @@ function PreSpecDetailFrame({
   );
 }
 
-/** 자동 준비 진행 한 줄 단계 표시. 네 칸의 값은 모두 서버가 준 것이며 화면이
+/** 자동 준비 진행 한 줄 단계 표시. 세 칸의 값은 모두 서버가 준 것이며 화면이
  * 다른 값에서 다시 계산하지 않는다:
  *
  * 1. 첨부 취득 — 사전규격 projection의 상태별 건수
- * 2. 묶음 — document bundle 응답의 `status`
+ * 2. 묶음 — document bundle 응답의 `status`와 자동 준비 사유
  * 3. 개요 — projection의 `overview_review_status`(행이 없으면 미시작)
- * 4. 심층 검토 — projection의 `auto_preparation_status`와 그 사유
+ *
+ * 옛 넷째 칸 `심층 검토`는 2026-11-19에 내려갔다(사전규격 단계 수정안 §3 B).
  */
 interface AutoPreparationStepProps {
   index: number;
@@ -307,7 +292,7 @@ function PageOverviewBriefing({ review }: { review: PageOverviewView }) {
       {/* 경계 문장("추적 승인과 최종 입찰 결정은 사람이 진행하며")은 ② 추적 결정
           카드 한 곳만 갖는다(M4 승인 2026-09-21). 함께 붙어 있던 자동 시작 조건은
           경계가 아니라 이 화면의 사실이므로 이 카드에 남긴다. */}
-      <p>사업 설명을 위한 요약입니다. 심층 검토는 전송 내용을 확인하고 사용자가 요청하면 시작됩니다.</p>
+      <p>사업 설명을 위한 요약입니다. 판정이 아니며, 이 요약을 읽고 추적을 정합니다.</p>
       {review.validation_status === "failed" && review.evidence_check_status === "passed" ? (
         <p>새 페이지 근거 검사는 통과했으나, 원실행의 검증 실패 기록은 유지합니다.</p>
       ) : null}
@@ -340,7 +325,6 @@ function PageOverviewBriefing({ review }: { review: PageOverviewView }) {
 }
 
 function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; listSearch: string }) {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const listUrl = preSpecReviewListUrl(listSearch, noticeId);
 
@@ -366,22 +350,6 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
   });
   const pageOverviewState = useCurrentPageOverview(noticeId);
   const companyFitState = useCompanyFit(noticeId);
-  // 참여 조건·위험 및 미확인 사항은 심층 검토 결과가 있을 때만 그 결과에서 읽는다
-  // (ADR-0057 결정 1·4). 목록 projection이 최신 심층 검토 id를 이미 주므로 그
-  // id로만 조회하고, 완료 전에는 보고서를 요청하지 않는다.
-  const earlyDeepReviewId = preSpecProjectionQuery.data?.items.find((item) => item.notice_pk === noticeId)?.latest_deep_review_id ?? null;
-  const deepReviewStatusQuery = useQuery({
-    queryKey: ["deep-review", earlyDeepReviewId],
-    queryFn: () => getDeepReview(earlyDeepReviewId as string),
-    enabled: earlyDeepReviewId !== null,
-    staleTime: 30_000,
-  });
-  const deepReviewReportQuery = useQuery({
-    queryKey: ["deep-review-report", earlyDeepReviewId],
-    queryFn: () => getReport(earlyDeepReviewId as string),
-    enabled: earlyDeepReviewId !== null && deepReviewStatusQuery.data?.status === "completed",
-    staleTime: 30_000,
-  });
   // 사람이 직접 여닫거나 닫기 전에는 `null`이고, 그동안은 묶음·자동 준비 상태가
   // 정하는 기본값을 따른다. 응답이 늦게 와도 기본값이 다시 계산된다.
   const [documentPanelOverride, setDocumentPanelOverride] = useState<boolean | null>(null);
@@ -439,8 +407,6 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
   const latestBundle = [...(bundleQuery.data?.items ?? [])].sort((left, right) => right.revision - left.revision)[0] ?? null;
   const autoStatus = preSpecItem?.auto_preparation_status ?? null;
   const autoReasonLabel = preSpecAutoPreparationReasonLabel(preSpecItem?.auto_preparation_reason ?? null);
-  const autoDeepReviewId = preSpecItem?.latest_deep_review_id ?? null;
-  const deepReviewStatusText = preSpecItem?.latest_deep_review_status ? ({ queued: "대기", running: "분석 중", completed: "완료", failed: "실패" }[preSpecItem.latest_deep_review_status]) : null;
   const documentCounts = preSpecItem?.document ?? null;
   const overviewStatusForStep = preSpecItem
     ? (preSpecItem.overview_review_status === null
@@ -504,30 +470,14 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
       + pageOverviewVerification.claims.reduce((total, claim) => total + claim.reason_codes.length, 0)
     : 0;
 
-  // 참여 조건·위험 및 미확인 사항은 개요가 아니라 심층 검토 보고서에서 읽는다
-  // (ADR-0057 결정 1). 보고서가 없으면(심층 검토 미시작 또는 미완료) 각 열이
-  // "심층 검토에서 확인" 한 줄만 보인다.
-  const deepReviewReport = deepReviewReportQuery.data?.report ?? null;
-  const hasDeepReviewReport = deepReviewReport !== null;
-  const deepReviewUnknowns = deepReviewReport?.unknowns ?? [];
-  const eligibilityItems = deepReviewReport?.schema === "bidops.deep-review-report.v2"
-    ? deepReviewReport.claims.filter(claim => claim.narrative_role === "decision_condition").map(claim => claim.body)
-    : reportSectionBullets(deepReviewReport?.sections.find((section) => section.section_key === "eligibility_matrix"));
-  const risks: PageOverviewRisk[] = deepReviewUnknowns.map((text) => ({
-    label: "미확인",
-    tone: "neutral",
-    title: text,
-    detail: null,
-  }));
-  const judgment = notice.judgment;
-  const judgmentRiskCount = (judgment?.counterarguments.length ?? 0) + (judgment?.verification_items.length ?? 0);
-  // 이 상세 화면은 심층 검토 보고서를 실제로 읽는 경로(`deepReviewReportQuery`)가
-  // 있으므로 그 결과가 있을 때만 미확인 건수를 채운다(ADR-0057).
+  // 위험 및 미확인 사항은 회사 적합성 확인 항목만 모은다. 옛 열은 기존 심층 검토 보고서의
+  // 미확인과 C-1 판정의 반론·확인 항목을 읽었다 — 둘 다 2026-11-19에 화면에서 내려갔다
+  // (사전규격 단계 수정안 §3 B). 판정의 차단 조건·주의는 ④ 첫 열(참여 판정)이 갖는다.
   const cautionCounts = preSpecItem
     ? preSpecCautions({
       item: preSpecItem,
       verification: pageOverviewVerification,
-      deepReviewUnknownCount: hasDeepReviewReport ? deepReviewUnknowns.length : null,
+      deepReviewUnknownCount: null,
     })
     : null;
   // v4 주장만 원문 위치를 갖는다. 이전 세대 결과는 claim id가 없으므로 ⑤의 주장별
@@ -550,7 +500,6 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
       && documentCounts["차단"] === 0 && documentCounts["실패"] === 0),
     bundle: latestBundle?.status === "ready",
     overview: preSpecItem?.overview_review_status === "completed",
-    deepReview: autoStatus === "deep_review_started",
   };
 
   return (
@@ -651,21 +600,6 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
             <dt className="ps-k">구분</dt>
             <dd className="ps-v">{preSpecItem?.business_division ?? "미확인"}</dd>
             <span className="ps-s">SW사업대상 {preSpecItem?.sw_business_status ?? "미확인"}</span>
-          </div>
-          <div className="ps-fact">
-            <dt className="ps-k">예비 적합성 등급</dt>
-            <dd className="pre-spec-detail-grade-row">
-              <span className="ps-v">
-                {preSpecProjectionQuery.isPending ? (
-                  <span className="pre-spec-detail-grade-source">등급을 불러오는 중입니다.</span>
-                ) : !preSpecItem || preSpecProjectionQuery.isError ? (
-                  <span className="pre-spec-detail-grade-source">등급 미확인</span>
-                ) : (
-                  <Badge label={displayAssessmentLabel(preSpecItem.display_assessment)} variant={gradeVariant(preSpecItem.display_assessment.grade)} />
-                )}
-              </span>
-              {preSpecItem && !preSpecProjectionQuery.isError ? <span className="ps-s">개요 기준 · {displayAssessmentSourceLabel(preSpecItem.display_assessment)}{preSpecItem.display_assessment.assessed_at ? ` · ${recordDateTime(preSpecItem.display_assessment.assessed_at)}` : ""}</span> : null}
-            </dd>
           </div>
           <div className="ps-fact"><dt className="ps-k">첨부 원문</dt><dd className="ps-v ps-record-secondary-facts">{notice.attachment_count}건</dd><span className="ps-s" /></div>
         </dl>
@@ -802,12 +736,8 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
               aria-expanded={documentPanelOpen}
               onClick={() => setDocumentPanelOverride(!documentPanelOpen)}
             />
-            {/* 개요 재실행 단추는 그리지 않는다(intent 결정 3). 재실행은 문서 준비 패널 안에서만 연다. */}
-            {autoDeepReviewId ? (
-              <Link className="ps-btn ps-btn-sm" to={`/deep-reviews/${autoDeepReviewId}`}>심층 검토 보고서 열기 →</Link>
-            ) : (
-              <button className="ps-btn ps-btn-sm" type="button" disabled>시작 기록 없음</button>
-            )}
+            {/* 개요 재실행 단추는 그리지 않는다(intent 결정 3). 재실행은 문서 준비 패널 안에서만 연다.
+                기존 심층 검토 보고서 단추는 2026-11-19에 내려갔다(사전규격 단계 수정안 §3 B). */}
           </div>
         </div>
 
@@ -835,7 +765,8 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
                 : latestBundle?.status === "failed" || latestBundle?.status === "quarantined" || latestBundle?.status === "needs_review"
                   ? "alert"
                   : "neutral"}
-              detail={latestBundle ? `수정본 ${latestBundle.revision}` : undefined}
+              detail={[latestBundle ? `수정본 ${latestBundle.revision}` : null, autoReasonLabel]
+                .filter((part): part is string => Boolean(part)).join(" · ") || undefined}
             />
             <AutoPreparationStep
               index={3}
@@ -846,34 +777,11 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
                 ? preSpecOverviewStatusVariant(preSpecItem.overview_review_status)
                 : "neutral"}
             />
-            <AutoPreparationStep
-              index={4}
-              name="심층 검토"
-              done={stepDone.deepReview}
-              value={autoStatus ? PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL[autoStatus] : preSpecProjectionQuery.isPending ? "확인 중" : "미확인"}
-              variant={autoStatus ? preSpecAutoPreparationVariant(autoStatus) : "neutral"}
-              detail={autoReasonLabel ?? undefined}
-            />
           </ol>
-          {autoStatus === "deep_review_started" && autoDeepReviewId ? (
-            <Link className="pre-spec-auto-preparation-link" to={`/deep-reviews/${autoDeepReviewId}`}>
-              심층 검토 {deepReviewStatusText} · 실행·보고서 열기 →
-            </Link>
-          ) : null}
-          {autoStatus === "deep_review_started" && !autoDeepReviewId ? (
-            <p className="pre-spec-auto-preparation-note">
-              심층 검토가 시작됐지만 응답에 식별자가 없어 보고서로 갈 수 없습니다. 다른 보고서로 대신 보내지 않습니다.
-            </p>
-          ) : null}
-          {autoStatus === "deep_review_ready_for_click" ? (
-            <a className="pre-spec-auto-preparation-link" href="#document-preparation">
-              심층 검토 실행 · 아래 문서 준비에서 시작 →
-            </a>
-          ) : null}
           {/* 경계 문장("추적 선택과 최종 입찰 Go/No-Go는 사람이 결정합니다")은 ②
               추적 결정 카드로 모았다. 자동 시작 조건은 이 네 단계의 사실이라 남는다. */}
           <p className="pre-spec-auto-preparation-note">
-            문서 준비와 개요검토는 자동으로 진행하며, 심층검토는 사용자가 전송 내용을 확인하고 요청합니다.
+            첨부 취득·문서 준비·개요 검토는 의견 마감 전이거나 추적 중인 사전규격에서 자동으로 진행합니다. 마감이 지난 건은 추적을 시작하면 진행합니다.
           </p>
         </div>
 
@@ -905,14 +813,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
           {/* Astryx `Collapsible`은 `display:none`으로 감춰 조작을 막는다.
               여기는 조건부 렌더링이므로 열린 동안은 패널이 온전히 살아 있다. */}
           {documentPanelOpen ? (
-            <DocumentPreparationPanel
-              key={noticeId}
-              noticeId={notice.id}
-              // 헤더가 보여 주는 것과 **같은 현재 등급**을 넘긴다. `notice.grade`는
-              // 사람 정정을 반영하지 않아 헤더와 다른 값을 말할 수 있다(명세 §6.2).
-              currentGrade={preSpecItem?.grade ?? null}
-              onDeepReviewCreated={(review) => navigate(`/deep-reviews/${review.id}`)}
-            />
+            <DocumentPreparationPanel key={noticeId} noticeId={notice.id} />
           ) : null}
           {preSpecProjectionQuery.isPending ? (
             <SkeletonPanel label="첨부 원문 취득 집계를 불러오는 중" lines={3} />
@@ -1012,74 +913,29 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
         </div>
       </section>
 
-      {/* ④ 참여 조건 · 회사 적합성 · 위험 및 미확인 사항 — 심층 검토 영역
-          (spec §4 ④, ADR-0057 결정 1·4). 개요는 앞부분 요약만 맡으므로 참여
-          조건·위험/미확인은 심층 검토 결과가 있을 때만 그 결과에서 읽는다.
+      {/* ④ 참여 판정 · 회사 적합성 · 위험 및 미확인 사항(spec §4 ④). 2026-11-19(사전규격
+          단계 수정안 §3 B): 첫 열은 기존 심층 검토 보고서 대신 사업기회의 RL 카드 판정 요약을
+          읽는다. 개요는 앞부분 요약만 맡고(ADR-0057 결정 1) 판정의 입력도 아니다(RL-03 D1).
           회사 적합성(`CompanyFitSection`)은 이 영역에 그대로 둔다. */}
       <section id="ps-conditions" className="ps-card ps-sec ps-record-quad" aria-labelledby="ps-conditions-title">
         <div className="ps-sec-head">
           {/* 경계 캡션은 ② 추적 결정 카드가 한 번만 갖는다(M4 승인 2026-09-21). */}
-          <h2 id="ps-conditions-title" className="ps-h-sec">참여 조건 · 회사 적합성 · 위험 및 미확인 사항</h2>
+          <h2 id="ps-conditions-title" className="ps-h-sec">참여 판정 · 회사 적합성 · 위험 및 미확인 사항</h2>
         </div>
         <div className="ps-tri">
-          <section className="ps-tri-col" aria-labelledby="ps-conditions-list-title">
-            <div className="ps-tri-head">
-              <h3 id="ps-conditions-list-title" className="ps-h-col">참여 조건</h3>
-              <span className="ps-cap ps-dim">{hasDeepReviewReport && eligibilityItems.length ? `${eligibilityItems.length}건` : "분석 확인 필요"}</span>
-            </div>
-            {!hasDeepReviewReport ? (
-              <p className="ps-cap ps-muted">심층 검토에서 확인</p>
-            ) : eligibilityItems.length > 0 ? (
-              <ul className="ps-check ps-record-conditions">
-                {eligibilityItems.map((text, index) => (
-                  <li key={index}>
-                    <span className="ps-box" aria-hidden="true" />
-                    <span className="ps-t">{text}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : <p className="ps-cap ps-muted">확인된 조건이 없습니다. 분석 누락 여부를 보고서에서 확인하십시오.</p>}
-          </section>
+          <PreSpecVerdictColumn opportunityId={preSpecItem?.opportunity_id ?? null} />
 
-          <PreSpecBriefingSection noticeId={noticeId} judgment={judgment} reviews={notice.reviews} />
+          <PreSpecBriefingSection noticeId={noticeId} />
 
           <section className="ps-tri-col" aria-labelledby="ps-risk-title">
             <div className="ps-tri-head">
               <h3 id="ps-risk-title" className="ps-h-col">위험 및 미확인 사항</h3>
-              <span className="ps-cap ps-dim">
-                주의 {cautionCounts?.count ?? 0} · 미확인 {deepReviewUnknowns.length}
-              </span>
+              <span className="ps-cap ps-dim">주의 {cautionCounts?.count ?? 0}</span>
             </div>
-            {risks.length === 0 && judgmentRiskCount === 0 && companyFitVerificationItems.length === 0 ? (
-              <p className="pre-spec-overview-empty">{hasDeepReviewReport ? "추가 조건·미확인 항목 없음" : "심층 검토에서 확인"}</p>
+            {companyFitVerificationItems.length === 0 ? (
+              <p className="pre-spec-overview-empty">회사 적합성 확인 항목 없음 · 차단 조건과 주의는 참여 판정에서 확인합니다.</p>
             ) : (
               <ul className="ps-risks">
-                {risks.map((risk, index) => (
-                  <li key={`deep-review-${index}`} className={`ps-risk is-${risk.tone}`}>
-                    <div className="ps-risk-head">
-                      <span className={`ps-chip ${risk.tone === "caution" ? "ps-chip-warn" : "ps-chip-neutral"}`}>{risk.label}</span>
-                      <strong>{risk.title}</strong>
-                    </div>
-                    {risk.detail ? <span className="ps-cap ps-muted">{risk.detail}</span> : null}
-                  </li>
-                ))}
-                {(judgment?.counterarguments ?? []).map((counterargument, index) => (
-                  <li key={counterargument.id} className="ps-risk is-neutral">
-                    <div className="ps-risk-head">
-                      <span className="ps-chip ps-chip-neutral">반론</span>
-                      <strong>{counterargument.text?.trim() || `반론 ${index + 1} 내용 미확인`}</strong>
-                    </div>
-                  </li>
-                ))}
-                {(judgment?.verification_items ?? []).map((item, index) => (
-                  <li key={item.id} className="ps-risk is-neutral">
-                    <div className="ps-risk-head">
-                      <span className="ps-chip ps-chip-neutral">확인 항목</span>
-                      <strong>{item.item?.trim() || `확인 항목 ${index + 1}`}</strong>
-                    </div>
-                    {item.why?.trim() ? <span className="ps-cap ps-muted">{item.why}</span> : null}
-                  </li>
-                ))}
                 {companyFitVerificationItems.map((item, index) => (
                   <li key={`fit-${index}`} className="ps-risk is-neutral">
                     <div className="ps-risk-head">

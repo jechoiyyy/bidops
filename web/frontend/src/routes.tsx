@@ -15,8 +15,6 @@ const OpportunitiesPage = lazy(() => import("./pages/OpportunitiesPage").then(({
 const OpportunityRecordPage = lazy(() => import("./pages/OpportunityRecordPage").then(({ OpportunityRecordPage }) => ({ default: OpportunityRecordPage })));
 const PreSpecsPage = lazy(() => import("./pages/PreSpecsPage").then(({ PreSpecsPage }) => ({ default: PreSpecsPage })));
 const PreSpecDetailPage = lazy(() => import("./pages/PreSpecDetailPage").then(({ PreSpecDetailPage }) => ({ default: PreSpecDetailPage })));
-const AssumptionAnalysisPage = lazy(() => import("./pages/AssumptionAnalysisPage").then(({ AssumptionAnalysisPage }) => ({ default: AssumptionAnalysisPage })));
-const DeepReviewPage = lazy(() => import("./pages/DeepReviewPage").then(({ DeepReviewPage }) => ({ default: DeepReviewPage })));
 const BidDeltaDecisionPage = lazy(() => import("./pages/BidDeltaDecisionPage").then(({ BidDeltaDecisionPage }) => ({ default: BidDeltaDecisionPage })));
 const OrderPlansPage = lazy(() => import("./pages/OrderPlansPage").then(({ OrderPlansPage }) => ({ default: OrderPlansPage })));
 const CriteriaPage = lazy(() => import("./pages/CriteriaPage").then(({ CriteriaPage }) => ({ default: CriteriaPage })));
@@ -136,8 +134,9 @@ export function buildRoutes(demoEnabled: boolean): RouteObject[] {
           { path: "attachments", element: runStatusView, handle: routeHandle(routeMetadata.runStatus) },
           { path: "operations", element: runStatusView, handle: routeHandle(routeMetadata.runStatus) },
           { path: "audit", element: runStatusView, handle: routeHandle(routeMetadata.runStatus) },
-          { path: "assumption-analyses/:runId", element: <AssumptionAnalysisPage />, handle: routeHandle(routeMetadata.assumptionAnalysis) },
-          { path: "deep-reviews/:deepReviewId", element: <DeepReviewPage />, handle: routeHandle(routeMetadata.deepReview) },
+          // 기존 심층 검토 보고서(`/deep-reviews/:id`)와 가정 분석(`/assumption-analyses/:runId`)은
+          // 2026-11-19에 등록을 내렸다(사전규격 단계 수정안 §3 B, 운영 보고서 0건). 백엔드 경로는
+          // RL 판정이 같이 쓰므로 남는다. 회사 데모 경로의 심층 검토는 demo 설정이 켜질 때만 있다.
           ...(demoEnabled ? companyRoutes() : []),
         ],
       },

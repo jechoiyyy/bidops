@@ -84,6 +84,22 @@ export function ReviewWorkspacePage() {
   const panelId = `review-panel-${tab}`;
   useDeadlineSavedView(pathname);
 
+  // `/judgments/:id`는 입찰공고 상세로 남는다(2026-11-19 사전규격 단계 수정안 §3 B·§5 #6). C-1
+  // 공고 판정을 다시 돌리지 않으므로 이 주소에서는 판정 대기열(`/queue`·`/reviews`)로 가는 탭을
+  // 그리지 않는다. 옛 대기열 주소 자체는 북마크가 404를 내지 않도록 남겨 둔다.
+  if (tab === "judgments") {
+    return (
+      <section aria-labelledby="review-workspace-title" className="ws-page" data-astryx-theme="bidops">
+        <h2 className="visually-hidden" id="review-workspace-title">입찰공고 상세</h2>
+        <div className="ws-body">
+          <div className="ws-panel" id={panelId} aria-label="입찰공고 상세">
+            <NoticeDetailPage />
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section aria-labelledby="review-workspace-title" className="ws-page" data-astryx-theme="bidops">
       <h2 className="visually-hidden" id="review-workspace-title">
@@ -115,7 +131,6 @@ export function ReviewWorkspacePage() {
       <div className="ws-body">
         <div className="ws-panel" id={panelId} role="tabpanel" aria-label={TABS.find((item) => item.value === tab)?.label}>
           {tab === "queue" ? <QueuePage defaultSort={isDeadlineView(pathname) ? "deadline" : "grade"} /> : null}
-          {tab === "judgments" ? <NoticeDetailPage /> : null}
           {tab === "reviews" ? <ReviewLogPanel /> : null}
         </div>
       </div>
