@@ -22,7 +22,12 @@ def test_feature_flags_default_off_and_booleans_only(monkeypatch: pytest.MonkeyP
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-store"
     # 설정이 없으면 꺼짐이다. 값은 참·거짓만이며 다른 키(host·모델·경로)는 없다.
-    assert response.json() == {"schema_version": "feature-flags.v1", "rl_analysis": False, "prespec_overview": False}
+    assert response.json() == {
+        "schema_version": "feature-flags.v1",
+        "rl_analysis": False,
+        "prespec_overview": False,
+        "engine_analysis": False,
+    }
 
 
 def test_feature_flags_reflect_environment_switches_without_leaking_settings(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -30,13 +35,19 @@ def test_feature_flags_reflect_environment_switches_without_leaking_settings(mon
         monkeypatch,
         rl_analysis_enabled=True,
         prespec_overview_enabled=True,
+        engine_analysis_enabled=True,
         model_name="secret-model",
         g2b_api_key="secret-key",
         database_url="postgresql://user:pass@db/bidops",
     )
     response = client.get("/api/feature-flags")
     body = response.json()
-    assert body == {"schema_version": "feature-flags.v1", "rl_analysis": True, "prespec_overview": True}
+    assert body == {
+        "schema_version": "feature-flags.v1",
+        "rl_analysis": True,
+        "prespec_overview": True,
+        "engine_analysis": True,
+    }
     for secret in ("secret-model", "secret-key", "pass@db"):
         assert secret not in response.text
 

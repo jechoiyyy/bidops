@@ -24,6 +24,8 @@ def context(request, tmp_path, monkeypatch):
     monkeypatch.setenv("BIDOPS_TEST_MODE", "1")
     monkeypatch.setenv("BIDOPS_OBJECT_STORE_BACKEND", "filesystem")
     monkeypatch.setenv("BIDOPS_ATTACHMENTS_DIR", str(tmp_path))
+    # The engine path is off by default; these tests exercise it switched on.
+    monkeypatch.setenv("BIDOPS_ENGINE_ANALYSIS_ENABLED", "true")
     get_settings.cache_clear()
 
     def setup(bind):
@@ -419,3 +421,63 @@ def test_invoke_rejects_changed_engine_code_and_keeps_runner_codes(monkeypatch):
     result = svc.invoke_engine({"engine_sha256": svc.engine_digest()})
     assert result["error_code"] == "structure_unavailable"
     assert result["error_class"] is None
+
+
+def _switch(monkeypatch, on):
+    monkeypatch.setenv("BIDOPS_ENGINE_ANALYSIS_ENABLED", "true" if on else "false")
+    get_settings.cache_clear()
+
+
+def test_switch_off_rejects_creation_before_any_write_or_replay(context, monkeypatch):
+    session, client, ids = context
+    replayed = body(ids)
+    assert (
+        client.post(
+            endpoint(ids), json=replayed, headers={"X-BidOps-Actor-Name": "tester"}
+        ).status_code
+        == 202
+    )
+    _switch(monkeypatch, False)
+    for payload in (body(ids), replayed, body(ids, mode="live")):
+        response = client.post(
+            endpoint(ids), json=payload, headers={"X-BidOps-Actor-Name": "tester"}
+        )
+        assert response.status_code == 503, response.text
+        assert response.json()["error"]["code"] == "engine_analysis_disabled"
+    assert session.scalar(select(func.count()).select_from(EngineRun)) == 1
+    assert (
+        session.scalar(
+            select(func.count())
+            .select_from(WorkJob)
+            .where(WorkJob.job_type == svc.JOB_TYPE)
+        )
+        == 1
+    )
+
+
+def test_switch_off_keeps_existing_runs_readable_for_audit(context, monkeypatch):
+    session, client, ids = context
+    created = enqueue(context)
+    assert svc.run_once(session, "engine-test")
+    _switch(monkeypatch, False)
+    listed = client.get(endpoint(ids))
+    assert listed.status_code == 200 and listed.json()["total"] == 1
+    detail = client.get("/api/engine-runs/" + created["id"])
+    assert detail.status_code == 200 and detail.json()["status"] == "partial"
+
+
+def test_switch_off_worker_slot_claims_nothing(context, monkeypatch):
+    from app.deep_review import run_engine_once  # the composed worker's entry
+
+    session, client, ids = context
+    created = enqueue(context)
+    _switch(monkeypatch, False)
+    assert not run_engine_once(
+        session, "engine-test", invoke=lambda _: pytest.fail("slot ran while off")
+    )
+    job = session.scalar(select(WorkJob).where(WorkJob.job_type == svc.JOB_TYPE))
+    assert (job.status, job.attempt_count, job.lease_owner) == ("queued", 0, None)
+    assert client.get("/api/engine-runs/" + created["id"]).json()["status"] == "queued"
+    _switch(monkeypatch, True)
+    assert run_engine_once(session, "engine-test")
+    assert client.get("/api/engine-runs/" + created["id"]).json()["status"] == "partial"
