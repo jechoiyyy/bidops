@@ -97,6 +97,18 @@ def test_real_pipeline_queue_and_store_partial_without_promoting_unknown(context
         for e in result["analysis"]["source_evidence"]
     )
     assert "company_profile_projection_incomplete" in result["warnings"]
+    # D1: a fresh run is not "이전 기준 분석"; BidOps' binding hash is kept separately.
+    assessment = result["analysis"]["assessment"]
+    assert not {"stale_stage", "legacy_metadata"} & set(assessment["reason_codes"])
+    assert "stale_analysis" not in [
+        c["kind"] for c in assessment["provisional"]["conditions"]
+    ]
+    projection = result["analysis"]["company_projection"]
+    assert projection["source_profile_sha256"] == result["profile_sha256"]
+    assert (
+        projection["engine_company_input_hash"]
+        == result["analysis"]["company_input_hash"]
+    )
     assert (
         session.scalar(
             select(func.count())
