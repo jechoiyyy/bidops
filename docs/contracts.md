@@ -66,7 +66,7 @@ C-1 `candidate_selection`의 기존 `collect-candidate.v2 / candidate_pool_all /
 ### 기능 스위치 `GET /api/feature-flags` (2026-11-18)
 
 - core가 소유하며 `BIDOPS_MODULES`와 무관하게 항상 있다(`/api/demo-config`와 같은 자리). 읽기 전용이고 다른 method는 405다. seed·migration·enqueue를 하지 않는다.
-- 응답: `{"schema_version":"feature-flags.v1","rl_analysis":bool,"prespec_overview":bool}`. `rl_analysis`=`BIDOPS_RL_ANALYSIS_ENABLED`, `prespec_overview`=`BIDOPS_PRESPEC_OVERVIEW_ENABLED`. 값은 참·거짓뿐이며 비밀값·host·모델 이름·정책 경로를 싣지 않는다.
+- 응답: `{"schema_version":"feature-flags.v1","rl_analysis":bool,"prespec_overview":bool,"engine_analysis":bool}`. `rl_analysis`=`BIDOPS_RL_ANALYSIS_ENABLED`, `prespec_overview`=`BIDOPS_PRESPEC_OVERVIEW_ENABLED`, `engine_analysis`=`BIDOPS_ENGINE_ANALYSIS_ENABLED`(2026-11-19 추가, [엔진 실행 계약](contracts/engine-runs.md)). 값은 참·거짓뿐이며 비밀값·host·모델 이름·정책 경로를 싣지 않는다.
 - 소비자(관리 화면)는 `false`인 기능을 요청 전에 "이 환경에서 꺼져 있음"으로 보이고 요청 control을 막는다(설계고도화안 C-4). `true`는 그 기능의 다른 전제(실회사 등록·정책 행·전송 승인)가 갖춰졌다는 뜻이 아니며 각 API는 지금처럼 fail closed한다. 조회에 실패하면 화면은 켜져 있다고 가정하지 않고 기존 오류 경로를 그대로 쓴다.
 
 ### 목록 검색 `q`

@@ -51,3 +51,13 @@
 반영 결과: 기존 사용자 문서 보존 `653dcf6`, 통합 구현 `00d7e59`, main 병합 `4657dfe`를 기존 origin/main에 push했다. 병합 전체 트리는 검증된 통합 커밋의 트리와 동일하다. 이후 기본 개발 경로는 `/Users/temp/orca/bidops`다. 통합/RL-07 worktree 3개와 로컬 브랜치 7개를 정리했고, 미완료 RL-07 전체 파일·main 밖 HP 커밋은 `/Users/temp/orca/bidops-worktree-archive/20261118-004032`의 hash 검증 tar와 Git bundle로 보존했다. RL-07 run은 도구로 abandoned 처리했으며 기능 완료로 표시하지 않았다. 운영 bind source인 `bidops-c2mac`과 그 브랜치, 다른 원격 브랜치는 유지했다.
 
 개발 env·격리 Python·검증 로그를 main 경로로 옮기고 개발 web/analysis 컨테이너의 bind 경로만 재생성했다. 컨테이너 시작·migration·운영 변경은 없었다. 경로 이전 후 `make config`, 격리 Python import와 필수 증거 검사 통과. RL-09의 기존 review phase는 자동 run 완료 기록과 구분해 유지한다. 실제 모델 품질 인수·운영 배포는 계속 미완료다.
+
+### 후속: 병합 확인 결함 수정(2026-11-19)
+
+[병합 확인 기록](../../../../../validation-runs/20261119-engine-merge-check/README.md) §11 "수정 결과"가 정본이다. 바뀐 동작만 적는다.
+
+- manifest는 들여온 파일 전부를 세 묶음(원본 파일·대체 파일·BidOps 작성 파일)으로 한 번씩 기록하고 `engine_tests/test_manifest.py`가 오프라인으로 검사한다.
+- 새 실행은 더 이상 "이전 기준 분석"(stale)으로 표시되지 않는다. 엔진 회사 hash와 BidOps `profile_sha256`을 따로 기록한다.
+- 인용 위치는 엔진이 인용한 절의 블록에서 찾고 `exact|ambiguous`를 붙인다. 오류 코드는 runner·worker 모두 정의된 코드로 보존하고 안전한 한 줄 로그를 남긴다. mock은 문서 문장으로 참가자격을 만들지 않는다.
+- 백엔드 스위치 `BIDOPS_ENGINE_ANALYSIS_ENABLED`(기본 false): 꺼지면 생성 503 `engine_analysis_disabled`, worker 슬롯 미동작, 조회는 감사용으로 유지.
+- `engine_tests`는 1,493개(위 결과 절의 "engine512+adapter3"는 당시 기록이다). 여전히 mock_reference이며 품질·운영 활성화 근거가 아니다. status.json의 과거 검사 기록은 당시 증거라 고치지 않았다.
