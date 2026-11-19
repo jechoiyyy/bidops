@@ -124,6 +124,29 @@ test("헤더 pill은 단계·마감·판정·추적 상태 순서이고 판정�
   }
 });
 
+// 설계고도화안 C-6: 결정 축 요약 줄. 축 셋을 각자의 이름·상태로 적고 한 상태로 합치지 않는다.
+test("헤더의 결정 축 요약 줄은 추적 결정·판정 확인·최종 Go/No-Go를 축마다 따로 적는다", async ({ page }) => {
+  await openRecord(page, "/opportunities/7101/activity");
+  const axes = page.getByTestId("record-decision-axes");
+  await expect(axes.locator("dt")).toHaveText(["추적 결정", "판정 확인", "최종 Go/No-Go"]);
+  await expect(axes.locator('[data-axis="tracking"] dd')).toHaveText("계속 추적");
+  // 판정이 없으면 "판정 없음"이고, 입찰공고가 연결돼 있으니 결정 응답을 읽어 "결정 없음"이다.
+  await expect(axes.locator('[data-axis="verdict"] dd')).toHaveText("판정 없음");
+  await expect(axes.locator('[data-axis="go_no_go"] dd')).toHaveText("결정 없음");
+
+  // 발주계획만 있는 사업: 판정 대상·결정할 공고가 아직 없다. 미선택은 그대로 미선택이다.
+  await page.goto("/opportunities/7102/activity");
+  await expect(axes.locator('[data-axis="verdict"] dd')).toHaveText("사전규격 연결 전");
+  await expect(axes.locator('[data-axis="go_no_go"] dd')).toHaveText("입찰공고 연결 전");
+  await expect(axes.locator('[data-axis="tracking"] dd')).toHaveText("미선택");
+
+  // 보류는 추적 결정 축에만 있다. 다른 축의 값이 되지 않는다.
+  await page.goto("/opportunities/7104/activity");
+  await expect(axes.locator('[data-axis="tracking"] dd')).toHaveText("보류");
+  await expect(axes.locator('[data-axis="tracking"]')).toHaveClass(/is-warning/);
+  await expect(axes.locator('[data-axis="go_no_go"] dd')).toHaveText("결정 없음");
+});
+
 test("같은 단계에 권위 연결이 둘이면 서버가 준 대표(stages[].link_id)로 헤더·속성·공고·비슷한 공고를 읽는다", async ({ page }) => {
   // 7109: 옛 입찰공고 A(연결 7061·공고 9601, 마감 10/9 지남)가 연결 목록 앞에 있고, 새 입찰공고
   // B(연결 7062·공고 9602, 마감 10/21 = D-5)가 서버 대표다. 화면은 대표를 스스로 고르지 않는다.

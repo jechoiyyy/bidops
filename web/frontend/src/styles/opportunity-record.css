@@ -88,6 +88,46 @@
   white-space: nowrap;
 }
 
+/* 결정 축 요약 줄(설계고도화안 C-6): `축 이름 상태` 셋을 한 줄에 · 로 잇는다. 축 이름은 보조색,
+ * 상태는 본문색이며 보류·재검토 같은 주의 상태만 경고색을 함께 쓴다(글자가 상태를 말한다). */
+.rec-axes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--spacing-1) var(--spacing-3);
+  margin: 0;
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.rec-axis {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.rec-axis + .rec-axis::before {
+  content: "·";
+  margin-right: var(--spacing-2);
+  color: var(--color-text-secondary);
+}
+
+.rec-axis dt {
+  color: var(--color-text-secondary);
+  font-weight: 400;
+}
+
+.rec-axis dd {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.rec-axis.is-warning dd {
+  color: var(--color-warning);
+}
+
 .rec-pill.is-stage {
   color: var(--color-text-teal);
   background: var(--color-background-teal);

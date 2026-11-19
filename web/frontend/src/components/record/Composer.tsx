@@ -4,6 +4,7 @@ import { TextArea } from "@astryxdesign/core/TextArea";
 import { ActorField } from "../common/ActorField";
 import { MutationFeedback } from "../common/MutationFeedback";
 import type { ApiErrorDescription } from "../../lib/apiErrors";
+import { TERM_SENSE } from "../../lib/glossary";
 import type { OpportunityNoteKind } from "../../lib/types";
 
 /*
@@ -82,7 +83,7 @@ export function Composer({
               autoComplete="off"
               maxLength={128}
               onChange={(event) => onOwnerChange(event.target.value)}
-              placeholder="다음 행동 담당 (선택)"
+              placeholder={`${TERM_SENSE.nextActionNote} 담당 (선택)`}
               value={owner}
             />
           </label>
@@ -98,7 +99,7 @@ export function Composer({
           />
           <Button
             isDisabled={empty || busy}
-            label="다음 행동"
+            label={TERM_SENSE.nextActionNote}
             onClick={() => onSubmit("action")}
             size="sm"
           />

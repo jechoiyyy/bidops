@@ -27,6 +27,7 @@ import { ApiError, api } from "../lib/api";
 import { describeApiError } from "../lib/apiErrors";
 import { formatMoment as formatMomentBase } from "../lib/format";
 import { generateRequestId } from "../lib/requestId";
+import { gateResultLabel } from "../lib/glossary";
 import type {
   C2DailyTriggerReason,
   C2DailyTriggerStateResponse,
@@ -82,7 +83,7 @@ function blockerText(blocker: C2PolicyBlocker): string {
       return "품질 게이트 임계값 4개 중 정해지지 않은 값이 있습니다(사람 결정 D-b).";
     case "quality_gate_not_passed":
       if (detail === "미측정") return "최신 게이트 평가가 미측정입니다 — 임계값이 정해지지 않아 판정하지 않았습니다.";
-      if (detail === "보류") return "최신 게이트 평가가 보류입니다 — 측정이 아직 끝나지 않았습니다.";
+      if (detail === "보류") return "최신 게이트 평가가 측정 미완입니다 — 측정이 아직 끝나지 않았습니다.";
       if (detail === "미달") return "최신 게이트 평가가 미달입니다 — 임계값을 채우지 못한 지표가 있습니다.";
       if (detail === "none") return "게이트 평가가 아직 기록되지 않았습니다.";
       return `최신 게이트 평가가 통과가 아닙니다 (${detail ?? "상세 없음"}).`;
@@ -325,14 +326,14 @@ function GateSurface({ gate }: { gate: C2QualityGateListItem }) {
   const headline = status === "미측정"
     ? "미측정 · 임계값 미정"
     : status === "보류"
-      ? "보류 · 측정 미완"
+      ? "측정 미완 · 측정이 끝나지 않았습니다"
       : status === "미달"
         ? "미달 · 임계값을 채우지 못한 지표가 있습니다"
         : "통과 · 두 pass 모두 네 지표를 충족했습니다";
   const body = status === "미측정"
     ? "임계값 4개 중 정해지지 않은 값이 있어 판정하지 않았습니다. 미측정은 미달이 아닙니다."
     : status === "보류"
-      ? "측정이 끝나지 않아 판정을 미뤘습니다. 보류는 미달이 아닙니다. 빠진 항목:"
+      ? "측정이 끝나지 않아 판정하지 않았습니다. 측정 미완은 미달이 아닙니다. 빠진 항목:"
       : status === "미달"
         ? "미달 지표:"
         : reference
@@ -341,7 +342,7 @@ function GateSurface({ gate }: { gate: C2QualityGateListItem }) {
   return (
     <div className="opp-gate-surface" data-gate-result={status} data-tone={tone}>
       <span className="opp-gate-surface-head">
-        <StatusToken label={status} />
+        <StatusToken label={gateResultLabel(status)} />
         <Text weight="semibold">{headline}</Text>
       </span>
       <Small>{body}</Small>
@@ -825,7 +826,7 @@ export function OrderPlanPolicyPage() {
                         rows={gates.map((gate) => [
                           <code key="g">{gate.gate_id}</code>,
                           <Text key="b">{gate.evaluation_basis === "reference_artifact_rescore" ? "참조 재채점 · 활성화 근거 아님" : "제품 재실행"}</Text>,
-                          <StatusToken key="r" label={gate.latest_evaluation?.result_status ?? "평가 없음"} />,
+                          <StatusToken key="r" label={gate.latest_evaluation ? gateResultLabel(gate.latest_evaluation.result_status) : "평가 없음"} />,
                           <Text key="c">{`${moment(gate.created_at)} · ${gate.created_by}`}</Text>,
                         ])}
                       />

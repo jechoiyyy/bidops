@@ -442,7 +442,7 @@ test("계산 대기 중인 비교를 보면 공고 조건 근거 폼과 비활�
   await expect(conditions.nth(1)).toContainText("필요");
   await expect(conditions.nth(1)).toContainText("사유 입력");
   await expect(conditions.nth(2)).toContainText("담당자 이름");
-  await expect(page.locator(".bid-delta-form-note")).toContainText("보류는 최종 결정 값이 아니며 저장되지 않습니다");
+  await expect(page.locator(".bid-delta-form-note")).toContainText("최종 결정 값은 Go·No-Go 둘뿐이며, 결정을 미루려면 저장하지 않습니다");
 });
 
 // 오른쪽 결정 칸은 결정 입력과 결정 이력만 담는다. 계산 회차·고정 입력 같은
@@ -457,7 +457,7 @@ test("결정 칸은 이력과 최신 여부를 담고 계산 회차는 읽기 �
   await expect(pane.locator("h3", { hasText: "계산 회차 이력" })).toHaveCount(0);
 });
 
-test("보류는 최종 결정 선택지가 아니다", async ({ page }) => {
+test("최종 결정 선택지는 Go·No-Go 둘뿐이다(보류 값 없음)", async ({ page }) => {
   await openComparison(page, { calculationStatus: "completed", resultStatus: "changed" });
   const radios = decisionGroup(page).getByRole("radio");
   await expect(radios).toHaveCount(2);
