@@ -2,151 +2,156 @@
   "repository": "bid-deep-agent",
   "commit": "7ad9283d8e8a405074374d12c5f0a13ccb8e5b1f",
   "engine_version": "bid-deep-engine.v1",
+  "hash_semantics": {
+    "files": "upstream file at `commit`: `path` is the upstream path and `sha256` hashes the upstream bytes. The vendored file is those bytes after `adaptation`: 'none', 'import rename' (bidops -> bid_deep_engine, tests. -> engine_tests.; `local_replacements` lists any further [vendored, upstream] line pairs), or 'excerpt: ...' (declared partial copy).",
+    "replaced_files": "an upstream file at `upstream_path` exists but its content is replaced here: `path` is the vendored path and `sha256` hashes the vendored bytes.",
+    "authored_files": "written in BidOps with no upstream counterpart: `path` is the vendored path and `sha256` hashes the vendored bytes."
+  },
   "files": [
     {
       "path": "src/bidops/analysis/actions.py",
       "sha256": "18687e803413cf7b07c5976e495bc4268fb15cf7a7619465658fdf25aaa8945f",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/document.py",
       "sha256": "3774d5b80bbf7351d3a9ef75c3c489c5cbc6ed3e268bb7f3cb086ecdb7293326",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/evidence.py",
       "sha256": "729e5eff4e179bc78b4e72591ecd03749a1229cf2d21456f39e101dd72aebf0e",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/evidence_locations.py",
       "sha256": "4c46153337ad6518b084ace274516e098b4274c234cc045938baf9544940544e",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/extractor.py",
       "sha256": "e4abb710a2320970c3f7f3b8b6b26980400e6fe775bfa72c55290b7030b6caca",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/gates.py",
       "sha256": "0391e8a294030b8ac59d742461f542c462b8a4ca85e4298a41929725f96cf770",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/labels.py",
       "sha256": "229258850567b60cf1a3538ff416c86a0c2652bfa04eda19ef7834b0d7c741b1",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/matcher.py",
       "sha256": "6cec0a83b3df280892ec77084c2c1dc41496ee91fdb0e91139859df24f8da0c8",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/merge.py",
       "sha256": "156f2a13762a5e6a58fb2f05dd5c60ae54ddab2e973b116d4f928458ea20f57c",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/pipeline.py",
       "sha256": "13af254dbefc5c650bdd7d4f8da213069fd4917725b51bcb439a55226998753a",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/prompt_files.py",
       "sha256": "c5e3892159e8a989975c3310bfa2f137df843d7fc8fc344c3e4188f2bf97afa9",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/provenance.py",
       "sha256": "0e5c9e4e15d7fe8741a81aa6571a4894426a12d6bc9510275ab1d976bed8d1eb",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/recommend.py",
       "sha256": "8fa5f717b554b98cf0c3b3093651cfc972c9c08b2562ad707d54899d9842cbd7",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/review.py",
       "sha256": "304fc6cdaf6f47f21258405b135e816d48d643af180d386e7407eeae7bfb76fb",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/schemas.py",
       "sha256": "d251e907907de70bf2927b5dab1d612930c2ff398ff94ce35fb5afce1aeadcd7",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/scoring.py",
       "sha256": "dea084f961571aceecaa9a44a645e09408c3c18f8c41bf8f1b5e6a61e9124efc",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/spend.py",
       "sha256": "ef27929ecd0853dbc230d6ce945caffd6d9a271cbda52fdfe391eeb8670e7ed3",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/strategies.py",
       "sha256": "55fdef13cdd7ee8601b4682aec721feb7b44cc27f8aa65021530080f15c8ab52",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/synthesizer.py",
       "sha256": "0da280cb14f45683625229b2e259db4d1864aac4f3e82fa9717c7a17e6d184e2",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/company/hints.py",
       "sha256": "cfdd6088efb883613f519429f70e2212b8b5fe9246057b7286f7221b188f2d37",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/company/knowledge.py",
       "sha256": "11fc66c954a5ec680cf8ac1ec86a625bdb497308ba8abf35754c8fd9c6950ccf",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/company/loader.py",
       "sha256": "ee466521c940ca55e6526afafcaf3b7e5edf3e46b05c4e2aba187f3947896727",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/company/past_labels.py",
       "sha256": "7807fc046d31b042264a4a7cc7590e8e784eaa91510ecc13e5fca71ebea23a1c",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/company/provenance.py",
       "sha256": "a8a0f933791077c8e85043767b9f32e5e98843b4aa6a76abe63717edfeb553d0",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/company/schema.py",
       "sha256": "45df6d1ce25d56d6029480e61425a59879b0d14c8f9fdb25be1a4ff644a6dd3d",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/feedback/decision.py",
       "sha256": "27a32e99d13b49d4cd166082c3acbd9103fe49fdb60d9efc2227761907219739",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/feedback/gate_confirmations.py",
       "sha256": "9dad366494cde60e7ad184d2500f24891007e0a0afeeb5f68db23d0f57c65d90",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/ingest/models.py",
       "sha256": "075c28870172e511f2eb4f6c08552885a6ad6417e991a9e1268fb2b905b6e3b9",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/ingest/normalize.py",
       "sha256": "9d9766a7266abeb2530993605ab3715ed10b381cbd4adeb69f6c269851340d31",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/prompts/extract.md",
@@ -176,37 +181,300 @@
     {
       "path": "tests/test_gates.py",
       "sha256": "dfd13603b7d018dc503f7beba548b84c4a4b0f0fa5b33000136f9ca875b58dd5",
-      "adaptation": "namespace-only synthetic tests"
+      "adaptation": "import rename"
     },
     {
       "path": "tests/gate_factories.py",
       "sha256": "5cad9df811edea863d64be97b8188641a559cb08369efb2c6dec893f0cae31bb",
-      "adaptation": "namespace-only synthetic tests"
+      "adaptation": "import rename"
     },
     {
       "path": "tests/test_analysis_schemas.py",
       "sha256": "848d1f484248db0e2fea4cae930bd8466e6fe0c1b5874705cc10583dc8559ac8",
-      "adaptation": "namespace-only synthetic tests"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/pricing.py",
       "sha256": "2db4550a758556ee41ec82ee2f741d50257af9bc8269a6cc92cd90fb4aa6f32d",
-      "adaptation": "namespace only"
-    },
-    {
-      "path": "src/bidops/analysis/spend.py",
-      "sha256": "ef27929ecd0853dbc230d6ce945caffd6d9a271cbda52fdfe391eeb8670e7ed3",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/model_catalog.py",
       "sha256": "fb2a223c9967d1f9c3d24712bf07195aea17b035cb1987508816b44962aad322",
-      "adaptation": "namespace only"
+      "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/llm.py",
       "sha256": "ff1cb8ac495bfec0cc5977abc0cdffb205e959ca945f72f07b57209e5dd4162d",
-      "adaptation": "value/error classes only; transport implementation excluded"
+      "adaptation": "excerpt: value/error classes only; transport implementation excluded"
+    },
+    {
+      "path": "tests/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/test_analysis_readiness.py",
+      "sha256": "8b509d5b56728f8debb69c64f27e688cfbbb5d3ccdcdcd7789c76a4beb18f3ba",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_company_loader.py",
+      "sha256": "b7ef3be7d0f2a7429361509291fe34fe737c7779eb14bd9b0f294c2238385533",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_company_provenance.py",
+      "sha256": "fe5aeec9ef3b4409db0487f7718cf277b3e5561dd59a790216e0f852ba0fd1e0",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_company_schema.py",
+      "sha256": "08c519ea7351dc53c684aa09c85015e84f9daaf257476da2c0ae9f433eb42bd4",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_document.py",
+      "sha256": "76e1bfe5e52920096601b4823c3d8b3f67c8597a9df58454c8dfa60195a4aee2",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_evidence.py",
+      "sha256": "d51f832aa2b3063c765b2d788d6e5b42f4be2f8eef2c716dfd2d14960e81cc52",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_evidence_locations.py",
+      "sha256": "59dd7de045bcea0607bc3fdaa2952beb42030784db524c9f7bfce4fcf98ebc07",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_knowledge_classify.py",
+      "sha256": "2faf0f829d3361accc351a5b74512694fbf94748f3d7a3c23f4732245d8f3b17",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_knowledge_select.py",
+      "sha256": "a2a75e4614ae49e70d6586c28acaf8bf158f7e1043a9e0a9248d8e68282a7872",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_knowledge_portfolio_select.py",
+      "sha256": "cbbab3a768dbd6114fd5ba359fcf2f923fde09ef16fe4a08d6b053cf2503f644",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_merge.py",
+      "sha256": "05b0cbcec3e96448310c82667a7a2c06f3be98587ccc4fcb7369ec0c8a967321",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_pricing.py",
+      "sha256": "0a47f90f6c3127ce26908bee8fac5dd1d650a22f612475c255194467c38b0af2",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_provisional.py",
+      "sha256": "93bf9d2cd70b55b1d5c88f67c6b117f29da0a102f607d0af880fef1d6c53d77b",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_scoring.py",
+      "sha256": "99dacd370c457c27d47d36de288ff5e3cc2198dcb6788e0574b2e4aaec7e2694",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_normalize.py",
+      "sha256": "81e82e6ca0d90a3ea1427ae097d6f080561ac2344d0d8fd34ee6b0410e64a469",
+      "adaptation": "import rename",
+      "local_replacements": [
+        [
+          "from engine_tests.ingest_writer import",
+          "from bid_deep_engine.ingest.writer import"
+        ]
+      ]
+    },
+    {
+      "path": "tests/test_models.py",
+      "sha256": "38c23b3a7b6f44342465ec3beeb40cb8f706518abff2321d3aead354c9ac1400",
+      "adaptation": "import rename",
+      "local_replacements": [
+        [
+          "from engine_tests.ingest_writer import",
+          "from bid_deep_engine.ingest.writer import"
+        ]
+      ]
+    },
+    {
+      "path": "tests/report_factory.py",
+      "sha256": "15f1f6e18df363880b7c67ea9a512b11caf2a13a9ad1d68dacda7a4c867620fd",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/fixtures/rfp_req3.json",
+      "sha256": "5906f5e98abd308b6f021e4b93e45b23d10e1939fd90401b39c095c326f3c88d",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/rfp_mini.json",
+      "sha256": "46c24c57b90e57412bb8b33801acdfdec4d421ed036110644a7a801dabf1ce74",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/facts_full.json",
+      "sha256": "15904adcb9478ceb61db0b25c4c0b24fd4de7f28676a1eb308369de4f3369b2c",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge_render_alpha.md",
+      "sha256": "b536500e058661fd5664a99d8c56ab3fc8fdc2d83e879a23ce97bc1828570273",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/raw_mini_hwpx.json",
+      "sha256": "b7834c37a683aa83dbcaf0e4cb0ca7b4ab2b7c2ceb08287503f7a0d00565e4a0",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/raw_mini_pdf.json",
+      "sha256": "013421b9446d5f4b3e7c4be4af47107437d25b729d08bc5c68195d1ad7df230b",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/INDEX.md",
+      "sha256": "182ecbadde74ba6cff34d7686b33979fcf869c7fbdd88e9d822a18375de1e759",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/SCHEMA.md",
+      "sha256": "8a9d56e92081df9983706d54e1a0c91293cfbd7b9e1b55b631382e4b4a8a7f07",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/capabilities/cap-one.md",
+      "sha256": "aa4c965f9fe3c3edfc8b935b91c48a05f6bf6033f076ef8754cfed9a9758b11c",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/capabilities/cap-two.md",
+      "sha256": "13370cb1c652867dd5a797fe6f3c6495c6523a412e474eb7f435baca6c421601",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/capabilities/notes.txt",
+      "sha256": "372bde4fb77021e49f75d0164111ac035ff0e18650deff6ffb0508251a775f29",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/categories/alpha.md",
+      "sha256": "bd44326338c3ee2dd5924746b79f65e33b95050bc1e17f9012b690ca507fddf0",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/categories/beta.md",
+      "sha256": "09a5bc2b0d2ed706c2b474450bc548b818fde64c55bd9b7714592cb2893722d1",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/categories/other.md",
+      "sha256": "0243af405cc3562bd5fdbf200a6d3dec1c64145597505142a711db1cd12ce70e",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/glossary.md",
+      "sha256": "d8e7f48c3f7ad5c965cab780671eada1fe9ef5c58394a016a2c7180b09fe4f4c",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/portfolio/P2024-01.md",
+      "sha256": "22a48282fdc63206ad7563c2397e29c3759c54df5363c769bed9eefc4472a94a",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/profile.portfolio.yaml",
+      "sha256": "a732d8bc0fa200986b7c17d09eef5fcef8ffd053366d8f14c0027afabac7681a",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/rules/rule-one.md",
+      "sha256": "6c40e17e8b7dc57255f3fb83b88c149a0ad3e6a1244373a78b90935551933c35",
+      "adaptation": "none"
+    }
+  ],
+  "replaced_files": [
+    {
+      "path": "src/bid_deep_engine/__init__.py",
+      "upstream_path": "src/bidops/__init__.py",
+      "replacement": "empty package marker (upstream holds a version string only)",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "src/bid_deep_engine/analysis/__init__.py",
+      "upstream_path": "src/bidops/analysis/__init__.py",
+      "replacement": "empty package marker (upstream holds a docstring only)",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "src/bid_deep_engine/company/__init__.py",
+      "upstream_path": "src/bidops/company/__init__.py",
+      "replacement": "empty package marker (upstream holds a docstring only)",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "src/bid_deep_engine/feedback/__init__.py",
+      "upstream_path": "src/bidops/feedback/__init__.py",
+      "replacement": "empty package marker (upstream holds a docstring only)",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "src/bid_deep_engine/ingest/__init__.py",
+      "upstream_path": "src/bidops/ingest/__init__.py",
+      "replacement": "empty package marker (upstream holds a docstring only)",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "src/bid_deep_engine/config.py",
+      "upstream_path": "src/bidops/config.py",
+      "replacement": "type stub; no environment, configuration or credential loading",
+      "sha256": "5233dc18fe979ddceead21513fc076302466b75e07efbdc5c2dfd547e5ea7393"
+    },
+    {
+      "path": "src/bid_deep_engine/analysis/tracing.py",
+      "upstream_path": "src/bidops/analysis/tracing.py",
+      "replacement": "offline no-op tracer; no telemetry transport",
+      "sha256": "b65b4abc8c9c5cfc0562d86a91b4427330b797d981d5e58c6864d48b9f948317"
+    }
+  ],
+  "authored_files": [
+    {
+      "path": "src/bid_deep_engine/adapter.py",
+      "purpose": "BidOps company projection, table/block projection and source locators",
+      "sha256": "9c78100529c8a15f8c14303b9a65a3ad1657c4bfce2fa3f5350cf2bed9b13e2f"
+    },
+    {
+      "path": "src/bid_deep_engine/runner.py",
+      "purpose": "bidops.engine-input.v1/output.v1 subprocess boundary and mock_reference transport",
+      "sha256": "3295302a1cac00ad5d8afc183bf647d7355b6aada63d53b382344ff52652627c"
+    },
+    {
+      "path": "engine_tests/test_adapter.py",
+      "purpose": "adapter tests",
+      "sha256": "3f3fbaf0a34505411bb09231b458ee531bafdb3a004181b3ffed311303bdda80"
+    },
+    {
+      "path": "engine_tests/test_manifest.py",
+      "purpose": "checks this manifest against the vendored bytes offline",
+      "sha256": "3c7ebb5a855f8b452f853a651d1fdc624f048c0c32557e7809c0d86580601596"
+    },
+    {
+      "path": "engine_tests/test_runner.py",
+      "purpose": "runner boundary tests (readiness, mock transport, error codes)",
+      "sha256": "e950d5770f0175ed9ba50ec1b9f8bc756aefb2d7b18dd5d359dbd0d6b5374a80"
+    },
+    {
+      "path": "engine_tests/ingest_writer.py",
+      "purpose": "test-only stand-in for upstream ingest/writer.py (dump_json, write_bundle) used by the vendored test_models/test_normalize",
+      "sha256": "bf8920772b337dff693b50eefea1c6155c06cdd77c9eebcd99143a3bc39e21cf"
     }
   ],
   "excluded_transport_files": [

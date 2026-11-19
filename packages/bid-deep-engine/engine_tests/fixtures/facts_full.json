@@ -1,0 +1,252 @@
+{
+  "schema_version": 1,
+  "project": {
+    "name": "2027년 홈페이지 통합유지관리 사업",
+    "agency": "외교부",
+    "agency_type": "중앙행정",
+    "budget_krw": 430000000,
+    "budget_note": "부가가치세 포함",
+    "vat_included": true,
+    "is_fixed_price": false,
+    "period": {
+      "start": "2027-01-01",
+      "end": "2027-12-31",
+      "days": 365,
+      "months": 12,
+      "note": "계약일로부터 12개월"
+    },
+    "contract_method": "협상에 의한 계약",
+    "bidding_method": "제한경쟁입찰",
+    "evidence": [
+      {
+        "quote": "사업예산: 430,000,000원(부가가치세 포함)",
+        "section_id": "S001",
+        "page": 3,
+        "verified": true,
+        "repaired": false
+      }
+    ]
+  },
+  "schedule": {
+    "notice_date": "2026-11-02",
+    "briefing": "2026-11-09 14:00",
+    "qna_deadline": "2026-11-12",
+    "submission_deadline": "2026-11-20 10:00",
+    "eval_date": "2026-11-25",
+    "kickoff": "2027-01-02",
+    "evidence": [
+      {
+        "quote": "제안서 제출 마감: 2026. 11. 20.(금) 10:00",
+        "section_id": "S002",
+        "page": 4,
+        "verified": true,
+        "repaired": false
+      }
+    ]
+  },
+  "eligibility": [
+    {
+      "code": "DIRECT_PRODUCTION",
+      "text": "소프트웨어유지및지원서비스 직접생산확인증명서를 소지한 자",
+      "params": {
+        "item_no": ["8111159901"],
+        "industry_code": ["1468"],
+        "region": ["서울"],
+        "years": 3,
+        "amount_krw": 100000000,
+        "keyword": "직접생산확인",
+        "cert_name": "직접생산확인증명서"
+      },
+      "evidence": {
+        "quote": "직접생산확인증명서(소프트웨어유지및지원서비스, 8111159901)",
+        "section_id": "S003",
+        "page": 31,
+        "verified": true,
+        "repaired": false
+      }
+    },
+    {
+      "code": "LARGE_CORP_EXCLUDED",
+      "text": "대기업인 소프트웨어사업자의 참여 제한",
+      "params": {
+        "item_no": ["8111159902"],
+        "industry_code": ["1426"],
+        "region": ["대구"],
+        "years": 1,
+        "amount_krw": 2000000000,
+        "keyword": "대기업 참여제한",
+        "cert_name": "중소기업확인서"
+      },
+      "evidence": {
+        "quote": "대기업인 소프트웨어사업자는 참여할 수 없음",
+        "section_id": "S003",
+        "page": 32,
+        "verified": false,
+        "repaired": true
+      }
+    }
+  ],
+  "evaluation": {
+    "tech_weight": 90,
+    "price_weight": 10,
+    "qualifying_rule": "기술능력평가 점수가 기술능력평가 배점한도의 85% 이상인 자",
+    "qualifying_threshold": 85.0,
+    "qualifying_basis": "percent",
+    "quantitative": [
+      {
+        "item": "경영상태(신용평가등급)",
+        "max_points": 5.0,
+        "kind": "CREDIT_RATING",
+        "criteria": [
+          {"condition": "AA- 이상", "points": 5.0},
+          {"condition": "BBB0 이상", "points": 4.5}
+        ],
+        "criteria_table_id": "T007",
+        "evidence": {
+          "quote": "경영상태 5점(신용평가등급)",
+          "section_id": "S004",
+          "page": 40,
+          "verified": true,
+          "repaired": false
+        }
+      },
+      {
+        "item": "유사사업 수행실적",
+        "max_points": 3.0,
+        "kind": "PAST_PERFORMANCE",
+        "criteria": [
+          {"condition": "3건 이상", "points": 3.0}
+        ],
+        "criteria_table_id": "T008",
+        "evidence": {
+          "quote": "최근 3년간 유사사업 수행실적 3점",
+          "section_id": "S004",
+          "page": 41,
+          "verified": true,
+          "repaired": false
+        }
+      }
+    ],
+    "qualitative": [
+      {"item": "사업 이해도", "max_points": 10.0}
+    ],
+    "evidence": [
+      {
+        "quote": "기술능력평가 90점, 입찰가격평가 10점",
+        "section_id": "S004",
+        "page": 39,
+        "verified": true,
+        "repaired": false
+      }
+    ]
+  },
+  "staffing": [
+    {
+      "role": "PM",
+      "grade": "고급",
+      "count": 1,
+      "resident": true,
+      "location": "외교부 청사(서울)",
+      "min_years": 10,
+      "notes": "정보처리기사 보유자 우대",
+      "evidence": {
+        "quote": "PM 1명은 발주기관 지정 장소에 상주",
+        "section_id": "S005",
+        "page": 12,
+        "verified": true,
+        "repaired": false
+      }
+    }
+  ],
+  "contract_terms": {
+    "subcontract": {
+      "allowed": true,
+      "limit_pct": 50.0,
+      "note": "하도급 계약금액 50% 이내"
+    },
+    "consortium": {
+      "allowed": true,
+      "type": "공동이행",
+      "note": "구성원 수 3개사 이하"
+    },
+    "ip_ownership": "발주기관과 계약상대자 공동 소유",
+    "sla": {
+      "has": true,
+      "penalty_note": "서비스 수준 미달 시 지체상금 부과"
+    },
+    "warranty_months": 12,
+    "proposal_compensation": "해당 없음",
+    "proposal_page_limit": 100,
+    "remote_work": {
+      "allowed": false,
+      "note": "원격지 개발 불가"
+    },
+    "evidence": [
+      {
+        "quote": "공동수급은 공동이행방식만 허용함",
+        "section_id": "S006",
+        "page": 50,
+        "verified": true,
+        "repaired": false
+      }
+    ]
+  },
+  "commercial_sw": [
+    {
+      "name": "웹 취약점 점검 도구",
+      "vendor": "예시소프트",
+      "evidence": {
+        "quote": "상용SW: 웹 취약점 점검 도구 1식",
+        "section_id": "S007",
+        "page": 20,
+        "verified": true,
+        "repaired": false
+      }
+    }
+  ],
+  "system_env": {
+    "framework": "전자정부 표준프레임워크 3.10",
+    "cloud": "G-클라우드",
+    "accessibility_std": "KWCAG 2.2",
+    "cms": "자체 CMS"
+  },
+  "deliverables": ["착수계", "월간 운영보고서"],
+  "submission_docs": [
+    {
+      "name": "제안서",
+      "due": "2026-11-20 10:00",
+      "copies": "10부(정본 1부, 사본 9부)",
+      "stage": "제안서 제출 시",
+      "condition": "정본은 대표자 직인 날인",
+      "evidence": {
+        "quote": "제안서 10부(정본 1부, 사본 9부)",
+        "section_id": "S008",
+        "page": 60,
+        "verified": true,
+        "repaired": false
+      }
+    }
+  ],
+  "conflicts": [
+    {
+      "field": "project.budget_krw",
+      "values": ["430000000", "400000000"],
+      "evidence": [
+        {
+          "quote": "사업예산 430,000,000원",
+          "section_id": "S001",
+          "page": 3,
+          "verified": true,
+          "repaired": false
+        },
+        {
+          "quote": "추정가격 400,000,000원",
+          "section_id": "S009",
+          "page": 70,
+          "verified": false,
+          "repaired": false
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,7 @@
-import json, hashlib, subprocess, re, difflib, pathlib
+import json, hashlib, subprocess, re, difflib, pathlib, sys
 UP = "/Users/temp/orca/projects/bid-deep-agent"
-PKG = pathlib.Path("/Users/temp/orca/bidops/packages/bid-deep-engine")
+# Optional argument: another checkout's package directory (default: main checkout).
+PKG = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else "/Users/temp/orca/bidops/packages/bid-deep-engine")
 meta = json.loads((PKG/"UPSTREAM.json").read_text())
 c = meta["commit"]
 def vpath(p):
