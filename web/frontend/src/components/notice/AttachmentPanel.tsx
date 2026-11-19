@@ -3,6 +3,7 @@ import { Badge } from "../common/Badge";
 import { Panel } from "../common/Panel";
 import { api } from "../../lib/api";
 import { formatDateTime, present } from "../../lib/format";
+import { TERM_SENSE } from "../../lib/glossary";
 import type { AttachmentResponse } from "../../lib/types";
 
 interface AttachmentPanelProps {
@@ -89,7 +90,7 @@ export function AttachmentPanel({ noticePk, attachments, documentPreparationHref
       )}
 
       <div className="attachment-safe-guidance">
-        <strong>다음 행동 · 안전한 문서 묶음 준비</strong>
+        <strong>{TERM_SENSE.nextActionGuide} · 안전한 문서 묶음 준비</strong>
         <p>예전 첨부 이력은 심층 검토 입력으로 쓸 수 없습니다. 원문 격리, 악성코드 검사, 변환·구조화, 문서 역할 확인을 거쳐 문서 묶음을 직접 확정하십시오.</p>
         {documentPreparationHref ? (
           <a href={documentPreparationHref}>문서 준비 상태 확인</a>

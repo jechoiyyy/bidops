@@ -367,10 +367,10 @@ test("평가 수치 누락은 0/10이 아니라 계산 불가로 남는다", asy
   await expect(stats).not.toContainText("0 / 10건");
 });
 
-test("보류는 미달이 아니며 리뷰 수로 통과를 만들지 않는다", async ({ page }) => {
+test("측정 미완(결과 값 보류)은 미달이 아니며 리뷰 수로 통과를 만들지 않는다", async ({ page }) => {
   await open(page, "/quality-gates?gate=gate-operational-held");
-  await expect(page.locator(".crit-detail-head")).toContainText("보류");
-  await expect(page.locator(".crit-detail-scroll")).toContainText("계산 보류는 미달이 아닙니다");
+  await expect(page.locator(".crit-detail-head")).toContainText("측정 미완");
+  await expect(page.locator(".crit-detail-scroll")).toContainText("측정 미완은 미달이 아닙니다");
   await page.getByRole("tab", { name: "담당자 리뷰" }).click();
   await expect(page.locator(".crit-detail-scroll")).toContainText("리뷰 개수가 채워졌다는 이유만으로 화면이 통과 판정을 만들지 않습니다");
 });

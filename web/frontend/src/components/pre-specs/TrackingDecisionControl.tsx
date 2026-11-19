@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Selector } from "@astryxdesign/core/Selector";
-import { TextInput } from "@astryxdesign/core/TextInput";
 import { Badge } from "../common/Badge";
 import { ActorField } from "../common/ActorField";
 import { ConfirmDecisionDialog, trackingEndConfirmContent } from "../common/ConfirmDecisionDialog";
@@ -10,6 +8,17 @@ import { useUnsavedGuard } from "../common/useUnsavedGuard";
 import { DisabledReason } from "../common/DisabledReason";
 import { EmptyState } from "../common/EmptyState";
 import { MutationFeedback } from "../common/MutationFeedback";
+import {
+  TRACKING_SAVE_FAILED,
+  TrackingDecisionActions,
+  TrackingDecisionInputs,
+  TrackingSaveError,
+  trackingActionLabel,
+  trackingInputBlockedReason,
+  trackingReasonValue,
+  trackingSavedMessage,
+  type TrackingDecisionStatus,
+} from "../common/TrackingDecisionForm";
 import { api } from "../../lib/api";
 import { describeApiError, describeCompanyApiError, type ApiErrorDescription } from "../../lib/apiErrors";
 import {
@@ -23,7 +32,7 @@ import {
   type Uuid,
 } from "../../lib/companyApi";
 import { generateRequestId } from "../../lib/requestId";
-import { originOf, trackingDescription, trackingVariant } from "../../lib/opportunity";
+import { originOf, trackingVariant } from "../../lib/opportunity";
 import { formatDateTime, present } from "../../lib/format";
 import type {
   OpportunityDetailResponse,
@@ -49,8 +58,8 @@ import type {
 export const TRACKING_DECISION_STATUSES: OpportunityTrackingStatus[] = ["계속 추적"];
 
 /**
- * 사유·담당자 필수 규칙. 기존 사전규격 경로와 회사 경로가 같은 문구로 막는다.
- * 사유는 공백을 뺀 뒤 1자 이상이어야 하며(서버도 trim 뒤 1~2000자), 담당자 이름은
+ * 회사 데모 경로(`CompanyTrackingDecision`)의 사유·담당자 필수 규칙. 사전규격 경로는 추적 결정
+ * 입력 한 벌(`TrackingDecisionForm`, C-7)의 `trackingInputBlockedReason`을 쓴다. 사유는 공백을 뺀 뒤 1자 이상이어야 하며(서버도 trim 뒤 1~2000자), 담당자 이름은
  * 감사 표식일 뿐 인증이 아니다.
  */
 function requiredDecisionInputReason(reason: string, actorName: string): string | null {
@@ -58,9 +67,6 @@ function requiredDecisionInputReason(reason: string, actorName: string): string 
   if (!actorName.trim()) return "추적 결정을 저장하려면 담당자 이름을 입력하십시오.";
   return null;
 }
-
-/** 사유 예시 드롭다운에서 "직접 입력"을 뜻하는 값. 계약에 실리지 않는다. */
-const OTHER_REASON_PRESET = "__other__";
 
 /** 발주계획에서 추적 상태를 물려받은 건인지. 물려받았으면 이 화면은 다시 묻지 않는다. */
 export function isInheritedTracking(item: PreSpecListItem): boolean {
@@ -226,47 +232,37 @@ function PreSpecTrackingDecisionControl({
   const record = presentation === "record" || inline;
   const inlineClass = inline ? " is-inline" : "";
   const [savedDecision, setSavedDecision] = useState<{ reason: string; actor: string } | null>(null);
-  const hasPresets = Boolean(reasonPresets && reasonPresets.length > 0);
-  // 사전규격에서 고를 수 있는 값은 `계속 추적` 하나뿐이다(ADR-0046 결정 6).
-  const [status, setStatus] = useState<OpportunityTrackingStatus>(
-    item?.tracking_status && item.tracking_status !== "미선택" ? item.tracking_status : TRACKING_DECISION_STATUSES[0],
-  );
-  const [reason, setReason] = useState("");
-  // 드롭다운 선택 키와 실제 저장 사유를 구분한다. `기타` 키는 API에 보내지 않는다.
-  const [presetChoice, setPresetChoice] = useState("");
+  // 입력은 추적 결정 입력 한 벌(C-7)과 같다 — 드롭다운 선택 키와 `기타` 직접 입력을 나눠 두고,
+  // 저장 사유는 `trackingReasonValue`가 고른다. `기타` 키는 API에 보내지 않는다.
+  const [choice, setChoice] = useState("");
+  const [custom, setCustom] = useState("");
   const [actorName, setActorName] = useState("");
-  const [feedback, setFeedback] = useState<{ tone: "success"; message: string } | null>(null);
   const [problem, setProblem] = useState<ApiErrorDescription | null>(null);
-  // `종료`만 되돌릴 수 없다. `계속 추적`과 `보류`는 다시 고를 수 있으므로 확인
-  // 단계를 두지 않는다. 저장에 성공하면 사유·담당자가 비워지므로 요약은 열 때의
-  // 값을 얼려 둔다.
+  // `종료`만 되돌릴 수 없다. 이 화면은 `계속 추적`만 저장하므로(ADR-0046 결정 6) 확인 단계가 열릴
+  // 일은 없지만, 같은 규칙을 다른 경로와 함께 둔다. 요약은 열 때의 값을 얼려 둔다.
   const [endConfirm, setEndConfirm] = useState<ReturnType<typeof trackingEndConfirmContent> | null>(null);
-
-  useEffect(() => {
-    if (!item) return;
-    setStatus(item.tracking_status && item.tracking_status !== "미선택" ? item.tracking_status : TRACKING_DECISION_STATUSES[0]);
-  }, [item?.notice_pk]);
+  const reasonValue = trackingReasonValue(choice, custom);
 
   // 사유는 저장 전까지 이 컴포넌트에만 있다. 화면을 떠나면 사라지므로 여기서 직접
   // route 이동을 막는다. 부르는 화면(PreSpecsPage·PreSpecDetailPage)이 같은 규칙을
   // 다시 구현하지 않게 하려는 것이며, 목록의 행 전환은 목록이 `onDirtyChange`로
   // 받아 자기 자리에서 확인해야 한다.
   //
-  // dirty는 사유(프리셋 선택 또는 자유 입력)만 본다. 담당자 이름만 채우고 사유가
+  // dirty는 사유(예시 선택 또는 직접 입력)만 본다. 담당자 이름만 채우고 사유가
   // 비어 있으면 저장할 수 없는 입력이라 잃을 것이 없으므로, 그 상태에서 다른 공고로
   // 옮기거나 상세를 떠나도 확인 창을 띄우지 않는다. 사유가 있으면 담당자 이름도
   // 함께 잃으므로 guard summary는 계속 둘 다 보여 준다.
   //
   // 범위가 `pathname`인 이유: 두 화면 모두 선택·필터를 검색 인자로 옮기므로
   // `any`로 두면 사유를 적는 중에 목록 조작마다 이탈 확인이 뜬다.
-  const dirty = presetChoice !== "" || reason.trim().length > 0;
+  const dirty = choice !== "" || custom.trim().length > 0;
   const guard = useUnsavedGuard(dirty, {
     blockSpaNavigation: true,
     scope: "pathname",
     title: "심층 검토 추적 선택을 저장하지 않고 떠납니다",
     message: "저장하지 않은 추적 결정 사유와 담당자 이름이 있습니다. 지금 이동하면 사라지며 저장된 추적 상태는 바뀌지 않습니다.",
     summary: [
-      { label: "사유", value: reason.trim() || "값 없음" },
+      { label: "사유", value: reasonValue || "값 없음" },
       { label: "담당자", value: actorName.trim() || "값 없음" },
     ],
   });
@@ -277,9 +273,9 @@ function PreSpecTrackingDecisionControl({
   }, [dirty, onDirtyChange]);
 
   const mutation = useMutation({
-    mutationFn: () => api.updateOpportunityTrackingStatus(
+    mutationFn: (status: TrackingDecisionStatus) => api.updateOpportunityTrackingStatus(
       item?.opportunity_id as number,
-      { tracking_status: status, reason: reason.trim() },
+      { tracking_status: status, reason: reasonValue },
       actorName,
     ),
     onSuccess: (saved) => {
@@ -288,12 +284,10 @@ function PreSpecTrackingDecisionControl({
       // 이동시키는데, 그 시점의 dirty 계산은 아직 이전 렌더 값이라 먼저 푼다.
       guard.release();
       if (record) setSavedDecision({ reason: saved.tracking_reason ?? "기록된 사유 미확인", actor: saved.tracking_selected_by ?? "담당자 미확인" });
-      setStatus(saved.tracking_status);
-      setReason("");
-      setPresetChoice("");
+      setChoice("");
+      setCustom("");
       setActorName("");
       setProblem(null);
-      setFeedback({ tone: "success", message: "심층 검토 추적 상태를 저장했습니다." });
       onSaved(saved);
       // 추적 시작이 기록된 뒤에만 심층 검토 실행 자리로 넘어간다. 두 결정은 별개다.
       onStartedForDeepReview?.();
@@ -301,27 +295,22 @@ function PreSpecTrackingDecisionControl({
     onError: (caught: unknown) => {
       // 서버 응답 본문에는 provider·검증 상세가 실릴 수 있다. 화면에 내는 것은
       // `describeApiError`가 status와 안전한 오류 코드로 옮긴 문구뿐이다.
-      setFeedback(null);
-      setProblem(describeApiError(caught, "심층 검토 추적 상태를 저장하지 못했습니다."));
+      setProblem(describeApiError(caught, TRACKING_SAVE_FAILED));
     },
   });
 
-  // 전제조건은 조기 반환보다 앞에서 계산한다. 상세 화면의 결정 패널이 같은
-  // 값을 읽어 액션의 비활성 여부와 사유를 이 컴포넌트와 똑같이 유지하기
-  // 때문이다(hook 순서를 조건부 반환이 흔들지 않게 하려는 목적도 같다).
+  // 전제조건은 조기 반환보다 앞에서 계산한다(hook 순서를 조건부 반환이 흔들지 않게).
   const hasOpportunity = item?.opportunity_id != null;
   const currentStatus = item?.tracking_status ?? null;
   const currentStatusLabel = currentStatus ?? "미확인";
   const currentStatusVariant = currentStatus === null ? "neutral" : trackingVariant(currentStatus);
   const recorded = record && hasOpportunity && ((currentStatus !== null && currentStatus !== "미선택") || savedDecision !== null);
   const hasForm = Boolean(item) && !isPending && !isError && !(item && isInheritedTracking(item)) && !recorded;
-  const ready = hasOpportunity && reason.trim().length > 0 && actorName.trim().length > 0 && !mutation.isPending;
-  const saveLabel = record ? (mutation.isPending ? "저장 중…" : problem ? "다시 저장" : "추적 시작") : onStartedForDeepReview ? "추적 시작하고 심층 검토" : "추적 상태 저장";
-  const disabledReason = mutation.isPending
-    ? "추적 상태 저장 요청을 처리하고 있습니다."
-    : !hasOpportunity
-      ? "아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없습니다."
-      : requiredDecisionInputReason(reason, actorName);
+  const disabledReason = !hasOpportunity && !mutation.isPending
+    ? "아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없습니다."
+    : trackingInputBlockedReason({ choice, custom, actorName, pending: mutation.isPending });
+  const ready = hasOpportunity && disabledReason === null;
+  const saveLabel = trackingActionLabel(TRACKING_DECISION_STATUSES[0] as TrackingDecisionStatus, currentStatus);
 
   useEffect(() => {
     onDecisionStateChange?.({ ready, disabledReason, hasForm, saveLabel });
@@ -330,7 +319,7 @@ function PreSpecTrackingDecisionControl({
   if (isPending) {
     return (
       <section className="pre-spec-tracking-decision" aria-labelledby="pre-spec-tracking-decision-title">
-        <Heading id="pre-spec-tracking-decision-title">{record ? "추적 결정" : "심층 검토 추적 선택"}</Heading>
+        <Heading id="pre-spec-tracking-decision-title">추적 결정</Heading>
         <p role="status">사업기회 연결과 첨부 취득 집계를 불러오는 중입니다.</p>
       </section>
     );
@@ -339,7 +328,7 @@ function PreSpecTrackingDecisionControl({
   if (isError || !item) {
     return (
       <section className="pre-spec-tracking-decision" aria-labelledby="pre-spec-tracking-decision-title">
-        <Heading id="pre-spec-tracking-decision-title">{record ? "추적 결정" : "심층 검토 추적 선택"}</Heading>
+        <Heading id="pre-spec-tracking-decision-title">추적 결정</Heading>
         <EmptyState
           compact
           tone="error"
@@ -351,6 +340,15 @@ function PreSpecTrackingDecisionControl({
     );
   }
 
+  const submit = (status: TrackingDecisionStatus) => {
+    if (!ready || mutation.isPending) return;
+    if (status === "종료") {
+      setEndConfirm(trackingEndConfirmContent({ actor: actorName, reason: reasonValue, target: `사업기회 #${item.opportunity_id}` }));
+      return;
+    }
+    mutation.mutate(status);
+  };
+
   const recordHeading = <>
     <div className="ps-record-tracking-heading"><Heading id="pre-spec-tracking-decision-title">추적 결정</Heading><span aria-label="현재 추적 상태"><Badge label={hasOpportunity ? (currentStatus === "계속 추적" ? "추적 중" : currentStatus === "종료" ? "추적 종료" : currentStatusLabel) : "사업기회 미연결"} variant="neutral" /></span></div>
     <div className="ps-record-tracking-reference"><span>사전규격번호</span><strong>{noticeNumber ?? "미확인"}</strong></div>
@@ -360,7 +358,8 @@ function PreSpecTrackingDecisionControl({
     return <section className={`pre-spec-tracking-decision is-compact is-record is-recorded${inlineClass}`} aria-labelledby="pre-spec-tracking-decision-title">
       {showRecordHeading ? recordHeading : null}
       <div className="ps-record-saved-decision">
-        <Heading>{savedDecision ? "추적 시작을 저장했습니다" : isInheritedTracking(item) ? "발주계획에서 추적 결정을 이어받았습니다" : "추적 결정이 기록된 사업입니다"}</Heading>
+        {/* 방금 저장한 결과도 추적 결정 입력 한 벌(C-7)의 저장 문장으로 알린다. */}
+        <Heading>{savedDecision ? trackingSavedMessage(currentStatus === null || currentStatus === "미선택" ? "계속 추적" : currentStatus) : isInheritedTracking(item) ? "발주계획에서 추적 결정을 이어받았습니다" : "추적 결정이 기록된 사업입니다"}</Heading>
         <p>현재 추적 상태 · {currentStatusLabel}</p>
         {inheritedContext}
         {savedDecision ? <dl><div><dt>선택 사유</dt><dd>{savedDecision.reason}</dd></div><div><dt>담당자</dt><dd>{savedDecision.actor}</dd></div></dl> : null}
@@ -411,7 +410,7 @@ function PreSpecTrackingDecisionControl({
       <div className="pre-spec-tracking-decision-header">
         <div>
           {!compact ? <span className="pre-spec-tracking-kicker">사람이 고르는 추적 결정</span> : null}
-          <Heading id="pre-spec-tracking-decision-title">{record ? "추적 결정" : "심층 검토 추적 선택"}</Heading>
+          <Heading id="pre-spec-tracking-decision-title">추적 결정</Heading>
           {/* 이 결정이 최종 Go/No-Go가 아니라는 사실은 CLAUDE.md 강제 게이트
               (네 결정은 서로를 대신하지 않는다)라, 밀도를 낮추더라도 액션 옆에서
               지우지 않는다. compact는 설명을 줄일 뿐 이 구분은 남긴다. */}
@@ -443,116 +442,40 @@ function PreSpecTrackingDecisionControl({
         id={formId}
         onSubmit={(event) => {
           event.preventDefault();
-          if (!ready) return;
-          if (status === "종료") {
-            setEndConfirm(trackingEndConfirmContent({
-              actor: actorName,
-              reason,
-              target: `사업기회 #${item.opportunity_id}`,
-            }));
-            return;
-          }
-          mutation.mutate();
+          submit(TRACKING_DECISION_STATUSES[0] as TrackingDecisionStatus);
         }}
       >
-        {record ? (showIntent ? <div className="ps-record-tracking-intent"><span>저장할 결정</span><h4>추적 시작 <span>→ 계속 추적</span></h4><p>새 문서·입찰공고·정정공고를 계속 확인합니다.</p></div> : null) : (
-        <fieldset>
-          <legend>결정할 추적 상태</legend>
-          <div className="pre-spec-tracking-options">
-            {TRACKING_DECISION_STATUSES.map((option, index) => (
-              <button
-                key={option}
-                type="button"
-                className={`pre-spec-tracking-option ${status === option ? "is-selected" : ""}`.trim()}
-                aria-label={option}
-                aria-describedby={`pre-spec-tracking-option-description-${index}`}
-                aria-pressed={status === option}
-                disabled={!hasOpportunity || mutation.isPending}
-                onClick={() => setStatus(option)}
-              >
-                <strong>{option}</strong>
-                <span id={`pre-spec-tracking-option-description-${index}`}>{trackingDescription(option)}</span>
-              </button>
-            ))}
-          </div>
-        </fieldset>
-        )}
+        {record && showIntent ? <div className="ps-record-tracking-intent"><span>저장할 결정</span><h4>추적 시작 <span>→ 계속 추적</span></h4><p>새 문서·입찰공고·정정공고를 계속 확인합니다.</p></div> : null}
 
         {hasOpportunity ? (
-          <>
-            {hasPresets ? (
-              <div className="pre-spec-tracking-reason-preset">
-                <Selector
-                  label="선택 사유"
-                  size={record && !inline ? "md" : "sm"}
-                  placeholder={record ? "추적을 시작하는 사유를 선택하세요" : "사유를 선택하세요"}
-                  isRequired={record}
-                  isDisabled={mutation.isPending}
-                  hasClear
-                  options={[
-                    ...(reasonPresets ?? []).map((preset) => ({ value: preset, label: preset })),
-                    { value: OTHER_REASON_PRESET, label: "기타 · 직접 입력" },
-                  ]}
-                  value={presetChoice || null}
-                  onChange={(next) => {
-                    const chosen = next ?? "";
-                    setPresetChoice(chosen);
-                    setReason(chosen === OTHER_REASON_PRESET || chosen === "" ? "" : chosen);
-                  }}
-                />
-                {presetChoice === OTHER_REASON_PRESET ? (
-                  record ? <label className="pre-spec-tracking-reason"><span>선택 사유 직접 입력 <em>(필수)</em></span><textarea required rows={3} value={reason} disabled={mutation.isPending} onChange={event => setReason(event.target.value)} placeholder="추가로 확인할 내용과 추적이 필요한 이유" /></label> : (
-                  <TextInput
-                    label="선택 사유 직접 입력"
-                    size="sm"
-                    value={reason}
-                    onChange={setReason}
-                    placeholder="이 상태를 고른 사유를 남깁니다."
-                  />
-                  )
-                ) : null}
-              </div>
-            ) : (
-              <label className="pre-spec-tracking-reason">
-                <span>사유 <em>(필수)</em></span>
-                <textarea
-                  required
-                  rows={3}
-                  value={reason}
-                  onChange={(event) => setReason(event.target.value)}
-                  placeholder="이 상태를 고른 사유를 남깁니다."
-                />
-              </label>
-            )}
-            <ActorField
-              label="담당자 이름 (필수)"
-              required
-              value={actorName}
-              onChange={setActorName}
-              // 한 줄 배치에서는 라벨 줄이 화면에 보이지 않으므로(시안
-              // mockups/artboards/Main.dc.html 198줄) 무슨 칸인지 placeholder가 말한다.
-              // 라벨 자체는 문서에 그대로 남는다.
-              placeholder={inline ? "담당자 이름 (필수)" : "예: 홍길동"}
-              autoComplete="off"
-              description={record ? "이 이름을 결정 이력에 기록하며 이 브라우저에 기억합니다." : undefined}
-              showRememberNote={!record}
-              disabled={record && mutation.isPending}
-            />
-          </>
+          <TrackingDecisionInputs
+            presets={reasonPresets ?? []}
+            choice={choice}
+            onChoiceChange={setChoice}
+            custom={custom}
+            onCustomChange={setCustom}
+            actorName={actorName}
+            onActorNameChange={setActorName}
+            isDisabled={mutation.isPending}
+            size={record && !inline ? "md" : "sm"}
+            reasonClassName="pre-spec-tracking-reason-preset"
+            // 한 줄 배치에서는 라벨 줄이 화면에 보이지 않으므로(시안
+            // mockups/artboards/Main.dc.html 198줄) 무슨 칸인지 placeholder가 말한다.
+            actorPlaceholder={inline ? "담당자 이름 (필수)" : "예: 홍길동"}
+          />
         ) : null}
 
-        {feedback ? <MutationFeedback tone={feedback.tone}>{feedback.message}</MutationFeedback> : null}
-        {problem ? <MutationFeedback tone="error" problem={problem} /> : null}
+        {problem ? <TrackingSaveError problem={problem} /> : null}
         {formId ? null : (
           <div className="pre-spec-tracking-action">
-            <button
-              className="pre-spec-tracking-save interaction-control"
-              type="submit"
-              disabled={!ready}
-              aria-describedby={disabledReason ? "pre-spec-tracking-save-disabled" : undefined}
-            >
-              {mutation.isPending ? "저장 중…" : saveLabel}
-            </button>
+            <TrackingDecisionActions
+              statuses={TRACKING_DECISION_STATUSES as TrackingDecisionStatus[]}
+              current={currentStatus}
+              disabledReasonId="pre-spec-tracking-save-disabled"
+              isDisabled={!ready}
+              pendingStatus={mutation.isPending ? (mutation.variables ?? null) : null}
+              onDecide={submit}
+            />
             {disabledReason ? <DisabledReason id="pre-spec-tracking-save-disabled">{disabledReason}</DisabledReason> : null}
           </div>
         )}
@@ -571,7 +494,7 @@ function PreSpecTrackingDecisionControl({
       <ConfirmDecisionDialog
         confirmLabel={endConfirm?.confirmLabel ?? "종료 상태로 저장"}
         isPending={mutation.isPending}
-        onConfirm={() => mutation.mutate(undefined, { onSettled: () => setEndConfirm(null) })}
+        onConfirm={() => mutation.mutate("종료", { onSettled: () => setEndConfirm(null) })}
         onOpenChange={(next) => { if (!next) setEndConfirm(null); }}
         open={endConfirm !== null}
         summary={endConfirm?.summary ?? []}

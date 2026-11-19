@@ -920,6 +920,36 @@ header.c2l-list-head .c2l-list-scope {
   min-width: 0;
 }
 
+/* 담당자 칸은 추적 결정 입력 한 벌(C-7)의 `ActorField`다. 조밀한 결정 바에서는 라벨을 드롭다운
+ * 라벨과 같은 모양으로 두고, 감사 표식 설명은 화면에서만 감춘다(낭독기는 그대로 읽는다). */
+.c2l-tracking-fields .actor-field {
+  align-content: start;
+  gap: var(--spacing-1);
+}
+
+.c2l-tracking-fields .actor-field > label {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  font-weight: 500;
+}
+
+/* 옆 `Selector`(sm, 32)와 같은 높이다. */
+.c2l-tracking-fields .actor-field > input {
+  min-height: var(--spacing-8);
+  height: var(--spacing-8);
+  padding: 0 var(--spacing-3);
+}
+
+.c2l-tracking-fields .actor-field > p {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
 /* 사유 드롭다운과 `직전 사유 다시 쓰기`는 한 칸을 세로로 나눠 쓴다. */
 .c2l-reason-field {
   display: flex;

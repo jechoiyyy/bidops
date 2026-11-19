@@ -1,6 +1,7 @@
 import type { JudgmentResponse } from "../../lib/types";
 import { formatNumber, present } from "../../lib/format";
 import { gradeRailClass } from "../../lib/grade";
+import { TERM_SENSE } from "../../lib/glossary";
 
 interface JudgmentBannerProps {
   judgment: JudgmentResponse | null;
@@ -44,8 +45,8 @@ export function JudgmentBanner({ judgment }: JudgmentBannerProps) {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
             <path d="M5 12h13M13 6l6 6-6 6" />
           </svg>
-          <span>다음 행동</span>
-          <strong>{judgment?.next_action?.trim() || "다음 행동 미확인"}</strong>
+          <span>{TERM_SENSE.nextActionGuide}</span>
+          <strong>{judgment?.next_action?.trim() || `${TERM_SENSE.nextActionGuide} 미확인`}</strong>
         </div>
       </div>
 

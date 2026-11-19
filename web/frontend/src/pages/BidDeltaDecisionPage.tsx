@@ -1180,7 +1180,7 @@ export function BidDeltaDecisionPage() {
                   {basis === "comparison"
                     ? "이 결정은 선택한 비교 결과와 양쪽 문서 버전에 연결됩니다."
                     : "이 결정은 최신 입찰공고와 그 관측 해시에 연결됩니다."}
-                  {" "}보류는 최종 결정 값이 아니며 저장되지 않습니다. 이전 결정은 수정하지 않고 새 기록을 남깁니다.
+                  {" "}최종 결정 값은 Go·No-Go 둘뿐이며, 결정을 미루려면 저장하지 않습니다. 이전 결정은 수정하지 않고 새 기록을 남깁니다.
                 </p>
                 <details className="bid-delta-technical-details">
                   <summary>이 결정이 묶는 값 보기</summary>

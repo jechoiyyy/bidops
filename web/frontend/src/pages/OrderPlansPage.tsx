@@ -17,6 +17,15 @@ import { EmptyState } from "../components/common/EmptyState";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
 import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
+import { Toast } from "../components/common/Toast";
+import { useToast } from "../components/common/useToast";
+import {
+  TRACKING_OTHER_REASON,
+  TRACKING_SAVE_FAILED,
+  trackingInputBlockedReason,
+  trackingReasonValue,
+  trackingSavedMessage,
+} from "../components/common/TrackingDecisionForm";
 import { useListSelection } from "../components/common/useListSelection";
 import {
   DenseList,
@@ -60,7 +69,6 @@ import { OrderPlanListRow } from "../components/order-plans/OrderPlanListRow";
 import { OrderPlanScopeDialogBody } from "../components/order-plans/OrderPlanScopeDialogBody";
 import { scopeLabel } from "../components/order-plans/orderPlanDialogShared";
 import {
-  OTHER_REASON,
   TRACKING_REASONS,
   formatMoment,
   currentKstMonth,
@@ -74,6 +82,7 @@ import {
 } from "../components/order-plans/orderPlanFormat";
 import {
   ORDER_PLAN_NULL_LABEL,
+  ORDER_PLAN_FEEDBACK_RELEVANCE_LABEL,
   ORDER_PLAN_PRIORITY_LABEL,
   ORDER_PLAN_RELEVANCE_LABEL,
   ORDER_PLAN_STAGE1_LABEL,
@@ -149,8 +158,8 @@ interface Preset {
 /**
  * 기본 보기는 `관련` 탭이다(2026-11-18 설계고도화안 A-6). 모델 판단 `relevant` AND 추적 상태
  * `미선택`. 이전 기본 보기는 `relevant`·`uncertain`을 한 목록에 섞어 하루 검토량이 임계 80건을
- * 넘었다 — 모델 판정·정책은 그대로 두고 **보기만 나눈다**. `불확실`(모델 `uncertain`, 화면 라벨
- * `판단 보류`)은 바로 옆 탭이며, 두 탭의 합은 대시보드 `order_plan_pending`(관련·불확실 AND
+ * 넘었다 — 모델 판정·정책은 그대로 두고 **보기만 나눈다**. `불확실`(모델 `uncertain`, 화면 라벨도
+ * `불확실` — C-6)은 바로 옆 탭이며, 두 탭의 합은 대시보드 `order_plan_pending`(관련·불확실 AND
  * 미선택, contracts.md)과 같다. 옛 `검토 대상` 탭이 URL에 적던 축(`qwen=relevant,uncertain&
  * tracking=미선택`)과 저장된 뷰는 그대로 같은 행을 보인다 — 탭 이름만 없어졌다.
  * `stage1_status=selected`는 따로 걸지 않는다 — 모델 relevance가 있는 행은 BM25 선정 행뿐이다.
@@ -168,7 +177,7 @@ const ALL_VIEW_AXES: FilterAxes = { qwen: [], stage1: [], feedback: [], tracking
  */
 const PRESETS: Preset[] = [
   { key: "relevant", label: "관련", description: "필수 검토 · 모델이 관련으로 판단", axes: DEFAULT_VIEW_AXES },
-  { key: "uncertain", label: "불확실", description: "훑어보기 · 모델이 판단을 보류", axes: UNCERTAIN_VIEW_AXES },
+  { key: "uncertain", label: "불확실", description: "훑어보기 · 모델이 불확실로 판단", axes: UNCERTAIN_VIEW_AXES },
   { key: "unjudged", label: "모델 미판정", description: "모델이 판정하지 않은 건 · 1차 순위순", axes: UNJUDGED_VIEW_AXES },
   { key: "all", label: "전체", description: "누적 또는 선택한 수집 회차 전체", axes: ALL_VIEW_AXES },
 ];
@@ -230,8 +239,9 @@ function axisValueLabel(labels: Readonly<Record<string, string>>): (token: strin
   return (token) => (token === "null" ? ORDER_PLAN_NULL_LABEL : orderPlanLabel(labels, token));
 }
 
+/** 사람 판단 수정의 관련성. 모델 판단(`불확실`)과 달리 business-rules의 `판단 보류`를 쓴다(C-6). */
 function relevanceLabel(value: OrderPlanRelevance): string {
-  return orderPlanLabel(ORDER_PLAN_RELEVANCE_LABEL, value);
+  return orderPlanLabel(ORDER_PLAN_FEEDBACK_RELEVANCE_LABEL, value);
 }
 
 /** 우선순위를 고르지 않은 것(`null`)은 `미지정`이며 값이 없는 것과 다르게 적지 않는다. */
@@ -341,7 +351,7 @@ function serializeTokens(values: Iterable<string>): string {
 }
 
 /**
- * `first_observed_from`은 **URL로만 들어오는 축**이다(S1). 대시보드 `새 우선 검토
+ * `first_observed_from`은 **URL로만 들어오는 축**이다(S1). 대시보드 `새 관련
  * 발주계획` 패널이 자기 목록 호출과 같은 창으로 이 화면을 열기 위한 것이고, 상세
  * 필터에 새 컨트롤을 만들지 않는다. 형식이 아니면 보내지 않는다 — 422를 받는 대신
  * 창을 걸지 않은 목록이 된다. 날짜의 실재 여부는 서버가 본다.
@@ -580,7 +590,9 @@ function OrderPlansWorkspace() {
   const [endConfirm, setEndConfirm] = useState<ReturnType<typeof trackingEndConfirmContent> | null>(null);
   // 결정 뒤의 안내는 **이동한 뒤의 건**에 붙는다. 선택이 바뀌면 사라지되, 그 이동을 만든
   // 결정의 안내는 남아야 하므로 어느 건에서 보일 문구인지를 함께 들고 다닌다.
+  // 추적 결정 바의 안내 한 줄(넘기기·Ctrl+Enter 준비 안 됨). 저장 결과는 화면 알림(`toast`)이 진다.
   const [trackingMessage, setTrackingMessage] = useState<{ pk: number; text: string } | null>(null);
+  const { toast, showToast, dismissToast } = useToast();
   /**
    * 방금 추적을 결정한 건. 기본 보기는 `미선택`만 보이므로 결정한 건은 다시 읽은 목록에서
    * 빠진다. 사람이 다른 건으로 옮기기 전까지는 그 건을 목록에 남겨 두어, 마지막 건에서
@@ -603,7 +615,7 @@ function OrderPlansWorkspace() {
   // 사유는 저장하면 다음 건으로 옮겨 가며 비워지므로 기준값은 늘 "빈 값"이다.
   const reasonDirty = reasonChoice !== "" || customReason.trim() !== "";
   /** 계약에 실을 사유. `기타`는 사람이 적은 문장 그대로이고 공백만 있으면 사유가 없다. */
-  const trackingReason = reasonChoice === OTHER_REASON ? customReason.trim() : reasonChoice;
+  const trackingReason = trackingReasonValue(reasonChoice, customReason);
 
   const feedbackDraftSummary = [
     { label: "사람 판단 수정", value: `관련성 ${relevanceLabel(relevance)} · 우선순위 ${priorityLabel(priority || null)}` },
@@ -1304,13 +1316,11 @@ function OrderPlansWorkspace() {
       if (selectedItem) setRetainedPk(selectedItem.order_plan_pk);
       await queryClient.invalidateQueries({ queryKey: ["order-plan-c2", "list"] });
       const next = advanceToNext();
+      // 저장 성공은 화면 알림으로 알린다(C-7, 세 추적 결정 자리가 같은 문장·같은 자리).
       if (next) {
-        setTrackingMessage({
-          pk: next.pk,
-          text: next.moved
-            ? `추적 상태를 ${saved.tracking_status}(으)로 기록했습니다. 다음 발주계획으로 이동합니다.`
-            : `추적 상태를 ${saved.tracking_status}(으)로 기록했습니다. 현재 목록의 마지막 발주계획이라 이동하지 않습니다.`,
-        });
+        showToast(next.moved
+          ? `${trackingSavedMessage(saved.tracking_status)} 다음 발주계획으로 이동합니다.`
+          : `${trackingSavedMessage(saved.tracking_status)} 현재 목록의 마지막 발주계획이라 이동하지 않습니다.`);
       }
     },
   });
@@ -1323,17 +1333,13 @@ function OrderPlansWorkspace() {
     ? "이 발주계획은 추적 결정을 기록하는 기능이 아직 제공되지 않습니다."
     : trackingAvailabilityState === "opportunity_missing"
       ? "이 발주계획을 소유한 사업기회를 확인하지 못해 추적 결정을 기록할 수 없습니다."
-      : !trackingReason && !trackingActor.trim()
-        ? "선택 사유와 담당자 이름을 입력하면 추적 결정을 기록할 수 있습니다."
-        : !trackingReason
-          ? (reasonChoice === OTHER_REASON
-            ? "선택 사유를 직접 입력하면 추적 결정을 기록할 수 있습니다."
-            : "선택 사유를 고르면 추적 결정을 기록할 수 있습니다.")
-          : !trackingActor.trim()
-            ? "담당자 이름을 입력하면 추적 결정을 기록할 수 있습니다."
-            : trackingMutation.isPending
-              ? "추적 결정 저장 요청을 처리하고 있습니다."
-              : undefined;
+      // 입력 검증은 세 추적 결정 자리가 같은 순서·같은 문장을 쓴다(C-7).
+      : trackingInputBlockedReason({
+        choice: reasonChoice,
+        custom: customReason,
+        actorName: trackingActor,
+        pending: trackingMutation.isPending,
+      }) ?? undefined;
   const trackingReady = !bulkPending && Boolean(selectedItem) && trackingDisabledReason === undefined;
 
   function saveTracking(status: Exclude<OpportunityTrackingStatus, "미선택">) {
@@ -1429,7 +1435,7 @@ function OrderPlansWorkspace() {
       setReasonChoice(lastReason);
       return;
     }
-    setReasonChoice(OTHER_REASON);
+    setReasonChoice(TRACKING_OTHER_REASON);
     setCustomReason(lastReason);
   }
 
@@ -1625,7 +1631,7 @@ function OrderPlansWorkspace() {
                   onChange={(value) => changeAxes({ qwen: new Set(value as RelevanceToken[]) })}
                 >
                   <ToggleButton value="relevant" label="관련" />
-                  <ToggleButton value="uncertain" label="판단 보류" />
+                  <ToggleButton value="uncertain" label={ORDER_PLAN_RELEVANCE_LABEL.uncertain} />
                   <ToggleButton value="not_relevant" label="비관련" />
                   <ToggleButton value="null" label="값 없음" />
                 </ToggleButtonGroup>
@@ -1758,8 +1764,8 @@ function OrderPlansWorkspace() {
             </WorkspaceFilterContext>
           ) : null}
 
-          {/* 첫 수집 창 줄 — 회차 줄과 같은 자리·같은 방식이다(S1). 대시보드 `새 우선
-              검토 발주계획`이 이 인자로 화면을 열므로, 창이 조용히 목록을 좁히지 않게
+          {/* 첫 수집 창 줄 — 회차 줄과 같은 자리·같은 방식이다(S1). 대시보드 `새 관련
+              발주계획`이 이 인자로 화면을 열므로, 창이 조용히 목록을 좁히지 않게
               접힘과 무관하게 그린다. */}
           {firstObservedFrom ? (
             <WorkspaceFilterContext className="c2l-filter-context">
@@ -1998,8 +2004,7 @@ function OrderPlansWorkspace() {
               rowExecution={rowExecution}
               bulkPending={bulkPending}
               onOpenFeedback={() => setDialog("feedback")}
-              trackingIsError={trackingMutation.isError}
-              trackingError={trackingMutation.error}
+              trackingProblem={trackingMutation.isError ? describeApiError(trackingMutation.error, TRACKING_SAVE_FAILED) : null}
               trackingMessage={trackingMessage}
               trackingDisabledReason={trackingDisabledReason}
               trackingActor={trackingActor}
@@ -2080,7 +2085,7 @@ function OrderPlansWorkspace() {
             <Text type="label" color="secondary" as="p">관련성</Text>
             <SegmentedControl isDisabled={bulkPending || Boolean(feedbackBlockedReason)} value={relevance} onChange={(value) => setRelevance(value as OrderPlanRelevance)} label="사람 판단 관련성">
               <SegmentedControlItem value="relevant" label="관련" />
-              <SegmentedControlItem value="uncertain" label="판단 보류" />
+              <SegmentedControlItem value="uncertain" label={ORDER_PLAN_FEEDBACK_RELEVANCE_LABEL.uncertain} />
               <SegmentedControlItem value="not_relevant" label="비관련" />
             </SegmentedControl>
           </div>
@@ -2165,6 +2170,7 @@ function OrderPlansWorkspace() {
         storageAvailable={orderPlanSelection.storageAvailable}
         storageError={orderPlanSelection.storageError?.message ?? null}
       />
+      {toast ? <Toast message={toast.message} onDismiss={dismissToast} variant={toast.variant} /> : null}
     </section>
   );
 }

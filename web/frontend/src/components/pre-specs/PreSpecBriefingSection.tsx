@@ -1,5 +1,6 @@
 import { CompanyFitSection } from "./CompanyFitSection";
 import { formatDateTime } from "../../lib/format";
+import { TERM_SENSE } from "../../lib/glossary";
 import type { JudgmentResponse, ReviewResponse } from "../../lib/types";
 
 function textOrNull(value: string | null): string | null {
@@ -90,7 +91,7 @@ export function PreSpecBriefingSection({
       <CompanyFitSection noticeId={noticeId} compact />
 
       <p className="ps-cap ps-dim ps-briefing-next-action">
-        다음 행동 · {textOrNull(judgment?.next_action ?? null) ?? "다음 행동 미확인"}
+        {TERM_SENSE.nextActionGuide} · {textOrNull(judgment?.next_action ?? null) ?? `${TERM_SENSE.nextActionGuide} 미확인`}
       </p>
     </section>
   );
