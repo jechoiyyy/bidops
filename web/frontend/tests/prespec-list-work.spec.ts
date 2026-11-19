@@ -139,9 +139,10 @@ test("새 사전규격 필터는 페이지 전에 서버 질의로 적용된다"
 test("대시보드 결정 대기 링크가 같은 집합의 목록 필터로 잇는다", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
-  // 사이드바에도 같은 이름의 링크가 있으므로 업무 바로가기 띄로 좁힌다.
-  await expect(page.locator(".dash-journey-strip").getByRole("link", { name: /사전규격/ }))
-    .toHaveAttribute("href", "/pre-specs?workspace=all&auto_preparation_status=deep_review_ready_for_click&sw_only=false&sort=deadline");
+  // 설계고도화안 A-6·C-8: 대시보드의 사전규격 건수 칸은 목록 기본 보기(검토할 항목)를 연다.
+  // 옛 기대값(심층 검토 클릭 대기 필터 주소)은 A-6에서 바뀐 뒤 고쳐지지 않았던 것이다.
+  await expect(page.locator('.dash-count-item[data-count="pre-spec-actionable"]').getByRole("link"))
+    .toHaveAttribute("href", "/pre-specs");
 });
 
 test("최근 workspace는 KST 관측 범위 기본값과 수집 회차를 API에 전달한다", async ({ page }) => {

@@ -39,31 +39,65 @@ test("회차 선택기와 회차 의존 패널이 화면에서 빠졌다", async
   expect(new URL(page.url()).searchParams.has("run")).toBe(false);
 });
 
-test("네 업무 바로가기와 발주계획 타일의 `새로`", async ({ page }) => {
+/** 묶음 머리 건수 띠의 칸 하나(설계고도화안 C-8). */
+function countCell(page: Page, key: string) {
+  return page.locator(`.dash-count-item[data-count="${key}"]`);
+}
+
+// 설계고도화안 C-8: 본문은 세 묶음이고 일일 수집 묶음이 맨 위다. 옛 단계 바로가기 네 칸은 없어졌고
+// 그 건수는 묶음의 건수 띠로 옮겼다. 건수 칸마다 목적지 목록의 기본 보기가 같은 건수를 보인다.
+test("대시보드는 일일 수집 아래 오늘 결정할 것·확인할 것·새로 볼 것 세 묶음이다", async ({ page }) => {
   await mockDashboard(page);
   await page.goto("/");
-  const links = page.locator(".dash-journey-item");
-  await expect(links).toHaveCount(4);
-  // 타일 건수 = 링크한 목록 기본 보기의 건수(설계고도화안 C-1·A-6). 발주계획은 필수 검토·훑어보기를
-  // 나눠 적는다(2026-11-18 수정안 3B). 타일은 1280px에서 세 자리 건수까지 한 줄에 들도록 `필수`로 줄인다.
-  await expect(links.nth(0)).toContainText("필수 1건 · 훑어보기 1건 · 새로 12");
-  await expect(links.nth(1)).toContainText(/검토할 항목 \d+건 · 마감 전·미확인/);
-  await expect(links.nth(2)).toContainText("사업기회");
-  await expect(links.nth(2)).toContainText("조치 필요 3건");
-  await expect(links.nth(3)).toContainText(/검토 대상 \d+건/);
-  await expect(links.nth(0)).toHaveAttribute("href", "/order-plans");
-  await expect(links.nth(1)).toHaveAttribute("href", "/pre-specs");
-  await expect(links.nth(2)).toHaveAttribute("href", "/opportunities");
-  await expect(links.nth(3)).toHaveAttribute("href", "/go-no-go");
+  await expect(page.locator(".dash-block-head h2")).toHaveText(["오늘 결정할 것", "확인할 것", "새로 볼 것"]);
+  await expect(page.locator(".dash-journey-strip")).toHaveCount(0);
+  const order = await page.evaluate(() => [...document.querySelectorAll(".daily-collection, .dash-block")]
+    .map((node) => (node.classList.contains("daily-collection") ? "daily" : node.getAttribute("data-block"))));
+  expect(order).toEqual(["daily", "decide", "check", "new"]);
+  // 업무 패널은 성격에 맞는 묶음 안에 있다.
+  const block = (id: string) => page.locator(`.dash-block[data-block="${id}"]`);
+  await expect(block("decide").getByRole("region", { name: "최종 결정 대기", exact: true })).toBeVisible();
+  await expect(block("decide").getByRole("region", { name: "보류 재검토", exact: true })).toBeVisible();
+  await expect(block("check").getByRole("region", { name: "사람 확인 필요", exact: true })).toBeVisible();
+  await expect(block("check").getByRole("region", { name: "마감 임박 추적 건", exact: true })).toBeVisible();
+  await expect(block("new").getByRole("region", { name: "새 우선 검토 발주계획", exact: true })).toBeVisible();
+});
+
+test("건수 띠의 칸은 목적지 목록의 기본 보기와 같은 정의이고 그 목록으로 잇는다", async ({ page }) => {
+  await mockDashboard(page);
+  await page.goto("/");
+  const expectations: [string, RegExp | string, string | null][] = [
+    // 오늘 결정할 것
+    ["order-plan-relevant", "필수 검토 발주계획1건", "/order-plans"],
+    ["pre-spec-actionable", /사전규격 검토할 항목\d+건/, "/pre-specs"],
+    ["go-no-go", /최종 Go\/No-Go\d+건/, "/go-no-go"],
+    ["hold-overdue", "보류 재검토1건", "/opportunities?section=조치 필요&reason=hold_overdue"],
+    ["verdict-confirmation", "판정 확인집계 없음", null],
+    // 확인할 것
+    ["action-required", "사업기회 조치 필요3건", "/opportunities"],
+    ["overview-attention", "개요 사람 확인2건", "/pre-specs?workspace=all&sw_only=false&overview_view=attention"],
+    ["overview-failed", "개요 실패2건", "/pre-specs?workspace=all&sw_only=false&overview_view=failed"],
+    ["blocking", "확인 항목 미답변1건", "/opportunities?section=조치 필요&reason=blocking_item"],
+    ["deadline", "마감 임박 추적 건7건", "/opportunities?section=전체&deadline_within_days=7&sort=deadline"],
+    ["order-plan-uncertain", "훑어보기 발주계획1건", "/order-plans?qwen=uncertain&tracking=미선택"],
+    // 새로 볼 것(요청 시각 KST 2026-09-17의 전일 이후)
+    ["new-order-plan", "새 관련 발주계획12건", "/order-plans?qwen=relevant&tracking=미선택&first_observed_from=2026-09-16"],
+    ["new-pre-spec", "새 사전규격4건", "/pre-specs?workspace=recent&observed_from=2026-09-16"],
+  ];
+  for (const [key, text, href] of expectations) {
+    const cell = countCell(page, key);
+    await expect(cell, key).toContainText(text);
+    if (href === null) await expect(cell.getByRole("link"), key).toHaveCount(0);
+    else await expect(cell.getByRole("link"), key).toHaveAttribute("href", href);
+  }
+  // 판정 확인은 서버가 건수를 주지 않는다. 0건으로 적지 않는다.
+  await expect(countCell(page, "verdict-confirmation")).not.toContainText("0건");
 });
 
 test("`새로`를 셀 수 없으면 0이 아니라 미확인으로 적는다", async ({ page }) => {
   await mockDashboard(page, { workload: workloadWith("order_plan_new_priority", null, "provider_absent") });
   await page.goto("/");
-  const tile = page.locator(".dash-journey-item").first();
-  await expect(tile).toContainText("필수 1건 · 훑어보기 1건 · 새로 미확인");
-  await expect(tile).not.toContainText("새로 0");
-  // 같은 키를 쓰는 패널 바닥도 사유를 남기고 0으로 채우지 않는다.
+  // 새 관련 발주계획 패널 바닥(workload 키)은 사유를 남기고 0으로 채우지 않는다.
   const foot = panel(page, "새 우선 검토 발주계획").locator(".dash-panel-foot");
   await expect(foot).toContainText("추적 미선택 건수 미확인 · 집계 모듈 없음");
   await expect(foot).not.toContainText("0건");
@@ -420,15 +454,15 @@ for (const [width, height] of WIDTHS) {
   });
 }
 
-// 대시보드의 `발주계획 · 관련 N건`은 발주계획 화면의 누적 기본 보기(관련)와 같은 집합이다(spec §7, A-6).
+// 대시보드의 `필수 검토 발주계획 N건`은 발주계획 화면의 누적 기본 보기(관련)와 같은 집합이다(spec §7, A-6·C-8).
 // 회차를 고르지 않고 들어가도 화면이 누적으로 열려 같은 건수를 보여야 `누적` 문구가 사실이다.
 for (const [width, height] of WIDTHS) {
-  test(`발주계획 바로가기는 회차 없이 누적 기본 보기로 열고 관련 건수와 같다 ${width}`, async ({ page }) => {
+  test(`필수 검토 발주계획 건수는 회차 없이 누적 기본 보기로 열고 관련 건수와 같다 ${width}`, async ({ page }) => {
     await mockApi(page); await mockOrderPlans(page);
     await page.clock.setFixedTime(new Date(DASH_NOW));
     await page.setViewportSize({ width, height }); await page.goto("/");
-    const entry = page.locator(".dash-journey-item").first();
-    await expect(entry).toContainText("필수 1건");
+    const entry = countCell(page, "order-plan-relevant").getByRole("link");
+    await expect(entry).toContainText("1건");
     await entry.click();
     await expect.poll(() => new URL(page.url()).pathname).toBe("/order-plans");
     expect(new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
