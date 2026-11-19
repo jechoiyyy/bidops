@@ -135,6 +135,7 @@ def _legacy_shape(payload: dict) -> dict:
         response_copy = dict(response)
         response_copy.pop("workspace_counts", None)
         response_copy.pop("deadline_scope_counts", None)
+        response_copy.pop("needs_check_deadline_scope_counts", None)
         response_copy["items"] = [
             {key: value for key, value in item.items() if key not in item_fields}
             for item in response["items"]
@@ -517,7 +518,7 @@ def _auto_start_rows(session, notice, *, overview_status: str = "completed", in_
 def test_pre_specs_show_why_the_deep_review_was_not_started_automatically(
     pre_specs_api, monkeypatch
 ):
-    """§6.4: `deep_review_ready_for_click`에는 막은 사유 코드가 붙는다."""
+    """§6.4: `overview_settled`(옛 `deep_review_ready_for_click`)에는 막은 사유 코드가 붙는다."""
 
     session, _engine, refs = pre_specs_api
     monkeypatch.delenv("BIDOPS_ACTIVE_PROFILE_VERSION_ID", raising=False)
@@ -533,9 +534,9 @@ def test_pre_specs_show_why_the_deep_review_was_not_started_automatically(
 
     items = _items_by_id(_payload(session, sw_only=False))
 
-    assert items[refs["sw_no"].id]["auto_preparation_status"] == "deep_review_ready_for_click"
+    assert items[refs["sw_no"].id]["auto_preparation_status"] == "overview_settled"
     assert items[refs["sw_no"].id]["auto_preparation_reason"] == "not_sw_business"
-    assert items[refs["sw_yes"].id]["auto_preparation_status"] == "deep_review_ready_for_click"
+    assert items[refs["sw_yes"].id]["auto_preparation_status"] == "overview_settled"
     assert items[refs["sw_yes"].id]["auto_preparation_reason"] == "overview_not_completed"
 
 
@@ -555,7 +556,7 @@ def test_pre_specs_show_the_fail_closed_reason_when_active_versions_are_missing(
 
     item = _items_by_id(_payload(session, sw_only=False))[refs["sw_yes"].id]
 
-    assert item["auto_preparation_status"] == "deep_review_ready_for_click"
+    assert item["auto_preparation_status"] == "overview_settled"
     assert item["auto_preparation_reason"] == "service_unavailable"
     # 개요 검토 행이 없는 다른 공고는 그대로 null이다. 자리표시자로 채우지 않는다.
     other = _items_by_id(_payload(session, sw_only=False))[refs["sw_no"].id]

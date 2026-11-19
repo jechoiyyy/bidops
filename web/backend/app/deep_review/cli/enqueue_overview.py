@@ -46,6 +46,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 page_end=args.page_end,
                 actor_name=args.actor_name,
                 settings=_forced(settings),
+                # 운영자가 공고를 지정한 단건 요청이다. 자동 처리 범위(마감·추적)를
+                # 보지 않는다(2026-11-19).
+                automatic=False,
             )
             session.commit()
             result = (

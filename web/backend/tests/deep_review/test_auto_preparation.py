@@ -163,14 +163,14 @@ _BLOCKING = [{"code": "attachment_bytes_missing", "blocking": True}]
         ),
         (
             {"bundles": [(1, "ready", [], AUTO_ACTOR_NAME)], "overview_status": "completed"},
-            "deep_review_ready_for_click",
+            "overview_settled",
         ),
         (
             {
                 "bundles": [(1, "ready", [], AUTO_ACTOR_NAME)],
                 "overview_status": "needs_human_review",
             },
-            "deep_review_ready_for_click",
+            "overview_settled",
         ),
         ({"deep_review_id": uuid4()}, "deep_review_started"),
     ],

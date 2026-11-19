@@ -52,7 +52,7 @@ from ..schemas.document_bundles import ConfirmRequest
 from .effective_grade import (
     EffectiveGrade,
     effective_grades,
-    overview_eligible,
+    overview_eligibility,
     sw_business_object as _sw_business_object,
 )
 from .input_versions import InputVersionError, active_version_ids, resolve_active_versions
@@ -92,6 +92,10 @@ _OVERVIEW_SETTLED_STATUSES = frozenset(
 
 # --- `auto_preparation_reason` 안전 코드 (§8: nullable 안전 코드) -------------
 REASON_GRADE_NOT_PRIORITY = "grade_not_priority"
+#: 개요 플래그로 자격이 열리는 `SW사업대상=Y` 사전규격이지만 의견 마감이 지났고
+#: 사업기회가 추적 중이 아니라 자동 처리 범위 밖이다(2026-11-19). 사람이 추적을
+#: 시작하면 그때 처리된다.
+REASON_DEADLINE_PASSED_UNTRACKED = "deadline_passed_untracked"
 REASON_AWAITING_FETCH = "awaiting_fetch"
 REASON_NO_READY_DOCUMENT = "no_ready_document"
 #: 취득 행이 모두 종결됐는데 그중 `차단`·`실패`가 있고 준비된 문서가 하나도
@@ -753,13 +757,16 @@ def maybe_auto_prepare(
         ]
         grades = effective_grades(session, pre_spec_ids) if pre_spec_ids else {}
         # 자격은 등급 하나가 아니다. 개요 플래그가 켜져 있으면 `SW사업대상=Y`
-        # 사전규격도 자격을 얻는다 (MVP 완화). 둘 다 아니면 사유는 그대로
-        # `grade_not_priority`다.
-        eligible = (
-            overview_eligible(session, pre_spec_ids, grades=grades)
+        # 사전규격도 자격을 얻는다 (MVP 완화). 그 완화는 자동 처리 범위(의견 마감
+        # 전·미확인 또는 추적 중) 안에서만 열린다(2026-11-19). 범위 밖이면 사유는
+        # `deadline_passed_untracked`, 둘 다 아니면 그대로 `grade_not_priority`다.
+        eligibility = (
+            overview_eligibility(session, pre_spec_ids, grades=grades)
             if pre_spec_ids
-            else frozenset()
+            else None
         )
+        eligible = eligibility.eligible if eligibility is not None else frozenset()
+        out_of_scope = eligibility.out_of_auto_scope if eligibility is not None else frozenset()
         briefing_only: frozenset[int] = frozenset()
         rl_settings = rl_verdict_settings if rl_verdict_settings is not None else get_settings()
         rl_enabled = bool(getattr(rl_settings, "rl_analysis_enabled", False))
@@ -803,7 +810,12 @@ def maybe_auto_prepare(
             continue
         if notice_id not in eligible:
             outcomes[notice_id] = AutoPreparationOutcome(
-                notice_id=notice_id, reason=REASON_GRADE_NOT_PRIORITY
+                notice_id=notice_id,
+                reason=(
+                    REASON_DEADLINE_PASSED_UNTRACKED
+                    if notice_id in out_of_scope
+                    else REASON_GRADE_NOT_PRIORITY
+                ),
             )
             continue
         candidates.append((notice_id, grades.get(notice_id)))
@@ -889,6 +901,7 @@ def _status_for(
     has_ready_document: bool = False,
     auto_start_reason_code: str | None = None,
     is_eligible: bool | None = None,
+    out_of_auto_scope: bool = False,
 ) -> tuple[str, str | None]:
     """(`auto_preparation_status`, `auto_preparation_reason`)를 정한다.
 
@@ -896,14 +909,16 @@ def _status_for(
     등급이 내려가도 이미 만들어진 것을 되돌리지 않으므로, 실제로 존재하는
     산출물을 먼저 보고 등급은 마지막에 본다.
 
-    `auto_start_reason_code`는 §6.4의 자동 시작을 막은 사유이며
-    `deep_review_ready_for_click`에서만 나온다 — 사람이 눌러야 하는 이유가
-    바로 그 값이기 때문이다. 막은 것이 없으면 ``None``이고, 그 ``None``을
-    자리표시자로 채우지 않는다.
+    `auto_start_reason_code`는 기존 §6.4 자동 심층 시작을 막은 사유이며
+    `overview_settled`(2026-11-19 이전 이름 `deep_review_ready_for_click`)에서만
+    나온다. 막은 것이 없으면 ``None``이고, 그 ``None``을 자리표시자로 채우지 않는다.
+    목록 술어·다음 행동은 이 상태를 보지 않는다(2026-11-19).
 
     `is_eligible`은 `overview_eligible`이 연 자격이다. 투영과 실제 준비가 같은
     판정을 쓰도록 호출부가 그 helper의 결과를 그대로 넘긴다. ``None``이면 등급만
-    보는 기본 규칙(개요 플래그 off와 같은 판정)으로 되돌아간다.
+    보는 기본 규칙(개요 플래그 off와 같은 판정)으로 되돌아간다. `out_of_auto_scope`는
+    같은 helper가 "자동 처리 범위 밖"으로 뺀 공고이며 사유를
+    `deadline_passed_untracked`로 바꾼다.
 
     `attachments_failed`는 "취득 행이 하나 이상 있고 모두 종결됐으며 그중
     `차단`·`실패`가 있다"이고, `has_ready_document`는 safe·구조 준비 문서가
@@ -933,7 +948,7 @@ def _status_for(
         # 개요 run이 아예 없으면(`None`) `bundle_ready`다. 없는 것을 종결로
         # 승격시키면 개요를 한 번도 돌리지 않은 묶음까지 결정 대기로 세게 된다.
         if overview_status in _OVERVIEW_SETTLED_STATUSES:
-            return "deep_review_ready_for_click", auto_start_reason_code
+            return "overview_settled", auto_start_reason_code
         return "bundle_ready", None
     eligible = (
         is_eligible
@@ -941,6 +956,8 @@ def _status_for(
         else (grade is not None and grade.is_priority)
     )
     if not eligible:
+        if out_of_auto_scope:
+            return "not_applicable", REASON_DEADLINE_PASSED_UNTRACKED
         return "not_applicable", REASON_GRADE_NOT_PRIORITY
     if has_pending_fetch:
         return "waiting_attachments", REASON_AWAITING_FETCH
@@ -992,8 +1009,9 @@ def auto_preparation_fields(
         sw_business[int(notice_id)] = _sw_business_object(flags)
     grades = effective_grades(session, ids)
     # 목록이 말하는 상태와 실제 준비 결과가 갈리지 않도록 자격은 쓰기 경로와
-    # **같은 helper**가 판정한다 (MVP 완화 포함).
-    eligible_ids = overview_eligible(session, ids, grades=grades)
+    # **같은 helper**가 판정한다 (MVP 완화·자동 처리 범위 포함).
+    eligibility = overview_eligibility(session, ids, grades=grades)
+    eligible_ids = eligibility.eligible
 
     # 같은 한 번의 순회로 두 가지를 센다: 아직 끝나지 않은 취득 행이 있는가와,
     # 취득 행이 전부 종결됐는데 그중 `차단`·`실패`가 있는가. 두 번째가 있으면
@@ -1118,6 +1136,7 @@ def auto_preparation_fields(
             has_ready_document=notice_id in ready_document_notices,
             auto_start_reason_code=auto_start_reason_code,
             is_eligible=notice_id in eligible_ids,
+            out_of_auto_scope=notice_id in eligibility.out_of_auto_scope,
         )
         fields[notice_id] = {
             # 판정도 정정도 없으면 `None`이다. 0이나 특정 등급으로 접지 않는다.
@@ -1144,6 +1163,7 @@ __all__ = [
     "REASON_ATTACHMENTS_FAILED",
     "REASON_BLOCKING_ISSUES",
     "REASON_BUNDLE_UNCHANGED",
+    "REASON_DEADLINE_PASSED_UNTRACKED",
     "REASON_GRADE_NOT_PRIORITY",
     "REASON_HUMAN_DRAFT",
     "REASON_NO_READY_DOCUMENT",
