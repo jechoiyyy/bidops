@@ -167,3 +167,45 @@ def test_successful_main_has_no_error_fields(monkeypatch):
     out = _run_main(monkeypatch, _with())
     assert out["status"] == "partial"
     assert out["error_code"] is None and out["error_class"] is None
+
+
+def test_product_mock_infers_no_eligibility_from_any_sentence():
+    out = runner.execute(make_payload())
+    analysis = out["analysis"]
+    assert analysis["facts"]["eligibility"] == [] and analysis["gates"] == []
+    assert [(f["req_id"], f["fit"]) for f in analysis["fits"]] == [("SFR-001", "UNKNOWN")]
+    assert analysis["usage"]["calls"] == 3
+
+
+def test_scripted_rule_runs_the_real_gate_and_stays_unknown():
+    out = runner.execute(make_payload(), mock_rules=[runner.MockRule("SME_CERT", ELIGIBILITY)])
+    assert out["status"] == "partial" and out["quality_status"] == "mock_reference"
+    analysis = out["analysis"]
+    [rule] = analysis["facts"]["eligibility"]
+    assert rule["code"] == "SME_CERT" and rule["evidence"]["quote"] == ELIGIBILITY
+    assert rule["evidence"]["verified"] is True
+    assert [(g["code"], g["verdict"]) for g in analysis["gates"]] == [("SME_CERT", "UNKNOWN")]
+    assert "unknown_gate" in _assessment(out)["reason_codes"]
+    [located] = [
+        e for e in analysis["source_evidence"] if e["evidence_path"] == "/facts/eligibility/0/evidence"
+    ]
+    assert (located["block_key"], located["location_status"]) == ("p4", "exact")
+
+
+def test_scripted_quote_absent_from_the_document_yields_no_rule():
+    out = runner.execute(make_payload(), mock_rules=[runner.MockRule("SME_CERT", "문서에 없는 문장")])
+    assert out["analysis"]["facts"]["eligibility"] == []
+
+
+def test_repeated_sentence_is_located_in_the_cited_section_end_to_end():
+    repeated = [_block("p4b", "Ⅱ-2. 제출서류"), _block("p4c", ELIGIBILITY)]
+    out = runner.execute(make_payload(repeated), mock_rules=[runner.MockRule("SME_CERT", ELIGIBILITY)])
+    analysis = out["analysis"]
+    cited = analysis["facts"]["eligibility"][0]["evidence"]["section_id"]
+    located = [
+        e for e in analysis["source_evidence"] if e["evidence_path"] == "/facts/eligibility/0/evidence"
+    ]
+    assert len(located) == 1 and located[0]["location_status"] == "exact"
+    assert located[0]["basis"] == "cited_section"
+    # The cited section is the first one holding the sentence (참가자격), not 제출서류.
+    assert located[0]["block_key"] == "p4" and cited is not None

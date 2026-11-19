@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
+from dataclasses import dataclass
 from datetime import datetime, UTC
 from pathlib import Path
 from .analysis.pipeline import run_notice
@@ -45,40 +46,62 @@ ERROR_CODES = frozenset(
 )
 
 
+@dataclass(frozen=True)
+class MockRule:
+    """One scripted eligibility rule: an exact source quote the mock reports under `code`.
+
+    `section_id` pins the section the mock cites; otherwise it cites the first section
+    whose text contains the quote. A quote absent from the document yields no rule.
+    """
+
+    code: str
+    quote: str
+    section_id: str | None = None
+
+
 class MockTransport:
-    """No generated facts: unknown qualifications, fits and numeric fields stay unknown."""
+    """No generated facts: unknown qualifications, fits and numeric fields stay unknown.
+
+    By default the mock infers no eligibility rule at all. Tests that need the real gate
+    path pass explicit `MockRule`s; nothing in product code keys on a document sentence.
+    """
 
     run_id = "mock_reference"
     phase = "analyze"
     fallbacks = False
 
-    def __init__(self, rfp):
+    def __init__(self, rfp, rules=()):
         self.rfp = rfp
+        self.rules = tuple(rules)
 
     def count_tokens(self, **kwargs):
         return 1
+
+    def _eligibility(self):
+        found = []
+        for rule in self.rules:
+            sections = [
+                s
+                for s in self.rfp.sections
+                if rule.quote in s.text
+                and (rule.section_id is None or s.id == rule.section_id)
+            ]
+            if sections:
+                found.append(
+                    EligibilityRule(
+                        code=rule.code,
+                        text=rule.quote,
+                        evidence=Evidence(quote=rule.quote, section_id=sections[0].id),
+                    )
+                )
+        return found
 
     def parse(self, output_model, *, purpose, **kwargs):
         if purpose == "extract":
             section = next((s for s in self.rfp.sections if s.text.strip()), None)
             quote = section.text.strip().splitlines()[-1][:100] if section else ""
-            # A transparent synthetic response for the exact source phrase; no
-            # eligibility is inferred for unrelated documents. The real gate
-            # evaluates this quote against the unknown company qualification.
-            rules = []
-            for candidate in self.rfp.sections:
-                literal = "중소기업확인서를 제출해야 한다."
-                if literal in candidate.text:
-                    rules.append(
-                        EligibilityRule(
-                            code="SME_CERT",
-                            text=literal,
-                            evidence=Evidence(quote=literal, section_id=candidate.id),
-                        )
-                    )
-                    break
             value = RfpFacts(
-                eligibility=rules,
+                eligibility=self._eligibility(),
                 project=Project(
                     evidence=[Evidence(quote=quote, section_id=section.id)]
                     if quote
@@ -138,7 +161,8 @@ def engine_company_input_hash(profile):
     return CompanyEvidenceView(profile).company_input_hash
 
 
-def execute(payload):
+def execute(payload, *, mock_rules=()):
+    """Run the pipeline once. `mock_rules` is for tests only; `main` never passes it."""
     if (
         payload.get("schema_version") != "bidops.engine-input.v1"
         or payload.get("mode") != "mock_reference"
@@ -182,7 +206,7 @@ def execute(payload):
     # promotes company qualifications; the v1 projection explicitly stays unknown.
     profile, projected = project_company(payload)
     company_hash = engine_company_input_hash(profile)
-    client = MockTransport(rfp)
+    client = MockTransport(rfp, mock_rules)
     with tempfile.TemporaryDirectory(prefix="bid-deep-engine-") as folder:
         root = Path(folder)
         source = root / "rfp.json"
