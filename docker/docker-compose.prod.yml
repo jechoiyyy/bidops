@@ -4,9 +4,10 @@
 x-production-app: &production-app
   image: "${BIDOPS_IMAGE:?set the existing production application image tag}"
 # State services come back after a host (Mac/OrbStack) restart. Only prod gets
-# this; dev/mock keep the base file's default. analysis-worker stays without a
-# restart policy on purpose (the operator starts it after a human check), and
-# one-shot init/migrate services must not loop.
+# this; dev/mock keep the base file's default. analysis-worker also restarts
+# (user decision 2026-11-19, cron verification B4: an unattended daily C-2 run
+# must not burn its attempts while the worker is down). One-shot init/migrate
+# services must not loop.
 x-restart-state-service: &restart-state-service
   restart: unless-stopped
 services:
@@ -58,6 +59,7 @@ services:
     - ${BIDOPS_C2_PROMPT_HOST_PATH:?set an explicit approved prompt file path}:/run/c2/order-plan-prompt.txt:ro
   analysis-worker:
     <<: *production-app
+    restart: unless-stopped
     networks:
     - model-egress
     environment:
