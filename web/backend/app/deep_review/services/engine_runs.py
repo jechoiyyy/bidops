@@ -8,8 +8,10 @@ remains partial, including when every engine stage completed successfully.
 from __future__ import annotations
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -46,6 +48,24 @@ from .company_analysis_input import (
 ENGINE_VERSION = "bid-deep-engine.v1"
 JOB_TYPE = "bid_deep_engine_v1"
 MAX_INPUT = 8 * 1024 * 1024
+ENGINE_TIMEOUT_SECONDS = 90
+# Codes the packaged runner may emit (bid_deep_engine.runner.ERROR_CODES). The web
+# process never imports the package, so the list is repeated here and any other value
+# from the subprocess is treated as invalid output.
+RUNNER_ERROR_CODES = frozenset(
+    {
+        "engine_live_not_approved",
+        "structure_unavailable",
+        "invalid_table_coordinates",
+        "table_too_large",
+        "input_too_large",
+        "engine_input_invalid",
+        "engine_pipeline_failed",
+    }
+)
+_ERROR_CLASS = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
+
+logger = logging.getLogger(__name__)
 
 
 class EngineRunError(ValueError):
@@ -169,7 +189,14 @@ def view(session, row, freshness=None):
     )
 
 
+def engine_analysis_enabled() -> bool:
+    return bool(getattr(get_settings(), "engine_analysis_enabled", False))
+
+
 def create(session: Session, *, company_id: UUID, notice_id: int, payload, actor: str):
+    # The switch is checked before idempotent replay and before any read.
+    if not engine_analysis_enabled():
+        raise EngineRunError("engine_analysis_disabled", 503)
     if payload.mode != "mock_reference":
         raise EngineRunError("engine_live_not_approved")
     previous = session.scalar(
@@ -388,26 +415,37 @@ def invoke_engine(payload):
     if payload.get("engine_sha256") != engine_digest():
         raise EngineRunError("engine_version_changed")
     # Worker receives fixed bounded files, not source-supplied paths/commands.
+    # stderr is captured and discarded: it may quote source or company text.
     with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
-        done = subprocess.run(
-            [sys.executable, "-m", "bid_deep_engine.runner"],
-            input=canonical_json_bytes(payload),
-            stdout=stdout,
-            stderr=stderr,
-            timeout=90,
-            env={
-                "PATH": os.defpath,
-                "PYTHONPATH": str(package),
-                "PYTHONIOENCODING": "utf-8",
-                "PYTHONDONTWRITEBYTECODE": "1",
-            },
-            check=False,
-        )
+        try:
+            done = subprocess.run(
+                [sys.executable, "-m", "bid_deep_engine.runner"],
+                input=canonical_json_bytes(payload),
+                stdout=stdout,
+                stderr=stderr,
+                timeout=ENGINE_TIMEOUT_SECONDS,
+                env={
+                    "PATH": os.defpath,
+                    "PYTHONPATH": str(package),
+                    "PYTHONIOENCODING": "utf-8",
+                    "PYTHONDONTWRITEBYTECODE": "1",
+                },
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            raise EngineRunError("engine_timeout") from None
         stdout.seek(0)
         data = stdout.read(MAX_INPUT + 1)
-    if done.returncode or len(data) > MAX_INPUT:
+    if done.returncode:
         raise EngineRunError("engine_process_failed")
-    result = json.loads(data)
+    if len(data) > MAX_INPUT:
+        raise EngineRunError("engine_output_invalid")
+    try:
+        result = json.loads(data)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise EngineRunError("engine_output_invalid") from None
+    if not isinstance(result, dict):
+        raise EngineRunError("engine_output_invalid")
     if (
         result.get("schema_version") != "bidops.engine-output.v1"
         or result.get("engine_version") != ENGINE_VERSION
@@ -415,9 +453,35 @@ def invoke_engine(payload):
         or result.get("status") not in {"partial", "failed"}
     ):
         raise EngineRunError("engine_output_invalid")
-    if result["status"] == "partial" and not isinstance(result.get("analysis"), dict):
+    if result["status"] == "partial" and (
+        not isinstance(result.get("analysis"), dict)
+        or result.get("error_code") is not None
+    ):
         raise EngineRunError("engine_output_invalid")
+    if result["status"] == "failed" and result.get("error_code") not in RUNNER_ERROR_CODES:
+        raise EngineRunError("engine_output_invalid")
+    error_class = result.get("error_class")
+    if error_class is not None and not (
+        isinstance(error_class, str) and _ERROR_CLASS.fullmatch(error_class)
+    ):
+        result["error_class"] = None
     return result
+
+
+def _log_failure(run_id, worker_id, code, error_class):
+    """Only identifiers, a defined code and an exception class name are logged."""
+    logger.warning(
+        "engine run failed",
+        extra={
+            "bidops": {
+                "event": "engine_run.failed",
+                "run_id": str(run_id),
+                "worker_id": worker_id,
+                "error_code": code,
+                "failure_type": error_class,
+            }
+        },
+    )
 
 
 def _store_result(session, result, run_id, store):
@@ -454,6 +518,9 @@ def _store_result(session, result, run_id, store):
 
 
 def run_once(session: Session, worker_id: str, *, store=None, invoke=invoke_engine):
+    # Switch off: the slot claims nothing and queued runs stay as they are.
+    if not engine_analysis_enabled():
+        return False
     now = datetime.now(UTC)
     if session.in_transaction():
         session.commit()
@@ -504,21 +571,30 @@ def run_once(session: Session, worker_id: str, *, store=None, invoke=invoke_engi
     frozen = row.input_payload
     digest = row.input_sha256
     session.commit()
+    failure = None
     try:
         if _sha(frozen) != digest:
             raise EngineRunError("input_hash_mismatch")
         result = invoke(frozen)
-    except Exception:
+    except EngineRunError as error:
+        failure = (error.code, type(error).__name__)
+    except Exception as error:
+        # Unexpected worker-side failure; the message may carry source text.
+        failure = ("engine_execution_failed", type(error).__name__)
+    if failure is not None:
         result = {
             "schema_version": "bidops.engine-output.v1",
             "engine_version": ENGINE_VERSION,
             "quality_status": "mock_reference",
             "status": "failed",
-            "error_code": "engine_execution_failed",
+            "error_code": failure[0],
             "warnings": [],
             "analysis": None,
             "artifacts": {},
         }
+        _log_failure(run_id, worker_id, *failure)
+    elif result["status"] == "failed":
+        _log_failure(run_id, worker_id, result["error_code"], result.get("error_class"))
     session.expire_all()
     job = session.scalar(select(WorkJob).where(WorkJob.id == job_id).with_for_update())
     now = datetime.now(UTC)
@@ -535,7 +611,8 @@ def run_once(session: Session, worker_id: str, *, store=None, invoke=invoke_engi
         result_digest = _store_result(
             session, result, run_id, store or object_store(namespaces=("structure",))
         )
-    except Exception:
+    except Exception as storage_error:
+        storage_class = type(storage_error).__name__
         session.rollback()
         job = session.scalar(
             select(WorkJob).where(WorkJob.id == job_id).with_for_update()
@@ -551,6 +628,7 @@ def run_once(session: Session, worker_id: str, *, store=None, invoke=invoke_engi
         row.status = "failed"
         row.error_code = "result_storage_failed"
         row.completed_at = datetime.now(UTC)
+        _log_failure(run_id, worker_id, row.error_code, storage_class)
         job.status = "failed"
         job.last_error_code = row.error_code
         job.completed_at = row.completed_at

@@ -274,6 +274,10 @@ class Settings(BaseSettings):
     #: 켜면 묶음이 ready가 될 때 개요 run을 자동 enqueue한다. 끄면 새 run을 넣지
     #: 않고 queued run은 닫는다. 기본은 꺼 둔다 — startup은 아무것도 활성화하지 않는다.
     prespec_overview_enabled: bool = Field(default=False, validation_alias="BIDOPS_PRESPEC_OVERVIEW_ENABLED")
+    #: 분석 엔진(bid-deep-engine, ADR-0074) mock 참조 실행의 생성 API와 합성 worker 슬롯.
+    #: 꺼져 있으면 생성은 503 `engine_analysis_disabled`, worker 슬롯은 claim하지 않는다.
+    #: 기존 실행 조회는 감사용으로 열어 둔다. 켜도 mock_reference뿐이며 live 전송은 없다.
+    engine_analysis_enabled: bool = Field(default=False, validation_alias="BIDOPS_ENGINE_ANALYSIS_ENABLED")
     deep_review_auto_start_enabled: bool = Field(default=False, validation_alias="BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED")
     luna_deep_review_enabled: bool = Field(default=False, validation_alias="BIDOPS_LUNA_DEEP_REVIEW_ENABLED")
     luna_runner_url: str = Field(default="http://codex-runner:8091", validation_alias="BIDOPS_LUNA_RUNNER_URL")
