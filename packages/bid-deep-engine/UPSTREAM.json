@@ -267,7 +267,7 @@
     {
       "path": "src/bid_deep_engine/runner.py",
       "purpose": "bidops.engine-input.v1/output.v1 subprocess boundary and mock_reference transport",
-      "sha256": "db28f17fd5a0166f426eeb570c55d7a74b99a74ed65e3ac52829fbec30c718d1"
+      "sha256": "3295302a1cac00ad5d8afc183bf647d7355b6aada63d53b382344ff52652627c"
     },
     {
       "path": "engine_tests/test_adapter.py",
@@ -282,7 +282,7 @@
     {
       "path": "engine_tests/test_runner.py",
       "purpose": "runner boundary tests (readiness, mock transport, error codes)",
-      "sha256": "885a71d63d1a23131f6b97c817842a337c16ecb8261f86dc5e186d35f9292bef"
+      "sha256": "e950d5770f0175ed9ba50ec1b9f8bc756aefb2d7b18dd5d359dbd0d6b5374a80"
     }
   ],
   "excluded_transport_files": [

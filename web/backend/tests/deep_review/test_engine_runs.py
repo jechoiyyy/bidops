@@ -82,20 +82,20 @@ def test_real_pipeline_queue_and_store_partial_without_promoting_unknown(context
     assert result["quality_status"] == "mock_reference"
     assert result["analysis"]["facts"]["project"]["budget_krw"] is None
     assert result["analysis"]["usage"]["calls"] == 3
-    assert any(
-        g["code"] == "SME_CERT" and g["verdict"] == "UNKNOWN"
-        for g in result["analysis"]["gates"]
-    )
+    # The product mock infers no eligibility from any sentence (D5). The scripted
+    # SME_CERT gate path is covered in packages/bid-deep-engine/engine_tests/test_runner.py.
+    assert result["analysis"]["facts"]["eligibility"] == []
+    assert result["analysis"]["gates"] == []
     assert [(f["req_id"], f["fit"]) for f in result["analysis"]["fits"]] == [
         ("SFR-001", "UNKNOWN")
     ]
-    eligibility = result["analysis"]["facts"]["eligibility"][0]
-    assert eligibility["evidence"]["verified"] is True
-    assert eligibility["evidence"]["quote"] == "중소기업확인서를 제출해야 한다."
-    assert any(
-        e["evidence_path"] == "/facts/eligibility/0/evidence"
-        for e in result["analysis"]["source_evidence"]
-    )
+    project_evidence = result["analysis"]["facts"]["project"]["evidence"][0]
+    assert project_evidence["verified"] is True
+    located = {
+        e["evidence_path"]: e for e in result["analysis"]["source_evidence"]
+    }
+    assert located["/facts/project/evidence/0"]["location_status"] == "exact"
+    assert located["/fits/0/evidence"]["block_key"].startswith("table-")
     assert "company_profile_projection_incomplete" in result["warnings"]
     # D1: a fresh run is not "이전 기준 분석"; BidOps' binding hash is kept separately.
     assessment = result["analysis"]["assessment"]
