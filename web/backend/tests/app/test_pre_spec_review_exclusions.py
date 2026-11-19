@@ -188,7 +188,7 @@ def test_workspace_counts_pages_and_tracking_unchanged(client, engine, registry,
         owner = _add_order_plan_path(session, rows[0], tracking_status='계속 추적')
         owner_id = owner.id
         projection.statuses.update({rows[0].id: 'needs_human_review', rows[1].id: 'completed', rows[3].id: 'needs_human_review'})
-        projection.fields[rows[2].id] = {'auto_preparation_status': 'deep_review_ready_for_click'}
+        projection.fields[rows[2].id] = {'auto_preparation_status': 'overview_settled'}
         _tracking_link(session, rows[1])
         ids = [row.id for row in rows]
         session.commit()
@@ -199,7 +199,7 @@ def test_workspace_counts_pages_and_tracking_unchanged(client, engine, registry,
             assert data['total'] == 1
             assert data['items'][0]['notice_pk'] == ids[3]
             assert sum(x['count'] for x in data['overview_status_counts']) == 1
-            assert data['workspace_counts'] == dict(actionable=1, recent=1, tracking=1, all=4)
+            assert data['workspace_counts'] == dict(actionable=1, needs_check=0, recent=1, tracking=1, all=4)
             assert _list(session, workspace=workspace, review_exclusion='excluded')['total'] == 0
             assert _list(session, workspace=workspace, offset=1)['items'] == []
         assert _list(session, workspace='tracking')['items'][0]['review_exclusion_status'] == 'excluded'

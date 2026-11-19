@@ -70,7 +70,10 @@ PreSpecAutoPreparationStatus = Literal[
     "bundle_ready",
     "overview_running",
     "deep_review_started",
-    "deep_review_ready_for_click",
+    # 확정 묶음의 개요 run이 끝났다(completed·needs_human_review·failed·cancelled).
+    # 2026-11-19 이전 이름은 `deep_review_ready_for_click`(심층 검토 클릭 대기)였다 —
+    # 저장되지 않는 파생값이라 이름만 바꾸며, 목록 술어는 이 값을 보지 않는다.
+    "overview_settled",
     "blocked",
 ]
 

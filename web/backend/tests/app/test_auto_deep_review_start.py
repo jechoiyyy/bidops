@@ -512,7 +512,7 @@ def test_the_projection_reports_the_same_reason_the_write_path_used(
         fields = auto_preparation_fields(session, [seeded.notice_id])[seeded.notice_id]
         outcome = maybe_auto_start_deep_review(session, seeded.notice_id, service=_service())
 
-        assert fields["auto_preparation_status"] == "deep_review_ready_for_click"
+        assert fields["auto_preparation_status"] == "overview_settled"
         assert fields["auto_preparation_reason"] == expected
         assert outcome.reason == expected
         assert session.scalar(select(DeepReview)) is None
@@ -531,7 +531,7 @@ def test_the_fail_closed_reason_reaches_the_rest_field(
         fields = auto_preparation_fields(session, [seeded.notice_id])[seeded.notice_id]
         outcome = maybe_auto_start_deep_review(session, seeded.notice_id, service=_service())
 
-        assert fields["auto_preparation_status"] == "deep_review_ready_for_click"
+        assert fields["auto_preparation_status"] == "overview_settled"
         assert fields["auto_preparation_reason"] == "service_unavailable"
         assert outcome.reason == "service_unavailable"
 

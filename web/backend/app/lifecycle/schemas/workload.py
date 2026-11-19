@@ -14,9 +14,13 @@ from ...core.schema_base import AwareDateTime, RuntimeContractModel
 #: (화면은 profile facts로 직접 센다). 실회사가 없으면 `null`(`provider_absent`).
 #: 그 뒤 `briefing_pending`(RL-01)은 가장 최근 브리핑의 `reaction=대기` 추천 수이며
 #: lifecycle이 직접 센다. 브리핑이 하나도 없으면 `null`(`provider_absent`).
+#: 2026-11-19: `pre_spec_deep_review_ready`가 `pre_spec_actionable`(사전규격 목록 기본 보기,
+#: 검토할 항목·마감 전/미확인)과 `pre_spec_needs_check`(확인 필요, 같은 구간) 둘로 바뀌었다.
+#: lifecycle이 목록 질의 그 자체로 세며 개요 projection 제공자가 없으면 `null`이다.
 WorkloadKey = Literal[
     "order_plan_pending",
-    "pre_spec_deep_review_ready",
+    "pre_spec_actionable",
+    "pre_spec_needs_check",
     "tracking_action_required",
     "tracking_hold_review_due",
     "bid_final_decision_pending",

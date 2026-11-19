@@ -109,6 +109,13 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         ".services.opportunity_connections",
         "tracked_order_plan_connections",
     ),
+    # 사전규격 자동 처리 범위(2026-11-19 수정안 §3 A)가 목록의 마감 구간(ADR-0064)·
+    # `추적 중` 보기와 같은 뜻을 쓰도록 공개한다. 읽기 전용 SQL 조각이다.
+    "pre_spec_deadline_passed_expression": (
+        ".services.pre_spec_scope",
+        "deadline_passed_expression",
+    ),
+    "tracked_notice_predicate": (".services.pre_spec_scope", "tracked_notice_predicate"),
     # === 형제 모듈이 쓴다 — 응답 helper (routers/common.py) ================
     # `get_run_or_404`은 사람이 쓰는 회차 디렉터리 이름까지 풀고 없으면 404를
     # 낸다. 잠그지도 404를 내지도 않는 단순 조회(`api.get_run`)는 밖에서 쓰는

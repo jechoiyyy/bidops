@@ -94,16 +94,31 @@ class PreSpecAttachmentEligibilityHook:
 
     # --- TrackingDecisionHook ---
     def tracking_decision_changed(self, session: Any, opportunity_id: Any) -> None:
-        notice_ids = session.scalars(
-            select(Notice.id)
-            .join(OpportunityLink, OpportunityLink.notice_id == Notice.id)
-            .where(
-                OpportunityLink.opportunity_id == opportunity_id,
-                OpportunityLink.stage == "notice",
-                Notice.source_type == "pre_spec",
-            )
-        ).all()
+        """추적 결정이 바뀐 사업기회의 사전규격을 자동 경로에 다시 태운다.
+
+        취득 행 자격을 다시 센 뒤 자동 문서 준비 조건을 본다(2026-11-19). 의견 마감이
+        지나 자동 처리 범위 밖이던 공고는 사람이 추적을 시작하는 순간 범위 안으로
+        들어오므로, 취득이 이미 끝난 공고는 여기서 묶음 준비·개요 enqueue까지 이어지고
+        아직 `대기`인 취득 행은 worker의 다음 claim에서 잡힌다. 같은 문서 집합의
+        묶음이 이미 있으면 새로 만들지 않는다(`maybe_auto_prepare`의 재수집 규칙).
+        자동 준비는 자기 실패를 삼키므로 사람 결정은 그대로다.
+        """
+
+        notice_ids = [
+            int(value)
+            for value in session.scalars(
+                select(Notice.id)
+                .join(OpportunityLink, OpportunityLink.notice_id == Notice.id)
+                .where(
+                    OpportunityLink.opportunity_id == opportunity_id,
+                    OpportunityLink.stage == "notice",
+                    Notice.source_type == "pre_spec",
+                )
+            ).all()
+        ]
         refresh_fetch_eligibility(session, notice_ids=notice_ids)
+        if notice_ids:
+            maybe_auto_prepare(session, notice_ids)
 
     # --- EffectiveGradeChangedHook (§6.2 둘째 촉발) ---
     def effective_grade_changed(self, session: Any, notice_ids: Sequence[int]) -> None:

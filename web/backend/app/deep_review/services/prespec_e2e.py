@@ -746,7 +746,7 @@ def run_prespec_e2e(
             "awaiting_click_notice_keys": [
                 row["notice_key"]
                 for row in rows
-                if row["auto_preparation_status"] == "deep_review_ready_for_click"
+                if row["auto_preparation_status"] == "overview_settled"
             ],
             # 종료 기준: 사전규격마다 자동 확정된 `ready` 묶음과 `completed`
             # 개요가 있고, SW사업대상=Y는 심층 검토가 시작됐으며 SW=N은 사람
@@ -759,7 +759,7 @@ def run_prespec_e2e(
                     row["auto_preparation_status"] == "deep_review_started"
                     if row["sw_business_status"] == "Y"
                     else (
-                        row["auto_preparation_status"] == "deep_review_ready_for_click"
+                        row["auto_preparation_status"] == "overview_settled"
                         and row["auto_preparation_reason"] == "not_sw_business"
                     )
                 )
