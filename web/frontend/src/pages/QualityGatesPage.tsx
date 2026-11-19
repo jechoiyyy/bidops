@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
 import { Text } from "@astryxdesign/core/Text";
 import { Plus } from "lucide-react";
+import { gateResultLabel } from "../lib/glossary";
 import {
   DataTable,
   DetailFooter,
@@ -237,7 +238,7 @@ export function QualityGatesPage() {
           // 목적이 같은 게이트가 여러 개일 수 있으므로 gate_id를 함께 적는다.
           // 서버에 게이트 이름 필드가 없어 목적만으로는 행을 구별할 수 없다.
           subtitle: `${item.gate_id}`,
-          status: item.result_status,
+          status: gateResultLabel(item.result_status),
           meta: `${item.policy_version} · ${item.model_name} · ${moment(item.created_at)} · 실행 ${item.execution_status}${item.purpose === "model_comparison" ? " · 운영 활성화에 사용 불가" : ""}`,
         }))}
         onSelect={(id) => updateParams({ gate: id })}
@@ -268,7 +269,7 @@ export function QualityGatesPage() {
         ) : null}
         {gate && !detailQuery.error ? (
           <>
-            <DetailHeader eyebrow="품질 게이트 · 고정 표본 40건" status={gate.result_status} title={`${purposeLabel(gate.purpose)} 검증`}>
+            <DetailHeader eyebrow="품질 게이트 · 고정 표본 40건" status={gateResultLabel(gate.result_status)} title={`${purposeLabel(gate.purpose)} 검증`}>
               <Small>{`${gate.gate_id} · 최신 평가 ${latestEvaluation ? `수정본 ${latestEvaluation.revision}` : "없음"} · 실행 ${gate.execution_status}`}</Small>
             </DetailHeader>
             <DetailTabs
@@ -292,8 +293,8 @@ export function QualityGatesPage() {
                     ["유효 리뷰", `${countLabel(validCount)} / 10건`],
                   ]} />
                   {gate.result_status === "미측정" || gate.result_status === "보류" ? (
-                    <Note role="status" title={`최종 품질 결과 · ${gate.result_status}`} tone="warning">
-                      A/B 실행이 종결되고 유효 리뷰 10건·서로 다른 공고 10건이 모이기 전까지 최종 품질 결과를 계산할 수 없습니다. 계산 보류는 미달이 아닙니다.
+                    <Note role="status" title={`최종 품질 결과 · ${gateResultLabel(gate.result_status)}`} tone="warning">
+                      A/B 실행이 종결되고 유효 리뷰 10건·서로 다른 공고 10건이 모이기 전까지 최종 품질 결과를 계산할 수 없습니다. 측정 미완은 미달이 아닙니다.
                     </Note>
                   ) : null}
                   <QualityGateRuns passA={gate.pass_a} passB={gate.pass_b} />
@@ -358,7 +359,7 @@ export function QualityGatesPage() {
                       rows={gate.evaluations.map((evaluation) => [
                         <Text key="rev" weight="semibold">{`${evaluation.revision}${evaluation.evaluation_id === gate.latest_evaluation_id ? " · 최신" : ""}`}</Text>,
                         <code key="id">{evaluation.evaluation_id}</code>,
-                        <StatusToken key="st" label={evaluation.result_status} />,
+                        <StatusToken key="st" label={gateResultLabel(evaluation.result_status)} />,
                         <Text key="c">{`${countLabel(evaluation.valid_review_count)}/10 · ${countLabel(evaluation.distinct_notice_review_count)}/10`}</Text>,
                         <Text key="t">{moment(evaluation.created_at)}</Text>,
                         <Text key="r">{evaluation.reasons.length > 0 ? evaluation.reasons.join(" ") : "사유 없음"}</Text>,

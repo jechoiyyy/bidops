@@ -85,7 +85,7 @@ test("사업 추적의 추적 상태 변경은 미저장 입력을 지키라고 
   await page.getByRole("button", { name: "추적 상태 변경", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("combobox", { name: "선택 사유" }).click();
-  await page.getByRole("option", { name: "기타", exact: true }).click();
+  await page.getByRole("option", { name: "기타 · 직접 입력", exact: true }).click();
   await dialog.getByLabel("선택 사유 직접 입력").fill("검증용 미저장 메모");
 
   const blocked = await page.evaluate(() => {

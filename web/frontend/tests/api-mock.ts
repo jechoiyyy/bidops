@@ -4636,6 +4636,24 @@ export async function mockOpportunityRecord(page: Page): Promise<OpportunityReco
       return;
     }
 
+    // 레코드 헤더 결정 축 요약 줄의 최종 Go/No-Go(설계고도화안 C-6). 실제 계약
+    // `bidops.bid-delta-workspace.v1`(backend `schemas/bid_delta.py`) 모양이며, 결정이 없으면 서버처럼
+    // `latest_final_decision=null`·`decision_currentness="unknown"`이다. fixture 레코드에는 결정이 없다.
+    if (rest === "/bid-delta" && method === "GET") {
+      await fulfillJson(route, {
+        schema_version: "bidops.bid-delta-workspace.v1",
+        opportunity_id: id,
+        baseline_candidates: [],
+        comparison_candidates: [],
+        comparisons: [],
+        latest_final_decision: null,
+        decision_currentness: "unknown",
+        currentness_reasons: [],
+        generated_at: "2026-10-20T00:00:00Z",
+      });
+      return;
+    }
+
     trace.unhandled.push(`${method} ${url.pathname}`);
     await recordError(route, 404, "not_found");
   });

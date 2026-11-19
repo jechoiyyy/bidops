@@ -1,5 +1,6 @@
 import type { BadgeVariant } from "../components/common/Badge";
 import type { PreSpecDisplayAssessment, PreSpecGradeSource } from "./types";
+import { TERM_SENSE } from "./glossary";
 
 // 등급 문자열은 `skills/references/workflow-contract.md` 가 정의한 네 값이다.
 // 배지 변형과의 대응을 한곳에 두어, 계약이 바뀔 때 고칠 자리를 하나로 만든다.
@@ -60,7 +61,7 @@ export function gradeSourceLabel(source: PreSpecGradeSource | null): string {
 }
 
 export function displayAssessmentLabel(value: PreSpecDisplayAssessment): string {
-  if (value.status === "held") return "판단 보류";
+  if (value.status === "held") return TERM_SENSE.judgmentWithheld;
   return gradeLabel(value.grade);
 }
 

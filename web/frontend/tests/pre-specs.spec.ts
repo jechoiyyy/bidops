@@ -1095,7 +1095,7 @@ test("사유 없이 사전규격 추적 상태를 보낼 수 없다", async ({ p
 
   // 저장 버튼과 비활성 사유는 헤더 아래 추적 결정 카드가 함께 소유한다.
   await expect(page.getByRole("button", { name: "추적 시작", exact: true })).toBeDisabled();
-  await expect(page.locator("#pre-spec-tracking-save-disabled")).toContainText("추적 결정을 저장하려면 사유를 입력하십시오.");
+  await expect(page.locator("#pre-spec-tracking-save-disabled")).toContainText("선택 사유와 담당자 이름을 입력하면 추적 결정을 기록할 수 있습니다.");
   expect(trace.trackingPatches).toEqual([]);
 });
 
@@ -1116,7 +1116,7 @@ test("사전규격 추적 선택에 성공하면 사람 결정 상태가 갱신�
     trackingStatus: "계속 추적",
     reason: "연계 범위를 확인한 뒤 계속 검토하기로 함",
   }]);
-  await expect(page.getByText("추적 시작을 저장했습니다", { exact: true })).toBeVisible();
+  await expect(page.getByText("추적 상태를 계속 추적(으)로 기록했습니다.", { exact: true })).toBeVisible();
   // The mock API returns this audit name; the view must use the response, not the draft.
   await expect(page.locator(".ps-record-saved-decision")).toContainText("테스트 담당자");
 });
@@ -1167,7 +1167,7 @@ test("사전규격 상세는 헤더 아래 추적 결정 카드에서 사유·�
   await fillRecordReason(page, '후속 입찰공고까지 확인하기로 함');
   await decision.getByRole('textbox', { name: '담당자 이름 (필수)' }).fill('홍길동');
   await saveButton.click();
-  await expect(decision.getByRole('heading', { name: '추적 시작을 저장했습니다' })).toBeVisible();
+  await expect(decision.getByRole('heading', { name: '추적 상태를 계속 추적(으)로 기록했습니다.' })).toBeVisible();
   expect(trace.trackingPatches).toEqual([{
     opportunityId: 78,
     trackingStatus: "계속 추적",
@@ -1218,7 +1218,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     await expect(decision.getByRole('button', { name: '추적 시작', exact: true })).toBeInViewport();
     const alignment = await page.evaluate(() => {
       const top = (sel: string) => document.querySelector(sel)!.getBoundingClientRect().top;
-      const save = document.querySelector('.pre-spec-tracking-save')!.getBoundingClientRect();
+      const save = document.querySelector('.ps-record-tracking-card .pre-spec-tracking-action .astryx-button')!.getBoundingClientRect();
       return { selector: top('.ps-record-tracking-card .astryx-selector'), actor: top('.ps-record-tracking-card .actor-field input'), save: save.top, reasonGap: document.querySelector('#pre-spec-tracking-save-disabled')!.getBoundingClientRect().top - save.bottom };
     });
     expect(Math.abs(alignment.selector - alignment.actor)).toBeLessThanOrEqual(1);
@@ -1247,7 +1247,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     expect(trace.trackingPatches).toEqual([]);
     await decision.getByRole('button', { name: '추적 시작', exact: true }).click();
     await expect.poll(() => trace.trackingPatches.length).toBe(1);
-    await expect(decision.getByRole('heading', { name: '추적 시작을 저장했습니다' })).toBeVisible();
+    await expect(decision.getByRole('heading', { name: '추적 상태를 계속 추적(으)로 기록했습니다.' })).toBeVisible();
     await expect(decision.getByRole('combobox', { name: '선택 사유' })).toHaveCount(0);
     await page.getByRole('link', { name: '목록으로 돌아가기' }).click();
     expect(new URL(page.url()).searchParams.get('sw_only')).toBe('false');
@@ -1341,7 +1341,9 @@ test('수집된 원문 URL을 새 탭으로 열고 추적 저장 실패 시 입�
   await expect(page.getByRole('complementary', { name: '추적 결정', exact: true }).locator('.mutation-feedback-error')).toBeVisible();
   await expect(page.getByRole('combobox', { name: '선택 사유' })).toContainText('후속 입찰공고 확인');
   await expect(page.getByRole('textbox', { name: '담당자 이름 (필수)' })).toHaveValue('김기획');
-  await expect(page.getByRole('button', { name: '다시 저장', exact: true })).toBeInViewport();
+  // C-7: 실패 뒤에도 버튼 이름은 그대로이고, 초안이 남았다는 사실은 오류 표시가 말한다.
+  await expect(page.getByRole('complementary', { name: '추적 결정', exact: true }).locator('.mutation-feedback-error')).toContainText('입력한 내용은 그대로 남아 있습니다');
+  await expect(page.getByRole('button', { name: '추적 시작', exact: true })).toBeInViewport();
   await captureRecord(page, 'save-error-1440');
 });
 

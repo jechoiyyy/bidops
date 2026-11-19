@@ -418,5 +418,5 @@ export const TRACKING_REASONS = [
   "중복·오탐으로 확인",
 ] as const;
 
-/** 자유 입력을 여는 선택지의 값. 사유 문자열이 아니라 표식이므로 계약에 싣지 않는다. */
-export const OTHER_REASON = "other";
+/** 자유 입력을 여는 선택지의 값. 사유 문자열이 아니라 표식이므로 계약에 싣지 않는다. 추적 결정 입력 한 벌(C-7)과 같은 화면 키다. */
+export { TRACKING_OTHER_REASON as OTHER_REASON } from "../common/TrackingDecisionForm";

@@ -6,7 +6,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { Caption, DataTable, Facts, Note, Section, StatusToken } from "./RunStatusPrimitives";
 import { api } from "../../lib/api";
 import { formatDateTime, formatNumber } from "../../lib/format";
-import { orderPlanReviewTierSummary } from "../../lib/glossary";
+import { TERM_SENSE, orderPlanReviewTierSummary } from "../../lib/glossary";
 import { noJudgmentCountOf } from "../../lib/orderPlanDaily";
 import type {
   OrderPlanListItem,
@@ -294,7 +294,7 @@ export function OrderPlanScreeningPanel({
                 ["1차 실패", formatNumber(activeExecution.counts.stage1_failed_count)],
                 ["모델 관련", formatNumber(activeExecution.counts.stage2_relevant_count)],
                 ["모델 비관련", formatNumber(activeExecution.counts.stage2_not_relevant_count)],
-                ["모델 판단 보류", formatNumber(activeExecution.counts.stage2_uncertain_count)],
+                [`모델 ${TERM_SENSE.modelUncertain}`, formatNumber(activeExecution.counts.stage2_uncertain_count)],
                 ["모델 실패", formatNumber(activeExecution.counts.stage2_failed_count)],
                 ["모델 거부", formatNumber(activeExecution.counts.stage2_rejected_count)],
                 /* 계약 값(`human_review_count` = 관련 + 불확실 + 무판정)은 합계로 그대로 두고, 화면 문구는

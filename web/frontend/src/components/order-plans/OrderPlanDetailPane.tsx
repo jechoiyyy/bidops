@@ -4,9 +4,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
-import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
-import { TextInput } from "@astryxdesign/core/TextInput";
+import {
+  TRACKING_OTHER_REASON,
+  TrackingDecisionActions,
+  TrackingDecisionInputs,
+  TrackingSaveError,
+} from "../common/TrackingDecisionForm";
 import {
   AgencyFeature,
   ReviewDecisionAction,
@@ -16,14 +20,13 @@ import {
 } from "../common/ReviewPrimitives";
 import { EmptyState } from "../common/EmptyState";
 import { api } from "../../lib/api";
-import { describeApiError } from "../../lib/apiErrors";
+import type { ApiErrorDescription } from "../../lib/apiErrors";
 import type {
   OpportunityTrackingStatus,
   OrderPlanListItem,
   OrderPlanScreeningExecutionSummary,
 } from "../../lib/types";
 import {
-  OTHER_REASON,
   TRACKING_REASONS,
   budgetValue,
   detailFactValue,
@@ -41,11 +44,6 @@ import {
   trackingAvailability,
 } from "./orderPlanFormat";
 import type { TrackingAvailability } from "./orderPlanFormat";
-
-const TRACKING_REASON_OPTIONS = [
-  ...TRACKING_REASONS.map((value) => ({ label: value, value })),
-  { label: "기타 · 직접 입력", value: OTHER_REASON },
-];
 
 /**
  * 추적 결정 상태의 실무 말(0921 명세 §3.1).
@@ -71,12 +69,9 @@ function trackingStatusLabel(item: OrderPlanListItem | null): string {
 /**
  * 상세 pane 바닥의 추적 결정 입력.
  *
- * 시안(focus-v2)의 결정 블록은 늘 보이는 한 덩어리다: 머리줄(추적 선택 · 현재 상태 ·
- * 위치), 사유 드롭다운과 담당자 감사 표식 한 줄, `기타`일 때만 열리는 자유 입력.
- * 결정 버튼과 안내 한 줄은 `ReviewDecisionBar`의 action·hint 자리에 있다.
- *
- * 상태의 뜻을 길게 설명하는 문장은 여기 두지 않는다. 현재 상태는 badge가, 저장할 수
- * 없는 이유는 결정 줄 아래 한 문장이, 나머지 구분 규칙은 `실행 상태` 대화상자가 진다.
+ * 머리줄(추적 결정 · 현재 상태 · 위치) 아래에 추적 결정 입력 한 벌(`TrackingDecisionInputs`, C-7)을
+ * 둔다 — 선택 사유(직접 입력 포함)와 담당자 이름. 결정 버튼과 안내 한 줄은 `ReviewDecisionBar`의
+ * action·hint 자리에 있고, 저장 실패는 입력 바로 아래에 같은 모양(`TrackingSaveError`)으로 남는다.
  */
 function TrackingDecisionFields({
   item,
@@ -90,6 +85,7 @@ function TrackingDecisionFields({
   lastReason,
   onReuseLastReason,
   sectionRef,
+  problem,
   isDisabled = false,
 }: {
   item: OrderPlanListItem;
@@ -104,15 +100,16 @@ function TrackingDecisionFields({
   lastReason: string;
   onReuseLastReason: () => void;
   sectionRef: Ref<HTMLElement>;
+  problem: ApiErrorDescription | null;
   isDisabled?: boolean;
 }) {
   const availability = trackingAvailability(item);
   /** 지금 계약에 실릴 사유. 이 값이 이미 있으면 다시 쓰기 단추를 그리지 않는다. */
-  const currentReason = reasonChoice === OTHER_REASON ? customReason.trim() : reasonChoice;
+  const currentReason = reasonChoice === TRACKING_OTHER_REASON ? customReason.trim() : reasonChoice;
   return (
     <section className="c2l-tracking" aria-labelledby={`c2l-tracking-${item.order_plan_pk}`} ref={sectionRef}>
       <header className="c2l-tracking-head">
-        <Text type="label" color="primary" as="p" id={`c2l-tracking-${item.order_plan_pk}`}>추적 선택</Text>
+        <Text type="label" color="primary" as="p" id={`c2l-tracking-${item.order_plan_pk}`}>추적 결정</Text>
         <Badge
           variant={availability === "available" ? "neutral" : "warning"}
           label={trackingStatusLabel(item)}
@@ -120,22 +117,23 @@ function TrackingDecisionFields({
         <Text type="supporting" color="secondary" as="p" className="c2l-tracking-position">{position}</Text>
       </header>
       <div className="c2l-tracking-fields">
-        <div className="c2l-reason-field">
-          <Selector
-            label="선택 사유"
-            hasClear
-            onChange={(value) => onReasonChoiceChange(value ?? "")}
-            options={TRACKING_REASON_OPTIONS}
-            placeholder="사유를 선택하세요"
-            size="sm"
-            value={reasonChoice || null}
-            isDisabled={isDisabled}
-          />
-          {/* 드롭다운을 미리 채우지 않는다(PRD §3.3). 직전 사유는 **사람이 누를 때에만**
-              들어가는 후보이고, 무엇이 들어갈지 단추 이름이 그대로 말한다. */}
-          {lastReason && !currentReason ? (
-            /* 긴 사유는 CSS가 말줄임하므로 전문은 `title`이 진다. Astryx `Button`은
-               `title`을 받지 않아(BaseProps가 뺀다) 감싸는 span이 그 자리다. */
+        <TrackingDecisionInputs
+          presets={TRACKING_REASONS}
+          choice={reasonChoice}
+          onChoiceChange={onReasonChoiceChange}
+          custom={customReason}
+          onCustomChange={onCustomReasonChange}
+          actorName={actorName}
+          onActorNameChange={onActorNameChange}
+          isDisabled={isDisabled}
+          reasonClassName="c2l-reason-field"
+          // 담당자 이름은 이 탭에서만 기억한다(화면이 sessionStorage로 따로 둔다).
+          rememberActor={false}
+          actorPlaceholder="이름 입력"
+          reasonExtra={lastReason && !currentReason ? (
+            /* 드롭다운을 미리 채우지 않는다(PRD §3.3). 직전 사유는 **사람이 누를 때에만**
+               들어가는 후보이고, 무엇이 들어갈지 단추 이름이 그대로 말한다. 긴 사유는 CSS가
+               말줄임하므로 전문은 감싸는 span의 `title`이 진다(Astryx `Button`은 title을 받지 않는다). */
             <span className="c2l-reason-reuse" title={lastReason}>
               <Button
                 label={`직전 사유 다시 쓰기 · ${lastReason}`}
@@ -146,26 +144,9 @@ function TrackingDecisionFields({
               />
             </span>
           ) : null}
-        </div>
-        <TextInput
-          label="담당자 이름 · 감사 표식"
-          size="sm"
-          value={actorName}
-          onChange={onActorNameChange}
-          placeholder="이름 입력"
-          isDisabled={isDisabled}
         />
       </div>
-      {reasonChoice === OTHER_REASON ? (
-        <TextInput
-          label="선택 사유 직접 입력"
-          size="sm"
-          value={customReason}
-          onChange={onCustomReasonChange}
-          placeholder="추적·보류·종료를 선택한 이유를 적어주세요"
-          isDisabled={isDisabled}
-        />
-      ) : null}
+      {problem ? <TrackingSaveError problem={problem} /> : null}
     </section>
   );
 }
@@ -215,8 +196,8 @@ export interface OrderPlanDetailPaneProps {
   rowExecution: OrderPlanScreeningExecutionSummary | null;
   bulkPending: boolean;
   onOpenFeedback: () => void;
-  trackingIsError: boolean;
-  trackingError: unknown;
+  /** 추적 결정 저장 실패. `describeApiError`가 옮긴 설명이며 없으면 `null`이다. */
+  trackingProblem: ApiErrorDescription | null;
   trackingMessage: { pk: number; text: string } | null;
   trackingDisabledReason: string | undefined;
   trackingActor: string;
@@ -251,8 +232,7 @@ export function OrderPlanDetailPane({
   rowExecution,
   bulkPending,
   onOpenFeedback,
-  trackingIsError,
-  trackingError,
+  trackingProblem,
   trackingMessage,
   trackingDisabledReason,
   trackingActor,
@@ -503,11 +483,6 @@ export function OrderPlanDetailPane({
             // 여기 한 곳에서 그리고, 각 버튼은 같은 id를 `aria-describedby`로 가리킨다.
             hint={(
               <>
-                {trackingIsError ? (
-                  <span className="c2l-decision-message" role="alert">
-                    {describeApiError(trackingError, "추적 결정을 저장하지 못했습니다.").title} 이 발주계획의 추적 상태는 바뀌지 않았습니다.
-                  </span>
-                ) : null}
                 {trackingMessage?.pk === selectedItem.order_plan_pk
                   ? <span className="c2l-decision-message" role="status">{trackingMessage.text}</span>
                   : null}
@@ -530,34 +505,20 @@ export function OrderPlanDetailPane({
                 position={`${selectedIndex} / ${total.toLocaleString("ko-KR")}건`}
                 reasonChoice={reasonChoice}
                 sectionRef={trackingSectionRef}
+                problem={trackingProblem}
                 isDisabled={bulkPending}
               />
             )}
             actions={(
               <>
-                {/* 세 결정이 같은 사유로 함께 막힌다. 첫 액션이 그 문구를
-                    한 번만 그리고 나머지는 같은 id를 가리켜, 화면에 같은
-                    문장이 세 번 쌓이지 않으면서 각 버튼이 사유를 읽는다. */}
-                <ReviewDecisionAction
+                {/* 세 결정이 같은 사유로 함께 막힌다. 문장은 hint 자리에 한 번만 있고 버튼은 모두
+                    같은 id를 가리킨다. 버튼의 순서·이름은 추적 결정 입력 한 벌(C-7)이 정한다. */}
+                <TrackingDecisionActions
+                  statuses={["계속 추적", "보류", "종료"]}
+                  current={selectedItem.tracking?.tracking_status ?? null}
                   disabledReasonId="c2l-tracking-decision-reason"
                   isDisabled={bulkPending || !trackingReady}
-                  label="추적 시작"
-                  variant="primary"
-                  onClick={() => onDecideTracking("계속 추적")}
-                />
-                <ReviewDecisionAction
-                  disabledReasonId="c2l-tracking-decision-reason"
-                  isDisabled={bulkPending || !trackingReady}
-                  label="보류"
-                  variant="secondary"
-                  onClick={() => onDecideTracking("보류")}
-                />
-                <ReviewDecisionAction
-                  disabledReasonId="c2l-tracking-decision-reason"
-                  isDisabled={bulkPending || !trackingReady}
-                  label="추적 종료"
-                  variant="secondary"
-                  onClick={() => onDecideTracking("종료")}
+                  onDecide={onDecideTracking}
                 />
                 {/* 아무것도 저장하지 않으므로 계약이 없어도 비활성이 아니다. */}
                 <ReviewDecisionAction

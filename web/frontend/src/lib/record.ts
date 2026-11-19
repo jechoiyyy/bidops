@@ -1,4 +1,5 @@
 import { daysUntil, deadlineDayLabel, DEADLINE_EMPHASIS_DAYS } from "./briefing";
+import { DECISION_AXIS_LABEL, TERM_SENSE } from "./glossary";
 import type {
   NoticeDetailResponse,
   OpportunityActivityItem,
@@ -176,6 +177,97 @@ export function recordPills(
     tone: item.tracking_status === "계속 추적" ? "success" : item.tracking_status === "보류" ? "warning" : "muted",
   });
   return pills;
+}
+
+// ---------------------------------------------------------------------------
+// 결정 축 요약 줄(설계고도화안 C-6)
+
+/**
+ * 레코드 헤더 아래 한 줄. 사람이 내리는 결정 셋을 **축마다 따로** 적는다 — 추적 결정 · 판정 확인 ·
+ * 최종 Go/No-Go. 셋을 한 상태로 합치거나 한 축의 값으로 다른 축을 채우지 않는다(business-rules
+ * "서로 대신하지 않는다"). 값은 서버가 준 것만 옮기고, 서버가 기록하지 않는 것은 "기록 없음"으로 남긴다.
+ */
+export interface RecordDecisionAxis {
+  key: "tracking" | "verdict" | "go_no_go";
+  label: string;
+  value: string;
+  tone: RecordPillTone;
+}
+
+/** 판정 확인 축의 입력. 판정 응답 그대로와 조회 상태다. */
+export interface VerdictAxisInput {
+  /** 이 환경에서 RL 분석이 꺼져 있다(기능 스위치). */
+  off: boolean;
+  /** 발주계획 단계뿐이라 판정 대상 사전규격이 없다. */
+  orderPlanOnly: boolean;
+  pending: boolean;
+  failed: boolean;
+  availability: string | null;
+  verdictName: string | null;
+}
+
+/** 최종 Go/No-Go 축의 입력. 입찰공고가 연결되지 않았으면 결정할 공고가 없다. */
+export interface GoNoGoAxisInput {
+  hasBidNotice: boolean;
+  pending: boolean;
+  failed: boolean;
+  decision: "go" | "no_go" | null;
+  currentness: "current" | "stale" | "unknown" | null;
+}
+
+const CURRENTNESS_SHORT: Record<"current" | "stale" | "unknown", string> = {
+  current: "현재 유효",
+  stale: "재검토 필요",
+  unknown: "현재성 미확인",
+};
+
+function verdictAxisValue(input: VerdictAxisInput): { value: string; tone: RecordPillTone } {
+  if (input.off) return { value: "이 환경에서 꺼져 있음", tone: "muted" };
+  if (input.orderPlanOnly) return { value: "사전규격 연결 전", tone: "muted" };
+  if (input.failed) return { value: "판정 상태 확인 불가", tone: "muted" };
+  if (input.pending) return { value: "확인 중", tone: "muted" };
+  switch (input.availability) {
+    case "pending":
+    case "running":
+      return { value: "분석 중", tone: "muted" };
+    case "failed":
+    case "needs_human_review":
+      return { value: "사람 검토 필요", tone: "warning" };
+    case "completed":
+      // 판정을 사람이 확인했다는 기록은 서버에 없다. 판정 이름만 옮기고 확인 여부는 지어내지 않는다.
+      return { value: input.verdictName ? `${input.verdictName} 판정 · 확인 기록 없음` : "판정 결과 없음", tone: "muted" };
+    default:
+      return { value: "판정 없음", tone: "muted" };
+  }
+}
+
+function goNoGoAxisValue(input: GoNoGoAxisInput): { value: string; tone: RecordPillTone } {
+  if (!input.hasBidNotice) return { value: "입찰공고 연결 전", tone: "muted" };
+  if (input.failed) return { value: "결정 확인 불가", tone: "muted" };
+  if (input.pending) return { value: "확인 중", tone: "muted" };
+  if (!input.decision) return { value: "결정 없음", tone: "muted" };
+  const name = input.decision === "go" ? "Go" : "No-Go";
+  const currentness = input.currentness ?? "unknown";
+  return { value: `${name} · ${CURRENTNESS_SHORT[currentness]}`, tone: currentness === "current" ? "muted" : "warning" };
+}
+
+export function recordDecisionAxes(
+  item: OpportunityDetailResponse,
+  verdict: VerdictAxisInput,
+  goNoGo: GoNoGoAxisInput,
+): RecordDecisionAxis[] {
+  const verdictState = verdictAxisValue(verdict);
+  const goNoGoState = goNoGoAxisValue(goNoGo);
+  return [
+    {
+      key: "tracking",
+      label: DECISION_AXIS_LABEL.tracking,
+      value: item.tracking_status,
+      tone: item.tracking_status === "보류" ? "warning" : "muted",
+    },
+    { key: "verdict", label: DECISION_AXIS_LABEL.verdictConfirmation, ...verdictState },
+    { key: "go_no_go", label: DECISION_AXIS_LABEL.goNoGo, ...goNoGoState },
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -390,7 +482,7 @@ export const ACTIVITY_FILTER_LABEL: Record<ActivityFilter, string> = {
   all: "전체",
   people: "사람",
   business: "사업 사건",
-  action: "다음 행동",
+  action: TERM_SENSE.nextActionNote,
 };
 
 const PEOPLE_KINDS = new Set<string>([

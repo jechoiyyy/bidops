@@ -116,7 +116,7 @@ export function preSpecList(items: PreSpecListItem[], total = items.length): Pre
 export const overviewFailedItems = [preSpec(801, "안전한 문서 준비 사전규격", "2026-09-20T00:00:00Z", "failed")];
 export const overviewAttentionItems = [preSpec(802, "통합 인증·증명 서비스 사전규격", "2026-09-18T00:00:00Z", "needs_human_review")];
 
-// ── 새 우선 검토 발주계획 ─────────────────────────────────────────────────
+// ── 새 관련 발주계획 ─────────────────────────────────────────────────
 function orderPlan(pk: number, title: string, agency: string, budget: number | null, year: string | null, month: string | null): OrderPlanListItem {
   return {
     order_plan_pk: pk, order_plan_unty_no: `PLAN-${pk}`, source_url: null, title, agency_name: agency,
@@ -188,8 +188,22 @@ export function holdReviewList(items: OpportunityListItem[], total = items.lengt
   return opportunityList(items, total);
 }
 
+/**
+ * 사업 추적 기본 구역 `조치 필요`의 목록 응답(대시보드 건수 띠, 설계고도화안 C-8). `total`이 구역 건수이고
+ * `action_reason_counts`가 사유 칩 건수다 — 서버 응답과 같은 모양이며 행은 띠가 쓰지 않는다.
+ */
+// 서버의 같은 집계와 맞춘다 — 구역 3건(`tracking_action_required`), 보류 기한 지남 1건(`tracking_hold_review_due`).
+export const actionRequiredList: OpportunityListResponse = {
+  ...opportunityList([], 3),
+  action_reason_counts: { new_link: 1, candidate_pending: 0, merge_confirmation: 0, blocking_item: 1, hold_overdue: 1 },
+};
+
 export interface DashboardMockOptions {
   workload?: WorkloadResponse;
+  /** `조치 필요` 구역(사유·창 없음) 응답. 기본은 `actionRequiredList`. */
+  actionRequired?: OpportunityListResponse;
+  /** 사전규격 `최근 수집`(`workspace=recent`) 응답. 기본은 4건. */
+  recentPreSpecs?: PreSpecListResponse;
   deadlines?: OpportunityListResponse;
   decisions?: BidDeltaDecisionQueueResponse;
   overviewFailed?: PreSpecListResponse;
@@ -237,6 +251,12 @@ export async function mockDashboard(page: Page, options: DashboardMockOptions = 
     else if (url.pathname === "/api/opportunities" && url.searchParams.has("hold_review")) {
       // 기본은 재검토할 보류가 없는 상태다.
       body = options.holdReviews ?? holdReviewList([]); failure = !!options.holdReviewError;
+    }
+    else if (url.pathname === "/api/opportunities" && url.searchParams.get("section") === "조치 필요" && !url.searchParams.has("reason")) {
+      body = options.actionRequired ?? actionRequiredList;
+    }
+    else if (url.pathname === "/api/pre-specs" && url.searchParams.get("workspace") === "recent") {
+      body = options.recentPreSpecs ?? preSpecList([], 4); failure = !!options.overviewError;
     }
     else if (url.pathname === "/api/bid-delta/decision-queue") { body = options.decisions ?? decisionList; failure = !!options.decisionError; }
     else if (url.pathname === "/api/pre-specs" && url.searchParams.get("overview_view") === "failed") {

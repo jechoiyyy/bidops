@@ -291,7 +291,7 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
   await expect(page.locator("section.c2l-page .c2l-page-header")).toHaveCount(0);
   await expect(page.locator(".c2l-row")).toHaveCount(2);
   await expect(page.locator(".c2l-row").first()).toContainText("모델 · 관련");
-  await expect(page.locator(".c2l-row").nth(1)).toContainText("모델 · 판단 보류");
+  await expect(page.locator(".c2l-row").nth(1)).toContainText("모델 · 불확실");
   await expect(page.locator(".c2l-row").first()).toContainText("1.3억원");
   // 수집 API의 연월 형식도 연도 중복 없이 읽힌다. 다음 행은 월만 온다.
   await expect(page.locator(".c2l-row").first()).toContainText("2026년 11월");
@@ -712,7 +712,7 @@ test("검토 목록은 relevance 우선순위로 정렬하고 선택 순서와 �
   await expect(rows).toHaveCount(5);
   expect((await rows.locator(".c2l-row-model").allTextContents()).map((label) => label.trim())).toEqual([
     "모델 · 관련",
-    "모델 · 판단 보류",
+    "모델 · 불확실",
     "모델 · 비관련",
     "모델 상태 미확인",
     "모델 상태 미확인",
@@ -731,7 +731,7 @@ test("검토 목록은 relevance 우선순위로 정렬하고 선택 순서와 �
   await page.goto("/order-plans?qwen=uncertain,relevant");
   await expect.poll(() => new URL(page.url()).searchParams.get("qwen")).toBe("uncertain,relevant");
   await expect(rows).toHaveCount(2);
-  expect((await rows.locator(".c2l-row-model").allTextContents()).map((label) => label.trim())).toEqual(["모델 · 관련", "모델 · 판단 보류"]);
+  expect((await rows.locator(".c2l-row-model").allTextContents()).map((label) => label.trim())).toEqual(["모델 · 관련", "모델 · 불확실"]);
   await expect(rows.first()).toContainText("API 순서 관련 사업");
   await expect(rows.nth(1)).toContainText("API 순서 불확실 사업");
 });
@@ -916,7 +916,7 @@ test("추적 결정은 별도 요청으로 저장되고 선택 즉시 다음 발
   await expect(start).toBeDisabled();
   await expect(page.getByText("담당자 이름을 입력하면 추적 결정을 기록할 수 있습니다.")).toBeVisible();
 
-  await page.getByLabel("담당자 이름 · 감사 표식").fill("홍길동");
+  await page.getByLabel("담당자 이름 (필수)").fill("홍길동");
   await expect(start).toBeEnabled();
   await start.click();
 
@@ -946,7 +946,7 @@ test("발주계획 추적 종료는 확인 없이는 요청이 나가지 않고 
   await page.goto(REVIEW_SET_URL);
   await page.locator(".c2l-row").first().click();
   await selectReason(page, "후속 사전규격·공고 확인");
-  await page.getByLabel("담당자 이름 · 감사 표식").fill("홍길동");
+  await page.getByLabel("담당자 이름 (필수)").fill("홍길동");
 
   await page.getByRole("button", { name: "추적 종료", exact: true }).click();
   const dialog = page.getByRole("alertdialog");
@@ -961,7 +961,7 @@ test("발주계획 추적 종료는 확인 없이는 요청이 나가지 않고 
   await dialog.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
   expect(trace.trackingPatches).toHaveLength(0);
-  await expect(page.getByLabel("담당자 이름 · 감사 표식")).toHaveValue("홍길동");
+  await expect(page.getByLabel("담당자 이름 (필수)")).toHaveValue("홍길동");
   await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("공공데이터 통합");
 
   await page.getByRole("button", { name: "추적 종료", exact: true }).click();
@@ -978,7 +978,7 @@ test("계속 추적과 보류는 확인 단계 없이 그대로 저장된다", a
   await page.goto(REVIEW_SET_URL);
   await page.locator(".c2l-row").first().click();
   await selectReason(page, "후속 사전규격·공고 확인");
-  await page.getByLabel("담당자 이름 · 감사 표식").fill("홍길동");
+  await page.getByLabel("담당자 이름 (필수)").fill("홍길동");
 
   await page.getByRole("button", { name: "보류", exact: true }).click();
   await expect(page.getByText("추적 상태를 보류(으)로 기록했습니다. 다음 발주계획으로 이동합니다.")).toBeVisible();
@@ -1052,7 +1052,7 @@ test("화면을 떠나기 전에 저장하지 않은 입력을 화면 다이얼�
   await page.locator(".c2l-row").first().click();
 
   // 담당자 이름만으로는 잃을 것이 없다. 확인 없이 그대로 이동한다.
-  await page.getByLabel("담당자 이름 · 감사 표식").fill("홍길동");
+  await page.getByLabel("담당자 이름 (필수)").fill("홍길동");
   expect(await page.evaluate(() => {
     const event = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(event);
@@ -1077,7 +1077,7 @@ test("화면을 떠나기 전에 저장하지 않은 입력을 화면 다이얼�
   await expect(dialog).toContainText("선택 사유 초안");
   await dialog.getByRole("button", { name: "계속 편집", exact: true }).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe("/order-plans");
-  await expect(page.getByLabel("담당자 이름 · 감사 표식")).toHaveValue("홍길동");
+  await expect(page.getByLabel("담당자 이름 (필수)")).toHaveValue("홍길동");
 
   await leave().click();
   await page.getByRole("alertdialog").getByRole("button", { name: "저장하지 않고 이동", exact: true }).click();
@@ -1386,7 +1386,7 @@ test("추적 사유는 초기값이 비어 있고 공백만 있는 직접 입력
   const trace = await mockOrderPlans(page);
   await page.goto(REVIEW_SET_URL);
   await page.locator(".c2l-row").first().click();
-  await page.getByLabel("담당자 이름 · 감사 표식").fill("홍길동");
+  await page.getByLabel("담당자 이름 (필수)").fill("홍길동");
 
   const reason = page.getByRole("combobox", { name: "선택 사유" });
   await expect(reason).toContainText("사유를 선택하세요");
@@ -1422,7 +1422,7 @@ test("추적 사유는 초기값이 비어 있고 공백만 있는 직접 입력
   // 다음 건으로 옮겨 가면 사유는 비고 담당자 이름은 남는다.
   await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("지방공기업");
   await expect(page.getByRole("combobox", { name: "선택 사유" })).toContainText("사유를 선택하세요");
-  await expect(page.getByLabel("담당자 이름 · 감사 표식")).toHaveValue("홍길동");
+  await expect(page.getByLabel("담당자 이름 (필수)")).toHaveValue("홍길동");
 });
 
 // 마지막 건에서 저장하면 옮겨 갈 다음 건이 없다. 그래도 사유는 비워야 하고, 화면이
@@ -1438,7 +1438,7 @@ test("목록의 마지막 건을 저장하면 사유를 비우고 이동하지 �
   await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("지방공기업");
 
   await selectReason(page, "예산·시기 추가 확인 필요");
-  await page.getByLabel("담당자 이름 · 감사 표식").fill("홍길동");
+  await page.getByLabel("담당자 이름 (필수)").fill("홍길동");
   await page.getByRole("button", { name: "보류", exact: true }).click();
 
   await expect(page.getByText("추적 상태를 보류(으)로 기록했습니다. 현재 목록의 마지막 발주계획이라 이동하지 않습니다.")).toBeVisible();
@@ -1449,8 +1449,9 @@ test("목록의 마지막 건을 저장하면 사유를 비우고 이동하지 �
   // 선택은 그대로 남고 사유만 비었다. 담당자는 감사 표식이라 남는다.
   await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("지방공기업");
   await expect(page.getByRole("combobox", { name: "선택 사유" })).toContainText("사유를 선택하세요");
-  await expect(page.getByLabel("담당자 이름 · 감사 표식")).toHaveValue("홍길동");
-  await expect(page.getByRole("button", { name: "추적 시작", exact: true })).toBeDisabled();
+  await expect(page.getByLabel("담당자 이름 (필수)")).toHaveValue("홍길동");
+  // 이 건은 이제 `보류`라 `계속 추적` 결정의 이름은 `추적 시작`이 아니라 `계속 추적`이다(C-7 버튼 이름 규칙).
+  await expect(page.getByRole("button", { name: "계속 추적", exact: true })).toBeDisabled();
 
   // 저장이 끝났으므로 화면을 떠나도 "저장되지 않은 입력" 확인이 뜨지 않는다.
   await page.locator("aside.sidebar").getByRole("link", { name: "실행 상태", exact: true }).click();
@@ -1544,7 +1545,7 @@ test("검토 목록에서 ↑↓로 행을 옮기면 선택·초점·URL이 함�
   expect(await rows.first().evaluate((row) => row === document.activeElement)).toBe(true);
 
   // 목록 밖(상세 pane)의 방향키는 목록을 움직이지 않는다. 리스너가 목록 컨테이너에만 있다.
-  await page.getByLabel("담당자 이름 · 감사 표식").focus();
+  await page.getByLabel("담당자 이름 (필수)").focus();
   await page.keyboard.press("ArrowDown");
   await expect(rows.first()).toHaveAttribute("aria-current", "true");
 });
@@ -1673,7 +1674,7 @@ test("목록 행의 Ctrl+Enter는 준비됐을 때만 추적을 시작한다", a
   await expect(page.getByRole("combobox", { name: "선택 사유" })).toContainText("사유를 선택하세요");
 
   await selectReason(page, "후속 사전규격·공고 확인");
-  await page.getByLabel("담당자 이름 · 감사 표식").fill("홍길동");
+  await page.getByLabel("담당자 이름 (필수)").fill("홍길동");
   await rows.first().focus();
   await page.keyboard.press("Control+Enter");
 
@@ -1691,7 +1692,7 @@ test("저장한 뒤에는 직전 사유를 한 번에 다시 쓸 수 있다", as
 
   await page.locator(".c2l-row").first().click();
   await selectReason(page, "후속 사전규격·공고 확인");
-  await page.getByLabel("담당자 이름 · 감사 표식").fill("홍길동");
+  await page.getByLabel("담당자 이름 (필수)").fill("홍길동");
   await page.getByRole("button", { name: "추적 시작", exact: true }).click();
   await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("지방공기업");
 
@@ -1715,11 +1716,11 @@ test("담당자 이름은 새로고침 뒤에도 이 탭에 남는다", async ({
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().click();
 
-  await page.getByLabel("담당자 이름 · 감사 표식").fill("홍길동");
+  await page.getByLabel("담당자 이름 (필수)").fill("홍길동");
   expect(await page.evaluate(() => window.sessionStorage.getItem("bidops.order-plans.trackingActor"))).toBe("홍길동");
 
   await page.reload();
-  await expect(page.getByLabel("담당자 이름 · 감사 표식")).toHaveValue("홍길동");
+  await expect(page.getByLabel("담당자 이름 (필수)")).toHaveValue("홍길동");
 });
 
 const BT_REQUEST_ID = "7a9c9b7a-0c11-4a5e-9f34-000000000001";
@@ -2126,8 +2127,8 @@ test("LS-checkbox-space-and-input-events-remain-independent-from-active-row", as
   await firstRow.dispatchEvent("keydown", { key: " ", code: "Space", repeat: true, bubbles: true });
   await expect(firstCheckbox).not.toBeChecked();
 
-  await page.getByLabel("담당자 이름 · 감사 표식").fill("키보드 담당자");
-  await page.getByLabel("담당자 이름 · 감사 표식").press("Space");
+  await page.getByLabel("담당자 이름 (필수)").fill("키보드 담당자");
+  await page.getByLabel("담당자 이름 (필수)").press("Space");
   await expect(firstCheckbox).not.toBeChecked();
 });
 
@@ -2178,7 +2179,7 @@ test("BT-confirmation-shows-owner-and-status-exclusions-and-does-not-run-single-
   await rows.filter({ hasText: "복지서비스 운영" }).locator('input[type="checkbox"]').check();
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 3건");
   await selectReason(page, "후속 사전규격·공고 확인");
-  await page.getByLabel("담당자 이름 · 감사 표식").fill("일괄 담당자");
+  await page.getByLabel("담당자 이름 (필수)").fill("일괄 담당자");
 
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
@@ -2527,14 +2528,14 @@ test("BT-bulk-actor-and-reason-drafts-do-not-mutate-single-drafts", async ({ pag
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().click();
   await selectReason(page, "후속 사전규격·공고 확인");
-  await page.getByLabel("담당자 이름 · 감사 표식").fill("단건 담당자");
+  await page.getByLabel("담당자 이름 (필수)").fill("단건 담당자");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
   await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await bulkActorInput(dialog).fill("일괄 담당자");
   await writeBulkReason(page, dialog, "추적 사유 (필수)", "일괄 전용 사유");
   await dialog.getByRole("button", { name: "취소", exact: true }).click();
-  await expect(page.locator(".c2l-tracking").getByLabel("담당자 이름 · 감사 표식")).toHaveValue("단건 담당자");
+  await expect(page.locator(".c2l-tracking").getByLabel("담당자 이름 (필수)")).toHaveValue("단건 담당자");
   await expect(page.getByRole("combobox", { name: "선택 사유" })).toContainText("후속 사전규격·공고 확인");
 });
 
@@ -2883,7 +2884,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       expect(listRequests.slice(requestsBeforeClear).every((params) => !params.has("source_run_id"))).toBe(true);
     });
 
-    // S1 — 대시보드 `새 우선 검토 발주계획`이 넘기는 `first_observed_from`. URL로만
+    // S1 — 대시보드 `새 관련 발주계획`이 넘기는 `first_observed_from`. URL로만
     // 들어오는 축이고, 회차 줄과 같은 자리에서 알리고 해제한다. 창은 **서버가** 건다.
     test("URL의 첫 수집 창은 서버로 그대로 나가고 회차 줄과 같은 자리에서 해제된다", async ({ page }) => {
       await mockOrderPlans(page);
@@ -3279,8 +3280,8 @@ test("A6-기본 보기는 관련이고 탭은 관련·불확실·모델 미판�
   expect(new URL(page.url()).searchParams.has("unjudged")).toBe(false);
   await expect(presetTab(page, "불확실")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".c2l-row")).toHaveCount(1);
-  await expect(page.locator(".c2l-row")).toContainText("모델 · 판단 보류");
-  await expect(page.locator(".c2l-list-head .c2l-list-scope")).toHaveText("훑어보기 · 모델이 판단을 보류 · 추적 미선택");
+  await expect(page.locator(".c2l-row")).toContainText("모델 · 불확실");
+  await expect(page.locator(".c2l-list-head .c2l-list-scope")).toHaveText("훑어보기 · 모델이 불확실로 판단 · 추적 미선택");
 
   await clickPreset(page, "모델 미판정");
   await expect(page).toHaveURL(/unjudged=yes/);

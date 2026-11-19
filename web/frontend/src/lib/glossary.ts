@@ -60,6 +60,65 @@ export const TERM = {
 export type GlossaryTerm = keyof typeof TERM;
 
 /**
+ * 한 뜻에 한 낱말(설계고도화안 C-6, 2026-11-19).
+ *
+ * 같은 낱말이 화면마다 다른 뜻으로 쓰였다. 아래 표가 뜻마다 낱말 하나를 정하고, 화면은
+ * 이 상수를 읽는다. **계약·DB 값은 그대로다** — 여기서 고르는 것은 화면 문구뿐이며,
+ * `business-rules.md`·계약 문서가 이미 쓰는 낱말을 따른다.
+ *
+ * "다음 행동"(세 뜻):
+ * - `nextActionGuide` 서버가 정한 탐색용 안내(사전규격·공고 판정의 `next_action`). 새 업무 상태가
+ *   아니다. business-rules "사전규격 C-1 기본 대상"의 "다음 행동 안내".
+ * - `nextActionNote` 사람이 레코드에 남기는 할 일 메모(`opportunity_note kind=action`). 활동 피드
+ *   제목 `다음 행동: …`은 서버가 만든다(contracts/lifecycle-rest.md) — 그래서 이 뜻이 맨 낱말을 갖는다.
+ * - `verdictNextAction` RL 판정 종합이 제안한 행동(모델 행 + 코드 "사람 확인" 행). contracts/rl.md의
+ *   "종합 다음 행동".
+ *
+ * "보류"(뜻마다 다른 낱말):
+ * - `trackingHold` 추적 결정 값 `보류` 하나에만 맨 낱말을 쓴다(business-rules 생애주기 표).
+ * - `judgmentWithheld` 판단을 내지 않았다 — 사전규격 등급 `held`, 회사 핏 `unknown`, 사람 판단
+ *   relevance `uncertain`, 리뷰 증거 판단(business-rules가 모두 "판단 보류"로 적는다).
+ * - `modelUncertain` 발주계획 모델 판단 `uncertain`. 목록 탭 이름(`불확실`)과 같다.
+ * - `gateIncomplete` 품질 게이트 결과 `보류`(측정이 끝나지 않음). 미달이 아니다.
+ * - 최종 Go/No-Go에는 보류 값이 없다. 결정을 미루려면 저장하지 않는다.
+ */
+export const TERM_SENSE = {
+  nextActionGuide: "다음 행동 안내",
+  nextActionNote: "다음 행동",
+  verdictNextAction: "종합 다음 행동",
+  trackingHold: "보류",
+  judgmentWithheld: "판단 보류",
+  modelUncertain: "불확실",
+  gateIncomplete: "측정 미완",
+} as const;
+
+/**
+ * 사람이 내리는 결정 축(business-rules "적합성 등급·참여 준비 상태·추적 선택·최종 Go/No-Go를
+ * 서로 대신하지 않는다", 설계고도화안 §3 "추적 시작, 판정 확인, Go/No-Go는 사람이 결정한다").
+ * 레코드 헤더의 결정 축 요약 줄이 이 이름을 쓰며, 축을 한 상태로 합치지 않는다.
+ */
+export const DECISION_AXIS_LABEL = {
+  tracking: "추적 결정",
+  verdictConfirmation: "판정 확인",
+  goNoGo: "최종 Go/No-Go",
+} as const;
+
+/**
+ * 품질 게이트 결과(`result_status`) → 화면 낱말. 값 `보류`는 측정이 끝나지 않았다는 뜻이라
+ * 추적 결정 `보류`와 다른 낱말로 보인다(C-6). 표에 없는 값은 그대로 통과시킨다.
+ */
+export const GATE_RESULT_LABEL: Readonly<Record<string, string>> = {
+  통과: "통과",
+  미달: "미달",
+  미측정: "미측정",
+  보류: TERM_SENSE.gateIncomplete,
+};
+
+export function gateResultLabel(value: string): string {
+  return GATE_RESULT_LABEL[value] ?? value;
+}
+
+/**
  * 발주계획 실무 화면의 계약 값 → 한글 라벨(ADR-0066 결정 3, 0921 명세 §3.1).
  *
  * **표시만 바꾼다.** URL 질의 값과 서버로 보내는 값은 아래 key 그대로이며,
@@ -68,7 +127,18 @@ export type GlossaryTerm = keyof typeof TERM;
  */
 export const ORDER_PLAN_RELEVANCE_LABEL = {
   relevant: "관련",
-  uncertain: "판단 보류",
+  /* C-6: 모델 `uncertain`은 목록 탭 이름과 같은 `불확실`이다. 추적 결정 `보류`와 낱말을 나눈다. */
+  uncertain: TERM_SENSE.modelUncertain,
+  not_relevant: "비관련",
+} as const;
+
+/**
+ * 사람 판단 수정의 관련성(`human_feedback.relevance`). 같은 machine 값이지만 business-rules가
+ * 사람 feedback을 `관련|비관련|판단보류`로 적으므로 `uncertain`은 `판단 보류`다(C-6에서 리더 확인 대상으로 보고).
+ */
+export const ORDER_PLAN_FEEDBACK_RELEVANCE_LABEL = {
+  relevant: "관련",
+  uncertain: TERM_SENSE.judgmentWithheld,
   not_relevant: "비관련",
 } as const;
 
