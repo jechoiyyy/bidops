@@ -291,7 +291,7 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
   await expect(page.locator("section.c2l-page .c2l-page-header")).toHaveCount(0);
   await expect(page.locator(".c2l-row")).toHaveCount(2);
   await expect(page.locator(".c2l-row").first()).toContainText("모델 · 관련");
-  await expect(page.locator(".c2l-row").nth(1)).toContainText("모델 · 판단 보류");
+  await expect(page.locator(".c2l-row").nth(1)).toContainText("모델 · 불확실");
   await expect(page.locator(".c2l-row").first()).toContainText("1.3억원");
   // 수집 API의 연월 형식도 연도 중복 없이 읽힌다. 다음 행은 월만 온다.
   await expect(page.locator(".c2l-row").first()).toContainText("2026년 11월");
@@ -712,7 +712,7 @@ test("검토 목록은 relevance 우선순위로 정렬하고 선택 순서와 �
   await expect(rows).toHaveCount(5);
   expect((await rows.locator(".c2l-row-model").allTextContents()).map((label) => label.trim())).toEqual([
     "모델 · 관련",
-    "모델 · 판단 보류",
+    "모델 · 불확실",
     "모델 · 비관련",
     "모델 상태 미확인",
     "모델 상태 미확인",
@@ -731,7 +731,7 @@ test("검토 목록은 relevance 우선순위로 정렬하고 선택 순서와 �
   await page.goto("/order-plans?qwen=uncertain,relevant");
   await expect.poll(() => new URL(page.url()).searchParams.get("qwen")).toBe("uncertain,relevant");
   await expect(rows).toHaveCount(2);
-  expect((await rows.locator(".c2l-row-model").allTextContents()).map((label) => label.trim())).toEqual(["모델 · 관련", "모델 · 판단 보류"]);
+  expect((await rows.locator(".c2l-row-model").allTextContents()).map((label) => label.trim())).toEqual(["모델 · 관련", "모델 · 불확실"]);
   await expect(rows.first()).toContainText("API 순서 관련 사업");
   await expect(rows.nth(1)).toContainText("API 순서 불확실 사업");
 });
@@ -3279,8 +3279,8 @@ test("A6-기본 보기는 관련이고 탭은 관련·불확실·모델 미판�
   expect(new URL(page.url()).searchParams.has("unjudged")).toBe(false);
   await expect(presetTab(page, "불확실")).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".c2l-row")).toHaveCount(1);
-  await expect(page.locator(".c2l-row")).toContainText("모델 · 판단 보류");
-  await expect(page.locator(".c2l-list-head .c2l-list-scope")).toHaveText("훑어보기 · 모델이 판단을 보류 · 추적 미선택");
+  await expect(page.locator(".c2l-row")).toContainText("모델 · 불확실");
+  await expect(page.locator(".c2l-list-head .c2l-list-scope")).toHaveText("훑어보기 · 모델이 불확실로 판단 · 추적 미선택");
 
   await clickPreset(page, "모델 미판정");
   await expect(page).toHaveURL(/unjudged=yes/);

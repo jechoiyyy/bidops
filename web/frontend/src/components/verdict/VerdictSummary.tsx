@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { initialOf } from "../../lib/record";
+import { TERM_SENSE } from "../../lib/glossary";
 import type { VerdictResult } from "../../lib/types";
 import {
   CHECKLIST_LABEL,
@@ -64,9 +65,9 @@ export function VerdictSummary({ result }: { result: VerdictResult }) {
       </section>
 
       <section aria-labelledby="vd-actions-title" className="rec-side-block" data-testid="verdict-next-actions">
-        <h3 className="rec-side-title" id="vd-actions-title">다음 행동</h3>
+        <h3 className="rec-side-title" id="vd-actions-title">{TERM_SENSE.verdictNextAction}</h3>
         {result.next_actions.length === 0 ? (
-          <p className="rec-side-note">제안된 다음 행동이 없습니다.</p>
+          <p className="rec-side-note">{TERM_SENSE.verdictNextAction}이 없습니다.</p>
         ) : (
           <ul className="rec-next-list">
             {result.next_actions.map((action, index) => {

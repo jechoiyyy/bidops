@@ -1,7 +1,7 @@
 import { Button } from "@astryxdesign/core/Button";
 import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
 import { Ellipsis } from "lucide-react";
-import { initialOf, type RecordPill } from "../../lib/record";
+import { initialOf, type RecordDecisionAxis, type RecordPill } from "../../lib/record";
 
 /*
  * 레코드 헤더(ui-spec §3, RL-02 spec "레코드 헤더"): 기관 머리글자 아이콘(40px, teal) · 제목 ·
@@ -12,6 +12,10 @@ import { initialOf, type RecordPill } from "../../lib/record";
  * 탭으로 간다(RL-04). 제안서 탭에서는 PDF로 내보내기(주) · 다시 만들기 · ⋯가 액션이고 ⋯에 제출 준비로 표시와
  * 후속(HWP·버전 비교, 비활성)이 더해진다. ⋯ 메뉴의 추적 항목은 기존 추적 대화상자를 여는 자리일 뿐 저장
  * 규칙을 새로 갖지 않는다.
+ *
+ * pill 아래 결정 축 요약 줄(설계고도화안 C-6)은 사람이 내리는 결정 셋(추적 결정 · 판정 확인 · 최종
+ * Go/No-Go)을 축마다 이름과 상태로 적는다. pill이 사업 사실(단계·마감)과 판정 결과를 짧게 보이는 자리라면
+ * 이 줄은 "누가 무엇을 아직 정하지 않았나"를 보이는 자리이며 셋을 한 상태로 합치지 않는다.
  */
 
 export type RecordMenuAction = "tracking" | "reset" | "signal" | "candidate";
@@ -66,6 +70,7 @@ interface RecordHeaderProps {
   title: string;
   agency: string | null;
   pills: readonly RecordPill[];
+  axes: readonly RecordDecisionAxis[];
   menu: RecordMenuState;
   verdict: RecordVerdictActions;
   proposal: RecordProposalActions;
@@ -73,7 +78,7 @@ interface RecordHeaderProps {
 
 const FOLLOW_UP_REASON = "후속 기능입니다";
 
-export function RecordHeader({ title, agency, pills, menu, verdict, proposal }: RecordHeaderProps) {
+export function RecordHeader({ title, agency, pills, axes, menu, verdict, proposal }: RecordHeaderProps) {
   const trackingItems = [
     { label: "추적 상태 변경", onClick: () => menu.onSelect("tracking") },
     {
@@ -136,6 +141,14 @@ export function RecordHeader({ title, agency, pills, menu, verdict, proposal }: 
             <li className={`rec-pill is-${pill.tone}`} data-pill={pill.key} key={pill.key}>{pill.label}</li>
           ))}
         </ul>
+        <dl aria-label="결정 축 요약" className="rec-axes" data-testid="record-decision-axes">
+          {axes.map((axis) => (
+            <div className={`rec-axis is-${axis.tone}`} data-axis={axis.key} key={axis.key}>
+              <dt>{axis.label}</dt>
+              <dd>{axis.value}</dd>
+            </div>
+          ))}
+        </dl>
       </div>
       <div className="rec-actions">
         {proposal.onProposalTab ? (

@@ -21,6 +21,7 @@ import { ProposalSidebar } from "../components/proposal/ProposalSidebar";
 import { useProposalController } from "../components/proposal/useProposalController";
 import { RecordHeader, type RecordMenuAction, type VerdictMenuAction } from "../components/record/RecordHeader";
 import { StageBar } from "../components/record/StageBar";
+import { getBidDelta } from "../components/bid-delta/api";
 import { usePublishRecordTitle } from "../components/shell/RecordTitleContext";
 import { FeedbackDialog } from "../components/verdict/FeedbackDialog";
 import { RunInfoDialog } from "../components/verdict/RunInfoDialog";
@@ -38,6 +39,7 @@ import {
   openActions,
   parseRecordTab,
   recordAttributes,
+  recordDecisionAxes,
   recordPills,
   representativeLinks,
   RECORD_TAB_EMPTY,
@@ -204,6 +206,17 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
     refetchInterval: (query) => (isVerdictActive(query.state.data) ? VERDICT_POLL_MS : false),
   });
   const verdictView = verdictQuery.data ?? null;
+
+  // 결정 축 요약 줄의 최종 Go/No-Go(설계고도화안 C-6). 입찰공고가 연결된 사업에서만 묻는다 — 결정할
+  // 공고가 없으면 결정도 없다. 키는 변경 비교·Go/No-Go 화면과 같아 그 화면의 저장이 이 줄도 갱신한다.
+  const hasBidNotice = Boolean(reps?.["입찰공고"]);
+  const bidDeltaQuery = useQuery({
+    queryKey: ["bid-delta", opportunityId],
+    queryFn: () => getBidDelta(opportunityId),
+    enabled: hasBidNotice,
+    retry: false,
+    staleTime: 30_000,
+  });
 
   usePublishRecordTitle(opportunityId, firstPage?.title ?? null);
 
@@ -415,6 +428,24 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
   const title = firstPage?.title ?? `#${opportunityId}`;
   const latest = latestAuthority(reps);
   const pills = recordPills(item, reps, now, headerVerdictPill(verdictView));
+  const axes = recordDecisionAxes(
+    item,
+    {
+      off: rlOff,
+      orderPlanOnly: latest?.stage === "발주계획",
+      pending: features.settled && !rlOff && verdictQuery.isPending,
+      failed: verdictQuery.isError,
+      availability: verdictView?.availability ?? null,
+      verdictName: verdictView?.result?.verdict ?? null,
+    },
+    {
+      hasBidNotice,
+      pending: bidDeltaQuery.isPending,
+      failed: bidDeltaQuery.isError,
+      decision: bidDeltaQuery.data?.latest_final_decision?.decision ?? null,
+      currentness: bidDeltaQuery.data?.latest_final_decision ? bidDeltaQuery.data.decision_currentness : null,
+    },
+  );
   const attributes = recordAttributes({ item, reps, notice: notice.data ?? null, activityItems: items });
   const pendingCandidate = links.find(isPendingCandidate) ?? null;
   const open = openActions(actionEvents.data?.items ?? []);
@@ -467,6 +498,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
           onSelect: onMenuSelect,
         }}
         pills={pills}
+        axes={axes}
         title={title}
         verdict={{
           onVerdictTab: tab === "verdict",

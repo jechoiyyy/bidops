@@ -74,6 +74,7 @@ import {
 } from "../components/order-plans/orderPlanFormat";
 import {
   ORDER_PLAN_NULL_LABEL,
+  ORDER_PLAN_FEEDBACK_RELEVANCE_LABEL,
   ORDER_PLAN_PRIORITY_LABEL,
   ORDER_PLAN_RELEVANCE_LABEL,
   ORDER_PLAN_STAGE1_LABEL,
@@ -149,8 +150,8 @@ interface Preset {
 /**
  * 기본 보기는 `관련` 탭이다(2026-11-18 설계고도화안 A-6). 모델 판단 `relevant` AND 추적 상태
  * `미선택`. 이전 기본 보기는 `relevant`·`uncertain`을 한 목록에 섞어 하루 검토량이 임계 80건을
- * 넘었다 — 모델 판정·정책은 그대로 두고 **보기만 나눈다**. `불확실`(모델 `uncertain`, 화면 라벨
- * `판단 보류`)은 바로 옆 탭이며, 두 탭의 합은 대시보드 `order_plan_pending`(관련·불확실 AND
+ * 넘었다 — 모델 판정·정책은 그대로 두고 **보기만 나눈다**. `불확실`(모델 `uncertain`, 화면 라벨도
+ * `불확실` — C-6)은 바로 옆 탭이며, 두 탭의 합은 대시보드 `order_plan_pending`(관련·불확실 AND
  * 미선택, contracts.md)과 같다. 옛 `검토 대상` 탭이 URL에 적던 축(`qwen=relevant,uncertain&
  * tracking=미선택`)과 저장된 뷰는 그대로 같은 행을 보인다 — 탭 이름만 없어졌다.
  * `stage1_status=selected`는 따로 걸지 않는다 — 모델 relevance가 있는 행은 BM25 선정 행뿐이다.
@@ -168,7 +169,7 @@ const ALL_VIEW_AXES: FilterAxes = { qwen: [], stage1: [], feedback: [], tracking
  */
 const PRESETS: Preset[] = [
   { key: "relevant", label: "관련", description: "필수 검토 · 모델이 관련으로 판단", axes: DEFAULT_VIEW_AXES },
-  { key: "uncertain", label: "불확실", description: "훑어보기 · 모델이 판단을 보류", axes: UNCERTAIN_VIEW_AXES },
+  { key: "uncertain", label: "불확실", description: "훑어보기 · 모델이 불확실로 판단", axes: UNCERTAIN_VIEW_AXES },
   { key: "unjudged", label: "모델 미판정", description: "모델이 판정하지 않은 건 · 1차 순위순", axes: UNJUDGED_VIEW_AXES },
   { key: "all", label: "전체", description: "누적 또는 선택한 수집 회차 전체", axes: ALL_VIEW_AXES },
 ];
@@ -230,8 +231,9 @@ function axisValueLabel(labels: Readonly<Record<string, string>>): (token: strin
   return (token) => (token === "null" ? ORDER_PLAN_NULL_LABEL : orderPlanLabel(labels, token));
 }
 
+/** 사람 판단 수정의 관련성. 모델 판단(`불확실`)과 달리 business-rules의 `판단 보류`를 쓴다(C-6). */
 function relevanceLabel(value: OrderPlanRelevance): string {
-  return orderPlanLabel(ORDER_PLAN_RELEVANCE_LABEL, value);
+  return orderPlanLabel(ORDER_PLAN_FEEDBACK_RELEVANCE_LABEL, value);
 }
 
 /** 우선순위를 고르지 않은 것(`null`)은 `미지정`이며 값이 없는 것과 다르게 적지 않는다. */
@@ -1625,7 +1627,7 @@ function OrderPlansWorkspace() {
                   onChange={(value) => changeAxes({ qwen: new Set(value as RelevanceToken[]) })}
                 >
                   <ToggleButton value="relevant" label="관련" />
-                  <ToggleButton value="uncertain" label="판단 보류" />
+                  <ToggleButton value="uncertain" label={ORDER_PLAN_RELEVANCE_LABEL.uncertain} />
                   <ToggleButton value="not_relevant" label="비관련" />
                   <ToggleButton value="null" label="값 없음" />
                 </ToggleButtonGroup>
@@ -2080,7 +2082,7 @@ function OrderPlansWorkspace() {
             <Text type="label" color="secondary" as="p">관련성</Text>
             <SegmentedControl isDisabled={bulkPending || Boolean(feedbackBlockedReason)} value={relevance} onChange={(value) => setRelevance(value as OrderPlanRelevance)} label="사람 판단 관련성">
               <SegmentedControlItem value="relevant" label="관련" />
-              <SegmentedControlItem value="uncertain" label="판단 보류" />
+              <SegmentedControlItem value="uncertain" label={ORDER_PLAN_FEEDBACK_RELEVANCE_LABEL.uncertain} />
               <SegmentedControlItem value="not_relevant" label="비관련" />
             </SegmentedControl>
           </div>

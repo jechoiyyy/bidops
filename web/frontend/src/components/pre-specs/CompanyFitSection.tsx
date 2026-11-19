@@ -2,12 +2,13 @@ import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { Token } from "@astryxdesign/core/Token";
 import { Button } from "@astryxdesign/core/Button";
 import { api } from "../../lib/api";
+import { TERM_SENSE } from "../../lib/glossary";
 import { preSpecAutoPreparationReasonLabel } from "../../lib/preSpecAutoPreparation";
 import { qualityStatusLabel } from "../../lib/qualityStatus";
 import type { CompanyFitAttempt, CompanyFitResponse } from "../../lib/types";
 import "../../styles/company-fit.css";
 
-export const decisions = { matched: "부합", mismatch: "불일치", unknown: "판단 보류 · 정보 부족" };
+export const decisions = { matched: "부합", mismatch: "불일치", unknown: `${TERM_SENSE.judgmentWithheld} · 정보 부족` };
 export const statuses = { queued: "판정 대기", running: "판정 중", completed: "판정 결과", failed: "실행 실패", needs_human_review: "검증 실패 · 사람 확인 필요" };
 
 /** 화면 문구는 `회사 적합성`으로 통일한다(docs/0915_ui-redesign/spec.md §4 용어).

@@ -1,6 +1,7 @@
 import { Text } from "@astryxdesign/core/Text";
 import { DataTable, Note, Section, Small, StatLine, StatusToken } from "../criteria/CriteriaPrimitives";
 import type { QualityGateResultStatus, RuntimeJsonObject } from "../../lib/types";
+import { gateResultLabel } from "../../lib/glossary";
 
 interface MetricEntry {
   key: string;
@@ -118,7 +119,7 @@ function metricStatus(value: unknown, available: boolean): string {
   const status = textValue(value);
   if (status === "통과" || status === "pass") return "통과";
   if (status === "미달" || status === "fail") return "미달";
-  if (status === "보류" || status === "held") return "보류";
+  if (status === "보류" || status === "held") return gateResultLabel("보류");
   if (status === "미측정" || status === "unmeasured" || status === "pending") return "미측정";
   if (status === "해당 없음") return "해당 없음";
   if (status?.startsWith("계산 불가")) return status;
