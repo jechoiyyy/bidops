@@ -1,8 +1,13 @@
 # bid-deep-engine.v1
 
 Extracted offline engine from `bid-deep-agent` commit
-`7ad9283d8e8a405074374d12c5f0a13ccb8e5b1f`. `UPSTREAM.json` records SHA-256 of every
-imported source/test file and local dirty-file exclusions. The dirty upstream
+`7ad9283d8e8a405074374d12c5f0a13ccb8e5b1f`. `UPSTREAM.json` lists every file in
+`src/` and `engine_tests/` exactly once, in one of three groups (`hash_semantics`):
+`files` are upstream files with the SHA-256 of the upstream bytes at that commit and
+the adaptation applied here (`import rename`, or a declared excerpt); `replaced_files`
+replace an upstream file of the same path and `authored_files` are written in BidOps,
+both with the SHA-256 of the vendored bytes. `engine_tests/test_manifest.py` checks
+all three offline. Local dirty-file exclusions are listed as well. The dirty upstream
 `claude_cli.py` is excluded. The 3-pass pipeline, normalizer, gates, scoring,
 quote verification, source matching and readiness logic are retained; import
 names become `bid_deep_engine`. `llm.py` contains upstream value/error types only,
