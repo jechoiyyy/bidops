@@ -294,7 +294,8 @@ def _is_demo_only_path(path: str, method: str = "GET") -> bool:
     if _is_demo_independent_company_read(path, method):
         return False
     # Offline engine reference runs use the real company authority, independently
-    # of legacy demo/RL model activation. The service rejects live execution.
+    # of legacy demo/RL model activation. The service rejects live execution and,
+    # with BIDOPS_ENGINE_ANALYSIS_ENABLED off, creation; reads stay for audit.
     if method in {"GET", "POST"} and _matches(path, ("api", "companies", "*", "notices", "*", "engine-runs")):
         return False
     if path in {"/companies", "/api/companies"}:
@@ -405,6 +406,7 @@ def create_app(modules=None, *, mount_frontend: bool = True) -> FastAPI:
             "schema_version": "feature-flags.v1",
             "rl_analysis": bool(getattr(settings, "rl_analysis_enabled", False)),
             "prespec_overview": bool(getattr(settings, "prespec_overview_enabled", False)),
+            "engine_analysis": bool(getattr(settings, "engine_analysis_enabled", False)),
         }
 
     for owner, router_name in _ROUTER_REGISTRATION:

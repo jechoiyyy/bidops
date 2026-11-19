@@ -189,7 +189,14 @@ def view(session, row, freshness=None):
     )
 
 
+def engine_analysis_enabled() -> bool:
+    return bool(getattr(get_settings(), "engine_analysis_enabled", False))
+
+
 def create(session: Session, *, company_id: UUID, notice_id: int, payload, actor: str):
+    # The switch is checked before idempotent replay and before any read.
+    if not engine_analysis_enabled():
+        raise EngineRunError("engine_analysis_disabled", 503)
     if payload.mode != "mock_reference":
         raise EngineRunError("engine_live_not_approved")
     previous = session.scalar(
@@ -511,6 +518,9 @@ def _store_result(session, result, run_id, store):
 
 
 def run_once(session: Session, worker_id: str, *, store=None, invoke=invoke_engine):
+    # Switch off: the slot claims nothing and queued runs stay as they are.
+    if not engine_analysis_enabled():
+        return False
     now = datetime.now(UTC)
     if session.in_transaction():
         session.commit()
