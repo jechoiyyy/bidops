@@ -12,21 +12,47 @@ HP-03 compare rules (spec "단계 wire 계약" 코드 대조) with the RL allowl
   match and nothing is left unknown, unmapped, partial or out of scope;
 * ``계약`` units stay ``unknown`` (``contract_unaccepted``).
 
+Two rule sets exist (``rules``).  ``card-compare-v1`` is every policy up to v11 and
+is unchanged.  ``card-compare-v2`` (RL-10, policy v12, 결정 E1~E4) adds the blocker
+rules on top of v1:
+
+* 상주 장소: in a constraint whose quote carries the 상주 anchor, the places named
+  in the on-site clauses of its cited block are resolved to 시·도 through the
+  versioned place table (``card-compare-places-kr-v1.json``, administrative names
+  only).  An unresolvable or ambiguous place is ``place_unresolved``.  ``gap`` only
+  when the confirmed ``pref:onsite_cap.params.onsite_regions`` (the complete list
+  of on-site regions) shares no region with the required ones; role/scope words do
+  not pre-empt this comparison.  A contradiction found this way is decisive for any
+  constraint whose quote carries 상주, even one with several anchors;
+* 제외 분야: a constraint whose quote carries a ``requirement_terms`` entry of a
+  confirmed ``excl:<hardware|election>`` fact is ``gap`` only when every clause of
+  its cited source context carries such a term, otherwise ``exclusion_partial``;
+  terms come from the company source, never from code.  A unit whose source holds
+  such a term that no constraint quotes is incomplete;
+* a confirmed contradiction decides ``gap`` before the ``계약`` rule (a 계약 unit is
+  still never ``met``).
+
 The compare runs locally on the frozen input; no model call and no value is
 sent anywhere from here.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
+import unicodedata
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from decimal import Decimal
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Final
 from uuid import UUID
 
 from pydantic import ValidationError
 
-from ...core.company_ontology import ORIGINS
+from ...core.company_ontology import ORIGINS, REQUIREMENT_LEVEL_EXCLUSION_KINDS
 from ..schemas.card_analysis import (
     CardAnalysisUnit,
     CardConstraintResult,
@@ -48,7 +74,25 @@ from .card_analysis import (
     normalized_anchor_text,
     resolve_fact_key,
 )
-from .company_analysis_input import CARD_COMPARE_FACT_PATHS, CompanyAnalysisError, card_fact_value
+from .company_analysis_input import (
+    CARD_COMPARE_FACT_PATHS,
+    CARD_EXCLUSION_FACT_PREFIX,
+    CompanyAnalysisError,
+    card_blocker_fact_value,
+    card_fact_value,
+)
+
+
+#: Compare rule sets (RL-10 결정 E1).  v1 = policies v1..v11 (unchanged); v2 = policy v12.
+COMPARE_RULES_V1: Final[str] = "card-compare-v1"
+COMPARE_RULES_V2: Final[str] = "card-compare-v2"
+COMPARE_RULES: Final[frozenset[str]] = frozenset({COMPARE_RULES_V1, COMPARE_RULES_V2})
+#: Reason codes only ``card-compare-v2`` emits (both are ``unknown``).
+COMPARE_V2_ONLY_REASONS: Final[frozenset[str]] = frozenset({"place_unresolved", "exclusion_partial"})
+#: The versioned place table of ``card-compare-v2`` (immutable; a change is a new file + version).
+PLACE_TABLE_FILE: Final[Path] = Path(__file__).resolve().parents[1] / "policies" / "card-compare-places-kr-v1.json"
+PLACE_TABLE_VERSION: Final[str] = "card-compare-places-kr-v1"
+PLACE_TABLE_SHA256: Final[str] = "03cb66d02e61168be8bf1378b013562c89a2b4ffcdeebc74e57e7d3d7e32b227"
 
 
 _REASON_ORDER: Final[tuple[str, ...]] = (
@@ -59,6 +103,8 @@ _REASON_ORDER: Final[tuple[str, ...]] = (
     "unmapped",
     "unsupported_comparison",
     "scope_unverified",
+    "place_unresolved",
+    "exclusion_partial",
     "contract_unaccepted",
     "incomplete_unit",
     "confirmed_match",
@@ -268,9 +314,29 @@ def constraint_comparison(
     constraint: CardRequirementConstraint,
     frozen: Mapping[str, Any],
     known_facts: set[str],
+    *,
+    rules: str = COMPARE_RULES_V1,
+    block_text: str | None = None,
 ) -> tuple[str, str, list[str]]:
-    """(status, reason_code, fact_ids) of one validated constraint."""
+    """(status, reason_code, fact_ids) of one validated constraint.
 
+    ``rules`` selects the rule set (``card-compare-v1`` unless the pinned policy is
+    v12); ``block_text`` is the cited block of the constraint (v2 reads the source
+    clause around the quote; without it the quote alone is the context).
+    """
+
+    if rules == COMPARE_RULES_V1:
+        return _constraint_comparison_v1(constraint, frozen, known_facts)
+    if rules == COMPARE_RULES_V2:
+        return _constraint_comparison_v2(constraint, frozen, known_facts, block_text)
+    raise _invalid()
+
+
+def _constraint_comparison_v1(
+    constraint: CardRequirementConstraint,
+    frozen: Mapping[str, Any],
+    known_facts: set[str],
+) -> tuple[str, str, list[str]]:
     if constraint.operator == "unknown":
         return "unknown", "unsupported_comparison", []
     fact_key = resolve_fact_key(constraint)
@@ -292,6 +358,301 @@ def constraint_comparison(
         return "unknown", "scope_unverified", fact_ids
     status, reason = _confirmed_comparison(fact_key, constraint, frozen)
     return status, reason, fact_ids
+
+
+# --- card-compare-v2 (RL-10, policy v12): place table and source clauses ---------------
+
+
+@dataclass(frozen=True)
+class _PlaceTable:
+    pattern: re.Pattern[str]
+    region_by_form: Mapping[str, str | None]  # None: the name belongs to more than one 시·도
+    bare_forms: frozenset[str]
+    bare_followers: frozenset[str]
+    not_followed_by: Mapping[str, frozenset[str]]
+
+
+_HANGUL_SYLLABLE = re.compile(r"[가-힣]")
+
+
+@lru_cache(maxsize=1)
+def _place_table() -> _PlaceTable:
+    """Load the pinned place table; a changed file is never read (``card_compare_invalid``)."""
+
+    try:
+        raw = PLACE_TABLE_FILE.read_bytes()
+    except OSError:
+        raise _invalid() from None
+    if hashlib.sha256(raw).hexdigest() != PLACE_TABLE_SHA256:
+        raise _invalid()
+    value = json.loads(raw)
+    if value.get("version") != PLACE_TABLE_VERSION or value.get("schema_version") != "bidops.card-compare-places.v1":
+        raise _invalid()
+    regions_by_form: dict[str, set[str]] = {}
+    bare: set[str] = set()
+    for region, row in value["provinces"].items():
+        for form in (*row["forms"], *row["divisions"]):
+            regions_by_form.setdefault(form, set()).add(region)
+        for form in row["bare"]:
+            regions_by_form.setdefault(form, set()).add(region)
+            bare.add(form)
+    forms = sorted(regions_by_form, key=lambda form: (-len(form), form))
+    return _PlaceTable(
+        pattern=re.compile(r"(?<![가-힣])(" + "|".join(re.escape(form) for form in forms) + ")"),
+        region_by_form={
+            form: next(iter(regions)) if len(regions) == 1 else None for form, regions in regions_by_form.items()
+        },
+        bare_forms=frozenset(bare),
+        bare_followers=frozenset(value["bare_followers"]),
+        not_followed_by={suffix: frozenset(chars) for suffix, chars in value["not_followed_by"].items()},
+    )
+
+
+def resolve_places(text: Any) -> tuple[set[str], bool]:
+    """(시·도 names, ambiguous name seen) of the administrative place names in ``text``.
+
+    A name matches only at a left word boundary (no Hangul syllable before it).  A
+    bare 시·도 name (``서울``) needs the end, a non-Hangul character or a listed
+    particle after it; a 시/구 name followed by a guard character (``상주시켜``,
+    ``…구간``) is not a place.  A name listed under two 시·도 (``중구``, ``고성군``,
+    ``광주시``) is ambiguous and resolves nothing.  Nothing is guessed.
+    """
+
+    if not isinstance(text, str) or not text:
+        return set(), False
+    table = _place_table()
+    normalized = unicodedata.normalize("NFKC", text)
+    regions: set[str] = set()
+    ambiguous = False
+    for match in table.pattern.finditer(normalized):
+        form = match.group(1)
+        follower = normalized[match.end():match.end() + 1]
+        if form in table.bare_forms:
+            if follower and _HANGUL_SYLLABLE.fullmatch(follower) and follower not in table.bare_followers:
+                continue
+        elif follower in table.not_followed_by.get(form[-1], frozenset()):
+            continue
+        region = table.region_by_form[form]
+        if region is None:
+            ambiguous = True
+        else:
+            regions.add(region)
+    return regions, ambiguous
+
+
+def _region_list(value: Any) -> set[str] | None:
+    """The 시·도 set of a company region list such as ``"대구, 세종"`` (None: not resolvable)."""
+
+    if not isinstance(value, str):
+        return None
+    tokens = [token.strip() for token in re.split(r"[,，/·]", value)]
+    if not tokens or any(not token for token in tokens):
+        return None
+    table = _place_table()
+    result: set[str] = set()
+    for token in tokens:
+        # each entry is exactly one listed name ("대구", "경상북도"), never a phrase around one
+        region = table.region_by_form.get(unicodedata.normalize("NFKC", token))
+        if region is None:
+            return None
+        result.add(region)
+    return result
+
+
+#: Clause boundaries of a source block: line breaks, list marks, sentence ends, `` - ``
+#: bullets and numbered items (``1)``, ``가)``).
+_CLAUSE_BREAK = re.compile(
+    r"[\n\r○●◎◦•▪□■※;]"
+    r"|(?<=[다함음임])\.(?=\s|$)"
+    r"|(?<=\s)-(?=\s)"
+    r"|(?<![0-9])(?=[0-9]{1,2}\))"
+    r"|(?<=\s)(?=[가나다라마바사아자차카타파하]\)\s)"
+)
+#: Coordinated parts of one clause (coverage of an excluded field is checked per part).
+_SUBCLAUSE_BREAK = re.compile(r"\s*(?:및|그리고|,|，|、)\s*")
+_CONTENT = re.compile(r"[가-힣A-Za-z]")
+
+
+def _clause_spans(text: str) -> list[tuple[int, int]]:
+    spans: list[tuple[int, int]] = []
+    start = 0
+    for match in _CLAUSE_BREAK.finditer(text):
+        if match.start() > start:
+            spans.append((start, match.start()))
+        start = max(start, match.end())
+    if start < len(text):
+        spans.append((start, len(text)))
+    return spans
+
+
+def _source_context(quote: str, block_text: str | None) -> list[str]:
+    """The clauses of the cited block that overlap any occurrence of the quote (else the quote's own clauses)."""
+
+    text = block_text if isinstance(block_text, str) and quote in block_text else quote
+    spans = _clause_spans(text)
+    occurrences = [match.start() for match in re.finditer(re.escape(quote), text)] or [0]
+    selected: list[tuple[int, int]] = []
+    for start in occurrences:
+        end = start + len(quote)
+        selected.extend(span for span in spans if span[0] < end and start < span[1] and span not in selected)
+    return [text[a:b] for a, b in sorted(selected)]
+
+
+def _onsite_anchored(text: str) -> bool:
+    return "상주" in normalized_anchor_text(text).replace("비상주", "")
+
+
+def _known(keys: Sequence[str], known_facts: set[str]) -> list[str]:
+    return [key for key in keys if key in known_facts]
+
+
+def _onsite_location(
+    constraint: CardRequirementConstraint,
+    frozen: Mapping[str, Any],
+    known_facts: set[str],
+    block_text: str | None,
+) -> tuple[str, str, list[str]] | None:
+    """The on-site place comparison of one constraint (None: its quote carries no 상주).
+
+    Required regions are the places of the on-site clauses of the source context;
+    ``met`` when they lie in the confirmed ``staff:onsite.region``; ``gap`` when the
+    confirmed complete list ``pref:onsite_cap.params.onsite_regions`` shares none of
+    them.  Role and scope words are not consulted: the place is the place.
+    """
+
+    if not _onsite_anchored(constraint.quote):
+        return None
+    ids = _known(("staff:onsite",), known_facts)
+    unknown = lambda reason, facts=ids: ("unknown", reason, facts)  # noqa: E731
+    region = _read(frozen, "staff:onsite", ("region",))
+    if region.state == "proposed":
+        return unknown("proposed_fact")
+    if region.state != "confirmed":
+        return unknown("unknown_fact")
+    required: set[str] = set()
+    for clause in _source_context(constraint.quote, block_text):
+        if not _onsite_anchored(clause):
+            continue
+        regions, ambiguous = resolve_places(clause)
+        if ambiguous and not regions:
+            return unknown("place_unresolved")
+        required |= regions
+    if not required:
+        return unknown("place_unresolved")
+    if required <= resolve_places(region.value)[0]:
+        return "met", "confirmed_match", ids
+    cap_ids = _known(("staff:onsite", "pref:onsite_cap"), known_facts)
+    try:
+        cap = card_blocker_fact_value(frozen, "pref:onsite_cap", ("params", "onsite_regions"))
+    except CompanyAnalysisError:
+        raise _invalid() from None
+    if cap.state == "proposed":
+        return unknown("proposed_fact", cap_ids)
+    if cap.state != "confirmed":
+        return unknown("unknown_fact", cap_ids)
+    allowed = _region_list(cap.value)
+    if allowed is None:
+        return unknown("unsupported_comparison", cap_ids)
+    if not required & allowed:
+        return "gap", "confirmed_contradiction", cap_ids
+    return unknown("scope_unverified", cap_ids)
+
+
+def _confirmed_exclusions(frozen: Mapping[str, Any]) -> list[tuple[str, tuple[str, ...]]]:
+    """``(fact_key, normalized requirement terms)`` of every usable confirmed exclusion.
+
+    Usable: ``excl:<kind>`` with confirmed ``excluded=true``, a requirement-level
+    ``kind`` (``hardware``·``election``) equal to the key, and a confirmed non-empty
+    ``requirement_terms`` list.  Anything else (proposed, unknown, no terms) is not
+    read and links nothing.
+    """
+
+    result: list[tuple[str, tuple[str, ...]]] = []
+    try:
+        for row in frozen.get("profile_facts", []):
+            key = row.get("fact_key") if isinstance(row, Mapping) else None
+            if not isinstance(key, str) or not key.startswith(CARD_EXCLUSION_FACT_PREFIX):
+                continue
+            excluded = card_blocker_fact_value(frozen, key, ("excluded",))
+            kind = card_blocker_fact_value(frozen, key, ("kind",))
+            terms = card_blocker_fact_value(frozen, key, ("requirement_terms",))
+            if (
+                excluded.state != "confirmed" or excluded.value is not True
+                or kind.state != "confirmed" or kind.value not in REQUIREMENT_LEVEL_EXCLUSION_KINDS
+                or key != f"{CARD_EXCLUSION_FACT_PREFIX}{kind.value}"
+                or terms.state != "confirmed" or not isinstance(terms.value, list) or not terms.value
+                or any(not isinstance(term, str) for term in terms.value)
+            ):
+                continue
+            normalized = tuple(normalized_anchor_text(term) for term in terms.value)
+            if any(len(term) < 2 for term in normalized):
+                continue
+            result.append((key, normalized))
+    except CompanyAnalysisError:
+        raise _invalid() from None
+    return result
+
+
+def _exclusion_comparison(
+    constraint: CardRequirementConstraint,
+    exclusions: Sequence[tuple[str, tuple[str, ...]]],
+    known_facts: set[str],
+    block_text: str | None,
+) -> tuple[str, str, list[str]] | None:
+    """Excluded-field comparison of one constraint (None: its quote carries no term).
+
+    ``gap`` only when every coordinated part of every clause of the source context
+    carries a term of a confirmed excluded field; otherwise ``exclusion_partial``.
+    """
+
+    quote = normalized_anchor_text(constraint.quote)
+    hit = [(key, terms) for key, terms in exclusions if any(term in quote for term in terms)]
+    if not hit:
+        return None
+    ids = _known([key for key, _terms in hit], known_facts)
+    terms = [term for _key, row in hit for term in row]
+    parts = [
+        normalized_anchor_text(part)
+        for clause in _source_context(constraint.quote, block_text)
+        for part in _SUBCLAUSE_BREAK.split(clause)
+    ]
+    parts = [part for part in parts if _CONTENT.search(part)]
+    if parts and all(any(term in part for term in terms) for part in parts):
+        return "gap", "confirmed_contradiction", ids
+    return "unknown", "exclusion_partial", ids
+
+
+def _constraint_comparison_v2(
+    constraint: CardRequirementConstraint,
+    frozen: Mapping[str, Any],
+    known_facts: set[str],
+    block_text: str | None,
+) -> tuple[str, str, list[str]]:
+    if constraint.operator == "unknown":
+        return "unknown", "unsupported_comparison", []
+    fact_key = resolve_fact_key(constraint)
+    if fact_key is not None and (fact_key not in CARD_FACT_ANCHORS or not fact_anchor_matches(fact_key, constraint.quote)):
+        raise _invalid()
+    if fact_key == "staff:onsite" and constraint.kind == "text":
+        # 결정 E3: the place comparison is not pre-empted by role/scope words.
+        result = _onsite_location(constraint, frozen, known_facts, block_text) or (
+            "unknown", "place_unresolved", _known(("staff:onsite",), known_facts))
+    else:
+        result = (
+            _constraint_comparison_v1(constraint, frozen, known_facts) if fact_key is not None
+            else ("unknown", "unmapped", [])
+        )
+        if result[0] != "gap":
+            # 결정 E3: a contradiction in an on-site clause decides even a count or a
+            # several-anchor constraint; anything short of a contradiction keeps the v1 result.
+            location = _onsite_location(constraint, frozen, known_facts, block_text)
+            if location is not None and location[0] == "gap":
+                result = location
+    if result[0] != "gap":
+        exclusion = _exclusion_comparison(constraint, _confirmed_exclusions(frozen), known_facts, block_text)
+        if exclusion is not None:
+            result = exclusion  # a touched excluded field never lets the atom be met
+    return result
 
 
 def _profile_evidence_index(profile_evidence: Sequence[Mapping[str, Any]]) -> tuple[dict[str, list[UUID]], set[UUID]]:
@@ -449,14 +810,28 @@ def _scalar_atom_signatures(text: str) -> list[tuple[str, str, str | None]]:
     return signatures
 
 
-def _atomic_coverage_incomplete(item: CardRequirementExtractItem, unit: CardAnalysisUnit) -> bool:
-    """Conservatively flag explicit source atoms omitted by the extraction."""
+def _atomic_coverage_incomplete(
+    item: CardRequirementExtractItem,
+    unit: CardAnalysisUnit,
+    exclusion_terms: Sequence[str] = (),
+) -> bool:
+    """Conservatively flag explicit source atoms omitted by the extraction.
+
+    ``exclusion_terms`` (``card-compare-v2`` only): normalized requirement terms of the
+    confirmed excluded fields; a term in the unit source that no constraint quotes
+    leaves the unit incomplete (it can never be ``met``).
+    """
 
     source_text = "\n".join(block.text for block in unit.blocks)
     expected_facts = {key for key in CARD_FACT_ANCHORS if fact_anchor_matches(key, source_text)}
     supplied_facts = {key for key in (resolve_fact_key(row) for row in item.constraints) if key is not None}
     if not expected_facts <= supplied_facts:
         return True
+    if exclusion_terms:
+        source = normalized_anchor_text(source_text)
+        quotes = [normalized_anchor_text(row.quote) for row in item.constraints]
+        if any(term in source and not any(term in quote for quote in quotes) for term in exclusion_terms):
+            return True
     remaining = [
         (row.kind, str(decimal_value(row.value, CARD_COMPARE_INVALID).normalize()), row.unit)
         for row in item.constraints
@@ -487,8 +862,12 @@ def _atomic_coverage_incomplete(item: CardRequirementExtractItem, unit: CardAnal
     return False
 
 
-def _expected_fit(item: CardRequirementExtractItem, reasons: Sequence[str]) -> str:
+def _expected_fit(item: CardRequirementExtractItem, reasons: Sequence[str], rules: str = COMPARE_RULES_V1) -> str:
     has_atom = bool(item.constraints or item.concept_candidates)
+    if rules == COMPARE_RULES_V2 and "confirmed_contradiction" in reasons:
+        # 결정 E4: a confirmed contradiction is a 부족 whatever the requirement type; the
+        # 계약 rule below still keeps a contract unit from ever being ``met``.
+        return "gap"
     if item.type == "계약":
         return "unknown"
     if "confirmed_contradiction" in reasons:
@@ -505,9 +884,12 @@ def validate_requirement_compare(
     graph_paths: Sequence[Mapping[str, Any]],
     known_fact_ids: Sequence[str],
     known_evidence_ids: Sequence[UUID],
+    rules: str = COMPARE_RULES_V1,
 ) -> CardRequirementCompare:
     """Validate compare references, reason→status and exact extract coverage (``card_compare_invalid``)."""
 
+    if rules not in COMPARE_RULES:
+        raise _invalid()
     try:
         result = CardRequirementCompare.model_validate(payload)
         parsed_extract = (
@@ -543,7 +925,11 @@ def validate_requirement_compare(
                 raise _invalid()
             if item.reason_codes != [reason for reason in _REASON_ORDER if reason in item.reason_codes]:
                 raise _invalid()
-            if item.fit_status != _expected_fit(source, item.reason_codes):
+            if rules == COMPARE_RULES_V1 and COMPARE_V2_ONLY_REASONS & (
+                set(item.reason_codes) | {row.reason_code for row in item.constraint_results}
+            ):
+                raise _invalid()
+            if item.fit_status != _expected_fit(source, item.reason_codes, rules):
                 raise _invalid()
         return result
     except CardAnalysisValidationError:
@@ -556,9 +942,15 @@ def compare_requirements(
     extract: CardRequirementExtract | Mapping[str, Any],
     *,
     frozen: Mapping[str, Any],
+    rules: str = COMPARE_RULES_V1,
 ) -> CardRequirementCompare:
-    """The deterministic RL compare of one validated extract batch (``card_compare_invalid`` on any doubt)."""
+    """The deterministic RL compare of one validated extract batch (``card_compare_invalid`` on any doubt).
 
+    ``rules`` is the rule set the pinned policy selects (``card-compare-v2`` for v12).
+    """
+
+    if rules not in COMPARE_RULES:
+        raise _invalid()
     try:
         card_input = card_input_of(frozen["card_analysis"], CARD_COMPARE_INVALID)
         parsed_extract = (
@@ -584,6 +976,10 @@ def compare_requirements(
         items_by_id = {item.unit_id: item for item in parsed_extract.items}
         if any(path["requirement_id"] not in unit_by_id for path in paths):
             raise _invalid()
+        exclusion_terms = (
+            [term for _key, terms in _confirmed_exclusions(frozen) for term in terms]
+            if rules == COMPARE_RULES_V2 else []
+        )
 
         output: list[CardRequirementCompareItem] = []
         for unit_id in batch.unit_ids:
@@ -611,7 +1007,10 @@ def compare_requirements(
             item_evidence: list[UUID] = []
             constrained: set[str] = set()
             for index, constraint in enumerate(item.constraints):
-                status, reason, fact_ids = constraint_comparison(constraint, frozen, known_facts)
+                status, reason, fact_ids = constraint_comparison(
+                    constraint, frozen, known_facts, rules=rules,
+                    block_text=blocks.get((constraint.locator.source_sha256, constraint.locator.block_key)),
+                )
                 reasons.append(reason)
                 constrained.update(fact_ids)
                 if reason in _STATUS_BY_REASON:
@@ -624,7 +1023,7 @@ def compare_requirements(
                     constraint_index=index, status=status, fact_ids=fact_ids, path_ids=[], reason_code=reason,
                 ))
             reasons.extend(_concept_reasons(item, paths, nodes, edges, constrained))
-            if item.unknowns or _atomic_coverage_incomplete(item, unit):
+            if item.unknowns or _atomic_coverage_incomplete(item, unit, exclusion_terms):
                 reasons.append("incomplete_unit")
             if item.type == "계약":
                 reasons.append("contract_unaccepted")
@@ -632,7 +1031,7 @@ def compare_requirements(
                 reasons.append("incomplete_unit")
             output.append(CardRequirementCompareItem(
                 unit_id=item.unit_id,
-                fit_status=_expected_fit(item, reasons),
+                fit_status=_expected_fit(item, reasons, rules),
                 constraint_results=results,
                 evidence_ids=item_evidence,
                 reason_codes=[reason for reason in _REASON_ORDER if reason in reasons],
@@ -644,6 +1043,7 @@ def compare_requirements(
             graph_paths=paths,
             known_fact_ids=sorted(known_facts | set(nodes)),
             known_evidence_ids=sorted(all_evidence_ids),
+            rules=rules,
         )
     except CardAnalysisValidationError as error:
         if error.code == CARD_COMPARE_INVALID:
@@ -654,9 +1054,17 @@ def compare_requirements(
 
 
 __all__ = [
+    "COMPARE_RULES",
+    "COMPARE_RULES_V1",
+    "COMPARE_RULES_V2",
+    "COMPARE_V2_ONLY_REASONS",
     "EXTRACT_REJECTED_REASON",
+    "PLACE_TABLE_FILE",
+    "PLACE_TABLE_SHA256",
+    "PLACE_TABLE_VERSION",
     "compare_requirements",
     "rejected_compare_row",
     "constraint_comparison",
+    "resolve_places",
     "validate_requirement_compare",
 ]

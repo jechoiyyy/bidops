@@ -32,7 +32,7 @@ core에는 순수 검증/타입만 두고 도메인 import를 추가하지 않�
 DB 권한은 migration이 아니라 scripts/runtime-privileges.sql이 정본이다. Luna 승인 정책은 이미지 파일과 `_approved_policy_path` 매핑으로만 인정된다.
 RL-00~05 코드는 main에 통합됐다. 운영에는 2026-10-19 기준 코드·스키마만 반영했고 RL 분석은 비활성이다. 이후 v11 분석과 gold 인수는 격리 스택 증거다. [RL-05 인수](../../validation-runs/2026-10-19-rl/RL-05/README.md)는 reject, [RL-04 실제 초안](../../validation-runs/2026-10-17-rl/RL-04/README.md)은 partial이다.
 
-카드 판정 import 기본 파일은 `analysis-policy-luna-rl-v11.json`, selector는 `card-sections-v4`, 역할·종합 출력 계약은 v3이다. 실행 정책은 import된 행과 환경의 정책 ID가 고르며 기본 파일 변경이 활성화를 뜻하지 않는다.
+카드 판정 import 기본 파일은 `analysis-policy-luna-rl-v12.json`(v11과 모델 계약이 같고 결정적 대조 규칙 `card-compare-v2`를 고른다, RL-10), selector는 `card-sections-v4`, 역할·종합 출력 계약은 v3이다. 실행 정책은 import된 행과 환경의 정책 ID가 고르며 기본 파일 변경이 활성화를 뜻하지 않는다.
 
 ## 강제 기준과 실행용 복사
 feature.json constraints는 AGENTS.md, standards, business-rules, contracts, operations,

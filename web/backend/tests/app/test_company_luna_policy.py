@@ -59,6 +59,7 @@ from app.deep_review.services.input_versions import (
     RL_LUNA_POLICY_FILE_V9,
     RL_LUNA_POLICY_FILE_V10,
     RL_LUNA_POLICY_FILE_V11,
+    RL_LUNA_POLICY_FILE_V12,
     InputVersionError,
     _approved_policy_path,
     _policy_hash_matches,
@@ -84,6 +85,7 @@ from app.deep_review.services.luna_identity import (
     RL_POLICY_IDENTITY_V9,
     RL_POLICY_IDENTITY_V10,
     RL_POLICY_IDENTITY_V11,
+    RL_POLICY_IDENTITY_V12,
 )
 from app.deep_review.services.narrative_inputs import NarrativeInputError
 from tests.app.test_company_deep_review_binding import (  # noqa: F401 - shared fixtures
@@ -208,13 +210,13 @@ def test_t3_hp_and_v5_policies_are_canonical_four_key_derivatives(
         DEMO_LUNA_POLICY_IDENTITY, HP_POLICY_IDENTITY, RL_POLICY_IDENTITY, RL_POLICY_IDENTITY_V2,
         RL_POLICY_IDENTITY_V3, RL_POLICY_IDENTITY_V4, RL_POLICY_IDENTITY_V5, RL_POLICY_IDENTITY_V6,
         RL_POLICY_IDENTITY_V7, RL_POLICY_IDENTITY_V8, RL_POLICY_IDENTITY_V9, RL_POLICY_IDENTITY_V10,
-        RL_POLICY_IDENTITY_V11,
+        RL_POLICY_IDENTITY_V11, RL_POLICY_IDENTITY_V12,
     })
     assert RL_POLICY_IDENTITIES == frozenset({
         "analysis-policy-luna-rl-v1", "analysis-policy-luna-rl-v2", "analysis-policy-luna-rl-v3",
         "analysis-policy-luna-rl-v4", "analysis-policy-luna-rl-v5", "analysis-policy-luna-rl-v6",
         "analysis-policy-luna-rl-v7", "analysis-policy-luna-rl-v8", "analysis-policy-luna-rl-v9",
-        "analysis-policy-luna-rl-v10", "analysis-policy-luna-rl-v11"})
+        "analysis-policy-luna-rl-v10", "analysis-policy-luna-rl-v11", "analysis-policy-luna-rl-v12"})
     payload, canonical, actual_digest = load_canonical_policy(path)
     base, _base_raw, _base_digest = load_canonical_policy(base_path)
     assert path.read_bytes() == canonical == canonical_json_bytes(payload)
@@ -1255,7 +1257,7 @@ def test_b51_rl_card_policy_v7_is_pinned_and_differs_from_v6_only_by_identity_an
     assert payload["policy_identity"] == RL_POLICY_IDENTITY_V7 == "analysis-policy-luna-rl-v7"
     assert ITEM_ISOLATION_POLICY_IDENTITIES == frozenset({
         RL_POLICY_IDENTITY_V7, RL_POLICY_IDENTITY_V8, RL_POLICY_IDENTITY_V9, RL_POLICY_IDENTITY_V10,
-        RL_POLICY_IDENTITY_V11})
+        RL_POLICY_IDENTITY_V11, RL_POLICY_IDENTITY_V12})
     # extract instruction, contract and selector are v6's; only the synthesis instruction grows
     assert payload["stages"][:4] == v6["stages"][:4]
     assert payload["stage_schema"] == "bidops.requirement-extract.v2" and payload["card"]["selector"] == "card-sections-v3"
@@ -1526,7 +1528,9 @@ def test_c20_rl_card_policy_v11_is_pinned_and_differs_from_v10_only_by_contracts
     assert payload["policy_identity"] == RL_POLICY_IDENTITY_V11 == "analysis-policy-luna-rl-v11"
     for identities in (ITEM_ISOLATION_POLICY_IDENTITIES, SYNTHESIS_ITEM_ISOLATION_POLICY_IDENTITIES):
         assert RL_POLICY_IDENTITY_V11 in identities and RL_POLICY_IDENTITY_V10 in identities
-    assert ROLE_CONTRACT_V3_POLICY_IDENTITIES == TEXT_VALUE_RELAXED_POLICY_IDENTITIES == {RL_POLICY_IDENTITY_V11}
+    # RL-10 결정 E1: v12 keeps the v11 contracts (its identity only selects compare rules v2).
+    assert ROLE_CONTRACT_V3_POLICY_IDENTITIES == TEXT_VALUE_RELAXED_POLICY_IDENTITIES == {
+        RL_POLICY_IDENTITY_V11, RL_POLICY_IDENTITY_V12}
     assert ROLE_CONTRACT_V2_POLICY_IDENTITIES == {RL_POLICY_IDENTITY_V10}
     v10, _raw10, _digest10 = load_canonical_policy(RL_LUNA_POLICY_FILE_V10)
     assert payload["report_schema"] == "bidops.practitioner-verdict.v3"
@@ -1587,6 +1591,57 @@ def test_c20_rl_card_policy_v11_is_pinned_and_differs_from_v10_only_by_contracts
         assert resolved.pipeline_version == "card-v1" and resolved.selector_version == "card-sections-v4"
 
 
+RL_V12_SHA256 = "bc2acf8464bd5566cf569eb0e1b4c9aef450c212319a15339f110a379e160d4b"
+
+
+def test_e1_rl_card_policy_v12_is_pinned_and_differs_from_v11_only_by_identity(tmp_path, engine) -> None:
+    """RL-10 결정 E1: v12 = v11 bytes with ``policy_identity`` v12; the identity selects compare rules
+    ``card-compare-v2``.  v11 is unchanged and keeps ``card-compare-v1``; v11 <-> v12 is never a resume lineage."""
+
+    from types import SimpleNamespace
+
+    from app.deep_review.services.card_analysis import (
+        BLOCKER_COMPARE_POLICY_IDENTITIES,
+        ITEM_ISOLATION_POLICY_IDENTITIES,
+        ROLE_CONTRACT_V3_POLICY_IDENTITIES,
+        SYNTHESIS_ITEM_ISOLATION_POLICY_IDENTITIES,
+        TEXT_VALUE_RELAXED_POLICY_IDENTITIES,
+        resume_lineage_valid,
+    )
+    from app.deep_review.services.company_deep_review import resolve_company_deep_policy
+
+    raw = RL_LUNA_POLICY_FILE_V12.read_bytes()
+    payload, canonical, digest = load_canonical_policy(RL_LUNA_POLICY_FILE_V12)
+    assert RL_LUNA_POLICY_FILE_V12.name == "analysis-policy-luna-rl-v12.json"
+    assert raw == canonical == canonical_json_bytes(payload)
+    assert digest == hashlib.sha256(raw).hexdigest() == RL_V12_SHA256
+    assert hashlib.sha256(RL_LUNA_POLICY_FILE_V11.read_bytes()).hexdigest() == RL_V11_SHA256
+    assert _approved_policy_path(payload) == RL_LUNA_POLICY_FILE_V12
+    assert payload["policy_identity"] == RL_POLICY_IDENTITY_V12 == "analysis-policy-luna-rl-v12"
+    v11, _raw11, _digest11 = load_canonical_policy(RL_LUNA_POLICY_FILE_V11)
+    assert payload == {**v11, "policy_identity": RL_POLICY_IDENTITY_V12}
+    assert BLOCKER_COMPARE_POLICY_IDENTITIES == {RL_POLICY_IDENTITY_V12}
+    for identities in (ITEM_ISOLATION_POLICY_IDENTITIES, SYNTHESIS_ITEM_ISOLATION_POLICY_IDENTITIES,
+                       ROLE_CONTRACT_V3_POLICY_IDENTITIES, TEXT_VALUE_RELAXED_POLICY_IDENTITIES):
+        assert {RL_POLICY_IDENTITY_V11, RL_POLICY_IDENTITY_V12} <= identities
+    frozen = {"execution_nonce": "a", "policy_sha256": "x", "card_analysis": {"units": []}}
+    renewed = {**frozen, "execution_nonce": "b", "policy_sha256": "y"}
+    assert not resume_lineage_valid(frozen, v11, renewed, payload)
+    assert not resume_lineage_valid(frozen, payload, renewed, v11)
+    assert resume_lineage_valid(frozen, payload, renewed, payload)
+    assert resume_lineage_valid(frozen, v11, renewed, v11)
+    with Session(engine) as session:
+        row = import_policy_version(session, RL_LUNA_POLICY_FILE_V12, created_by_name="정책 담당자",
+                                    label="analysis-policy-luna-rl-v12")
+        session.commit()
+        assert row.policy_sha256 == RL_V12_SHA256
+        validate_pinned_policy(row, allow_unmeasured_reference=True)
+        settings = SimpleNamespace(rl_deep_review_policy_version_id=row.id, analysis_provider="vllm",
+                                   reference_workflow_mode=True)
+        resolved = resolve_company_deep_policy(session, settings, rl=True)
+        assert resolved.pipeline_version == "card-v1" and resolved.selector_version == "card-sections-v4"
+
+
 def test_rl_selection_env_is_separate_from_demo_and_defaults_closed(monkeypatch) -> None:
     from app.core.config import DEFAULT_RL_ANALYSIS_POLICY_PATH, Settings
 
@@ -1599,8 +1654,9 @@ def test_rl_selection_env_is_separate_from_demo_and_defaults_closed(monkeypatch)
     assert settings.rl_analysis_auto_start_enabled is False
     assert settings.rl_deep_review_policy_version_id is None
     assert settings.rl_analysis_policy_path == DEFAULT_RL_ANALYSIS_POLICY_PATH
-    # 결정 C20: new imports default to the v11 file; v1-v10 stay importable by path.
-    assert DEFAULT_RL_ANALYSIS_POLICY_PATH.resolve() == RL_LUNA_POLICY_FILE_V11.resolve()
+    # RL-10 결정 E1: new imports default to the v12 file; v1-v11 stay importable by path.
+    assert DEFAULT_RL_ANALYSIS_POLICY_PATH.resolve() == RL_LUNA_POLICY_FILE_V12.resolve()
+    assert RL_LUNA_POLICY_FILE_V11.is_file()
     assert RL_LUNA_POLICY_FILE_V10.is_file()
     assert RL_LUNA_POLICY_FILE_V9.is_file()
     assert RL_LUNA_POLICY_FILE_V8.is_file()

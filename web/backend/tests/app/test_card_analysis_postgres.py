@@ -2715,3 +2715,54 @@ def test_c20_v10_failed_attempt_cannot_resume_under_v11(flow_engine, monkeypatch
         assert error.value.code == "resume_source_invalid" and error.value.status_code == 409
         assert session.scalar(select(func.count()).select_from(DeepReviewAttempt)) == attempts_before
         assert audits(session, "card.resume.requested") == []
+
+
+# --- RL-10 결정 E1: policy v12 = v11 contracts + compare rules card-compare-v2 ------------------
+
+RL_V12 = "analysis-policy-luna-rl-v12"
+
+
+def test_e1_mock_v12_run_completes_with_compare_rules_v2(flow_engine, monkeypatch) -> None:
+    """T11 for v12: the same v11 model contracts; every stored compare row recomputes under ``card-compare-v2``."""
+
+    from app.deep_review.schemas.card_analysis import CardRequirementExtract
+    from app.deep_review.services.card_compare import COMPARE_RULES_V2, compare_requirements
+
+    with Session(flow_engine) as session:
+        world = tp.build_world(session, monkeypatch, policy_identity=RL_V12)
+        tp.approve(session, policy_identity=RL_V12)
+        _provider(monkeypatch, "mock")
+        started = tp.start(session, world, _plain_service())
+        frozen = session.get(DeepReviewPreview, started.preview_id).input_snapshot
+        batches = batch_count(session, started)
+        calls = _count_mock_calls(monkeypatch)
+        run(session, _plain_service())
+        assert session.get(DeepReviewAttempt, started.attempt_id).status == "completed"
+        assert calls == ["card-extract-v2"] * batches + ["card-role-v3"] * 3 + ["card-synthesis-v3"]
+        assert audits(session, "analysis.transfer.sent") == []  # mock: nothing transmitted
+        stages = session.scalars(select(CardAnalysisStage).where(
+            CardAnalysisStage.attempt_id == started.attempt_id)).all()
+        extracts = {row.stage_key: row.payload for row in stages if row.stage == "extract"}
+        compares = {row.stage_key: row.payload for row in stages if row.stage == "compare"}
+        assert extracts and set(extracts) == set(compares)
+        for key, payload in extracts.items():
+            again = compare_requirements(CardRequirementExtract.model_validate(payload), frozen=frozen,
+                                         rules=COMPARE_RULES_V2)
+            assert again.model_dump(mode="json") == compares[key]
+
+
+def test_e1_v11_failed_attempt_cannot_resume_under_v12(flow_engine, monkeypatch) -> None:
+    from app.deep_review.services.verdict_trigger import VerdictRequestError
+
+    with Session(flow_engine) as session:
+        world, source, svc, fake, _approval = start_world_v11(session, monkeypatch)
+        failure = SchemaFailure()
+        fake.overrides.update({("synthesis", 0): failure, ("synthesis", 1): failure})
+        assert run_code(session, svc) == "card_synthesis_invalid"
+        _select_policy(session, monkeypatch, RL_V12)
+        attempts_before = session.scalar(select(func.count()).select_from(DeepReviewAttempt))
+        with pytest.raises(VerdictRequestError) as error:
+            _start_resume(session, world, source.attempt_id)
+        assert error.value.code == "resume_source_invalid" and error.value.status_code == 409
+        assert session.scalar(select(func.count()).select_from(DeepReviewAttempt)) == attempts_before
+        assert audits(session, "card.resume.requested") == []

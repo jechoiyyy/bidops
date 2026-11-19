@@ -55,10 +55,15 @@ RL_POLICY_IDENTITY_V10 = "analysis-policy-luna-rl-v10"
 #: instructions, the synthesis instruction and one extract clause are rewritten;
 #: selector, packing and execution are v10's.  v1-v10 stay importable.
 RL_POLICY_IDENTITY_V11 = "analysis-policy-luna-rl-v11"
+#: RL-10 결정 E1: v11 with the deterministic compare rule set ``card-compare-v2`` (상주
+#: 장소·제외 분야 blocker rules, contradiction before the 계약 rule).  Every model-facing
+#: byte (instructions, contracts, selector, packing, execution) is v11's; only the
+#: identity differs, and the identity selects the compare rules.  v1-v11 stay importable.
+RL_POLICY_IDENTITY_V12 = "analysis-policy-luna-rl-v12"
 RL_POLICY_IDENTITIES = frozenset({
     RL_POLICY_IDENTITY, RL_POLICY_IDENTITY_V2, RL_POLICY_IDENTITY_V3, RL_POLICY_IDENTITY_V4,
     RL_POLICY_IDENTITY_V5, RL_POLICY_IDENTITY_V6, RL_POLICY_IDENTITY_V7, RL_POLICY_IDENTITY_V8,
-    RL_POLICY_IDENTITY_V9, RL_POLICY_IDENTITY_V10, RL_POLICY_IDENTITY_V11,
+    RL_POLICY_IDENTITY_V9, RL_POLICY_IDENTITY_V10, RL_POLICY_IDENTITY_V11, RL_POLICY_IDENTITY_V12,
 })
 COMPANY_POLICY_IDENTITIES = frozenset({"analysis-policy-luna-demo-v1", HP_POLICY_IDENTITY, *RL_POLICY_IDENTITIES})
 #: RL-04 proposal drafting (``pipeline_version="proposal-v1"``, ``purpose="proposal"``).

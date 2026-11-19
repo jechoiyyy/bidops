@@ -55,6 +55,11 @@ CompareReason = Literal[
     "unmapped",
     "unsupported_comparison",
     "scope_unverified",
+    # RL-10 결정 E1 (compare rules ``card-compare-v2``, policy v12 only; always ``unknown``):
+    # an on-site clause names no place the versioned place table resolves to one 시·도.
+    "place_unresolved",
+    # the requirement touches a confirmed excluded field but not every clause lies in it.
+    "exclusion_partial",
     "contract_unaccepted",
     "incomplete_unit",
     # 결정 B51: the unit's extract item was rejected (evidence-class rule); no

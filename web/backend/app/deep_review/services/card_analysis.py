@@ -166,7 +166,7 @@ RESUME_POLICY_FREE_KEYS: Final[frozenset[str]] = frozenset({"policy_identity", "
 #: 결정 B51: policies that isolate evidence-class extract failures per item (v10: 결정 C15, v11: C20).
 ITEM_ISOLATION_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({
     "analysis-policy-luna-rl-v7", "analysis-policy-luna-rl-v8", "analysis-policy-luna-rl-v9",
-    "analysis-policy-luna-rl-v10", "analysis-policy-luna-rl-v11",
+    "analysis-policy-luna-rl-v10", "analysis-policy-luna-rl-v11", "analysis-policy-luna-rl-v12",
 })
 #: 결정 C16 (RL-05): policies whose role stage answers ``card-role-v2`` (short evidence
 #: ids, role item isolation) and whose extract stage isolates units still missing after
@@ -179,21 +179,30 @@ ROLE_CONTRACT_V2_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({"analysis
 #: so the stored role row keeps the v10 shape.  C16/C19 isolation rules apply unchanged.
 ROLE_CONTRACT_V3: Final[str] = "card-role-v3"
 ROLE_CONTRACT_V3_SCHEMA_VERSION: Final[str] = "bidops.verdict-role.v3"
-ROLE_CONTRACT_V3_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({"analysis-policy-luna-rl-v11"})
+ROLE_CONTRACT_V3_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({
+    "analysis-policy-luna-rl-v11", "analysis-policy-luna-rl-v12",
+})
 EXTRACT_MISSING_UNIT_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({
-    "analysis-policy-luna-rl-v10", "analysis-policy-luna-rl-v11",
+    "analysis-policy-luna-rl-v10", "analysis-policy-luna-rl-v11", "analysis-policy-luna-rl-v12",
 })
 #: 결정 C19 (RL-05 STEP-008): policies whose synthesis cautions/next actions outside the
 #: role units or their evidence are dropped and recorded (final row ``isolated_items``)
 #: instead of failing the attempt.  Validation code only -- the v10 policy file is unchanged.
 #: 결정 C20: v11 keeps the rule (its refs/ids that do not resolve are dropped the same way).
 SYNTHESIS_ITEM_ISOLATION_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({
-    "analysis-policy-luna-rl-v10", "analysis-policy-luna-rl-v11",
+    "analysis-policy-luna-rl-v10", "analysis-policy-luna-rl-v11", "analysis-policy-luna-rl-v12",
 })
 #: 결정 C20 (RL-05 STEP-009): policies whose text-kind constraint ``value`` need not be a
 #: verbatim substring of its (still verbatim) quote -- see ``_text_value_ok``.  Every other
 #: kind and every earlier policy keep the exact expression rule.
-TEXT_VALUE_RELAXED_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({"analysis-policy-luna-rl-v11"})
+TEXT_VALUE_RELAXED_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({
+    "analysis-policy-luna-rl-v11", "analysis-policy-luna-rl-v12",
+})
+#: RL-10 결정 E1: policies whose deterministic compare runs rule set ``card-compare-v2``
+#: (상주 장소·제외 분야 blockers, contradiction before the 계약 rule).  Every other policy
+#: compares with ``card-compare-v1`` exactly as before, so stored v1..v11 rows recompute
+#: byte-identically (resume) and v11 -> v12 is never a resume lineage.
+BLOCKER_COMPARE_POLICY_IDENTITIES: Final[frozenset[str]] = frozenset({"analysis-policy-luna-rl-v12"})
 #: 결정 C20: facts whose deterministic compare reads a text constraint's ``value`` (상주
 #: 지역, 직접생산 품명, 본점·소재지 지역; ``card_compare._confirmed_comparison``).  A text
 #: constraint resolving to one of them keeps the verbatim value rule under v11 too, so a
@@ -939,9 +948,11 @@ def resume_lineage_valid(
         return all(
             (source_policy.get("policy_identity") in identities) == (new_policy.get("policy_identity") in identities)
             # 결정 C16: the role contract (stored role row shape) must agree as well; 결정 C20:
-            # so must the v3 role contract and the extract text-value rule (v10 -> v11 never resumes).
+            # so must the v3 role contract and the extract text-value rule (v10 -> v11 never resumes);
+            # RL-10 결정 E1: and the compare rule set (v11 -> v12 never resumes).
             for identities in (ITEM_ISOLATION_POLICY_IDENTITIES, ROLE_CONTRACT_V2_POLICY_IDENTITIES,
-                               ROLE_CONTRACT_V3_POLICY_IDENTITIES, TEXT_VALUE_RELAXED_POLICY_IDENTITIES)
+                               ROLE_CONTRACT_V3_POLICY_IDENTITIES, TEXT_VALUE_RELAXED_POLICY_IDENTITIES,
+                               BLOCKER_COMPARE_POLICY_IDENTITIES)
         )
     except (TypeError, ValueError, AttributeError):
         return False
@@ -1259,7 +1270,7 @@ def run_card_analysis(
       start of this run; ``card_review_timeout`` after it.
     """
 
-    from .card_compare import compare_requirements
+    from .card_compare import COMPARE_RULES_V1, COMPARE_RULES_V2, compare_requirements
     from .card_roles import (
         VERDICT_ROLES,
         assemble_practitioner_verdict,
@@ -1341,6 +1352,11 @@ def run_card_analysis(
         )
         # 결정 C20: the text-constraint value rule of policy v11.
         text_value_relaxed = policy.get("policy_identity") in TEXT_VALUE_RELAXED_POLICY_IDENTITIES
+        # RL-10 결정 E1: the compare rule set follows the pinned policy identity.
+        compare_rules = (
+            COMPARE_RULES_V2 if policy.get("policy_identity") in BLOCKER_COMPARE_POLICY_IDENTITIES
+            else COMPARE_RULES_V1
+        )
         rejected_units: list[Any] = []
         # 결정 B55: the synthesis contract follows the pinned policy's report_schema.
         report_schema = policy.get("report_schema", PRACTITIONER_VERDICT_V1)
@@ -1480,7 +1496,7 @@ def run_card_analysis(
                                             stage_schema=stage_schema)
             if resume is not None:
                 stored_extract = CardRequirementExtract.model_validate(reuse("extract", key, payload))
-                compared = compare_requirements(stored_extract, frozen=frozen)
+                compared = compare_requirements(stored_extract, frozen=frozen, rules=compare_rules)
                 extract_payload = stored_extract.model_dump(mode="json")
                 compare_input = {
                     "extract": extract_payload,
@@ -1532,7 +1548,7 @@ def run_card_analysis(
                                       text_value_relaxed=text_value_relaxed)
             extract_payload = extracted.model_dump(mode="json")
             persist("extract", key, extract_payload, payload)
-            compared = compare_requirements(extracted, frozen=frozen)
+            compared = compare_requirements(extracted, frozen=frozen, rules=compare_rules)
             compare_input = {
                 "extract": extract_payload,
                 "profile_facts": frozen["profile_facts"], "profile_evidence": frozen["profile_evidence"],
@@ -1707,6 +1723,7 @@ __all__ = [
     "CONSTRAINT_QUOTE_RULE",
     "CONSTRAINT_TRUNCATED_RULE",
     "EVIDENCE_QUOTE_RULE",
+    "BLOCKER_COMPARE_POLICY_IDENTITIES",
     "EXTRACT_MISSING_UNIT_POLICY_IDENTITIES",
     "EXTRACT_UNIT_MISSING_RULE",
     "ITEM_ISOLATION_POLICY_IDENTITIES",

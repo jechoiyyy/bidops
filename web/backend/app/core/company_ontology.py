@@ -108,6 +108,11 @@ _ORIGIN_STATUSES: Final[Mapping[str, frozenset[str]]] = {
 DOMAIN_EXCLUSION_KINDS: Final[frozenset[str]] = frozenset(
     {"hardware", "staffing_only", "design_only", "election", "region", "amount_floor"}
 )
+#: RL-10 결정 E2: exclusion kinds that may carry ``requirement_terms`` (requirement-level
+#: terms a person confirmed).  ``design_only``/``staffing_only`` are project-scope by
+#: their own name ("단독"·"만"): one requirement cannot show that a whole project is
+#: only that.  ``region``/``amount_floor`` are not fields of work.
+REQUIREMENT_LEVEL_EXCLUSION_KINDS: Final[frozenset[str]] = frozenset({"hardware", "election"})
 STABLE_KEY_RE: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9_.:-]{0,127}$")
 COMPANY_SLUG_RE: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9-]{1,63}$")
 MAX_COMPANY_NAME_LENGTH: Final[int] = 128
@@ -727,6 +732,8 @@ def _key_set(value: Any, *allowed: frozenset[str]) -> frozenset[str]:
 
 
 _DOMAIN_KEYS: Final[frozenset[str]] = frozenset({"tier", "keywords", "excluded", "kind"})
+#: RL-10 결정 E2: optional requirement-level terms of a confirmed exclusion (additive shape).
+_DOMAIN_RL_KEYS: Final[frozenset[str]] = _DOMAIN_KEYS | {"requirement_terms"}
 _QUALIFICATION_KEYS: Final[frozenset[str]] = frozenset(
     {"held", "detail", "valid_until", "issued_on", "file_name"}
 )
@@ -745,7 +752,7 @@ def _domain_value(value: Any) -> Any:
         if isinstance(value, str) and not value.strip():
             raise CompanyKnowledgeValidationError("node_value_invalid")
         return value
-    _key_set(value, _DOMAIN_KEYS)
+    keys = _key_set(value, _DOMAIN_KEYS, _DOMAIN_RL_KEYS)
     tier = value["tier"]
     if tier is not None and (type(tier) is not int or tier not in {1, 2, 3}):
         raise CompanyKnowledgeValidationError("node_value_invalid")
@@ -760,6 +767,21 @@ def _domain_value(value: Any) -> Any:
         raise CompanyKnowledgeValidationError("node_value_invalid")
     if excluded and kind is None:
         raise CompanyKnowledgeValidationError("node_value_invalid")
+    if "requirement_terms" in keys:
+        # Only an excluded field of work, non-empty, unique, at least two characters each
+        # (whitespace removed): a one-character term would match unrelated text.
+        terms = _string_list(
+            value["requirement_terms"], error_type=CompanyKnowledgeValidationError, code="node_value_invalid"
+        )
+        normalized = ["".join(unicodedata.normalize("NFKC", term).split()).upper() for term in terms]
+        if (
+            not excluded
+            or kind not in REQUIREMENT_LEVEL_EXCLUSION_KINDS
+            or not terms
+            or any(len(term) < 2 for term in normalized)
+            or len(set(normalized)) != len(normalized)
+        ):
+            raise CompanyKnowledgeValidationError("node_value_invalid")
     return deepcopy(value)
 
 
@@ -1304,6 +1326,7 @@ __all__ = [
     "COMPANY_SOURCE_SCHEMA",
     "CONCEPT_KINDS",
     "DOMAIN_EXCLUSION_KINDS",
+    "REQUIREMENT_LEVEL_EXCLUSION_KINDS",
     "FACT_STATUSES",
     "FICTIONAL_COMPANY_ORIGINS",
     "GRAPH_SNAPSHOT_SCHEMA",
