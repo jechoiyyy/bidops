@@ -60,7 +60,7 @@ test("대시보드는 일일 수집 아래 오늘 결정할 것·확인할 것·
   await expect(block("decide").getByRole("region", { name: "보류 재검토", exact: true })).toBeVisible();
   await expect(block("check").getByRole("region", { name: "사람 확인 필요", exact: true })).toBeVisible();
   await expect(block("check").getByRole("region", { name: "마감 임박 추적 건", exact: true })).toBeVisible();
-  await expect(block("new").getByRole("region", { name: "새 우선 검토 발주계획", exact: true })).toBeVisible();
+  await expect(block("new").getByRole("region", { name: "새 관련 발주계획", exact: true })).toBeVisible();
 });
 
 test("건수 띠의 칸은 목적지 목록의 기본 보기와 같은 정의이고 그 목록으로 잇는다", async ({ page }) => {
@@ -72,7 +72,6 @@ test("건수 띠의 칸은 목적지 목록의 기본 보기와 같은 정의이
     ["pre-spec-actionable", /사전규격 검토할 항목\d+건/, "/pre-specs"],
     ["go-no-go", /최종 Go\/No-Go\d+건/, "/go-no-go"],
     ["hold-overdue", "보류 재검토1건", "/opportunities?section=조치 필요&reason=hold_overdue"],
-    ["verdict-confirmation", "판정 확인집계 없음", null],
     // 확인할 것
     ["action-required", "사업기회 조치 필요3건", "/opportunities"],
     ["overview-attention", "개요 사람 확인2건", "/pre-specs?workspace=all&sw_only=false&overview_view=attention"],
@@ -90,15 +89,16 @@ test("건수 띠의 칸은 목적지 목록의 기본 보기와 같은 정의이
     if (href === null) await expect(cell.getByRole("link"), key).toHaveCount(0);
     else await expect(cell.getByRole("link"), key).toHaveAttribute("href", href);
   }
-  // 판정 확인은 서버가 건수를 주지 않는다. 0건으로 적지 않는다.
-  await expect(countCell(page, "verdict-confirmation")).not.toContainText("0건");
+  // 판정 확인은 셀 수 있는 기록이 아직 없어 칸 자체가 없다(같은 비숫자를 매일 보이지 않는다).
+  await expect(countCell(page, "verdict-confirmation")).toHaveCount(0);
+  await expect(page.locator('.dash-block[data-block="decide"] .dash-count-item')).toHaveCount(4);
 });
 
 test("`새로`를 셀 수 없으면 0이 아니라 미확인으로 적는다", async ({ page }) => {
   await mockDashboard(page, { workload: workloadWith("order_plan_new_priority", null, "provider_absent") });
   await page.goto("/");
   // 새 관련 발주계획 패널 바닥(workload 키)은 사유를 남기고 0으로 채우지 않는다.
-  const foot = panel(page, "새 우선 검토 발주계획").locator(".dash-panel-foot");
+  const foot = panel(page, "새 관련 발주계획").locator(".dash-panel-foot");
   await expect(foot).toContainText("추적 미선택 건수 미확인 · 집계 모듈 없음");
   await expect(foot).not.toContainText("0건");
 });
@@ -113,7 +113,7 @@ test("누적 패널 다섯이 제목·목적지·기준을 갖는다", async ({ 
     ["최종 결정 대기", "최종 Go/No-Go", "/go-no-go"],
     ["사람 확인 필요", "사전규격", "/pre-specs?workspace=all&sw_only=false&overview_view=attention"],
     ["보류 재검토", "사업기회에서 모두 보기", "/opportunities?section=조치 필요&reason=hold_overdue"],
-    ["새 우선 검토 발주계획", "발주계획", "/order-plans?qwen=relevant&tracking=미선택&first_observed_from=2026-09-16"],
+    ["새 관련 발주계획", "발주계획", "/order-plans?qwen=relevant&tracking=미선택&first_observed_from=2026-09-16"],
   ];
   for (const [title, linkLabel, href] of expectations) {
     const region = panel(page, title);
@@ -123,8 +123,8 @@ test("누적 패널 다섯이 제목·목적지·기준을 갖는다", async ({ 
   await expect(panel(page, "최종 결정 대기").locator(".dash-panel-foot")).toContainText("입찰 마감순");
   // 바닥 건수는 링크한 Go/No-Go 기본 보기(검토 대상)와 같은 정의다.
   await expect(panel(page, "최종 결정 대기").locator(".dash-panel-foot")).toContainText(/검토 대상 \d+건/);
-  await expect(panel(page, "새 우선 검토 발주계획").locator(".dash-panel-foot")).toContainText("전일 수집 이후 처음 관측");
-  await expect(panel(page, "새 우선 검토 발주계획").locator(".dash-panel-foot")).toContainText("추적 미선택 12건 중 상위 5건");
+  await expect(panel(page, "새 관련 발주계획").locator(".dash-panel-foot")).toContainText("전일 수집 이후 처음 관측");
+  await expect(panel(page, "새 관련 발주계획").locator(".dash-panel-foot")).toContainText("추적 미선택 12건 중 상위 5건");
   await expect(panel(page, "사람 확인 필요")).toContainText("확인 항목은 추적 상태와 무관하게 셉니다.");
 });
 
@@ -244,10 +244,10 @@ test("최종 결정 대기는 추정가격과 마감 미제공을 구분한다",
   await expect(rows.nth(0).getByRole("link")).toHaveAttribute("href", "/go-no-go?selected=701");
 });
 
-test("새 우선 검토 발주계획 행은 기관·예산·발주 예정과 모델 판단을 적는다", async ({ page }) => {
+test("새 관련 발주계획 행은 기관·예산·발주 예정과 모델 판단을 적는다", async ({ page }) => {
   await mockDashboard(page);
   await page.goto("/");
-  const rows = panel(page, "새 우선 검토 발주계획").locator(".dash-work-item");
+  const rows = panel(page, "새 관련 발주계획").locator(".dash-work-item");
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toContainText("경기도청 · 1,240,000,000원 · 2026년 11월");
   await expect(rows.nth(0)).toContainText("모델 · 관련");
@@ -265,7 +265,7 @@ test("한 패널의 조회 실패가 다른 패널을 막지 않고 그 패널�
   // 바닥 건수는 같은 대기열(검토 대상 정의)에서 오므로 대기열이 실패하면 0이 아니라 미확인이다.
   await expect(failed.locator(".dash-panel-foot")).toContainText("검토 대상 미확인");
   await expect(panel(page, "마감 임박 추적 건").locator(".dash-work-item")).toHaveCount(3);
-  await expect(panel(page, "새 우선 검토 발주계획").locator(".dash-work-item")).toHaveCount(2);
+  await expect(panel(page, "새 관련 발주계획").locator(".dash-work-item")).toHaveCount(2);
   await expect(panel(page, "마감 임박 추적 건").getByRole("alert")).toHaveCount(0);
   options.decisionError = false;
   await failed.getByRole("button", { name: "다시 시도", exact: true }).click();
@@ -380,12 +380,12 @@ test("마감 임박 바로가기는 사업기회를 같은 조건·같은 집합
   expect(trace.writes).toEqual([]);
 });
 
-test("새 우선 검토 바로가기는 발주계획을 같은 첫 수집 창·같은 집합으로 연다", async ({ page }) => {
+test("새 관련 발주계획 바로가기는 발주계획을 같은 첫 수집 창·같은 집합으로 연다", async ({ page }) => {
   await mockApi(page); await mockOrderPlans(page);
   // 전일(KST)이 공용 fixture의 첫 관측일 `2026-09-01`이 되는 시각으로 맞춘다.
   await page.clock.setFixedTime(new Date("2026-09-02T03:00:00Z"));
   await page.goto("/");
-  const region = panel(page, "새 우선 검토 발주계획");
+  const region = panel(page, "새 관련 발주계획");
   await expect(region.locator(".dash-work-item").first()).toBeVisible();
   const titles = await region.locator(".dash-work-title").allTextContents();
   expect(titles.length).toBeGreaterThan(0);
@@ -406,7 +406,7 @@ for (const [width, height] of WIDTHS) {
     const trace = await mockDashboard(page, { holdReviews: holdReviewList(holdReviewItems, 7) });
     await page.setViewportSize({ width, height });
     await page.goto("/");
-    await expect(panel(page, "새 우선 검토 발주계획").locator(".dash-work-item")).toHaveCount(2);
+    await expect(panel(page, "새 관련 발주계획").locator(".dash-work-item")).toHaveCount(2);
     await settleFonts(page);
     const measured = await page.evaluate(() => {
       const rect = (selector: string) => document.querySelector(selector)!.getBoundingClientRect();

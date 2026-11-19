@@ -116,7 +116,7 @@ export function preSpecList(items: PreSpecListItem[], total = items.length): Pre
 export const overviewFailedItems = [preSpec(801, "안전한 문서 준비 사전규격", "2026-09-20T00:00:00Z", "failed")];
 export const overviewAttentionItems = [preSpec(802, "통합 인증·증명 서비스 사전규격", "2026-09-18T00:00:00Z", "needs_human_review")];
 
-// ── 새 우선 검토 발주계획 ─────────────────────────────────────────────────
+// ── 새 관련 발주계획 ─────────────────────────────────────────────────
 function orderPlan(pk: number, title: string, agency: string, budget: number | null, year: string | null, month: string | null): OrderPlanListItem {
   return {
     order_plan_pk: pk, order_plan_unty_no: `PLAN-${pk}`, source_url: null, title, agency_name: agency,
