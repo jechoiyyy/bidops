@@ -77,6 +77,14 @@
       "feature": "RL-09-engine-integration",
       "depends_on": [],
       "added_at": "2026-11-17T17:08:05+09:00"
+    },
+    {
+      "feature": "RL-10-compare-blockers",
+      "depends_on": [
+        "RL-03-fit-verdict",
+        "RL-00-company-ground-truth"
+      ],
+      "added_at": "2026-11-19T11:43:15+09:00"
     }
   ]
 }

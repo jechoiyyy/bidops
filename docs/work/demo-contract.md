@@ -664,7 +664,7 @@ live config의 tracking mutation은 demo-laptop project에서만 실행하고 de
   | NodeType | §3 형태 | RL 확장(추가 허용) |
   |---|---|---|
   | company·technology | string \| null | 변경 없음 |
-  | domain | string \| null | `{tier:1\|2\|3\|null, keywords:string[], excluded:bool, kind:hardware\|staffing_only\|design_only\|election\|region\|amount_floor\|null}`; `excluded=true`면 `kind` 필수 |
+  | domain | string \| null | `{tier:1\|2\|3\|null, keywords:string[], excluded:bool, kind:hardware\|staffing_only\|design_only\|election\|region\|amount_floor\|null}`; `excluded=true`면 `kind` 필수 또는 같은 키 + `requirement_terms:string[]`(RL-10 결정 E2, 2026-11-19 추가 허용: `excluded=true`·`kind ∈ {hardware, election}`일 때만, 비어 있지 않고 각 항목 공백 제거 2자 이상·정규화 뒤 중복 없음. RL-03 대조 규칙 v2가 읽는 요구사항 수준 용어) |
   | qualification | string \| null | `{held:bool, detail:string?, valid_until:date?, issued_on:date?, file_name:string?}`; 사본 파일은 저장하지 않고 파일명만(경로 문자 거부) |
   | capability | `{scope,description}` | `{scope:core\|non_core, description:string, params:object?}`; `params`는 평면 객체(값 int·string·bool, int는 음수 금지) |
   | staff_group | `{role,total?,available?,as_of?}` | `{role,total?,available?,as_of?,region:string?,grade:string?}` |
