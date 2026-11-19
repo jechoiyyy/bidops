@@ -276,3 +276,146 @@ def test_postgres_input_and_terminal_results_are_immutable(context):
         )
         session.commit()
     session.rollback()
+
+
+def _engine_failure_records(caplog):
+    return [
+        r.bidops
+        for r in caplog.records
+        if getattr(r, "bidops", {}).get("event") == "engine_run.failed"
+    ]
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "input_hash_mismatch",
+        "engine_version_changed",
+        "engine_unavailable",
+        "engine_timeout",
+        "engine_process_failed",
+        "engine_output_invalid",
+    ],
+)
+def test_worker_keeps_each_specific_failure_code_and_logs_it(context, caplog, code):
+    import logging
+
+    session, client, ids = context
+    result = enqueue(context)
+
+    def fail(_):
+        raise svc.EngineRunError(code)
+
+    with caplog.at_level(logging.WARNING, logger=svc.logger.name):
+        assert svc.run_once(session, "engine-test", invoke=fail)
+    row = client.get("/api/engine-runs/" + result["id"]).json()
+    assert row["status"] == "failed" and row["error_code"] == code
+    assert _engine_failure_records(caplog) == [
+        {
+            "event": "engine_run.failed",
+            "run_id": result["id"],
+            "worker_id": "engine-test",
+            "error_code": code,
+            "failure_type": "EngineRunError",
+        }
+    ]
+
+
+def test_unexpected_worker_error_is_logged_by_class_without_its_message(context, caplog):
+    import logging
+
+    session, client, ids = context
+    result = enqueue(context)
+
+    def fail(_):
+        raise RuntimeError("중소기업확인서를 제출해야 한다. /private/secret")
+
+    with caplog.at_level(logging.WARNING, logger=svc.logger.name):
+        assert svc.run_once(session, "engine-test", invoke=fail)
+    row = client.get("/api/engine-runs/" + result["id"]).json()
+    assert row["error_code"] == "engine_execution_failed"
+    [record] = _engine_failure_records(caplog)
+    assert record["failure_type"] == "RuntimeError"
+    logged = json.dumps([r.__dict__ for r in caplog.records], default=str, ensure_ascii=False)
+    assert "/private" not in logged and "중소기업확인서" not in logged
+
+
+def test_runner_failure_code_passes_through_the_real_subprocess(context, caplog):
+    import logging
+
+    session, client, ids = context
+    result = enqueue(context)
+
+    def live_payload(frozen):
+        # The service never freezes mode=live; this drives the runner's own refusal.
+        return svc.invoke_engine({**frozen, "mode": "live"})
+
+    with caplog.at_level(logging.WARNING, logger=svc.logger.name):
+        assert svc.run_once(session, "engine-test", invoke=live_payload)
+    row = client.get("/api/engine-runs/" + result["id"]).json()
+    assert row["status"] == "failed"
+    assert row["error_code"] == "engine_live_not_approved"
+    [record] = _engine_failure_records(caplog)
+    assert record["error_code"] == "engine_live_not_approved"
+    assert record["failure_type"] == "EngineError"
+
+
+def _fake_run(stdout_bytes=b"", returncode=0, raises=None):
+    import subprocess
+
+    def run(command, *, input, stdout, stderr, timeout, env, check):
+        if raises is not None:
+            raise raises
+        stdout.write(stdout_bytes)
+        stderr.write("원문 일부가 섞일 수 있는 stderr".encode())
+        return subprocess.CompletedProcess(command, returncode)
+
+    return run
+
+
+def _envelope(**changes):
+    value = {
+        "schema_version": "bidops.engine-output.v1",
+        "engine_version": svc.ENGINE_VERSION,
+        "quality_status": "mock_reference",
+        "status": "failed",
+        "error_code": "structure_unavailable",
+        "error_class": "EngineError",
+        "warnings": [],
+        "analysis": None,
+        "artifacts": {},
+    }
+    value.update(changes)
+    return json.dumps(value).encode()
+
+
+@pytest.mark.parametrize(
+    ("run", "code"),
+    [
+        (
+            _fake_run(raises=__import__("subprocess").TimeoutExpired("engine", 90)),
+            "engine_timeout",
+        ),
+        (_fake_run(_envelope(), returncode=1), "engine_process_failed"),
+        (_fake_run(b"{not json"), "engine_output_invalid"),
+        (_fake_run(b"\xff"), "engine_output_invalid"),
+        (_fake_run(b"[]"), "engine_output_invalid"),
+        (_fake_run(_envelope(error_code="made_up_code")), "engine_output_invalid"),
+        (_fake_run(_envelope(status="partial", analysis=None)), "engine_output_invalid"),
+    ],
+)
+def test_invoke_maps_process_failures_to_defined_codes(monkeypatch, run, code):
+    monkeypatch.setattr(svc.subprocess, "run", run)
+    with pytest.raises(svc.EngineRunError) as raised:
+        svc.invoke_engine({"engine_sha256": svc.engine_digest()})
+    assert raised.value.code == code
+
+
+def test_invoke_rejects_changed_engine_code_and_keeps_runner_codes(monkeypatch):
+    with pytest.raises(svc.EngineRunError) as raised:
+        svc.invoke_engine({"engine_sha256": "0" * 64})
+    assert raised.value.code == "engine_version_changed"
+    monkeypatch.setattr(svc.subprocess, "run", _fake_run(_envelope(error_class="not a class!")))
+    result = svc.invoke_engine({"engine_sha256": svc.engine_digest()})
+    assert result["error_code"] == "structure_unavailable"
+    assert result["error_class"] is None

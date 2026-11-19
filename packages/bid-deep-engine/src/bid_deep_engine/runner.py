@@ -23,7 +23,7 @@ from .analysis.schemas import (
     SynthOut,
     Profitability,
 )
-from .adapter import project_company, source_evidence, raw_blocks
+from .adapter import EngineError, project_company, source_evidence, raw_blocks
 from .company.provenance import CompanyEvidenceView
 from .company.schema import CompanyProfile, Company
 from .ingest.models import Block, RawDoc, RawMeta, NoticeBundle
@@ -31,6 +31,18 @@ from .ingest.normalize import build
 
 VERSION = "bid-deep-engine.v1"
 MAX_INPUT = 8 * 1024 * 1024
+# Every error_code this process can emit. The consumer rejects any other value.
+ERROR_CODES = frozenset(
+    {
+        "engine_live_not_approved",
+        "structure_unavailable",
+        "invalid_table_coordinates",
+        "table_too_large",
+        "input_too_large",
+        "engine_input_invalid",
+        "engine_pipeline_failed",
+    }
+)
 
 
 class MockTransport:
@@ -131,10 +143,10 @@ def execute(payload):
         payload.get("schema_version") != "bidops.engine-input.v1"
         or payload.get("mode") != "mock_reference"
     ):
-        raise ValueError("engine_live_not_approved")
+        raise EngineError("engine_live_not_approved")
     blocks, tables = raw_blocks(payload)
     if not blocks or not any(b.text.strip() for b in blocks):
-        raise ValueError("structure_unavailable")
+        raise EngineError("structure_unavailable")
     fmt = payload["primary_format"]
     raw = RawDoc(
         slug=payload["slug"],
@@ -208,13 +220,16 @@ def execute(payload):
                 "source_profile_sha256": payload["profile_sha256"],
                 "engine_company_input_hash": company_hash,
             }
+        failed = result.status == "failed"
         return {
             "schema_version": "bidops.engine-output.v1",
             "engine_version": VERSION,
             "quality_status": "mock_reference",
-            "status": "failed" if result.status == "failed" else "partial",
-            "error_code": "engine_pipeline_failed"
-            if result.status == "failed"
+            "status": "failed" if failed else "partial",
+            "error_code": "engine_pipeline_failed" if failed else None,
+            # Exception class name only; the upstream reason text may quote the source.
+            "error_class": type(result.cause).__name__
+            if failed and result.cause is not None
             else None,
             "warnings": [
                 "mock_reference_not_quality_evidence",
@@ -227,24 +242,39 @@ def execute(payload):
         }
 
 
+def failure(code, error_class=None):
+    """A failed envelope that carries only a defined code and an exception class name."""
+    return {
+        "schema_version": "bidops.engine-output.v1",
+        "engine_version": VERSION,
+        "quality_status": "mock_reference",
+        "status": "failed",
+        "error_code": code,
+        "error_class": error_class,
+        "warnings": [],
+        "analysis": None,
+        "artifacts": {},
+    }
+
+
 def main():
+    # Source/model contents, exception messages and local paths are never emitted.
     try:
         data = sys.stdin.buffer.read(MAX_INPUT + 1)
         if len(data) > MAX_INPUT:
-            raise ValueError("input_too_large")
-        result = execute(json.loads(data))
-    except Exception:
-        # Source/model contents and local paths are never emitted in errors.
-        result = {
-            "schema_version": "bidops.engine-output.v1",
-            "engine_version": VERSION,
-            "quality_status": "mock_reference",
-            "status": "failed",
-            "error_code": "engine_pipeline_failed",
-            "warnings": [],
-            "analysis": None,
-            "artifacts": {},
-        }
+            raise EngineError("input_too_large")
+        try:
+            payload = json.loads(data)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            raise EngineError("engine_input_invalid") from None
+        if not isinstance(payload, dict):
+            raise EngineError("engine_input_invalid")
+        result = execute(payload)
+    except EngineError as exc:
+        code = exc.code if exc.code in ERROR_CODES else "engine_pipeline_failed"
+        result = failure(code, type(exc).__name__)
+    except Exception as exc:
+        result = failure("engine_pipeline_failed", type(exc).__name__)
     sys.stdout.write(json.dumps(result, ensure_ascii=False))
 
 
