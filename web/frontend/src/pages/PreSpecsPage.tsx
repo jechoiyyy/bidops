@@ -27,10 +27,10 @@ import {
 import { updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
 import { api } from "../lib/api";
 import {
-  AUTO_PREPARATION_FILTER_VALUES, DEADLINE_SCOPE_OPTIONS, DEADLINE_STATUS_OPTIONS, DISPLAY_GRADE_FILTER_VALUES,
+  AUTO_PREPARATION_FILTER_VALUES, DEADLINE_SCOPE_OPTIONS, DEADLINE_STATUS_OPTIONS,
   SORT_OPTIONS, TRACKING_STATUS_OPTIONS, VIEWS, WORKSPACES,
   originLabel, titleOf, validAutoPreparationStatus, validDeadlineScope, validDeadlineStatus,
-  validDisplayGrade, validObservedDate, validOverviewView, validTrackingDecision, validTrackingStatus,
+  validObservedDate, validOverviewView, validTrackingDecision, validTrackingStatus,
   validWorkspace, workspaceOf, type WorkspaceKey,
 } from "../lib/preSpecViews";
 import { PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL } from "../lib/preSpecAutoPreparation";
@@ -84,8 +84,14 @@ const LEGACY_DASHBOARD_FILTER_KEYS = [
   "auto_preparation_status",
   "tracking_decision",
   "tracking_status",
-  "grade",
 ] as const;
+/** 등급 필터는 2026-11-19에 화면에서 내려갔다(C-1 공고 판정 미가동). 옛 주소에 남은
+ * 값은 보이지 않는 필터가 되지 않도록 첫 렌더에서 주소에서 지운다. */
+const RETIRED_GRADE_KEYS = ["grade", "display_grade"] as const;
+/** 마감 구간 전환을 쓰는 보기(ADR-0064 결정 2, 2026-11-19 확인 필요에도 적용). */
+function scopedWorkspace(value: WorkspaceKey): boolean {
+  return value === "actionable" || value === "needs_check";
+}
 
 /** 상세 필터 Selector의 "전체"를 나타내는 표식값. URL에는 실리지 않는다. */
 const ALL_OPTION = "__all__";
@@ -146,7 +152,6 @@ export function PreSpecsPage() {
   const swOnly = searchParams.get("sw_only") !== "false";
   const businessDivision = validDivision(searchParams.get("business_division"));
   const origin = validOrigin(searchParams.get("origin"));
-  const gradeFilter = validDisplayGrade(searchParams.get("display_grade") ?? searchParams.get("grade"));
   const autoPreparationStatus = validAutoPreparationStatus(searchParams.get("auto_preparation_status"));
   const trackingDecision = validTrackingDecision(searchParams.get("tracking_decision"));
   const trackingStatus = validTrackingStatus(searchParams.get("tracking_status"));
@@ -160,10 +165,10 @@ export function PreSpecsPage() {
     : validWorkspace(searchParams.get("workspace"));
   const rawExclusion = searchParams.get("review_exclusion");
   const reviewExclusion = workspace === "all" && (rawExclusion === "included" || rawExclusion === "excluded") ? rawExclusion : "all";
-  // 마감 구간은 검토할 항목 전용 시야다(ADR-0064 결정 2·6). 다른 보기에 있을
-  // 때도 `current`를 싣는다 — `검토할 항목` 탭 건수가 현재 구간 기준이어야
-  // 탭을 눌렀을 때 같은 건수의 목록이 나온다.
-  const deadlineScope = workspace === "actionable" ? validDeadlineScope(searchParams.get("deadline_scope")) : "current";
+  // 마감 구간은 검토할 항목·확인 필요 전용 시야다(ADR-0064 결정 2·6). 다른 보기에
+  // 있을 때도 `current`를 싣는다 — 두 탭의 건수가 현재 구간 기준이어야 탭을 눌렀을
+  // 때 같은 건수의 목록이 나온다.
+  const deadlineScope = scopedWorkspace(workspace) ? validDeadlineScope(searchParams.get("deadline_scope")) : "current";
   const overviewView = validOverviewView(hasLegacyView ? searchParams.get("view") : searchParams.get("overview_view"));
   const sourceRunId = searchParams.get("source_run_id")?.trim() ?? "";
   const rawObservedFrom = validObservedDate(searchParams.get("observed_from"));
@@ -178,7 +183,7 @@ export function PreSpecsPage() {
   // `구간=마감 전 + 상태=마감 경과`가 조용히 0건을 만든다. 그래서 여기서 무시한다
   // (`review_exclusion`을 전체 이력 밖에서 무시하는 것과 같은 규칙). 값은 지우지
   // 않는다 — 다른 보기로 돌아가면 그대로 다시 걸린다.
-  const deadlineStatus = workspace === "actionable"
+  const deadlineStatus = scopedWorkspace(workspace)
     ? ""
     : validDeadlineStatus(searchParams.get("deadline_status"));
   const queryText = searchParams.get("q") ?? "";
@@ -191,7 +196,7 @@ export function PreSpecsPage() {
     swOnly,
     businessDivision,
     origin,
-    grade: gradeFilter,
+    grade: "",
     autoPreparationStatus,
     trackingDecision,
     trackingStatus,
@@ -236,11 +241,9 @@ export function PreSpecsPage() {
 
   useEffect(() => setSearchText(queryText), [queryText]);
   useEffect(() => {
-    if (!searchParams.has("grade")) return;
+    if (!RETIRED_GRADE_KEYS.some((key) => searchParams.has(key))) return;
     const next = new URLSearchParams(searchParams);
-    const legacyGrade = validDisplayGrade(next.get("grade"));
-    next.delete("grade");
-    if (!next.has("display_grade") && legacyGrade) next.set("display_grade", legacyGrade);
+    for (const key of RETIRED_GRADE_KEYS) next.delete(key);
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
   useEffect(() => {
@@ -283,8 +286,8 @@ export function PreSpecsPage() {
   const listQuery = useMemo(
     () => ({
       review_exclusion: reviewExclusion as "all" | PreSpecReviewExclusionStatus,
-      // 구간은 actionable 술어의 일부라 다른 보기의 행·건수를 바꾸지 않는다.
-      // 그래서 항상 싣고, 서버는 `workspace_counts.actionable`에만 반영한다.
+      // 구간은 actionable·needs_check 술어의 일부라 다른 보기의 행·건수를 바꾸지 않는다.
+      // 그래서 항상 싣고, 서버는 그 두 칸에만 반영한다.
       deadline_scope: deadlineScope,
       sw_only: swOnly,
       business_division: businessDivision || null,
@@ -292,7 +295,6 @@ export function PreSpecsPage() {
       auto_preparation_status: autoPreparationStatus || null,
       workspace,
       overview_view: overviewView,
-      display_grade: gradeFilter || null,
       tracking_decision: trackingDecision || null,
       tracking_status: trackingStatus || null,
       source_run_id: sourceRunId || null,
@@ -307,7 +309,7 @@ export function PreSpecsPage() {
       limit: PAGE_SIZE,
       offset,
     }),
-    [reviewExclusion, autoPreparationStatus, businessDivision, deadlineScope, deadlineStatus, gradeFilter, offset, origin, overviewView, queryText, rawObservedFrom, rawObservedTo, sort, sourceRunId, swOnly, trackingDecision, trackingStatus, workspace],
+    [reviewExclusion, autoPreparationStatus, businessDivision, deadlineScope, deadlineStatus, offset, origin, overviewView, queryText, rawObservedFrom, rawObservedTo, sort, sourceRunId, swOnly, trackingDecision, trackingStatus, workspace],
   );
   const result = useQuery({
     queryKey: ["pre-specs", { ...listQuery, q: searchKey(queryText) }],
@@ -332,14 +334,16 @@ export function PreSpecsPage() {
     if (!result.isSuccess) return null;
     return workspaceCounts?.[key] ?? (key === workspace ? total : null);
   };
-  // 구간 적용 **전** actionable을 둘로 나눈 서버 건수다. 화면은 옮기기만 하고
-  // 다시 세지 않는다. 아직 응답이 없으면 `–`이며 0건으로 접지 않는다.
-  const deadlineScopeCounts = result.data?.deadline_scope_counts;
+  // 구간 적용 **전** 활성 보기(검토할 항목 또는 확인 필요)를 둘로 나눈 서버 건수다.
+  // 화면은 옮기기만 하고 다시 세지 않는다. 아직 응답이 없으면 `–`이며 0건으로 접지 않는다.
+  const deadlineScopeCounts = workspace === "needs_check"
+    ? result.data?.needs_check_deadline_scope_counts
+    : result.data?.deadline_scope_counts;
   const deadlineScopeCount = (key: "current" | "passed"): number | null => {
     if (!result.isSuccess) return null;
     return deadlineScopeCounts?.[key] ?? null;
   };
-  const isDefaultView = workspace === "actionable" && swOnly && !businessDivision && !origin && !gradeFilter && !queryText
+  const isDefaultView = workspace === "actionable" && swOnly && !businessDivision && !origin && !queryText
     && !autoPreparationStatus && !trackingDecision && !trackingStatus && !sourceRunId
     && !rawObservedFrom && !rawObservedTo && !deadlineStatus && deadlineScope === "current"
     && overviewView === "all" && !requestedSort && sort === "deadline" && offset === 0;
@@ -644,17 +648,20 @@ export function PreSpecsPage() {
     if (searchKey(queryText)) return `적용된 검색어 "${queryText}"와 다른 활성 필터에 맞는 사전규격이 없습니다.`;
     // 구간은 검토할 항목의 시야이지 항목을 없애는 필터가 아니다(ADR-0064 결정 1).
     // 비었으면 다른 구간에 무엇이 남아 있는지 서버 건수로 알린다.
-    if (workspace === "actionable" && deadlineScope === "passed") {
-      return "마감 경과 구간에 검토할 항목이 없습니다. 마감 전·미확인 구간으로 돌아가십시오.";
+    if (scopedWorkspace(workspace) && deadlineScope === "passed") {
+      return workspace === "needs_check"
+        ? "마감 경과 구간에 확인 필요 건이 없습니다. 마감 전·미확인 구간으로 돌아가십시오."
+        : "마감 경과 구간에 검토할 항목이 없습니다. 마감 전·미확인 구간으로 돌아가십시오.";
     }
-    if (workspace === "actionable" && deadlineScope === "current" && (deadlineScopeCounts?.passed ?? 0) > 0) {
+    if (scopedWorkspace(workspace) && deadlineScope === "current" && (deadlineScopeCounts?.passed ?? 0) > 0) {
       return `마감 전·미확인 구간에는 없습니다. 마감 경과 ${deadlineScopeCounts?.passed}건은 구간 전환으로 볼 수 있습니다.`;
     }
+    if (workspace === "needs_check") return "개요가 실패·취소로 끝났거나 문서 준비가 멈춘 건이 없습니다.";
     if (isDefaultView) return "SW 중심 기본 보기에 맞는 항목이 없습니다. 전체 보기는 SW사업대상과 무관한 사전규격까지 명시적으로 요청합니다.";
     if (overviewView !== "all") return `현재 개요 상태 보기와 필터에 맞는 사전규격이 없습니다. 보기를 바꾸거나 조건을 넓혀 보십시오.`;
     if (swOnly) return "SW 중심 기본 보기와 추가 필터가 함께 적용되어 있습니다. 기본값으로 돌아가거나 조건을 조정해 보십시오.";
-    if (autoPreparationStatus || trackingDecision || trackingStatus || gradeFilter || sourceRunId || observedFrom || observedTo || deadlineStatus) {
-      return "현재 선택한 업무구분·구분·등급·추적·관측·마감 조건에 맞는 누적 데이터가 없습니다.";
+    if (autoPreparationStatus || trackingDecision || trackingStatus || sourceRunId || observedFrom || observedTo || deadlineStatus) {
+      return "현재 선택한 업무구분·구분·추적·관측·마감 조건에 맞는 누적 데이터가 없습니다.";
     }
     if (businessDivision || origin || queryText) return "현재 선택한 업무구분·구분·검색어 조건에 맞는 누적 데이터가 없습니다.";
     return "누적 수집된 사전규격 데이터가 아직 없습니다.";
@@ -671,7 +678,6 @@ export function PreSpecsPage() {
     overviewView !== "all",
     Boolean(businessDivision),
     Boolean(origin),
-    Boolean(gradeFilter),
     Boolean(trackingStatus),
     Boolean(deadlineStatus),
     Boolean(autoPreparationStatus),
@@ -770,7 +776,7 @@ export function PreSpecsPage() {
                 구간과 전체 이력의 검토 포함 여부는 서로 배타적이라 같은 자리를
                 나눠 쓴다(ADR-0064 결정 7). 캡션은 별도 요소다 — Astryx
                 `SegmentedControl.label`은 aria 전용이라 화면에 뜨지 않는다. */}
-            {workspace === "actionable" ? (
+            {scopedWorkspace(workspace) ? (
               <div className="pre-specs-deadline-scope">
                 {/* 접근 이름은 컨트롤의 `label`이 이미 갖는다. 이 캡션은 같은 말을
                     눈으로 읽게 하는 자리이므로 보조기술에는 한 번만 들리게 한다. */}
@@ -831,16 +837,6 @@ export function PreSpecsPage() {
                 onChange={(value) => updateSearchParams({ origin: value === ALL_OPTION ? null : value })}
               />
               <Selector
-                label="예비 적합성 등급"
-                size="sm"
-                options={[
-                  { value: ALL_OPTION, label: "전체" },
-                  ...DISPLAY_GRADE_FILTER_VALUES.map((value) => ({ value, label: value })),
-                ]}
-                value={gradeFilter || ALL_OPTION}
-                onChange={(value) => updateSearchParams({ display_grade: value === ALL_OPTION ? null : value, grade: null })}
-              />
-              <Selector
                 label="추적 상태"
                 size="sm"
                 options={[
@@ -853,7 +849,7 @@ export function PreSpecsPage() {
               {/* 검토할 항목에서는 같은 축의 컨트롤을 둘 두지 않는다 — 도구 줄의
                   마감 구간과 이 필터가 함께 걸리면 `구간=마감 전 + 상태=마감 경과`
                   같은 모순 조합이 0건을 만든다(ADR-0064 검토한 대안). */}
-              {workspace !== "actionable" ? (
+              {!scopedWorkspace(workspace) ? (
                 <Selector
                   label="마감 상태"
                   size="sm"
@@ -1082,7 +1078,6 @@ export function PreSpecsPage() {
                   item={selectedItem}
                   listSearch={listSearch}
                   onOpenDetail={() => openDetail(selectedItem.notice_pk)}
-                  onOpenDetailAfterSaved={() => openDetailFromSelection(selectedItem.notice_pk)}
                   onDirtyChange={setTrackingDirty}
                   onSaved={(saved) => {
                     const noticePk = selectedItem.notice_pk;

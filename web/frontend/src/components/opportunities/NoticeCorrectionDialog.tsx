@@ -206,7 +206,7 @@ export function NoticeCorrectionDialog({
               className="opportunity-linked-link"
               to={{ pathname: `/judgments/${notice.id}`, search: new URLSearchParams({ run: notice.run_id }).toString() }}
             >
-              공고 판정 이력에서 원문 확인 →
+              입찰공고 상세에서 원문 확인 →
             </Link>
             <div className="opportunity-dialog-actions">
               <Button label="취소" onClick={requestClose} />

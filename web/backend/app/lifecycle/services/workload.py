@@ -15,7 +15,8 @@ from .opportunity_queries import (
 
 _WORKLOAD_KEYS: tuple[WorkloadKey, ...] = (
     "order_plan_pending",
-    "pre_spec_deep_review_ready",
+    "pre_spec_actionable",
+    "pre_spec_needs_check",
     "tracking_action_required",
     "tracking_hold_review_due",
     "bid_final_decision_pending",
@@ -62,6 +63,17 @@ def get_workload(session: Session, *, now: datetime | None = None) -> WorkloadRe
     counts["blocking_items_open"] = WorkloadCount(
         count_opportunity_action_reason(session, "blocking_item", now=generated_at)
     )
+    # 사전규격 두 칸은 화면이 여는 목록 질의 그 자체로 센다(2026-11-19). 목록 질의는
+    # router에 있으므로 함수 안에서 늦게 들여온다 — 같은 식을 여기 다시 쓰지 않는다.
+    from ..routers.pre_specs import default_view_totals
+
+    pre_spec_totals = default_view_totals(session)
+    if pre_spec_totals is None:
+        counts["pre_spec_actionable"] = WorkloadCount(None, "provider_absent")
+        counts["pre_spec_needs_check"] = WorkloadCount(None, "provider_absent")
+    else:
+        counts["pre_spec_actionable"] = WorkloadCount(pre_spec_totals[0])
+        counts["pre_spec_needs_check"] = WorkloadCount(pre_spec_totals[1])
     counts["human_check_required"] = _sum_parts(counts)
     # RL-01: 가장 최근 브리핑의 대기 추천 수. 브리핑이 없으면 셀 대상이 없다(0으로 접지 않는다).
     pending = count_briefing_pending(session)

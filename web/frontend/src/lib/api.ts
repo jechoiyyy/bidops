@@ -5,7 +5,6 @@ import type {
   BriefingView,
   BidDeltaDecisionQueueResponse,
   OpportunityTrackingDecisionsResponse,
-  OpportunityDeepReviewsResponse,
   WorkloadResponse,
   FeatureFlagsResponse,
   OrderPlanScreeningExecutionCreateRequest,
@@ -923,9 +922,6 @@ export const api = {
 
   getOpportunityTrackingDecisions: (opportunityId: number, options?: ReadRequestOptions) =>
     request<OpportunityTrackingDecisionsResponse>(`/opportunities/${opportunityId}/tracking-decisions`, options),
-
-  getOpportunityDeepReviews: (opportunityId: number, options?: ReadRequestOptions) =>
-    request<OpportunityDeepReviewsResponse>(`/opportunities/${opportunityId}/deep-reviews`, options),
 
   getRuns: () => request<RunListResponse>("/runs"),
 

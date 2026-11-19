@@ -196,6 +196,7 @@ def test_provider_absent_is_null_and_actionable_fails_closed(db_session, registr
     assert actionable["items"] == []
     assert actionable["workspace_counts"] == {
         "actionable": 0,
+        "needs_check": 0,
         "recent": 0,
         "tracking": 0,
         "all": 1,
@@ -291,6 +292,7 @@ def test_recent_uses_any_observation_and_source_run_for_workspace_count(db_sessi
     assert [item["notice_pk"] for item in recent_run_payload["items"]] == [recent.id]
     assert all_payload["workspace_counts"] == {
         "actionable": 0,
+        "needs_check": 0,
         "recent": 1,
         "tracking": 0,
         "all": 3,
@@ -298,7 +300,13 @@ def test_recent_uses_any_observation_and_source_run_for_workspace_count(db_sessi
     assert recent_payload["workspace_counts"]["all"] == 3
 
 
-def test_actionable_union_next_action_and_compact_overview_views(db_session, registry):
+def test_actionable_predicate_next_action_and_compact_overview_views(db_session, registry):
+    """2026-11-19: 검토할 항목 = 추적 결정 없음 ∧ 개요 `completed`·`needs_human_review`.
+
+    옛 술어의 "심층 검토 클릭 대기"(`deep_review_ready_for_click`, 지금 `overview_settled`)는
+    더 이상 목록을 움직이지 않는다 — 개요가 실행 중인 `deep_review` 건은 빠진다.
+    """
+
     projection = _Projection()
     registry.register_overview_document_projection(projection, owner="test")
     attention = _notice(db_session, "ATTENTION")
@@ -321,7 +329,7 @@ def test_actionable_union_next_action_and_compact_overview_views(db_session, reg
     projection.fields.update(
         {
             attention.id: {"auto_preparation_status": "bundle_ready"},
-            deep_review.id: {"auto_preparation_status": "deep_review_ready_for_click"},
+            deep_review.id: {"auto_preparation_status": "overview_settled"},
             decision.id: {"auto_preparation_status": "not_applicable"},
             tracked.id: {"auto_preparation_status": "not_applicable"},
             pending.id: {"auto_preparation_status": "not_applicable"},
@@ -335,10 +343,14 @@ def test_actionable_union_next_action_and_compact_overview_views(db_session, reg
     not_started_view = _list(db_session, overview_view="not_started")
 
     actionable_by_id = {item["notice_pk"]: item for item in actionable["items"]}
-    assert set(actionable_by_id) == {attention.id, deep_review.id, decision.id}
+    assert set(actionable_by_id) == {attention.id, decision.id}
     assert actionable_by_id[attention.id]["next_action"] == "confirm_overview"
-    assert actionable_by_id[deep_review.id]["next_action"] == "open_deep_review"
-    assert actionable_by_id[decision.id]["next_action"] == "decide_tracking"
+    assert actionable_by_id[decision.id]["next_action"] == "review_overview"
+    everything = {item["notice_pk"]: item for item in _list(db_session)["items"]}
+    # 개요가 실행 중이면 다음 행동이 없다. 추적 중인 건의 완료 개요도 안내하지 않는다.
+    assert everything[deep_review.id]["next_action"] is None
+    assert everything[tracked.id]["next_action"] is None
+    assert everything[pending.id]["next_action"] is None
     assert [item["notice_pk"] for item in pending_view["items"]] == [pending.id, deep_review.id]
     assert {item["notice_pk"] for item in completed_view["items"]} == {decision.id, tracked.id}
     assert [item["notice_pk"] for item in not_started_view["items"]] == [not_started.id]
@@ -349,9 +361,9 @@ def test_actionable_union_next_action_and_compact_overview_views(db_session, reg
     ("overview", "auto_status"),
     (
         ("needs_human_review", "bundle_ready"),
-        ("running", "deep_review_ready_for_click"),
+        ("completed", "overview_settled"),
     ),
-    ids=("needs_human_review", "deep_review_ready_for_click"),
+    ids=("needs_human_review", "completed"),
 )
 def test_human_tracking_decision_leaves_actionable_whatever_the_reason(
     db_session, registry, decided, overview, auto_status
@@ -670,3 +682,157 @@ def test_deadline_within_days_window_is_cut_by_seoul_day_and_excludes_unknown(
             _list(db_session, deadline_within_days=invalid)
         assert error.value.status_code == 422
         assert error.value.detail == "deadline_within_days is invalid"
+
+
+# --- 2026-11-19 사전규격 단계 수정안 §3 B: 검토할 항목·확인 필요·다음 행동 -----------
+
+
+def _needs_check_fixture(db_session, projection):
+    """검토할 항목·확인 필요·어느 쪽도 아님을 한 벌로 심는다. 마감은 모두 미래다."""
+
+    future = SEOUL_RECENT_NOW + timedelta(days=3)
+    rows = {
+        key: _notice(db_session, key, deadline_at=future)
+        for key in (
+            "COMPLETED", "HUMAN", "FAILED", "CANCELLED", "BLOCKED", "DRAFT",
+            "NO-DOCUMENT", "AWAITING-FETCH", "RUNNING", "DECIDED-FAILED",
+            "ORIGIN-TRACKED",
+        )
+    }
+    _tracking_link(db_session, rows["DECIDED-FAILED"], tracking_status="계속 추적")
+    # 발주계획에서 온(`추적`) 사업기회라도 추적 결정이 `미선택`이면 검토할 항목이다.
+    _tracking_link(db_session, rows["ORIGIN-TRACKED"], first_stage="order_plan")
+    projection.statuses.update({
+        rows["COMPLETED"].id: "completed",
+        rows["HUMAN"].id: "needs_human_review",
+        rows["FAILED"].id: "failed",
+        rows["CANCELLED"].id: "cancelled",
+        rows["RUNNING"].id: "running",
+        rows["DECIDED-FAILED"].id: "failed",
+        rows["ORIGIN-TRACKED"].id: "completed",
+    })
+    projection.fields.update({
+        rows["COMPLETED"].id: {"auto_preparation_status": "overview_settled"},
+        rows["FAILED"].id: {"auto_preparation_status": "overview_settled"},
+        rows["BLOCKED"].id: {
+            "auto_preparation_status": "blocked",
+            "auto_preparation_reason": "attachments_failed",
+        },
+        rows["DRAFT"].id: {"auto_preparation_status": "bundle_draft"},
+        rows["NO-DOCUMENT"].id: {
+            "auto_preparation_status": "waiting_attachments",
+            "auto_preparation_reason": "no_ready_document",
+        },
+        rows["AWAITING-FETCH"].id: {
+            "auto_preparation_status": "waiting_attachments",
+            "auto_preparation_reason": "awaiting_fetch",
+        },
+        rows["RUNNING"].id: {"auto_preparation_status": "overview_running"},
+    })
+    db_session.commit()
+    return rows
+
+
+def test_failed_overview_and_blocked_preparation_move_to_needs_check(db_session, registry, monkeypatch):
+    monkeypatch.setattr(pre_specs_router, "_now_utc", lambda: SEOUL_RECENT_NOW)
+    projection = _Projection()
+    registry.register_overview_document_projection(projection, owner="test")
+    rows = _needs_check_fixture(db_session, projection)
+
+    actionable = _list(db_session, workspace="actionable", deadline_scope="current")
+    needs_check = _list(db_session, workspace="needs_check", deadline_scope="current")
+
+    actionable_ids = {item["notice_pk"] for item in actionable["items"]}
+    needs_check_ids = {item["notice_pk"] for item in needs_check["items"]}
+    assert actionable_ids == {rows[key].id for key in ("COMPLETED", "HUMAN", "ORIGIN-TRACKED")}
+    assert needs_check_ids == {
+        rows[key].id for key in ("FAILED", "CANCELLED", "BLOCKED", "DRAFT", "NO-DOCUMENT")
+    }
+    # 두 보기는 서로소이고 각 total이 같은 응답의 workspace_counts와 같다.
+    assert not actionable_ids & needs_check_ids
+    assert actionable["total"] == actionable["workspace_counts"]["actionable"] == 3
+    assert needs_check["total"] == needs_check["workspace_counts"]["needs_check"] == 5
+    assert actionable["workspace_counts"]["needs_check"] == 5
+    by_id = {item["notice_pk"]: item for item in actionable["items"] + needs_check["items"]}
+    assert by_id[rows["COMPLETED"].id]["next_action"] == "review_overview"
+    assert by_id[rows["ORIGIN-TRACKED"].id]["next_action"] == "review_overview"
+    assert by_id[rows["HUMAN"].id]["next_action"] == "confirm_overview"
+    # 실패한 개요는 더 이상 "심층 검토 열기"로 올라오지 않는다.
+    assert by_id[rows["FAILED"].id]["next_action"] is None
+    assert {item["next_action"] for item in needs_check["items"]} == {None}
+
+
+def test_needs_check_follows_the_deadline_scope_and_reports_its_split(db_session, registry, monkeypatch):
+    monkeypatch.setattr(pre_specs_router, "_now_utc", lambda: SEOUL_RECENT_NOW)
+    projection = _Projection()
+    registry.register_overview_document_projection(projection, owner="test")
+    open_failed = _notice(db_session, "OPEN-FAILED", deadline_at=SEOUL_RECENT_NOW + timedelta(days=1))
+    passed_failed = _notice(db_session, "PASSED-FAILED", deadline_at=SEOUL_RECENT_NOW - timedelta(days=1))
+    unknown_failed = _notice(db_session, "UNKNOWN-FAILED", deadline_at=None)
+    passed_completed = _notice(db_session, "PASSED-DONE", deadline_at=SEOUL_RECENT_NOW - timedelta(days=1))
+    for notice in (open_failed, passed_failed, unknown_failed):
+        projection.statuses[notice.id] = "failed"
+    projection.statuses[passed_completed.id] = "completed"
+    db_session.commit()
+
+    current = _list(db_session, workspace="needs_check", deadline_scope="current")
+    passed = _list(db_session, workspace="needs_check", deadline_scope="passed")
+
+    assert {item["notice_pk"] for item in current["items"]} == {open_failed.id, unknown_failed.id}
+    assert [item["notice_pk"] for item in passed["items"]] == [passed_failed.id]
+    assert current["needs_check_deadline_scope_counts"] == {"current": 2, "passed": 1}
+    assert passed["needs_check_deadline_scope_counts"] == {"current": 2, "passed": 1}
+    # 검토할 항목의 분할은 그대로 actionable만 센다.
+    assert current["deadline_scope_counts"] == {"current": 0, "passed": 1}
+
+
+def test_default_view_totals_equal_the_list_totals_the_links_open(db_session, registry, monkeypatch):
+    """대시보드·사이드바 건수 = 그 링크가 여는 목록의 total (검토 제외·SW·마감 포함)."""
+
+    monkeypatch.setattr(pre_specs_router, "_now_utc", lambda: SEOUL_RECENT_NOW)
+    projection = _Projection()
+    registry.register_overview_document_projection(projection, owner="test")
+    rows = _needs_check_fixture(db_session, projection)
+    passed = _notice(db_session, "PASSED-COMPLETED", deadline_at=SEOUL_RECENT_NOW - timedelta(days=2))
+    sw_no = _notice(db_session, "SW-N-COMPLETED", deadline_at=None, sw_status="N")
+    excluded = _notice(db_session, "EXCLUDED-COMPLETED", deadline_at=None)
+    for notice in (excluded, rows["CANCELLED"]):
+        notice.review_exclusion_status = "excluded"
+        notice.review_exclusion_actor_name = "테스트 담당자"
+        notice.review_exclusion_reason = "검토 범위 밖"
+        notice.review_exclusion_changed_at = SEOUL_RECENT_NOW
+    for notice in (passed, sw_no, excluded):
+        projection.statuses[notice.id] = "completed"
+    db_session.commit()
+
+    totals = pre_specs_router.default_view_totals(db_session)
+    actionable = _list(db_session, workspace="actionable", deadline_scope="current", sw_only=True)
+    needs_check = _list(db_session, workspace="needs_check", deadline_scope="current", sw_only=True)
+
+    assert totals == (actionable["total"], needs_check["total"])
+    assert totals == (3, 4)
+
+
+def test_default_view_totals_are_unknown_without_the_projection(db_session, registry):
+    _notice(db_session, "NO-PROVIDER")
+    db_session.commit()
+
+    assert pre_specs_router.default_view_totals(db_session) is None
+
+
+def test_confirm_overview_survives_a_tracking_decision(db_session, registry):
+    """사람 범위 확정은 추적 결정과 무관하게 남는다. 개요 확인 안내는 결정 뒤 사라진다."""
+
+    projection = _Projection()
+    registry.register_overview_document_projection(projection, owner="test")
+    human = _notice(db_session, "HUMAN-DECIDED")
+    done = _notice(db_session, "DONE-DECIDED")
+    _tracking_link(db_session, human, tracking_status="계속 추적")
+    _tracking_link(db_session, done, tracking_status="보류")
+    projection.statuses.update({human.id: "needs_human_review", done.id: "completed"})
+    db_session.commit()
+
+    by_id = {item["notice_pk"]: item for item in _list(db_session)["items"]}
+
+    assert by_id[human.id]["next_action"] == "confirm_overview"
+    assert by_id[done.id]["next_action"] is None

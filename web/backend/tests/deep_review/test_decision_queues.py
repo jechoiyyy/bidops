@@ -149,7 +149,7 @@ def test_queue_http_validation_and_safe_empty_shape(queue_session):
 
 
 def add_ready_prespec(session):
-    """심층 검토 클릭 대기(`deep_review_ready_for_click`)가 되는 사전규격 한 건."""
+    """확정 묶음의 개요가 끝난(`overview_settled`, 옛 `deep_review_ready_for_click`) 사전규격 한 건."""
 
     ready = Notice(notice_key=f"prespec:{uuid4()}", source_type="pre_spec",
         qualification_flags_json={"sw_business_status": "N"})
@@ -188,48 +188,20 @@ def test_workload_registration_counts_unlinked_non_sw_prespecs(queue_session, mo
     add_bid(session, owner)
     session.commit()
     projection = PreSpecOverviewDocumentProjection()
-    assert projection.notice_ids_for_auto_preparation_status(session, [ready.id], "deep_review_ready_for_click") == [ready.id]
+    assert projection.notice_ids_for_auto_preparation_status(session, [ready.id], "overview_settled") == [ready.id]
     registry = register_lifecycle_extensions(ExtensionRegistry())
     register_lifecycle_extensions(registry)
     counts = registry.workload_counts(session)
     # 이 사전규격의 개요 run이 `failed`라 `사람 확인 필요`의 개요 하위 건수에도 든다.
+    # 사전규격 `검토할 항목`·`확인 필요` 건수는 deep_review가 세지 않는다(2026-11-19,
+    # lifecycle이 목록 질의로 센다 — tests/app/test_workload_api.py).
     assert counts == {
-        "pre_spec_deep_review_ready": WorkloadCount(1),
         "bid_final_decision_pending": WorkloadCount(1),
         "overview_human_review": WorkloadCount(1),
         # RL-00: deep_review가 값을 세는 `company_attention`. 실회사가 없으면 제공자 부재다.
         "company_attention": WorkloadCount(None, "provider_absent"),
     }
     assert registry.notice_ids_for_auto_preparation_status(session, [ready.id], "not_applicable") == []
-
-
-@pytest.mark.parametrize("decided", ("보류", "계속 추적", "종료"))
-def test_deep_review_ready_count_drops_human_tracking_decisions(queue_session, monkeypatch, decided):
-    """2026-09-22 개정(시안 M7 ③): 타일 건수도 `검토할 항목`과 같은 추적 조건을 쓴다."""
-
-    from app.deep_review.services import auto_preparation
-    monkeypatch.setattr(auto_preparation, "effective_grades", lambda _session, _ids: {})
-    session = queue_session
-    ready = add_ready_prespec(session)
-    owner = opportunity(session, tracking=decided)
-    session.add(OpportunityLink(opportunity_id=owner.id, notice_id=ready.id, stage="notice",
-                                link_type="official", status="확정",
-                                evidence_external_no=ready.notice_key))
-    session.commit()
-    registry = register_lifecycle_extensions(ExtensionRegistry())
-
-    # 자동 준비 상태 자체는 그대로다 — 빠지는 이유는 사람이 내린 추적 결정 하나다.
-    projection = PreSpecOverviewDocumentProjection()
-    assert projection.notice_ids_for_auto_preparation_status(
-        session, [ready.id], "deep_review_ready_for_click") == [ready.id]
-    assert registry.workload_counts(session)["pre_spec_deep_review_ready"] == WorkloadCount(0)
-
-    # 미선택으로 되돌리면 다시 센다.
-    owner.tracking_status = "미선택"
-    owner.tracking_selected_by = None
-    owner.tracking_selected_at = None
-    session.commit()
-    assert registry.workload_counts(session)["pre_spec_deep_review_ready"] == WorkloadCount(1)
 
 
 def test_opportunity_review_list_includes_candidate_links_and_safe_history(queue_session):
@@ -431,10 +403,9 @@ def test_queue_projects_selected_bid_amounts_and_sorts_by_nearest_deadline(queue
 
 def test_workload_empty_counts_are_integer_zero(queue_session):
     counts = register_lifecycle_extensions(ExtensionRegistry()).workload_counts(queue_session)
-    # deep_review가 소유한 세 키다. 대상이 없으면 실제 0이며 제공자 부재(`null`)가 아니다.
+    # deep_review가 소유한 두 키다. 대상이 없으면 실제 0이며 제공자 부재(`null`)가 아니다.
     # RL-00 `company_attention`은 실회사 행이 없으면 0이 아니라 제공자 부재다(spec "REST").
     assert counts == {
-        "pre_spec_deep_review_ready": WorkloadCount(0),
         "bid_final_decision_pending": WorkloadCount(0),
         "overview_human_review": WorkloadCount(0),
         "company_attention": WorkloadCount(None, "provider_absent"),

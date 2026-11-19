@@ -32,11 +32,11 @@ from tests.deep_review.decision_queue_fixtures import comparison, decide, opport
 NOW = datetime(2026, 9, 7, tzinfo=UTC)
 ROOT = Path(__file__).resolve().parents[4]
 RUNTIME_POLICY = (ROOT / "scripts/runtime-privileges.sql").read_text(encoding="utf-8")
-KEYS = ("order_plan_pending", "pre_spec_deep_review_ready", "tracking_action_required",
+KEYS = ("order_plan_pending", "pre_spec_actionable", "pre_spec_needs_check", "tracking_action_required",
         "tracking_hold_review_due", "bid_final_decision_pending",
         "tracking_deadline_imminent", "human_check_required", "overview_human_review",
         "blocking_items_open", "order_plan_new_priority", "company_attention", "briefing_pending")
-(ORDER_PLAN, DEEP_REVIEW, ACTION, HOLD_DUE, FINAL_DECISION,
+(ORDER_PLAN, PRE_SPEC_ACTIONABLE, PRE_SPEC_NEEDS_CHECK, ACTION, HOLD_DUE, FINAL_DECISION,
  IMMINENT, HUMAN_CHECK, OVERVIEW_HUMAN, BLOCKING_OPEN, NEW_PRIORITY, COMPANY_ATTENTION,
  BRIEFING_PENDING) = KEYS
 #: lifecycle이 자기 테이블에서 직접 세는 키. 제공자 값으로 덮이지 않는다.
@@ -104,7 +104,8 @@ def test_workload_empty_module_combinations(workload_session, empty_extensions, 
             # 누적 범위에 완료된 운영 실행이 없다는 사유는 두 발주계획 키에 같이 붙는다.
             expected[ORDER_PLAN] = expected[NEW_PRIORITY] = (None, "no_completed_execution")
         if "deep_review" in modules:
-            expected[DEEP_REVIEW] = (0, None)
+            expected[PRE_SPEC_ACTIONABLE] = (0, None)
+            expected[PRE_SPEC_NEEDS_CHECK] = (0, None)
             expected[FINAL_DECISION] = (0, None)
             expected[OVERVIEW_HUMAN] = (0, None)
             expected[HUMAN_CHECK] = (0, None)
@@ -123,16 +124,19 @@ def test_workload_calls_each_provider_once_and_preserves_values(workload_session
             return self.counts
     with client_for(workload_session, ("lifecycle",)) as client:
         empty_extensions.register_workload_projection(Provider("first", {ORDER_PLAN: provided}), owner="first")
-        # lifecycle이 직접 세는 두 키는 제공자 값으로 덮이지 않는다.
+        # lifecycle이 직접 세는 키는 제공자 값으로 덮이지 않는다. 사전규격 두 칸(2026-11-19)도
+        # lifecycle이 목록 질의로 세므로, 개요 projection이 없으면 제공자 값 대신 null이다.
         empty_extensions.register_workload_projection(Provider("second", {
-            DEEP_REVIEW: WorkloadCount(0), FINAL_DECISION: WorkloadCount(None, "fixture_pending"),
+            PRE_SPEC_ACTIONABLE: WorkloadCount(0), PRE_SPEC_NEEDS_CHECK: WorkloadCount(5),
+            FINAL_DECISION: WorkloadCount(None, "fixture_pending"),
             HOLD_DUE: WorkloadCount(99), BLOCKING_OPEN: WorkloadCount(99),
             # 합계 키를 제공자가 보내도 lifecycle이 두 하위의 합으로 다시 쓴다.
             HUMAN_CHECK: WorkloadCount(99), OVERVIEW_HUMAN: WorkloadCount(4),
         }), owner="second")
         for request_number in (1, 2):
             assert workload(client) == {
-                ORDER_PLAN: (provided.count, provided.unavailable_reason), DEEP_REVIEW: (0, None),
+                ORDER_PLAN: (provided.count, provided.unavailable_reason),
+                PRE_SPEC_ACTIONABLE: (None, "provider_absent"), PRE_SPEC_NEEDS_CHECK: (None, "provider_absent"),
                 ACTION: (0, None), HOLD_DUE: (0, None), FINAL_DECISION: (None, "fixture_pending"),
                 IMMINENT: (0, None), BLOCKING_OPEN: (0, None), OVERVIEW_HUMAN: (4, None),
                 HUMAN_CHECK: (4, None), NEW_PRIORITY: (None, "provider_absent"),
@@ -180,15 +184,17 @@ def add_overview_run(session, notice, status):
         notice_id=notice.id, document_version_id=document.id, work_job_id=job.id, status=status,
         range_source="auto", range_reason_codes=[], policy_digest="0" * 64, model_name="test-model",
         warnings_json=[], reason_codes=[], call_count=0, raw_response_refs=[],
+        # 결과가 남는 종결(`completed`)은 결과 JSON이 있어야 한다(ck_prespec_overview_run_result).
+        result_json={} if status == "completed" else None,
     ))
     session.flush()
 
 
-def add_prespec(session, sw, *, tracking=None):
-    row = add_notice(session, "pre_spec", sw=sw)
+def add_prespec(session, sw, *, tracking=None, overview="failed", deadline_at=None):
+    row = add_notice(session, "pre_spec", sw=sw, deadline_at=deadline_at)
     session.add(DocumentBundle(notice_id=row.id, revision=1, version=1, status="ready", issues_snapshot=[]))
     session.flush()
-    add_overview_run(session, row, "failed")
+    add_overview_run(session, row, overview)
     if tracking:
         link_notice(session, opportunity(session, tracking=tracking), row)
     session.flush()
@@ -290,6 +296,12 @@ def test_workload_matches_real_list_totals_and_tracking_exceptions(
     sections = seed_sections(session)
     non_sw = add_prespec(session, "N")  # No opportunity or order-plan link at all.
     sw = add_prespec(session, "Y", tracking="종료")
+    # 2026-11-19: 목록 기본 보기(검토할 항목, 마감 전·미확인)와 확인 필요의 표본.
+    real_now = datetime.now(UTC)
+    open_failed = add_prespec(session, "Y")
+    open_completed = add_prespec(session, "Y", overview="completed",
+                                 deadline_at=real_now + timedelta(days=3))
+    add_prespec(session, "Y", overview="completed", deadline_at=real_now - timedelta(days=1))
     tracked_non_sw = add_prespec(session, "N")
     tracked_plan = OrderPlan(order_plan_unty_no=f"fixture:{uuid4()}", title="합성 추적 발주계획")
     session.add(tracked_plan)
@@ -323,7 +335,6 @@ def test_workload_matches_real_list_totals_and_tracking_exceptions(
     link_notice(session, undecided, no_date)
     # 마감 임박 추적 건: 실제 시계 기준으로 창 안·창 밖·추적 미선택을 각각 세운다.
     # (workload와 목록이 둘 다 요청 시각을 쓰므로 고정 NOW를 쓸 수 없다.)
-    real_now = datetime.now(UTC)
     imminent_owner = opportunity(session, tracking="계속 추적")
     link_notice(session, imminent_owner, add_notice(session, "pre_spec", deadline_at=real_now + timedelta(days=2)))
     far_owner = opportunity(session, tracking="보류")
@@ -375,29 +386,28 @@ def test_workload_matches_real_list_totals_and_tracking_exceptions(
             assert [row["order_plan_pk"] for row in fresh["items"]] == [new_plan.id]
         else:
             assert values[ORDER_PLAN] == values[NEW_PRIORITY] == (None, "provider_absent")
-        ready = get_json(client, "/api/pre-specs", auto_preparation_status="deep_review_ready_for_click", sw_only=False)
-        # 2026-09-22 개정(시안 M7 ③): 타일 건수의 모집단은 `검토할 항목`이다 — 사람이
-        # 추적 결정을 내린 건(`종료`·`계속 추적`)은 누적 목록에는 남고 건수에서만 빠진다.
-        actionable_ready = get_json(client, "/api/pre-specs", workspace="actionable",
-                                    auto_preparation_status="deep_review_ready_for_click", sw_only=False)
+        # 2026-11-19: 사전규격 두 칸은 그 링크가 여는 목록의 total 그 자체다 —
+        # 실패한 개요(open_failed)는 `확인 필요`로, 마감이 지난 완료 개요와 사람이 추적
+        # 결정을 내린 건(`종료`)·SW=N은 어느 칸에도 들지 않는다.
+        default_view = get_json(client, "/api/pre-specs", workspace="actionable", deadline_scope="current")
+        needs_check = get_json(client, "/api/pre-specs", workspace="needs_check", deadline_scope="current")
         if "deep_review" in modules:
-            assert {row["notice_pk"] for row in ready["items"]} == {non_sw.id, sw.id, tracked_non_sw.id}
-            assert ready["total"] == 3
-            assert values[DEEP_REVIEW] == (actionable_ready["total"], None) == (1, None)
-            assert {row["notice_pk"] for row in actionable_ready["items"]} == {non_sw.id}
-            assert get_json(client, "/api/pre-specs", auto_preparation_status="deep_review_ready_for_click", sw_only=True)["total"] == 2
+            assert values[PRE_SPEC_ACTIONABLE] == (default_view["total"], None) == (1, None)
+            assert [row["notice_pk"] for row in default_view["items"]] == [open_completed.id]
+            assert values[PRE_SPEC_NEEDS_CHECK] == (needs_check["total"], None) == (1, None)
+            assert [row["notice_pk"] for row in needs_check["items"]] == [open_failed.id]
             pending = get_json(client, "/api/bid-delta/decision-queue", status="pending", limit=1)
             assert values[FINAL_DECISION] == (pending["total"], None) == (2, None)
             # 개요 하위 건수는 배타적인 두 상태의 목록 `total` 합과 같다.
             failed = get_json(client, "/api/pre-specs", overview_view="failed", sw_only=False)
             attention = get_json(client, "/api/pre-specs", overview_view="attention", sw_only=False)
-            assert values[OVERVIEW_HUMAN] == (failed["total"] + attention["total"], None) == (3, None)
+            assert values[OVERVIEW_HUMAN] == (failed["total"] + attention["total"], None) == (4, None)
             # 합계는 두 하위의 합이며 서로 다른 단위(공고·사업기회)를 섞는다는 사실이
             # 화면 바닥의 하위 건수 표시로 남는다.
             assert values[HUMAN_CHECK] == (values[OVERVIEW_HUMAN][0] + expected_blocking, None)
         else:
-            assert ready["total"] == actionable_ready["total"] == 0
-            assert values[DEEP_REVIEW] == values[FINAL_DECISION] == (None, "provider_absent")
+            assert values[PRE_SPEC_ACTIONABLE] == values[PRE_SPEC_NEEDS_CHECK] == (None, "provider_absent")
+            assert values[FINAL_DECISION] == (None, "provider_absent")
             assert values[OVERVIEW_HUMAN] == (None, "provider_absent")
             assert values[HUMAN_CHECK] == (None, "sub_count_unavailable")
         if "screening" in modules:
@@ -438,7 +448,9 @@ def test_workload_query_count_is_constant_across_large_population(workload_sessi
                 # 관측 시각이 2026-09-07이라 "전일 이후 처음 관측"은 없다.
                 assert values[NEW_PRIORITY] == (0, None)
             if "deep_review" in modules:
-                assert values[DEEP_REVIEW] == values[FINAL_DECISION] == (total, None)
+                # SW=N·미연결 사전규격이라 목록 기본 보기(sw_only)에 들지 않는다.
+                assert values[PRE_SPEC_ACTIONABLE] == values[PRE_SPEC_NEEDS_CHECK] == (0, None)
+                assert values[FINAL_DECISION] == (total, None)
                 assert values[OVERVIEW_HUMAN] == (total, None)
                 assert values[HUMAN_CHECK] == (total, None)
             else:

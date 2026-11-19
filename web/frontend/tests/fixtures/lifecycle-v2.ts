@@ -1,12 +1,15 @@
 import type {
   BidDeltaDecisionQueueItem,
-  OpportunityDeepReviewsResponse,
   OpportunityTrackingDecisionsResponse,
   PreSpecListItem,
   WorkloadResponse,
 } from "../../src/lib/types";
 
-/** Synthetic wire projections. Production screens must not reconstruct these decisions. */
+/** Synthetic wire projections. Production screens must not reconstruct these decisions.
+ *
+ * 2026-11-19: 이 표본은 옛 `deep_review_ready_for_click`(심층 검토 클릭 대기)였다. 서버가 같은
+ * 상태를 지금은 `overview_settled`·사유 없음·`next_action=review_overview`로 낸다. 이름과 제목은
+ * 기존 spec이 행을 찾는 열쇠라 그대로 둔다. */
 export const clickReadyUnlinkedPreSpec: PreSpecListItem = {
   review_exclusion_status: "included",
   review_exclusion_actor_name: null,
@@ -23,9 +26,9 @@ export const clickReadyUnlinkedPreSpec: PreSpecListItem = {
     basis_run_id: null, assessed_at: null, quality_status: null, reason_codes: [],
     axes: [], verification_items: [], semantic_status: null, semantic_scope: [], latest_run_status: "completed",
   },
-  auto_preparation_status: "deep_review_ready_for_click", auto_preparation_reason: "not_sw_business",
+  auto_preparation_status: "overview_settled", auto_preparation_reason: null,
   latest_deep_review_id: null, first_observed_at: "2026-09-16T00:00:00Z", last_observed_at: "2026-09-16T00:00:00Z",
-  next_action: "open_deep_review",
+  next_action: "review_overview",
 };
 
 const queueBase = {
@@ -53,7 +56,10 @@ export const opportunityTrackingHistory: OpportunityTrackingDecisionsResponse = 
     { kind: "created", link_id: 2002, actor_kind: "system", claimed_name: null, created_at: "2026-08-31T01:30:00Z", note_present: false },
   ],
 };
-export const opportunityDeepReviews: OpportunityDeepReviewsResponse = {
+/** `GET /api/opportunities/{id}/deep-reviews` wire 표본. 백엔드 경로는 남아 있지만 2026-11-19부터
+ * 화면은 부르지 않는다(사업기회 상세의 기존 심층 검토 진입점 제거). 가짜 서버가 실제 계약을
+ * 계속 흉내 내도록 응답만 남긴다. */
+export const opportunityDeepReviews = {
   opportunity_id: 202,
   items: [
     { deep_review_id: "fixture-review", notice_id: 61, notice_title: "합성 사전규격", status: "completed", quality_status: "unmeasured_reference", created_at: "2026-08-26T00:00:00Z", current_attempt_status: "completed", latest_final_opinion: { value: "조건부 추진 검토", decided_at: "2026-08-27T00:00:00Z" } },
@@ -64,7 +70,8 @@ export const unavailableWorkload: WorkloadResponse = {
   generated_at: "2026-09-01T09:00:00Z",
   items: [
     { key: "order_plan_pending", count: null, unavailable_reason: "provider_absent" },
-    { key: "pre_spec_deep_review_ready", count: null, unavailable_reason: "provider_absent" },
+    { key: "pre_spec_actionable", count: null, unavailable_reason: "provider_absent" },
+    { key: "pre_spec_needs_check", count: null, unavailable_reason: "provider_absent" },
     { key: "tracking_action_required", count: 0, unavailable_reason: null },
     { key: "tracking_hold_review_due", count: null, unavailable_reason: "provider_absent" },
     { key: "bid_final_decision_pending", count: null, unavailable_reason: "provider_absent" },
@@ -77,7 +84,8 @@ export const emptyWorkload: WorkloadResponse = {
   generated_at: "2026-09-01T09:00:00Z",
   items: [
     { key: "order_plan_pending", count: 0, unavailable_reason: null },
-    { key: "pre_spec_deep_review_ready", count: 0, unavailable_reason: null },
+    { key: "pre_spec_actionable", count: 0, unavailable_reason: null },
+    { key: "pre_spec_needs_check", count: 0, unavailable_reason: null },
     { key: "tracking_action_required", count: 0, unavailable_reason: null },
     { key: "tracking_hold_review_due", count: 0, unavailable_reason: null },
     { key: "bid_final_decision_pending", count: 0, unavailable_reason: null },

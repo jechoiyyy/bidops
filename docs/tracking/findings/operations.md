@@ -67,7 +67,9 @@
 - 후속: 유휴 worker는 민감 payload 없이 event/exception-class를 계측한다. 지연 재현 시 브라우저 body 완료, 서버 duration/DB wait, host/VM 자원을 같은 시점에 대조한다. timeout 확대·강제 클릭으로 실패를 통과시키지 않는다.
 - 증거: [통합 검증](../../validation-runs/20261117-engine-integration/README.md), `.sdlc/dev-browser-actor-fixed.log`, `frontend-actor-tests.log`. 초기 실패 로그와 trace도 `.sdlc`에 유지한다.
 
-## 첨부 취득 종결에서 부르는 자동 문서 준비가 커밋되지 않는다 (2026-10-15, 미해결)
+## 첨부 취득 종결에서 부르는 자동 문서 준비가 커밋되지 않는다 (2026-10-15, 커밋 해소·정책 경로 브랜치 수정)
+
+- **2026-11-19 정정:** 커밋 결함은 2026-10-18 `c70b299`(RL-03)에서 고쳐졌다 — `fetch_claimed`가 자동 준비 뒤 바깥 transaction을 커밋한다(`prespec_attachments.fetch_claimed`의 B18 주석). 남은 것은 아래 정책 경로 렌더 결함 하나였고, 작업 브랜치 `feat/prespec-stage-phase1`에서 `docker-compose.prod.yml`의 anchor `x-prespec-overview-env`를 web·analysis-worker·prespec-attachment-worker가 함께 병합하도록 고쳤다(compose 렌더 테스트 `test_overview_flag_and_policy_path_render_identically_for_the_three_overview_services`). 운영 반영 전이며 첨부 worker → 개요 run → 호출 경로는 실제 스택에서 끝까지 증명되지 않았다(첫날 감독 전).
 
 - 재현: 첨부 worker(`prespec_attachment` 상시 또는 `--once --notice-id N`)가 공고의 마지막 첨부를
   `완료`로 끝내면 `fetch_claimed`가 `maybe_auto_prepare(session, [notice_id])`를 부른다. 반환값은

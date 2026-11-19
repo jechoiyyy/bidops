@@ -7,8 +7,7 @@ export function documentPanelDefaultOpen(
   autoStatus: PreSpecAutoPreparationStatus | null,
 ): boolean {
   if (bundle === null || (bundle.status !== "ready" && bundle.status !== "superseded")) return true;
-  return autoStatus === "deep_review_ready_for_click"
-    || autoStatus === "blocked"
+  return autoStatus === "blocked"
     || autoStatus === "waiting_attachments"
     || autoStatus === "bundle_draft";
 }
