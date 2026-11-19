@@ -92,8 +92,7 @@ services:
   prespec-attachment-worker:
     <<: *production-app
     # 상시 실행 대상이다(2026-11-19 사전규격 단계 수정안 §5 #7). 기반 파일도 같은 값이지만
-    # host 재시작 뒤 자동 기동은 운영 결정이므로 prod에서 명시한다. analysis-worker는
-    # 사람 확인 뒤 올리는 결정이 아직 대기라 여기서 바꾸지 않는다.
+    # host 재시작 뒤 자동 기동은 운영 결정이므로 prod에서 명시한다.
     restart: unless-stopped
     networks:
     - prespec-egress

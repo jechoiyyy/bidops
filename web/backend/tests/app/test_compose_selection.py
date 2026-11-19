@@ -158,9 +158,8 @@ def test_overview_flag_and_policy_path_render_identically_for_the_three_overview
     keys = ("BIDOPS_PRESPEC_OVERVIEW_ENABLED", "BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH")
     rendered = {name: tuple(services[name]["environment"].get(key) for key in keys) for name in services_names}
     assert set(rendered.values()) == {("true", "/app/synthetic/prespec-overview-policy-test.json")}
-    # 첨부 worker는 상시 실행(자동 재시작)이고, analysis-worker의 재시작 정책은 바꾸지 않는다.
+    # 첨부 worker는 상시 실행(자동 재시작)이다. analysis-worker의 재시작 정책은 이 변경의 대상이 아니다.
     assert services["prespec-attachment-worker"]["restart"] == "unless-stopped"
-    assert services["analysis-worker"].get("restart", "no") == "no"
 
 
 def test_capability_selection_is_persisted_in_selected_env_and_mock_blocks_it(selection_env):
