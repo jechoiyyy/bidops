@@ -1,26 +1,25 @@
 import { useMemo } from "react";
-import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@astryxdesign/core/Button";
-import { Text } from "@astryxdesign/core/Text";
 import { InternationalizationProvider } from "@astryxdesign/core/i18n";
 import koKR from "@astryxdesign/core/locales/ko-KR.json";
-import { Activity, ArrowUpRight, RefreshCw } from "lucide-react";
+import { Activity, RefreshCw } from "lucide-react";
 import { api } from "../lib/api";
 import type { WorkloadKey } from "../lib/types";
 import { formatNumber } from "../lib/format";
-// 타일 보조줄은 1280px에서 세 자리 건수까지 한 줄에 들도록 `필수 검토`를 `필수`로 줄인다(수정안 3B 리뷰).
-import { ORDER_PLAN_REVIEW_TIER_LABEL } from "../lib/glossary";
+import { DECISION_AXIS_LABEL, ORDER_PLAN_REVIEW_TIER_LABEL, TERM_SENSE } from "../lib/glossary";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
 import { DailyCollectionStatus } from "../components/operations/DailyRunStatusLine";
-import { goNoGoReviewTotalQuery, orderPlanViewTotalQuery, preSpecDefaultViewTotalQuery } from "../lib/defaultViewCounts";
-import { LinkButton, Small } from "../components/dashboard/DashboardPrimitives";
+import {
+  goNoGoReviewTotalQuery, opportunityActionRequiredQuery, orderPlanViewTotalQuery, preSpecDefaultViewTotalQuery, preSpecRecentTotalQuery,
+} from "../lib/defaultViewCounts";
+import { CountStrip, DashboardBlock, LinkButton, Small, type DashCount } from "../components/dashboard/DashboardPrimitives";
 import { HoldReviewPanel } from "../components/dashboard/HoldReviewPanel";
 import {
   DeadlineImminentPanel, FinalDecisionPanel, HumanCheckPanel, NewPriorityOrderPlanPanel,
 } from "../components/dashboard/WorkPanels";
 import {
-  DEADLINE_IMMINENT_DAYS, HOLD_REVIEW_LIMIT, WORK_PANEL_LIMIT, previousKstDate, snapshotTime,
+  DEADLINE_IMMINENT_DAYS, HOLD_REVIEW_LIMIT, HOLD_REVIEW_LIST_PATH, WORK_PANEL_LIMIT, previousKstDate, snapshotTime,
 } from "../components/dashboard/dashboardData";
 import "../styles/dashboard-erp.css";
 
@@ -32,12 +31,20 @@ const WORKLOAD_UNAVAILABLE_REASON: Record<string, string> = {
 };
 
 /**
- * 실무자 대시보드(시안 M6 승인 2026-09-22, ADR-0067).
+ * 실무자 대시보드(시안 M6 승인 2026-09-22, ADR-0067; 2026-11-19 설계고도화안 C-8 재편).
  *
- * **회차를 고르지 않아도 완결된다.** 회차 선택기와 회차 의존 패널 넷은 빠졌고
- * (`/runs` 회차 상세·회사 프로필로 간다) 남은 다섯 패널은 전부 누적이다.
- * 각 패널은 `/api/workload`의 건수 키 하나와 기존 목록 API 호출 하나를 짝지어 쓰며,
- * **건수를 목록 길이로 덮지 않고 목록이 비었다고 건수를 0으로 고치지 않는다.**
+ * 맨 위는 일일 수집 묶음(발주계획·공고 두 트랙)이고, 본문은 세 묶음이다.
+ *
+ * - **오늘 결정할 것**: 사람이 결정해야 넘어가는 일 — 필수 검토 발주계획의 추적 결정, 사전규격 검토할
+ *   항목, 최종 Go/No-Go 검토 대상, 기한 지난 보류 재검토, 판정 확인.
+ * - **확인할 것**: 실패·사람 확인·마감 임박처럼 눈으로 봐야 하는 일.
+ * - **새로 볼 것**: 전일(KST) 이후 처음 수집된 것.
+ *
+ * 묶음마다 건수 띠가 있고, **건수 칸은 그 목록의 기본 보기가 정확히 그 건수를 보이도록** 목록 API의
+ * `total`(또는 목록 화면과 같은 판정 함수)을 쓴다(설계고도화안 A-6·C-1). 옛 단계 바로가기 네 칸(01~04)의
+ * 건수는 모두 이 띠로 옮겼다 — 같은 숫자를 두 번 적지 않고, 단계 이동은 사이드바가 같은 건수로 진다.
+ * 묶음 아래 업무 패널은 그대로 상위 5건 목록과 `/api/workload` 바닥 건수를 짝지어 쓰며, **건수를 목록
+ * 길이로 덮지 않고 목록이 비었다고 건수를 0으로 고치지 않는다.**
  */
 export function DashboardPage() {
   return <InternationalizationProvider locale="ko-KR" messages={{ "ko-KR": koKR }}><DashboardWorkspace /></InternationalizationProvider>;
@@ -91,12 +98,14 @@ function DashboardWorkspace() {
     staleTime: 60_000,
   });
 
-  // 업무 타일의 건수는 **링크한 목록의 기본 보기**와 같은 정의다(설계고도화안 C-1·A-6).
+  // 건수 띠의 건수는 **링크한 목록의 기본 보기**와 같은 정의다(설계고도화안 C-1·A-6·C-8).
   // 목록 API의 `total`(또는 같은 판정 함수)을 쓰며 화면이 다른 정의로 다시 세지 않는다.
   const relevantPlanQuery = useQuery(orderPlanViewTotalQuery("relevant"));
   const uncertainPlanQuery = useQuery(orderPlanViewTotalQuery("uncertain"));
   const preSpecViewQuery = useQuery(preSpecDefaultViewTotalQuery());
   const goNoGoViewQuery = useQuery(goNoGoReviewTotalQuery());
+  const actionRequiredQuery = useQuery(opportunityActionRequiredQuery());
+  const recentPreSpecQuery = useQuery(preSpecRecentTotalQuery(newSince));
 
   const workloadItem = (key: WorkloadKey) => (workloadQuery.isSuccess
     ? workloadQuery.data.items.find(entry => entry.key === key)
@@ -117,24 +126,55 @@ function DashboardWorkspace() {
   };
   const workloadBasis = snapshotTime(workloadQuery.data?.generated_at, "Asia/Seoul");
 
-  const refresh = () => {
-    void workloadQuery.refetch(); void deadlineQuery.refetch(); void decisionQuery.refetch();
-    void overviewFailedQuery.refetch(); void overviewAttentionQuery.refetch(); void blockingQuery.refetch();
-    void holdReviewQuery.refetch(); void newPlanQuery.refetch();
-    void relevantPlanQuery.refetch(); void uncertainPlanQuery.refetch(); void preSpecViewQuery.refetch(); void goNoGoViewQuery.refetch();
-  };
-  const isRefreshing = workloadQuery.isFetching || deadlineQuery.isFetching || decisionQuery.isFetching
-    || overviewFailedQuery.isFetching || overviewAttentionQuery.isFetching || blockingQuery.isFetching
-    || holdReviewQuery.isFetching || newPlanQuery.isFetching
-    || relevantPlanQuery.isFetching || uncertainPlanQuery.isFetching || preSpecViewQuery.isFetching || goNoGoViewQuery.isFetching;
+  const allQueries = [
+    workloadQuery, deadlineQuery, decisionQuery, overviewFailedQuery, overviewAttentionQuery, blockingQuery,
+    holdReviewQuery, newPlanQuery, relevantPlanQuery, uncertainPlanQuery, preSpecViewQuery, goNoGoViewQuery,
+    actionRequiredQuery, recentPreSpecQuery,
+  ];
+  const refresh = () => { for (const query of allQueries) void query.refetch(); };
+  const isRefreshing = allQueries.some((query) => query.isFetching);
+
   /** 목록 total 한 개. 못 받으면 0이 아니라 `미확인`이다. */
-  const listCount = (query: { isPending: boolean; isError: boolean; data?: number }) => (query.isPending ? "확인 중" : query.isError || query.data === undefined ? "미확인" : `${formatNumber(query.data)}건`);
+  const countText = (state: { isPending: boolean; isError: boolean }, value: number | undefined) =>
+    (state.isPending ? "확인 중" : state.isError || value === undefined ? "미확인" : `${formatNumber(value)}건`);
+  const listCount = (query: { isPending: boolean; isError: boolean; data?: number }) => countText(query, query.data);
 
   const goNoGoNote = goNoGoViewQuery.isPending
     ? "검토 대상 확인 중"
     : goNoGoViewQuery.isError || !goNoGoViewQuery.data
       ? "검토 대상 미확인"
       : `검토 대상 ${formatNumber(goNoGoViewQuery.data.count)}건${goNoGoViewQuery.data.complete ? "" : " · 받은 범위 기준"}`;
+  const actionData = actionRequiredQuery.data;
+
+  // 오늘 결정할 것: 사람이 정해야 다음으로 넘어가는 일.
+  const decideCounts: DashCount[] = [
+    { key: "order-plan-relevant", label: `${ORDER_PLAN_REVIEW_TIER_LABEL.relevant} 발주계획`, value: listCount(relevantPlanQuery), basis: "추적 결정 대기 · 모델 관련", to: "/order-plans" },
+    { key: "pre-spec-actionable", label: "사전규격 검토할 항목", value: listCount(preSpecViewQuery), basis: "사람 확인·추적 결정 · 마감 전·미확인", to: "/pre-specs" },
+    {
+      key: "go-no-go",
+      label: DECISION_AXIS_LABEL.goNoGo,
+      value: countText(goNoGoViewQuery, goNoGoViewQuery.data?.count),
+      basis: `결정 없음·재검토 필요${goNoGoViewQuery.data && !goNoGoViewQuery.data.complete ? " · 받은 범위 기준" : ""}`,
+      to: "/go-no-go",
+    },
+    { key: "hold-overdue", label: "보류 재검토", value: countText(actionRequiredQuery, actionData?.action_reason_counts?.hold_overdue), basis: "기한 지남 · 14일", to: HOLD_REVIEW_LIST_PATH },
+    // 판정을 사람이 확인했다는 기록과 그 건수를 서버가 아직 주지 않는다. 0으로 적지 않고 집계가 없다고 말한다.
+    { key: "verdict-confirmation", label: DECISION_AXIS_LABEL.verdictConfirmation, value: "집계 없음", basis: "확인 기록 전 · 레코드 판정 탭에서 확인", to: null },
+  ];
+  // 확인할 것: 실패·사람 확인·마감 임박.
+  const checkCounts: DashCount[] = [
+    { key: "action-required", label: "사업기회 조치 필요", value: countText(actionRequiredQuery, actionData?.total), basis: "새 연결·후보·확인 항목·보류 기한", to: "/opportunities" },
+    { key: "overview-attention", label: "개요 사람 확인", value: countText(overviewAttentionQuery, overviewAttentionQuery.data?.total), basis: "사전규격 · 누적", to: "/pre-specs?workspace=all&sw_only=false&overview_view=attention" },
+    { key: "overview-failed", label: "개요 실패", value: countText(overviewFailedQuery, overviewFailedQuery.data?.total), basis: "사전규격 · 누적", to: "/pre-specs?workspace=all&sw_only=false&overview_view=failed" },
+    { key: "blocking", label: "확인 항목 미답변", value: countText(actionRequiredQuery, actionData?.action_reason_counts?.blocking_item), basis: "조치 필요 사업", to: "/opportunities?section=조치 필요&reason=blocking_item" },
+    { key: "deadline", label: "마감 임박 추적 건", value: countText(deadlineQuery, deadlineQuery.data?.total), basis: `${DEADLINE_IMMINENT_DAYS}일 이내`, to: `/opportunities?section=전체&deadline_within_days=${DEADLINE_IMMINENT_DAYS}&sort=deadline` },
+    { key: "order-plan-uncertain", label: `${ORDER_PLAN_REVIEW_TIER_LABEL.uncertain} 발주계획`, value: listCount(uncertainPlanQuery), basis: `모델 ${TERM_SENSE.modelUncertain} · 추적 미선택`, to: "/order-plans?qwen=uncertain&tracking=미선택" },
+  ];
+  // 새로 볼 것: 전일(KST) 이후 처음 수집된 것.
+  const newCounts: DashCount[] = [
+    { key: "new-order-plan", label: "새 관련 발주계획", value: countText(newPlanQuery, newPlanQuery.data?.total), basis: `${newSince.slice(5)} 이후 첫 수집 · 추적 미선택`, to: `/order-plans?qwen=relevant&tracking=미선택&first_observed_from=${newSince}` },
+    { key: "new-pre-spec", label: "새 사전규격", value: listCount(recentPreSpecQuery), basis: `${newSince.slice(5)} 이후 관측 · SW사업대상`, to: `/pre-specs?workspace=recent&observed_from=${newSince}` },
+  ];
 
   // 한 출처라도 실패하면 이 패널의 목록이 완전하다고 말할 수 없으므로 패널째 실패로 적는다.
   const humanCheckState = {
@@ -148,39 +188,43 @@ function DashboardWorkspace() {
       <Button label="새로고침" size="sm" variant="ghost" icon={<RefreshCw aria-hidden="true" />} isDisabled={isRefreshing} onClick={refresh} />
       <LinkButton label="실행 상태" to="/run-status" icon={<Activity aria-hidden="true" />} secondary />
     </div></PageHeaderActions>
-    {/* "어제 일일 실행이 돌았는가"(설계고도화안 A-5). 스케줄이 있다고 말하지 않고 마지막 실행 사실만 적는다. */}
+    {/* "어제 일일 실행이 돌았는가"(설계고도화안 A-5). 발주계획·공고 두 트랙의 마지막 실행 사실만 적는다. */}
     <DailyCollectionStatus />
-    <nav className="dash-journey-strip" aria-label="업무 바로가기 · 회차와 무관한 누적 업무">
-      {[
-        ["01", "발주계획", "추적할 후보 선택", `필수 ${listCount(relevantPlanQuery)} · ${ORDER_PLAN_REVIEW_TIER_LABEL.uncertain} ${listCount(uncertainPlanQuery)} · 새로 ${workloadValue("order_plan_new_priority")}`, "/order-plans"],
-        ["02", "사전규격", "검토 결과·추적 여부 확인", `검토할 항목 ${listCount(preSpecViewQuery)} · 마감 전·미확인`, "/pre-specs"],
-        ["03", "사업기회", "연결·예외 사항 확인", workloadNote("tracking_action_required", "조치 필요"), "/opportunities"],
-        ["04", "최종 Go/No-Go", "입찰 참여 여부 결정", goNoGoNote, "/go-no-go"],
-      ].map(([step, title, action, note, to]) => <Link key={step} className="dash-journey-item" to={to}>
-        <div className="dash-row dash-spread"><div className="dash-row"><Small>{step}</Small><Text weight="semibold" className="dash-journey-title">{title}</Text></div><ArrowUpRight aria-hidden="true" /></div>
-        <Text>{action}</Text><Small>{note}</Small>
-      </Link>)}
-    </nav>
 
-    <div className="dash-work-grid">
-      <DeadlineImminentPanel data={deadlineQuery.data} now={now} windowDays={DEADLINE_IMMINENT_DAYS}
-        state={{ isPending: deadlineQuery.isPending, isError: deadlineQuery.isError, onRetry: () => { void deadlineQuery.refetch(); } }}
-        footBasis={`추적 중·보류 사업 중 ${DEADLINE_IMMINENT_DAYS}일 이내 · ${workloadBasis} 기준`}
-        footCount={workloadNote("tracking_deadline_imminent", "마감 임박", "")} />
-      <FinalDecisionPanel data={decisionQuery.data} now={now}
-        state={{ isPending: decisionQuery.isPending, isError: decisionQuery.isError, onRetry: () => { void decisionQuery.refetch(); } }}
-        footBasis="입찰 마감순" footCount={goNoGoNote} />
-      <HumanCheckPanel failed={overviewFailedQuery.data} attention={overviewAttentionQuery.data} blocking={blockingQuery.data}
-        state={humanCheckState}
-        footBasis={`개요 실패·확인 필요 ${workloadValue("overview_human_review")} · 공고별 확인 항목 ${workloadValue("blocking_items_open")}`}
-        footCount={workloadNote("human_check_required", "사람 확인 필요", "")} />
-      <HoldReviewPanel data={holdReviewQuery.data} isPending={holdReviewQuery.isPending} isError={holdReviewQuery.isError}
-        onRetry={() => { void holdReviewQuery.refetch(); }} overdueNote={workloadNote("tracking_hold_review_due", "기한 지남", "")} now={now} />
-      <NewPriorityOrderPlanPanel data={newPlanQuery.data} newSince={newSince}
-        state={{ isPending: newPlanQuery.isPending, isError: newPlanQuery.isError, onRetry: () => { void newPlanQuery.refetch(); } }}
-        footBasis="전일 수집 이후 처음 관측"
-        footCount={workloadNote("order_plan_new_priority", "추적 미선택", ` 중 상위 ${WORK_PANEL_LIMIT}건`)} />
-    </div>
+    <DashboardBlock id="decide" title="오늘 결정할 것" caption="사람이 정해야 다음 단계로 넘어갑니다.">
+      <CountStrip label="오늘 결정할 것 건수" items={decideCounts} />
+      <div className="dash-work-grid">
+        <FinalDecisionPanel data={decisionQuery.data} now={now}
+          state={{ isPending: decisionQuery.isPending, isError: decisionQuery.isError, onRetry: () => { void decisionQuery.refetch(); } }}
+          footBasis="입찰 마감순" footCount={goNoGoNote} />
+        <HoldReviewPanel data={holdReviewQuery.data} isPending={holdReviewQuery.isPending} isError={holdReviewQuery.isError}
+          onRetry={() => { void holdReviewQuery.refetch(); }} overdueNote={workloadNote("tracking_hold_review_due", "기한 지남", "")} now={now} />
+      </div>
+    </DashboardBlock>
+
+    <DashboardBlock id="check" title="확인할 것" caption="실패·사람 확인·마감 임박을 봅니다.">
+      <CountStrip label="확인할 것 건수" items={checkCounts} />
+      <div className="dash-work-grid">
+        <HumanCheckPanel failed={overviewFailedQuery.data} attention={overviewAttentionQuery.data} blocking={blockingQuery.data}
+          state={humanCheckState}
+          footBasis={`개요 실패·확인 필요 ${workloadValue("overview_human_review")} · 공고별 확인 항목 ${workloadValue("blocking_items_open")}`}
+          footCount={workloadNote("human_check_required", "사람 확인 필요", "")} />
+        <DeadlineImminentPanel data={deadlineQuery.data} now={now} windowDays={DEADLINE_IMMINENT_DAYS}
+          state={{ isPending: deadlineQuery.isPending, isError: deadlineQuery.isError, onRetry: () => { void deadlineQuery.refetch(); } }}
+          footBasis={`추적 중·보류 사업 중 ${DEADLINE_IMMINENT_DAYS}일 이내 · ${workloadBasis} 기준`}
+          footCount={workloadNote("tracking_deadline_imminent", "마감 임박", "")} />
+      </div>
+    </DashboardBlock>
+
+    <DashboardBlock id="new" title="새로 볼 것" caption={`${newSince.slice(5)} 이후 처음 수집된 것입니다.`}>
+      <CountStrip label="새로 볼 것 건수" items={newCounts} />
+      <div className="dash-work-grid">
+        <NewPriorityOrderPlanPanel data={newPlanQuery.data} newSince={newSince}
+          state={{ isPending: newPlanQuery.isPending, isError: newPlanQuery.isError, onRetry: () => { void newPlanQuery.refetch(); } }}
+          footBasis="전일 수집 이후 처음 관측"
+          footCount={workloadNote("order_plan_new_priority", "추적 미선택", ` 중 상위 ${WORK_PANEL_LIMIT}건`)} />
+      </div>
+    </DashboardBlock>
     <footer className="dash-dashboard-foot"><Small>최종 참여 판단은 최종 Go/No-Go에서 진행합니다.</Small></footer>
   </section>;
 }

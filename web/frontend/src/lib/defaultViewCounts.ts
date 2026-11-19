@@ -1,5 +1,5 @@
 import { api } from "./api";
-import type { BidDeltaDecisionQueueItem, PreSpecListQuery, PreSpecListResponse } from "./types";
+import type { BidDeltaDecisionQueueItem, OpportunityListResponse, PreSpecListQuery, PreSpecListResponse } from "./types";
 
 /**
  * 대시보드 타일·사이드바 건수가 **링크한 목록의 기본 보기와 같은 정의**로 세도록 한 곳에 둔다
@@ -44,6 +44,47 @@ export function preSpecDefaultViewTotalQuery() {
     queryFn: ({ signal }: { signal: AbortSignal }) =>
       api.getPreSpecs({ ...PRE_SPEC_DEFAULT_VIEW_QUERY, limit: 1, offset: 0 }, { signal }),
     select: (response: PreSpecListResponse) => response.total,
+    staleTime: 60_000,
+  };
+}
+
+/**
+ * 사전규격 `최근 수집` 보기에 첫 관측일 하한을 건 질의(대시보드 `새로 볼 것`, 설계고도화안 C-8).
+ * `/pre-specs?workspace=recent&observed_from=<YYYY-MM-DD>`가 열릴 때 목록 화면이 보내는 것과 같은 축이다 —
+ * 마감 구간은 `검토할 항목` 밖에서는 `current`, SW사업대상만, 개요 상태 전체, 검토 제외 전체, 상한 없음.
+ */
+export function preSpecRecentQuery(observedFrom: string): PreSpecListQuery {
+  return {
+    workspace: "recent",
+    deadline_scope: "current",
+    sw_only: true,
+    overview_view: "all",
+    review_exclusion: "all",
+    observed_from: observedFrom,
+    sort: "observed",
+  };
+}
+
+export function preSpecRecentTotalQuery(observedFrom: string) {
+  return {
+    queryKey: ["pre-specs", "recent-total", observedFrom] as const,
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      api.getPreSpecs({ ...preSpecRecentQuery(observedFrom), limit: 1, offset: 0 }, { signal }),
+    select: (response: PreSpecListResponse) => response.total,
+    staleTime: 60_000,
+  };
+}
+
+/**
+ * 사업 추적의 기본 구역 `조치 필요`(목록 화면이 주소 없이 열 때의 질의). `total`이 구역 건수이고
+ * `action_reason_counts`가 사유 칩의 건수다 — 사유 칩(`reason=hold_overdue` 등)을 누르면 그 건수의
+ * 목록이 열린다. 캐시는 목록 응답 그대로 둔다(`["opportunities"]` 무효화 대상).
+ */
+export function opportunityActionRequiredQuery() {
+  return {
+    queryKey: ["opportunities", "action-required-total"] as const,
+    queryFn: ({ signal }: { signal: AbortSignal }): Promise<OpportunityListResponse> =>
+      api.getOpportunities({ section: "조치 필요", sort: "created_at", limit: 1, offset: 0 }, { signal }),
     staleTime: 60_000,
   };
 }

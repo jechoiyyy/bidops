@@ -346,44 +346,45 @@ test("주소마다 활성 사이드바 항목은 정확히 하나다", async ({ 
 });
 
 // 승인된 대시보드는 누적 업무 4곳을 회차 자료 위에 고정한다.
+// 설계고도화안 C-8: 옛 단계 바로가기 네 칸의 건수는 세 묶음의 건수 띠로 옮겼다. 네 업무 목록으로 가는
+// 길은 그 띠의 건수 칸이다(`data-count`).
 const DECISION_STRIP_TARGETS = [
-  { title: /발주계획/, pathname: "/order-plans" },
-  { title: /사전규격/, pathname: "/pre-specs" },
-  { title: /사업기회/, pathname: "/opportunities" },
-  { title: /최종 Go\/No-Go/, pathname: "/go-no-go" },
+  { key: "order-plan-relevant", pathname: "/order-plans" },
+  { key: "pre-spec-actionable", pathname: "/pre-specs" },
+  { key: "action-required", pathname: "/opportunities" },
+  { key: "go-no-go", pathname: "/go-no-go" },
 ];
+const countLink = (page: Page, key: string) => page.locator(`.dash-count-item[data-count="${key}"]`).getByRole("link");
 
-test("대시보드 바로가기에서 네 업무 각각으로 이동할 수 있다(회차 선택 상태)", async ({ page }) => {
+test("대시보드 건수 칸에서 네 업무 각각으로 이동할 수 있다(회차 선택 상태)", async ({ page }) => {
   await mockApi(page);
   for (const target of DECISION_STRIP_TARGETS) {
     await page.goto("/?run=20260817-20260823--20260824T090927.138116Z");
-    const strip = page.getByRole("navigation", { name: "업무 바로가기 · 회차와 무관한 누적 업무" });
-    await expect(strip.getByRole("link")).toHaveCount(4);
-    await strip.getByRole("link", { name: target.title }).click();
+    await countLink(page, target.key).click();
     await expect.poll(() => new URL(page.url()).pathname).toMatch(new RegExp(`^${target.pathname}`));
     expect(new URL(page.url()).searchParams.has("run")).toBe(false);
   }
 });
 
-// 타일 건수 = 링크한 목록 기본 보기의 건수(설계고도화안 C-1). 타일의 수와 도착한 목록의 수를 대조한다.
-test("사전규격 타일은 목록 기본 보기(검토할 항목·마감 전)의 건수이고 같은 보기를 연다", async ({ page }) => {
+// 건수 칸 = 링크한 목록 기본 보기의 건수(설계고도화안 C-1·C-8). 칸의 수와 도착한 목록의 수를 대조한다.
+test("사전규격 건수 칸은 목록 기본 보기(검토할 항목·마감 전)의 건수이고 같은 보기를 연다", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
-  const item = page.locator(".dash-journey-strip").getByRole("link", { name: /사전규격/ });
-  await expect(item).toContainText(/검토할 항목 \d+건/);
-  const count = Number((await item.textContent())?.match(/검토할 항목 (\d+)건/)?.[1]);
+  const item = countLink(page, "pre-spec-actionable");
+  await expect(item).toContainText(/검토할 항목\d+건/);
+  const count = Number((await item.textContent())?.match(/검토할 항목(\d+)건/)?.[1]);
   await expect(item).toHaveAttribute("href", "/pre-specs");
   await item.click();
   await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs");
   await expect(page.getByRole("button", { name: /검토할 항목/ }).first()).toContainText(String(count));
 });
 
-test("Go/No-Go 타일은 목록 기본 보기(검토 대상)의 건수이고 같은 보기를 연다", async ({ page }) => {
+test("Go/No-Go 건수 칸은 목록 기본 보기(검토 대상)의 건수이고 같은 보기를 연다", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
-  const item = page.locator(".dash-journey-strip").getByRole("link", { name: /최종 Go\/No-Go/ });
-  await expect(item).toContainText(/검토 대상 \d+건/);
-  const count = Number((await item.textContent())?.match(/검토 대상 (\d+)건/)?.[1]);
+  const item = countLink(page, "go-no-go");
+  await expect(item).toContainText(/Go\/No-Go\d+건/);
+  const count = Number((await item.textContent())?.match(/Go\/No-Go(\d+)건/)?.[1]);
   await expect(item).toHaveAttribute("href", "/go-no-go");
   await item.click();
   await expect(page.getByRole("button", { name: /검토 대상/ }).first()).toContainText(String(count));
@@ -393,8 +394,7 @@ test("회차가 없어도 누적 업무와 공고 판정 이력으로 이동할 
   await mockApi(page);
   await page.route("**/api/runs", route => route.fulfill({ json: { items: [] } }));
   await page.goto("/");
-  const strip = page.locator(".dash-journey-strip");
-  for (const target of DECISION_STRIP_TARGETS) await expect(strip.getByRole("link", { name: target.title })).toBeVisible();
+  for (const target of DECISION_STRIP_TARGETS) await expect(countLink(page, target.key)).toBeVisible();
 });
 
 test("누적 집계 미확인을 0으로 접지 않는다", async ({ page }) => {
@@ -415,9 +415,10 @@ test("누적 집계 미확인을 0으로 접지 않는다", async ({ page }) => 
   await page.route((url) => url.pathname === "/api/pre-specs", (route) => route.fulfill({ status: 503, json: { detail: "합성 장애" } }));
   await page.route((url) => url.pathname === "/api/bid-delta/decision-queue", (route) => route.fulfill({ status: 503, json: { detail: "합성 장애" } }));
   await page.goto("/");
-  const unmeasured = page.locator(".dash-journey-item").filter({ hasText: "미확인" });
-  // 사전규격(목록 실패)·사업기회(provider 없음)·최종 Go/No-Go(목록 실패).
-  await expect(unmeasured).toHaveCount(3);
+  const unmeasured = page.locator(".dash-count-item").filter({ hasText: "미확인" });
+  // 사전규격 목록 실패(검토할 항목·개요 사람 확인·개요 실패·새 사전규격)와 Go/No-Go 대기열 실패.
+  // 사업기회 조치 필요는 workload가 아니라 목록 total을 쓰므로 provider 없음의 영향을 받지 않는다.
+  await expect(unmeasured).toHaveCount(5);
   for (const item of await unmeasured.all()) await expect(item).not.toContainText("0건");
 });
 

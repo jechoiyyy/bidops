@@ -49,7 +49,9 @@ test("공통 셸이 로컬 글꼴과 기능 아이콘 접근성을 지킨다", a
   expect(unnamedButtons).toEqual([]);
 });
 
-test("대시보드는 네 업무를 한 줄에 두고 미확인을 작은 주석으로 표시한다", async ({ page }) => {
+// 설계고도화안 C-8: 옛 단계 바로가기 네 칸 대신 세 묶음의 건수 띠다. 띠는 묶음마다 한 줄이고,
+// 건수를 못 받은 칸은 0이 아니라 `미확인`이다.
+test("대시보드 건수 띠는 묶음마다 한 줄이고 이름이 잘리지 않으며 미확인을 0으로 접지 않는다", async ({ page }) => {
   await mockWorkload(page, { generated_at: "2026-09-01T09:00:00Z", items: [
     { key: "order_plan_pending", count: 24, unavailable_reason: null },
     { key: "pre_spec_deep_review_ready", count: null, unavailable_reason: "provider_absent" },
@@ -63,17 +65,16 @@ test("대시보드는 네 업무를 한 줄에 두고 미확인을 작은 주석
     { key: "order_plan_new_priority", count: 6, unavailable_reason: null },
   ] });
   await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
-  const decisions = page.locator(".dash-journey-item");
-  await expect(decisions).toHaveCount(4);
-  const rows = await decisions.evaluateAll(items => items.map(item => Math.round(item.getBoundingClientRect().top)));
-  expect(new Set(rows).size).toBe(1);
-  const clipped = await decisions.locator(".dash-journey-title").evaluateAll(titles => titles
-    .filter(title => title.scrollWidth - title.clientWidth > 1).map(title => title.textContent));
+  const strips = page.locator(".dash-count-strip");
+  await expect(strips).toHaveCount(3);
+  await expect(page.locator(".dash-count-value").filter({ hasText: "확인 중" })).toHaveCount(0);
+  for (const strip of await strips.all()) {
+    const tops = await strip.locator(".dash-count-item").evaluateAll(items => items.map(item => Math.round(item.getBoundingClientRect().top)));
+    expect(new Set(tops).size).toBe(1);
+  }
+  const clipped = await page.locator(".dash-count-label").evaluateAll(labels => labels
+    .filter(label => label.scrollWidth - label.clientWidth > 1).map(label => label.textContent));
   expect(clipped).toEqual([]);
-  const unavailable = decisions.locator(".dash-small").filter({ hasText: "미확인" });
-  await expect(unavailable).toHaveCount(3);
-  const sizes = await unavailable.evaluateAll(values => values.map(value => Number.parseFloat(getComputedStyle(value).fontSize)));
-  for (const size of sizes) expect(size).toBe(10.8);
 });
 
 test("흡수한 마감·감사 경로가 기존 쿼리를 보존한다", async ({ page }) => {
