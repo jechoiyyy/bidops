@@ -197,7 +197,9 @@ def execute(payload):
         artifacts = {p.name: json.loads(p.read_text()) for p in output.glob("*.json")}
         analysis = artifacts.get("analysis.json")
         if analysis is not None:
-            analysis["source_evidence"] = source_evidence(analysis, payload)
+            analysis["source_evidence"] = source_evidence(
+                analysis, payload, sections=rfp.sections
+            )
             analysis["company_projection"] = {
                 "mapped_fields": projected,
                 "complete": False,
