@@ -160,3 +160,28 @@ mock 실행 한 건의 경로: 요청 검증·idempotency·회사 binding·묶�
 - 통합 엔진의 실제 모델 결과(전송이 없다).
 - 운영이 HWPX 구조를 어느 추출기로 만드는지 확인.
 - 종료된 `bidops-local` volume의 자료 열람.
+
+## 11. 수정 결과 (2026-11-19, 브랜치 `fix/engine-integration-defects`)
+
+엔진 역할 결정(§9-1)과 무관한 결함만 고쳤다. 모델 호출 0회, migration 없음, 운영 무변경. 엔진은 계속 `mock_reference`이며
+이 수정은 실제 분석에 쓸 수 있다는 근거가 아니다. 미병합·미배포다.
+
+| 항목 | 결과 | commit |
+|---|---|---|
+| manifest | 중복 `spend.py` 제거. `files`(원본 bytes의 sha256 + adaptation)는 의미 유지, `replaced_files`(config stub·오프라인 tracing·`__init__` 5개)와 `authored_files`(adapter·runner·그 테스트)는 들여온 bytes의 sha256. `engine_tests/test_manifest.py`가 모든 파일이 한 번씩 있는지와 hash를 원본 저장소 없이 검사한다. `fidelity.py`는 패키지 경로를 인자로 받는다 | `60e8ec0` |
+| D1 | 엔진이 준비도에서 다시 계산하는 `CompanyEvidenceView(profile).company_input_hash`를 넘긴다. BidOps `profile_sha256`은 `analysis.company_projection.source_profile_sha256`에 따로 남는다 | `4187b0f` |
+| facts `unknown` 원인 | **같은 종류의 통합 결함이었다.** facts 단계 stamp는 `rfp.json` 옆 `bundle.json`으로 입력 지문을 만드는데(`provenance.rfp_input_payload`) runner가 그 파일을 쓰지 않아 stamp가 버려지고 `legacy_metadata`(unknown)로 읽혔다. runner가 이미 만든 bundle을 같이 쓴다. 새 실행의 사유는 `missing_fits`(mock 적합 미측정)만 남는다 | `4187b0f` |
+| D3 | 인용 위치를 엔진이 인용한 절의 블록에서 찾는다. 인용 절이 없거나 그 안에 없을 때만 전체를 찾고, 모든 위치에 `location_status=exact|ambiguous`·`basis=cited_section|whole_input`을 붙인다 | `c5d6a8a` |
+| D4 | runner는 정의된 코드(`engine_live_not_approved`·`structure_unavailable`·`invalid_table_coordinates`·`table_too_large`·`input_too_large`·새 `engine_input_invalid`)를 보존하고 나머지만 `engine_pipeline_failed`. worker는 `input_hash_mismatch`·`engine_version_changed`·`engine_unavailable`·`engine_timeout`·`engine_process_failed`·`engine_output_invalid`를 그대로 저장하고 예상 밖 오류만 `engine_execution_failed`. 실패마다 `engine_run.failed` 로그(run id·worker id·코드·예외 클래스 이름만) | `3b3304f` |
+| D5 | mock은 어떤 문장으로도 참가자격을 만들지 않는다. 게이트 경로는 테스트가 `MockRule`로 명시해 돌린다 | `49710b8` |
+| 노출 | `BIDOPS_ENGINE_ANALYSIS_ENABLED`(기본 false). 꺼지면 생성 503 `engine_analysis_disabled`(재요청 replay보다 먼저), worker 슬롯은 claim하지 않음, 조회는 감사용으로 유지. `GET /api/feature-flags`에 `engine_analysis` 추가. compose·env 파일에는 넣지 않았다 | `f6e3b00` |
+| 테스트 공백 | 원본 테스트 16개 파일(+이미 있던 2개)·`report_factory`·합성 fixture를 들여와 `engine_tests` 1,493개. `writer`는 원본 모듈 대신 테스트 전용 `ingest_writer.py`. 실회사 프로필 fixture(`tests/fixtures/knowledge/profile.yaml`)는 복사하지 않아 그것을 읽는 `knowledge_lint`·`knowledge_load`·`past_labels`는 뺐다 | `b7cd802` |
+
+남은 것: 운영 번들의 화면 패널 import 제거(프런트엔드, 다른 작업자가 `engine_analysis` 플래그로 처리), D2(근거 수준 전달),
+상주·제외·자격·지역 투영과 D6(신용등급), D7(묶음 합치기), D8(`input_payload` 보존), `regate.py` 공백, §6의 실사용 전제 전부,
+코어 파서 결함. 이들은 §9의 사용자 결정 뒤에 다룬다.
+
+검증(이 브랜치, 2026-11-19): `engine_tests` 1,493 passed. 백엔드 `test_engine_runs.py`·`test_engine_runs_api.py`·
+`test_feature_flags.py`·`test_runtime_database_privileges.py`를 일회용 PostgreSQL 17.11로 83 passed·1 skipped(SQLite 변형의
+PostgreSQL 전용 검사). 새 회귀 테스트는 수정 전 코드에서 실패하는 것을 확인했다. `fidelity.py`는 manifest의 원본 파일 76개 모두
+`claim==upstream`이다.
