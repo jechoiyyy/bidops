@@ -9,7 +9,7 @@
 | C-2 제품화·일일 실행 | 제품 adapter·DB·API·worker·화면·정책·품질 게이트 구현. v4는 WSL2 이력, Mac은 v5 | [일일 운영 결정](0918_daily-operation/plan.md), [ADR-0072](tracking/decisions/0072-c2-mac-litellm-ollama.md) |
 | C-2 v5 품질 | 2026-10-14 두 pass 게이트 통과. 나쁜 쪽 recall 100%, precision 39.7%, 중요 누락 0, 하루 검토량 73 | [측정 증거](validation-runs/20261014-c2-mac-v5-gate/README.md). PoC 기준이며 새 정책에 승계하지 않음 |
 | RL-00~02 | 회사 근거·브리핑/Slack·타임라인 구현·격리 검증 | [현황](tracking/status.md), 각 기능 status.json |
-| RL-03 | 카드 추출·회사 대조·역할 판단·종합·화면 구현. import 기본 정책 v11 | [실제 실행](validation-runs/2026-10-17-rl/RL-03/README.md), `app/core/config.py` |
+| RL-03 | 카드 추출·회사 대조·역할 판단·종합·화면 구현. import 기본 정책 v11(운영 이미지), RL-10 브랜치는 v12(대조 규칙 v2) | [실제 실행](validation-runs/2026-10-17-rl/RL-03/README.md), `app/core/config.py` |
 | RL-04 | 제안서 6절·수정·검토·PDF 구현. 실제 1건은 partial(4/6절 완료) | [초안 실행](validation-runs/2026-10-17-rl/RL-04/README.md) |
 | RL-05 | 평가·사람 결정 완료, 인수 reject | [인수 결과](validation-runs/2026-10-19-rl/RL-05/README.md): 판정 일치 3/10, 차단 조건 recall 0/7 |
 | 운영 배포 | 11월 19일 main cfc5942·0042·이미지 main-20261119, C-2 v6(상위 150건) 게이트 통과·active·일일 ON, analysis-worker 기동, RL 분석·개요 false, cron 미설치 | [C-2 Top150 기록](validation-runs/20261119-c2-top150/README.md), [앞 단계 운영 기록](validation-runs/20261118-launch-hardening-deploy/README.md). 운영은 Mac 전용 |

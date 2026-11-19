@@ -49,12 +49,14 @@ def test_fixed_argv_and_schema():
     assert luna_identity.RL_POLICY_IDENTITY_V10 == 'analysis-policy-luna-rl-v10'
     # 결정 C20: v11 = role contract card-role-v3 + synthesis contract card-synthesis-v3 (runner image gains both files).
     assert luna_identity.RL_POLICY_IDENTITY_V11 == 'analysis-policy-luna-rl-v11'
+    # RL-10 결정 E1: v12 = v11 with compare rules card-compare-v2 (same contracts; runner unchanged).
+    assert luna_identity.RL_POLICY_IDENTITY_V12 == 'analysis-policy-luna-rl-v12'
     assert luna_identity.COMPANY_POLICY_IDENTITIES == frozenset({
         'analysis-policy-luna-demo-v1', 'analysis-policy-luna-hp-v1', 'analysis-policy-luna-rl-v1',
         'analysis-policy-luna-rl-v2', 'analysis-policy-luna-rl-v3', 'analysis-policy-luna-rl-v4',
         'analysis-policy-luna-rl-v5', 'analysis-policy-luna-rl-v6', 'analysis-policy-luna-rl-v7',
         'analysis-policy-luna-rl-v8', 'analysis-policy-luna-rl-v9', 'analysis-policy-luna-rl-v10',
-        'analysis-policy-luna-rl-v11',
+        'analysis-policy-luna-rl-v11', 'analysis-policy-luna-rl-v12',
     })
     # RL-04 STEP-001: the proposal identity is its own set, never a company deep-review identity.
     assert luna_identity.PROPOSAL_POLICY_IDENTITY == 'proposal-policy-luna-v1'

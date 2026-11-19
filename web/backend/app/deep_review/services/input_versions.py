@@ -75,6 +75,7 @@ from .luna_identity import (
     RL_POLICY_IDENTITY_V9,
     RL_POLICY_IDENTITY_V10,
     RL_POLICY_IDENTITY_V11,
+    RL_POLICY_IDENTITY_V12,
 )
 
 
@@ -127,6 +128,9 @@ RL_LUNA_POLICY_FILE_V10 = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-
 #: RL-05 결정 C20: v10 with role contract v3 / synthesis contract v3 (unit refs and
 #: evidence ids) and the text-constraint value rule.  New immutable file; v1-v10 stay importable.
 RL_LUNA_POLICY_FILE_V11 = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-rl-v11.json")
+#: RL-10 결정 E1: v11 bytes with identity v12, which selects compare rules ``card-compare-v2``.
+#: New immutable file; v1-v11 stay importable.
+RL_LUNA_POLICY_FILE_V12 = CANONICAL_POLICY_FILE.with_name("analysis-policy-luna-rl-v12.json")
 #: RL-04 proposal drafting policy (spec "생성 입력·정책·호출"): the
 #: ``bidops.analysis-policy.v2`` wire with ``purpose="proposal"``,
 #: ``pipeline_version="proposal-v1"`` and the six section stages.  Imported as an
@@ -150,6 +154,7 @@ _LUNA_POLICY_FILES_BY_IDENTITY = {
     RL_POLICY_IDENTITY_V9: RL_LUNA_POLICY_FILE_V9,
     RL_POLICY_IDENTITY_V10: RL_LUNA_POLICY_FILE_V10,
     RL_POLICY_IDENTITY_V11: RL_LUNA_POLICY_FILE_V11,
+    RL_POLICY_IDENTITY_V12: RL_LUNA_POLICY_FILE_V12,
     PROPOSAL_POLICY_IDENTITY: PROPOSAL_LUNA_POLICY_FILE,
 }
 STAGES = (
@@ -1349,6 +1354,7 @@ CARD_SELECTOR_BY_RL_IDENTITY = {
     RL_POLICY_IDENTITY_V9: "card-sections-v3",
     RL_POLICY_IDENTITY_V10: "card-sections-v4",
     RL_POLICY_IDENTITY_V11: "card-sections-v4",
+    RL_POLICY_IDENTITY_V12: "card-sections-v4",
 }
 #: ``stage_schema`` per RL identity (결정 B33): v4 answers ``requirement-extract.v2``.
 STAGE_SCHEMA_BY_RL_IDENTITY = {
@@ -1363,6 +1369,7 @@ STAGE_SCHEMA_BY_RL_IDENTITY = {
     RL_POLICY_IDENTITY_V9: "bidops.requirement-extract.v2",
     RL_POLICY_IDENTITY_V10: "bidops.requirement-extract.v2",
     RL_POLICY_IDENTITY_V11: "bidops.requirement-extract.v2",
+    RL_POLICY_IDENTITY_V12: "bidops.requirement-extract.v2",
 }
 #: ``report_schema`` (synthesis output contract) per RL identity (결정 B55): v9 (and v10,
 #: 결정 C15) answers ``practitioner-verdict.v2``, v11 ``practitioner-verdict.v3`` (결정 C20);
@@ -1372,6 +1379,7 @@ REPORT_SCHEMA_BY_RL_IDENTITY = {
     RL_POLICY_IDENTITY_V9: "bidops.practitioner-verdict.v2",
     RL_POLICY_IDENTITY_V10: "bidops.practitioner-verdict.v2",
     RL_POLICY_IDENTITY_V11: "bidops.practitioner-verdict.v3",
+    RL_POLICY_IDENTITY_V12: "bidops.practitioner-verdict.v3",
 }
 
 
@@ -1743,7 +1751,7 @@ def bundle_context(
 
 
 __all__ = [
-    "CANONICAL_POLICY_FILE", "DEMO_LUNA_POLICY_FILE", "DEMO_LUNA_POLICY_IDENTITY", "HP_LUNA_POLICY_FILE", "LUNA_V4_POLICY_IDENTITY", "RL_LUNA_POLICY_FILE", "RL_LUNA_POLICY_FILE_V2", "RL_LUNA_POLICY_FILE_V3", "RL_LUNA_POLICY_FILE_V4", "RL_LUNA_POLICY_FILE_V5", "RL_LUNA_POLICY_FILE_V6", "RL_LUNA_POLICY_FILE_V7", "RL_LUNA_POLICY_FILE_V8", "RL_LUNA_POLICY_FILE_V9", "RL_LUNA_POLICY_FILE_V10", "RL_LUNA_POLICY_FILE_V11", "REPORT_SCHEMA_BY_RL_IDENTITY", "STAGE_SCHEMA_BY_RL_IDENTITY", "CARD_SELECTOR_BY_RL_IDENTITY", "LUNA_V5_POLICY_FILE", "LUNA_V5_POLICY_IDENTITY", "MODEL_ENDPOINT_REF", "MODEL_NAME", "POLICY_SCHEMA", "PROFILE_SCHEMA_V1", "PROFILE_SCHEMA_V2", "PROFILE_SOURCE_FILE", "STAGES",
+    "CANONICAL_POLICY_FILE", "DEMO_LUNA_POLICY_FILE", "DEMO_LUNA_POLICY_IDENTITY", "HP_LUNA_POLICY_FILE", "LUNA_V4_POLICY_IDENTITY", "RL_LUNA_POLICY_FILE", "RL_LUNA_POLICY_FILE_V2", "RL_LUNA_POLICY_FILE_V3", "RL_LUNA_POLICY_FILE_V4", "RL_LUNA_POLICY_FILE_V5", "RL_LUNA_POLICY_FILE_V6", "RL_LUNA_POLICY_FILE_V7", "RL_LUNA_POLICY_FILE_V8", "RL_LUNA_POLICY_FILE_V9", "RL_LUNA_POLICY_FILE_V10", "RL_LUNA_POLICY_FILE_V11", "RL_LUNA_POLICY_FILE_V12", "REPORT_SCHEMA_BY_RL_IDENTITY", "STAGE_SCHEMA_BY_RL_IDENTITY", "CARD_SELECTOR_BY_RL_IDENTITY", "LUNA_V5_POLICY_FILE", "LUNA_V5_POLICY_IDENTITY", "MODEL_ENDPOINT_REF", "MODEL_NAME", "POLICY_SCHEMA", "PROFILE_SCHEMA_V1", "PROFILE_SCHEMA_V2", "PROFILE_SOURCE_FILE", "STAGES",
     "PROPOSAL_LUNA_POLICY_FILE", "PROPOSAL_PROMPT_MAX_CHARACTERS", "PROPOSAL_SECTION_KEYS",
     "GradeBasis", "InputVersionError", "active_version_ids", "bundle_context", "canonical_json_bytes", "canonical_json_hash",
     "effective_grade_basis", "import_policy_version", "import_profile_version", "load_canonical_policy", "policy_activation_valid",

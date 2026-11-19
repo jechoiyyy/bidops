@@ -1,0 +1,192 @@
+{
+  "schema_version": 2,
+  "feature": "RL-10-compare-blockers",
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "대조 규칙 v2와 회사 값 경로",
+      "model": "complex",
+      "fingerprint": "816f8d8c9fbef4d7e667d97bced7b9a7d20578c7b7fa4acf209e33cffd0a0acc",
+      "status": "done",
+      "updated_at": "2026-11-19T11:43:14+09:00",
+      "note": "브랜치 feat/rl03-compare-blockers. 종단 품질 미측정"
+    },
+    {
+      "id": "STEP-002",
+      "title": "정책 v12와 규칙 선택",
+      "model": "complex",
+      "fingerprint": "31181d3aaf6cda2f6d980c9cba94160fc3bf3f3bfa7e82c71dbe8ae319745228",
+      "status": "done",
+      "updated_at": "2026-11-19T11:43:14+09:00",
+      "note": "브랜치 feat/rl03-compare-blockers. 종단 품질 미측정"
+    },
+    {
+      "id": "STEP-003",
+      "title": "D-2 탐침 재생과 과잉 차단 스캔",
+      "model": "complex",
+      "fingerprint": "fcd37d89f77b7039f66bbba4459730627f8681f5601f68818bb9693461d6b020",
+      "status": "done",
+      "updated_at": "2026-11-19T11:43:14+09:00",
+      "note": "브랜치 feat/rl03-compare-blockers. 종단 품질 미측정"
+    },
+    {
+      "id": "STEP-004",
+      "title": "문서",
+      "model": "complex",
+      "fingerprint": "9ca85c4d4773c4fb6633e4411eae1a78d13db38b43b2831646a19f0d378aa471",
+      "status": "done",
+      "updated_at": "2026-11-19T11:43:14+09:00",
+      "note": "브랜치 feat/rl03-compare-blockers. 종단 품질 미측정"
+    }
+  ],
+  "proof": {
+    "docs": {
+      "result": "pending",
+      "method": "review",
+      "note": "문서 작성·diff check 완료. 독립 검토 미실시",
+      "evidence": null,
+      "exit_code": null,
+      "actor": "leader",
+      "command": "python3 scripts/feature_status.py doctor _",
+      "at": "2026-11-19T11:43:15+09:00",
+      "head": "1c8ee5b80d0e2406665de8c573443436ab3bd728",
+      "source_hash": "1a6a312c733efc5a3312da9404454eef7fe4f55dddd6d8d33bd4e89f316de727",
+      "spec_hash": "7d549723b55c13cd6939eaef6304812b1e9957689bc5fdaf0b8ee800f3e6de0e"
+    },
+    "tests": {
+      "result": "pass",
+      "method": "command",
+      "note": "2026-11-19 영향 파일 27개 SQLite 984 passed/210 skipped(PG 전용). 옛 코드(base 81f29c7) 대상 임시 차단 검사 4 failed 확인 뒤 새 코드에서 v2 통과. 탐침 재생 2회 동일 출력. 모델 호출 0",
+      "evidence": "docs/validation-runs/20261119-rl10-compare-blockers/README.md",
+      "exit_code": 0,
+      "actor": "leader",
+      "command": "bash -lc \"cd web/backend && python -m pytest -q -x -p no:cacheprovider\"",
+      "at": "2026-11-19T11:43:14+09:00",
+      "head": "1c8ee5b80d0e2406665de8c573443436ab3bd728",
+      "source_hash": "1a6a312c733efc5a3312da9404454eef7fe4f55dddd6d8d33bd4e89f316de727",
+      "spec_hash": "7d549723b55c13cd6939eaef6304812b1e9957689bc5fdaf0b8ee800f3e6de0e"
+    },
+    "postgres": {
+      "result": "pass",
+      "method": "command",
+      "note": "같은 27개 파일을 일회용 postgres:17.11(BIDOPS_TEST_POSTGRES_URL)로 1192 passed, 2 skipped(PDF 글꼴 없음). mock v12 실행·compare 재계산·v11->v12 resume 거부 포함. 컨테이너 삭제",
+      "evidence": "docs/validation-runs/20261119-rl10-compare-blockers/README.md",
+      "exit_code": 0,
+      "actor": "leader",
+      "command": "",
+      "at": "2026-11-19T11:43:14+09:00",
+      "head": "1c8ee5b80d0e2406665de8c573443436ab3bd728",
+      "source_hash": "1a6a312c733efc5a3312da9404454eef7fe4f55dddd6d8d33bd4e89f316de727",
+      "spec_hash": "7d549723b55c13cd6939eaef6304812b1e9957689bc5fdaf0b8ee800f3e6de0e"
+    },
+    "frontend": {
+      "result": "not_applicable",
+      "method": "command",
+      "note": "frontend 변경 없음(reason code 화면 라벨 맵 없음)",
+      "evidence": "docs/work/groups/RL/features/RL-10-compare-blockers/spec.md",
+      "exit_code": null,
+      "actor": "leader",
+      "command": "bash -lc \"cd web/frontend && npm run build && npm run test:contrast\"",
+      "at": "2026-11-19T11:43:27+09:00",
+      "head": "1c8ee5b80d0e2406665de8c573443436ab3bd728",
+      "source_hash": "1a6a312c733efc5a3312da9404454eef7fe4f55dddd6d8d33bd4e89f316de727",
+      "spec_hash": "7d549723b55c13cd6939eaef6304812b1e9957689bc5fdaf0b8ee800f3e6de0e"
+    },
+    "api_guard": {
+      "result": "pass",
+      "method": "command",
+      "note": "새 외부 경로 없음. v2 compare가 pref:onsite_cap·excl:*를 참조하면 기존 D2 규칙대로 confirmed 값만 역할 payload에 감. test_verdict_payload_guard·test_transfer_policy 포함 위 실행 통과",
+      "evidence": "docs/work/groups/RL/features/RL-10-compare-blockers/spec.md",
+      "exit_code": 0,
+      "actor": "leader",
+      "command": "",
+      "at": "2026-11-19T11:43:14+09:00",
+      "head": "1c8ee5b80d0e2406665de8c573443436ab3bd728",
+      "source_hash": "1a6a312c733efc5a3312da9404454eef7fe4f55dddd6d8d33bd4e89f316de727",
+      "spec_hash": "7d549723b55c13cd6939eaef6304812b1e9957689bc5fdaf0b8ee800f3e6de0e"
+    },
+    "real_data_run": {
+      "result": "pending",
+      "method": "manual",
+      "note": "종단 증명은 같은 gold 재측정 = Luna 전송, 사용자 승인 대상. 미실행. 회사 근거 구조화 값(onsite_regions·requirement_terms) 확인·등록 선행",
+      "evidence": null,
+      "exit_code": null,
+      "actor": "leader",
+      "command": "",
+      "at": "2026-11-19T11:43:15+09:00",
+      "head": "1c8ee5b80d0e2406665de8c573443436ab3bd728",
+      "source_hash": "1a6a312c733efc5a3312da9404454eef7fe4f55dddd6d8d33bd4e89f316de727",
+      "spec_hash": "7d549723b55c13cd6939eaef6304812b1e9957689bc5fdaf0b8ee800f3e6de0e"
+    }
+  },
+  "notes": [
+    {
+      "at": "2026-11-19T11:36:01+09:00",
+      "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-11-19T11:41:36+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-11-19T11:43:14+09:00",
+      "text": "단계 STEP-001 done: 브랜치 feat/rl03-compare-blockers. 종단 품질 미측정"
+    },
+    {
+      "at": "2026-11-19T11:43:14+09:00",
+      "text": "단계 STEP-002 done: 브랜치 feat/rl03-compare-blockers. 종단 품질 미측정"
+    },
+    {
+      "at": "2026-11-19T11:43:14+09:00",
+      "text": "단계 STEP-003 done: 브랜치 feat/rl03-compare-blockers. 종단 품질 미측정"
+    },
+    {
+      "at": "2026-11-19T11:43:14+09:00",
+      "text": "단계 STEP-004 done: 브랜치 feat/rl03-compare-blockers. 종단 품질 미측정"
+    },
+    {
+      "at": "2026-11-19T11:43:15+09:00",
+      "text": "단계 → review: 구현·결정적 검증 완료(브랜치). 사용자 검토, 회사 값 확인, gold 재측정 승인 대기"
+    }
+  ],
+  "updated_at": "2026-11-19T11:43:27+09:00",
+  "proof_history": [
+    {
+      "key": "tests",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "postgres",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "api_guard",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "real_data_run",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "docs",
+      "previous": {
+        "result": "pending"
+      }
+    },
+    {
+      "key": "frontend",
+      "previous": {
+        "result": "pending"
+      }
+    }
+  ]
+}

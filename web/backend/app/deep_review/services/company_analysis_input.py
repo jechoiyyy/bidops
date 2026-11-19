@@ -499,6 +499,42 @@ def card_fact_value(frozen: Mapping[str, Any], fact_key: str, path: Sequence[str
     path = tuple(path)
     if path not in CARD_COMPARE_FACT_PATHS.get(fact_key, ()):
         raise CompanyAnalysisError("company_input_invalid")
+    return _card_fact_reading(frozen, fact_key, path)
+
+
+# --- RL-10 blocker read allowlist (결정 E1, compare rules ``card-compare-v2``) --------
+#
+# The blocker rules of policy v12 read two more kinds of company value, and only
+# through these paths.  ``CARD_COMPARE_FACT_PATHS`` (and with it the anchor table
+# and every v1..v11 compare) is unchanged.
+#
+# * ``pref:onsite_cap.value.params.onsite_regions`` -- the complete list of 시·도
+#   where the company accepts on-site placement (a string such as ``"대구"`` or
+#   ``"대구, 세종"``).  A person confirms it; source v4 has no such param, so the
+#   reading is ``null`` and the comparison stays unknown.
+# * ``excl:<kind>.value.{excluded,kind,requirement_terms}`` -- a confirmed excluded
+#   field and, when a person filled it, the requirement-level terms of that field.
+
+CARD_BLOCKER_FACT_PATHS: dict[str, tuple[tuple[str, ...], ...]] = {
+    "pref:onsite_cap": (("params", "onsite_regions"),),
+}
+CARD_EXCLUSION_FACT_PREFIX = "excl:"
+CARD_EXCLUSION_FACT_PATHS: tuple[tuple[str, ...], ...] = (("excluded",), ("kind",), ("requirement_terms",))
+
+
+def card_blocker_fact_value(frozen: Mapping[str, Any], fact_key: str, path: Sequence[str]) -> CardFactReading:
+    """Read a ``card-compare-v2`` blocker value; anything outside its allowlist is ``company_input_invalid``."""
+
+    path = tuple(path)
+    allowed = CARD_BLOCKER_FACT_PATHS.get(fact_key)
+    if allowed is None and isinstance(fact_key, str) and fact_key.startswith(CARD_EXCLUSION_FACT_PREFIX):
+        allowed = CARD_EXCLUSION_FACT_PATHS
+    if path not in (allowed or ()):
+        raise CompanyAnalysisError("company_input_invalid")
+    return _card_fact_reading(frozen, fact_key, path)
+
+
+def _card_fact_reading(frozen: Mapping[str, Any], fact_key: str, path: tuple[str, ...]) -> CardFactReading:
     fact = next(
         (row for row in frozen.get("profile_facts", []) if isinstance(row, Mapping) and row.get("fact_key") == fact_key),
         None,
@@ -1513,7 +1549,10 @@ def card_synthesis_transfer(
 
 
 __all__ = [
+    "CARD_BLOCKER_FACT_PATHS",
     "CARD_COMPARE_FACT_PATHS",
+    "CARD_EXCLUSION_FACT_PATHS",
+    "CARD_EXCLUSION_FACT_PREFIX",
     "CARD_CONFIRMED_FACT_KEYS",
     "CARD_EXPECTED_CONCEPT_KEYS",
     "CARD_EXTRACT_V3_UNIT_EXTRA_KEYS",
@@ -1546,6 +1585,7 @@ __all__ = [
     "build_company_analysis_input_v2",
     "card_company_transfer",
     "card_expected_concepts",
+    "card_blocker_fact_value",
     "card_fact_value",
     "card_referenced_fact_keys",
     "card_extract_transfer",

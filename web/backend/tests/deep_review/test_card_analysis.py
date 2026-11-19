@@ -2822,7 +2822,8 @@ def test_c20_role_contract_v3_is_registered_and_carries_refs_only() -> None:
     assert ROLE_CONTRACT_V3 == "card-role-v3" and ROLE_CONTRACT_V3_SCHEMA_VERSION == "bidops.verdict-role.v3"
     assert CONTRACT_SCHEMAS["card-role-v3"] == VERDICT_ROLE_V3_SCHEMA == "verdict-role-v3"
     assert SCHEMA_FILES[VERDICT_ROLE_V3_SCHEMA] == "bidops.verdict-role.v3.json"
-    assert ROLE_CONTRACT_V3_POLICY_IDENTITIES == frozenset({RL_V11})
+    # RL-10 결정 E1: v12 keeps every v11 model-facing contract (only its compare rules differ).
+    assert ROLE_CONTRACT_V3_POLICY_IDENTITIES == frozenset({RL_V11, "analysis-policy-luna-rl-v12"})
     assert ROLE_CONTRACT_V2_POLICY_IDENTITIES == frozenset({"analysis-policy-luna-rl-v10"})  # v10 unchanged
     frozen, _extract, _compare, inputs = _c16_world()
     answer = _role_v3_output(inputs["operations_risk"])
@@ -3142,7 +3143,7 @@ def _c20_rules(frozen, payload, *, relaxed: bool) -> list[list[str]]:
 def test_c20_v11_text_value_may_paraphrase_its_verbatim_quote_and_v10_still_rejects_it() -> None:
     from app.deep_review.services.card_analysis import TEXT_VALUE_RELAXED_POLICY_IDENTITIES
 
-    assert TEXT_VALUE_RELAXED_POLICY_IDENTITIES == frozenset({RL_V11})
+    assert TEXT_VALUE_RELAXED_POLICY_IDENTITIES == frozenset({RL_V11, "analysis-policy-luna-rl-v12"})
     frozen, payload = _c20_text_payload(C20_APPROVAL, value="발주기관의 사전승인",
                                         quote="반드시 발주기관으로부터 사전승인을 받아야 함")
     before = json.dumps(payload, ensure_ascii=False, sort_keys=True)
