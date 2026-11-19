@@ -471,7 +471,11 @@ def test_a_freshly_confirmed_bundle_starts_the_deep_review_in_the_same_pass(
         assert audit is not None and audit.action == AUTO_DEEP_REVIEW_ACTION
 
 
-# --- 화면이 말하는 사유 = 실제로 시작하지 않은 이유 (명세 §6.4·§8) ------------
+# --- 쓰기 경로의 사유와 읽기 경로 (명세 §6.4·§8, 2026-11-19 개정) -------------
+#
+# 2026-11-19: 목록 투영은 기존 §6.4 자동 심층 시작 사유를 더 이상 싣지 않는다
+# (`overview_settled`는 사유 없음). 쓰기 경로의 사유는 그대로이므로 아래 표는
+# 쓰기 경로가 낸 사유와, 읽기 경로가 같은 자리에서 사유를 비운다는 사실을 함께 본다.
 
 
 def _sw_n(session: Session, seeded: SimpleNamespace) -> None:
@@ -499,10 +503,10 @@ def _overview_needs_human(session: Session, seeded: SimpleNamespace) -> None:
         (_overview_needs_human, "overview_not_completed"),
     ],
 )
-def test_the_projection_reports_the_same_reason_the_write_path_used(
+def test_the_write_path_keeps_its_reason_and_the_projection_no_longer_carries_it(
     engine, monkeypatch: pytest.MonkeyPatch, mutate, expected: str
 ):
-    """읽기 시점 재계산이 쓰기 경로와 같은 규칙을 쓴다는 근거."""
+    """쓰기 경로는 지금처럼 막은 사유를 남기고, 화면 투영은 문서 준비 상태만 말한다."""
 
     with Session(engine) as session:
         seeded = _seed(session, monkeypatch)
@@ -513,15 +517,15 @@ def test_the_projection_reports_the_same_reason_the_write_path_used(
         outcome = maybe_auto_start_deep_review(session, seeded.notice_id, service=_service())
 
         assert fields["auto_preparation_status"] == "overview_settled"
-        assert fields["auto_preparation_reason"] == expected
+        assert fields["auto_preparation_reason"] is None
         assert outcome.reason == expected
         assert session.scalar(select(DeepReview)) is None
 
 
-def test_the_fail_closed_reason_reaches_the_rest_field(
+def test_the_fail_closed_reason_stays_on_the_write_path(
     engine, monkeypatch: pytest.MonkeyPatch
 ):
-    """§6.4: active 설정이 없으면 그 사유가 `auto_preparation_reason`으로 보인다."""
+    """§6.4: active 설정이 없으면 쓰기 경로가 fail closed 사유를 남긴다. 화면 투영에는 싣지 않는다."""
 
     with Session(engine) as session:
         seeded = _seed(session, monkeypatch)
@@ -532,7 +536,7 @@ def test_the_fail_closed_reason_reaches_the_rest_field(
         outcome = maybe_auto_start_deep_review(session, seeded.notice_id, service=_service())
 
         assert fields["auto_preparation_status"] == "overview_settled"
-        assert fields["auto_preparation_reason"] == "service_unavailable"
+        assert fields["auto_preparation_reason"] is None
         assert outcome.reason == "service_unavailable"
 
 

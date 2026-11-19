@@ -515,10 +515,14 @@ def _auto_start_rows(session, notice, *, overview_status: str = "completed", in_
     session.commit()
 
 
-def test_pre_specs_show_why_the_deep_review_was_not_started_automatically(
+def test_pre_specs_no_longer_explain_the_legacy_deep_review_auto_start(
     pre_specs_api, monkeypatch
 ):
-    """§6.4: `overview_settled`(옛 `deep_review_ready_for_click`)에는 막은 사유 코드가 붙는다."""
+    """2026-11-19: `overview_settled`(옛 `deep_review_ready_for_click`)는 사유 없이 나간다.
+
+    옛 투영은 기존 §6.4 자동 심층 시작을 막은 사유(`not_sw_business` 등)를 붙였다. 기존
+    심층 검토가 화면에서 내려가 그 사유는 문서 준비의 사유가 아니다.
+    """
 
     session, _engine, refs = pre_specs_api
     monkeypatch.delenv("BIDOPS_ACTIVE_PROFILE_VERSION_ID", raising=False)
@@ -535,15 +539,15 @@ def test_pre_specs_show_why_the_deep_review_was_not_started_automatically(
     items = _items_by_id(_payload(session, sw_only=False))
 
     assert items[refs["sw_no"].id]["auto_preparation_status"] == "overview_settled"
-    assert items[refs["sw_no"].id]["auto_preparation_reason"] == "not_sw_business"
+    assert items[refs["sw_no"].id]["auto_preparation_reason"] is None
     assert items[refs["sw_yes"].id]["auto_preparation_status"] == "overview_settled"
-    assert items[refs["sw_yes"].id]["auto_preparation_reason"] == "overview_not_completed"
+    assert items[refs["sw_yes"].id]["auto_preparation_reason"] is None
 
 
-def test_pre_specs_show_the_fail_closed_reason_when_active_versions_are_missing(
+def test_pre_specs_do_not_show_the_legacy_fail_closed_reason(
     pre_specs_api, monkeypatch
 ):
-    """active profile/policy 설정이 없으면 fail closed 사유가 화면에 보인다."""
+    """2026-11-19: active profile/policy가 없어도 투영은 문서 준비 상태만 말한다."""
 
     monkeypatch.setenv("BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED", "true")
     from app.core.config import get_settings
@@ -557,7 +561,7 @@ def test_pre_specs_show_the_fail_closed_reason_when_active_versions_are_missing(
     item = _items_by_id(_payload(session, sw_only=False))[refs["sw_yes"].id]
 
     assert item["auto_preparation_status"] == "overview_settled"
-    assert item["auto_preparation_reason"] == "service_unavailable"
+    assert item["auto_preparation_reason"] is None
     # 개요 검토 행이 없는 다른 공고는 그대로 null이다. 자리표시자로 채우지 않는다.
     other = _items_by_id(_payload(session, sw_only=False))[refs["sw_no"].id]
     assert other["auto_preparation_reason"] == "grade_not_priority"
