@@ -212,6 +212,193 @@
       "path": "tests/__init__.py",
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "adaptation": "none"
+    },
+    {
+      "path": "tests/test_analysis_readiness.py",
+      "sha256": "8b509d5b56728f8debb69c64f27e688cfbbb5d3ccdcdcd7789c76a4beb18f3ba",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_company_loader.py",
+      "sha256": "b7ef3be7d0f2a7429361509291fe34fe737c7779eb14bd9b0f294c2238385533",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_company_provenance.py",
+      "sha256": "fe5aeec9ef3b4409db0487f7718cf277b3e5561dd59a790216e0f852ba0fd1e0",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_company_schema.py",
+      "sha256": "08c519ea7351dc53c684aa09c85015e84f9daaf257476da2c0ae9f433eb42bd4",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_document.py",
+      "sha256": "76e1bfe5e52920096601b4823c3d8b3f67c8597a9df58454c8dfa60195a4aee2",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_evidence.py",
+      "sha256": "d51f832aa2b3063c765b2d788d6e5b42f4be2f8eef2c716dfd2d14960e81cc52",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_evidence_locations.py",
+      "sha256": "59dd7de045bcea0607bc3fdaa2952beb42030784db524c9f7bfce4fcf98ebc07",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_knowledge_classify.py",
+      "sha256": "2faf0f829d3361accc351a5b74512694fbf94748f3d7a3c23f4732245d8f3b17",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_knowledge_select.py",
+      "sha256": "a2a75e4614ae49e70d6586c28acaf8bf158f7e1043a9e0a9248d8e68282a7872",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_knowledge_portfolio_select.py",
+      "sha256": "cbbab3a768dbd6114fd5ba359fcf2f923fde09ef16fe4a08d6b053cf2503f644",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_merge.py",
+      "sha256": "05b0cbcec3e96448310c82667a7a2c06f3be98587ccc4fcb7369ec0c8a967321",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_pricing.py",
+      "sha256": "0a47f90f6c3127ce26908bee8fac5dd1d650a22f612475c255194467c38b0af2",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_provisional.py",
+      "sha256": "93bf9d2cd70b55b1d5c88f67c6b117f29da0a102f607d0af880fef1d6c53d77b",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_scoring.py",
+      "sha256": "99dacd370c457c27d47d36de288ff5e3cc2198dcb6788e0574b2e4aaec7e2694",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/test_normalize.py",
+      "sha256": "81e82e6ca0d90a3ea1427ae097d6f080561ac2344d0d8fd34ee6b0410e64a469",
+      "adaptation": "import rename",
+      "local_replacements": [
+        [
+          "from engine_tests.ingest_writer import",
+          "from bid_deep_engine.ingest.writer import"
+        ]
+      ]
+    },
+    {
+      "path": "tests/test_models.py",
+      "sha256": "38c23b3a7b6f44342465ec3beeb40cb8f706518abff2321d3aead354c9ac1400",
+      "adaptation": "import rename",
+      "local_replacements": [
+        [
+          "from engine_tests.ingest_writer import",
+          "from bid_deep_engine.ingest.writer import"
+        ]
+      ]
+    },
+    {
+      "path": "tests/report_factory.py",
+      "sha256": "15f1f6e18df363880b7c67ea9a512b11caf2a13a9ad1d68dacda7a4c867620fd",
+      "adaptation": "import rename"
+    },
+    {
+      "path": "tests/fixtures/rfp_req3.json",
+      "sha256": "5906f5e98abd308b6f021e4b93e45b23d10e1939fd90401b39c095c326f3c88d",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/rfp_mini.json",
+      "sha256": "46c24c57b90e57412bb8b33801acdfdec4d421ed036110644a7a801dabf1ce74",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/facts_full.json",
+      "sha256": "15904adcb9478ceb61db0b25c4c0b24fd4de7f28676a1eb308369de4f3369b2c",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge_render_alpha.md",
+      "sha256": "b536500e058661fd5664a99d8c56ab3fc8fdc2d83e879a23ce97bc1828570273",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/raw_mini_hwpx.json",
+      "sha256": "b7834c37a683aa83dbcaf0e4cb0ca7b4ab2b7c2ceb08287503f7a0d00565e4a0",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/raw_mini_pdf.json",
+      "sha256": "013421b9446d5f4b3e7c4be4af47107437d25b729d08bc5c68195d1ad7df230b",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/INDEX.md",
+      "sha256": "182ecbadde74ba6cff34d7686b33979fcf869c7fbdd88e9d822a18375de1e759",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/SCHEMA.md",
+      "sha256": "8a9d56e92081df9983706d54e1a0c91293cfbd7b9e1b55b631382e4b4a8a7f07",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/capabilities/cap-one.md",
+      "sha256": "aa4c965f9fe3c3edfc8b935b91c48a05f6bf6033f076ef8754cfed9a9758b11c",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/capabilities/cap-two.md",
+      "sha256": "13370cb1c652867dd5a797fe6f3c6495c6523a412e474eb7f435baca6c421601",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/capabilities/notes.txt",
+      "sha256": "372bde4fb77021e49f75d0164111ac035ff0e18650deff6ffb0508251a775f29",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/categories/alpha.md",
+      "sha256": "bd44326338c3ee2dd5924746b79f65e33b95050bc1e17f9012b690ca507fddf0",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/categories/beta.md",
+      "sha256": "09a5bc2b0d2ed706c2b474450bc548b818fde64c55bd9b7714592cb2893722d1",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/categories/other.md",
+      "sha256": "0243af405cc3562bd5fdbf200a6d3dec1c64145597505142a711db1cd12ce70e",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/glossary.md",
+      "sha256": "d8e7f48c3f7ad5c965cab780671eada1fe9ef5c58394a016a2c7180b09fe4f4c",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/portfolio/P2024-01.md",
+      "sha256": "22a48282fdc63206ad7563c2397e29c3759c54df5363c769bed9eefc4472a94a",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/profile.portfolio.yaml",
+      "sha256": "a732d8bc0fa200986b7c17d09eef5fcef8ffd053366d8f14c0027afabac7681a",
+      "adaptation": "none"
+    },
+    {
+      "path": "tests/fixtures/knowledge/rules/rule-one.md",
+      "sha256": "6c40e17e8b7dc57255f3fb83b88c149a0ad3e6a1244373a78b90935551933c35",
+      "adaptation": "none"
     }
   ],
   "replaced_files": [
@@ -283,6 +470,11 @@
       "path": "engine_tests/test_runner.py",
       "purpose": "runner boundary tests (readiness, mock transport, error codes)",
       "sha256": "e950d5770f0175ed9ba50ec1b9f8bc756aefb2d7b18dd5d359dbd0d6b5374a80"
+    },
+    {
+      "path": "engine_tests/ingest_writer.py",
+      "purpose": "test-only stand-in for upstream ingest/writer.py (dump_json, write_bundle) used by the vendored test_models/test_normalize",
+      "sha256": "bf8920772b337dff693b50eefea1c6155c06cdd77c9eebcd99143a3bc39e21cf"
     }
   ],
   "excluded_transport_files": [

@@ -1,0 +1,15 @@
+- id: P2024-01
+  client: 합성 발주기관
+  client_type: 지자체
+  title: 2024년 합성 홈페이지 고도화
+  type: 고도화
+  domain: [홈페이지]
+  tech: []
+  period: {start: 2024-03, end: 2024-11}
+  amount_krw: unknown
+  role: 주사업자
+  share_pct: 100
+  completed: true
+  evidence: unknown
+  web_accessibility_cert: unknown
+  egov_framework: unknown
