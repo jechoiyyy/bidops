@@ -175,7 +175,7 @@ export function HumanCheckPanel({ failed, attention, blocking, state, footBasis,
 }
 
 /**
- * 새 우선 검토 발주계획. `모델 판단 관련`은 `qwen_relevance=relevant` 한 값이라
+ * 새 관련 발주계획. `모델 판단 관련`은 `qwen_relevance=relevant` 한 값이라
  * 발주계획 타일의 `검토 후보`(`relevant,uncertain`)와 다른 집합이다(spec §7.3).
  */
 export function NewPriorityOrderPlanPanel({ data, state, footBasis, footCount, newSince }: {
@@ -190,8 +190,8 @@ export function NewPriorityOrderPlanPanel({ data, state, footBasis, footCount, n
     end={<Tag label={qwenRowLabel(item)} />} />);
   // 링크에 `first_observed_from`까지 넘겨야 목록 화면이 패널과 같은 창을 연다(S1).
   const to = `/order-plans?qwen=relevant&tracking=미선택&first_observed_from=${newSince}`;
-  return <WorkPanel title="새 우선 검토 발주계획" to={to} linkLabel="발주계획"
+  return <WorkPanel title="새 관련 발주계획" to={to} linkLabel="발주계획"
     state={state} rows={rows} className="dash-work-wide"
-    emptyTitle="새로 관측된 우선 검토 발주계획이 없습니다" errorTitle="새 우선 검토 발주계획을 불러오지 못했습니다"
+    emptyTitle="새로 관측된 관련 발주계획이 없습니다" errorTitle="새 관련 발주계획을 불러오지 못했습니다"
     footBasis={footBasis} footCount={footCount} />;
 }

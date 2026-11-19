@@ -351,7 +351,7 @@ function serializeTokens(values: Iterable<string>): string {
 }
 
 /**
- * `first_observed_from`은 **URL로만 들어오는 축**이다(S1). 대시보드 `새 우선 검토
+ * `first_observed_from`은 **URL로만 들어오는 축**이다(S1). 대시보드 `새 관련
  * 발주계획` 패널이 자기 목록 호출과 같은 창으로 이 화면을 열기 위한 것이고, 상세
  * 필터에 새 컨트롤을 만들지 않는다. 형식이 아니면 보내지 않는다 — 422를 받는 대신
  * 창을 걸지 않은 목록이 된다. 날짜의 실재 여부는 서버가 본다.
@@ -1764,8 +1764,8 @@ function OrderPlansWorkspace() {
             </WorkspaceFilterContext>
           ) : null}
 
-          {/* 첫 수집 창 줄 — 회차 줄과 같은 자리·같은 방식이다(S1). 대시보드 `새 우선
-              검토 발주계획`이 이 인자로 화면을 열므로, 창이 조용히 목록을 좁히지 않게
+          {/* 첫 수집 창 줄 — 회차 줄과 같은 자리·같은 방식이다(S1). 대시보드 `새 관련
+              발주계획`이 이 인자로 화면을 열므로, 창이 조용히 목록을 좁히지 않게
               접힘과 무관하게 그린다. */}
           {firstObservedFrom ? (
             <WorkspaceFilterContext className="c2l-filter-context">

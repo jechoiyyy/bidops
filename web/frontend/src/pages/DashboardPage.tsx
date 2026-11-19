@@ -36,7 +36,7 @@ const WORKLOAD_UNAVAILABLE_REASON: Record<string, string> = {
  * 맨 위는 일일 수집 묶음(발주계획·공고 두 트랙)이고, 본문은 세 묶음이다.
  *
  * - **오늘 결정할 것**: 사람이 결정해야 넘어가는 일 — 필수 검토 발주계획의 추적 결정, 사전규격 검토할
- *   항목, 최종 Go/No-Go 검토 대상, 기한 지난 보류 재검토, 판정 확인.
+ *   항목, 최종 Go/No-Go 검토 대상, 기한 지난 보류 재검토(판정 확인은 셀 수 있는 기록이 생기면 더한다).
  * - **확인할 것**: 실패·사람 확인·마감 임박처럼 눈으로 봐야 하는 일.
  * - **새로 볼 것**: 전일(KST) 이후 처음 수집된 것.
  *
@@ -158,8 +158,8 @@ function DashboardWorkspace() {
       to: "/go-no-go",
     },
     { key: "hold-overdue", label: "보류 재검토", value: countText(actionRequiredQuery, actionData?.action_reason_counts?.hold_overdue), basis: "기한 지남 · 14일", to: HOLD_REVIEW_LIST_PATH },
-    // 판정을 사람이 확인했다는 기록과 그 건수를 서버가 아직 주지 않는다. 0으로 적지 않고 집계가 없다고 말한다.
-    { key: "verdict-confirmation", label: DECISION_AXIS_LABEL.verdictConfirmation, value: "집계 없음", basis: "확인 기록 전 · 레코드 판정 탭에서 확인", to: null },
+    // 판정 확인은 셀 수 있는 기록이 아직 없어 칸을 두지 않는다(매일 같은 비숫자를 보이지 않는다). 판정 확인 기능이
+    // 생기면 이 자리에 돌아온다. 레코드 헤더의 결정 축 요약 줄에는 `판정 확인` 축이 그대로 있다.
   ];
   // 확인할 것: 실패·사람 확인·마감 임박.
   const checkCounts: DashCount[] = [

@@ -2884,7 +2884,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       expect(listRequests.slice(requestsBeforeClear).every((params) => !params.has("source_run_id"))).toBe(true);
     });
 
-    // S1 — 대시보드 `새 우선 검토 발주계획`이 넘기는 `first_observed_from`. URL로만
+    // S1 — 대시보드 `새 관련 발주계획`이 넘기는 `first_observed_from`. URL로만
     // 들어오는 축이고, 회차 줄과 같은 자리에서 알리고 해제한다. 창은 **서버가** 건다.
     test("URL의 첫 수집 창은 서버로 그대로 나가고 회차 줄과 같은 자리에서 해제된다", async ({ page }) => {
       await mockOrderPlans(page);
