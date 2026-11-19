@@ -79,3 +79,54 @@ def test_table_cells_are_preserved_without_duplicate_paragraphs():
     blocks, tables = raw_blocks(payload)
     assert len(blocks) == len(tables) == 1
     assert tables[0].rows == [["SFR-001", "검색"]]
+
+
+def _duplicate_quote_payload():
+    def block(key, text):
+        return {
+            "document_version_id": "d",
+            "block_key": key,
+            "page": 1,
+            "type": "paragraph",
+            "text": text,
+            "attributes": {},
+        }
+
+    return {
+        "documents": [{"document_version_id": "d", "source_sha256": "a" * 64}],
+        "blocks": [
+            block("b0", "Ⅰ. 사업개요"),
+            block("b1", "보안서약서를 제출한다."),
+            block("b2", "Ⅱ. 제출서류"),
+            block("b3", "보안서약서를 제출한다."),
+        ],
+    }
+
+
+def test_duplicate_quote_is_located_in_the_cited_section_only():
+    from types import SimpleNamespace
+
+    payload = _duplicate_quote_payload()
+    sections = [
+        SimpleNamespace(id="S001", block_start=0, block_end=1),
+        SimpleNamespace(id="S002", block_start=2, block_end=3),
+    ]
+    quote = {"quote": "보안서약서를 제출한다.", "verified": True, "section_id": "S002"}
+    found = source_evidence({"e": quote}, payload, sections=sections)
+    assert [(f["block_key"], f["location_status"], f["basis"]) for f in found] == [
+        ("b3", "exact", "cited_section")
+    ]
+
+
+def test_duplicate_quote_without_a_usable_section_is_marked_ambiguous():
+    from types import SimpleNamespace
+
+    payload = _duplicate_quote_payload()
+    sections = [SimpleNamespace(id="S001", block_start=0, block_end=3)]
+    for cited in (None, "S999", "S001"):
+        quote = {"quote": "보안서약서를 제출한다.", "verified": True, "section_id": cited}
+        found = source_evidence({"e": quote}, payload, sections=sections)
+        assert [f["block_key"] for f in found] == ["b1", "b3"]
+        assert {f["location_status"] for f in found} == {"ambiguous"}
+        expected = "cited_section" if cited == "S001" else "whole_input"
+        assert {f["basis"] for f in found} == {expected}
