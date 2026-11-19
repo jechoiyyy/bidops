@@ -606,12 +606,10 @@ test("⋯ 메뉴는 기존 추적 대화상자를 열고 저장하면 헤더·�
 
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("heading", { name: "추적 상태 변경" })).toBeVisible();
-  await dialog.getByRole("combobox", { name: "추적 상태", exact: true }).click();
-  await page.getByRole("option", { name: "보류", exact: true }).click();
   await dialog.getByRole("combobox", { name: "선택 사유", exact: true }).click();
   await page.getByRole("option", { name: "예산·일정 추가 확인 필요", exact: true }).click();
-  await dialog.getByLabel("결정 기록자", { exact: true }).fill("김담당");
-  await dialog.getByRole("button", { name: "변경 사항 적용", exact: true }).click();
+  await dialog.getByLabel("담당자 이름 (필수)", { exact: true }).fill("김담당");
+  await dialog.getByRole("button", { name: "보류", exact: true }).click();
 
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(trace.trackingPatches).toHaveLength(1);

@@ -2388,6 +2388,14 @@ pre {
   background: var(--surface-card);
 }
 
+/* 추적 결정 입력 한 벌(C-7)의 사유 칸: 드롭다운 · (보조 조작) · 직접 입력을 세로로 쌓는다.
+ * 화면이 자기 배치 class를 함께 주면 그 규칙이 이긴다. */
+.tracking-decision-reason {
+  display: grid;
+  min-width: 0;
+  gap: var(--spacing-2);
+}
+
 .actor-field p,
 .disabled-reason {
   margin: 0;

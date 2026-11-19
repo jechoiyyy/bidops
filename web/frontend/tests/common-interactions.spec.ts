@@ -158,15 +158,9 @@ test("UC-01은 키보드만으로 추적 저장 직전까지 이동하고 비활
   await expectKeyboardTarget(editorToggle, 28);
   await page.keyboard.press("Enter");
 
-  const save = page.getByRole("button", { name: "변경 사항 적용", exact: true });
+  // C-7: 결정 버튼이 곧 고르는 상태다. 아직 아무도 고르지 않은 건이라 `계속 추적`은 `추적 시작`이다.
+  const save = page.getByRole("dialog").getByRole("button", { name: "추적 시작", exact: true });
   await expect(save).toBeDisabled();
-  await expect(page.locator(`#${await save.getAttribute("aria-describedby")}`)).toContainText("추적 상태를 고르십시오");
-  const status = page.getByRole("combobox", { name: "추적 상태", exact: true });
-  await tabTo(page, status);
-  await page.keyboard.press("Enter");
-  await page.keyboard.press("Home");
-  await page.keyboard.press("Enter");
-  await expect(status).toContainText("계속 추적");
   await expect(page.locator(`#${await save.getAttribute("aria-describedby")}`)).toContainText("선택 사유");
 
   const preset = page.getByRole("combobox", { name: "선택 사유", exact: true });
@@ -177,7 +171,7 @@ test("UC-01은 키보드만으로 추적 저장 직전까지 이동하고 비활
   const reason = page.getByLabel("선택 사유 직접 입력");
   await tabTo(page, reason);
   await page.keyboard.type("새 사전규격을 계속 확인합니다.");
-  const actor = page.getByLabel("결정 기록자", { exact: true });
+  const actor = page.getByLabel("담당자 이름 (필수)", { exact: true });
   await tabTo(page, actor);
   await page.keyboard.type("홍길동");
   await tabTo(page, save);
@@ -248,10 +242,8 @@ test("공통 unsaved guard가 옮겨간 예외 작업 입력을 지킨다", asyn
   await openOpportunityDetail(page);
 
   await page.getByRole("button", { name: "추적 상태 변경", exact: true }).click();
-  await page.getByRole("combobox", { name: "추적 상태", exact: true }).click();
-  await page.getByRole("option", { name: "계속 추적", exact: true }).click();
   await page.getByRole("combobox", { name: "선택 사유", exact: true }).click();
-  await page.getByRole("option", { name: "기타", exact: true }).click();
+  await page.getByRole("option", { name: "기타 · 직접 입력", exact: true }).click();
   await page.getByLabel("선택 사유 직접 입력").fill("공통 guard 회귀 검증 초안");
 
   const blocked = await page.evaluate(() => {
@@ -622,14 +614,12 @@ test("UC-05 추적 종료 확인 단계는 취소에 초점이 오고 Esc로 요
   await openOpportunityDetail(page);
 
   await page.getByRole("button", { name: "추적 상태 변경", exact: true }).click();
-  await page.getByRole("combobox", { name: "추적 상태", exact: true }).click();
-  await page.getByRole("option", { name: "종료 · 추적 종료", exact: true }).click();
   await page.getByRole("combobox", { name: "선택 사유", exact: true }).click();
-  await page.getByRole("option", { name: "기타", exact: true }).click();
+  await page.getByRole("option", { name: "기타 · 직접 입력", exact: true }).click();
   await page.getByLabel("선택 사유 직접 입력").fill("현재 범위와 맞지 않아 능동 추적을 종료합니다.");
-  await page.getByLabel("결정 기록자", { exact: true }).fill("홍길동");
+  await page.getByLabel("담당자 이름 (필수)", { exact: true }).fill("홍길동");
 
-  const save = page.getByRole("button", { name: "추적 종료로 변경", exact: true });
+  const save = page.getByRole("dialog").getByRole("button", { name: "추적 종료", exact: true });
   await expect(save).toBeEnabled();
   await tabTo(page, save);
   await page.keyboard.press("Enter");

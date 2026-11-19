@@ -1550,6 +1550,18 @@
   cursor: not-allowed;
 }
 
+/* 결정 버튼은 추적 결정 입력 한 벌(C-7)의 Astryx 버튼이다. 칸·높이만 이 배치가 정한다. */
+.pre-spec-tracking-decision.is-inline .pre-spec-tracking-action > .review-decision-action {
+  grid-column: 3;
+  min-width: 0;
+}
+
+.pre-spec-tracking-decision.is-inline .pre-spec-tracking-action > .review-decision-action .astryx-button {
+  height: var(--tdc-inline-control);
+  min-height: var(--tdc-inline-control);
+  white-space: nowrap;
+}
+
 .pre-spec-tracking-decision.is-inline .pre-spec-tracking-action .disabled-reason {
   grid-column: 1 / -1;
   margin: 0;

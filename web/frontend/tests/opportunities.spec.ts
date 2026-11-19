@@ -777,24 +777,23 @@ test("추적 상태 변경은 사유 선택지와 기타 직접 입력을 갖고
 
   await page.getByRole("button", { name: "추적 상태 변경" }).click();
   const dialog = page.getByRole("dialog");
-  const apply = dialog.getByRole("button", { name: "변경 사항 적용" });
+  // C-7: 상태 드롭다운 대신 결정 버튼이 곧 고르는 상태다(발주계획·사전규격과 같은 한 벌).
+  const apply = dialog.getByRole("button", { name: "보류", exact: true });
   await expect(apply).toBeDisabled();
 
-  await dialog.getByRole("combobox", { name: "추적 상태" }).click();
-  await page.getByRole("option", { name: "보류", exact: true }).click();
   await dialog.getByRole("combobox", { name: "선택 사유" }).click();
   await expect(page.getByRole("option", { name: "예산·일정 추가 확인 필요" })).toBeVisible();
-  await page.getByRole("option", { name: "기타", exact: true }).click();
+  await page.getByRole("option", { name: "기타 · 직접 입력", exact: true }).click();
 
   // 공백만 입력하면 저장할 수 없다.
   await dialog.getByLabel("선택 사유 직접 입력").fill("   ");
-  await dialog.getByLabel("결정 기록자").fill("홍길동");
+  await dialog.getByLabel("담당자 이름 (필수)").fill("홍길동");
   await expect(apply).toBeDisabled();
   await dialog.getByLabel("선택 사유 직접 입력").fill("요구 범위를 확인한 뒤 재검토");
   await expect(apply).toBeEnabled();
   await apply.click();
 
-  await expect(page.getByText("추적 상태를 저장했습니다.")).toBeVisible();
+  await expect(page.getByText("추적 상태를 보류(으)로 기록했습니다.")).toBeVisible();
   expect(trace.patches).toHaveLength(1);
   expect(trace.patches[0].body).toEqual({ tracking_status: "보류", reason: "요구 범위를 확인한 뒤 재검토" });
   expect(trace.patches[0].headers["x-bidops-actor-name"]).toBe("UTF-8''%ED%99%8D%EA%B8%B8%EB%8F%99");
@@ -811,9 +810,10 @@ test("미선택 건은 화면이 대신 상태를 고르지 않고 미선택으�
   await page.getByRole("button", { name: "추적 여부 선택" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("아직 아무도 고르지 않았습니다");
-  await dialog.getByRole("combobox", { name: "추적 상태" }).click();
-  await expect(page.getByRole("option", { name: "미선택" })).toHaveCount(0);
-  await expect(page.getByRole("option", { name: "계속 추적" })).toBeVisible();
+  // 결정 버튼에 `미선택`은 없고, 아직 아무도 고르지 않았으므로 `계속 추적`의 이름은 `추적 시작`이다.
+  await expect(dialog.getByRole("button", { name: "미선택" })).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "추적 시작", exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "추적 시작", exact: true })).toBeDisabled();
 });
 
 test("입력을 남긴 채 닫으면 버릴지 확인하고 계속 작성하면 초안이 남는다", async ({ page }) => {
@@ -823,7 +823,7 @@ test("입력을 남긴 채 닫으면 버릴지 확인하고 계속 작성하면 
   await page.getByRole("button", { name: "추적 상태 변경" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("combobox", { name: "선택 사유" }).click();
-  await page.getByRole("option", { name: "기타", exact: true }).click();
+  await page.getByRole("option", { name: "기타 · 직접 입력", exact: true }).click();
   await dialog.getByLabel("선택 사유 직접 입력").fill("확인 뒤 다시 판단");
   await dialog.getByRole("button", { name: "취소" }).click();
 
@@ -850,12 +850,10 @@ test("추적 종료는 확인 없이 요청이 나가지 않고 취소하면 초
 
   await page.getByRole("button", { name: "추적 상태 변경" }).click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByRole("combobox", { name: "추적 상태" }).click();
-  await page.getByRole("option", { name: "종료 · 추적 종료" }).click();
   await dialog.getByRole("combobox", { name: "선택 사유" }).click();
   await page.getByRole("option", { name: "사업 방향과 맞지 않음" }).click();
-  await dialog.getByLabel("결정 기록자").fill("홍길동");
-  await dialog.getByRole("button", { name: "추적 종료로 변경" }).click();
+  await dialog.getByLabel("담당자 이름 (필수)").fill("홍길동");
+  await dialog.getByRole("button", { name: "추적 종료", exact: true }).click();
 
   const confirm = page.getByRole("alertdialog");
   await expect(confirm).toBeVisible();
@@ -866,11 +864,11 @@ test("추적 종료는 확인 없이 요청이 나가지 않고 취소하면 초
 
   await confirm.getByRole("button", { name: "취소", exact: true }).click();
   expect(trace.patches).toHaveLength(0);
-  await expect(page.getByRole("dialog").getByLabel("결정 기록자")).toHaveValue("홍길동");
+  await expect(page.getByRole("dialog").getByLabel("담당자 이름 (필수)")).toHaveValue("홍길동");
 
-  await page.getByRole("dialog").getByRole("button", { name: "추적 종료로 변경" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "추적 종료", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "종료 상태로 저장", exact: true }).click();
-  await expect(page.getByText("추적 상태를 저장했습니다.")).toBeVisible();
+  await expect(page.getByText("추적 상태를 종료(으)로 기록했습니다.")).toBeVisible();
   expect(trace.patches).toHaveLength(1);
   expect(trace.patches[0].body).toEqual({ tracking_status: "종료", reason: "사업 방향과 맞지 않음" });
 });
@@ -883,11 +881,11 @@ test("추적 저장이 실패하면 초안을 그대로 두고 저장되지 않�
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("combobox", { name: "선택 사유" }).click();
   await page.getByRole("option", { name: "추가 문서와 요구사항 확인 필요" }).click();
-  await dialog.getByLabel("결정 기록자").fill("홍길동");
-  await dialog.getByRole("button", { name: "변경 사항 적용" }).click();
+  await dialog.getByLabel("담당자 이름 (필수)").fill("홍길동");
+  await dialog.getByRole("button", { name: "계속 추적", exact: true }).click();
 
   await expect(dialog).toContainText("저장된 추적 상태는 바뀌지 않았습니다");
-  await expect(dialog.getByLabel("결정 기록자")).toHaveValue("홍길동");
+  await expect(dialog.getByLabel("담당자 이름 (필수)")).toHaveValue("홍길동");
 });
 
 // ---------------------------------------------------------------------------
@@ -1009,7 +1007,7 @@ test("재검토 신호가 있으면 추적 상태 대화상자가 저장 시 새
 
   await openDetail(page, 101);
   await page.getByRole("button", { name: "추적 상태 변경", exact: true }).click();
-  await expect(page.getByRole("dialog")).toContainText("추적 상태·선택 사유·결정 기록자를 함께 남깁니다.");
+  await expect(page.getByRole("dialog")).toContainText("추적 상태·선택 사유·담당자 이름을 함께 남깁니다.");
   await expect(page.getByRole("dialog")).not.toContainText("새 공고 확인도 함께 처리됩니다");
 });
 
