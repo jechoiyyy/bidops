@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge } from "../components/common/Badge";
 import { EmptyState } from "../components/common/EmptyState";
 import { AttachmentPanel } from "../components/notice/AttachmentPanel";
@@ -20,7 +20,6 @@ import { formatDate, formatDateTime, formatPrice, present } from "../lib/format"
 import { describeDeadline } from "../lib/deadline";
 import type { NoticeListItem } from "../lib/types";
 import { gradeVariant } from "../lib/grade";
-import { createDeepReview, getDocumentBundles } from "../components/deep-review/api";
 import "../styles/review-workspace-relaxed.css";
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -86,17 +85,6 @@ export function NoticeDetailPage() {
     enabled: Boolean(runId),
     staleTime: 30_000,
   });
-  const bundleQuery = useQuery({
-    queryKey: ["document-bundles", selectedId],
-    queryFn: () => getDocumentBundles(selectedId as number),
-    enabled: selectedId !== null,
-    staleTime: 30_000,
-  });
-  const [deepReviewActor, setDeepReviewActor] = useState("");
-  const deepReviewMutation = useMutation({
-    mutationFn: (bundleId: string) => createDeepReview(selectedId as number, bundleId, deepReviewActor),
-    onSuccess: (review) => navigate(`/deep-reviews/${review.id}`),
-  });
 
   const notices = noticesQuery.data?.items ?? [];
   const selectedNotice = useMemo(() => notices.find((notice) => notice.id === selectedId), [notices, selectedId]);
@@ -141,11 +129,11 @@ export function NoticeDetailPage() {
       <header className="judgment-page-header">
         <div>
           <div className="judgment-breadcrumb">
-            <span>공고 판정 이력</span>
+            <span>입찰공고 상세</span>
             <span aria-hidden="true">›</span>
             <span className="mono tabular-nums">{detail ? present(detail.notice_key, "식별자 미확인") : "공고 선택"}</span>
           </div>
-          <h2>{detail ? present(detail.title, "공고명 미확인") : "공고 판정 상세"}</h2>
+          <h2>{detail ? present(detail.title, "공고명 미확인") : "입찰공고 상세"}</h2>
           {detail ? (
             <>
               <div className="judgment-page-heading-meta">
@@ -164,10 +152,6 @@ export function NoticeDetailPage() {
           ) : null}
         </div>
         <div className="judgment-page-actions">
-          <Link className="notice-source-link" to={`/queue${searchParams.toString() ? `?${searchParams.toString()}` : ""}`}>
-            검토 대기열
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" /></svg>
-          </Link>
           {detail?.url ? (
             <a className="notice-source-link" href={detail.url} target="_blank" rel="noreferrer">
               나라장터 원문
@@ -190,7 +174,7 @@ export function NoticeDetailPage() {
             ))}
           </div>
         </aside>
-        <section className="judgment-detail-pane" aria-label="공고 판정 상세">
+        <section className="judgment-detail-pane" aria-label="입찰공고 상세">
           {!selectedId ? (
             <EmptyState title="공고를 선택하십시오." description="왼쪽 회차 목록에서 공고를 선택하면 생애주기와 판정 이력이 표시됩니다." />
           ) : detailQuery.isLoading ? (
@@ -208,33 +192,6 @@ export function NoticeDetailPage() {
                 {detailDeadline ? <span className={`queue-detail-deadline is-${detailDeadline.urgency} mono tabular-nums`}>{detailDeadline.label}</span> : null}
                 <span className="mono tabular-nums judgment-published">{detail.published_at ? `공고 ${formatDate(detail.published_at)}` : "공고일 미확인"}</span>
               </div>
-              <section id="document-preparation" className="review-workspace-section judgment-deep-review-section" aria-labelledby="deep-review-entry-title">
-                <div className="review-section-heading">
-                  <div>
-                    <span className="review-section-eyebrow">문서 준비</span>
-                    <h3 id="deep-review-entry-title">심층 검토</h3>
-                  </div>
-                  <span>ready bundle 기반 시작</span>
-                </div>
-                {bundleQuery.isLoading ? <p role="status">문서 bundle 준비 상태를 확인하는 중입니다.</p> : null}
-                {bundleQuery.error ? <p role="status">문서 bundle을 확인할 수 없습니다.</p> : null}
-                {(() => {
-                  const readyBundle = bundleQuery.data?.items.find((bundle) => bundle.status === "ready");
-                  if (!readyBundle) return (
-                    <div className="document-preparation-guidance" role="status">
-                      <strong>안전한 문서 준비가 필요합니다.</strong>
-                      <p>legacy 첨부 이력으로 대신할 수 없습니다. 원문 격리와 악성코드 검사, 변환·구조화, 문서 역할 확인을 거쳐 ready bundle을 확정한 뒤 심층 검토를 시작하십시오.</p>
-                    </div>
-                  );
-                  return (
-                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: 8 }}>
-                      <label>담당자 이름<input aria-label="심층 검토 담당자 이름" value={deepReviewActor} onChange={(event) => setDeepReviewActor(event.target.value)} style={{ display: "block", padding: 7, marginTop: 4 }} /></label>
-                      <button type="button" onClick={() => deepReviewMutation.mutate(readyBundle.id)} disabled={deepReviewMutation.isPending || !deepReviewActor.trim()} style={{ padding: "8px 12px" }}>심층 검토 시작</button>
-                    </div>
-                  );
-                })()}
-                {deepReviewMutation.error ? <p role="alert">심층 검토를 시작할 수 없습니다.</p> : null}
-              </section>
               <section className="review-workspace-section judgment-overview-section" aria-labelledby="judgment-overview-heading">
                 <div className="review-section-heading">
                   <div>
@@ -280,7 +237,7 @@ export function NoticeDetailPage() {
                   </div>
                   <span>원문·관점·확인 항목</span>
                 </div>
-                <AttachmentPanel noticePk={detail.id} attachments={detail.attachments} documentPreparationHref="#document-preparation" />
+                <AttachmentPanel noticePk={detail.id} attachments={detail.attachments} />
                 <PerspectiveTable perspectives={detail.judgment?.perspectives ?? []} />
                 <div className="notice-review-grid">
                   <CounterargumentList items={detail.judgment?.counterarguments ?? []} />

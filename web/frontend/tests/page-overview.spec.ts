@@ -66,11 +66,13 @@ for (const width of [1280, 1440]) {
       'href',
       `/api/pre-specs/991/overview/runs/${overviewCompletedRunFixture.id}/pdf#page=3`,
     );
-    // 심층 검토가 없는 건(fixture의 `latest_deep_review_id`는 null)이라 참여
-    // 조건·위험 및 미확인 사항 두 열 모두 "심층 검토에서 확인" 안내만 남는다.
+    // 2026-11-19: ④ 첫 열은 기존 심층 검토 보고서 대신 사업기회의 RL 판정 요약이다. 판정이
+    // 없는 사업(가짜 서버의 200 `none`)이면 "판정 없음 — 추적 후 요청"이고, 개요 결과는 판정
+    // 열에도 위험 열에도 옮겨 쓰지 않는다.
     const conditions = page.locator('#ps-conditions');
-    await expect(conditions.locator('#ps-conditions-list-title')).toBeVisible();
-    await expect(conditions.getByText('심층 검토에서 확인')).toHaveCount(2);
+    await expect(conditions.locator('#ps-conditions-list-title')).toHaveText('참여 판정');
+    await expect(conditions.getByText('판정 없음 — 추적 후 요청')).toBeVisible();
+    await expect(conditions.getByText('심층 검토에서 확인')).toHaveCount(0);
     await expect(conditions.locator('.ps-risks')).toHaveCount(0);
 
     // 주장 ID는 ⑤ 근거 목록에서 빠지고 ⑥ 접힌 `기술 정보`에서 전문으로 읽힌다

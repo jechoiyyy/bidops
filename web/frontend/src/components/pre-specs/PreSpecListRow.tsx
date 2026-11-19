@@ -15,7 +15,6 @@ import {
   trackingLabel,
 } from "../../lib/preSpecViews";
 import type { KeyboardEventHandler } from "react";
-import { displayAssessmentLabel } from "../../lib/grade";
 import type { PreSpecListItem } from "../../lib/types";
 import type { RowKeyboardNavigationRowProps } from "../common/useRowKeyboardNavigation";
 
@@ -34,7 +33,7 @@ export function DeadlineMark({ value }: { value: string | null }) {
  * 왼쪽 열은 사업명(16px, 굵게) → 발주기관(16px) → 예산·발견 구분(14px) → 개요 상태와
  * 추적 상태(14px)를 그대로 쌓는다. 행에서 먼저 읽혀야 하는 것은 사업명이므로 시안의
  * 두 줄 차례를 뒤집었다(사용자 정정). 오른쪽 열은 의견등록 마감뿐이며 D-day와 짧은
- * 날짜만 둔다. 정확한 일시·금액과 등급·자동 준비 같은 나머지 사실은 선택한 건의
+ * 날짜만 둔다. 정확한 일시·금액과 자동 준비 같은 나머지 사실은 선택한 건의
  * 상세가 보여 준다 — 목록에서 같은 사실을 강한 배지로 반복하지 않는다.
  *
  * 행은 스스로 판정하지 않는다. 서버가 준 상태를 옮길 뿐이고, 사업명을 눌러도
@@ -87,19 +86,17 @@ export function PreSpecRow({
                 <span>{swNote}</span>
               </>
             ) : null}
-            {/* 등급은 글자 토큰 하나다(ADR-0055 결정 2). 색으로 뜻을 전하지 않고,
-                판정 없음을 특정 등급으로 접지 않는다. 출처는 상세가 갖는다. */}
-            <span aria-hidden="true">·</span>
+            {/* 등급 토큰과 기존 심층 검토 상태는 2026-11-19에 행에서 내려갔다(사전규격 단계
+                수정안 §3 B — C-1 공고 판정과 기존 심층 검토를 화면에서 내림). */}
             {/* 제외된 건은 누가·언제·왜 뺐는지 함께 읽어야 복원을 판단할 수 있다
                 (spec §6.2). 제외 건은 전체 이력 보기에만 나온다. */}
             {item.review_exclusion_status === "excluded" ? (
               <>
+                <span aria-hidden="true">·</span>
                 <Token size="sm" label="검토 제외" color="default" />
                 <span className="pre-specs-row-exclusion">{preSpecExclusionRecord(item)}</span>
               </>
             ) : null}
-            {item.latest_deep_review_status ? <span>심층검토 {{ queued: "대기", running: "분석 중", completed: "완료", failed: "실패" }[item.latest_deep_review_status]}</span> : null}
-            <span className="pre-specs-row-grade">{displayAssessmentLabel(item.display_assessment)}</span>
             {item.kept_by_tracking ? (
               <>
                 <span aria-hidden="true">·</span>

@@ -155,8 +155,9 @@ test.describe("실행 상태", () => {
     await expect(gradeSection).toContainText("우선 검토");
     await expect(gradeSection).toContainText("6건");
     await expect(gradeSection).toContainText("제외");
-    const gradeLink = gradeSection.getByRole("link", { name: "6건" });
-    await expect(gradeLink).toHaveAttribute("href", `/queue?run=${encodeURIComponent(RUN_ID)}&grade=${encodeURIComponent("우선 검토")}`);
+    // 2026-11-19: 판정 대기열(`/queue`)로 가는 링크는 내렸다(C-1 미가동). 건수는 글자로 남는다.
+    await expect(gradeSection.getByRole("link", { name: "6건" })).toHaveCount(0);
+    await expect(gradeSection.locator('a[href^="/queue"]')).toHaveCount(0);
 
     const validationSection = section(page, "검증 지표");
     // 감사 표본 누락은 0건이 아니고, 누락률 자체는 계산하지 않는다는 문구를 지우지 않는다.

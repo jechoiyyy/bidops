@@ -24,7 +24,9 @@ test("문서 준비 기본 열림은 조치와 처리 중 폴링을 우선한다
     expect(documentPanelDefaultOpen(bundle(status), "deep_review_started"), status).toBe(true);
   }
   const cases: [PreSpecAutoPreparationStatus, boolean][] = [
-    ["deep_review_ready_for_click", true],
+    // 2026-11-19: 개요가 끝난 확정 묶음(옛 `deep_review_ready_for_click`)은 심층 검토를 누를
+    // 자리가 없어졌으므로 접힌 기본값이다.
+    ["overview_settled", false],
     ["blocked", true],
     ["waiting_attachments", true],
     ["bundle_draft", true],

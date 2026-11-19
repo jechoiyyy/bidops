@@ -199,7 +199,9 @@ export interface NoticeListResponse {
 }
 
 export type PreSpecOrigin = "추적" | "신규";
-export type PreSpecWorkspace = "actionable" | "recent" | "tracking" | "all";
+/** `needs_check`(확인 필요, 2026-11-19): 추적 결정이 없는데 개요가 결과 없이 끝났거나
+ * 문서 준비가 사람 없이는 끝나지 않는 건. `actionable`과 서로소다. */
+export type PreSpecWorkspace = "actionable" | "needs_check" | "recent" | "tracking" | "all";
 export type PreSpecOverviewView =
   | "all"
   | "attention"
@@ -213,7 +215,9 @@ export type PreSpecDeadlineStatus = "open" | "passed" | "unknown";
  * `마감 전`과 `마감 미확인`(`deadline_at`이 null)을 함께 담는다 — 미확인을 마감
  * 경과로 접지 않는다. 기존 `deadline_status`와 달리 actionable 술어의 일부다. */
 export type PreSpecDeadlineScope = "current" | "passed" | "all";
-export type PreSpecNextAction = "confirm_overview" | "open_deep_review" | "decide_tracking";
+/** 2026-11-19: `review_overview`(개요 확인) — 완료된 개요를 읽고 추적을 정한다. 옛
+ * `open_deep_review`·`decide_tracking`은 나오지 않는다. */
+export type PreSpecNextAction = "confirm_overview" | "review_overview";
 export type PreSpecSort = "published" | "deadline" | "observed";
 
 /** 사전규격 응답의 `grade`가 어디서 왔는가. 사람 정정이 있으면 `human_review`,
@@ -257,7 +261,8 @@ export type PreSpecAutoPreparationStatus =
   | "bundle_ready"
   | "overview_running"
   | "deep_review_started"
-  | "deep_review_ready_for_click"
+  /** 확정 묶음의 개요 run이 끝났다. 옛 이름 `deep_review_ready_for_click`(2026-11-19 개정). */
+  | "overview_settled"
   | "blocked";
 
 export interface PreSpecDocumentSummary {
@@ -352,6 +357,8 @@ export interface PreSpecListResponse {
   /** 활성 workspace를 제외한 나머지 필터 기준의 누적 건수. */
   workspace_counts: Record<PreSpecWorkspace, number>;
   deadline_scope_counts: PreSpecDeadlineScopeCounts;
+  /** `확인 필요`(needs_check)의 같은 분할(2026-11-19). */
+  needs_check_deadline_scope_counts: PreSpecDeadlineScopeCounts;
 }
 
 export interface PreSpecListQuery {
@@ -2220,23 +2227,7 @@ export interface OpportunityTrackingDecisionsResponse {
   recheck_events: OpportunityRecheckEventView[];
 }
 
-export interface OpportunityDeepReviewItem {
-  deep_review_id: string;
-  notice_id: number;
-  notice_title: string | null;
-  status: string;
-  quality_status: string | null;
-  created_at: string;
-  current_attempt_status: string | null;
-  latest_final_opinion: { value: string; decided_at: string } | null;
-}
-
-export interface OpportunityDeepReviewsResponse {
-  opportunity_id: number;
-  items: OpportunityDeepReviewItem[];
-}
-
-// 키 순서 고정(ADR-0053 §1·§4): order_plan_pending, pre_spec_deep_review_ready,
+// 키 순서 고정(ADR-0053 §1·§4): order_plan_pending, pre_spec_actionable, pre_spec_needs_check,
 // tracking_action_required, tracking_hold_review_due, bid_final_decision_pending.
 /**
  * `GET /api/workload` 항목의 고정 순서이자 전체 어휘
@@ -2257,7 +2248,10 @@ export interface OpportunityDeepReviewsResponse {
  */
 export type WorkloadKey =
   | "order_plan_pending"
-  | "pre_spec_deep_review_ready"
+  /** 2026-11-19: 사전규격 목록 기본 보기(검토할 항목, 마감 전·미확인)의 total. */
+  | "pre_spec_actionable"
+  /** 2026-11-19: 사전규격 `확인 필요`(같은 구간)의 total. */
+  | "pre_spec_needs_check"
   | "tracking_action_required"
   | "tracking_hold_review_due"
   | "bid_final_decision_pending"

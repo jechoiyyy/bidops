@@ -3,7 +3,6 @@ import {
   displayAssessmentFor,
   mockApi,
   mockBidDelta,
-  mockDeepReviewLifecycle,
   mockDocumentPreparationVisual,
   mockOpportunity,
   mockOrderPlans,
@@ -152,11 +151,7 @@ export const lifecycleVisualTargets: LifecycleVisualTarget[] = [
     path: "/pre-specs/991",
     setup: async (page: Page) => { await mockDocumentPreparationVisual(page, state); },
   })),
-  ...(["queued", "running", "failed", "completed"] as const).map((state) => ({
-    name: `deep-review-${state === "completed" ? "complete" : state}`,
-    path: "/deep-reviews/fixture-review",
-    setup: async (page: Page) => { await mockDeepReviewLifecycle(page, state); },
-  })),
+  // 기존 심층 검토 보고서(`/deep-reviews/:id`)는 2026-11-19에 route 등록을 내려 타깃에서 뺐다.
   ...(["unchanged", "changed", "unknown", "failed"] as const).map((state) => ({
     name: `bid-delta-${state}`,
     path: `/opportunities/501/bid-delta?comparison=${VISUAL_COMPARISON_ID}`,
@@ -170,7 +165,7 @@ export const contractFixtureScenarios = {
   orderPlansWithoutCompletedExecution: (page: Page) => mockOrderPlans(page, "no-completed-execution"),
   orderPlansWithoutOwner: (page: Page) => mockOrderPlans(page, "no-owning-opportunity"),
   preSpecClickReadyWithoutOrderPlan: {
-    path: "/pre-specs?sw_only=false&auto_preparation_status=deep_review_ready_for_click",
+    path: "/pre-specs?sw_only=false&auto_preparation_status=overview_settled",
     setup: (page: Page) => mockPreSpecs(page),
   },
 } as const;
@@ -220,7 +215,7 @@ const cautionSampleItem = {
   latest_deep_review_id: null,
   first_observed_at: new Date(sampleNow - 2 * SAMPLE_DAY_MS).toISOString(),
   last_observed_at: new Date(sampleNow - SAMPLE_DAY_MS).toISOString(),
-  next_action: "decide_tracking",
+  next_action: "review_overview",
 };
 
 /** 값이 거의 없는 건. A5의 `미확인` 계열 표기를 재는 자리다. */

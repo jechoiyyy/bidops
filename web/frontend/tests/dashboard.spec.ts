@@ -75,7 +75,8 @@ test("건수 띠의 칸은 목적지 목록의 기본 보기와 같은 정의이
     // 확인할 것
     ["action-required", "사업기회 조치 필요3건", "/opportunities"],
     ["overview-attention", "개요 사람 확인2건", "/pre-specs?workspace=all&sw_only=false&overview_view=attention"],
-    ["overview-failed", "개요 실패2건", "/pre-specs?workspace=all&sw_only=false&overview_view=failed"],
+    // 2026-11-19: 옛 `개요 실패`(누적) 칸은 `사전규격 확인 필요`(기본 보기와 같은 구간)로 바뀌었다.
+    ["pre-spec-needs-check", "사전규격 확인 필요3건", "/pre-specs?workspace=needs_check"],
     ["blocking", "확인 항목 미답변1건", "/opportunities?section=조치 필요&reason=blocking_item"],
     ["deadline", "마감 임박 추적 건7건", "/opportunities?section=전체&deadline_within_days=7&sort=deadline"],
     ["order-plan-uncertain", "훑어보기 발주계획1건", "/order-plans?qwen=uncertain&tracking=미선택"],

@@ -70,9 +70,11 @@ const groups: NavGroup[] = [
       // 건수 = 발주계획 기본 보기 `관련`(모델 판단 관련 AND 추적 미선택)의 건수.
       { id: "order-plans", label: "발주계획", path: "/order-plans", icon: "plan", count: { kind: "order-plan-default" } },
       // 건수 = 사전규격 기본 보기 `검토할 항목`(마감 전·미확인, SW사업대상)의 건수.
-      { id: "pre-specs", label: "사전규격", path: "/pre-specs", icon: "doc", absorbs: ["/deep-reviews", "/assumption-analyses"], count: { kind: "pre-spec-default" } },
+      { id: "pre-specs", label: "사전규격", path: "/pre-specs", icon: "doc", count: { kind: "pre-spec-default" } },
       // 건수 = 사업기회 기본 구역 `조치 필요`(workload `tracking_action_required`가 같은 식으로 센다).
-      { id: "opportunities", label: "사업기회", path: "/opportunities", icon: "opp", absorbs: ["/queue", "/judgments", "/reviews", "/deadlines"], count: { kind: "workload", key: "tracking_action_required" } },
+      // `/judgments/:id`는 입찰공고 상세로 남아 사업기회 아래에서 열린다. 판정 대기열(`/queue`·`/reviews`·
+      // `/deadlines`)은 2026-11-19에 흡수 목록에서 뺐다 — C-1 공고 판정을 다시 돌리지 않는다.
+      { id: "opportunities", label: "사업기회", path: "/opportunities", icon: "opp", absorbs: ["/judgments"], count: { kind: "workload", key: "tracking_action_required" } },
       // 기본 보기 `검토 대상`은 목록 전체를 받아야 셀 수 있어 사이드바에서는 그리지 않는다.
       { id: "go-no-go", label: "최종 Go/No-Go", path: "/go-no-go", icon: "decision" },
       // 회사 근거(RL-00)는 읽기 전용 `/company`다. 건수는 기본 묶음 `확인 필요`의 건수다.

@@ -1,6 +1,6 @@
-import { GRADE_NONE_LABEL, GRADE_ORDER } from "./grade";
 import { formatCompactPrice } from "./deadline";
 import { formatNumber } from "./format";
+import { PRE_SPEC_TERM } from "./glossary";
 import { originOf } from "./opportunity";
 import {
   PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL,
@@ -17,16 +17,9 @@ import type {
   PreSpecWorkspace,
 } from "./types";
 
-// 목록의 등급 필터 허용값은 API와 화면이 공유한다. 행을 다시 줄 세우거나
-// 상태를 재계산하지 않고, 서버가 준 등급을 그대로 표시한다.
-export const GRADE_FILTER_VALUES = [...GRADE_ORDER, GRADE_NONE_LABEL] as const;
-type GradeFilter = (typeof GRADE_FILTER_VALUES)[number] | "";
-export const DISPLAY_GRADE_FILTER_VALUES = [
-  ...GRADE_ORDER,
-  "판단 보류",
-  GRADE_NONE_LABEL,
-] as const;
-export type DisplayGradeFilter = (typeof DISPLAY_GRADE_FILTER_VALUES)[number] | "";
+// 등급 필터는 2026-11-19에 사전규격 화면에서 내려갔다(사전규격 단계 수정안 §3 B — C-1
+// 공고 판정을 다시 돌리지 않으므로 등급은 전부 `판정 없음`이다). 서버의 `grade`·
+// `display_grade` 질의 인자는 그대로 있고 화면만 보내지 않는다.
 
 export type WorkspaceKey = PreSpecWorkspace;
 export type ViewKey = PreSpecOverviewView;
@@ -49,8 +42,14 @@ export interface ViewDefinition {
 export const WORKSPACES: readonly WorkspaceDefinition[] = [
   {
     key: "actionable",
-    label: "검토할 항목",
-    description: "사람 확인·심층 검토·추적 결정이 필요한 건",
+    label: PRE_SPEC_TERM.actionable,
+    description: "개요를 읽고 추적을 정할 건(개요 완료·개요 확인 필요, 추적 결정 없음)",
+    defaultSort: "deadline",
+  },
+  {
+    key: "needs_check",
+    label: PRE_SPEC_TERM.needsCheck,
+    description: "개요가 실패·취소로 끝났거나 문서 준비가 멈춘 건(추적 결정 없음)",
     defaultSort: "deadline",
   },
   {
@@ -102,8 +101,9 @@ export const DEADLINE_STATUS_OPTIONS: readonly { value: PreSpecDeadlineStatus; l
   { value: "unknown", label: "마감 미확인" },
 ];
 
-/** 검토할 항목의 마감 구간 전환(ADR-0064). 화면은 `current`·`passed` 둘만 쓰고
- * 서버 기본값 `all`은 고르지 않는다 — 검토할 항목의 기본 시야는 `마감 전·미확인`이다.
+/** 검토할 항목·확인 필요의 마감 구간 전환(ADR-0064, 2026-11-19 확인 필요에도 적용).
+ * 화면은 `current`·`passed` 둘만 쓰고 서버 기본값 `all`은 고르지 않는다 — 두 보기의
+ * 기본 시야는 `마감 전·미확인`이다.
  * `마감 미확인`(`deadline_at`이 null)은 `current` 쪽에 남으며 경과로 접지 않는다. */
 export const DEADLINE_SCOPE_OPTIONS = [
   { value: "current", label: "마감 전·미확인" },
@@ -117,9 +117,8 @@ export function validDeadlineScope(value: string | null): "current" | "passed" {
 export const TRACKING_STATUS_OPTIONS = ["계속 추적", "보류", "종료", "미선택"] as const;
 
 export const PRE_SPEC_NEXT_ACTION_LABEL: Record<PreSpecNextAction, string> = {
-  confirm_overview: "개요 사람 확인",
-  open_deep_review: "심층 검토 열기",
-  decide_tracking: "추적 결정",
+  confirm_overview: PRE_SPEC_TERM.confirmOverview,
+  review_overview: PRE_SPEC_TERM.reviewOverview,
 };
 
 export function workspaceOf(key: WorkspaceKey): WorkspaceDefinition {
@@ -150,22 +149,6 @@ export function validObservedDate(value: string | null): string | "" {
   return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
 }
 
-export function validGrade(value: string | null): GradeFilter {
-  return value && (GRADE_FILTER_VALUES as readonly string[]).includes(value) ? (value as GradeFilter) : "";
-}
-
-export function validDisplayGrade(value: string | null): DisplayGradeFilter {
-  return value && (DISPLAY_GRADE_FILTER_VALUES as readonly string[]).includes(value)
-    ? value as DisplayGradeFilter
-    : "";
-}
-
-export function matchesGradeFilter(item: PreSpecListItem, grade: GradeFilter): boolean {
-  if (!grade) return true;
-  if (grade === GRADE_NONE_LABEL) return item.grade === null;
-  return item.grade === grade;
-}
-
 /** 서버 `GET /api/pre-specs`의 `auto_preparation_status` 질의 인자 허용값 8종. */
 export const AUTO_PREPARATION_FILTER_VALUES = [
   "not_applicable",
@@ -174,7 +157,7 @@ export const AUTO_PREPARATION_FILTER_VALUES = [
   "bundle_ready",
   "overview_running",
   "deep_review_started",
-  "deep_review_ready_for_click",
+  "overview_settled",
   "blocked",
 ] as const;
 
