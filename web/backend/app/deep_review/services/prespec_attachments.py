@@ -42,7 +42,7 @@ from .auto_preparation import (
     TERMINAL_FETCH_STATUSES,
     maybe_auto_prepare,
 )
-from .effective_grade import priority_notice_ids
+from .effective_grade import attachment_claim_scope_predicate, priority_notice_ids
 
 
 SOURCE_SYSTEM = "g2b"
@@ -312,7 +312,15 @@ def claim_next(
     now: datetime | None = None,
     notice_id: int | None = None,
 ) -> AttachmentFetchClaim | None:
-    """Claim one due or expired row with a PostgreSQL row lock."""
+    """Claim one due or expired row with a PostgreSQL row lock.
+
+    자동 처리 범위(2026-11-19 사전규격 단계 수정안 §3 A) 밖의 행은 claim하지
+    않는다 — 의견 마감이 지났고 사업기회가 추적 중이 아닌 공고의 첨부다(`대기` 행만;
+    lease가 끝난 `진행` 행은 회수한다). 행은
+    지우거나 상태를 바꾸지 않고 `대기`로 남으며, 사람이 추적을 시작하면 다음
+    poll에서 claim된다. 규칙은 `effective_grade.attachment_claim_scope_predicate`
+    하나다.
+    """
 
     notice_id = validate_notice_id(notice_id)
     worker_id = _validate_worker_id(worker_id)
@@ -323,12 +331,16 @@ def claim_next(
         session.commit()
     candidate = select(AttachmentFetch).where(
         or_(
+            # 새로 시작하는 `대기` 행만 자동 처리 범위로 좁힌다. lease가 끝난
+            # `진행` 행은 범위 안에서 이미 시작된 일이므로 회수해 끝맺는다 —
+            # 막으면 화면에 `진행`으로 영영 남는다.
             (AttachmentFetch.status == "대기")
-            & (AttachmentFetch.next_attempt_at <= current_time),
+            & (AttachmentFetch.next_attempt_at <= current_time)
+            & attachment_claim_scope_predicate(AttachmentFetch, current_time),
             (AttachmentFetch.status == "진행")
             & AttachmentFetch.lease_expires_at.is_not(None)
             & (AttachmentFetch.lease_expires_at <= current_time),
-        )
+        ),
     )
     if notice_id is not None:
         candidate = candidate.where(

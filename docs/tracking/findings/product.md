@@ -363,3 +363,21 @@
 - 함께 본 것: 화면 스위트 `tests/order-plans.spec.ts:1309`("사람 피드백 축과 텍스트 검색도 다른 축과 AND로
   조합된다")가 197건 실행 중 한 번 실패했고 단독·파일 전체 재실행에서는 통과했다. 원인 미확인(같은 시간에
   백엔드 테스트가 돌고 있었다). `tests/design-shell.spec.ts:234`는 변경 전 commit에서도 실패한다.
+
+## 기존 심층 검토 자동 시작 테스트 13건이 main에서 실패한다 (2026-11-19 확인, 미해결)
+
+- 재현: `tests/deep_review/test_auto_preparation.py`를 돌리면 39건 중 13건이 실패한다(SQLite·PostgreSQL 같음). 첫 실패는
+  `test_sw_y_with_a_positive_overview_starts_exactly_one_deep_review`의 `outcome.created is True`이고 실제 사유는
+  `manual_request_required`다. 사전규격 1단계 변경 전 main(`1682599`)과 변경 뒤가 같은 13건이다.
+- 원인(추정): 심층 검토 자동 시작의 기본값이 꺼짐으로 바뀐 뒤(ADR-0069) 자동 시작을 전제한 테스트가 남았다.
+  아래 `test_auto_deep_review_start.py` 11건과 같은 종류다.
+- 영향: 운영 동작에는 영향이 없다(자동 시작은 꺼져 있고 화면에서도 내렸다). 이 파일을 돌릴 때마다 실패 13건이 섞인다.
+- 후속 방향: 기존 심층 검토를 화면에서 내린 지금, 자동 시작 전제 테스트를 플래그를 켠 경우로 옮기거나 지운다.
+- 함께 본 것: 종단 테스트 `test_prespec_e2e.py` 2건(`…records_the_mock_judgments`, `…one_completed_overview_run`),
+  `test_prespec_attachment_fetch.py::…provider_filename[header.hwp-fixture1]`, `test_api_opportunities.py` 2건도 변경 전부터
+  실패한다(작업자 보고, 리더는 e2e 2건만 재확인). 화면 스위트는 `prespec-list-work.spec.ts:678·734·955`,
+  `design-shell.spec.ts:233`(두 폭), `bid-delta.spec.ts:805`, 간헐 `bid-delta.spec.ts:561`·`draft.spec.ts:63`.
+- 사전규격 1단계에서 심층 검토 화면이 빠지면서 **토스트 유지(hold) 동작을 검사하는 테스트가 없어졌다.** 다른 화면으로 옮겨야 한다.
+- 화면 검사를 여러 세션이 같은 기본 포트(4173)로 돌리면 서로의 미리보기 서버를 재사용해 무관한 실패가 난다
+  (2026-11-19, 301건 오실패). `PW_PORT`·`PW_OUT_DIR`를 세션마다 따로 준다.
+

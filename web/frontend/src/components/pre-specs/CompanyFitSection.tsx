@@ -3,7 +3,6 @@ import { Token } from "@astryxdesign/core/Token";
 import { Button } from "@astryxdesign/core/Button";
 import { api } from "../../lib/api";
 import { TERM_SENSE } from "../../lib/glossary";
-import { preSpecAutoPreparationReasonLabel } from "../../lib/preSpecAutoPreparation";
 import { qualityStatusLabel } from "../../lib/qualityStatus";
 import type { CompanyFitAttempt, CompanyFitResponse } from "../../lib/types";
 import "../../styles/company-fit.css";
@@ -170,20 +169,21 @@ export function useCompanyFit(noticeId: number | null): CompanyFitState {
   return { query, isValid, data, currentAttempt, previousAttempts };
 }
 
+/**
+ * 회사 적합성 자동 판정 스위치 안내. 2026-11-19(사전규격 단계 수정안 §3 B): 기존 자동 심층
+ * 검토의 생성 여부·사유와 보고서 링크는 화면에서 내려갔다. 응답의 `deep_review_id`·
+ * `auto_deep_review_reason`은 계약에 그대로 있고 화면만 읽지 않는다.
+ */
 export function CompanyFitAutomationNotice({ data }: { data: CompanyFitResponse }) {
-  return <div className="company-fit-notice"><strong>자동 심층 검토</strong>
-    {data.deep_review_id ? <p>생성된 심층 검토가 있습니다. <a href={`/deep-reviews/${data.deep_review_id}`}>심층 검토 열기</a></p> :
-      <p>{data.auto_deep_review_reason ? preSpecAutoPreparationReasonLabel(data.auto_deep_review_reason) : "생성된 심층 검토가 없습니다."}</p>}
-    {!data.automation_enabled && <p>회사 적합성 자동 판정은 비활성입니다.</p>}
-  </div>;
+  if (data.automation_enabled) return null;
+  return <div className="company-fit-notice"><p>회사 적합성 자동 판정은 비활성입니다.</p></div>;
 }
 
 export function CompanyFitSection({ noticeId, compact = false }: { noticeId: number; compact?: boolean }) {
   const { query, isValid, data, currentAttempt, previousAttempts } = useCompanyFit(noticeId);
   if (compact && !query.isError && isValid && data !== null && !data.automation_enabled && !currentAttempt) {
     return <section className="company-fit" aria-label="회사 업무 부합 여부">
-      <p>{NO_CURRENT_ATTEMPT_NOTICE} · 자동 판정 비활성{data.deep_review_id
-        ? <> · <a href={`/deep-reviews/${data.deep_review_id}`}>심층 검토 열기</a></> : null}</p>
+      <p>{NO_CURRENT_ATTEMPT_NOTICE} · 자동 판정 비활성</p>
     </section>;
   }
   return <section className="company-fit" aria-label="회사 업무 부합 여부">

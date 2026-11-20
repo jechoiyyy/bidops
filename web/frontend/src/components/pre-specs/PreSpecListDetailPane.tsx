@@ -1,6 +1,6 @@
 import type { MouseEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { InternationalizationProvider } from "@astryxdesign/core/i18n";
@@ -17,7 +17,7 @@ import { useCurrentPageOverview } from "./PageOverviewSection";
 import { DeadlineMark } from "./PreSpecListRow";
 import { api } from "../../lib/api";
 import { formatDateTime } from "../../lib/format";
-import { displayAssessmentLabel, displayAssessmentSourceLabel } from "../../lib/grade";
+import { TERM_SENSE } from "../../lib/glossary";
 import { readPreSpecLifecycle } from "../../lib/noticeLifecycle";
 import { formatPreSpecCaution, preSpecCautions } from "../../lib/preSpecCautions";
 import { preSpecDetailUrl } from "../../lib/preSpecSelectionReview";
@@ -110,7 +110,6 @@ export function PreSpecDetail({
   onDirtyChange,
   onSaved,
   onOpenDetail,
-  onOpenDetailAfterSaved,
   onReviewExclusion,
 }: {
   item: PreSpecListItem;
@@ -119,11 +118,7 @@ export function PreSpecDetail({
   onDirtyChange: (dirty: boolean) => void;
   onSaved: (saved: Parameters<typeof updateTrackingProjection>[2]) => void;
   onOpenDetail?: () => void;
-  /** Called after the tracking mutation has committed. Unlike a normal
-   * detail link, this transition has no unsaved draft to guard. */
-  onOpenDetailAfterSaved?: () => void;
 }) {
-  const navigate = useNavigate();
   const noticePk = item.notice_pk;
   const detailUrl = preSpecDetailUrl(noticePk, listSearch);
 
@@ -240,10 +235,6 @@ export function PreSpecDetail({
           </span>
           <span aria-hidden="true">·</span>
           <span>게시 {formatDateTime(item.published_at)}</span>
-          <span aria-hidden="true">·</span>
-          <span>
-            예비 적합성 등급 <strong>{displayAssessmentLabel(item.display_assessment)}</strong> (개요 기준 · {displayAssessmentSourceLabel(item.display_assessment)})
-          </span>
         </p>
       </StickyDecisionHeader>
 
@@ -362,21 +353,15 @@ export function PreSpecDetail({
             showIntent={false}
             reasonPresets={TRACKING_REASON_PRESETS}
             onDirtyChange={onDirtyChange}
-            // 발주계획에서 승계한 건은 이 화면이 추적을 다시 묻지 않으므로
-            // 한 조작 진입점도 신규 건에만 준다(ADR-0046 결정 6).
-            onStartedForDeepReview={inherited ? undefined : () => {
-              if (onOpenDetailAfterSaved) onOpenDetailAfterSaved();
-              else if (onOpenDetail) onOpenDetail();
-              else navigate(detailUrl);
-            }}
+            // 추적 결정은 추적만 정한다(2026-11-19). 저장 뒤 분석 실행 자리로 데려가지 않는다.
             onSaved={onSaved}
           />
         </InternationalizationProvider>
 
         <div className="pre-specs-action-row">
           <div className="pre-specs-next-action">
-            <span>다음 작업</span>
-            <strong>{serverNextAction ?? "다음 작업 없음"}</strong>
+            <span>{TERM_SENSE.nextActionGuide}</span>
+            <strong>{serverNextAction ?? `${TERM_SENSE.nextActionGuide} 없음`}</strong>
             {/* 경계 문장은 상세 페이지 ② 추적 결정 카드와 같은 문안 하나로
                 통일한다(M4 승인 2026-09-21). 앞의 `다음 작업`과는 다른 사실이라
                 한 줄을 따로 쓴다. */}

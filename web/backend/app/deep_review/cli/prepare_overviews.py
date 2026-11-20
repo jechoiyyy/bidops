@@ -51,7 +51,8 @@ def build_parser() -> argparse.ArgumentParser:
 def eligible_notice_ids(session: Any, *, settings: Any = None) -> list[int]:
     """자격을 갖추고 첨부 취득이 끝난 사전규격 공고 id (오름차순).
 
-    조건은 셋이다 — `overview_eligible`이 연 자격, 활성 첨부의 취득 행이 **모두**
+    조건은 셋이다 — `overview_eligible`이 연 자격(자동 처리 범위 포함: 의견 마감 전·미확인
+    또는 추적 중, 2026-11-19), 활성 첨부의 취득 행이 **모두**
     종결(`TERMINAL_FETCH_STATUSES`), 그중 `완료`가 하나 이상. 취득 행이 아예
     없는 공고는 대상이 아니다. 준비할 문서가 하나도 없다는 뜻이기 때문이다.
     """

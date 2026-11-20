@@ -5,7 +5,6 @@ import { Button } from "@astryxdesign/core/Button";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { Token } from "@astryxdesign/core/Token";
 import { ArrowUpRight, Check, ChevronRight, CircleHelp, FileText } from "lucide-react";
-import { Badge, type BadgeVariant } from "../common/Badge";
 import { EmptyState } from "../common/EmptyState";
 import { AgencyFeature, StickyDecisionHeader } from "../common/ReviewPrimitives";
 import { MutationFeedback } from "../common/MutationFeedback";
@@ -16,7 +15,6 @@ import {
   originDescription,
   type TrackingException,
 } from "../../lib/opportunity";
-import { qualityStatusLabel, qualityStatusVariant } from "../../lib/qualityStatus";
 import type {
   NoticeDetailResponse,
   OpportunityLinkView,
@@ -532,7 +530,7 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
                         className="opportunity-linked-link"
                         to={{ pathname: `/judgments/${notice.id}`, search: new URLSearchParams({ run: notice.run_id }).toString() }}
                       >
-                        공고 판정 이력 열기 →
+                        입찰공고 상세 열기 →
                       </Link>
                     </div>
                   </div>
@@ -591,10 +589,6 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
               )}
             </div>
 
-            <DeepReviewEntry
-              noticePk={links.find((link) => link.notice_id !== null)?.notice_id ?? null}
-              opportunityId={item.id}
-            />
           </section>
         </div>
 
@@ -724,90 +718,5 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
   );
 }
 
-const DEEP_REVIEW_STATUS_LABEL: Record<string, string> = {
-  queued: "대기", running: "진행 중", completed: "완료", failed: "실패", superseded: "대체됨",
-};
 
-/** 서버가 준 상태 문자열을 그대로 두고 아는 값만 한글로 옮긴다. 모르는 코드는 감추지 않는다. */
-function deepReviewStatusLabel(status: string): string {
-  return DEEP_REVIEW_STATUS_LABEL[status] ?? status;
-}
 
-/** `quality_status`는 이 목록 계약에서 원문 문자열이다. 알려진 네 상태만
- * `lib/qualityStatus.ts`의 문구를 쓰고, 모르는 코드는 그대로 보여 준다. */
-function deepReviewQualityLabel(status: string | null): string {
-  if (status === null || status === "measured" || status === "unmeasured_reference" || status === "mock_reference") {
-    return qualityStatusLabel(status);
-  }
-  return status;
-}
-
-function deepReviewQualityVariant(status: string | null): BadgeVariant {
-  if (status === null || status === "measured" || status === "unmeasured_reference" || status === "mock_reference") {
-    return qualityStatusVariant(status);
-  }
-  return "neutral";
-}
-
-/**
- * 심층 검토 보고서 진입점 (docs/design/PRD.md §2.2, docs/0917_opportunity-tracking/spec.md §11.1).
- *
- * `GET /api/opportunities/{id}/deep-reviews`로 이 사업기회에 연결된 보고서를 목록으로 받는다.
- * 목록은 만드는 화면(사전규격 상세)을 대신하지 않으며, 여기서는 열람 진입점만 제공한다.
- */
-function DeepReviewEntry({ noticePk, opportunityId }: { noticePk: number | null; opportunityId: number }) {
-  const query = useQuery({
-    queryKey: ["opportunity-deep-reviews", opportunityId],
-    queryFn: () => api.getOpportunityDeepReviews(opportunityId),
-  });
-  const items = query.data?.items ?? [];
-
-  return (
-    <section aria-labelledby="opportunity-deep-review-title" className="opportunity-deep-review">
-      <h4 id="opportunity-deep-review-title">심층 검토 보고서</h4>
-      {query.isPending ? <p className="opportunity-detail-status" role="status">불러오는 중…</p> : null}
-      {query.isError ? (
-        <MutationFeedback tone="warning">
-          심층 검토 보고서 목록을 불러오지 못했습니다.
-          <Button label="다시 시도" onClick={() => { void query.refetch(); }} size="sm" />
-        </MutationFeedback>
-      ) : null}
-      {query.isSuccess && items.length === 0 ? (
-        <p className="opportunity-caption">
-          연결된 심층 검토 보고서가 없습니다. 사전규격 상세에서 시작합니다.
-        </p>
-      ) : null}
-      {items.length > 0 ? (
-        <ul className="opportunity-deep-review-list">
-          {items.map((entry) => (
-            <li className="opportunity-deep-review-item" key={entry.deep_review_id}>
-              <p><strong>{entry.notice_title?.trim() || "공고명 미확인"}</strong></p>
-              <div className="opportunity-row">
-                <Token label={deepReviewStatusLabel(entry.status)} size="sm" />
-                <Badge label={deepReviewQualityLabel(entry.quality_status)} variant={deepReviewQualityVariant(entry.quality_status)} />
-              </div>
-              <p className="opportunity-caption">생성 · {formatMoment(entry.created_at)}</p>
-              <p className="opportunity-caption">
-                {entry.latest_final_opinion
-                  ? `최종 의견 · ${entry.latest_final_opinion.value} · ${formatMoment(entry.latest_final_opinion.decided_at)}`
-                  : "최종 의견 없음"}
-              </p>
-              <Link className="opportunity-linked-link" to={`/deep-reviews/${entry.deep_review_id}?from=opportunities`}>
-                보고서 열기 →
-              </Link>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {noticePk === null ? (
-        <p className="opportunity-caption">
-          연결된 공고가 없어 심층 검토를 실행할 자리로 갈 수 없습니다. 사전규격이 연결된 뒤에 열립니다.
-        </p>
-      ) : (
-        <Link className="opportunity-linked-link" to={`/pre-specs/${noticePk}`}>
-          사전규격 상세에서 심층 검토 실행 →
-        </Link>
-      )}
-    </section>
-  );
-}

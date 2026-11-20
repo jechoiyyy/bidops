@@ -1,6 +1,3 @@
-import { AssumptionRequest } from "../assumption-analysis/Request";
-import { LunaRequest } from "./LunaRequest";
-import { SourceVerificationSetting } from "./SourceVerificationSetting";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type KeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ActorField } from "../common/ActorField";
@@ -8,11 +5,11 @@ import { DisabledReason } from "../common/DisabledReason";
 import { MutationFeedback } from "../common/MutationFeedback";
 import { StatusBadge, type StatusTone } from "../common/StatusBadge";
 import { describeApiError } from "../../lib/apiErrors";
+import { useFeatureFlags } from "../../lib/featureFlags";
 import { TERM } from "../../lib/glossary";
 import { generateRequestId } from "../../lib/requestId";
 import {
   confirmDocumentBundle,
-  createDeepReview,
   createDocumentBundle,
   getDocumentBundles,
   patchDocumentVersion,
@@ -21,7 +18,6 @@ import {
 import type {
   BundleStatus,
   BundleView,
-  DeepReviewView,
   DocumentRole,
   DocumentVersionView,
   SafetyStatus,
@@ -69,12 +65,6 @@ type UploadOutcome = {
 
 interface DocumentPreparationPanelProps {
   noticeId: number;
-  /** 사전규격 projection의 **현재 등급**(사람 정정이 있으면 그 값). 화면은 현재
-   * 등급 하나만 보여 주므로 이 패널은 등급을 다시 그리지 않고, 서버가 시작
-   * 시점에 effective grade를 다시 본다는 사실만 이 값으로 안내한다. 화면의
-   * 등급 표시는 상세 헤더가 소유한다(명세 §6.2). */
-  currentGrade: string | null;
-  onDeepReviewCreated: (review: DeepReviewView) => void;
 }
 
 function bundleIsImmutable(bundle: BundleView): boolean {
@@ -227,8 +217,14 @@ function DocumentMetadataEditor({
   );
 }
 
-export function DocumentPreparationPanel({ noticeId, currentGrade, onDeepReviewCreated }: DocumentPreparationPanelProps) {
+/**
+ * 문서 묶음 생성·업로드·확정 작업대. 2026-11-19(사전규격 단계 수정안 §3 B): 기존 심층 검토
+ * 시작과 사용자 요청 Luna 요청(ADR-0069)은 화면에서 내려갔다 — 백엔드 서비스·경로는 RL 판정이
+ * 함께 쓰므로 그대로다. 이 패널은 개요와 판정의 입력이 될 문서 묶음만 준비한다.
+ */
+export function DocumentPreparationPanel({ noticeId }: DocumentPreparationPanelProps) {
   const queryClient = useQueryClient();
+  const overviewFlag = useFeatureFlags().state("prespec_overview");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [actorName, setActorName] = useState("");
   const [selectedBundleId, setSelectedBundleId] = useState<string | null>(null);
@@ -360,14 +356,7 @@ export function DocumentPreparationPanel({ noticeId, currentGrade, onDeepReviewC
     },
   });
 
-  const [sourceVerificationEnabled, setSourceVerificationEnabled] = useState(true);
-  const deepReviewMutation = useMutation({
-    mutationFn: ({ previewId, requestId }: { previewId: string; requestId: string }) => createDeepReview(noticeId, selectedBundle?.id ?? "", actorName, sourceVerificationEnabled, previewId, requestId),
-    onSuccess: onDeepReviewCreated,
-  });
-
   const createProblem = createMutation.error ? describeApiError(createMutation.error, "새 문서 묶음을 만들지 못했습니다.") : null;
-  const deepReviewProblem = deepReviewMutation.error ? describeApiError(deepReviewMutation.error, "심층 검토를 시작하지 못했습니다.") : null;
   const canCreate = !latestBundle || bundleIsImmutable(latestBundle);
   const confirmDisabledReasons = confirmMutation.isPending
     ? ["문서 묶음 확정 요청을 처리하고 있습니다."]
@@ -379,11 +368,6 @@ export function DocumentPreparationPanel({ noticeId, currentGrade, onDeepReviewC
       : !actorName.trim()
         ? "새 문서 묶음을 만들려면 담당자 이름을 입력하십시오."
         : null;
-  const deepReviewDisabledReason = deepReviewMutation.isPending
-    ? "심층 검토 생성 요청을 처리하고 있습니다."
-    : !actorName.trim()
-      ? "심층 검토를 시작하려면 담당자 이름을 입력하십시오."
-      : null;
   const handleFiles = (files: File[]) => {
     if (!editable || uploadMutation.isPending || files.length === 0) return;
     setFeedback(null);
@@ -427,16 +411,18 @@ export function DocumentPreparationPanel({ noticeId, currentGrade, onDeepReviewC
       <header className="document-preparation-heading">
         <div>
           <span className="document-preparation-eyebrow">안전한 문서 준비 작업대</span>
-          <h3 id="document-preparation-title">문서 묶음 준비부터 심층 검토까지</h3>
-          <p>문서 등록, 안전 검사, 변환·구조화, 역할 확인, 묶음 확정을 각 단계로 나눠 확인합니다. 이 화면은 심층 검토 입력을 준비할 뿐 추적 승인이나 최종 Go/No-Go를 정하지 않습니다.</p>
+          <h3 id="document-preparation-title">문서 묶음 준비</h3>
+          <p>문서 등록, 안전 검사, 변환·구조화, 역할 확인, 묶음 확정을 각 단계로 나눠 확인합니다. 확정한 묶음이 개요 검토와 참여 판정의 입력이 됩니다. 이 화면은 입력을 준비할 뿐 추적 결정이나 최종 Go/No-Go를 정하지 않습니다.</p>
         </div>
       </header>
 
-      {currentGrade !== "우선 검토" ? (
-        <p className="document-preparation-gate" role="status">
-          서버는 문서 묶음을 만들 때와 심층 검토를 시작할 때 등급을 다시 확인합니다. 우선 검토가 아니면 서버가 거부하며, 화면에 보이는 등급으로 우회할 수 없습니다.
-        </p>
-      ) : null}
+      {/* 실제 자격 문장(2026-11-19). 서버가 묶음을 만들 때 같은 자격을 다시 확인한다
+          (`effective_grade.eligible_with_grade`, 사람 경로라 마감·추적 범위는 보지 않는다). */}
+      <p className="document-preparation-gate" role="status">
+        {overviewFlag === "off"
+          ? "이 환경에서는 개요 자동 검토가 꺼져 있어 우선 검토 등급인 사전규격만 문서 묶음을 만들 수 있습니다. 서버가 만들 때 자격을 다시 확인하며 화면 상태로 우회할 수 없습니다."
+          : "문서 묶음은 SW사업대상 사전규격(개요 자동 검토가 켜진 환경)이나 우선 검토 등급인 사전규격에서 만들 수 있습니다. 서버가 만들 때 자격을 다시 확인하며 화면 상태로 우회할 수 없습니다."}
+      </p>
 
       <div className="document-preparation-actor">
         <ActorField label="문서 준비 담당자 이름" value={actorName} onChange={setActorName} autoComplete="off" />
@@ -465,7 +451,7 @@ export function DocumentPreparationPanel({ noticeId, currentGrade, onDeepReviewC
           {/* 서버가 등급으로 막은 경우에만 붙이는 화면 사실. 서버 message가
               아니라 이 화면이 아는 규칙이다. */}
           {createProblem.code === "effective_grade_ineligible"
-            ? <p>서버는 시작할 때 등급을 다시 확인합니다. 화면에 보이는 등급으로 서버 조건을 우회할 수 없습니다.</p>
+            ? <p>서버가 묶음을 만들 때 자격(SW사업대상·개요 자동 검토 또는 우선 검토 등급)을 다시 확인했습니다. 화면 상태로 서버 조건을 우회할 수 없습니다.</p>
             : null}
         </MutationFeedback>
       ) : null}
@@ -604,30 +590,6 @@ export function DocumentPreparationPanel({ noticeId, currentGrade, onDeepReviewC
           </div>
           {confirmMutation.error ? <MutationFeedback tone="error" problem={describeApiError(confirmMutation.error, "문서 묶음을 확정하지 못했습니다.")} /> : null}
 
-          {selectedBundle.status === "ready" ? (
-            <div className="document-preparation-start-review">
-              <div>
-                <strong>심층 검토 시작</strong>
-                <SourceVerificationSetting value={sourceVerificationEnabled} onChange={setSourceVerificationEnabled} disabled={deepReviewMutation.isPending} />
-                <p>확정된 문서 묶음만 입력으로 씁니다. 사전규격 심층 검토는 최종 입찰 Go/No-Go를 대신하지 않습니다.</p>
-              </div>
-              <div className="document-preparation-action-control">
-                <LunaRequest key={`${selectedBundle.id}:${sourceVerificationEnabled}:${actorName}`} noticeId={noticeId} bundleId={selectedBundle.id} verification={sourceVerificationEnabled} actor={actorName}
-                  onSubmit={(previewId, requestId) => deepReviewMutation.mutateAsync({ previewId, requestId })} />
-                {deepReviewDisabledReason ? <DisabledReason id="deep-review-start-disabled">{deepReviewDisabledReason}</DisabledReason> : null}
-              </div>
-            </div>
-          ) : null}
-          {/* 1489번 가정 분석 요청은 고정 공고 하나의 실험이라 개발·mock 서버에서만 그린다(설계고도화안 C-9). */}
-          {import.meta.env.BIDOPS_REVIEW_MOCK && noticeId === 1489 && selectedBundle.status === "ready" && <AssumptionRequest key={`assumption:${selectedBundle.id}:${actorName}`} noticeId={noticeId} bundleId={selectedBundle.id} actor={actorName}/>}
-          {deepReviewProblem ? (
-        <MutationFeedback tone="error" problem={deepReviewProblem}>
-          {/* fail-closed 사실은 서버 message가 아니라 이 화면의 규칙이다. */}
-          {deepReviewProblem.code === "service_unavailable"
-            ? <p>활성 회사 프로필 버전과 분석 정책 버전이 모두 있어야 심층 검토를 시작합니다. 외부 제공자나 hosted OpenAI로 자동 전환하지 않습니다.</p>
-            : null}
-        </MutationFeedback>
-      ) : null}
         </div>
       ) : null}
 

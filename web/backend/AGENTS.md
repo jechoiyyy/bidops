@@ -186,7 +186,7 @@ GPU 휴지는 `app/workers/gpu_rest.py`가 분석 합성 worker와 C-1 worker �
 - document bundle confirm은 최신 document version, clean scan, immutable structure snapshot을 같은 fence에서 확인한다.
 - document metadata 변경은 notice → latest bundle → document 순서로 잠그고 기대 version과 hash를 재검증한다.
 - 심층 검토는 고정 bundle, profile, policy, model reference만 사용한다. live attachment나 변경된 profile을 중간에 다시 읽지 않는다.
-- 사전규격 자동 준비는 effective grade가 `우선 검토`인 건만 열고, **자기가 만든 초안만** 확정한다(`confirmed_by_name == "auto-preparation"`). 사람이 만든 초안은 자동으로 확정하지 않는다. 등급이 내려가도 만든 묶음을 되돌리지 않는다([ADR-0049](../../docs/tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)).
+- 사전규격 자동 준비는 effective grade가 `우선 검토`인 건만 열고, **자기가 만든 초안만** 확정한다(`confirmed_by_name == "auto-preparation"`). 사람이 만든 초안은 자동으로 확정하지 않는다. 등급이 내려가도 만든 묶음을 되돌리지 않는다([ADR-0049](../../docs/tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)). 개요 플래그로 열리는 `SW사업대상=Y` 자격의 자동 경로(첨부 claim·자동 준비·자동 개요 enqueue)는 의견 마감 전·미확인이거나 추적 중인 건만 처리하며, 규칙은 `effective_grade.auto_processing_predicate` 한 곳이다(2026-11-19). 사람 경로(`eligible_with_grade`, 사람 범위 재실행, 운영자 단건 CLI)는 이 범위를 보지 않는다.
 - 자동 준비 상태와 사유는 **저장하지 않는다.** 등급·취득·묶음·개요·심층의 파생값이므로 읽을 때 계산하고, 공고 수와 무관한 상수 회 조회여야 한다. 새 열을 만들지 않는다.
 - 자동 심층 시작은 사람 경로와 **같은 함수**(`DeepReviewService.create_review`)를 쓰고 `actor_kind`만 다르다. 별도 생성 경로를 만들면 입력 동결·품질 표식·감사 metadata가 두 벌이 된다.
 - 자동 준비·자동 시작의 실패는 촉발한 작업(회차 적재·리뷰 저장)으로 예외를 올리지 않는다. 안전 코드로만 남기고 재시도는 다음 촉발 시점에 한다.

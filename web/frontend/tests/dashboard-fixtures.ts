@@ -109,8 +109,9 @@ function preSpec(noticePk: number, title: string, deadline: string | null, statu
 export function preSpecList(items: PreSpecListItem[], total = items.length): PreSpecListResponse {
   return {
     items, total, limit: 5, offset: 0, overview_status_counts: [],
-    workspace_counts: { actionable: total, recent: total, tracking: total, all: total },
+    workspace_counts: { actionable: total, needs_check: total, recent: total, tracking: total, all: total },
     deadline_scope_counts: { current: total, passed: 0 },
+    needs_check_deadline_scope_counts: { current: total, passed: 0 },
   };
 }
 export const overviewFailedItems = [preSpec(801, "안전한 문서 준비 사전규격", "2026-09-20T00:00:00Z", "failed")];
@@ -145,7 +146,8 @@ export const dashboardWorkload: WorkloadResponse = {
   generated_at: DASH_NOW,
   items: [
     { key: "order_plan_pending", count: 24, unavailable_reason: null },
-    { key: "pre_spec_deep_review_ready", count: 7, unavailable_reason: null },
+    { key: "pre_spec_actionable", count: 7, unavailable_reason: null },
+    { key: "pre_spec_needs_check", count: 2, unavailable_reason: null },
     { key: "tracking_action_required", count: 3, unavailable_reason: null },
     { key: "tracking_hold_review_due", count: 1, unavailable_reason: null },
     { key: "bid_final_decision_pending", count: 4, unavailable_reason: null },
@@ -254,6 +256,9 @@ export async function mockDashboard(page: Page, options: DashboardMockOptions = 
     }
     else if (url.pathname === "/api/opportunities" && url.searchParams.get("section") === "조치 필요" && !url.searchParams.has("reason")) {
       body = options.actionRequired ?? actionRequiredList;
+    }
+    else if (url.pathname === "/api/pre-specs" && url.searchParams.get("workspace") === "needs_check") {
+      body = preSpecList([], 3); failure = !!options.overviewError;
     }
     else if (url.pathname === "/api/pre-specs" && url.searchParams.get("workspace") === "recent") {
       body = options.recentPreSpecs ?? preSpecList([], 4); failure = !!options.overviewError;

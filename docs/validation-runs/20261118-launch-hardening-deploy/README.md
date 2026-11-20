@@ -174,3 +174,20 @@
 ## 롤백
 
 현재 운영은 main `c801a69`·이미지 `bidops:main-20261118d`(web·analysis-worker 동일)다. 직전 상태로는 `.env`의 `BIDOPS_IMAGE`를 `bidops:main-20261118c`로(코드 태그 `before-launch-hardening-d-20261118`), 이번 작업 전체 이전으로는 `.env`의 `BIDOPS_IMAGE`를 `bidops:main-20261118`로 되돌리고 `up -d --no-deps --no-build --force-recreate web analysis-worker`. 코드는 태그 `before-launch-hardening-20261118`. 스키마 변경이 없어 DB 복원은 필요 없다. 이번에 생긴 C-2 실행·감사 표본 행은 지우지 않는다.
+
+## cron 설치 (2026-11-19 12:21 KST)
+
+- 사용자 승인 2026-11-19. 함께 정한 값: analysis-worker 재시작 정책 `unless-stopped`(B4, `docker update`로 적용·compose 일치), 아침 로그 확인 담당 `jechoi`(B3).
+- 설치 전 독립 재검증(구현에 관여하지 않은 컨텍스트, 읽기 전용): **차단 0**. 조건 4건(실제 cron 1회 시험, 아침 확인에 3항목 추가, 재시작 뒤 콘솔 로그인 필요, `scripts/` 병합은 운영 변경)과 주의 사항을 [일일 운영 절차](../../operations/daily.md)에 반영했다.
+- 실제 cron 시험: 12:20에 한 번 도는 건식 줄을 넣어 확인했다(`~/.local/state/bidops/logs/cron-probe-20261119.log`). cron 환경은 `user=temp shell=/bin/sh path=/usr/bin:/bin`, 결과 `dry=0`(발주계획 래퍼 `--dry-run`), `docker=0`(컨테이너 7개 조회), `health=0`, `flock=0`. 시험 줄은 지웠다.
+- 설치한 줄(`crontab -l`):
+
+  ```
+  30 6 * * * BIDOPS_DAILY_GAP_FLOOR_DATE=2026-11-04 /Users/temp/orca/bidops/scripts/cron-daily-track.sh notices
+  0 7 * * * BIDOPS_DAILY_GAP_FLOOR_DATE=2026-11-04 BIDOPS_C2_DAILY_ACTOR=jechoi /Users/temp/orca/bidops/scripts/cron-daily-track.sh order-plans
+  ```
+
+- 아직 증명되지 않은 것: cron이 실제로 돌리는 첫 실행(2026-11-20 06:30·07:00), 07:00 수집의 완전성(같은 날 오후 재수집과 id 비교), 재시작 직후 동작.
+- 알려진 한계: 재시작 뒤 로그인 전에는 실행이 exit 2로 끝난다(자동 로그인 없음). 경보는 사람의 아침 로그 확인 하나다. Ollama LaunchAgent 두 개(`com.axlab.ollama`와 Ollama.app)가 같은 포트를 두고 경쟁한다 — 재시작 뒤 어느 쪽이 뜨느냐에 따라 keep-alive·병렬 설정이 달라진다(미해결).
+- 되돌리기: `crontab -r`(이 사용자의 crontab에는 위 두 줄뿐이다).
+

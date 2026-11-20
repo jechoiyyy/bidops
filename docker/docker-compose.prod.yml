@@ -10,6 +10,13 @@ x-production-app: &production-app
 # services must not loop.
 x-restart-state-service: &restart-state-service
   restart: unless-stopped
+# 사전규격 개요의 플래그와 정책 경로. 개요 run을 등록하는 세 서비스(web의 사람 경로,
+# analysis-worker의 실행, prespec-attachment-worker의 취득 종결 뒤 자동 준비·enqueue)가
+# 같은 값을 봐야 한다 — 다르면 등록 때 동결한 정책 digest와 실행 정책이 어긋나 호출 전에
+# `binding_mismatch`로 끝난다. 세 서비스가 이 anchor 하나를 병합한다.
+x-prespec-overview-env: &prespec-overview-env
+  BIDOPS_PRESPEC_OVERVIEW_ENABLED: "${BIDOPS_PRESPEC_OVERVIEW_ENABLED:-false}"
+  BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH: ${BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH:-/app/web/backend/app/deep_review/policies/prespec-overview-policy-v7.json}
 services:
   postgres: *restart-state-service
   minio: *restart-state-service
@@ -40,7 +47,7 @@ services:
       BIDOPS_VLLM_OVERVIEW_API_KEY: ${BIDOPS_VLLM_OVERVIEW_API_KEY:-EMPTY}
       BIDOPS_VLLM_OVERVIEW_MODEL_REVISION: ${BIDOPS_VLLM_OVERVIEW_MODEL_REVISION:-}
       BIDOPS_VLLM_OVERVIEW_API_DIALECT: ${BIDOPS_VLLM_OVERVIEW_API_DIALECT:-vllm}
-      BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH: ${BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH:-/app/web/backend/app/deep_review/policies/prespec-overview-policy-v7.json}
+      <<: *prespec-overview-env
       BIDOPS_VLLM_DEEP_REVIEW_BASE_URL: ${BIDOPS_VLLM_DEEP_REVIEW_BASE_URL:-}
       BIDOPS_VLLM_DEEP_REVIEW_ALLOWED_HOSTS: ${BIDOPS_VLLM_DEEP_REVIEW_ALLOWED_HOSTS:-}
       BIDOPS_VLLM_DEEP_REVIEW_API_KEY: ${BIDOPS_VLLM_DEEP_REVIEW_API_KEY:-EMPTY}
@@ -68,7 +75,7 @@ services:
       BIDOPS_VLLM_OVERVIEW_API_KEY: ${BIDOPS_VLLM_OVERVIEW_API_KEY:-EMPTY}
       BIDOPS_VLLM_OVERVIEW_MODEL_REVISION: ${BIDOPS_VLLM_OVERVIEW_MODEL_REVISION:-}
       BIDOPS_VLLM_OVERVIEW_API_DIALECT: ${BIDOPS_VLLM_OVERVIEW_API_DIALECT:-vllm}
-      BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH: ${BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH:-/app/web/backend/app/deep_review/policies/prespec-overview-policy-v7.json}
+      <<: *prespec-overview-env
       BIDOPS_VLLM_DEEP_REVIEW_BASE_URL: ${BIDOPS_VLLM_DEEP_REVIEW_BASE_URL:-}
       BIDOPS_VLLM_DEEP_REVIEW_ALLOWED_HOSTS: ${BIDOPS_VLLM_DEEP_REVIEW_ALLOWED_HOSTS:-}
       BIDOPS_VLLM_DEEP_REVIEW_API_KEY: ${BIDOPS_VLLM_DEEP_REVIEW_API_KEY:-EMPTY}
@@ -86,9 +93,13 @@ services:
     - ${BIDOPS_C2_PROMPT_HOST_PATH:?set an explicit approved prompt file path}:/run/c2/order-plan-prompt.txt:ro
   prespec-attachment-worker:
     <<: *production-app
+    # 상시 실행 대상이다(2026-11-19 사전규격 단계 수정안 §5 #7). 기반 파일도 같은 값이지만
+    # host 재시작 뒤 자동 기동은 운영 결정이므로 prod에서 명시한다.
+    restart: unless-stopped
     networks:
     - prespec-egress
     environment:
+      <<: *prespec-overview-env
       BIDOPS_G2B_ATTACHMENT_ENABLED: 'true'
       BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS: ${BIDOPS_G2B_ATTACHMENT_ALLOWED_HOSTS:?set approved G2B attachment hosts in env/prespec-attachment.env}
 networks:

@@ -746,11 +746,12 @@ def run_prespec_e2e(
             "awaiting_click_notice_keys": [
                 row["notice_key"]
                 for row in rows
-                if row["auto_preparation_status"] == "deep_review_ready_for_click"
+                if row["auto_preparation_status"] == "overview_settled"
             ],
             # 종료 기준: 사전규격마다 자동 확정된 `ready` 묶음과 `completed`
-            # 개요가 있고, SW사업대상=Y는 심층 검토가 시작됐으며 SW=N은 사람
-            # 클릭 자리에서 `not_sw_business`로 멈춘다.
+            # 개요가 있고, SW사업대상=Y는 심층 검토가 시작됐으며 SW=N은 개요가
+            # 끝난 자리(`overview_settled`)에 멈춘다. 2026-11-19부터 목록 투영은 기존
+            # 자동 심층 시작 사유를 싣지 않으므로 사유는 `null`이다.
             "passed": bool(rows) and all(
                 (row["bundle"] or {}).get("status") == "ready"
                 and (row["bundle"] or {}).get("auto_confirmed") is True
@@ -759,8 +760,8 @@ def run_prespec_e2e(
                     row["auto_preparation_status"] == "deep_review_started"
                     if row["sw_business_status"] == "Y"
                     else (
-                        row["auto_preparation_status"] == "deep_review_ready_for_click"
-                        and row["auto_preparation_reason"] == "not_sw_business"
+                        row["auto_preparation_status"] == "overview_settled"
+                        and row["auto_preparation_reason"] is None
                     )
                 )
                 for row in rows

@@ -8,11 +8,12 @@ import { Activity, RefreshCw } from "lucide-react";
 import { api } from "../lib/api";
 import type { WorkloadKey } from "../lib/types";
 import { formatNumber } from "../lib/format";
-import { DECISION_AXIS_LABEL, ORDER_PLAN_REVIEW_TIER_LABEL, TERM_SENSE } from "../lib/glossary";
+import { DECISION_AXIS_LABEL, ORDER_PLAN_REVIEW_TIER_LABEL, PRE_SPEC_TERM, TERM_SENSE } from "../lib/glossary";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
 import { DailyCollectionStatus } from "../components/operations/DailyRunStatusLine";
 import {
-  goNoGoReviewTotalQuery, opportunityActionRequiredQuery, orderPlanViewTotalQuery, preSpecDefaultViewTotalQuery, preSpecRecentTotalQuery,
+  goNoGoReviewTotalQuery, opportunityActionRequiredQuery, orderPlanViewTotalQuery, preSpecDefaultViewTotalQuery,
+  preSpecNeedsCheckTotalQuery, preSpecRecentTotalQuery,
 } from "../lib/defaultViewCounts";
 import { CountStrip, DashboardBlock, LinkButton, Small, type DashCount } from "../components/dashboard/DashboardPrimitives";
 import { HoldReviewPanel } from "../components/dashboard/HoldReviewPanel";
@@ -109,6 +110,7 @@ function DashboardWorkspace() {
   const relevantPlanQuery = useQuery(orderPlanViewTotalQuery("relevant"));
   const uncertainPlanQuery = useQuery(orderPlanViewTotalQuery("uncertain"));
   const preSpecViewQuery = useQuery(preSpecDefaultViewTotalQuery());
+  const preSpecNeedsCheckQuery = useQuery(preSpecNeedsCheckTotalQuery());
   const goNoGoViewQuery = useQuery(goNoGoReviewTotalQuery());
   const actionRequiredQuery = useQuery(opportunityActionRequiredQuery());
   const recentPreSpecQuery = useQuery(preSpecRecentTotalQuery(newSince));
@@ -134,7 +136,7 @@ function DashboardWorkspace() {
 
   const allQueries = [
     workloadQuery, deadlineQuery, decisionQuery, overviewFailedQuery, overviewAttentionQuery, blockingQuery,
-    holdReviewQuery, newPlanQuery, relevantPlanQuery, uncertainPlanQuery, preSpecViewQuery, goNoGoViewQuery,
+    holdReviewQuery, newPlanQuery, relevantPlanQuery, uncertainPlanQuery, preSpecViewQuery, preSpecNeedsCheckQuery, goNoGoViewQuery,
     actionRequiredQuery, recentPreSpecQuery,
   ];
   const refresh = () => { for (const query of allQueries) void query.refetch(); };
@@ -155,7 +157,7 @@ function DashboardWorkspace() {
   // 오늘 결정할 것: 사람이 정해야 다음으로 넘어가는 일.
   const decideCounts: DashCount[] = [
     { key: "order-plan-relevant", label: `${ORDER_PLAN_REVIEW_TIER_LABEL.relevant} 발주계획`, value: listCount(relevantPlanQuery), basis: "추적 결정 대기 · 모델 관련", to: "/order-plans" },
-    { key: "pre-spec-actionable", label: "사전규격 검토할 항목", value: listCount(preSpecViewQuery), basis: "사람 확인·추적 결정 · 마감 전·미확인", to: "/pre-specs" },
+    { key: "pre-spec-actionable", label: `사전규격 ${PRE_SPEC_TERM.actionable}`, value: listCount(preSpecViewQuery), basis: `${PRE_SPEC_TERM.reviewOverview}·추적 결정 · 마감 전·미확인`, to: "/pre-specs" },
     {
       key: "go-no-go",
       label: DECISION_AXIS_LABEL.goNoGo,
@@ -170,8 +172,10 @@ function DashboardWorkspace() {
   // 확인할 것: 실패·사람 확인·마감 임박.
   const checkCounts: DashCount[] = [
     { key: "action-required", label: "사업기회 조치 필요", value: countText(actionRequiredQuery, actionData?.total), basis: "새 연결·후보·확인 항목·보류 기한", to: "/opportunities" },
+    // 사전규격 확인 필요(2026-11-19): 개요 실패·취소, 문서 준비 중단. 기본 보기와 같은 마감 구간이다.
+    // 옛 `개요 실패`(누적) 칸을 대신한다 — 누적 실패 건수는 아래 사람 확인 패널 바닥이 그대로 적는다.
+    { key: "pre-spec-needs-check", label: `사전규격 ${PRE_SPEC_TERM.needsCheck}`, value: listCount(preSpecNeedsCheckQuery), basis: "개요 실패·취소 · 문서 준비 중단 · 마감 전·미확인", to: "/pre-specs?workspace=needs_check" },
     { key: "overview-attention", label: "개요 사람 확인", value: countText(overviewAttentionQuery, overviewAttentionQuery.data?.total), basis: "사전규격 · 누적", to: "/pre-specs?workspace=all&sw_only=false&overview_view=attention" },
-    { key: "overview-failed", label: "개요 실패", value: countText(overviewFailedQuery, overviewFailedQuery.data?.total), basis: "사전규격 · 누적", to: "/pre-specs?workspace=all&sw_only=false&overview_view=failed" },
     { key: "blocking", label: "확인 항목 미답변", value: countText(actionRequiredQuery, actionData?.action_reason_counts?.blocking_item), basis: "조치 필요 사업", to: "/opportunities?section=조치 필요&reason=blocking_item" },
     { key: "deadline", label: "마감 임박 추적 건", value: countText(deadlineQuery, deadlineQuery.data?.total), basis: `${DEADLINE_IMMINENT_DAYS}일 이내`, to: `/opportunities?section=전체&deadline_within_days=${DEADLINE_IMMINENT_DAYS}&sort=deadline` },
     { key: "order-plan-uncertain", label: `${ORDER_PLAN_REVIEW_TIER_LABEL.uncertain} 발주계획`, value: listCount(uncertainPlanQuery), basis: `모델 ${TERM_SENSE.modelUncertain} · 추적 미선택`, to: "/order-plans?qwen=uncertain&tracking=미선택" },

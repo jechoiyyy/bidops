@@ -24,6 +24,8 @@ def context(request, tmp_path, monkeypatch):
     monkeypatch.setenv("BIDOPS_TEST_MODE", "1")
     monkeypatch.setenv("BIDOPS_OBJECT_STORE_BACKEND", "filesystem")
     monkeypatch.setenv("BIDOPS_ATTACHMENTS_DIR", str(tmp_path))
+    # The engine path is off by default; these tests exercise it switched on.
+    monkeypatch.setenv("BIDOPS_ENGINE_ANALYSIS_ENABLED", "true")
     get_settings.cache_clear()
 
     def setup(bind):
@@ -82,21 +84,33 @@ def test_real_pipeline_queue_and_store_partial_without_promoting_unknown(context
     assert result["quality_status"] == "mock_reference"
     assert result["analysis"]["facts"]["project"]["budget_krw"] is None
     assert result["analysis"]["usage"]["calls"] == 3
-    assert any(
-        g["code"] == "SME_CERT" and g["verdict"] == "UNKNOWN"
-        for g in result["analysis"]["gates"]
-    )
+    # The product mock infers no eligibility from any sentence (D5). The scripted
+    # SME_CERT gate path is covered in packages/bid-deep-engine/engine_tests/test_runner.py.
+    assert result["analysis"]["facts"]["eligibility"] == []
+    assert result["analysis"]["gates"] == []
     assert [(f["req_id"], f["fit"]) for f in result["analysis"]["fits"]] == [
         ("SFR-001", "UNKNOWN")
     ]
-    eligibility = result["analysis"]["facts"]["eligibility"][0]
-    assert eligibility["evidence"]["verified"] is True
-    assert eligibility["evidence"]["quote"] == "중소기업확인서를 제출해야 한다."
-    assert any(
-        e["evidence_path"] == "/facts/eligibility/0/evidence"
-        for e in result["analysis"]["source_evidence"]
-    )
+    project_evidence = result["analysis"]["facts"]["project"]["evidence"][0]
+    assert project_evidence["verified"] is True
+    located = {
+        e["evidence_path"]: e for e in result["analysis"]["source_evidence"]
+    }
+    assert located["/facts/project/evidence/0"]["location_status"] == "exact"
+    assert located["/fits/0/evidence"]["block_key"].startswith("table-")
     assert "company_profile_projection_incomplete" in result["warnings"]
+    # D1: a fresh run is not "이전 기준 분석"; BidOps' binding hash is kept separately.
+    assessment = result["analysis"]["assessment"]
+    assert not {"stale_stage", "legacy_metadata"} & set(assessment["reason_codes"])
+    assert "stale_analysis" not in [
+        c["kind"] for c in assessment["provisional"]["conditions"]
+    ]
+    projection = result["analysis"]["company_projection"]
+    assert projection["source_profile_sha256"] == result["profile_sha256"]
+    assert (
+        projection["engine_company_input_hash"]
+        == result["analysis"]["company_input_hash"]
+    )
     assert (
         session.scalar(
             select(func.count())
@@ -264,3 +278,206 @@ def test_postgres_input_and_terminal_results_are_immutable(context):
         )
         session.commit()
     session.rollback()
+
+
+def _engine_failure_records(caplog):
+    return [
+        r.bidops
+        for r in caplog.records
+        if getattr(r, "bidops", {}).get("event") == "engine_run.failed"
+    ]
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "input_hash_mismatch",
+        "engine_version_changed",
+        "engine_unavailable",
+        "engine_timeout",
+        "engine_process_failed",
+        "engine_output_invalid",
+    ],
+)
+def test_worker_keeps_each_specific_failure_code_and_logs_it(context, caplog, code):
+    import logging
+
+    session, client, ids = context
+    result = enqueue(context)
+
+    def fail(_):
+        raise svc.EngineRunError(code)
+
+    with caplog.at_level(logging.WARNING, logger=svc.logger.name):
+        assert svc.run_once(session, "engine-test", invoke=fail)
+    row = client.get("/api/engine-runs/" + result["id"]).json()
+    assert row["status"] == "failed" and row["error_code"] == code
+    assert _engine_failure_records(caplog) == [
+        {
+            "event": "engine_run.failed",
+            "run_id": result["id"],
+            "worker_id": "engine-test",
+            "error_code": code,
+            "failure_type": "EngineRunError",
+        }
+    ]
+
+
+def test_unexpected_worker_error_is_logged_by_class_without_its_message(context, caplog):
+    import logging
+
+    session, client, ids = context
+    result = enqueue(context)
+
+    def fail(_):
+        raise RuntimeError("중소기업확인서를 제출해야 한다. /private/secret")
+
+    with caplog.at_level(logging.WARNING, logger=svc.logger.name):
+        assert svc.run_once(session, "engine-test", invoke=fail)
+    row = client.get("/api/engine-runs/" + result["id"]).json()
+    assert row["error_code"] == "engine_execution_failed"
+    [record] = _engine_failure_records(caplog)
+    assert record["failure_type"] == "RuntimeError"
+    logged = json.dumps([r.__dict__ for r in caplog.records], default=str, ensure_ascii=False)
+    assert "/private" not in logged and "중소기업확인서" not in logged
+
+
+def test_runner_failure_code_passes_through_the_real_subprocess(context, caplog):
+    import logging
+
+    session, client, ids = context
+    result = enqueue(context)
+
+    def live_payload(frozen):
+        # The service never freezes mode=live; this drives the runner's own refusal.
+        return svc.invoke_engine({**frozen, "mode": "live"})
+
+    with caplog.at_level(logging.WARNING, logger=svc.logger.name):
+        assert svc.run_once(session, "engine-test", invoke=live_payload)
+    row = client.get("/api/engine-runs/" + result["id"]).json()
+    assert row["status"] == "failed"
+    assert row["error_code"] == "engine_live_not_approved"
+    [record] = _engine_failure_records(caplog)
+    assert record["error_code"] == "engine_live_not_approved"
+    assert record["failure_type"] == "EngineError"
+
+
+def _fake_run(stdout_bytes=b"", returncode=0, raises=None):
+    import subprocess
+
+    def run(command, *, input, stdout, stderr, timeout, env, check):
+        if raises is not None:
+            raise raises
+        stdout.write(stdout_bytes)
+        stderr.write("원문 일부가 섞일 수 있는 stderr".encode())
+        return subprocess.CompletedProcess(command, returncode)
+
+    return run
+
+
+def _envelope(**changes):
+    value = {
+        "schema_version": "bidops.engine-output.v1",
+        "engine_version": svc.ENGINE_VERSION,
+        "quality_status": "mock_reference",
+        "status": "failed",
+        "error_code": "structure_unavailable",
+        "error_class": "EngineError",
+        "warnings": [],
+        "analysis": None,
+        "artifacts": {},
+    }
+    value.update(changes)
+    return json.dumps(value).encode()
+
+
+@pytest.mark.parametrize(
+    ("run", "code"),
+    [
+        (
+            _fake_run(raises=__import__("subprocess").TimeoutExpired("engine", 90)),
+            "engine_timeout",
+        ),
+        (_fake_run(_envelope(), returncode=1), "engine_process_failed"),
+        (_fake_run(b"{not json"), "engine_output_invalid"),
+        (_fake_run(b"\xff"), "engine_output_invalid"),
+        (_fake_run(b"[]"), "engine_output_invalid"),
+        (_fake_run(_envelope(error_code="made_up_code")), "engine_output_invalid"),
+        (_fake_run(_envelope(status="partial", analysis=None)), "engine_output_invalid"),
+    ],
+)
+def test_invoke_maps_process_failures_to_defined_codes(monkeypatch, run, code):
+    monkeypatch.setattr(svc.subprocess, "run", run)
+    with pytest.raises(svc.EngineRunError) as raised:
+        svc.invoke_engine({"engine_sha256": svc.engine_digest()})
+    assert raised.value.code == code
+
+
+def test_invoke_rejects_changed_engine_code_and_keeps_runner_codes(monkeypatch):
+    with pytest.raises(svc.EngineRunError) as raised:
+        svc.invoke_engine({"engine_sha256": "0" * 64})
+    assert raised.value.code == "engine_version_changed"
+    monkeypatch.setattr(svc.subprocess, "run", _fake_run(_envelope(error_class="not a class!")))
+    result = svc.invoke_engine({"engine_sha256": svc.engine_digest()})
+    assert result["error_code"] == "structure_unavailable"
+    assert result["error_class"] is None
+
+
+def _switch(monkeypatch, on):
+    monkeypatch.setenv("BIDOPS_ENGINE_ANALYSIS_ENABLED", "true" if on else "false")
+    get_settings.cache_clear()
+
+
+def test_switch_off_rejects_creation_before_any_write_or_replay(context, monkeypatch):
+    session, client, ids = context
+    replayed = body(ids)
+    assert (
+        client.post(
+            endpoint(ids), json=replayed, headers={"X-BidOps-Actor-Name": "tester"}
+        ).status_code
+        == 202
+    )
+    _switch(monkeypatch, False)
+    for payload in (body(ids), replayed, body(ids, mode="live")):
+        response = client.post(
+            endpoint(ids), json=payload, headers={"X-BidOps-Actor-Name": "tester"}
+        )
+        assert response.status_code == 503, response.text
+        assert response.json()["error"]["code"] == "engine_analysis_disabled"
+    assert session.scalar(select(func.count()).select_from(EngineRun)) == 1
+    assert (
+        session.scalar(
+            select(func.count())
+            .select_from(WorkJob)
+            .where(WorkJob.job_type == svc.JOB_TYPE)
+        )
+        == 1
+    )
+
+
+def test_switch_off_keeps_existing_runs_readable_for_audit(context, monkeypatch):
+    session, client, ids = context
+    created = enqueue(context)
+    assert svc.run_once(session, "engine-test")
+    _switch(monkeypatch, False)
+    listed = client.get(endpoint(ids))
+    assert listed.status_code == 200 and listed.json()["total"] == 1
+    detail = client.get("/api/engine-runs/" + created["id"])
+    assert detail.status_code == 200 and detail.json()["status"] == "partial"
+
+
+def test_switch_off_worker_slot_claims_nothing(context, monkeypatch):
+    from app.deep_review import run_engine_once  # the composed worker's entry
+
+    session, client, ids = context
+    created = enqueue(context)
+    _switch(monkeypatch, False)
+    assert not run_engine_once(
+        session, "engine-test", invoke=lambda _: pytest.fail("slot ran while off")
+    )
+    job = session.scalar(select(WorkJob).where(WorkJob.job_type == svc.JOB_TYPE))
+    assert (job.status, job.attempt_count, job.lease_owner) == ("queued", 0, None)
+    assert client.get("/api/engine-runs/" + created["id"]).json()["status"] == "queued"
+    _switch(monkeypatch, True)
+    assert run_engine_once(session, "engine-test")
+    assert client.get("/api/engine-runs/" + created["id"]).json()["status"] == "partial"
