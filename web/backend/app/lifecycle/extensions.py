@@ -147,10 +147,12 @@ class WorkloadProjection(Protocol):
 
     어휘는 `schemas/workload.WorkloadKey`가 정본이다. 현재 제공자 소유는
     screening의 `order_plan_pending`·`order_plan_new_priority`와 deep_review의
-    `pre_spec_deep_review_ready`·`bid_final_decision_pending`·`overview_human_review`·
-    `company_attention`(RL-00) 여섯이고, 나머지 넷(`tracking_action_required`·`tracking_hold_review_due`·
+    `bid_final_decision_pending`·`overview_human_review`·`company_attention`(RL-00)
+    다섯이고, 나머지(`tracking_action_required`·`tracking_hold_review_due`·
     `tracking_deadline_imminent`·`blocking_items_open`과 그 합계
-    `human_check_required`)은 lifecycle이 자기 테이블에서 직접 센다
+    `human_check_required`)는 lifecycle이 자기 테이블에서 직접 센다. 사전규격
+    `pre_spec_actionable`·`pre_spec_needs_check`(2026-11-19)는 lifecycle이 사전규격
+    목록 질의 그 자체로 센다 — 개요·문서 projection 제공자가 없으면 `null`이다
     ([ADR-0053](../../../docs/tracking/decisions/0053-decision-workload-read-contracts.md)
     결정 4, [ADR-0067](../../../docs/tracking/decisions/0067-dashboard-workload-keys-and-panel-contracts.md)
     결정 9). lifecycle이 `prespec_overview_run`이나 `order_plan_screening_result`를

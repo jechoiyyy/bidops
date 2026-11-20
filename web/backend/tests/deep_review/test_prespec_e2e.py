@@ -183,8 +183,9 @@ def test_sw_business_splits_automatic_start_from_the_human_click(evidence: dict)
     assert all(notice["effective_grade"] == "우선 검토" for notice in by_key.values())
     assert by_key["pre-1"]["auto_preparation_status"] == "deep_review_started"
     assert by_key["pre-1"]["auto_preparation_reason"] is None
-    assert by_key["pre-5"]["auto_preparation_status"] == "deep_review_ready_for_click"
-    assert by_key["pre-5"]["auto_preparation_reason"] == "not_sw_business"
+    assert by_key["pre-5"]["auto_preparation_status"] == "overview_settled"
+    # 2026-11-19: 투영은 기존 자동 심층 시작 사유를 싣지 않는다.
+    assert by_key["pre-5"]["auto_preparation_reason"] is None
     assert by_key["pre-5"]["deep_review"] is None
 
 

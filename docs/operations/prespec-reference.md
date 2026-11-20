@@ -358,9 +358,9 @@ curl --fail "http://127.0.0.1:${BIDOPS_WEB_PORT:-18787}/api/pre-specs?limit=50"
 
 `auto_preparation_status`가 `not_applicable → waiting_attachments → bundle_draft →
 bundle_ready → overview_running → deep_review_started`로 간다.
-`deep_review_ready_for_click`에서 멈추면 `auto_preparation_reason`이 **왜 자동으로 열리지
-않았는지**를 말한다(`not_sw_business`, `overview_not_completed` 등). 그 값이 정상적인
-설명이면 화면에서 사람이 심층 검토를 실행한다.
+2026-11-19부터 개요가 끝난 자리는 `overview_settled`(옛 `deep_review_ready_for_click`)이고 사유가
+없다. 기존 자동 심층 시작을 막은 사유는 목록 투영에 싣지 않으며 화면의 기존 심층 검토 진입점도
+내려갔다 — 이 절의 기존 심층 검토 참조 실행은 과거 기록이며 지금 화면에서는 재현되지 않는다.
 
 개요와 심층 결과를 본다.
 
@@ -545,6 +545,55 @@ claim 대상이 없음을 먼저 확인한다. 그 다음 합성 analysis worker
 호출 단계까지 계속 `false`로 두어서는 안 된다. 실패 결과를 재시도나 다른 provider fallback으로
 성공 처리하지 않는다.
 
+## 상시 실행으로 켜기 — 사전규격 1단계 (승인 대기 절차)
+
+[사전규격 단계 수정안](../1118_launch-hardening/사전규격-단계-수정안.md) §6의 2~4단계다. **아직 실행하지
+않았고 각 단계 직전에 사람 확인이 필요하다.** 앞 단계의 승인은 다음 단계로 이어지지 않는다. 결과는
+`docs/validation-runs/<날짜>-prespec-stage1/`에 남기며, 첫날 감독 전에는 "검증됨"으로 적지 않는다 —
+상시 첨부 worker에서 개요까지 이어지는 경로는 끝까지 증명된 적이 없다.
+
+**세 서비스가 같은 값을 봐야 한다.** 개요 run을 등록하는 곳은 web(사람의 범위 확정), analysis-worker(실행),
+prespec-attachment-worker(취득 종결 뒤 자동 준비·enqueue) 셋이다. 셋의 `BIDOPS_PRESPEC_OVERVIEW_ENABLED`와
+`BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH`가 다르면 등록 때 동결한 정책 digest와 실행 정책이 어긋나 호출 전에
+`binding_mismatch`로 끝난다. `docker/docker-compose.prod.yml`의 anchor `x-prespec-overview-env` 하나를 세
+서비스가 병합하므로 값은 env 파일(`env/model.env`의 정책 경로, 플래그) 한 곳에서 정한다.
+
+자동 처리 범위: 첨부 취득·문서 준비·개요는 의견 마감 전(또는 미확인)이거나 사업기회가 추적 중(계속 추적·보류)인
+사전규격만 처리한다. 마감이 지난 미추적 건의 `대기` 취득 행은 그대로 남고 claim되지 않는다(업무 규칙 "자동
+처리 범위"). 상한은 첫날 마감 전 밀린 건(2026-11-19 기준 약 158건), 이후 평일 약 58건이다(추정).
+
+1. **병합·백업·롤백 태그.** 작업 브랜치를 main에 병합한 뒤 전체 백업(`backups/postgres/full/`)과
+   `before-prespec-stage1-<날짜>` 태그를 남긴다. migration은 없다 — head가 그대로인지(`0042_engine_run`) 배포
+   기록에 적는다.
+2. **이미지.** 현재 main으로 애플리케이션 이미지를 만든다(web·analysis-worker·prespec-attachment-worker가 같은
+   이미지, linux/amd64). 옛 첨부 worker 이미지(`c2mac-20261015`)는 쓰지 않는다.
+3. **값 확인(값만, 비밀 출력 없이).** 정책 경로가 `prespec-overview-policy-v7-litellm-v2.json`인지, 세 서비스가
+   같은 두 값을 렌더하는지 두 키만 뽑아 본다.
+   ```bash
+   BIDOPS_ENV=prod scripts/compose.sh config --format json web analysis-worker prespec-attachment-worker \
+     | jq '.services | map_values(.environment | {BIDOPS_PRESPEC_OVERVIEW_ENABLED, BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH})'
+   ```
+   이 단계에서는 플래그가 아직 `false`여야 한다.
+4. **web·analysis-worker 교체(플래그 off).** `BIDOPS_ENV=prod scripts/compose.sh up -d --no-deps --no-build
+   --force-recreate web analysis-worker`. analysis-worker의 재시작 정책은 이 절차에서 바꾸지 않는다(현재 운영 값을
+   따른다). 올린 뒤 컨테이너 안에서 정책 파일 sha256을 세 서비스 모두 같은 값으로 본다
+   (`sha256sum <정책 경로>`; 값은 `0e69ae43…`로 시작해야 한다).
+5. **첨부 worker 재생성.** `BIDOPS_ENV=prod scripts/compose.sh --profile prespec up -d --no-deps --no-build
+   --force-recreate prespec-attachment-worker`. 이 서비스만 `restart: unless-stopped`이고 나라장터 첨부 host로만
+   나간다(`prespec-egress`, `env/prespec-attachment.env`의 허용 host). 첫 몇 분 동안 마감 전·추적 중 건의 취득
+   행만 `진행`·`완료`로 바뀌는지 사전규격 목록의 첨부 집계로 본다(마감 경과 미추적 건은 `대기` 그대로).
+   이 단계까지는 플래그가 꺼져 있어 묶음 자동 준비는 `우선 검토` 등급 건만, 개요 enqueue는 없다.
+6. **플래그 켜기.** env 파일의 `BIDOPS_PRESPEC_OVERVIEW_ENABLED=true` 하나를 바꾸고 세 서비스를 같은 명령으로
+   다시 만든다(4·5의 명령). 3의 확인을 다시 돌려 세 값이 같은지 본다. 이때부터 마감 전 건의 문서 준비와 개요가
+   자동으로 시작된다(로컬 LiteLLM → Ollama 호출, C-2와 같은 작업 슬롯이며 C-2가 먼저다).
+7. **첫날 감독.** 취득·변환 성공률, 개요 `completed`·`failed`·입력 초과(`input_capacity_exceeded`) 건수, 처리
+   시간, C-2 일일 실행과의 슬롯 간섭, 화면의 `검토할 항목`·`확인 필요` 건수(대시보드 칸 = 목록 total)를 본다.
+
+중단 조건: `binding_mismatch`, 첨부 변환 실패가 절반을 넘음, 모델 endpoint 연속 2회 실패, 로그·응답에
+비밀값·회사자료 노출, C-2 일일 실행이 개요 때문에 시작하지 못함, migration이 필요해짐.
+되돌리기: 플래그를 `false`로 되돌려 세 서비스를 다시 만들고 첨부 worker를 내린다(`stop prespec-attachment-worker`).
+만들어진 묶음·개요 run은 지우지 않는다. 이미지·코드는 1의 태그로 되돌린다.
+
 ## 승인된 Ollama를 쓰는 경우
 
 `BIDOPS_VLLM_OVERVIEW_API_DIALECT=ollama`를 명시하고 overview 전용 endpoint,
@@ -684,6 +733,9 @@ v7이며 v8 활성화는 별도 품질 비교와 정책 변경 확인을 요구�
 감사를 추가한다. 기존 프로필·근거·과거 위치는 보존하며, 변조된 근거는 복구하지 않는다.
 
 ## 사용자 요청 Luna 심층검토 운영 (ADR-0069)
+
+2026-11-19부터 사전규격 상세의 사용자 요청 Luna 요청 화면은 내려갔다(사전규격 단계 수정안 §3 B).
+백엔드 서비스·경로는 RL 판정이 같이 쓰므로 남아 있다. 아래는 그 경로의 과거 적용 기록이다.
 
 [단계별 적용 명령과 롤백](../0922_luna-deep-review/apply.md)이 이번 적용 절차다.
 0032 migration, 전용 runner 이미지/secret/egress, 불변 Luna 정책, web/worker 환경을

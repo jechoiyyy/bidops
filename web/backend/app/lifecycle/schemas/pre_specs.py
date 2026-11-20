@@ -23,7 +23,9 @@ from .opportunities import OpportunityLinkView, OpportunityTrackingStatus
 
 PreSpecOrigin = Literal["추적", "신규"]
 PreSpecSort = Literal["published", "deadline", "observed"]
-PreSpecWorkspace = Literal["actionable", "recent", "tracking", "all"]
+#: `needs_check`(확인 필요, 2026-11-19)는 추적 결정이 없는데 개요가 결과 없이 끝났거나
+#: 문서 준비가 사람 없이는 끝나지 않는 공고다. `actionable`과 서로소다.
+PreSpecWorkspace = Literal["actionable", "needs_check", "recent", "tracking", "all"]
 PreSpecOverviewView = Literal[
     "all",
     "attention",
@@ -43,7 +45,9 @@ PreSpecGradeFilter = Literal["우선 검토", "검토 권장", "관찰 대상", 
 PreSpecDisplayGradeFilter = Literal[
     "우선 검토", "검토 권장", "관찰 대상", "제외", "판단 보류", "판정 없음"
 ]
-PreSpecNextAction = Literal["confirm_overview", "open_deep_review", "decide_tracking"]
+#: 2026-11-19 개정: 기존 심층 검토를 여는 `open_deep_review`와 `decide_tracking`이
+#: 빠지고, 완료된 개요를 읽고 추적을 정하라는 `review_overview`가 그 자리를 갖는다.
+PreSpecNextAction = Literal["confirm_overview", "review_overview"]
 
 
 class PreSpecDocumentSummary(RuntimeContractModel):
@@ -203,6 +207,9 @@ class PreSpecListResponse(RuntimeContractModel):
     # 활성 workspace·활성 `deadline_scope`와 무관하게 항상 같은 값이고 항상 존재한다.
     # 나머지 필터(`q`·`deadline_status`·`grade` 등)는 모두 반영한다.
     deadline_scope_counts: PreSpecDeadlineScopeCounts
+    # `확인 필요`(needs_check) 집합의 같은 분할(2026-11-19). 정의·불변식은
+    # `deadline_scope_counts`와 같고 대상 분기만 다르다.
+    needs_check_deadline_scope_counts: PreSpecDeadlineScopeCounts
 
 
 class PreSpecCandidateOrderPlan(RuntimeContractModel):

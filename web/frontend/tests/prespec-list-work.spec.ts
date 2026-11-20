@@ -98,16 +98,15 @@ async function mockPagedPreSpecs(page: Page, total = 220): Promise<void> {
   });
 }
 
-test("행은 색 없는 등급 글자 토큰을 두고 판정 없음을 접지 않는다", async ({ page }) => {
+test("행에는 등급 토큰과 기존 심층 검토 상태가 없다", async ({ page }) => {
+  // 2026-11-19(사전규격 단계 수정안 §3 B): C-1 공고 판정을 다시 돌리지 않으므로 행의 등급 토큰이,
+  // 기존 심층 검토가 화면에서 내려가므로 `심층검토 …` 글자가 함께 빠졌다.
   await mockApi(page);
   await mockPreSpecMatrix(page);
   await page.goto("/pre-specs");
-  const grades = page.locator(".pre-specs-row-grade");
-  await expect(grades).toHaveCount(8);
-  await expect(grades.filter({ hasText: "판정 없음" })).toHaveCount(1);
-  // 색이 아니라 글자로 말한다: 등급별 색 클래스를 만들지 않는다.
-  const classes = await grades.evaluateAll((nodes) => nodes.map((node) => node.className));
-  expect([...new Set(classes)]).toEqual(["pre-specs-row-grade"]);
+  await expect(page.locator(".pre-specs-row")).toHaveCount(8);
+  await expect(page.locator(".pre-specs-row-grade")).toHaveCount(0);
+  await expect(page.locator(".pre-specs-row").filter({ hasText: "심층검토" })).toHaveCount(0);
 });
 
 test("새 사전규격 필터는 페이지 전에 서버 질의로 적용된다", async ({ page }) => {
@@ -119,8 +118,8 @@ test("새 사전규격 필터는 페이지 전에 서버 질의로 적용된다"
   await mockApi(page);
   await mockPreSpecs(page);
 
-  await page.goto("/pre-specs?auto_preparation_status=deep_review_ready_for_click&sw_only=false");
-  await expect.poll(() => queries.at(-1)?.get("auto_preparation_status")).toBe("deep_review_ready_for_click");
+  await page.goto("/pre-specs?auto_preparation_status=overview_settled&sw_only=false");
+  await expect.poll(() => queries.at(-1)?.get("auto_preparation_status")).toBe("overview_settled");
   expect(queries.at(-1)?.get("sw_only")).toBe("false");
   // 예전 대시보드 링크는 workspace가 없었으므로 누적 결과 전체를 유지한다.
   expect(queries.at(-1)?.get("workspace")).toBe("all");
@@ -218,8 +217,8 @@ test("사전규격의 회차는 기존 조건에 더해지고 기본값 복원�
   await mockPreSpecs(page);
   // 상세 필터 격자에 회차 칸이 하나 늘었다. 최소 지원 폭에서도 넘치지 않아야 한다(ADR-0047).
   await page.setViewportSize({ width: 1280, height: 800 });
-  // bda1288(사전규격 예비 평가)이 등급 주소 인자를 `grade`→`display_grade`로 바꿨다. 옛 `grade`는 진입 시 재작성된다.
-  await page.goto("/pre-specs?workspace=all&sw_only=false&display_grade=우선%20검토");
+  // 2026-11-19: 등급 필터가 내려가 다른 축으로 `발견 구분`을 쓴다.
+  await page.goto("/pre-specs?workspace=all&sw_only=false&origin=신규");
 
   await page.getByRole("button", { name: "상세 필터", exact: true }).click();
   await expect(page.locator("#pre-specs-advanced-filters")).toBeVisible();
@@ -229,8 +228,8 @@ test("사전규격의 회차는 기존 조건에 더해지고 기본값 복원�
   await page.getByRole("option", { name: /09-14~09-15 수집/ }).click();
   await expect.poll(() => queries.at(-1)?.get("source_run_id")).toBe("pre-spec-run-b");
 
-  // 다른 축이 그대로 남는다. 상세 필터 단추의 수는 등급 + 회차 둘이다.
-  expect(new URL(page.url()).searchParams.get("display_grade")).toBe("우선 검토");
+  // 다른 축이 그대로 남는다. 상세 필터 단추의 수는 발견 구분 + 회차 둘이다.
+  expect(new URL(page.url()).searchParams.get("origin")).toBe("신규");
   await expect(page.locator(".pre-specs-filters .workspace-filter-count")).toHaveText("2");
 
   // 회차 줄까지 그려진 상태에서도 넘치지 않는다(1280·1440 두 폭).
@@ -244,7 +243,7 @@ test("사전규격의 회차는 기존 조건에 더해지고 기본값 복원�
   // `기본값으로`는 회차도 함께 지운다.
   await page.locator(".pre-specs-filters").getByRole("button", { name: "기본값으로", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
-  expect(new URL(page.url()).searchParams.has("display_grade")).toBe(false);
+  expect(new URL(page.url()).searchParams.has("origin")).toBe(false);
   await expect(page.locator(".pre-specs-filters .source-run-context")).toHaveCount(0);
 });
 
@@ -940,7 +939,9 @@ test("우측 정보 영역은 사업명·기관·설명·과업 3건·예산·�
   await expect(detail.locator(".pre-specs-detail-agency")).toContainText("발주기관 미확인");
   await expect(detail.locator(".pre-specs-detail-title")).toContainText("사업명 미확인");
   await expect(detail.locator(".pre-specs-detail-facts")).toContainText("번호 미확인");
-  await expect(detail.locator(".pre-specs-detail-facts")).toContainText("판정 없음");
+  // 2026-11-19: 식별 줄에서 예비 적합성 등급이 빠졌다(C-1 미가동).
+  await expect(detail.locator(".pre-specs-detail-facts")).not.toContainText("판정 없음");
+  await expect(detail.locator(".pre-specs-detail-facts")).not.toContainText("예비 적합성 등급");
   await expect(detail.locator(".pre-specs-detail-chips")).toContainText("SW 미확인");
   await expect(detail.locator(".pre-specs-detail-figures")).toContainText("예산 미확인");
   await expect(detail.locator(".pre-specs-detail-figures")).toContainText("마감 일시 없음");

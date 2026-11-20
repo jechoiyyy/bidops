@@ -150,10 +150,10 @@ export const routeMetadata = {
     listPath: "/queue",
     record: { param: "noticePk", label: (value) => `공고 ${value}`, placement: "leaf" },
   },
-  // 공고 판정 이력은 사이드바 항목이 아니다. 사업 추적 상세에서 열리고,
-  // 회차 축을 갖는 두 화면 중 하나다(ADR-0046 결정 7).
+  // 입찰공고 상세(2026-11-19 이름 개정, 옛 `공고 판정 이력`). 사이드바 항목이 아니다. 사업
+  // 추적 상세에서 열리고, 회차 축을 갖는 두 화면 중 하나다(ADR-0046 결정 7).
   noticeJudgments: {
-    title: "공고 판정 이력",
+    title: "입찰공고 상세",
     dataScope: "run",
     runSelectorVisible: true,
     navGroup: "레코드",
@@ -334,40 +334,6 @@ export const routeMetadata = {
     listPath: null,
     record: { param: "noticeId", label: (value) => `notice ${value}`, placement: "before-screen" },
   },
-  // 심층 검토 보고서는 사전규격 아래에 둔다. 사전규격 상세의 문서 준비가
-  // 여는 화면이고, 자동으로 시작된 심층 검토의 진입점도 거기다(ADR-0049).
-  // 사업 추적 상세에서도 보고서 ID로 열 수 있으므로, 주소에 `from=opportunities`
-  // 가 있으면 그쪽을 상위로 본다.
-  assumptionAnalysis: {
-    title: "가정 분석 보고서",
-    dataScope: "cumulative",
-    runSelectorVisible: false,
-    navGroup: "레코드",
-    navPath: "/pre-specs",
-    ancestors: [{ label: "사전규격", path: "/pre-specs" }],
-    listPath: null,
-  },
-  deepReview: {
-    title: "심층 검토 보고서",
-    dataScope: "cumulative",
-    runSelectorVisible: false,
-    navGroup: "레코드",
-    navPath: "/pre-specs",
-    ancestors: [{ label: "사전규격", path: "/pre-specs" }],
-    listPath: null,
-    // 보고서 ID는 길어서 경로 한 칸에 다 들어가지 않는다. 앞 8자만 쓰고
-    // 줄였다는 사실을 말줄임표로 남긴다(잘린 값을 온전한 ID처럼 보이지 않게).
-    record: {
-      param: "deepReviewId",
-      label: (value) => (value.length > 8 ? `${value.slice(0, 8)}…` : value),
-      placement: "leaf",
-    },
-    alternateOrigin: {
-      from: "opportunities",
-      navPath: "/opportunities",
-      ancestors: [{ label: "사업기회", path: "/opportunities" }],
-    },
-  },
 } satisfies Record<string, RouteMetadata>;
 
 /** 회사 경로 하나. 회사 식별자가 UUID 모양이 아니면 링크를 만들지 않는다. */
@@ -455,7 +421,7 @@ export function resolveRouteLocation(
  *  거부 목록인 이유: `/metrics`·`/runs`·`/attachments`는 metadata상 `cumulative`여도
  *  페이지가 `run`을 직접 읽으므로 `dataScope`로는 구분할 수 없고, 모르는 경로는
  *  회차를 쓰는 쪽(현행 동작)으로 남겨야 안전하다. */
-const RUN_FREE_PATHS = ["/briefing", "/company", "/opportunities", "/order-plans", "/pre-specs", "/go-no-go", "/deep-reviews", "/companies"];
+const RUN_FREE_PATHS = ["/briefing", "/company", "/opportunities", "/order-plans", "/pre-specs", "/go-no-go", "/companies"];
 
 function isRunFreePath(path: string): boolean {
   return RUN_FREE_PATHS.some((p) => path === p || path.startsWith(`${p}/`));

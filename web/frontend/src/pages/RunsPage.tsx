@@ -868,13 +868,9 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
                           id: item.key,
                           cells: [
                             <Badge key="grade" variant={gradeVariant(item.key)} label={item.label || item.key} />,
-                            <Link
-                              className="rs-inline-link"
-                              key="count"
-                              to={`/queue?run=${encodeURIComponent(detail.run_id)}&grade=${encodeURIComponent(item.key)}`}
-                            >
-                              {formatNumber(item.count)}건
-                            </Link>,
+                            // 판정 대기열(`/queue`)로 가는 링크는 2026-11-19에 내렸다 — C-1 공고 판정을
+                            // 다시 돌리지 않는다(사전규격 단계 수정안 §3 B). 건수는 그대로 적는다.
+                            <span key="count">{formatNumber(item.count)}건</span>,
                           ],
                         }))}
                       />

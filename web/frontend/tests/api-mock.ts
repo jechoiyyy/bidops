@@ -82,7 +82,7 @@ function workloadProvider(page: Page, key: WorkloadKey, provider: () => { count:
 }
 /** `app/lifecycle/schemas/workload.py`의 `WorkloadKey`와 같은 고정 순서(ADR-0067). */
 const WORKLOAD_KEYS: WorkloadKey[] = [
-  "order_plan_pending", "pre_spec_deep_review_ready", "tracking_action_required",
+  "order_plan_pending", "pre_spec_actionable", "pre_spec_needs_check", "tracking_action_required",
   "tracking_hold_review_due", "bid_final_decision_pending", "tracking_deadline_imminent",
   "human_check_required", "overview_human_review", "blocking_items_open", "order_plan_new_priority",
   "company_attention", "briefing_pending",
@@ -1522,6 +1522,58 @@ function isPendingTracking(item: PreSpecListItem): boolean {
 }
 
 /**
+ * `검토할 항목` 술어의 개요 부분(2026-11-19, `routers/pre_specs._workspace_actionable`).
+ * 추적 결정 없음 ∧ 개요 `completed`·`needs_human_review`. 마감 구간은 바깥에서 건다.
+ */
+function isActionableCore(item: PreSpecListItem): boolean {
+  return trackingDecisionAbsent(item)
+    && (item.overview_review_status === "completed" || item.overview_review_status === "needs_human_review");
+}
+
+/**
+ * `확인 필요` 술어(2026-11-19, `routers/pre_specs._workspace_needs_check`). 추적 결정 없음 ∧
+ * 검토할 항목이 아님 ∧ (개요 실패·취소 ∨ 자동 준비 `blocked`·`bundle_draft` ∨ 사유 `no_ready_document`).
+ */
+function isNeedsCheckCore(item: PreSpecListItem): boolean {
+  if (!trackingDecisionAbsent(item)) return false;
+  if (item.overview_review_status === "completed" || item.overview_review_status === "needs_human_review") return false;
+  if (item.overview_review_status === "failed" || item.overview_review_status === "cancelled") return true;
+  return item.auto_preparation_status === "blocked"
+    || item.auto_preparation_status === "bundle_draft"
+    || item.auto_preparation_reason === "no_ready_document";
+}
+
+/** 서버 `next_action`(2026-11-19, `routers/pre_specs._next_action`). 응답마다 이 값으로 다시 쓴다 —
+ * 표본에 적힌 옛 값이 서버가 낼 수 없는 조합을 만들지 않게 한다. */
+function backendNextAction(item: PreSpecListItem): PreSpecListItem["next_action"] {
+  if (item.overview_review_status === "needs_human_review") return "confirm_overview";
+  if (item.overview_review_status === "completed" && trackingDecisionAbsent(item)) return "review_overview";
+  return null;
+}
+
+/** 목록 응답 본문. 서버와 같은 집계 셋과 `next_action`을 한곳에서 만든다. */
+function preSpecListBody(args: {
+  items: readonly PreSpecListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  statusItems: readonly PreSpecListItem[];
+  unscoped: readonly PreSpecListItem[];
+  search: URLSearchParams;
+}) {
+  return {
+    items: args.items.map((item) => ({ ...item, next_action: backendNextAction(item) })),
+    total: args.total,
+    limit: args.limit,
+    offset: args.offset,
+    overview_status_counts: overviewStatusCounts(args.statusItems as PreSpecListItem[]),
+    workspace_counts: workspaceCounts(args.unscoped, args.search),
+    deadline_scope_counts: deadlineScopeCounts(args.unscoped),
+    needs_check_deadline_scope_counts: deadlineScopeCounts(args.unscoped, "needs_check"),
+  };
+}
+
+/**
  * 마감 판정의 기준 시각. **실제 시계가 아니라 고정 시계다.**
  *
  * 화면 검사는 `page.clock.setFixedTime`으로 브라우저 시계를 2026-08-25·08-31에
@@ -1556,19 +1608,15 @@ function matchesWorkspace(
   sourceRunId: string | null = null,
   deadlineScope: string | null = null,
 ): boolean {
-  if (item.review_exclusion_status === "excluded" && (workspace === "actionable" || workspace === "recent")) return false;
+  if (item.review_exclusion_status === "excluded" && (workspace === "actionable" || workspace === "needs_check" || workspace === "recent")) return false;
   if (!workspace || workspace === "all") return true;
   if (workspace === "tracking") return item.tracking_status === "계속 추적" || item.tracking_status === "보류";
   if (workspace === "recent") return matchesObservation(item, sourceRunId, from, to);
-  // 구간은 actionable 술어의 일부다(ADR-0064 결정 4). 위 세 분기는 구간을 읽지
-  // 않으므로 `recent`·`tracking`·`all` 칸은 구간에 대해 불변이다.
+  // 구간은 actionable·needs_check 술어의 일부다(ADR-0064 결정 4, 2026-11-19). 위 세 분기는
+  // 구간을 읽지 않으므로 `recent`·`tracking`·`all` 칸은 구간에 대해 불변이다.
   if (!matchesDeadlineScope(item, deadlineScope)) return false;
-  // 2026-09-22 개정(시안 M7 ③): 사람이 추적 결정을 내린 건은 이유 불문 빠진다 —
-  // 합집합 바깥의 AND다(ADR-0064 결정 4 개정).
-  if (!trackingDecisionAbsent(item)) return false;
-  return item.overview_review_status === "needs_human_review"
-    || item.auto_preparation_status === "deep_review_ready_for_click"
-    || (item.overview_review_status === "completed" && isPendingTracking(item));
+  if (workspace === "needs_check") return isNeedsCheckCore(item);
+  return isActionableCore(item);
 }
 
 function matchesDeadlineStatus(item: PreSpecListItem, status: string | null): boolean {
@@ -1631,7 +1679,7 @@ function workspaceCounts(items: readonly PreSpecListItem[], search: URLSearchPar
   const from = observedFrom ?? defaults?.from ?? null;
   const to = observedTo ?? defaults?.to ?? null;
   const sourceRunId = search.get("source_run_id");
-  for (const workspace of ["actionable", "recent", "tracking", "all"]) {
+  for (const workspace of ["actionable", "needs_check", "recent", "tracking", "all"]) {
     counts[workspace] = items.filter((item) => matchesWorkspace(
       item,
       workspace,
@@ -1647,14 +1695,18 @@ function workspaceCounts(items: readonly PreSpecListItem[], search: URLSearchPar
 }
 
 /**
- * 구간 적용 **전** actionable 집합을 두 구간으로 나눈 건수(ADR-0064 결정 5).
- * 활성 workspace·활성 구간과 무관하게 언제나 같은 값이라 `deadline_scope`를
- * 넘기지 않고 센다. 기준 집합은 `workspaceCounts`와 같은 unscoped 목록이다.
+ * 구간 적용 **전** actionable(또는 needs_check) 집합을 두 구간으로 나눈 건수(ADR-0064 결정 5,
+ * 2026-11-19 `needs_check_deadline_scope_counts`). 활성 workspace·활성 구간과 무관하게 언제나
+ * 같은 값이라 `deadline_scope`를 넘기지 않고 센다. 기준 집합은 `workspaceCounts`와 같은
+ * unscoped 목록이다.
  */
-function deadlineScopeCounts(items: readonly PreSpecListItem[]): { current: number; passed: number } {
-  const actionable = items.filter((item) => matchesWorkspace(item, "actionable", null, null, null, "all"));
-  const passed = actionable.filter((item) => !matchesDeadlineScope(item, "current")).length;
-  return { current: actionable.length - passed, passed };
+function deadlineScopeCounts(
+  items: readonly PreSpecListItem[],
+  workspace: "actionable" | "needs_check" = "actionable",
+): { current: number; passed: number } {
+  const scoped = items.filter((item) => matchesWorkspace(item, workspace, null, null, null, "all"));
+  const passed = scoped.filter((item) => !matchesDeadlineScope(item, "current")).length;
+  return { current: scoped.length - passed, passed };
 }
 
 function compareFixtureItems(left: PreSpecListItem, right: PreSpecListItem, sort: string | null): number {
@@ -1992,9 +2044,14 @@ export async function mockPreSpecs(page: Page): Promise<void> {
     }
     await fulfillJson(route, inheritedPreSpecOpportunity);
   });
-  // 2026-09-22 개정(시안 M7 ③): 이 건수도 `검토할 항목`과 같은 추적 조건을 쓴다 —
-  // 사람이 추적 결정을 내린 건은 빠진다.
-  workloadProvider(page, "pre_spec_deep_review_ready", () => ({ count: visualPreSpecItems.filter((item) => item.auto_preparation_status === "deep_review_ready_for_click" && trackingDecisionAbsent(item)).length, unavailable_reason: null }));
+  // 2026-11-19: 사전규격 두 칸은 그 링크가 여는 목록의 total이다(서버가 목록 질의로 센다).
+  const defaultViewTotal = (workspace: "actionable" | "needs_check") => {
+    const search = new URLSearchParams({ workspace, deadline_scope: "current" });
+    return visualPreSpecItems.filter((item) => (item.sw_business_status === "Y" || item.kept_by_tracking)
+      && preSpecMatches(item, search)).length;
+  };
+  workloadProvider(page, "pre_spec_actionable", () => ({ count: defaultViewTotal("actionable"), unavailable_reason: null }));
+  workloadProvider(page, "pre_spec_needs_check", () => ({ count: defaultViewTotal("needs_check"), unavailable_reason: null }));
   // 개요 두 상태는 서로 배타적이므로 두 목록 호출의 `total` 합이 곧 이 키다(ADR-0067 결정 5).
   workloadProvider(page, "overview_human_review", () => ({
     count: visualPreSpecItems.filter((item) => item.overview_review_status === "failed" || item.overview_review_status === "needs_human_review").length,
@@ -2027,15 +2084,15 @@ export async function mockPreSpecs(page: Page): Promise<void> {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({
+        body: JSON.stringify(preSpecListBody({
           items: items.slice(offset, offset + limit),
           total: items.length,
           limit,
           offset,
-          overview_status_counts: overviewStatusCounts(statusItems),
-          workspace_counts: workspaceCounts(unscoped, url.searchParams),
-          deadline_scope_counts: deadlineScopeCounts(unscoped),
-        }),
+          statusItems,
+          unscoped,
+          search: url.searchParams,
+        })),
       });
       return;
     }
@@ -2121,16 +2178,18 @@ export function displayAssessmentFor(
   };
 }
 
-// 명세 §6.8 게이트: 자동 준비 8값과 등급 4값 + `판정 없음`이 화면에 **문자로**
-// 나타나는지 의미 층이 확인할 수 있게, 한 응답 안에 여덟 행을 모두 담는다.
+// 명세 §6.8 게이트: 자동 준비 8값이 화면에 **문자로** 나타나는지 의미 층이 확인할 수 있게,
+// 한 응답 안에 여덟 행을 모두 담는다. 상태·사유 조합은 서버(`auto_preparation._status_for`)가
+// 실제로 낼 수 있는 것만 쓴다 — `bundle_draft`·`overview_running`·`overview_settled`는 사유가
+// 없다(2026-11-19부터 `overview_settled`도 사유 없음).
 const AUTO_PREPARATION_MATRIX = [
   { status: "not_applicable", grade: null, reason: "grade_not_priority", deepReviewId: null },
   { status: "waiting_attachments", grade: "우선 검토", reason: "awaiting_fetch", deepReviewId: null },
-  { status: "bundle_draft", grade: "우선 검토", reason: "human_bundle_draft", deepReviewId: null },
+  { status: "bundle_draft", grade: "우선 검토", reason: null, deepReviewId: null },
   { status: "bundle_ready", grade: "검토 권장", reason: null, deepReviewId: null },
-  { status: "overview_running", grade: "검토 권장", reason: "overview_not_completed", deepReviewId: null },
+  { status: "overview_running", grade: "검토 권장", reason: null, deepReviewId: null },
   { status: "deep_review_started", grade: "우선 검토", reason: null, deepReviewId: "fixture-review" },
-  { status: "deep_review_ready_for_click", grade: "관찰 대상", reason: "bundle_not_auto_ready", deepReviewId: null },
+  { status: "overview_settled", grade: "관찰 대상", reason: null, deepReviewId: null },
   { status: "blocked", grade: "제외", reason: "bundle_has_blocking_issues", deepReviewId: null },
 ] as const;
 
@@ -2163,7 +2222,7 @@ const preSpecMatrixItems = AUTO_PREPARATION_MATRIX.map((entry, index) => ({
   latest_deep_review_id: entry.deepReviewId,
   first_observed_at: `2026-09-${String(10 + index).padStart(2, "0")}T00:00:00Z`,
   last_observed_at: `2026-09-${String(10 + index).padStart(2, "0")}T00:00:00Z`,
-  next_action: entry.status === "deep_review_ready_for_click" ? "open_deep_review" : "confirm_overview",
+  next_action: "confirm_overview",
 }));
 
 /** 등급·자동 준비 8값을 한 화면에 올리는 사전규격 목록 fixture. */
@@ -2185,15 +2244,15 @@ export async function mockPreSpecMatrix(page: Page): Promise<void> {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({
-        items: candidates.slice(offset, offset + limit),
+      body: JSON.stringify(preSpecListBody({
+        items: candidates.slice(offset, offset + limit) as PreSpecListItem[],
         total: candidates.length,
         limit,
         offset,
-        overview_status_counts: overviewStatusCounts(statusItems),
-        workspace_counts: workspaceCounts(unscoped as PreSpecListItem[], url.searchParams),
-        deadline_scope_counts: deadlineScopeCounts(unscoped as PreSpecListItem[]),
-      }),
+        statusItems: statusItems as PreSpecListItem[],
+        unscoped: unscoped as PreSpecListItem[],
+        search: url.searchParams,
+      })),
     });
   });
 }
@@ -2260,24 +2319,25 @@ export async function mockPreSpecDeadlineScope(page: Page): Promise<void> {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({
+      body: JSON.stringify(preSpecListBody({
         items: items.slice(offset, offset + limit),
         total: items.length,
         limit,
         offset,
-        overview_status_counts: overviewStatusCounts(items),
-        workspace_counts: workspaceCounts(unscoped, url.searchParams),
-        deadline_scope_counts: deadlineScopeCounts(unscoped),
-      }),
+        statusItems: items,
+        unscoped,
+        search: url.searchParams,
+      })),
     });
   });
 }
 
-// `corrected`는 사람 정정 등급이 notice의 판정 등급과 **다른** 경우다. 화면이
-// 현재 등급 하나만 보여 주는지 확인하려면 두 값이 달라야 한다(명세 §6.2).
-export type PreSpecAutoDetailState = "started" | "ready_for_click" | "corrected";
+// `corrected`는 사람 정정 등급이 notice의 판정 등급과 **다른** 경우다(명세 §6.2). 2026-11-19
+// 부터 화면은 등급을 그리지 않는다 — 다른 등급이 화면에 새지 않는지 보는 표본으로 남긴다.
+// `settled`는 확정 묶음의 개요가 끝난 상태(옛 `ready_for_click`)다.
+export type PreSpecAutoDetailState = "started" | "settled" | "corrected";
 
-/** 사전규격 상세의 자동 준비 단계 표시와 두 갈래 동선(보고서 링크 · 실행 버튼). */
+/** 사전규격 상세의 자동 준비 단계 표시(2026-11-19: 기존 심층 검토 동선 없음). */
 export async function mockPreSpecAutoDetail(page: Page, state: PreSpecAutoDetailState): Promise<void> {
   // notice(`visualPreSpecNotice`)의 판정 등급은 `우선 검토`다. `corrected`는
   // 사람이 `관찰 대상`으로 정정한 상태이며 화면은 정정된 현재 등급만 보여야
@@ -2294,8 +2354,8 @@ export async function mockPreSpecAutoDetail(page: Page, state: PreSpecAutoDetail
     // display_assessment도 state에 맞춰 다시 준다 — 위 grade/grade_source만
     // 바꾸면 화면이 읽는 대표 판정(bda1288)은 991의 고정값에 머문다.
     display_assessment: displayAssessmentFor(grade, gradeSource, "completed"),
-    auto_preparation_status: state === "started" ? "deep_review_started" : "deep_review_ready_for_click",
-    auto_preparation_reason: state === "started" ? null : "bundle_not_auto_ready",
+    auto_preparation_status: state === "started" ? "deep_review_started" : "overview_settled",
+    auto_preparation_reason: null,
     latest_deep_review_id: state === "started" ? "fixture-review" : null,
   };
   await page.route("**/api/pre-specs**", async (route) => {
@@ -2305,7 +2365,10 @@ export async function mockPreSpecAutoDetail(page: Page, state: PreSpecAutoDetail
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ items: [item], total: 1, limit: 50, offset: 0, overview_status_counts: overviewStatusCounts([item]), workspace_counts: { actionable: 1, recent: 1, tracking: 1, all: 1 }, deadline_scope_counts: deadlineScopeCounts([item as PreSpecListItem]) }),
+        body: JSON.stringify({ ...preSpecListBody({
+          items: [item as PreSpecListItem], total: 1, limit: 50, offset: 0,
+          statusItems: [item as PreSpecListItem], unscoped: [item as PreSpecListItem], search: url.searchParams,
+        }), workspace_counts: { actionable: 1, needs_check: 0, recent: 1, tracking: 1, all: 1 } }),
       });
       return;
     }
@@ -2413,7 +2476,9 @@ export async function mockDocumentPreparationVisual(page: Page, state: DocumentP
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ items, total: items.length, limit: 50, offset: 0, overview_status_counts: overviewStatusCounts(items), workspace_counts: { actionable: items.length, recent: items.length, tracking: items.length, all: items.length }, deadline_scope_counts: deadlineScopeCounts(items) }),
+        body: JSON.stringify({ ...preSpecListBody({
+          items, total: items.length, limit: 50, offset: 0, statusItems: items, unscoped: items, search,
+        }), workspace_counts: { actionable: items.length, needs_check: 0, recent: items.length, tracking: items.length, all: items.length } }),
       });
       return;
     }
@@ -2438,6 +2503,10 @@ export async function mockApi(page: Page): Promise<void> {
     if (overviewMatch) { await fulfillJson(route, overviewAbsentEnvelope(Number(overviewMatch[1]))); return; }
 
     if (pathname === "/api/workload") { await fulfillJson(route, workloadResponse(page)); return; }
+    // 사업기회 참여 판정 조회(RL-03). 서버는 판정이 없으면 200 `availability=none`이다 — 사전규격
+    // 상세 ④ 첫 열(2026-11-19)이 이 응답을 읽는다. 판정을 다루는 spec은 자기 가짜로 덮는다.
+    const verdictMatch = pathname.match(/^\/api\/opportunities\/(\d+)\/verdict$/);
+    if (verdictMatch && route.request().method() === "GET") { await fulfillJson(route, noneView(Number(verdictMatch[1]), null)); return; }
     // deep-review 합성 응답이 먼저, 그다음 갈무리 fixture, 마지막으로 T15 시각
     // 회귀용 생성 응답을 쓴다. 합성 응답은 deep-review 전용 경로만 처리하므로
     // 기존 fixture 우선순위를 가리지 않는다.
@@ -4913,7 +4982,10 @@ export async function mockPreSpecOverviewAbsent(page: Page): Promise<void> {
   const item = { ...base, overview_review_status: null, display_assessment: { ...base.display_assessment, latest_run_status: null } };
   await page.route((url) => url.pathname === "/api/pre-specs", async (route) => {
     if (route.request().method() !== "GET") { await route.fallback(); return; }
-    await fulfillJson(route, { items: [item], total: 1, limit: 50, offset: 0, overview_status_counts: overviewStatusCounts([item]), workspace_counts: { actionable: 1, recent: 1, tracking: 1, all: 1 }, deadline_scope_counts: deadlineScopeCounts([item as PreSpecListItem]) });
+    await fulfillJson(route, { ...preSpecListBody({
+      items: [item as PreSpecListItem], total: 1, limit: 50, offset: 0,
+      statusItems: [item as PreSpecListItem], unscoped: [item as PreSpecListItem], search: new URL(route.request().url()).searchParams,
+    }), workspace_counts: { actionable: 1, needs_check: 0, recent: 1, tracking: 1, all: 1 } });
   });
 }
 
