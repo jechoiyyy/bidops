@@ -571,3 +571,20 @@
   `prespec-overview-policy-v7-litellm-v2.json`을 둔다. 데모 브랜치(DEMO-05 STEP-005)에서 만든
   수정을 2026-10-15 운영 브랜치로 같은 바이트로 옮겼다. 같은 증상이면 먼저 streaming으로
   reasoning/content를 나눠 본다.
+
+## 발주계획 수집이 `invalid_api_response`로 1~3초 만에 끝난다 (PPSSrch 발주월 범위 거부)
+
+- 증상: 2026-11-20 07:00 cron의 발주계획 트랙이 수집 첫 요청에서
+  `{"status": "failed", "error_code": "invalid_api_response"}`·exit 2로 끝났다. 공고 트랙은 정상이었다.
+  같은 명령을 11:00에 다시 돌려도 같았고, 빈 `raw/`만 든 `lifecycle-20261119-plans`·`-retry1`
+  디렉터리가 남았다(수집 완료 표식이 없어 다음 실행은 `-retry<N>`으로 간다).
+- 원인: PPSSrch가 발주월 범위 `orderBgnYm=200412`·`orderEndYm=999912`를 resultCode `07`
+  (입력범위값 초과 에러)로 거부하기 시작했다. 전날 성공한 구간도 같은 query로 거부된다. 24개월도
+  거부되고 2개월은 통과한다. 오류 응답이 `response` 봉투 없이
+  `{"nkoneps.com.response.ResponseError": {"header": …}}`로 와서 수집기가 결과 코드를 못 읽고
+  pagination 오류로 분류했다.
+- 대응: 두 값을 보내지 않는다(모집단 동일성 실측과 좁은 범위의 누락은
+  `skills/bidops-collect/AGENTS.md` "발주계획 수집기"). 오류 봉투에서 결과 코드를 읽어
+  `g2b_result_error`·`g2b_result_code`로 남긴다. 같은 증상이면 로그의 `g2b_result_code`부터 본다.
+  두 값 없이 조회했을 때 모집단이 잘리지 않는다는 것은 2026-11-20의 실측이며 매 실행마다 다시
+  검사하지는 않는다 — 하루 수집 건수가 평일 범위(427~627건)에서 크게 벗어나면 이 가정을 다시 잰다.

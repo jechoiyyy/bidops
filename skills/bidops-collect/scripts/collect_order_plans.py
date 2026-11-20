@@ -61,9 +61,12 @@ DEFAULT_RECENT_DAYS = 21
 class CollectionError(RuntimeError):
     """A safe, stable collection failure that never carries the API key."""
 
-    def __init__(self, code: str, message: str):
+    def __init__(self, code: str, message: str, *, upstream_code: str | None = None):
         super().__init__(message)
         self.code = code
+        # The provider's short result code (for example ``07``).  Never the
+        # provider's message: that text is not ours to forward.
+        self.upstream_code = upstream_code
 
 
 class NormalizationStats:
@@ -147,9 +150,19 @@ def resolve_window(
 
 
 def query_for_window(
-    from_date: date, to_date: date, page: int, rows: int
+    from_date: date,
+    to_date: date,
+    page: int,
+    rows: int,
+    *,
+    legacy_order_month_scope: bool = False,
 ) -> dict[str, str]:
-    """Build the measured PPSSrch query without its secret serviceKey."""
+    """Build the measured PPSSrch query without its secret serviceKey.
+
+    ``legacy_order_month_scope=True`` rebuilds the query that runs collected
+    before 2026-11-20 sent (with ``orderBgnYm``/``orderEndYm``).  It exists
+    only to validate those preserved raw pages; new requests never send it.
+    """
 
     if to_date <= from_date:
         raise CollectionError("invalid_window", "to-date는 from-date보다 뒤여야 합니다.")
@@ -158,18 +171,25 @@ def query_for_window(
     if rows < 1 or rows > 999:
         raise CollectionError("invalid_page_size", "rows는 1..999여야 합니다.")
     inclusive_end = datetime.combine(to_date, datetime_time.min) - timedelta(minutes=1)
-    # PPSSrch requires an order-month range even when publication time is the
-    # population boundary.  Omitting either value silently narrows the second
-    # dimension of the result set.
-    return {
+    query = {
         "pageNo": str(page),
         "numOfRows": str(rows),
         "type": "json",
-        "orderBgnYm": ORDER_SCOPE_FROM_MONTH,
-        "orderEndYm": ORDER_SCOPE_TO_MONTH,
         "inqryBgnDt": from_date.strftime("%Y%m%d0000"),
         "inqryEndDt": inclusive_end.strftime("%Y%m%d%H%M"),
     }
+    # The population is every order month (``metadata.order_month_scope``).
+    # Until 2026-11-19 that had to be sent as 200412..999912.  From 2026-11-20
+    # PPSSrch rejects that span with resultCode 07 (even 24 months is refused)
+    # and accepts the query without the two values.  Measured on 2026-11-20:
+    # without them the 2026-11-17 window returns the same 559 ids as the run
+    # collected with the full span (order months 2025-11..2027-05), so the
+    # omission does not narrow the population.  A narrower explicit span does
+    # (2026-11..2026-12 drops 28 of 557 rows of 2026-11-19).
+    if legacy_order_month_scope:
+        query["orderBgnYm"] = ORDER_SCOPE_FROM_MONTH
+        query["orderEndYm"] = ORDER_SCOPE_TO_MONTH
+    return query
 
 
 def _canonical_json_bytes(value: Any) -> bytes:
@@ -326,7 +346,39 @@ def normalize_order_plan(
     }
 
 
+_RESULT_CODE = re.compile(r"[0-9A-Za-z]{1,8}")
+
+
+def _upstream_error_code(payload: dict[str, Any]) -> str | None:
+    """Return the provider's result code when the payload is an error reply.
+
+    A normal page is ``{"response": {"header": {"resultCode": "00"}, ...}}``.
+    A rejected request comes back without ``response``, wrapped as
+    ``{"nkoneps.com.response.ResponseError": {"header": {"resultCode": "07",
+    ...}}}`` (observed 2026-11-20).  Only the short code is returned.
+    """
+
+    response = payload.get("response")
+    containers = [response] if isinstance(response, dict) else list(payload.values())
+    for container in containers:
+        header = container.get("header") if isinstance(container, dict) else None
+        if not isinstance(header, dict) or "resultCode" not in header:
+            continue
+        code = str(header["resultCode"]).strip()
+        if code in {"00", "0"}:
+            continue
+        return code if _RESULT_CODE.fullmatch(code) else "unknown"
+    return None
+
+
 def _extract_page(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], int, int, int]:
+    upstream_code = _upstream_error_code(payload)
+    if upstream_code is not None:
+        raise CollectionError(
+            "g2b_result_error",
+            "G2B 응답 resultCode가 정상이 아닙니다.",
+            upstream_code=upstream_code,
+        )
     try:
         body = get_body(payload)
     except RuntimeError as exc:
@@ -613,6 +665,13 @@ def validate_raw_queries(
     from_date: date,
     to_date: date,
 ) -> None:
+    """Check each preserved query against the collection window.
+
+    Raw pages collected before 2026-11-20 carry the legacy order-month span;
+    later ones do not.  Both are valid, but one run never mixes the two.
+    """
+
+    legacy_forms: set[bool] = set()
     for name, wrapper in pages:
         query = wrapper.get("query")
         if not isinstance(query, dict):
@@ -628,11 +687,23 @@ def validate_raw_queries(
             raise CollectionError(
                 "raw_query_mismatch", f"raw pagination query가 잘못됐습니다: {name}"
             ) from exc
-        expected = query_for_window(from_date, to_date, page_number, row_count)
-        if query != expected or page_number != wrapper.get("page_no"):
-            raise CollectionError("raw_query_mismatch", f"raw query가 수집 범위와 다릅니다: {name}")
         if "serviceKey" in query:
             raise CollectionError("secret_in_artifact", "raw query에 serviceKey가 있어 저장을 중지했습니다.")
+        legacy = "orderBgnYm" in query or "orderEndYm" in query
+        expected = query_for_window(
+            from_date,
+            to_date,
+            page_number,
+            row_count,
+            legacy_order_month_scope=legacy,
+        )
+        if query != expected or page_number != wrapper.get("page_no"):
+            raise CollectionError("raw_query_mismatch", f"raw query가 수집 범위와 다릅니다: {name}")
+        legacy_forms.add(legacy)
+    if len(legacy_forms) > 1:
+        raise CollectionError(
+            "raw_query_mismatch", "한 회차의 raw query에 발주월 범위 유무가 섞여 있습니다."
+        )
 
 
 def _normalization_stats(
@@ -887,12 +958,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
     except CollectionError as exc:
-        print(
-            json.dumps(
-                {"status": "failed", "error_code": exc.code}, ensure_ascii=False
-            ),
-            file=sys.stderr,
-        )
+        failure = {"status": "failed", "error_code": exc.code}
+        if exc.upstream_code is not None:
+            failure["g2b_result_code"] = exc.upstream_code
+        print(json.dumps(failure, ensure_ascii=False), file=sys.stderr)
         return 2
 
 

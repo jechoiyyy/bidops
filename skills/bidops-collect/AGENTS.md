@@ -59,8 +59,14 @@ Asia/Seoul 오늘을 포함한 최근 21일이며, `--from-date`·`--to-date`를
 이 기본 21일 모드를 쓰지 않고 항상 기준일(전일) 하루를 `--from-date <기준일> --to-date <기준일+1일>`로
 명시해 부른다(`docs/tracking/decisions/0061-daily-collection-window.md`). 기본 모드는
 수동 조회용으로만 남는다. 범위는 `bsnsDivNm`이 `일반용역` 또는 `기술용역`인
-항목이며, 범위 밖 원문 건수도 artifact의 `counts`에 남긴다. 발주월 query 범위
-`200412`~`999912`는 생략하지 않는다.
+항목이며, 범위 밖 원문 건수도 artifact의 `counts`에 남긴다. 모집단은 발주월 전체다.
+2026-11-20부터 PPSSrch가 발주월 범위 `200412`~`999912`를 resultCode `07`(입력범위값 초과)로
+거부하므로 `orderBgnYm`·`orderEndYm`을 보내지 않는다. 같은 날 실측에서 두 값을 뺀 조회는
+범위를 넣어 수집했던 2026-11-17 회차와 같은 559건을 돌려줬다(발주월 2025-11~2027-05). 범위를
+좁혀 넣으면 모집단이 잘리므로(2026-11~2026-12는 2026-11-19 557건 중 28건 누락) 좁은 범위를
+넣지 않는다. 그 전에 수집한 raw page는 옛 query 그대로 재정규화할 수 있고, 한 회차 안에서 두
+형태를 섞지 않는다. API가 정상 봉투 밖의 오류(`nkoneps.com.response.ResponseError`)를 돌려주면
+`g2b_result_error`와 짧은 `g2b_result_code`만 남기고 제공자 메시지는 옮기지 않는다.
 
 ```bash
 python3 skills/bidops-collect/scripts/collect_order_plans.py \
