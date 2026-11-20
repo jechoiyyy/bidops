@@ -28,9 +28,24 @@ import { createPortal } from "react-dom";
  * (`styles/shell-relaxed.css`).
  */
 export function PageHeaderActions({ children }: { children: ReactNode }) {
+  return <ShellSlotPortal slotId="page-header-actions">{children}</ShellSlotPortal>;
+}
+
+/**
+ * 화면의 보기 탭·검색 줄을 패널 헤더 아래 칸(`#page-header-tabs`)에 넣는다(2026-11-19 최종 시안).
+ *
+ * 시안의 패널 헤더는 제목 아래에 둥근 칸 탭 한 줄을 갖는다. 탭은 화면 상태(URL 필터·선택)를
+ * 쓰므로 셸로 올릴 수 없고 `PageHeaderActions`와 같은 이유로 portal을 쓴다. 슬롯은 셸의
+ * `TopBar`가 늘 그리고, 비어 있으면 CSS가 자리를 접는다.
+ */
+export function PageHeaderTabs({ children }: { children: ReactNode }) {
+  return <ShellSlotPortal slotId="page-header-tabs">{children}</ShellSlotPortal>;
+}
+
+function ShellSlotPortal({ slotId, children }: { slotId: string; children: ReactNode }) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
-    setSlot(document.getElementById("page-header-actions"));
-  }, []);
+    setSlot(document.getElementById(slotId));
+  }, [slotId]);
   return slot ? createPortal(children, slot) : null;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type InputHTMLAttributes } from "react";
+import { useEffect, useId, useRef, useSyncExternalStore, type InputHTMLAttributes } from "react";
 
 /**
  * 담당자 이름을 이 브라우저에 기억해 두는 자리.
@@ -12,6 +12,10 @@ const ACTOR_STORAGE_KEY = "bidops.actorName";
 const REMEMBER_NOTE = "이 브라우저에 기억됩니다 · 로그인이나 신원 인증이 아닙니다.";
 
 /** private mode나 storage 차단에서 접근 자체가 throw한다. 실패는 조용히 무시한다. */
+export function readRememberedActorName(): string {
+  return readRememberedActor();
+}
+
 function readRememberedActor(): string {
   try {
     return window.localStorage.getItem(ACTOR_STORAGE_KEY) ?? "";
@@ -20,6 +24,9 @@ function readRememberedActor(): string {
   }
 }
 
+/** 같은 탭의 다른 자리(사이드바 담당자 표시)에 기억된 이름이 바뀌었음을 알리는 이벤트. */
+const ACTOR_CHANGE_EVENT = "bidops:actor-name";
+
 function rememberActor(value: string): void {
   try {
     if (value.trim()) window.localStorage.setItem(ACTOR_STORAGE_KEY, value);
@@ -27,6 +34,32 @@ function rememberActor(value: string): void {
   } catch {
     // 기억하지 못해도 입력 자체는 계속 동작해야 한다.
   }
+  window.dispatchEvent(new Event(ACTOR_CHANGE_EVENT));
+}
+
+/** 이 브라우저에 기억된 담당자 이름을 바꾼다(사이드바 담당자 칸). 빈 값이면 지운다. */
+export function setRememberedActorName(value: string): void {
+  rememberActor(value);
+}
+
+function subscribeRememberedActor(onChange: () => void): () => void {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === null || event.key === ACTOR_STORAGE_KEY) onChange();
+  };
+  window.addEventListener(ACTOR_CHANGE_EVENT, onChange);
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener(ACTOR_CHANGE_EVENT, onChange);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+/**
+ * 이 브라우저에 기억된 담당자 이름(`bidops.actorName`). 셸 사이드바가 읽는다.
+ * 저장소에 닿을 수 없으면 빈 문자열이다 — 이름을 지어내지 않는다. 감사 표식이며 인증이 아니다.
+ */
+export function useRememberedActorName(): string {
+  return useSyncExternalStore(subscribeRememberedActor, readRememberedActor, () => "");
 }
 
 interface ActorFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "type" | "value"> {

@@ -38,10 +38,11 @@ export type TrackingDecisionStatus = (typeof TRACKING_DECISION_ORDER)[number];
 
 /**
  * 결정 버튼 이름. `계속 추적`은 아직 아무도 고르지 않은 건(`미선택`·사업기회 없음)에서는
- * `추적 시작`, 이미 다른 결정이 있으면 `계속 추적`이다. `종료`는 어디서나 `추적 종료`다.
+ * `추적 시작하기`(2026-11-19 최종 시안 — 주 버튼은 `~하기`), 이미 다른 결정이 있으면 `계속 추적`이다.
+ * `종료`는 어디서나 `추적 종료`다.
  */
 export function trackingActionLabel(status: TrackingDecisionStatus, current: OpportunityTrackingStatus | null): string {
-  if (status === "계속 추적") return current === null || current === "미선택" ? "추적 시작" : "계속 추적";
+  if (status === "계속 추적") return current === null || current === "미선택" ? "추적 시작하기" : "계속 추적";
   if (status === "종료") return "추적 종료";
   return "보류";
 }
@@ -100,6 +101,11 @@ export interface TrackingDecisionInputsProps {
   /** 담당자 이름을 이 브라우저(localStorage)에 기억할지. 탭 단위로 따로 기억하는 화면은 끈다. */
   rememberActor?: boolean;
   actorPlaceholder?: string;
+  /**
+   * 담당자 칸 대신 둘 내용. 이름이 이미 정해진 화면(발주계획 — 최종 시안 `이하늘 이름으로 기록해요`)이
+   * 문장과 `이름 바꾸기`를 넣는다. 없으면 입력 칸이다.
+   */
+  actorSlot?: ReactNode;
 }
 
 /**
@@ -121,6 +127,7 @@ export function TrackingDecisionInputs({
   reasonRef,
   rememberActor = true,
   actorPlaceholder = "예: 홍길동",
+  actorSlot,
 }: TrackingDecisionInputsProps) {
   return (
     <>
@@ -155,7 +162,7 @@ export function TrackingDecisionInputs({
           />
         ) : null}
       </div>
-      <ActorField
+      {actorSlot ?? <ActorField
         label={TRACKING_FIELD_LABEL.actor}
         required
         value={actorName}
@@ -167,7 +174,7 @@ export function TrackingDecisionInputs({
         placeholder={actorPlaceholder}
         autoComplete="off"
         disabled={isDisabled}
-      />
+      />}
     </>
   );
 }
@@ -203,6 +210,7 @@ export function TrackingDecisionActions({
           disabledReasonId={disabledReasonId}
           isDisabled={isDisabled}
           label={pendingStatus === status ? "저장 중…" : trackingActionLabel(status, current)}
+          className={`tracking-action is-${status === "계속 추적" ? "continue" : status === "보류" ? "hold" : "end"}`}
           variant={index === 0 ? "primary" : "secondary"}
           onClick={() => onDecide(status)}
         />

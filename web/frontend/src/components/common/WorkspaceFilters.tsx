@@ -283,6 +283,11 @@ export interface WorkspaceAdvancedToggleProps {
   isOpen: boolean;
   label?: string;
   onToggle: () => void;
+  /**
+   * 아이콘 옆에 보이는 짧은 이름(최종 시안 `필터`). 접근 이름은 그대로 `label`이며
+   * 보이는 글자가 그 안에 들어 있어야 한다(label-in-name). 없으면 아이콘 전용이다.
+   */
+  visibleLabel?: string;
 }
 
 /**
@@ -299,19 +304,34 @@ export function WorkspaceAdvancedToggle({
   isOpen,
   label = "상세 필터",
   onToggle,
+  visibleLabel,
 }: WorkspaceAdvancedToggleProps) {
   const showCount = activeCount !== undefined && activeCount > 0;
   return (
     <span className={joinClassNames("workspace-advanced-toggle", className)}>
-      <Button
-        aria-controls={controlsId}
-        aria-expanded={isOpen}
-        icon={<ListFilter aria-hidden="true" />}
-        isIconOnly
-        label={label}
-        onClick={onToggle}
-        size="sm"
-      />
+      {visibleLabel ? (
+        <Button
+          aria-controls={controlsId}
+          aria-expanded={isOpen}
+          className="workspace-advanced-toggle-labelled"
+          icon={<ListFilter aria-hidden="true" />}
+          label={label}
+          onClick={onToggle}
+          size="sm"
+        >
+          {visibleLabel}
+        </Button>
+      ) : (
+        <Button
+          aria-controls={controlsId}
+          aria-expanded={isOpen}
+          icon={<ListFilter aria-hidden="true" />}
+          isIconOnly
+          label={label}
+          onClick={onToggle}
+          size="sm"
+        />
+      )}
       {showCount ? (
         <span aria-label={`활성 필터 ${formatCount(activeCount)}개`} className="workspace-filter-count">
           {formatCount(activeCount)}

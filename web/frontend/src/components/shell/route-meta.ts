@@ -61,6 +61,12 @@ export interface RouteMetadata {
      없앴고(ADR-0066 §3.3, 시안 M4 결정 2) 읽는 곳이 남지 않았다. 무엇을 저장할
      수 있는지는 각 화면의 결정 UI가 말한다. */
   runSelectorVisible: boolean;
+  /**
+   * 본문 칸의 여백. 기본은 패널 헤더와 같은 좌우 32px 여백이고, `flush`는 화면이 목록|상세 두
+   * 칸을 패널 끝까지 채울 때다(발주계획·사전규격 목록, 2026-11-19 최종 시안). 없으면 기본이다.
+   * 목록과 상세가 metadata를 공유하는 화면은 상세(식별자 칸이 있을 때)에서 기본 여백으로 돌아간다.
+   */
+  canvas?: "flush";
   /** 사이드바 묶음 라벨(`레코드`·`리스트`). 상단 경로의 첫 칸이다. 라벨 없는 묶음(대시보드)과
    *  하단 항목(실행 상태·판정 기준)은 `null`이다(2026-11-18, ui-spec §1.2 메모). */
   navGroup: string | null;
@@ -168,6 +174,7 @@ export const routeMetadata = {
     // 활동 응답의 제목을 `RecordTitleContext`로 올리면 그 제목으로 바뀐다(RL-02).
     topbar: "title",
     runSelectorVisible: false,
+    canvas: "flush",
     navGroup: "레코드",
     navPath: "/opportunities",
     ancestors: [],
@@ -182,6 +189,8 @@ export const routeMetadata = {
     topbar: "title",
     // 이 화면의 결정은 추적 선택이고 사람 판단 수정은 보조 저장이다.
     runSelectorVisible: false,
+    // 목록|상세가 패널 끝까지 닿고 세로선 하나로 나뉜다(최종 시안).
+    canvas: "flush",
     navGroup: "레코드",
     navPath: "/order-plans",
     ancestors: [],
@@ -210,6 +219,7 @@ export const routeMetadata = {
     // 목록은 제목 모드, 상세(`/pre-specs/:noticeId`)는 record 칸 덕분에 경로 모드다.
     topbar: "title",
     runSelectorVisible: false,
+    canvas: "flush",
     navGroup: "레코드",
     navPath: "/pre-specs",
     ancestors: [],
@@ -221,6 +231,7 @@ export const routeMetadata = {
     dataScope: "cumulative",
     topbar: "title",
     runSelectorVisible: false,
+    canvas: "flush",
     navGroup: "레코드",
     navPath: "/go-no-go",
     ancestors: [],
@@ -374,6 +385,8 @@ export interface ResolvedRouteLocation {
   topbarMode: RouteTopbarMode;
   /** 제목 모드의 `<h1>` 글자. 경로 모드에서도 화면 이름과 같은 값이다. */
   title: string;
+  /** 본문 칸 여백. 상세(식별자 칸이 있음)에서는 언제나 기본이다. */
+  canvas: "flush" | "default";
 }
 
 /**
@@ -434,7 +447,7 @@ export function resolveRouteLocation(
   });
   if (trailingRecord) crumbs.push({ label: trailingRecord.label, to: trailingRecord.to, role: "record" });
   const topbarMode: RouteTopbarMode = metadata.topbar === "title" && record === null ? "title" : "breadcrumb";
-  return { navPath: origin.navPath, crumbs, topbarMode, title: metadata.title };
+  return { navPath: origin.navPath, crumbs, topbarMode, title: metadata.title, canvas: metadata.canvas === "flush" && record === null ? "flush" : "default" };
 }
 
 /** `run` 질의 파라미터를 읽지 않는 화면의 경로.

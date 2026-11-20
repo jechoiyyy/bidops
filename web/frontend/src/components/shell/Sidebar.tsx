@@ -1,9 +1,11 @@
+import { useEffect, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import { api } from "../../lib/api";
 import { companyContextQueryKey, getCompanyContext } from "../../lib/companyApi";
 import { orderPlanViewTotalQuery, preSpecDefaultViewTotalQuery } from "../../lib/defaultViewCounts";
 import type { WorkloadKey } from "../../lib/types";
+import { ActorField, useRememberedActorName } from "../common/ActorField";
 import { runSearchFor } from "./route-meta";
 
 /**
@@ -21,6 +23,12 @@ import { runSearchFor } from "./route-meta";
  * 건수는 **도착 화면의 기본 보기가 보이는 건수**만 그린다(목록 API `total` 또는 같은 정의의
  * `GET /api/workload` 키). 그런 값이 없는 항목은 건수를 그리지 않는다.
  * 활성 항목은 주소 하나당 정확히 하나다(`resolveActiveItemId`).
+ *
+ * 2026-11-19 최종 시안(`docs/1119_kstyle-shell/mockups/`): 묶음·항목·순서·건수 출처는 그대로 두고
+ * 모양만 바꿨다. 사이드바는 바탕(frame) 위에 면 없이 228px로 놓이고, 행 36px·글자 14px·아이콘 16px,
+ * 활성은 채움 + 굵은 본문색 + 먹색 알약 건수다. `리스트` 묶음은 색 점·아이콘 없이 들여쓴다.
+ * 맨 아래 담당자 칸은 이 브라우저에 기억된 담당자 이름(`bidops.actorName`, 화면들의 담당자 입력이
+ * 같이 쓰는 값)을 보이고 고칠 수 있다 — 감사 표식이며 로그인이 아니다.
  */
 type IconName =
   | "home"
@@ -169,11 +177,10 @@ function demoGroup(companyId: string | null): NavGroup {
   return { label: "가상회사 데모", items };
 }
 
-/** 법인 표기(`㈜`·`(주)`·`주식회사`)를 뗀 이름과 머리글자. 이름이 없으면 제품 이름이다. */
-function workspaceIdentity(companyName: string | null): { name: string; mark: string } {
+/** 법인 표기(`㈜`·`(주)`·`주식회사`)를 뗀 이름. 이름이 없으면 제품 이름이다. */
+function workspaceIdentity(companyName: string | null): { name: string } {
   const short = (companyName ?? "").replace(/^(?:㈜|\(주\)|주식회사)\s*/u, "").replace(/\s*(?:㈜|\(주\)|주식회사)$/u, "").trim();
-  if (!short) return { name: "BidOps", mark: "B" };
-  return { name: short, mark: Array.from(short)[0] ?? "B" };
+  return { name: short || "BidOps" };
 }
 
 export interface SidebarDemoNav {
@@ -191,11 +198,19 @@ export function Sidebar({ activeNavPath, runSearch, demoNav = null }: { activeNa
   for (const item of workload.data?.items ?? []) {
     if (typeof item.count === "number") workloadCounts.set(item.key, item.count);
   }
-  const countOf = (source: CountSource | undefined): number | null => {
+  /**
+   * 건수(기본 보기의 건수). 0이면 숫자를 그리지 않는다(최종 시안). 불러오지 못했으면 0과 다른 모양(`–`)으로
+   * 그려 "없음"과 "모름"을 섞지 않는다. 값이 없는 키(브리핑이 아직 없음 등)는 그리지 않는다.
+   */
+  const countOf = (source: CountSource | undefined): number | "error" | null => {
     if (!source) return null;
-    if (source.kind === "workload") return workloadCounts.get(source.key) ?? null;
-    const value = source.kind === "order-plan-default" ? orderPlanDefault.data : preSpecDefault.data;
-    return typeof value === "number" ? value : null;
+    if (source.kind === "workload") {
+      if (workload.isError) return "error";
+      return workloadCounts.get(source.key) ?? null;
+    }
+    const query = source.kind === "order-plan-default" ? orderPlanDefault : preSpecDefault;
+    if (query.isError) return "error";
+    return typeof query.data === "number" ? query.data : null;
   };
   // 워크스페이스 이름은 `GET /api/company`가 준다. 읽지 못하면 이름을 지어내지 않고
   // 제품 이름을 둔다(회사 화면이 같은 key로 오류를 설명한다).
@@ -209,7 +224,8 @@ export function Sidebar({ activeNavPath, runSearch, demoNav = null }: { activeNa
       {/* 워크스페이스 줄(시안: 머리글자 아이콘 + 회사명). 로그인·워크스페이스 전환이
           없으므로 링크는 브리핑으로 간다. */}
       <Link aria-label={`${workspace.name} BidOps 오늘의 브리핑으로 이동`} className="sidebar-brand" to={{ pathname: "/briefing", search: runSearchFor("/briefing", runSearch) }}>
-        <span aria-hidden="true" className="sidebar-brand-mark">{workspace.mark}</span>
+        {/* 시안: 제품 이름(굵게) + 회사 이름(작게). 회사 이름을 모르면 제품 이름 하나만 둔다. */}
+        {workspace.name !== "BidOps" ? <span className="sidebar-brand-product">BidOps</span> : null}
         <strong>{workspace.name}</strong>
       </Link>
       <nav aria-label="주 메뉴" className="sidebar-nav">
@@ -250,25 +266,24 @@ export function Sidebar({ activeNavPath, runSearch, demoNav = null }: { activeNa
             runSearch={runSearch}
           />
         ))}
-        {/* 사용자 줄. 로그인이 없으므로 부서 표식만 둔다(담당자 이름은 인증이 아니다). */}
-        <div className="sidebar-user">
-          <span aria-hidden="true" className="sidebar-avatar">기</span>
-          <span>기획부 · 사업기획</span>
-        </div>
+        <SidebarActor />
       </div>
     </aside>
   );
 }
 
-function NavEntry({ item, active, count, runSearch }: { item: NavItem; active: boolean; count: number | null; runSearch: string }) {
+function NavEntry({ item, active, count, runSearch }: { item: NavItem; active: boolean; count: number | "error" | null; runSearch: string }) {
   const body = (
     <>
+      {/* 리스트 묶음(색 점 항목)은 시안대로 아이콘·점 없이 들여쓴다. 점의 색은 식별용이었고
+          항목 이름이 같은 말을 하므로 잃는 정보가 없다. */}
       {item.icon ? <NavIcon name={item.icon} /> : null}
-      {item.dot ? <span aria-hidden="true" className={`sidebar-dot is-${item.dot}`} /> : null}
       <span className="sidebar-item-label">{item.label}</span>
       {/* 건수는 보조 표시다. 링크의 접근 가능한 이름은 항목 이름 하나로 두고(테스트·
           보조 기술이 "알림 2"가 아니라 "알림"으로 읽는다) 건수는 title로 함께 준다. */}
-      {count !== null ? (
+      {count === "error" ? (
+        <span aria-hidden="true" className="sidebar-item-count is-unknown">–</span>
+      ) : count !== null && count > 0 ? (
         <span aria-hidden="true" className={`sidebar-item-count${active ? " is-active" : ""}`}>{count}</span>
       ) : null}
     </>
@@ -280,11 +295,65 @@ function NavEntry({ item, active, count, runSearch }: { item: NavItem; active: b
   return (
     <Link
       aria-current={active ? "page" : undefined}
-      className={`sidebar-item${active ? " is-active" : ""}`}
-      title={count !== null ? `${item.label} ${count}건` : undefined}
+      className={`sidebar-item${active ? " is-active" : ""}${item.dot ? " is-list" : ""}`}
+      title={count === "error" ? `${item.label} · 건수를 불러오지 못했어요` : count !== null && count > 0 ? `${item.label} ${count}건` : undefined}
       to={{ pathname, search: searchValue }}
     >
       {body}
     </Link>
+  );
+}
+
+/**
+ * 사이드바 맨 아래 담당자 칸(최종 시안). 이 브라우저에 기억된 담당자 이름을 보이고, 누르면 그 자리에서
+ * 고친다. 값은 화면들의 담당자 입력(`ActorField`)과 같은 저장소다. 이름은 결정 기록에 남는 표식일 뿐
+ * 로그인·신원 인증·권한이 아니며, 저장 요청마다 화면이 다시 확인한다.
+ */
+function SidebarActor() {
+  const remembered = useRememberedActorName();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(remembered);
+  const panelId = useId();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) setDraft(remembered);
+  }, [open, remembered]);
+  const close = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
+  return (
+    <div className="sidebar-actor">
+      {open ? (
+        <div
+          className="sidebar-actor-panel"
+          id={panelId}
+          onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); close(); } }}
+        >
+          <ActorField
+            autoFocus
+            description="반응·추적 결정 기록에 남는 이름이에요. 로그인이나 신원 인증이 아니에요."
+            id="sidebar-actor-input"
+            label="담당자 이름"
+            onChange={setDraft}
+            showRememberNote={false}
+            value={draft}
+          />
+          <button className="sidebar-actor-done" onClick={close} type="button">닫기</button>
+        </div>
+      ) : null}
+      <button
+        aria-controls={open ? panelId : undefined}
+        aria-expanded={open}
+        className="sidebar-actor-trigger"
+        onClick={() => setOpen((value) => !value)}
+        ref={triggerRef}
+        type="button"
+      >
+        <span>담당자</span>
+        <strong>{remembered.trim() || "미입력"}</strong>
+        <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+    </div>
   );
 }
