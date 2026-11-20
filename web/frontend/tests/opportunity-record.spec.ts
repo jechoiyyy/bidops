@@ -56,10 +56,10 @@ test("/opportunities/:id는 활동 탭으로 replace 이동하고 알 수 없는
   await expect(page).toHaveURL(/\/opportunities\/7101\/activity$/);
 
   await page.goto("/opportunities/abc/activity");
-  await expect(page.getByText("사업기회 식별자가 올바르지 않습니다")).toBeVisible();
+  await expect(page.getByText("사업기회 식별자가 올바르지 않아요")).toBeVisible();
 
   await page.goto("/opportunities/9999/activity");
-  await expect(page.getByText("사업기회를 찾을 수 없습니다", { exact: true })).toBeVisible();
+  await expect(page.getByText("사업기회를 찾을 수 없어요", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "사업기회 목록 열기" })).toHaveAttribute("href", "/opportunities");
 });
 
@@ -123,8 +123,8 @@ test("헤더 pill은 단계·마감·판정·추적 상태 순서이고 판정�
   await expect(verdict).toBeDisabled();
   // RL-03: 판정이 없으면 판정 보기가 비활성이고 이유는 "아직 판정이 없습니다"다(옛 안내 "RL-03에서 열립니다" 폐지).
   // 판정 보기와 제안서 초안(RL-04: 완료된 판정이 있을 때만 열린다)이 같은 이유로 비활성이다.
-  await expect(page.locator('.rec-action-hint[title="아직 판정이 없습니다"]')).toHaveCount(2);
-  await expect(page.locator('.rec-action-hint[title="RL-03에서 열립니다"]')).toHaveCount(0);
+  await expect(page.locator('.rec-action-hint[title="아직 판정이 없어요"]')).toHaveCount(2);
+  await expect(page.locator('.rec-action-hint[title="RL-03에서 열려요"]')).toHaveCount(0);
   await expect(page.getByRole("button", { name: "제안서 초안", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "사업기회 더보기" })).toBeVisible();
 
@@ -235,7 +235,7 @@ test("속성 8개는 고정 순서이고 값이 없으면 미공개·미지정�
 test("제출 서류 블록은 비활성 안내 한 줄뿐이고 진행 막대·숫자가 없다", async ({ page }) => {
   await openRecord(page, "/opportunities/7101/activity");
   const block = page.getByRole("region", { name: "제출 서류" });
-  await expect(block.locator("p")).toHaveText("제출 서류 체크는 준비 중입니다");
+  await expect(block.locator("p")).toHaveText("제출 서류 체크는 준비 중이에요");
   await expect(block.locator("p")).toHaveAttribute("aria-disabled", "true");
   await expect(block.locator('[role="progressbar"], progress')).toHaveCount(0);
   await expect(block).not.toContainText("/ 27");
@@ -349,7 +349,7 @@ test("활동이 없으면 빈 상태를 말하고, 더 보기는 서버 커서�
   await expect(page.getByRole("button", { name: "더 보기" })).toHaveCount(0);
 
   await page.goto("/opportunities/7105/activity");
-  await expect(page.getByText("아직 기록된 활동이 없습니다")).toBeVisible();
+  await expect(page.getByText("아직 기록된 활동이 없어요")).toBeVisible();
 
   await page.goto("/opportunities/7108/activity");
   await expect(feedItems(page)).toHaveCount(50);
@@ -388,7 +388,7 @@ test("노트는 담당자 이름 없이 저장되지 않고, ⌘Enter로 저장�
   await expect(feedItems(page).first().locator(".rec-activity-title")).toHaveText("김담당 공급사 의견을 정리해서 공유");
   await expect(feedItems(page).first().locator(".rec-activity-meta")).toHaveText(/^오늘 10:3\d$/);
   await expect(composerBody(page)).toHaveValue("");
-  await expect(toast(page)).toContainText("노트를 남겼습니다");
+  await expect(toast(page)).toContainText("노트를 남겼어요");
   expect(trace.noteCreates).toHaveLength(1);
   expect(trace.noteCreates[0].body).toEqual({ kind: "note", body: "공급사 의견을 정리해서 공유", request_id: expect.stringMatching(UUID) });
   // 헤더는 비ASCII 이름의 percent 인코딩 계약을 따른다(감사 표식이며 인증이 아니다).
@@ -406,7 +406,7 @@ test("다음 행동은 담당을 선택 입력으로 보내고 좌측 목록에 
 
   expect(trace.noteCreates).toHaveLength(1);
   expect(trace.noteCreates[0].body).toEqual({ kind: "action", body: "현장 설명회 참석 신청", owner: "박팀장", request_id: expect.stringMatching(UUID) });
-  await expect(toast(page)).toContainText("다음 행동을 남겼습니다");
+  await expect(toast(page)).toContainText("다음 행동을 남겼어요");
   await expect(page.getByLabel("담당", { exact: true })).toHaveValue("");
 
   const next = page.getByTestId("next-actions");
@@ -430,7 +430,7 @@ test("저장이 실패하면 입력을 그대로 두고, 같은 입력의 재시
 
   trace.failNotes({ status: 503, code: "service_unavailable" });
   await page.getByRole("button", { name: "노트", exact: true }).click();
-  await expect(page.locator(".rec-composer").getByRole("alert")).toContainText("저장되지 않았습니다");
+  await expect(page.locator(".rec-composer").getByRole("alert")).toContainText("저장되지 않았어요");
   await expect(composerBody(page)).toHaveValue("서버가 잠깐 못 받는 노트");
   await expect(feedItems(page)).toHaveCount(11);
 
@@ -451,7 +451,7 @@ test("저장이 실패하면 입력을 그대로 두고, 같은 입력의 재시
   trace.failNotes({ status: 409, code: "idempotency_conflict" });
   await composerBody(page).fill("충돌 노트");
   await page.getByRole("button", { name: "노트", exact: true }).click();
-  await expect(page.locator(".rec-composer").getByRole("alert")).toContainText("같은 요청 식별자가 다른 요청에 이미 쓰였습니다");
+  await expect(page.locator(".rec-composer").getByRole("alert")).toContainText("같은 요청 식별자가 다른 요청에 이미 쓰였어요");
 });
 
 test("저장 중 같은 입력을 연달아 눌러도 한 번만 보낸다", async ({ page }) => {
@@ -481,7 +481,7 @@ test("저장하지 않은 노트 초안은 beforeunload와 SPA 이동을 지키�
   await page.getByRole("tab", { name: "판정", exact: true }).click();
   const guard = page.getByRole("alertdialog");
   await expect(guard).toBeVisible();
-  await expect(guard).toContainText("사업기회 레코드를 떠납니다");
+  await expect(guard).toContainText("사업기회 레코드를 떠나요");
   await guard.getByRole("button", { name: "계속 편집", exact: true }).click();
   await expect(page).toHaveURL(/\/opportunities\/7101\/activity$/);
   await expect(composerBody(page)).toHaveValue("아직 저장하지 않은 노트");
@@ -514,7 +514,7 @@ test("다음 행동 체크는 완료를 저장하고 이름이 없으면 저장�
   });
   await actorInput(page).fill("김담당");
   await open.click();
-  await expect(toast(page)).toContainText("다음 행동만 완료로 표시할 수 있습니다");
+  await expect(toast(page)).toContainText("다음 행동만 완료로 표시할 수 있어요");
   // 저장에 실패하면 체크가 풀리고 항목은 목록에 남는다(완료로 확정하지 않는다).
   await expect(open).not.toBeChecked();
   await page.unroute(donePath);
@@ -525,7 +525,7 @@ test("다음 행동 체크는 완료를 저장하고 이름이 없으면 저장�
   expect(trace.noteDones[0].body).toEqual({ request_id: expect.stringMatching(UUID) });
   expect(decodeURIComponent(trace.noteDones[0].headers["x-bidops-actor-name"].replace("UTF-8''", ""))).toBe("김담당");
   await expect(next.getByRole("checkbox", { name: "입찰 참여 조건 확인" })).toHaveCount(0);
-  await expect(next).toContainText("남은 다음 행동이 없습니다");
+  await expect(next).toContainText("남은 다음 행동이 없어요");
   await expect(feedItems(page).first().locator(".rec-activity-title")).toHaveText("김담당이 완료: 입찰 참여 조건 확인");
 });
 
@@ -540,7 +540,7 @@ test("다음 행동은 최대 5건만 보이고 모두 보기가 피드를 다�
   const next = page.getByTestId("next-actions");
   // 열린 행동 7건(기존 1 + 6) 중 5건.
   await expect(next.getByRole("checkbox")).toHaveCount(5);
-  await expect(next).toContainText("남은 다음 행동 7건 중 5건을 보여 줍니다");
+  await expect(next).toContainText("남은 다음 행동 7건 중 5건을 보여 줘요");
 
   await next.getByRole("button", { name: "모두 보기" }).click();
   const chips = page.getByRole("group", { name: "활동 필터" });
@@ -557,9 +557,9 @@ test("다음 행동은 최대 5건만 보이고 모두 보기가 피드를 다�
 test("판정(없음)·제안서·서류 탭은 빈 상태 문장만 그리고 좌측 정보는 탭을 옮겨도 남는다", async ({ page }) => {
   await openRecord(page, "/opportunities/7101/activity");
   for (const [tab, sentence] of [
-    ["판정", "아직 판정이 없습니다"],
-    ["제안서", "제안서 초안은 판정 뒤 만들 수 있습니다"],
-    ["서류", "제출 서류 체크는 준비 중입니다"],
+    ["판정", "아직 판정이 없어요"],
+    ["제안서", "제안서 초안은 판정 뒤 만들 수 있어요"],
+    ["서류", "제출 서류 체크는 준비 중이에요"],
   ] as const) {
     await page.getByRole("tab", { name: tab, exact: true }).click();
     await expect(page.getByRole("tab", { name: tab, exact: true })).toHaveAttribute("aria-selected", "true");
@@ -572,7 +572,7 @@ test("판정(없음)·제안서·서류 탭은 빈 상태 문장만 그리고 �
 
 test("원문 탭은 공고 상세로 가는 링크를 주고 비슷한 공고는 가장 뒤 단계 공고의 관련 목록을 쓴다", async ({ page }) => {
   const trace = await openRecord(page, "/opportunities/7101/source");
-  await expect(page.getByRole("tabpanel")).toContainText("원문은 공고 상세에서 봅니다");
+  await expect(page.getByRole("tabpanel")).toContainText("원문은 공고 상세에서 봐요");
   await expect(page.getByRole("tabpanel").getByRole("link", { name: /입찰공고 상세 열기/ })).toHaveAttribute("href", "/judgments/9103");
   await expect(page.getByRole("tabpanel").getByRole("link", { name: /나라장터 공고 원문 열기/ })).toHaveAttribute("href", EXTERNAL_BID_URL);
 
@@ -585,7 +585,7 @@ test("원문 탭은 공고 상세로 가는 링크를 주고 비슷한 공고는
 
   // 발주계획만 있으면 공고가 없어 관련 목록을 묻지 않고 빈 상태를 말한다.
   await page.goto("/opportunities/7102/similar");
-  await expect(page.getByRole("tabpanel")).toContainText("공고가 연결되면 비슷한 공고를 찾습니다");
+  await expect(page.getByRole("tabpanel")).toContainText("공고가 연결되면 비슷한 공고를 찾아요");
   expect(trace.relatedGets).toEqual([9103]);
   await page.goto("/opportunities/7102/source");
   await expect(page.getByRole("tabpanel").getByRole("link", { name: /발주계획 검토목록 열기/ })).toHaveAttribute("href", "/order-plans?selected=7011");
@@ -655,7 +655,7 @@ test("⋯ 메뉴의 추적 되돌리기와 후보 연결은 기존 대화상자�
   await page.goto("/opportunities/7102/activity");
   await page.getByRole("button", { name: "사업기회 더보기" }).click();
   await expect(page.getByRole("menuitem", { name: /추적 되돌리기/ })).toBeDisabled();
-  await expect(page.getByRole("menu")).toContainText("이미 미선택입니다");
+  await expect(page.getByRole("menu")).toContainText("이미 미선택이에요");
   await page.keyboard.press("Escape");
 
   // 확인할 후보가 있으면 후보 연결 확인 대화상자가 열린다.

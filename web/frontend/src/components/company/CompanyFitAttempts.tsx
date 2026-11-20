@@ -46,7 +46,7 @@ function GraphPathView({ index, attempt }: { index: number; attempt: CompanyScop
   if (path === undefined) {
     return (
       <li className="cw-path cw-path-missing" data-path-index={index}>
-        서버가 가리킨 경로 {index}번이 이 실행의 경로 목록 범위 밖입니다. 경로를 만들어 채우지 않았습니다.
+        서버가 가리킨 경로 {index}번이 이 실행의 경로 목록 범위 밖이에요. 경로를 만들어 채우지 않았어요.
       </li>
     );
   }
@@ -66,7 +66,7 @@ function GraphPathView({ index, attempt }: { index: number; attempt: CompanyScop
           ))}
         </span>
       ) : (
-        <span className="cw-caption">서버가 연결된 노드를 주지 않았습니다.</span>
+        <span className="cw-caption">서버가 연결된 노드를 주지 않았어요.</span>
       )}
       {path.edge_ids.length > 0 ? (
         <span className="cw-path-line" data-path-edges>
@@ -150,13 +150,13 @@ function AttemptView({ attempt, latest }: { attempt: CompanyScopedFitView; lates
         <span className="cw-caption">{formatDateTime(attempt.created_at)}</span>
       </span>
       {attempt.status === "failed" ? (
-        <p className="cw-caption" data-attempt-error>실행 실패 · 오류 코드 {present(attempt.error_code, "없음")}. 실패는 판정이 아니며 결과로 읽지 않습니다.</p>
+        <p className="cw-caption" data-attempt-error>실행 실패 · 오류 코드 {present(attempt.error_code, "없음")}. 실패는 판정이 아니며 결과로 읽지 않아요.</p>
       ) : null}
       {attempt.status === "needs_human_review" ? (
-        <p className="cw-caption">모델 결과를 자동으로 확정하지 못해 사람 검토가 필요합니다. 판정으로 읽지 않습니다.</p>
+        <p className="cw-caption">모델 결과를 자동으로 확정하지 못해 사람 검토가 필요해요. 판정으로 읽지 않아요.</p>
       ) : null}
       {attempt.status === "queued" || attempt.status === "running" ? (
-        <p className="cw-caption">아직 끝나지 않은 실행입니다. 판정이 아닙니다.</p>
+        <p className="cw-caption">아직 끝나지 않은 실행이에요. 판정이 아니에요.</p>
       ) : null}
       {result ? (
         <>
@@ -168,7 +168,7 @@ function AttemptView({ attempt, latest }: { attempt: CompanyScopedFitView; lates
               ))}
             </ol>
           ) : (
-            <p className="cw-caption">서버가 판정 사유를 주지 않았습니다.</p>
+            <p className="cw-caption">서버가 판정 사유를 주지 않았어요.</p>
           )}
           {result.verification_items.length > 0 ? (
             <div>
@@ -205,27 +205,27 @@ export function CompanyFitAttempts({ companyId, noticeId }: { companyId: Uuid; n
     <section className="cw-section" aria-labelledby="company-fit-title" data-testid="company-fit">
       <h3 id="company-fit-title">회사 핏 판정 이력</h3>
       <p className="cw-caption" data-testid="company-fit-cli-note">
-        회사 핏은 CLI로만 실행합니다. 이 화면에서는 핏을 만들거나 승인하지 않고 결과·사유·경로만 봅니다.
+        회사 핏은 CLI로만 실행해요. 이 화면에서는 핏을 만들거나 승인하지 않고 결과·사유·경로만 봐요.
       </p>
       {attemptsQuery.isPending ? (
-        <p role="status">핏 판정 이력을 불러오는 중입니다.</p>
+        <p role="status">핏 판정 이력을 불러오는 중이에요.</p>
       ) : attemptsQuery.isError ? (
         <EmptyState
           compact
           tone="error"
-          title="핏 판정 이력을 불러오지 못했습니다."
-          problem={describeCompanyApiError(attemptsQuery.error, "핏 판정 이력을 불러오지 못했습니다.")}
+          title="핏 판정 이력을 불러오지 못했어요"
+          problem={describeCompanyApiError(attemptsQuery.error, "핏 판정 이력을 불러오지 못했어요.")}
           action={{ label: "다시 시도", onClick: () => { void attemptsQuery.refetch(); } }}
         />
       ) : scopeMismatch ? (
         <EmptyState
           compact
           tone="error"
-          title="응답의 회사·공고가 이 화면과 다릅니다."
-          description="다른 회사의 결과를 대신 보여 주지 않습니다."
+          title="응답의 회사·공고가 이 화면과 달라요"
+          description="다른 회사의 결과를 대신 보여 주지 않아요."
         />
       ) : view && view.attempts.length === 0 ? (
-        <p data-testid="company-fit-empty">이 회사의 핏 실행 기록이 없습니다. 기록 없음은 불일치가 아닙니다.</p>
+        <p data-testid="company-fit-empty">이 회사의 핏 실행 기록이 없어요. 기록 없음은 불일치가 아니에요.</p>
       ) : view ? (
         <ol className="cw-attempt-list" aria-label="회사 핏 판정 이력(최신순)">
           {view.attempts.map((attempt, position) => (

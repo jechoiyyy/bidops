@@ -35,7 +35,7 @@ test("회차 선택기와 회차 의존 패널이 화면에서 빠졌다", async
   await expect(page.locator(".dash-page")).not.toContainText("판정 표본");
   await expect(page.locator(".dash-page")).not.toContainText("읽기 전용");
   await expect(page.locator(".dash-dashboard-foot")).not.toContainText("선택한 회차의 기준 시각");
-  await expect(page.locator(".dash-dashboard-foot")).toContainText("최종 참여 판단은 최종 Go/No-Go에서 진행합니다.");
+  await expect(page.locator(".dash-dashboard-foot")).toContainText("최종 참여 판단은 최종 Go/No-Go에서 진행해요.");
   expect(new URL(page.url()).searchParams.has("run")).toBe(false);
 });
 
@@ -126,7 +126,7 @@ test("누적 패널 다섯이 제목·목적지·기준을 갖는다", async ({ 
   await expect(panel(page, "최종 결정 대기").locator(".dash-panel-foot")).toContainText(/검토 대상 \d+건/);
   await expect(panel(page, "새 관련 발주계획").locator(".dash-panel-foot")).toContainText("전일 수집 이후 처음 관측");
   await expect(panel(page, "새 관련 발주계획").locator(".dash-panel-foot")).toContainText("추적 미선택 12건 중 상위 5건");
-  await expect(panel(page, "사람 확인 필요")).toContainText("확인 항목은 추적 상태와 무관하게 셉니다.");
+  await expect(panel(page, "사람 확인 필요")).toContainText("확인 항목은 추적 상태와 무관하게 세요.");
 });
 
 test("건수는 workload가 내고 목록 길이로 덮지 않는다", async ({ page }) => {
@@ -154,7 +154,7 @@ test("목록이 비어도 건수를 0으로 고치지 않는다", async ({ page 
   await mockDashboard(page, { deadlines: opportunityList([], 7) });
   await page.goto("/");
   const region = panel(page, "마감 임박 추적 건");
-  await expect(region).toContainText("7일 이내 마감인 추적 건이 없습니다");
+  await expect(region).toContainText("7일 이내 마감인 추적 건이 없어요");
   await expect(region.locator(".dash-panel-foot")).toContainText("마감 임박 7건");
 });
 
@@ -262,7 +262,7 @@ test("한 패널의 조회 실패가 다른 패널을 막지 않고 그 패널�
   await mockDashboard(page, options);
   await page.goto("/");
   const failed = panel(page, "최종 결정 대기");
-  await expect(failed.getByRole("alert")).toContainText("최종 결정 대기 목록을 불러오지 못했습니다");
+  await expect(failed.getByRole("alert")).toContainText("최종 결정 대기 목록을 불러오지 못했어요");
   // 바닥 건수는 같은 대기열(검토 대상 정의)에서 오므로 대기열이 실패하면 0이 아니라 미확인이다.
   await expect(failed.locator(".dash-panel-foot")).toContainText("검토 대상 미확인");
   await expect(panel(page, "마감 임박 추적 건").locator(".dash-work-item")).toHaveCount(3);
@@ -288,8 +288,8 @@ test("패널마다 로딩과 빈 상태를 다른 문장으로 구분한다", as
   try {
     await page.goto("/");
     await expect(decision.locator(".dash-panel-body").getByRole("status")).toHaveText("최종 결정 대기 목록을 불러오는 중");
-    await expect(panel(page, "마감 임박 추적 건")).toContainText("7일 이내 마감인 추적 건이 없습니다");
-    await expect(panel(page, "사람 확인 필요")).toContainText("사람이 확인할 개요 검토와 확인 항목이 없습니다");
+    await expect(panel(page, "마감 임박 추적 건")).toContainText("7일 이내 마감인 추적 건이 없어요");
+    await expect(panel(page, "사람 확인 필요")).toContainText("사람이 확인할 개요 검토와 확인 항목이 없어요");
   } finally { release(); }
   await expect(decision.locator(".dash-work-item")).toHaveCount(2);
 });
@@ -310,7 +310,7 @@ test("보류 재검토는 회차 없이 기한순 5건을 업무 패널과 같�
   const trace = await mockDashboard(page, { holdReviews: holdReviewList(holdReviewItems, 7), workload: workloadWith("tracking_hold_review_due", 2) });
   await page.goto("/");
   const region = panel(page, "보류 재검토");
-  await expect(region).toContainText("보류는 선택 후 14일이 지나면 다시 검토합니다.");
+  await expect(region).toContainText("보류는 선택 후 14일이 지나면 다시 검토해요.");
   await expect(region.locator(".dash-panel-head")).toContainText("기한 지남 2건");
   // 표가 아니라 행 목록이다(1280 반폭에서 마지막 열이 가로로 밀리던 자리).
   await expect(region.getByRole("table")).toHaveCount(0);
@@ -486,7 +486,7 @@ test.describe("발주계획 일일 실행 한 줄", () => {
     const line = page.getByTestId("daily-run-status");
     await expect(line).toHaveAttribute("data-state", "warning");
     await expect(line).toContainText("확인 필요");
-    await expect(line).toContainText("일일 발주계획 수집 기록이 없습니다");
+    await expect(line).toContainText("일일 발주계획 수집 기록이 없어요");
     await expect(line).not.toContainText("다음 일일");
   });
 
@@ -522,8 +522,8 @@ test.describe("발주계획 일일 실행 한 줄", () => {
     await expect(line).toHaveAttribute("data-state", "warning");
     await expect(line).toContainText("36일 전");
     await expect(line).toContainText("C-2 실패");
-    await expect(line).toContainText("최근 기준일이 늦었습니다");
-    await expect(line).toContainText("C-2 실행이 성공·부분 성공으로 끝나지 않았습니다");
+    await expect(line).toContainText("최근 기준일이 늦었어요");
+    await expect(line).toContainText("C-2 실행이 성공·부분 성공으로 끝나지 않았어요");
   });
 
   test("회차는 있는데 C-2 운영 실행이 없으면 그 사실을 적는다", async ({ page }) => {
@@ -535,7 +535,7 @@ test.describe("발주계획 일일 실행 한 줄", () => {
     const line = page.getByTestId("daily-run-status");
     await expect(line).toHaveAttribute("data-state", "warning");
     await expect(line).toContainText("C-2 실행 없음");
-    await expect(line).toContainText("이 회차에는 C-2 운영 실행이 없습니다");
+    await expect(line).toContainText("이 회차에는 C-2 운영 실행이 없어요");
   });
 });
 
@@ -646,7 +646,7 @@ test.describe("일일 수집 묶음 · 공고 트랙", () => {
     await page.goto("/");
     const block = page.getByTestId("daily-collection");
     await expect(block).toContainText("일일 수집");
-    await expect(block).toContainText("오늘 기준일은 아직 수집 전일 수 있습니다");
+    await expect(block).toContainText("오늘 기준일은 아직 수집 전일 수 있어요");
     await expect(block.locator(".daily-run-line")).toHaveCount(2);
     const row = page.getByTestId("daily-notice-status");
     await expect(row).toHaveAttribute("data-state", "ok");
@@ -665,7 +665,7 @@ test.describe("일일 수집 묶음 · 공고 트랙", () => {
     await expect(page.getByTestId("daily-run-status")).toHaveAttribute("data-state", "ok");
     const row = page.getByTestId("daily-notice-status");
     await expect(row).toHaveAttribute("data-state", "warning");
-    await expect(row).toContainText("최근 기준일이 늦었습니다");
+    await expect(row).toContainText("최근 기준일이 늦었어요");
   });
 
   test("자정과 정오 사이에는 그저께 기준일도 정상이다", async ({ page }) => {

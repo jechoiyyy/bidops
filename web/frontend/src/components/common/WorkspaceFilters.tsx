@@ -228,7 +228,7 @@ export function WorkspaceSearch({
 
   useEffect(() => {
     const hasError = Boolean(errorMessage);
-    if (previousError.current && !hasError) setClearAnnouncement("검색어 오류가 해제되었습니다.");
+    if (previousError.current && !hasError) setClearAnnouncement("검색어 오류가 해제되었어요.");
     else if (hasError) setClearAnnouncement("");
     previousError.current = hasError;
   }, [errorMessage]);

@@ -40,7 +40,7 @@ export function JudgmentBanner({ judgment }: JudgmentBannerProps) {
       </div>
 
       <div className="judgment-banner-main">
-        <p className="judgment-banner-summary">{judgment?.summary?.trim() || "종합 권고가 없습니다."}</p>
+        <p className="judgment-banner-summary">{judgment?.summary?.trim() || "종합 권고가 없어요."}</p>
         <div className="judgment-banner-next">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
             <path d="M5 12h13M13 6l6 6-6 6" />

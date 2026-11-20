@@ -45,10 +45,10 @@ export function trackingVariant(status: OpportunityTrackingStatus): BadgeVariant
 }
 
 export function trackingDescription(status: OpportunityTrackingStatus): string {
-  if (status === "계속 추적") return "새 문서·입찰공고·정정공고를 감시한다. 최종 입찰 참여 승인이 아니다.";
-  if (status === "보류") return "정보나 선행 조건이 부족해 현재 결정을 미룬다. 자동 제외가 아니다.";
-  if (status === "종료") return "현재 사업기회에 대한 능동 추적을 끝냈다. 영구 배제가 아니다.";
-  return "아직 아무도 고르지 않았다. 관심 없음이 아니다.";
+  if (status === "계속 추적") return "새 문서·입찰공고·정정공고를 지켜봐요. 최종 입찰 참여 승인이 아니에요.";
+  if (status === "보류") return "정보나 선행 조건이 부족해 지금 결정을 미뤄요. 자동 제외가 아니에요.";
+  if (status === "종료") return "이 사업기회의 능동 추적을 끝냈어요. 영구 배제가 아니에요.";
+  return "아직 아무도 고르지 않았어요. 관심 없음이 아니에요.";
 }
 
 /**
@@ -57,11 +57,11 @@ export function trackingDescription(status: OpportunityTrackingStatus): string {
  */
 export function linkStatusDescription(link: OpportunityLinkView): string {
   if (link.status === "검색 미확인") {
-    return "이름 검색으로 찾지 못했다. 사전규격이 없다는 뜻이 아니다.";
+    return "이름 검색으로 찾지 못했어요. 사전규격이 없다는 뜻이 아니에요.";
   }
-  if (link.status === "후보 확인 대기") return "공식 번호가 아닌 후보 관계다. 사람 확인이 필요하다.";
-  if (link.status === "사람 확인 완료") return "사람이 확인한 관계다.";
-  return "공식 통합번호로 확정된 관계다.";
+  if (link.status === "후보 확인 대기") return "공식 번호가 아닌 후보 관계예요. 사람 확인이 필요해요.";
+  if (link.status === "사람 확인 완료") return "사람이 확인한 관계예요.";
+  return "공식 통합번호로 확정된 관계예요.";
 }
 
 export function linkRecordLabel(link: OpportunityLinkView): string {
@@ -109,7 +109,7 @@ export function linkExceptions(links: readonly OpportunityLinkView[]): TrackingE
         linkId: link.id,
         noticeId: link.notice_id,
         title: link.title?.trim() || "제목 미확인",
-        detail: `${linkRecordLabel(link)} 후보 관계입니다. 공식 번호가 아니라 이름 검색으로 찾은 관계이므로 사람이 수용·기각을 정해야 합니다.`,
+        detail: `${linkRecordLabel(link)} 후보 관계예요. 공식 번호가 아니라 이름 검색으로 찾은 관계이므로 사람이 수용·기각을 정해야 해요.`,
         resolution: "후보 연결 판정",
       });
       continue;
@@ -120,7 +120,7 @@ export function linkExceptions(links: readonly OpportunityLinkView[]): TrackingE
         linkId: link.id,
         noticeId: link.notice_id,
         title: link.title?.trim() || "제목 미확인",
-        detail: "이름 검색으로 근거 레코드를 찾지 못했습니다. 레코드가 없다는 뜻이 아니며, 이 화면이 만들어 낼 수 있는 연결도 아닙니다.",
+        detail: "이름 검색으로 근거 레코드를 찾지 못했어요. 레코드가 없다는 뜻이 아니며, 이 화면이 만들어 낼 수 있는 연결도 아니에요.",
         resolution: "화면 밖 확인",
       });
     }
@@ -150,7 +150,7 @@ export function noticeVerificationExceptions(notice: NoticeDetailResponse): Trac
       title: item.item?.trim() || "확인 항목 이름 미확인",
       detail: item.why?.trim()
         ? `${item.why.trim()} · 현재 상태 ${item.status?.trim() || "unknown"}`
-        : `blocking 확인 항목에 담당자 답변이 없습니다 · 현재 상태 ${item.status?.trim() || "unknown"}`,
+        : `blocking 확인 항목에 담당자 답변이 없어요 · 현재 상태 ${item.status?.trim() || "unknown"}`,
       resolution: "공고 판정 수정" as const,
     }));
 }

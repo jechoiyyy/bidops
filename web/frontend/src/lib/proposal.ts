@@ -253,11 +253,11 @@ export const REQUIREMENT_PAGE_SIZE = 50;
 
 /** PDF 내보내기를 막는 이유. 열 수 있으면 `null`이다. */
 export function exportBlockedReason(draft: ProposalDraft | null | undefined, busy: boolean): string | null {
-  if (!draft) return "아직 만든 초안이 없습니다";
-  if (draft.status === "queued" || draft.status === "running") return "초안 생성이 끝난 뒤 내보낼 수 있습니다";
-  if (draft.status === "failed") return "내보낼 수 있는 초안이 없습니다";
-  if (draft.status === "superseded") return "이전 초안은 내보내지 않습니다. 최신 초안에서 내보내십시오";
-  return busy ? "처리 중입니다" : null;
+  if (!draft) return "아직 만든 초안이 없어요";
+  if (draft.status === "queued" || draft.status === "running") return "초안 생성이 끝난 뒤 내보낼 수 있어요";
+  if (draft.status === "failed") return "내보낼 수 있는 초안이 없어요";
+  if (draft.status === "superseded") return "이전 초안은 내보내지 않아요. 최신 초안에서 내보내 주세요";
+  return busy ? "처리 중이에요" : null;
 }
 
 /** 새 초안을 만들 수 없는 이유. 열 수 있으면 `null`이다. `draft`가 없으면 본문의 `초안 만들기`가 연다. */
@@ -266,17 +266,17 @@ export function regenerateDraftBlockedReason(
   verdictCompleted: boolean,
   busy: boolean,
 ): string | null {
-  if (!draft) return "아직 만든 초안이 없습니다. 본문의 초안 만들기를 쓰십시오";
-  if (isDraftActive(draft)) return "초안을 만드는 중입니다";
-  if (!verdictCompleted) return "아직 완료된 판정이 없습니다";
-  return busy ? "처리 중입니다" : null;
+  if (!draft) return "아직 만든 초안이 없어요. 본문의 초안 만들기를 써 주세요";
+  if (isDraftActive(draft)) return "초안을 만드는 중이에요";
+  if (!verdictCompleted) return "아직 완료된 판정이 없어요";
+  return busy ? "처리 중이에요" : null;
 }
 
 /** 제출 준비 표시를 막는 이유. `reviewed`에서만 열린다. */
 export function readyBlockedReason(draft: ProposalDraft | null | undefined, busy: boolean): string | null {
-  if (!draft) return "아직 만든 초안이 없습니다";
-  if (draft.status === "superseded") return "이전 초안은 바꿀 수 없습니다";
-  if (draft.stage === "ready") return "이미 제출 준비로 표시했습니다";
-  if (draft.stage !== "reviewed") return "모든 절을 검토 완료로 표시한 뒤 열립니다";
-  return busy ? "처리 중입니다" : null;
+  if (!draft) return "아직 만든 초안이 없어요";
+  if (draft.status === "superseded") return "이전 초안은 바꿀 수 없어요";
+  if (draft.stage === "ready") return "이미 제출 준비로 표시했어요";
+  if (draft.stage !== "reviewed") return "모든 절을 검토 완료로 표시한 뒤 열려요";
+  return busy ? "처리 중이에요" : null;
 }

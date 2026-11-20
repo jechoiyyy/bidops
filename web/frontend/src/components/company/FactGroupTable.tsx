@@ -79,7 +79,7 @@ export function CopyFactKeyButton({ fact }: { fact: CompanyProfileFact }) {
       </Button>
       {state !== "idle" ? (
         <span className="visually-hidden" role="status">
-          {state === "copied" ? `${fact.label} 항목 키를 복사했습니다.` : `${fact.label} 항목 키를 복사하지 못했습니다.`}
+          {state === "copied" ? `${fact.label} 항목 키를 복사했어요.` : `${fact.label} 항목 키를 복사하지 못했어요.`}
         </span>
       ) : null}
     </span>
@@ -105,7 +105,7 @@ interface FactGroupTableProps {
 export function FactGroupTable({ caption, facts, today, warningDays }: FactGroupTableProps) {
   const rows = facts.filter(isDisplayedFact);
   if (rows.length === 0) {
-    return <p className="co-empty" role="status">이 항목에 등록된 값이 없습니다.</p>;
+    return <p className="co-empty" role="status">이 항목에 등록된 값이 없어요.</p>;
   }
   return (
     <table className="co-table">

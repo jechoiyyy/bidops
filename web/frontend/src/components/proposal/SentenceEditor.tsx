@@ -43,13 +43,13 @@ export function SentenceEditor({ sentence, onSave, onCancel, saving, onDirtyChan
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const invalid = trimmed.length === 0 || length > SENTENCE_MAX;
   const reason = saving
-    ? "저장하고 있습니다."
+    ? "저장하고 있어요."
     : trimmed.length === 0
-      ? "문장은 비워 둘 수 없습니다."
+      ? "문장은 비워 둘 수 없어요."
       : length > SENTENCE_MAX
-        ? `문장은 ${SENTENCE_MAX}자까지입니다.`
+        ? `문장은 ${SENTENCE_MAX}자까지예요.`
         : unchanged
-          ? "바뀐 내용이 없습니다."
+          ? "바뀐 내용이 없어요."
           : null;
 
   const submit = async () => {
@@ -63,12 +63,12 @@ export function SentenceEditor({ sentence, onSave, onCancel, saving, onDirtyChan
     <section aria-label="문장 수정" className="pp-editor" data-testid="sentence-editor">
       {sentence.kind === "placeholder" ? (
         <p className="pp-editor-note" data-testid="editor-placeholder-note">
-          비어 있는 자리입니다{sentence.placeholder_hint ? ` · 채울 것: ${sentence.placeholder_hint}` : ""}. 근거가 없어 비워 두었으므로 확인한 내용으로 직접 채우십시오.
+          비어 있는 자리예요{sentence.placeholder_hint ? ` · 채울 것: ${sentence.placeholder_hint}` : ""}. 근거가 없어 비워 두었으므로 확인한 내용으로 직접 채워 주세요.
         </p>
       ) : null}
       {sentence.kind === "proposed_figure" ? (
         <p className="pp-editor-note" data-testid="editor-figure-note">
-          제안 수치입니다. 근거를 확인해 확정하거나 고치십시오.
+          제안 수치예요. 근거를 확인해 확정하거나 고쳐 주세요.
         </p>
       ) : null}
       <TextArea
@@ -82,7 +82,7 @@ export function SentenceEditor({ sentence, onSave, onCancel, saving, onDirtyChan
       />
       {problem ? (
         <MutationFeedback problem={problem} tone="error">
-          <p>입력한 문장은 그대로 남아 있습니다. 저장되지 않았습니다.</p>
+          <p>입력한 문장은 그대로 남아 있어요. 저장되지 않았어요.</p>
         </MutationFeedback>
       ) : null}
       <div className="pp-editor-actions">
@@ -102,7 +102,7 @@ export function SentenceEditor({ sentence, onSave, onCancel, saving, onDirtyChan
         <h4 className="pp-sources-title">이 문장의 출처</h4>
         {sentence.sources.length === 0 ? (
           <p className="rec-side-note" data-testid="sources-empty">
-            {sentence.kind === "placeholder" ? "출처가 없는 자리입니다. 사람이 채울 내용입니다." : "표시할 출처가 없습니다."}
+            {sentence.kind === "placeholder" ? "출처가 없는 자리예요. 사람이 채울 내용이에요." : "표시할 출처가 없어요."}
           </p>
         ) : (
           <ul className="pp-source-list">

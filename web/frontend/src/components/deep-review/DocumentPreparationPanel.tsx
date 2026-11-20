@@ -79,8 +79,8 @@ function statusTone(status: string): StatusTone {
 }
 
 function invalidFileReason(file: File): string | null {
-  if (!/\.(hwp|hwpx|pdf)$/i.test(file.name)) return "HWP, HWPX, PDF 파일만 등록할 수 있습니다.";
-  if (file.size > MAX_FILE_SIZE) return "파일당 50MiB를 넘을 수 없습니다.";
+  if (!/\.(hwp|hwpx|pdf)$/i.test(file.name)) return "HWP, HWPX, PDF 파일만 등록할 수 있어요.";
+  if (file.size > MAX_FILE_SIZE) return "파일당 50MiB를 넘을 수 없어요.";
   return null;
 }
 
@@ -123,17 +123,17 @@ function DocumentMetadataEditor({
       version: document.version,
     }),
     onSuccess: async (saved) => {
-      await onSaved(`${saved.original_filename} 문서 정보를 버전 ${saved.version}으로 저장했습니다.`);
+      await onSaved(`${saved.original_filename} 문서 정보를 버전 ${saved.version}으로 저장했어요.`);
     },
   });
   const disabledReason = mutation.isPending
-    ? "문서 정보 저장 요청을 처리하고 있습니다."
+    ? "문서 정보 저장 요청을 처리하고 있어요."
     : !editable
-      ? "확정된 묶음·이전 확정본·최신이 아닌 묶음의 문서는 수정하지 않습니다."
+      ? "확정된 묶음·이전 확정본·최신이 아닌 묶음의 문서는 수정하지 않아요."
       : !actorName.trim()
-        ? "저장하려면 담당자 이름이 필요합니다."
+        ? "저장하려면 담당자 이름이 필요해요."
         : !dirty
-          ? "저장할 변경이 없습니다."
+          ? "저장할 변경이 없어요."
           : null;
 
   return (
@@ -212,7 +212,7 @@ function DocumentMetadataEditor({
         </button>
         {disabledReason ? <DisabledReason id={`metadata-disabled-${document.id}`}>{disabledReason}</DisabledReason> : null}
       </div>
-      {mutation.error ? <MutationFeedback tone="error" problem={describeApiError(mutation.error, "문서 정보를 저장하지 못했습니다.")} /> : null}
+      {mutation.error ? <MutationFeedback tone="error" problem={describeApiError(mutation.error, "문서 정보를 저장하지 못했어요.")} /> : null}
     </article>
   );
 }
@@ -274,7 +274,7 @@ export function DocumentPreparationPanel({ noticeId }: DocumentPreparationPanelP
     mutationFn: () => createDocumentBundle(noticeId, actorName),
     onSuccess: async (bundle) => {
       setSelectedBundleId(bundle.id);
-      setFeedback(`문서 묶음 수정본 ${bundle.revision} 초안을 만들었습니다.`);
+      setFeedback(`문서 묶음 수정본 ${bundle.revision} 초안을 만들었어요.`);
       await invalidateBundles();
     },
   });
@@ -285,7 +285,7 @@ export function DocumentPreparationPanel({ noticeId }: DocumentPreparationPanelP
         key: `${file.name}-${file.size}-${index}`,
         filename: file.name,
         status: "uploading",
-        message: "격리 저장과 안전 검사를 요청하는 중입니다.",
+        message: "격리 저장과 안전 검사를 요청하는 중이에요.",
       }));
       setUploadOutcomes(outcomes);
 
@@ -309,7 +309,7 @@ export function DocumentPreparationPanel({ noticeId }: DocumentPreparationPanelP
           outcomes[index] = {
             ...outcomes[index],
             status: "failed",
-            message: describeApiError(error, "문서를 등록하지 못했습니다.").title,
+            message: describeApiError(error, "문서를 등록하지 못했어요.").title,
           };
         }
         setUploadOutcomes([...outcomes]);
@@ -320,8 +320,8 @@ export function DocumentPreparationPanel({ noticeId }: DocumentPreparationPanelP
       const succeeded = outcomes.filter((outcome) => outcome.status === "succeeded").length;
       const failed = outcomes.filter((outcome) => outcome.status === "failed").length;
       setFeedback(failed > 0
-        ? `업로드 일부 실패 · 성공 ${succeeded}건 / 실패 ${failed}건. 전체 성공으로 처리하지 않았습니다.`
-        : `문서 ${succeeded}건을 순차 등록했습니다.`);
+        ? `업로드 일부 실패 · 성공 ${succeeded}건 / 실패 ${failed}건. 전체 성공으로 처리하지 않았어요.`
+        : `문서 ${succeeded}건을 순차 등록했어요.`);
       await invalidateBundles();
     },
   });
@@ -329,16 +329,16 @@ export function DocumentPreparationPanel({ noticeId }: DocumentPreparationPanelP
   const documents = selectedBundle?.documents ?? [];
   const blockingIssues = selectedBundle?.issues.filter((issue) => issue.blocking) ?? [];
   const confirmReasons: string[] = [];
-  if (!selectedBundle) confirmReasons.push("확정할 초안 묶음이 없습니다.");
+  if (!selectedBundle) confirmReasons.push("확정할 초안 묶음이 없어요.");
   else {
-    if (bundleIsImmutable(selectedBundle)) confirmReasons.push(`${BUNDLE_STATUS_LABELS[selectedBundle.status]} 묶음은 다시 확정하지 않습니다.`);
-    if (!selectedIsLatest) confirmReasons.push("최신 수정본이 아닌 묶음은 수정하거나 다시 확정하지 않습니다.");
-    if (documents.length === 0) confirmReasons.push("문서를 1건 이상 등록해야 합니다.");
-    if (documents.some((document) => document.safety_status !== "safe")) confirmReasons.push("모든 문서가 안전 확인 상태여야 합니다.");
-    if (documents.some((document) => document.structure_status !== "ready")) confirmReasons.push("모든 문서의 변환·구조화가 끝나야 합니다.");
-    if (blockingIssues.length > 0) confirmReasons.push(`차단 항목 ${blockingIssues.length}건을 먼저 해결해야 합니다.`);
+    if (bundleIsImmutable(selectedBundle)) confirmReasons.push(`${BUNDLE_STATUS_LABELS[selectedBundle.status]} 묶음은 다시 확정하지 않아요.`);
+    if (!selectedIsLatest) confirmReasons.push("최신 수정본이 아닌 묶음은 수정하거나 다시 확정하지 않아요.");
+    if (documents.length === 0) confirmReasons.push("문서를 1건 이상 등록해야 해요.");
+    if (documents.some((document) => document.safety_status !== "safe")) confirmReasons.push("모든 문서가 안전 확인 상태여야 해요.");
+    if (documents.some((document) => document.structure_status !== "ready")) confirmReasons.push("모든 문서의 변환·구조화가 끝나야 해요.");
+    if (blockingIssues.length > 0) confirmReasons.push(`차단 항목 ${blockingIssues.length}건을 먼저 해결해야 해요.`);
   }
-  if (!actorName.trim()) confirmReasons.push("담당자 이름이 필요합니다.");
+  if (!actorName.trim()) confirmReasons.push("담당자 이름이 필요해요.");
 
   const confirmMutation = useMutation({
     mutationFn: () => confirmDocumentBundle(selectedBundle?.id ?? "", actorName, {
@@ -351,22 +351,22 @@ export function DocumentPreparationPanel({ noticeId }: DocumentPreparationPanelP
     }),
     onSuccess: async (bundle) => {
       setSelectedBundleId(bundle.id);
-      setFeedback(`문서 묶음 수정본 ${bundle.revision}을 확정했습니다. 이제 수정할 수 없습니다.`);
+      setFeedback(`문서 묶음 수정본 ${bundle.revision}을 확정했어요. 이제 수정할 수 없어요.`);
       await invalidateBundles();
     },
   });
 
-  const createProblem = createMutation.error ? describeApiError(createMutation.error, "새 문서 묶음을 만들지 못했습니다.") : null;
+  const createProblem = createMutation.error ? describeApiError(createMutation.error, "새 문서 묶음을 만들지 못했어요.") : null;
   const canCreate = !latestBundle || bundleIsImmutable(latestBundle);
   const confirmDisabledReasons = confirmMutation.isPending
-    ? ["문서 묶음 확정 요청을 처리하고 있습니다."]
+    ? ["문서 묶음 확정 요청을 처리하고 있어요."]
     : confirmReasons;
   const createDisabledReason = createMutation.isPending
-    ? "새 문서 묶음 생성 요청을 처리하고 있습니다."
+    ? "새 문서 묶음 생성 요청을 처리하고 있어요."
     : !canCreate && latestBundle
-      ? `최신 수정본 ${latestBundle.revision}이 ${BUNDLE_STATUS_LABELS[latestBundle.status]} 상태이므로 중복 초안을 만들지 않습니다.`
+      ? `최신 수정본 ${latestBundle.revision}이 ${BUNDLE_STATUS_LABELS[latestBundle.status]} 상태이므로 중복 초안을 만들지 않아요.`
       : !actorName.trim()
-        ? "새 문서 묶음을 만들려면 담당자 이름을 입력하십시오."
+        ? "새 문서 묶음을 만들려면 담당자 이름을 입력해 주세요."
         : null;
   const handleFiles = (files: File[]) => {
     if (!editable || uploadMutation.isPending || files.length === 0) return;
@@ -412,7 +412,7 @@ export function DocumentPreparationPanel({ noticeId }: DocumentPreparationPanelP
         <div>
           <span className="document-preparation-eyebrow">안전한 문서 준비 작업대</span>
           <h3 id="document-preparation-title">문서 묶음 준비</h3>
-          <p>문서 등록, 안전 검사, 변환·구조화, 역할 확인, 묶음 확정을 각 단계로 나눠 확인합니다. 확정한 묶음이 개요 검토와 참여 판정의 입력이 됩니다. 이 화면은 입력을 준비할 뿐 추적 결정이나 최종 Go/No-Go를 정하지 않습니다.</p>
+          <p>문서 등록, 안전 검사, 변환·구조화, 역할 확인, 묶음 확정을 각 단계로 나눠 확인해요. 확정한 묶음이 개요 검토와 참여 판정의 입력이 돼요. 이 화면은 입력을 준비할 뿐 추적 결정이나 최종 Go/No-Go를 정하지 않아요.</p>
         </div>
       </header>
 
@@ -420,21 +420,21 @@ export function DocumentPreparationPanel({ noticeId }: DocumentPreparationPanelP
           (`effective_grade.eligible_with_grade`, 사람 경로라 마감·추적 범위는 보지 않는다). */}
       <p className="document-preparation-gate" role="status">
         {overviewFlag === "off"
-          ? "이 환경에서는 개요 자동 검토가 꺼져 있어 우선 검토 등급인 사전규격만 문서 묶음을 만들 수 있습니다. 서버가 만들 때 자격을 다시 확인하며 화면 상태로 우회할 수 없습니다."
-          : "문서 묶음은 SW사업대상 사전규격(개요 자동 검토가 켜진 환경)이나 우선 검토 등급인 사전규격에서 만들 수 있습니다. 서버가 만들 때 자격을 다시 확인하며 화면 상태로 우회할 수 없습니다."}
+          ? "이 환경에서는 개요 자동 검토가 꺼져 있어 우선 검토 등급인 사전규격만 문서 묶음을 만들 수 있어요. 서버가 만들 때 자격을 다시 확인하며 화면 상태로 우회할 수 없어요."
+          : "문서 묶음은 SW사업대상 사전규격(개요 자동 검토가 켜진 환경)이나 우선 검토 등급인 사전규격에서 만들 수 있어요. 서버가 만들 때 자격을 다시 확인하며 화면 상태로 우회할 수 없어요."}
       </p>
 
       <div className="document-preparation-actor">
         <ActorField label="문서 준비 담당자 이름" value={actorName} onChange={setActorName} autoComplete="off" />
       </div>
 
-      {bundleQuery.isPending ? <p role="status" aria-live="polite">문서 묶음 이력을 불러오는 중입니다.</p> : null}
-      {bundleQuery.error ? <MutationFeedback tone="error" problem={describeApiError(bundleQuery.error, "문서 묶음 이력을 확인하지 못했습니다.")} /> : null}
+      {bundleQuery.isPending ? <p role="status" aria-live="polite">문서 묶음 이력을 불러오는 중이에요.</p> : null}
+      {bundleQuery.error ? <MutationFeedback tone="error" problem={describeApiError(bundleQuery.error, "문서 묶음 이력을 확인하지 못했어요.")} /> : null}
 
       <div className="document-preparation-bundle-bar">
         <div>
           <strong>{TERM.bundle} {TERM.revision} 이력</strong>
-          <span>최신 작업본을 기본으로 고르며 확정 완료·이전 확정본은 읽기 전용입니다.</span>
+          <span>최신 작업본을 기본으로 고르며 확정 완료·이전 확정본은 읽기 전용이에요.</span>
         </div>
         <button
           type="button"
@@ -451,7 +451,7 @@ export function DocumentPreparationPanel({ noticeId }: DocumentPreparationPanelP
           {/* 서버가 등급으로 막은 경우에만 붙이는 화면 사실. 서버 message가
               아니라 이 화면이 아는 규칙이다. */}
           {createProblem.code === "effective_grade_ineligible"
-            ? <p>서버가 묶음을 만들 때 자격(SW사업대상·개요 자동 검토 또는 우선 검토 등급)을 다시 확인했습니다. 화면 상태로 서버 조건을 우회할 수 없습니다.</p>
+            ? <p>서버가 묶음을 만들 때 자격(SW사업대상·개요 자동 검토 또는 우선 검토 등급)을 다시 확인했어요. 화면 상태로 서버 조건을 우회할 수 없어요.</p>
             : null}
         </MutationFeedback>
       ) : null}
@@ -473,7 +473,7 @@ export function DocumentPreparationPanel({ noticeId }: DocumentPreparationPanelP
             </li>
           ))}
         </ol>
-      ) : bundleQuery.isSuccess ? <p className="document-preparation-empty">아직 만든 문서 묶음이 없습니다.</p> : null}
+      ) : bundleQuery.isSuccess ? <p className="document-preparation-empty">아직 만든 문서 묶음이 없어요.</p> : null}
 
       {selectedBundle ? (
         <div className="document-preparation-workspace">
@@ -482,8 +482,8 @@ export function DocumentPreparationPanel({ noticeId }: DocumentPreparationPanelP
               <span className="mono tabular-nums">선택한 묶음 · 수정본 {selectedBundle.revision} · 버전 {selectedBundle.version}</span>
               <strong>{BUNDLE_STATUS_LABELS[selectedBundle.status]}</strong>
             </div>
-            {bundleIsImmutable(selectedBundle) ? <p>이 문서 묶음과 그 안의 문서 버전은 확정돼 바뀌지 않습니다.</p> : null}
-            {!selectedIsLatest ? <p>최신 수정본이 아니므로 과거 이력으로만 표시합니다.</p> : null}
+            {bundleIsImmutable(selectedBundle) ? <p>이 문서 묶음과 그 안의 문서 버전은 확정돼 바뀌지 않아요.</p> : null}
+            {!selectedIsLatest ? <p>최신 수정본이 아니므로 과거 이력으로만 표시해요.</p> : null}
           </div>
 
           <ol className="document-preparation-steps" aria-label="문서 준비 단계">
@@ -518,9 +518,9 @@ export function DocumentPreparationPanel({ noticeId }: DocumentPreparationPanelP
               onChange={handleFileInput}
               disabled={!editable || uploadMutation.isPending}
             />
-            <strong>{uploadMutation.isPending ? "문서를 순차 등록하는 중입니다." : "HWP · HWPX · PDF 문서 선택 또는 놓기"}</strong>
-            <span>파일당 50MiB · 문서마다 따로 격리하고 검사합니다.</span>
-            {!editable ? <span id="document-upload-disabled">최신 초안 묶음에서만 문서를 등록할 수 있습니다.</span> : null}
+            <strong>{uploadMutation.isPending ? "문서를 순차 등록하는 중이에요." : "HWP · HWPX · PDF 문서 선택 또는 놓기"}</strong>
+            <span>파일당 50MiB · 문서마다 따로 격리하고 검사해요.</span>
+            {!editable ? <span id="document-upload-disabled">최신 초안 묶음에서만 문서를 등록할 수 있어요.</span> : null}
           </div>
 
           {uploadOutcomes.length > 0 ? (
@@ -551,7 +551,7 @@ export function DocumentPreparationPanel({ noticeId }: DocumentPreparationPanelP
                 />
               ))}
             </div>
-          ) : <p className="document-preparation-empty">선택한 묶음에 등록된 문서가 없습니다.</p>}
+          ) : <p className="document-preparation-empty">선택한 묶음에 등록된 문서가 없어요.</p>}
 
           {selectedBundle.issues.length > 0 ? (
             <div className="document-preparation-issues">
@@ -572,7 +572,7 @@ export function DocumentPreparationPanel({ noticeId }: DocumentPreparationPanelP
             <div>
               <strong>문서 묶음 확정</strong>
               {confirmDisabledReasons.length === 0 ? (
-                <p className="is-ready" role="status">문서 1건 이상 · 모든 문서 안전 확인 · 모든 문서 구조화 완료 · 차단 항목 0건을 확인했습니다. 서버가 같은 조건을 다시 검사합니다.</p>
+                <p className="is-ready" role="status">문서 1건 이상 · 모든 문서 안전 확인 · 모든 문서 구조화 완료 · 차단 항목 0건을 확인했어요. 서버가 같은 조건을 다시 검사해요.</p>
               ) : (
                 <ul id="document-confirm-disabled" aria-label="문서 묶음 확정 비활성 사유">
                   {confirmDisabledReasons.map((reason) => <li key={reason}>{reason}</li>)}
@@ -588,7 +588,7 @@ export function DocumentPreparationPanel({ noticeId }: DocumentPreparationPanelP
               {confirmMutation.isPending ? "문서 묶음 확정 중" : "문서 묶음 확정하기"}
             </button>
           </div>
-          {confirmMutation.error ? <MutationFeedback tone="error" problem={describeApiError(confirmMutation.error, "문서 묶음을 확정하지 못했습니다.")} /> : null}
+          {confirmMutation.error ? <MutationFeedback tone="error" problem={describeApiError(confirmMutation.error, "문서 묶음을 확정하지 못했어요.")} /> : null}
 
         </div>
       ) : null}

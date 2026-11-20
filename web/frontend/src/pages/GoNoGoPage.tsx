@@ -401,7 +401,7 @@ export function GoNoGoPage() {
   }
 
   const queueProblem = queueQuery.error
-    ? describeApiError(queueQuery.error, "최종 결정 대기열을 확인할 수 없습니다.")
+    ? describeApiError(queueQuery.error, "최종 결정 대기열을 확인할 수 없어요.")
     : null;
 
   const columns = [
@@ -462,11 +462,11 @@ export function GoNoGoPage() {
     <div className="gng-availability">
       <Clock aria-hidden="true" />
       <Heading level={3}>
-        {workspaceQuery.isError ? "비교·결정 상세를 불러오지 못했습니다"
-          : !workspaceLoaded ? "비교·결정 상세를 확인하고 있습니다"
-            : !activeComparison ? "변경 비교 결과가 아직 없습니다"
-              : comparisonQuery.isError ? "비교 상세를 불러오지 못했습니다"
-                : "비교 상세를 불러오는 중입니다"}
+        {workspaceQuery.isError ? "비교·결정 상세를 불러오지 못했어요"
+          : !workspaceLoaded ? "비교·결정 상세를 확인하고 있어요"
+            : !activeComparison ? "변경 비교 결과가 아직 없어요"
+              : comparisonQuery.isError ? "비교 상세를 불러오지 못했어요"
+                : "비교 상세를 불러오는 중이에요"}
       </Heading>
       {/* 비교가 만들어지지 않는 **이유**(계산 프로그램 미구현)는 `목록 기준`
           다이얼로그 한 곳에서만 말한다(ADR-0066 §3.3). 여기 남는 것은 상태 표식과
@@ -474,12 +474,12 @@ export function GoNoGoPage() {
       {workspaceLoaded && !activeComparison ? <Token size="sm" label="비교 불가" /> : null}
       <Text as="p">
         {!workspaceLoaded
-          ? "조회가 끝나기 전에는 변경 없음으로 표시하지 않습니다. 사람 결정은 목록의 대기열 값 그대로입니다."
+          ? "조회가 끝나기 전에는 변경 없음으로 표시하지 않아요. 사람 결정은 목록의 대기열 값 그대로예요."
           : !activeComparison
-            ? "비교가 없다는 것은 변경이 없다는 뜻이 아닙니다."
+            ? "비교가 없다는 것은 변경이 없다는 뜻이 아니에요."
             : comparisonQuery.isError
-              ? "조회 실패를 변경 없음으로 해석하지 않습니다."
-              : "결과가 나올 때까지 중요 변경과 확인 필요 건수는 미확인으로 남습니다."}
+              ? "조회 실패를 변경 없음으로 해석하지 않아요."
+              : "결과가 나올 때까지 중요 변경과 확인 필요 건수는 미확인으로 남아요."}
       </Text>
       {workspaceQuery.isError || comparisonQuery.isError ? (
         <Button
@@ -497,10 +497,10 @@ export function GoNoGoPage() {
   const footerAction = !selectedItem
     ? null
     : comparisonBasisReady
-      ? { label: "변경 검토·결정 열기", note: "검토 결과를 확인한 뒤 사람이 Go 또는 No-Go를 선택합니다. 이 목록에서는 저장하지 않습니다." }
+      ? { label: "변경 검토·결정 열기", note: "검토 결과를 확인한 뒤 사람이 Go 또는 No-Go를 선택해요. 이 목록에서는 저장하지 않아요." }
       : selectedItem.bid_notice_external_id
-        ? { label: "공고 조건 검토·결정 열기", note: "완료된 변경 비교가 없어 결정 화면에서 최신 입찰공고 조건을 근거로 기록합니다. 이 목록에서는 저장하지 않습니다." }
-        : { label: "결정 화면 열기", note: "연결된 입찰공고가 없어 최종 결정을 기록할 수 없습니다. 결정 화면에서 공고 연결 상태를 확인합니다." };
+        ? { label: "공고 조건 검토·결정 열기", note: "완료된 변경 비교가 없어 결정 화면에서 최신 입찰공고 조건을 근거로 기록해요. 이 목록에서는 저장하지 않아요." }
+        : { label: "결정 화면 열기", note: "연결된 입찰공고가 없어 최종 결정을 기록할 수 없어요. 결정 화면에서 공고 연결 상태를 확인해요." };
 
   return (
     <section aria-labelledby="go-no-go-title" className="gng-page" data-astryx-theme="bidops">
@@ -546,7 +546,7 @@ export function GoNoGoPage() {
           <WorkspaceFilterContext className="gng-filter-context">
             <Text className="gng-caption" type="supporting" color="secondary" as="p">
               계속 추적 중인 사업 · 미결정·재검토 포함 · 입찰공고 미연결은 전체 보기에만
-              {trimmedQuery && !receivedAll ? " · 검색은 받은 범위 안에서만 좁힙니다" : ""}
+              {trimmedQuery && !receivedAll ? " · 검색은 받은 범위 안에서만 좁혀요" : ""}
             </Text>
             <Text className="gng-caption" type="supporting" color="secondary" as="p">
               {receivedAll
@@ -588,8 +588,8 @@ export function GoNoGoPage() {
                   <EmptyState
                     compact
                     tone="error"
-                    title="최종 결정 대기열을 불러오지 못했습니다."
-                    description="조회 실패를 결정 대기 없음으로 해석하지 않습니다."
+                    title="최종 결정 대기열을 불러오지 못했어요"
+                    description="조회 실패를 결정 대기 없음으로 해석하지 않아요."
                     problem={queueProblem ?? undefined}
                     action={queueProblem
                       ? apiErrorRecoveryAction(queueProblem, () => { void queueQuery.refetch(); })
@@ -610,14 +610,14 @@ export function GoNoGoPage() {
                 <div className="gng-list-empty">
                   <EmptyState
                     compact
-                    title="조건에 맞는 사업이 없습니다"
+                    title="조건에 맞는 사업이 없어요"
                     description={trimmedQuery
                       ? receivedAll
-                        ? `적용된 검색어 "${query}"와 다른 활성 보기 조건에 맞는 사업이 없습니다. 계속 추적 중인 사업 전체에서 찾았습니다.`
-                        : `적용된 검색어 "${query}"와 다른 활성 보기 조건에 맞는 사업이 받은 범위에 없습니다. 전체에 없다는 뜻은 아닙니다.`
+                        ? `적용된 검색어 "${query}"와 다른 활성 보기 조건에 맞는 사업이 없어요. 계속 추적 중인 사업 전체에서 찾았어요.`
+                        : `적용된 검색어 "${query}"와 다른 활성 보기 조건에 맞는 사업이 받은 범위에 없어요. 전체에 없다는 뜻은 아니에요.`
                       : receivedAll
-                        ? "계속 추적 중인 사업 전체에서 찾았습니다. 보기를 바꿔 보십시오."
-                        : "받은 범위 안에 없을 뿐, 전체에 없다는 뜻은 아닙니다."}
+                        ? "계속 추적 중인 사업 전체에서 찾았어요. 보기를 바꿔 보세요."
+                        : "받은 범위 안에 없을 뿐, 전체에 없다는 뜻은 아니에요."}
                     action={{
                       label: trimmedQuery ? "검색어만 지우기" : "필터 초기화",
                       onClick: trimmedQuery ? () => applySearch("") : resetFilters,
@@ -635,7 +635,7 @@ export function GoNoGoPage() {
                 <p className="gng-summary">
                   {receivedAll
                     ? `전체 ${formatCount(total)}건 기준 · ${formatCount(visibleRows.length)}건 표시`
-                    : `받은 ${formatCount(rows.length)}건 기준 · ${formatCount(visibleRows.length)}건 표시 · 전체 ${formatCount(total)}건 중 일부입니다`}
+                    : `받은 ${formatCount(rows.length)}건 기준 · ${formatCount(visibleRows.length)}건 표시 · 전체 ${formatCount(total)}건 중 일부예요`}
                 </p>
                 {/* 페이저는 이 범위의 모든 행이 보기 조건에 걸러졌을 때도 남는다.
                     다음 범위로 갈 길까지 사라지면 "없다"와 "이 범위에 없다"가
@@ -661,8 +661,8 @@ export function GoNoGoPage() {
               <div className="gng-detail-empty">
                 <Text color="secondary" as="p">
                   {queueQuery.isPending
-                    ? "목록을 불러온 뒤 사업 상세를 표시합니다."
-                    : "목록을 불러오지 못해 상세를 표시할 수 없습니다."}
+                    ? "목록을 불러온 뒤 사업 상세를 표시해요."
+                    : "목록을 불러오지 못해 상세를 표시할 수 없어요."}
                 </Text>
               </div>
             ) : selectedRow && selectedItem ? (
@@ -702,11 +702,11 @@ export function GoNoGoPage() {
                           <RefreshCw aria-hidden="true" />
                           <div>
                             <Text weight="semibold" as="p">
-                              기존 {selectedItem.latest_final_decision.decision === "go" ? "Go" : "No-Go"} 결정을 다시 검토해야 합니다
+                              기존 {selectedItem.latest_final_decision.decision === "go" ? "Go" : "No-Go"} 결정을 다시 검토해야 해요
                             </Text>
                             <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                              {currentness === "stale" ? "결정 이후 결정의 근거가 달라졌습니다." : "결정의 현재성을 확인하지 못했습니다."}
-                              {" "}이전 결정 기록은 보존되며 새 결정은 덮어쓰지 않고 추가됩니다.
+                              {currentness === "stale" ? "결정 이후 결정의 근거가 달라졌어요." : "결정의 현재성을 확인하지 못했어요."}
+                              {" "}이전 결정 기록은 보존되며 새 결정은 덮어쓰지 않고 추가돼요.
                             </Text>
                           </div>
                         </div>
@@ -746,7 +746,7 @@ export function GoNoGoPage() {
                               </div>
                             </div>
                             <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                              변경 없음 {counts.unchanged}건 · 확인 필요를 변경 없음으로 읽지 않습니다.
+                              변경 없음 {counts.unchanged}건 · 확인 필요를 변경 없음으로 읽지 않아요.
                             </Text>
                           </section>
 
@@ -776,16 +776,16 @@ export function GoNoGoPage() {
                                   <Text className="gng-caption" type="supporting" color="secondary" as="span">
                                     {page
                                       ? `근거 ${evidenceLocationLabel(page)} · 원문 비교`
-                                      : "양쪽 근거가 갖춰지지 않아 변경 여부를 확정하지 못했습니다"}
+                                      : "양쪽 근거가 갖춰지지 않아 변경 여부를 확정하지 못했어요"}
                                   </Text>
                                 </button>
                               );
                             }) : (
                               <div className="gng-quiet">
                                 <Check aria-hidden="true" />
-                                <Text as="p">양쪽 근거로 확인한 범위에서 결정 전에 볼 변경 항목이 없습니다.</Text>
+                                <Text as="p">양쪽 근거로 확인한 범위에서 결정 전에 볼 변경 항목이 없어요.</Text>
                                 <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                  변경 없음은 입찰 참여에 대한 추천이 아닙니다.
+                                  변경 없음은 입찰 참여에 대한 추천이 아니에요.
                                 </Text>
                               </div>
                             )}
@@ -796,15 +796,15 @@ export function GoNoGoPage() {
                           <Clock aria-hidden="true" />
                           <Heading level={3}>
                             {comparisonView.calculation_status === "failed"
-                              ? "변경 비교 계산이 실패했습니다"
-                              : "변경 비교 계산을 기다리고 있습니다"}
+                              ? "변경 비교 계산이 실패했어요"
+                              : "변경 비교 계산을 기다리고 있어요"}
                           </Heading>
                           {/* 경고 ④는 운영 코드와 한 요소에 두지 않는다 — 코드가
                               접히면서 문장까지 따라 접히면 실패가 조용해진다. */}
                           <Text as="p">
                             {comparisonView.calculation_status === "failed"
-                              ? "실패를 변경 없음으로 처리하지 않습니다."
-                              : "비교 결과가 나올 때까지 중요 변경과 확인 필요 건수는 미확인으로 남습니다."}
+                              ? "실패를 변경 없음으로 처리하지 않아요."
+                              : "비교 결과가 나올 때까지 중요 변경과 확인 필요 건수는 미확인으로 남아요."}
                           </Text>
                           <Token size="sm" label="비교 불가" />
                           {comparisonView.last_error_code ? (
@@ -841,7 +841,7 @@ export function GoNoGoPage() {
                             onChange={(value) => patchParams({ comparison: value })}
                           />
                           <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                            기본값은 요청 순서가 가장 늦은 비교입니다.
+                            기본값은 요청 순서가 가장 늦은 비교예요.
                           </Text>
                         </div>
                       ) : null}
@@ -885,15 +885,15 @@ export function GoNoGoPage() {
                             />
                           </TechnicalInfo>
                           <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                            비교 결과 기준 결정은 여기 있는 양쪽 문서 버전과 비교 결과에 연결됩니다. 문서 쌍은 화면이 고르지 않습니다.
+                            비교 결과 기준 결정은 여기 있는 양쪽 문서 버전과 비교 결과에 연결돼요. 문서 쌍은 화면이 고르지 않아요.
                           </Text>
                         </>
                       ) : (
                         <div className="gng-quiet">
-                          <Text as="p">아직 선택된 비교 문서가 없습니다.</Text>
+                          <Text as="p">아직 선택된 비교 문서가 없어요.</Text>
                           <Token size="sm" label="비교 불가" />
                           <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                            문서가 없다는 뜻은 아닙니다.
+                            문서가 없다는 뜻은 아니에요.
                           </Text>
                         </div>
                       )}
@@ -929,7 +929,7 @@ export function GoNoGoPage() {
                             </Text>
                           ) : null}
                           <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                            이 목록은 사업기회의 마지막 결정만 보여 줍니다. 이전 기록은 결정 화면에서 확인합니다.
+                            이 목록은 사업기회의 마지막 결정만 보여 줘요. 이전 기록은 결정 화면에서 확인해요.
                           </Text>
                         </>
                       ) : selectedItem.latest_final_decision ? (
@@ -939,15 +939,15 @@ export function GoNoGoPage() {
                           </Text>
                           <Text className="gng-caption" type="supporting" color="secondary" as="p">
                             {workspaceQuery.isError
-                              ? "결정 사유와 근거를 불러오지 못했습니다. 검토 요약에서 다시 조회하십시오."
-                              : "결정 사유와 근거를 불러오는 중입니다."}
+                              ? "결정 사유와 근거를 불러오지 못했어요. 검토 요약에서 다시 조회해 주세요."
+                              : "결정 사유와 근거를 불러오는 중이에요."}
                           </Text>
                         </div>
                       ) : (
                         <div className="gng-quiet">
-                          <Text as="p">아직 기록된 최종 결정이 없습니다.</Text>
+                          <Text as="p">아직 기록된 최종 결정이 없어요.</Text>
                           <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                            추적 상태 ‘계속 추적’은 입찰 참여를 결정했다는 뜻이 아닙니다.
+                            추적 상태 ‘계속 추적’은 입찰 참여를 결정했다는 뜻이 아니에요.
                           </Text>
                         </div>
                       )}
@@ -984,7 +984,7 @@ export function GoNoGoPage() {
               </>
             ) : (
               <div className="gng-detail-empty">
-                <Text color="secondary" as="p">선택할 사업이 없습니다.</Text>
+                <Text color="secondary" as="p">선택할 사업이 없어요.</Text>
               </div>
             )}
           </section>
@@ -995,22 +995,22 @@ export function GoNoGoPage() {
         <DialogHeader title="이 목록의 기준" onOpenChange={() => setDialog(null)} />
         <div className="gng-dialog-body" data-astryx-theme="bidops">
           <Text as="p">
-            추적 상태가 ‘계속 추적’인 사업기회만 최종 Go/No-Go 대상입니다. 보류·종료·미선택은 이 목록에 올리지 않습니다.
+            추적 상태가 ‘계속 추적’인 사업기회만 최종 Go/No-Go 대상이에요. 보류·종료·미선택은 이 목록에 올리지 않아요.
           </Text>
           <Text as="p">
-            목록은 서버의 최종 결정 대기열을 한 번 받아 그립니다(한 번에 최대 {PAGE_SIZE}건). 사람 결정·현재성·재확인 신호는
-            대기열이 준 값이며 행마다 따로 조회하지 않습니다. 대기열이 {PAGE_SIZE}건을 넘으면 보기 건수와 검색은 받은 범위 기준입니다.
+            목록은 서버의 최종 결정 대기열을 한 번 받아 그려요(한 번에 최대 {PAGE_SIZE}건). 사람 결정·현재성·재확인 신호는
+            대기열이 준 값이며 행마다 따로 조회하지 않아요. 대기열이 {PAGE_SIZE}건을 넘으면 보기 건수와 검색은 받은 범위 기준이에요.
           </Text>
           <Text as="p">
-            검토 대상은 입찰공고가 연결된 미결정 사업과, 결정이 있어도 현재성이 ‘현재’가 아닌 사업입니다. 입찰공고가 연결되지 않은
-            사업은 결정할 공고가 없어 전체 보기에만 둡니다.
+            검토 대상은 입찰공고가 연결된 미결정 사업과, 결정이 있어도 현재성이 ‘현재’가 아닌 사업이에요. 입찰공고가 연결되지 않은
+            사업은 결정할 공고가 없어 전체 보기에만 둬요.
           </Text>
           <Text as="p">
-            변경 비교를 계산하는 프로그램은 아직 운영에 없습니다. 최종 결정은 결정 화면에서 최신 입찰공고의 공고 조건을 근거로
-            기록할 수 있습니다. 계산 대기·계산 실패·비교 없음·조회 실패는 모두 ‘변경 없음’이나 ‘확인 완료’와 다른 상태이며 그대로 표시합니다.
+            변경 비교를 계산하는 프로그램은 아직 운영에 없어요. 최종 결정은 결정 화면에서 최신 입찰공고의 공고 조건을 근거로
+            기록할 수 있어요. 계산 대기·계산 실패·비교 없음·조회 실패는 모두 ‘변경 없음’이나 ‘확인 완료’와 다른 상태이며 그대로 표시해요.
           </Text>
           <Text as="p">
-            이 화면은 적합성 등급·참여 준비 상태·심층 추적 승인을 대신하지 않습니다. 최종 결정 저장은 결정 화면에서만 합니다.
+            이 화면은 적합성 등급·참여 준비 상태·심층 추적 승인을 대신하지 않아요. 최종 결정 저장은 결정 화면에서만 해요.
           </Text>
           <div className="gng-dialog-actions">
             <Button label="닫기" onClick={() => setDialog(null)} />
@@ -1030,8 +1030,8 @@ export function GoNoGoPage() {
               </div>
               {evidenceItem.baseline_evidence.length + evidenceItem.comparison_evidence.length > 2 ? (
                 <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                  근거 쌍이 {Math.max(evidenceItem.baseline_evidence.length, evidenceItem.comparison_evidence.length)}개입니다.
-                  나머지 쌍과 기술 식별자는 결정 화면의 범주별 분석에 있습니다.
+                  근거 쌍이 {Math.max(evidenceItem.baseline_evidence.length, evidenceItem.comparison_evidence.length)}개예요.
+                  나머지 쌍과 기술 식별자는 결정 화면의 범주별 분석에 있어요.
                 </Text>
               ) : null}
               {/* 해시와 오류 코드는 지우지 않고 접힌 곳으로 모은다(ADR-0066 결정 2).
@@ -1059,8 +1059,8 @@ export function GoNoGoPage() {
               </TechnicalInfo>
               <Text as="p">
                 {evidenceItem.baseline_evidence.length > 0 && evidenceItem.comparison_evidence.length > 0
-                  ? "양쪽 문서의 검증된 위치를 그대로 표시합니다."
-                  : "양쪽 근거가 갖춰지지 않았습니다. 변경 없음 또는 요건 충족으로 해석하지 않습니다."}
+                  ? "양쪽 문서의 검증된 위치를 그대로 표시해요."
+                  : "양쪽 근거가 갖춰지지 않았어요. 변경 없음 또는 요건 충족으로 해석하지 않아요."}
               </Text>
               <div className="gng-dialog-actions">
                 <Button label="닫기" onClick={() => setDialog(null)} />

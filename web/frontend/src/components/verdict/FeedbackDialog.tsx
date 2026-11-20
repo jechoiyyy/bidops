@@ -62,14 +62,14 @@ export function FeedbackDialog({ companyId, noticeId, attemptId, unit, initialKi
       setProblem(null);
       onSaved();
     },
-    onError: (error: unknown) => setProblem(describeVerdictApiError(error, "오류 제보를 저장하지 못했습니다.")),
+    onError: (error: unknown) => setProblem(describeVerdictApiError(error, "오류 제보를 저장하지 못했어요.")),
   });
 
   const ready = actorName.trim().length > 0 && note.length <= FEEDBACK_NOTE_MAX;
   const disabledReason = mutation.isPending
-    ? "오류 제보를 저장하고 있습니다."
+    ? "오류 제보를 저장하고 있어요."
     : actorName.trim().length === 0
-      ? "제보하려면 담당자 이름을 입력하십시오."
+      ? "제보하려면 담당자 이름을 입력해 주세요."
       : null;
 
   return (
@@ -94,7 +94,7 @@ export function FeedbackDialog({ companyId, noticeId, attemptId, unit, initialKi
             />
           </>
         ) : (
-          <p>이 판정 전체가 틀렸다고 제보합니다.</p>
+          <p>이 판정 전체가 틀렸다고 제보해요.</p>
         )}
         <TextArea
           label="메모 (선택)"
@@ -113,10 +113,10 @@ export function FeedbackDialog({ companyId, noticeId, attemptId, unit, initialKi
           required
           value={actorName}
         />
-        <p className="opportunity-caption">제보는 기록으로만 남고 판정·추적 결정·최종 Go/No-Go를 바꾸지 않습니다.</p>
+        <p className="opportunity-caption">제보는 기록으로만 남고 판정·추적 결정·최종 Go/No-Go를 바꾸지 않아요.</p>
         {problem ? (
           <MutationFeedback problem={problem} tone="error">
-            <p>입력한 내용은 그대로 남아 있습니다. 제보는 저장되지 않았습니다.</p>
+            <p>입력한 내용은 그대로 남아 있어요. 제보는 저장되지 않았어요.</p>
           </MutationFeedback>
         ) : null}
         <div className="opportunity-dialog-actions">

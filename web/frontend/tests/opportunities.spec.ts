@@ -122,7 +122,7 @@ test("구역 탭은 신규 입찰공고까지 여섯이고 건수는 서버가 �
   await expect(page.locator(".opportunity-view-tabs button").first()).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".opportunity-list-foot")).toContainText("서버 5건 중 5건 표시");
   // 서버가 구역을 정하지 못한 건은 0으로 접지 않고 어디서 보이는지 말한다.
-  await expect(page.locator(".opportunity-list-foot")).toContainText("미결정 1건은 전체에서만 보입니다");
+  await expect(page.locator(".opportunity-list-foot")).toContainText("미결정 1건은 전체에서만 보여요");
   // 기본 구역은 서버 질의로 나가고 사유·검색어는 보내지 않는다.
   expect(trace.listQueries.at(-1)?.get("section")).toBe("조치 필요");
   expect(trace.listQueries.at(-1)?.has("reason")).toBe(false);
@@ -477,7 +477,7 @@ test("검색은 Enter로 서버 q에 적용하고 첫 페이지로 돌아가며 
   expect(new URL(page.url()).searchParams.has("offset")).toBe(false);
   await expect(page.locator(".opportunity-row-title")).toHaveText(["시설관리 업무시스템 구축"]);
   await expect(page.locator(".opportunity-list-head")).toContainText('조치 필요 · 검색 "도담도시" 전체 1건');
-  await expect(page.locator(".opportunity-list-foot")).toContainText("서버가 페이지를 나누기 전에 적용합니다");
+  await expect(page.locator(".opportunity-list-foot")).toContainText("서버가 페이지를 나누기 전에 적용해요");
   await expect(page.getByText("받은 페이지 안에서만")).toHaveCount(0);
   await expect(page.getByText("불러온 목록 안에서만")).toHaveCount(0);
 
@@ -490,7 +490,7 @@ test("검색은 Enter로 서버 q에 적용하고 첫 페이지로 돌아가며 
   await input.fill("없는사업검색");
   await expect(page.locator(".opportunity-row-title")).toHaveText(["시설관리 업무시스템 구축"]);
   await input.press("Enter");
-  await expect(page.getByText("조건에 맞는 사업이 없습니다")).toBeVisible();
+  await expect(page.getByText("조건에 맞는 사업이 없어요")).toBeVisible();
   await expect(page.getByText('적용된 검색어 "없는사업검색"', { exact: false })).toBeVisible();
   await page.getByRole("button", { name: "검색어만 지우기" }).click();
   await expect(page.locator(".opportunity-table-scroll tbody tr")).toHaveCount(5);
@@ -502,9 +502,9 @@ test("목록 로딩 실패는 다시 시도로 복구한다", async ({ page }) =
   await mockOpportunities(page, { listStatus: 503 });
   await page.goto("/opportunities");
 
-  await expect(page.getByText("사업 목록을 불러오지 못했습니다.")).toBeVisible();
+  await expect(page.getByText("사업 목록을 불러오지 못했어요")).toBeVisible();
   await expect(page.getByRole("button", { name: "다시 시도" })).toBeVisible();
-  await expect(page.locator(".review-split-detail")).toContainText("선택할 사업이 없습니다");
+  await expect(page.locator(".review-split-detail")).toContainText("선택할 사업이 없어요");
 });
 
 // ---------------------------------------------------------------------------
@@ -591,7 +591,7 @@ test("저장하지 않은 입력이 있으면 ↓ 이동도 확인을 거치고 
   await page.keyboard.press("ArrowDown");
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("다른 사업기회를 엽니다");
+  await expect(dialog).toContainText("다른 사업기회를 열어요");
 
   await page.keyboard.press("Escape");
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
@@ -705,7 +705,7 @@ test("후보 연결은 사유·기록자 없이 저장되지 않고 수용하면
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("현재 확정된 연결");
   await expect(dialog).toContainText("이름 검색으로 발견한 후보");
-  await expect(dialog).toContainText("자동 확정하지 않습니다");
+  await expect(dialog).toContainText("자동 확정하지 않아요");
   // 원천 상세로 가는 길이 대화상자 안에도 있다.
   await expect(dialog.getByRole("link", { name: "발주계획 검토목록 열기 →" })).toHaveAttribute("href", "/order-plans?selected=1001");
 
@@ -720,7 +720,7 @@ test("후보 연결은 사유·기록자 없이 저장되지 않고 수용하면
   await expect(save).toBeEnabled();
   await save.click();
 
-  await expect(page.getByText("후보 연결을 수용으로 기록했습니다.")).toBeVisible();
+  await expect(page.getByText("후보 연결을 수용으로 기록했어요.")).toBeVisible();
   expect(trace.linkDecisions).toHaveLength(1);
   expect(trace.linkDecisions[0].linkId).toBe(1002);
   expect(trace.linkDecisions[0].body).toEqual({
@@ -748,7 +748,7 @@ test("기각한 후보는 확정으로 올라가지 않고 이력으로 남는�
   await dialog.getByLabel("결정 기록자").fill("홍길동");
   await dialog.getByRole("button", { name: "후보 기각" }).click();
 
-  await expect(page.getByText("후보 연결을 기각으로 기록했습니다.")).toBeVisible();
+  await expect(page.getByText("후보 연결을 기각으로 기록했어요.")).toBeVisible();
   expect(trace.linkDecisions[0].body.decision).toBe("rejected");
   const preSpecStage = page.locator(".opportunity-lifecycle li").nth(1);
   await expect(preSpecStage).toContainText("연결 미확인");
@@ -767,7 +767,7 @@ test("후보 판정 실패는 입력을 유지하고 연결이 바뀌지 않았�
   await dialog.getByLabel("결정 기록자").fill("홍길동");
   await dialog.getByRole("button", { name: "같은 사업으로 연결" }).click();
 
-  await expect(dialog).toContainText("연결 상태는 바뀌지 않았습니다");
+  await expect(dialog).toContainText("연결 상태는 바뀌지 않았어요");
   await expect(dialog.getByLabel("결정 기록자")).toHaveValue("홍길동");
 });
 
@@ -796,7 +796,7 @@ test("추적 상태 변경은 사유 선택지와 기타 직접 입력을 갖고
   await expect(apply).toBeEnabled();
   await apply.click();
 
-  await expect(page.getByText("추적 상태를 보류(으)로 기록했습니다.")).toBeVisible();
+  await expect(page.getByText("추적 상태를 보류(으)로 기록했어요.")).toBeVisible();
   expect(trace.patches).toHaveLength(1);
   expect(trace.patches[0].body).toEqual({ tracking_status: "보류", reason: "요구 범위를 확인한 뒤 재검토" });
   expect(trace.patches[0].headers["x-bidops-actor-name"]).toBe("UTF-8''%ED%99%8D%EA%B8%B8%EB%8F%99");
@@ -812,7 +812,7 @@ test("미선택 건은 화면이 대신 상태를 고르지 않고 미선택으�
 
   await page.getByRole("button", { name: "추적 여부 선택" }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText("아직 아무도 고르지 않았습니다");
+  await expect(dialog).toContainText("아직 아무도 고르지 않았어요");
   // 결정 버튼에 `미선택`은 없고, 아직 아무도 고르지 않았으므로 `계속 추적`의 이름은 `추적 시작`이다.
   await expect(dialog.getByRole("button", { name: "미선택" })).toHaveCount(0);
   await expect(dialog.getByRole("button", { name: "추적 시작하기", exact: true })).toBeVisible();
@@ -860,7 +860,7 @@ test("추적 종료는 확인 없이 요청이 나가지 않고 취소하면 초
 
   const confirm = page.getByRole("alertdialog");
   await expect(confirm).toBeVisible();
-  await expect(confirm).toContainText("되돌릴 수 없습니다");
+  await expect(confirm).toContainText("되돌릴 수 없어요");
   await expect(confirm).toContainText("종료 · 추적 종료");
   await expect(confirm).toContainText("사업 방향과 맞지 않음");
   expect(trace.patches).toHaveLength(0);
@@ -871,7 +871,7 @@ test("추적 종료는 확인 없이 요청이 나가지 않고 취소하면 초
 
   await page.getByRole("dialog").getByRole("button", { name: "추적 종료", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "종료 상태로 저장", exact: true }).click();
-  await expect(page.getByText("추적 상태를 종료(으)로 기록했습니다.")).toBeVisible();
+  await expect(page.getByText("추적 상태를 종료(으)로 기록했어요.")).toBeVisible();
   expect(trace.patches).toHaveLength(1);
   expect(trace.patches[0].body).toEqual({ tracking_status: "종료", reason: "사업 방향과 맞지 않음" });
 });
@@ -887,7 +887,7 @@ test("추적 저장이 실패하면 초안을 그대로 두고 저장되지 않�
   await dialog.getByLabel("담당자 이름 (필수)").fill("홍길동");
   await dialog.getByRole("button", { name: "계속 추적", exact: true }).click();
 
-  await expect(dialog).toContainText("저장된 추적 상태는 바뀌지 않았습니다");
+  await expect(dialog).toContainText("저장된 추적 상태는 바뀌지 않았어요");
   await expect(dialog.getByLabel("담당자 이름 (필수)")).toHaveValue("홍길동");
 });
 
@@ -908,24 +908,24 @@ test("확인 항목 예외는 회차를 그대로 쓰고 등급·처리 값을 �
   const dialog = page.getByRole("dialog");
   // 회차 식별자 원문은 접힌 `기술 정보`로 내려갔고(ADR-0066 §3.3, 시안 M4) 본문은
   // 어느 회차에 저장하는지를 사람 말로 적는다. 값은 줄이지 않고 전문 그대로다.
-  await expect(dialog).toContainText("이 공고가 속한 수집 회차에 저장합니다");
+  await expect(dialog).toContainText("이 공고가 속한 수집 회차에 저장해요");
   const runTechnical = dialog.locator("details.deep-review-technical");
   await expect(runTechnical.locator(".deep-review-technical-body")).toBeHidden();
   await runTechnical.locator("summary").click();
   await expect(runTechnical.locator(".deep-review-technical-body"))
     .toContainText("20260817-20260823--20260824T090927.138116Z");
-  await dialog.getByLabel("SW사업자 신고 여부").fill("공고 원문 3쪽에서 SW사업자 신고 대상임을 확인했습니다.");
+  await dialog.getByLabel("SW사업자 신고 여부").fill("공고 원문 3쪽에서 SW사업자 신고 대상임을 확인했어요.");
   await dialog.getByLabel("수정 이유").fill("근거 위치를 확인해 blocking 항목을 해소함");
   await dialog.getByLabel("결정 기록자").fill("홍길동");
   await dialog.getByRole("button", { name: "확인 항목 답변 저장" }).click();
 
-  await expect(page.getByText("확인 항목 답변을 저장했습니다.")).toBeVisible();
+  await expect(page.getByText("확인 항목 답변을 저장했어요.")).toBeVisible();
   expect(trace.reviewPuts).toHaveLength(1);
   const body = trace.reviewPuts[0].body;
   expect(body.run_id).toBe("20260817-20260823--20260824T090927.138116Z");
   expect(body.reviewer).toBe("홍길동");
   expect(body.verification_answers).toEqual([
-    { item: "SW사업자 신고 여부", answer: "공고 원문 3쪽에서 SW사업자 신고 대상임을 확인했습니다." },
+    { item: "SW사업자 신고 여부", answer: "공고 원문 3쪽에서 SW사업자 신고 대상임을 확인했어요." },
   ]);
   expect(body.corrected_grade).toBeNull();
   expect(body.corrected_readiness).toBeNull();
@@ -964,7 +964,7 @@ test("새 공고 확인 완료는 보던 근거 연결과 메모를 보내고 �
   const decisionsBefore = trace.decisionGets.length;
   await done.click();
 
-  await expect(page.getByText("새 공고 확인을 기록했습니다.")).toBeVisible();
+  await expect(page.getByText("새 공고 확인을 기록했어요.")).toBeVisible();
   expect(trace.acks).toHaveLength(1);
   expect(trace.acks[0].id).toBe(202);
   expect(trace.acks[0].body).toEqual({ expected_link_id: 2002, note: "정정 내용과 기존 검토를 비교함" });
@@ -992,7 +992,7 @@ test("확인 완료 전에 근거 연결이 바뀌면 최신 상태를 다시 �
   const readsBefore = trace.detailGets.filter((id) => id === 202).length;
   await card.getByRole("button", { name: "확인 완료", exact: true }).click();
 
-  await expect(page.locator(".opportunity-recheck-notice")).toContainText("새 공고 근거가 바뀌었습니다. 최신 상태를 다시 읽습니다.");
+  await expect(page.locator(".opportunity-recheck-notice")).toContainText("새 공고 근거가 바뀌었어요. 최신 상태를 다시 읽어요.");
   await expect.poll(() => trace.detailGets.filter((id) => id === 202).length).toBeGreaterThan(readsBefore);
   await expect(card).toContainText("시설관리 업무시스템 구축 정정공고 · DEMO-BN-002-1");
   expect(trace.acks).toHaveLength(1);
@@ -1004,14 +1004,14 @@ test("재검토 신호가 있으면 추적 상태 대화상자가 저장 시 새
   await mockOpportunities(page);
   await openDetail(page, 202);
   await page.getByRole("button", { name: "추적 상태 변경", exact: true }).click();
-  await expect(page.getByRole("dialog")).toContainText("저장하면 새 공고 확인도 함께 처리됩니다.");
+  await expect(page.getByRole("dialog")).toContainText("저장하면 새 공고 확인도 함께 처리돼요.");
   await page.getByRole("dialog").getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 
   await openDetail(page, 101);
   await page.getByRole("button", { name: "추적 상태 변경", exact: true }).click();
-  await expect(page.getByRole("dialog")).toContainText("추적 상태·선택 사유·담당자 이름을 함께 남깁니다.");
-  await expect(page.getByRole("dialog")).not.toContainText("새 공고 확인도 함께 처리됩니다");
+  await expect(page.getByRole("dialog")).toContainText("추적 상태·선택 사유·담당자 이름을 함께 남겨요.");
+  await expect(page.getByRole("dialog")).not.toContainText("새 공고 확인도 함께 처리돼요");
 });
 
 test("단계 줄 찾아보기는 기준 레코드가 있는 빈 단계에만 있고 결과 후보를 후보 대화상자로 연다", async ({ page }) => {
@@ -1074,7 +1074,7 @@ test("찾아보기가 찾지 못하면 검색 미확인과 마지막 검색 시�
   await panel.getByRole("button", { name: "찾아보기 실행" }).click();
 
   await expect(panel.locator(".opportunity-search-log")).toContainText("검색 미확인 · 마지막 검색 2026.09.17");
-  await expect(panel.locator(".opportunity-search-log")).toContainText("레코드가 없다는 뜻이 아닙니다");
+  await expect(panel.locator(".opportunity-search-log")).toContainText("레코드가 없다는 뜻이 아니에요");
   await expect(panel).toContainText("시도한 방식 · 전체 이름 일치, 구분자 분할 일치, 정규화 이름 일치, 가장 긴 조각 일치");
   await expect(panel.getByRole("list")).toHaveCount(0);
   expect(trace.searches[0].body).toEqual({ target: "bid_notice" });
@@ -1094,7 +1094,7 @@ test("찾아보기 기준 레코드가 서버에 없으면 어떤 원천이 없�
   const readsBefore = trace.detailGets.filter((id) => id === 404).length;
   await panel.getByRole("button", { name: "찾아보기 실행" }).click();
 
-  await expect(panel).toContainText("소유한 사전규격이나 발주계획이 없어 입찰공고를 찾아볼 기준이 없습니다");
+  await expect(panel).toContainText("소유한 사전규격이나 발주계획이 없어 입찰공고를 찾아볼 기준이 없어요");
   await expect(panel).not.toContainText("검색 미확인");
   await expect.poll(() => trace.detailGets.filter((id) => id === 404).length).toBeGreaterThan(readsBefore);
   expect(trace.searches[0].body).toEqual({ target: "bid_notice" });
@@ -1114,7 +1114,7 @@ test("양쪽에 사람 추적 상태가 있어 병합이 거절되면 두 사업
 
   const conflict = dialog.locator(".opportunity-merge-conflict");
   await expect(conflict).toContainText(
-    "두 사업기회의 추적 상태가 다르거나 한쪽에 재검토 신호가 있어 병합할 수 없습니다. 한쪽을 미선택으로 되돌린 뒤 다시 수락하십시오.",
+    "두 사업기회의 추적 상태가 다르거나 한쪽에 재검토 신호가 있어 병합할 수 없어요. 한쪽을 미선택으로 되돌린 뒤 다시 수락해 주세요.",
   );
   const states = conflict.getByRole("list", { name: "병합 대상 사업기회의 추적 상태" }).getByRole("listitem");
   await expect(states).toHaveCount(2);
@@ -1125,7 +1125,7 @@ test("양쪽에 사람 추적 상태가 있어 병합이 거절되면 두 사업
   await expect(states.nth(1)).toContainText("선택자 · 다른 담당자");
   // 신호가 있는 쪽은 언제 온 신호인지까지 말한다(ADR-0068 details 추가 필드).
   await expect(states.nth(1)).toContainText("재검토 신호 · 있음 · 2026.09.09");
-  await expect(conflict).toContainText("연결 상태는 바뀌지 않았습니다");
+  await expect(conflict).toContainText("연결 상태는 바뀌지 않았어요");
   await expect(dialog.getByLabel("결정 기록자")).toHaveValue("홍길동");
   expect(trace.linkDecisions).toHaveLength(1);
   expect(trace.linkDecisions[0].linkId).toBe(9002);
@@ -1150,17 +1150,17 @@ test("병합이 막히면 각 사업을 미선택으로 되돌릴 수 있고 수
 
   await states.nth(1).getByRole("button", { name: "사업 #912 미선택으로 되돌리기" }).click();
   const reset = states.nth(1).locator(".opportunity-tracking-reset-open");
-  await expect(reset).toContainText("저장된 추적 결정(보류)을 미선택으로 되돌립니다");
-  await expect(reset).toContainText("되돌려도 후보 수락은 자동으로 다시 시도하지 않습니다");
+  await expect(reset).toContainText("저장된 추적 결정(보류)을 미선택으로 되돌려요");
+  await expect(reset).toContainText("되돌려도 후보 수락은 자동으로 다시 시도하지 않아요");
   // 담당자는 이 대화상자에서 이미 받았으므로 다시 묻지 않는다.
   await expect(reset).toContainText("결정 기록자 · 홍길동");
   await expect(reset.getByRole("button", { name: "미선택으로 되돌리기 실행" })).toBeDisabled();
   await reset.getByLabel("되돌리는 이유").fill("병합을 위해 한쪽 결정을 정리");
   await reset.getByRole("button", { name: "미선택으로 되돌리기 실행" }).click();
 
-  await expect(conflict).toContainText("미선택으로 되돌렸습니다. 위 상태는 되돌리기 전의 값입니다.");
+  await expect(conflict).toContainText("미선택으로 되돌렸어요. 위 상태는 되돌리기 전의 값이에요.");
   await expect(dialog.locator(".opportunity-merge-reset-notice")).toContainText(
-    "사업 #912의 추적 결정을 미선택으로 되돌렸습니다. 다시 수락하십시오.",
+    "사업 #912의 추적 결정을 미선택으로 되돌렸어요. 다시 수락해 주세요.",
   );
   expect(trace.patches).toHaveLength(1);
   expect(trace.patches[0].id).toBe(912);
@@ -1185,7 +1185,7 @@ test("추적 상태가 같아 서버가 병합한 수락은 사람 확인 병합
   await dialog.getByLabel("결정 기록자").fill("홍길동");
   await dialog.getByRole("button", { name: "같은 사업으로 연결" }).click();
 
-  await expect(page.getByText("후보를 수용해 두 사업기회를 병합했습니다(사람 확인 병합).")).toBeVisible();
+  await expect(page.getByText("후보를 수용해 두 사업기회를 병합했어요(사람 확인 병합).")).toBeVisible();
   // 같은 상태 병합에는 막힘 안내가 아예 뜨지 않는다.
   await expect(page.locator(".opportunity-merge-conflict")).toHaveCount(0);
   expect(trace.linkDecisions).toHaveLength(1);
@@ -1202,14 +1202,14 @@ test("추적 결정 카드에서 결정을 미선택으로 되돌린다", async 
   await panel.getByRole("button", { name: "미선택으로 되돌리기", exact: true }).click();
 
   const reset = panel.locator(".opportunity-tracking-reset-open");
-  await expect(reset).toContainText("저장된 추적 결정(보류)을 미선택으로 되돌립니다");
-  await expect(reset).toContainText("검토할 항목·조치 필요로 돌아옵니다");
+  await expect(reset).toContainText("저장된 추적 결정(보류)을 미선택으로 되돌려요");
+  await expect(reset).toContainText("검토할 항목·조치 필요로 돌아와요");
   await expect(reset.getByRole("button", { name: "미선택으로 되돌리기 실행" })).toBeDisabled();
   await reset.getByLabel("되돌리는 이유").fill("상태를 잘못 골라 되돌림");
   await reset.getByLabel("결정 기록자").fill("홍길동");
   await reset.getByRole("button", { name: "미선택으로 되돌리기 실행" }).click();
 
-  await expect(page.getByText("추적 결정을 미선택으로 되돌렸습니다.")).toBeVisible();
+  await expect(page.getByText("추적 결정을 미선택으로 되돌렸어요.")).toBeVisible();
   expect(trace.patches).toHaveLength(1);
   expect(trace.patches[0].id).toBe(606);
   expect(trace.patches[0].body).toEqual({ tracking_status: "미선택", reason: "상태를 잘못 골라 되돌림" });
@@ -1218,7 +1218,7 @@ test("추적 결정 카드에서 결정을 미선택으로 되돌린다", async 
   // 되돌린 뒤에는 되돌릴 결정이 없다고 말하고 단추를 잠근다.
   const disabled = panel.getByRole("button", { name: "미선택으로 되돌리기", exact: true });
   await expect(disabled).toBeDisabled();
-  await expect(panel).toContainText("이미 미선택입니다. 되돌릴 추적 결정이 없습니다.");
+  await expect(panel).toContainText("이미 미선택이에요. 되돌릴 추적 결정이 없어요.");
 });
 
 test("확인 사항이 없으면 신호 없음이라고만 말하고 자격 확인으로 읽히지 않게 한다", async ({ page }) => {
@@ -1227,9 +1227,9 @@ test("확인 사항이 없으면 신호 없음이라고만 말하고 자격 확�
 
   await page.getByRole("tab", { name: "확인 사항", exact: true }).click();
   const panel = page.locator("#opportunity-panel-checks");
-  await expect(panel).toContainText("현재 등록된 재검토 신호와 연결 예외가 없습니다.");
-  await expect(panel).toContainText("참여 자격이나 최종 입찰 가능 여부가 확인됐다는 뜻은 아닙니다.");
-  await expect(panel).toContainText("확정된 입찰공고 연결이 없어 변경 비교를 시작할 수 없습니다");
+  await expect(panel).toContainText("현재 등록된 재검토 신호와 연결 예외가 없어요.");
+  await expect(panel).toContainText("참여 자격이나 최종 입찰 가능 여부가 확인됐다는 뜻은 아니에요.");
+  await expect(panel).toContainText("확정된 입찰공고 연결이 없어 변경 비교를 시작할 수 없어요");
 });
 
 test("추적 이력은 현재 추적 결정 사실을 먼저 보여 주고 결정 revision을 이력으로 남긴다", async ({ page }) => {
@@ -1282,10 +1282,10 @@ test("결정 기록이 없으면 없다고 말하고 미확인을 값으로 채�
 
   await page.getByRole("tab", { name: "추적 이력" }).click();
   const panel = page.locator("#opportunity-panel-decision");
-  await expect(panel).toContainText("기록된 추적 결정이 없습니다.");
-  await expect(panel).toContainText("기록된 이력이 없습니다.");
-  await expect(panel).toContainText("아직 아무도 고르지 않았습니다");
-  await expect(panel).toContainText("아직 선택하지 않았습니다");
+  await expect(panel).toContainText("기록된 추적 결정이 없어요.");
+  await expect(panel).toContainText("기록된 이력이 없어요.");
+  await expect(panel).toContainText("아직 아무도 고르지 않았어요");
+  await expect(panel).toContainText("아직 선택하지 않았어요");
   await expect(panel).toContainText("미확인");
 });
 
@@ -1294,8 +1294,8 @@ test("결정 기록 조회가 실패해도 저장된 값을 결정 기록으로 
   await openDetail(page, 606);
 
   await page.getByRole("tab", { name: "추적 이력" }).click();
-  await expect(page.locator("#opportunity-panel-decision")).toContainText("추적 이력을 불러오지 못했습니다");
-  await expect(page.locator("#opportunity-panel-decision")).toContainText("결정 기록 자체가 없다는 뜻이 아닙니다");
+  await expect(page.locator("#opportunity-panel-decision")).toContainText("추적 이력을 불러오지 못했어요");
+  await expect(page.locator("#opportunity-panel-decision")).toContainText("결정 기록 자체가 없다는 뜻이 아니에요");
 });
 
 test("사업기회 상세에는 기존 심층 검토 보고서 진입점이 없다", async ({ page }) => {
@@ -1389,6 +1389,7 @@ test("목록의 글자 크기가 정수 척도의 14px·12px 단을 지킨다", 
   expect(sizes.agency).toBe("14px");
   expect(sizes.meta).toBe("12px");
   expect(sizes.next).toBe("12px");
-  expect(sizes.detailTitle).toBe("20px");
+  // 상세 머리 제목은 발주계획과 같은 상세 단 22px이다(2026-11-20, ADR-0076 결정 10).
+  expect(sizes.detailTitle).toBe("22px");
   expect(sizes.detailAgency).toBe("16px");
 });

@@ -89,15 +89,15 @@ async function assertClean(page: Page, context: string) {
 test("초안이 없고 판정도 없으면 안내 문장과 비활성 초안 만들기를 보이고 좌측은 사업 정보를 유지한다", async ({ page }) => {
   const trace = await openProposal(page);
   const empty = page.getByTestId("proposal-empty");
-  await expect(empty.getByText("제안서 초안은 판정 뒤 만들 수 있습니다", { exact: true })).toBeVisible();
-  await expect(empty).toContainText("아직 완료된 판정이 없습니다");
+  await expect(empty.getByText("제안서 초안은 판정 뒤 만들 수 있어요", { exact: true })).toBeVisible();
+  await expect(empty).toContainText("아직 완료된 판정이 없어요");
   const create = empty.getByRole("button", { name: "초안 만들기", exact: true });
   await expect(create).toBeDisabled();
-  await expect(page.locator('.rec-action-hint[title="아직 완료된 판정이 없습니다"]')).toHaveCount(1);
+  await expect(page.locator('.rec-action-hint[title="아직 완료된 판정이 없어요"]')).toHaveCount(1);
   // 헤더: 초안이 없으면 내보내기·다시 만들기는 비활성이고 이유를 말한다.
   await expect(header(page).getByRole("button", { name: "PDF로 내보내기", exact: true })).toBeDisabled();
   await expect(header(page).getByRole("button", { name: "다시 만들기", exact: true })).toBeDisabled();
-  await expect(page.locator('.rec-action-hint[title="아직 만든 초안이 없습니다"]')).toHaveCount(1);
+  await expect(page.locator('.rec-action-hint[title="아직 만든 초안이 없어요"]')).toHaveCount(1);
   await expect(page.locator(".rec-attribute")).toHaveCount(8);
   await expect(page.getByTestId("proposal-status")).toHaveCount(0);
   expect(trace.proposalGets.length).toBeGreaterThan(0);
@@ -121,7 +121,7 @@ test("완료된 판정이 있으면 초안 만들기가 열리고 이름 없이�
   await create.click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("heading", { name: "제안서 초안 만들기" })).toBeVisible();
-  await expect(dialog).toContainText("하루 생성 한도를 한 건 씁니다");
+  await expect(dialog).toContainText("하루 생성 한도를 한 건 써요");
   // 취소하면 요청하지 않는다.
   await dialog.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -134,7 +134,7 @@ test("완료된 판정이 있으면 초안 만들기가 열리고 이름 없이�
   expect(String(trace.proposalRequests[0].body.request_id)).toMatch(UUID);
   expect(Object.keys(trace.proposalRequests[0].body)).toEqual(["request_id"]);
   expect(trace.proposalRequests[0].headers["x-bidops-actor-name"]).toBe(`UTF-8''${encodeURIComponent(ACTOR)}`);
-  await expect(toast(page)).toContainText("제안서 초안을 요청했습니다");
+  await expect(toast(page)).toContainText("제안서 초안을 요청했어요");
   expect(trace.unhandled).toEqual([]);
 });
 
@@ -145,17 +145,17 @@ test("초안 요청이 실패하면 안전한 문구로 알리고 같은 입력�
   const create = page.getByTestId("proposal-empty").getByRole("button", { name: "초안 만들기", exact: true });
   await create.click();
   await confirm(page, "초안 만들기");
-  const problem = page.getByRole("alert").filter({ hasText: "오늘 초안 생성 한도에 도달했습니다" });
+  const problem = page.getByRole("alert").filter({ hasText: "오늘 초안 생성 한도에 도달했어요" });
   await expect(problem).toBeVisible();
   await expect(problem).toContainText("daily_cap_reached");
   await expect(page.getByTestId("draft-running-banner")).toHaveCount(0);
 
   // 다른 안전 코드도 각자 문구로 보인다.
   for (const [code, text] of [
-    ["verdict_required", "완료된 판정이 없어 초안을 만들 수 없습니다"],
-    ["policy_not_approved", "제안서 초안 전송 승인이 없습니다"],
-    ["draft_in_progress", "이미 초안을 만드는 중입니다"],
-    ["service_unavailable", "제안서 초안 생성이 꺼져 있습니다"],
+    ["verdict_required", "완료된 판정이 없어 초안을 만들 수 없어요"],
+    ["policy_not_approved", "제안서 초안 전송 승인이 없어요"],
+    ["draft_in_progress", "이미 초안을 만드는 중이에요"],
+    ["service_unavailable", "제안서 초안 생성이 꺼져 있어요"],
   ] as const) {
     trace.failProposal("request", { status: 409, code });
     await create.click();
@@ -184,14 +184,14 @@ test("생성 중 초안은 절별 진행을 보이고 만들어진 절은 바로
   // 만들어진 절은 바로 읽는다. 아직인 절은 안내만 한다.
   await expect(card(page)).toContainText("본 사업은 스마트 도시 통합플랫폼을 고도화하여");
   await pickSection(page, "사업수행 실적");
-  await expect(page.getByTestId("section-progress")).toContainText("이 절을 만드는 중입니다");
+  await expect(page.getByTestId("section-progress")).toContainText("이 절을 만드는 중이에요");
   await pickSection(page, "수행 전략");
-  await expect(page.getByTestId("section-progress")).toContainText("생성을 기다리고 있습니다");
+  await expect(page.getByTestId("section-progress")).toContainText("생성을 기다리고 있어요");
   // 진행 중에는 내보내기·다시 만들기가 이유와 함께 비활성이다.
   await expect(header(page).getByRole("button", { name: "PDF로 내보내기", exact: true })).toBeDisabled();
-  await expect(page.locator('.rec-action-hint[title="초안 생성이 끝난 뒤 내보낼 수 있습니다"]')).toHaveCount(1);
+  await expect(page.locator('.rec-action-hint[title="초안 생성이 끝난 뒤 내보낼 수 있어요"]')).toHaveCount(1);
   await expect(header(page).getByRole("button", { name: "다시 만들기", exact: true })).toBeDisabled();
-  await expect(page.locator('.rec-action-hint[title="초안을 만드는 중입니다"]')).toHaveCount(1);
+  await expect(page.locator('.rec-action-hint[title="초안을 만드는 중이에요"]')).toHaveCount(1);
   // 좌측 요약은 초안 상태를 그대로 읽는다(토큰·정책은 없다).
   await expect(page.getByTestId("proposal-draft-status")).toHaveText("초안 상태 · 생성 중");
 
@@ -222,7 +222,7 @@ test("완료 초안 좌측은 단계 4·숫자·채워야 할 것·범례를 서
 
   const needs = page.getByTestId("proposal-needs").locator(".pp-need");
   await expect(needs).toHaveText(["실적 금액·PM 경력1", "직접생산 세부품명1", "SLA 월간 보고 양식1", "투입 인력 수1"]);
-  await expect(page.getByTestId("proposal-legend")).toContainText("주황 표시는 사람이 채우거나 확인할 자리입니다");
+  await expect(page.getByTestId("proposal-legend")).toContainText("주황 표시는 사람이 채우거나 확인할 자리예요");
   await expect(page.getByTestId("proposal-legend")).toContainText("가격·투입 인력·전략은 초안에 넣지 않으며");
   await expect(side.getByText("확인할 문장", { exact: true })).toBeVisible();
   // 사업 정보 열은 초안이 있는 제안서 탭에서 이 열로 바뀐다.
@@ -324,7 +324,7 @@ test("요구사항 수행방안 우측 표는 판정 표의 문장·근거와 �
 
   // 판정 표에서 찾지 못하는 요구사항은 문장을 지어내지 않는다.
   await page.getByRole("tab", { name: "제안 개요" }).click();
-  await expect(page.getByTestId("requirement-links")).toContainText("이 절에 연결된 요구사항이 없습니다");
+  await expect(page.getByTestId("requirement-links")).toContainText("이 절에 연결된 요구사항이 없어요");
 });
 
 test("판정 표가 없으면 요구사항 문장을 지어내지 않고 서버 대조 상태만 보인다", async ({ page }) => {
@@ -355,7 +355,7 @@ test("문장을 누르면 수정 영역과 출처가 열리고 저장은 수정 
   await expect(field).toHaveValue("본 사업은 스마트 도시 통합플랫폼을 고도화하여 시민 서비스를 개선하는 것을 목적으로 한다.");
   // 바뀐 내용이 없으면 저장할 수 없다.
   await expect(box.getByRole("button", { name: "수정 저장", exact: true })).toBeDisabled();
-  await expect(box).toContainText("바뀐 내용이 없습니다.");
+  await expect(box).toContainText("바뀐 내용이 없어요.");
 
   await field.fill("본 사업은 스마트 도시 통합플랫폼을 고도화하는 사업이다.");
   await box.getByRole("button", { name: "수정 저장", exact: true }).click();
@@ -380,7 +380,7 @@ test("빈 자리를 채우면 고친 글자와 수정됨으로 보이고 출처 
   const slot = sentence(page, "투입 인력 수");
   await slot.click();
   await expect(page.getByTestId("editor-placeholder-note")).toContainText("채울 것: 투입 인력 수");
-  await expect(page.getByTestId("sources-empty")).toContainText("출처가 없는 자리입니다");
+  await expect(page.getByTestId("sources-empty")).toContainText("출처가 없는 자리예요");
   await editor(page).getByLabel("문장", { exact: true }).fill("투입 인력은 사업 착수 전 계약서에 따라 확정한다.");
   await editor(page).getByRole("button", { name: "수정 저장", exact: true }).click();
   await expect(sentence(page, "계약서에 따라 확정한다")).toHaveAttribute("data-kind", "placeholder");
@@ -396,12 +396,12 @@ test("문장 저장이 실패하면 입력을 그대로 두고 편집 영역에 
   await sentence(page, "본 사업은 스마트 도시 통합플랫폼").click();
   const box = editor(page);
   const field = box.getByLabel("문장", { exact: true });
-  await field.fill("수정한 문장입니다.");
+  await field.fill("수정한 문장이에요.");
   trace.failProposal("edit", { status: 404, code: "sentence_not_found" });
   await box.getByRole("button", { name: "수정 저장", exact: true }).click();
-  await expect(box.getByRole("alert")).toContainText("고칠 문장을 찾을 수 없습니다");
+  await expect(box.getByRole("alert")).toContainText("고칠 문장을 찾을 수 없어요");
   await expect(box.getByRole("alert")).toContainText("sentence_not_found");
-  await expect(field).toHaveValue("수정한 문장입니다.");
+  await expect(field).toHaveValue("수정한 문장이에요.");
   await expect(box).toBeVisible();
 
   trace.failProposal("edit", null);
@@ -421,16 +421,16 @@ test("문장 수정은 1~400자만 저장하고 이름이 없으면 이름을 �
   const save = box.getByRole("button", { name: "수정 저장", exact: true });
   await field.fill("");
   await expect(save).toBeDisabled();
-  await expect(box).toContainText("문장은 비워 둘 수 없습니다.");
+  await expect(box).toContainText("문장은 비워 둘 수 없어요.");
   await field.fill("가".repeat(401));
   await expect(save).toBeDisabled();
-  await expect(box).toContainText("문장은 400자까지입니다.");
+  await expect(box).toContainText("문장은 400자까지예요.");
   await field.fill("가".repeat(400));
   await expect(save).toBeEnabled();
   // 이름을 지우면 저장 요청 없이 이름 칸으로 안내한다.
   await actorInput(page).fill("");
   await save.click();
-  await expect(box.getByRole("alert").filter({ hasText: "기록자 이름이 필요합니다" })).toBeVisible();
+  await expect(box.getByRole("alert").filter({ hasText: "기록자 이름이 필요해요" })).toBeVisible();
   await expect(actorInput(page)).toBeFocused();
   expect(trace.proposalEdits).toEqual([]);
 });
@@ -440,7 +440,7 @@ test("문장 수정 버튼은 선택한 문장이 있을 때만 열리고 취소
   await waitDraft(page);
   const toolbar = page.getByTestId("section-toolbar");
   await expect(toolbar.getByRole("button", { name: "문장 수정", exact: true })).toBeDisabled();
-  await expect(page.locator('.rec-action-hint[title="고칠 문장을 먼저 선택하십시오"]')).toHaveCount(1);
+  await expect(page.locator('.rec-action-hint[title="고칠 문장을 먼저 선택해 주세요"]')).toHaveCount(1);
   const target = sentence(page, "발주기관은 클라우드 기반 통합 인증 체계");
   await target.focus();
   await page.keyboard.press("Enter");
@@ -461,7 +461,7 @@ test("저장하지 않은 문장 수정이 있으면 탭을 떠날 때 확인을
   await sentence(page, "본 사업은 스마트 도시 통합플랫폼").click();
   await editor(page).getByLabel("문장", { exact: true }).fill("저장하지 않은 수정");
   await page.getByRole("tab", { name: "활동", exact: true }).click();
-  await expect(page.getByRole("alertdialog")).toContainText("사업기회 레코드를 떠납니다");
+  await expect(page.getByRole("alertdialog")).toContainText("사업기회 레코드를 떠나요");
 });
 
 test("절 검토 완료는 서버 전이를 따르고 여섯 절을 모두 마치면 단계가 검토 완료로 바뀐다", async ({ page }) => {
@@ -475,7 +475,7 @@ test("절 검토 완료는 서버 전이를 따르고 여섯 절을 모두 마�
   await pickSection(page, "수행 전략");
   await expect(page.getByTestId("section-status")).toHaveText("검토 완료");
   await expect(page.getByTestId("section-toolbar").getByRole("button", { name: "검토 완료", exact: true })).toBeDisabled();
-  await expect(page.locator('.rec-action-hint[title="이미 검토 완료로 표시했습니다"]')).toHaveCount(1);
+  await expect(page.locator('.rec-action-hint[title="이미 검토 완료로 표시했어요"]')).toHaveCount(1);
 
   await pickSection(page, "제안 개요");
   await expect(page.getByTestId("section-status")).toHaveText("검토 전");
@@ -484,7 +484,7 @@ test("절 검토 완료는 서버 전이를 따르고 여섯 절을 모두 마�
   expect(trace.proposalReviews).toHaveLength(1);
   expect(trace.proposalReviews[0].sectionKey).toBe("overview");
   expect(Object.keys(trace.proposalReviews[0].body)).toEqual(["request_id"]);
-  await expect(toast(page)).toContainText("이 절을 검토 완료로 표시했습니다");
+  await expect(toast(page)).toContainText("이 절을 검토 완료로 표시했어요");
   await expect(steps.nth(2)).toHaveAttribute("data-state", "current");
   await expect(steps.nth(1)).toHaveAttribute("data-state", "done");
   expect(trace.unhandled).toEqual([]);
@@ -496,7 +496,7 @@ test("검토 완료가 거절되면 안전한 문구를 보이고 최신 상태�
   await enterActor(page);
   trace.failProposal("review", { status: 409, code: "section_not_completed" });
   await page.getByTestId("section-toolbar").getByRole("button", { name: "검토 완료", exact: true }).click();
-  const problem = page.getByRole("alert").filter({ hasText: "생성이 끝나지 않았거나 실패한 절은 검토 완료로 표시할 수 없습니다" });
+  const problem = page.getByRole("alert").filter({ hasText: "생성이 끝나지 않았거나 실패한 절은 검토 완료로 표시할 수 없어요" });
   await expect(problem).toBeVisible();
   await expect(problem).toContainText("section_not_completed");
   trace.failProposal("review", null);
@@ -509,10 +509,10 @@ test("제출 준비 표시는 검토 완료 단계에서만 열리고 확인 뒤
   await waitDraft(page);
   await header(page).getByRole("button", { name: "사업기회 더보기" }).click();
   await expect(page.getByRole("menuitem", { name: /제출 준비로 표시/ })).toBeDisabled();
-  await expect(page.getByRole("menu")).toContainText("모든 절을 검토 완료로 표시한 뒤 열립니다");
+  await expect(page.getByRole("menu")).toContainText("모든 절을 검토 완료로 표시한 뒤 열려요");
   await expect(page.getByRole("menuitem", { name: /HWP로 내보내기/ })).toBeDisabled();
   await expect(page.getByRole("menuitem", { name: /버전 비교/ })).toBeDisabled();
-  await expect(page.getByRole("menu")).toContainText("후속 기능입니다");
+  await expect(page.getByRole("menu")).toContainText("후속 기능이에요");
   await page.keyboard.press("Escape");
 
   trace.setProposal(7101, reviewedDraft());
@@ -524,26 +524,26 @@ test("제출 준비 표시는 검토 완료 단계에서만 열리고 확인 뒤
   // 결정 B50: 검토 완료 뒤에는 절 다시 쓰기가 이유와 함께 닫히고, 새 초안(헤더 다시 만들기)은 열려 있다.
   const rewrite = page.getByTestId("section-toolbar").getByRole("button", { name: "이 절 다시 쓰기", exact: true });
   await expect(rewrite).toBeDisabled();
-  await expect(page.getByTestId("section-toolbar")).toContainText("검토 완료 뒤에는 새 초안으로 다시 만듭니다");
+  await expect(page.getByTestId("section-toolbar")).toContainText("검토 완료 뒤에는 새 초안으로 다시 만들어요");
   await expect(header(page).getByRole("button", { name: "다시 만들기", exact: true })).toBeEnabled();
   await header(page).getByRole("button", { name: "사업기회 더보기" }).click();
   await page.getByRole("menuitem", { name: /제출 준비로 표시/ }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText("되돌릴 수 없습니다");
-  await expect(dialog).toContainText("서류 준비 상태일 뿐입니다");
+  await expect(dialog).toContainText("되돌릴 수 없어요");
+  await expect(dialog).toContainText("서류 준비 상태일 뿐이에요");
   await dialog.getByRole("button", { name: "제출 준비로 표시", exact: true }).click();
   await expect(steps.nth(3)).toHaveAttribute("data-state", "done");
   expect(trace.proposalStages).toHaveLength(1);
   expect(trace.proposalStages[0].body).toMatchObject({ stage: "ready" });
   expect(String(trace.proposalStages[0].body.request_id)).toMatch(UUID);
-  await expect(toast(page)).toContainText("제출 준비로 표시했습니다");
+  await expect(toast(page)).toContainText("제출 준비로 표시했어요");
   // 제출 준비 뒤에도 절 다시 쓰기는 닫혀 있다(결정 B50).
   await expect(rewrite).toBeDisabled();
   expect(trace.proposalRegenerations).toHaveLength(0);
   // 이미 표시했으면 다시 열리지 않는다.
   await header(page).getByRole("button", { name: "사업기회 더보기" }).click();
   await expect(page.getByRole("menuitem", { name: /제출 준비로 표시/ })).toBeDisabled();
-  await expect(page.getByRole("menu")).toContainText("이미 제출 준비로 표시했습니다");
+  await expect(page.getByRole("menu")).toContainText("이미 제출 준비로 표시했어요");
   expect(trace.unhandled).toEqual([]);
 });
 
@@ -562,30 +562,30 @@ test("이 절 다시 쓰기는 확인 뒤 요청하고 새 버전이 만들어�
 
   await rewrite.click();
   await confirm(page, "다시 쓰기 요청");
-  await expect(page.getByTestId("section-progress")).toContainText("생성을 기다리고 있습니다");
+  await expect(page.getByTestId("section-progress")).toContainText("생성을 기다리고 있어요");
   expect(trace.proposalRegenerations).toHaveLength(1);
   expect(trace.proposalRegenerations[0]).toMatchObject({ draftId: PROPOSAL_DRAFT_ID, sectionKey: "strategy" });
   await expect(page.getByTestId("section-status")).toHaveText("대기");
   await expect(card(page)).toContainText("다시 쓴 버전 2");
-  await expect(toast(page)).toContainText("다시 쓰도록 요청했습니다");
+  await expect(toast(page)).toContainText("다시 쓰도록 요청했어요");
 
   // 한도·중복은 안전한 문구로 보인다.
   await pickSection(page, "제안 개요");
   trace.failProposal("regenerate", { status: 409, code: "section_in_progress" });
   await page.getByTestId("section-toolbar").getByRole("button", { name: "이 절 다시 쓰기", exact: true }).click();
   await confirm(page, "다시 쓰기 요청");
-  await expect(page.getByRole("alert").filter({ hasText: "이 절을 이미 다시 쓰는 중입니다" })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "이 절을 이미 다시 쓰는 중이에요" })).toBeVisible();
   trace.failProposal("regenerate", { status: 409, code: "daily_cap_reached" });
   await page.getByTestId("section-toolbar").getByRole("button", { name: "이 절 다시 쓰기", exact: true }).click();
   await confirm(page, "다시 쓰기 요청");
-  await expect(page.getByRole("alert").filter({ hasText: "오늘 초안 생성 한도에 도달했습니다" })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "오늘 초안 생성 한도에 도달했어요" })).toBeVisible();
 });
 
 test("일부 절이 실패한 초안은 실패 카드에 사유·다시 쓰기를 보이고 나머지 절과 PDF는 그대로 쓸 수 있다", async ({ page }) => {
   const trace = await openProposal(page, { verdict: completedView(), drafts: partialDraft() });
   await waitDraft(page);
   const banner = page.getByTestId("draft-partial-banner");
-  await expect(banner).toContainText("일부 절을 만들지 못했습니다");
+  await expect(banner).toContainText("일부 절을 만들지 못했어요");
   await expect(banner).toContainText("실패한 절 1개");
   await expect(page.getByTestId("proposal-draft-status")).toHaveText("초안 상태 · 일부 절 실패");
   await expect(page.locator("#pp-tab-operations_sla")).toContainText("생성 실패");
@@ -594,8 +594,8 @@ test("일부 절이 실패한 초안은 실패 카드에 사유·다시 쓰기�
   await pickSection(page, "운영·SLA");
   const failed = page.getByTestId("section-failed");
   await expect(failed.getByText("생성 실패", { exact: true })).toBeVisible();
-  await expect(failed).toContainText("가격·인력·일정 약속 검증을 통과하지 못했습니다");
-  await expect(failed).toContainText("자동으로 고치지 않습니다");
+  await expect(failed).toContainText("가격·인력·일정 약속 검증을 통과하지 못했어요");
+  await expect(failed).toContainText("자동으로 고치지 않아요");
   await expect(failed).toContainText("오류 코드 proposal_forbidden_content");
   await expect(page.getByTestId("section-status")).toHaveText("생성 실패");
   await expect(page.getByTestId("section-status")).toHaveClass(/is-error/);
@@ -615,22 +615,22 @@ test("일부 절이 실패한 초안은 실패 카드에 사유·다시 쓰기�
 test("전체 실패 초안은 절별 사유를 한글로 보이고 모르는 코드는 코드 그대로 보이며 PDF는 막힌다", async ({ page }) => {
   await openProposal(page, { verdict: completedView(), drafts: failedDraft() });
   await waitDraft(page);
-  await expect(page.getByTestId("draft-failed-banner")).toContainText("초안 생성에 실패했습니다");
+  await expect(page.getByTestId("draft-failed-banner")).toContainText("초안 생성에 실패했어요");
   await expect(header(page).getByRole("button", { name: "PDF로 내보내기", exact: true })).toBeDisabled();
-  await expect(page.locator('.rec-action-hint[title="내보낼 수 있는 초안이 없습니다"]')).toHaveCount(1);
+  await expect(page.locator('.rec-action-hint[title="내보낼 수 있는 초안이 없어요"]')).toHaveCount(1);
   for (const [name, text, code] of [
-    ["제안 개요", "출처·구조 검증을 통과하지 못했습니다", "proposal_section_invalid"],
-    ["수행 전략", "정해진 시간 안에 초안 생성이 끝나지 않았습니다", "proposal_review_timeout"],
-    ["요구사항 수행방안", "이 절의 입력이 분석 한도를 넘었습니다", "input_budget_exceeded"],
-    ["운영·SLA", "요구사항을 빠짐없이 덮지 못했습니다", "proposal_coverage_incomplete"],
-    ["수행조직", "초안 생성 중 안전 오류가 기록됐습니다", "mystery_code_zz"],
+    ["제안 개요", "출처·구조 검증을 통과하지 못했어요", "proposal_section_invalid"],
+    ["수행 전략", "정해진 시간 안에 초안 생성이 끝나지 않았어요", "proposal_review_timeout"],
+    ["요구사항 수행방안", "이 절의 입력이 분석 한도를 넘었어요", "input_budget_exceeded"],
+    ["운영·SLA", "요구사항을 빠짐없이 덮지 못했어요", "proposal_coverage_incomplete"],
+    ["수행조직", "초안 생성 중 안전 오류가 기록됐어요", "mystery_code_zz"],
   ] as const) {
     await pickSection(page, name);
     await expect(page.getByTestId("section-failed")).toContainText(text);
     await expect(page.getByTestId("section-failed")).toContainText(`오류 코드 ${code}`);
   }
   // 모르는 코드에는 지어낸 문장을 붙이지 않는다.
-  await expect(page.getByTestId("section-failed")).not.toContainText("자동으로 고치지 않습니다. 다시 쓰거나");
+  await expect(page.getByTestId("section-failed")).not.toContainText("자동으로 고치지 않아요. 다시 쓰거나");
   await assertClean(page, "실패 초안");
 });
 
@@ -645,7 +645,7 @@ test("이전 초안은 draft_id로만 열리고 읽기 전용이며 최신 초�
   expect(trace.proposalGets[0].params.get("draft_id")).toBe(PROPOSAL_OLD_DRAFT_ID);
   const banner = page.getByTestId("draft-superseded-banner");
   await expect(banner).toContainText("이전 초안");
-  await expect(banner).toContainText("읽기만 할 수 있습니다");
+  await expect(banner).toContainText("읽기만 할 수 있어요");
   await expect(page.getByTestId("proposal-draft-status")).toHaveText("초안 상태 · 이전 초안");
   // 문장·검토·다시 쓰기·내보내기·제출 준비 모두 막힌다.
   await expect(sentence(page, "본 사업은 스마트 도시 통합플랫폼")).toBeDisabled();
@@ -670,7 +670,7 @@ test("알 수 없는 draft_id는 초안을 찾을 수 없다고 알리고 최신
     drafts: completedDraft(),
     path: "/opportunities/7101/proposal?draft_id=d4999999-0000-4000-8000-000000000000",
   });
-  await expect(page.getByText("초안을 찾을 수 없습니다", { exact: true })).toBeVisible();
+  await expect(page.getByText("초안을 찾을 수 없어요", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "최신 초안 보기" }).click();
   await waitDraft(page);
   await expect(page).toHaveURL(/\/opportunities\/7101\/proposal$/);
@@ -692,7 +692,7 @@ test("PDF 내보내기는 POST로 만들고 GET으로 내려받으며 같은 내
   expect(Object.keys(trace.proposalExports[0].body)).toEqual(["request_id"]);
   expect(trace.proposalPdfGets).toHaveLength(1);
   expect(trace.proposalPdfGets[0].draftId).toBe(PROPOSAL_DRAFT_ID);
-  await expect(toast(page)).toContainText("PDF를 만들었습니다");
+  await expect(toast(page)).toContainText("PDF를 만들었어요");
   // 가장 최근 PDF는 다시 내려받을 수 있는 링크로 남고 sha는 그리지 않는다.
   const latest = page.getByTestId("latest-export");
   await expect(latest).toContainText("최근 PDF");
@@ -719,7 +719,7 @@ test("PDF 내보내기는 POST로 만들고 GET으로 내려받으며 같은 내
   await expect(editor(page)).toHaveCount(0);
   const [third] = await Promise.all([page.waitForEvent("download"), button.click()]);
   expect(third.suggestedFilename()).toBe("제안서-초안-7101.pdf");
-  await expect(toast(page)).toContainText("PDF를 만들었습니다");
+  await expect(toast(page)).toContainText("PDF를 만들었어요");
   await assertClean(page, "내보내기 뒤");
   expect(trace.unhandled).toEqual([]);
 });
@@ -730,17 +730,17 @@ test("PDF 렌더러가 없으면 503 pdf_unavailable을 안전한 문구로 알�
   await enterActor(page);
   trace.failProposal("export", { status: 503, code: "pdf_unavailable" });
   await header(page).getByRole("button", { name: "PDF로 내보내기", exact: true }).click();
-  const problem = page.getByRole("alert").filter({ hasText: "PDF를 만들 수 없습니다" });
+  const problem = page.getByRole("alert").filter({ hasText: "PDF를 만들 수 없어요" });
   await expect(problem).toBeVisible();
   await expect(problem).toContainText("pdf_unavailable");
-  await expect(problem).toContainText("초안은 그대로 남아 있습니다");
+  await expect(problem).toContainText("초안은 그대로 남아 있어요");
   expect(trace.proposalPdfGets).toEqual([]);
   // 초안은 그대로다.
   await expect(card(page)).toContainText("본 사업은 스마트 도시 통합플랫폼");
   // 다른 거절도 안전한 문구다.
   trace.failProposal("export", { status: 409, code: "draft_not_completed" });
   await header(page).getByRole("button", { name: "PDF로 내보내기", exact: true }).click();
-  await expect(page.getByRole("alert").filter({ hasText: "생성이 끝나지 않은 초안은 내보낼 수 없습니다" })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "생성이 끝나지 않은 초안은 내보낼 수 없어요" })).toBeVisible();
 });
 
 test("내려받는 GET이 실패하거나 해시가 기록과 다르면 저장하지 않고 안전한 문구로 알린다", async ({ page }) => {
@@ -763,13 +763,13 @@ test("내려받는 GET이 실패하거나 해시가 기록과 다르면 저장�
   let downloaded = 0;
   page.on("download", () => { downloaded += 1; });
   await button.click();
-  await expect(page.getByRole("alert").filter({ hasText: "대상을 찾을 수 없습니다" })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "대상을 찾을 수 없어요" })).toBeVisible();
   mode = "unavailable";
   await button.click();
-  await expect(page.getByRole("alert").filter({ hasText: "PDF를 만들 수 없습니다" })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "PDF를 만들 수 없어요" })).toBeVisible();
   mode = "mismatch";
   await button.click();
-  await expect(page.getByRole("alert").filter({ hasText: "내려받은 PDF가 기록과 다릅니다" })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "내려받은 PDF가 기록과 달라요" })).toBeVisible();
   expect(downloaded).toBe(0);
   // 내보내기 기록(POST)은 서버에 남아 있고 같은 내용이므로 두 번째부터 created=false다.
   expect(trace.proposalExports.length).toBe(3);
@@ -780,10 +780,10 @@ test("제안서를 읽지 못하면 오류 상태와 다시 시도를 보이고 
   await expect(page.getByTestId("proposal-empty")).toBeVisible();
   trace.failProposal("get", { status: 500, code: "processing_failed" });
   await page.reload();
-  const alert = page.getByRole("alert").filter({ hasText: "제안서 초안을 불러오지 못했습니다" });
+  const alert = page.getByRole("alert").filter({ hasText: "제안서 초안을 불러오지 못했어요" });
   await expect(alert).toBeVisible();
   await expect(header(page).getByRole("button", { name: "PDF로 내보내기", exact: true })).toBeDisabled();
-  await expect(page.locator('.rec-action-hint[title="초안을 불러오지 못했습니다"]')).toHaveCount(2);
+  await expect(page.locator('.rec-action-hint[title="초안을 불러오지 못했어요"]')).toHaveCount(2);
   trace.failProposal("get", null);
   await alert.getByRole("button", { name: "다시 시도" }).click();
   await expect(page.getByTestId("proposal-empty")).toBeVisible();

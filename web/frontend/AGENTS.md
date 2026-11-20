@@ -93,7 +93,12 @@
   높이는 `--bo-k-*` 단(typography.css)을 쓴다. 사용자 문구는 해요체이되 값 없음/미확인/계산 불가/0과 사람 결정 경계의 뜻은
   바꾸지 않는다.
 - 담당자 이름은 사이드바 담당자 칸과 같은 한 값(`bidops.actorName`, `useRememberedActorName`)을 쓴다. 화면별로 따로 기억하지
-  않는다. 감사 표식이며 인증이 아니다.
+  않는다. 감사 표식이며 인증이 아니다. 브리핑·발주계획 결정 영역은 본문에 입력 칸을 두지 않고, 이름이 비면 안내와 함께
+  `requestActorInput()`으로 사이드바 칸을 열어 초점을 옮긴다(저장 전 이름 요구는 그대로, 2026-11-20).
+- 패널 헤더의 수집 상태는 `CollectionStatus`(`GET /api/daily-collection-status`)만 쓴다. 기준일·상태를 화면에서 다시 계산하지
+  않고, `complete`만 "수집 완료"다. 나머지는 사실대로 쓰고 실행 상태 링크를 단다. 조회 실패는 숨기지 않는다.
+- 사용자 문구(화면·대화상자·토스트·빈 상태·오류 안내)는 해요체다. 제목은 마침표 없이, 본문은 마침표로 끝낸다. 서버가 준
+  문자열·계약 값·감사 기록에 저장되는 값은 바꾸지 않는다(2026-11-20 일괄 전환).
 - Tailwind `@theme`에 디자인 시스템과 이름이 겹치는 `--color-*`를 추가하지 않는다. `@theme`은 `:root`로 방출돼 `@layer astryx-theme`을 이기므로 테마 값이 조용히 무시된다([engineering-notes.md](../../docs/engineering-notes.md)).
 - 공고 목록과 상세 정보 밀도를 유지한다. 마케팅식 큰 여백, 장식 아이콘, gradient, glass effect를 사용하지 않는다.
 - 긴 한글 제목, 표의 긴 요구사항, keyboard focus, empty/loading/error 상태를 설계한다. 지원

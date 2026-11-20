@@ -104,24 +104,24 @@ export function NoticeDetailPage() {
   const selectNotice = (id: number) => navigate({ pathname: `/judgments/${id}`, search: searchParams.toString() }, { state: null });
 
   if (runsQuery.error) {
-    return <EmptyState title="회차 정보를 불러오지 못했습니다." description={errorMessage(runsQuery.error, "회차를 확인할 수 없습니다.")} />;
+    return <EmptyState title="회차 정보를 불러오지 못했어요" description={errorMessage(runsQuery.error, "회차를 확인할 수 없어요.")} />;
   }
   if (selectedId !== null && !runId) {
     // 회차 없이 연 공고 상세: 상세가 회차를 알려 줄 때까지 기다리고, 공고가 없으면 다른 공고로
     // 바꾸지 않고 찾을 수 없다고 말한다(설계고도화안 C-5).
-    if (detailQuery.isPending) return <p className="rec-status" role="status">공고 상세를 불러오는 중입니다.</p>;
+    if (detailQuery.isPending) return <p className="rec-status" role="status">공고 상세를 불러오는 중이에요.</p>;
     if (detailQuery.isError && detailQuery.error instanceof ApiError && detailQuery.error.status === 404) {
-      return <EmptyState title={`공고 ${selectedId}을(를) 찾을 수 없습니다.`} description="없는 공고 번호이거나 지워진 공고입니다. 다른 공고로 대신 보여 주지 않습니다." />;
+      return <EmptyState title={`공고 ${selectedId}을(를) 찾을 수 없어요.`} description="없는 공고 번호이거나 지워진 공고예요. 다른 공고로 대신 보여 주지 않아요." />;
     }
     if (detailQuery.isError) {
-      return <EmptyState title="공고 상세를 불러오지 못했습니다." description={errorMessage(detailQuery.error, "상세 정보를 확인할 수 없습니다.")} action={{ label: "다시 시도", onClick: () => void detailQuery.refetch() }} />;
+      return <EmptyState title="공고 상세를 불러오지 못했어요" description={errorMessage(detailQuery.error, "상세 정보를 확인할 수 없어요.")} action={{ label: "다시 시도", onClick: () => void detailQuery.refetch() }} />;
     }
   }
   if (!runId) {
-    return <EmptyState title="선택된 회차가 없습니다." description="상단의 실행 회차 선택기에서 회차를 선택하십시오." />;
+    return <EmptyState title="선택된 회차가 없어요" description="상단의 실행 회차 선택기에서 회차를 선택해 주세요." />;
   }
   if (noticesQuery.error) {
-    return <EmptyState title="회차 공고 목록을 불러오지 못했습니다." description={errorMessage(noticesQuery.error, "공고 목록을 확인할 수 없습니다.")} action={{ label: "다시 시도", onClick: () => void noticesQuery.refetch() }} />;
+    return <EmptyState title="회차 공고 목록을 불러오지 못했어요" description={errorMessage(noticesQuery.error, "공고 목록을 확인할 수 없어요.")} action={{ label: "다시 시도", onClick: () => void noticesQuery.refetch() }} />;
   }
 
   return (
@@ -167,8 +167,8 @@ export function NoticeDetailPage() {
             <span>{selectedNotice ? "선택됨" : "선택 필요"}</span>
           </div>
           <div className="judgment-list-scroll">
-            {noticesQuery.isLoading ? <div className="inline-loading" role="status" aria-live="polite">공고 목록을 불러오는 중입니다.</div> : null}
-            {!noticesQuery.isLoading && notices.length === 0 ? <EmptyState compact title="회차 공고가 없습니다." /> : null}
+            {noticesQuery.isLoading ? <div className="inline-loading" role="status" aria-live="polite">공고 목록을 불러오는 중이에요.</div> : null}
+            {!noticesQuery.isLoading && notices.length === 0 ? <EmptyState compact title="회차 공고가 없어요" /> : null}
             {notices.map((notice) => (
               <NoticePickerItem key={notice.id} notice={notice} selected={notice.id === selectedId} onSelect={() => selectNotice(notice.id)} />
             ))}
@@ -176,13 +176,13 @@ export function NoticeDetailPage() {
         </aside>
         <section className="judgment-detail-pane" aria-label="입찰공고 상세">
           {!selectedId ? (
-            <EmptyState title="공고를 선택하십시오." description="왼쪽 회차 목록에서 공고를 선택하면 생애주기와 판정 이력이 표시됩니다." />
+            <EmptyState title="공고를 선택해 주세요" description="왼쪽 회차 목록에서 공고를 선택하면 생애주기와 판정 이력이 표시돼요." />
           ) : detailQuery.isLoading ? (
-            <div className="queue-detail-loading" role="status" aria-live="polite">공고 상세와 판정 이력을 불러오는 중입니다.</div>
+            <div className="queue-detail-loading" role="status" aria-live="polite">공고 상세와 판정 이력을 불러오는 중이에요.</div>
           ) : detailQuery.error ? (
-            <EmptyState title="공고 상세를 불러오지 못했습니다." description={errorMessage(detailQuery.error, "상세 정보를 확인할 수 없습니다.")} action={{ label: "다시 시도", onClick: () => void detailQuery.refetch() }} />
+            <EmptyState title="공고 상세를 불러오지 못했어요" description={errorMessage(detailQuery.error, "상세 정보를 확인할 수 없어요.")} action={{ label: "다시 시도", onClick: () => void detailQuery.refetch() }} />
           ) : !detail ? (
-            <EmptyState title="공고 상세가 없습니다." description="선택한 공고의 상세 데이터를 확인할 수 없습니다." />
+            <EmptyState title="공고 상세가 없어요" description="선택한 공고의 상세 데이터를 확인할 수 없어요." />
           ) : (
             <div className="judgment-detail-scroll">
               <div className="judgment-detail-badges">

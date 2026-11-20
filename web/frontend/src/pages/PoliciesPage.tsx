@@ -59,16 +59,16 @@ const BODY_FIELDS: [keyof PolicyVersionResponse & string, string][] = [
 type PolicyDetailTab = "content" | "approval" | "record";
 
 function queryErrorText(error: unknown, resource: string): string {
-  if (error instanceof ApiError && error.status === 409) return "최신 정책·게이트 상태와 충돌했습니다. 다시 확인하십시오.";
-  if (error instanceof ApiError && error.status > 0) return `${resource}을(를) 불러오지 못했습니다 (${error.status}).`;
-  return `${resource}을(를) 불러오지 못했습니다.`;
+  if (error instanceof ApiError && error.status === 409) return "최신 정책·게이트 상태와 충돌했어요. 다시 확인해 주세요.";
+  if (error instanceof ApiError && error.status > 0) return `${resource}을(를) 불러오지 못했어요 (${error.status}).`;
+  return `${resource}을(를) 불러오지 못했어요.`;
 }
 
 function actionErrorText(error: unknown, action: string): string {
-  if (!(error instanceof ApiError)) return `${action}에 실패했습니다.`;
-  if (error.status === 409) return `현재 정책 또는 운영 게이트 상태가 바뀌어 ${action}할 수 없습니다. 입력은 그대로 두었습니다. 최신 목록을 확인한 뒤 다시 시도하십시오.`;
-  if (error.status === 422) return `담당자와 ${action} 조건을 확인하십시오.`;
-  return error.status > 0 ? `${action}에 실패했습니다 (${error.status}).` : `${action}에 실패했습니다.`;
+  if (!(error instanceof ApiError)) return `${action}에 실패했어요.`;
+  if (error.status === 409) return `현재 정책 또는 운영 게이트 상태가 바뀌어 ${action}할 수 없어요. 입력은 그대로 두었어요. 최신 목록을 확인한 뒤 다시 시도해 주세요.`;
+  if (error.status === 422) return `담당자와 ${action} 조건을 확인해 주세요.`;
+  return error.status > 0 ? `${action}에 실패했어요 (${error.status}).` : `${action}에 실패했어요.`;
 }
 
 function bodyObject(policy: PolicyVersionResponse, field: string): RuntimeJsonObject | null {
@@ -83,13 +83,13 @@ function moment(value: string | null): string {
 
 /** 이 정책이 왜 아직 운영 활성이 아닌가. 상태를 화면이 다시 해석하지 않는다. */
 function blockReason(policy: PolicyVersionResponse): string {
-  if (policy.status === "active") return "현재 운영 활성 정책입니다. 본문은 불변이며 변경은 새 버전으로 만듭니다.";
+  if (policy.status === "active") return "현재 운영 활성 정책이에요. 본문은 불변이며 변경은 새 버전으로 만들어요.";
   if (policy.status === "activation_candidate") {
     return policy.quality_gate_result_id
-      ? "활성화 후보입니다. 품질 게이트 결과가 연결돼 있으며 활성화는 사람이 별도로 확인합니다."
-      : "활성화 후보이지만 연결된 품질 게이트 결과가 없습니다. 게이트 없이 활성화하지 않습니다.";
+      ? "활성화 후보예요. 품질 게이트 결과가 연결돼 있으며 활성화는 사람이 별도로 확인해요."
+      : "활성화 후보이지만 연결된 품질 게이트 결과가 없어요. 게이트 없이 활성화하지 않아요.";
   }
-  return "draft입니다. 승인 gold와 품질 게이트를 통과하기 전에는 활성화 후보가 되지 않습니다.";
+  return "draft이에요. 승인 gold와 품질 게이트를 통과하기 전에는 활성화 후보가 되지 않아요.";
 }
 
 export function PoliciesPage() {
@@ -163,7 +163,7 @@ export function PoliciesPage() {
   if (policiesQuery.isPending || gatesQuery.isPending) {
     return (
       <div className="crit-workspace" id="criteria-panel-policies" role="tabpanel">
-        <StateView description="정책 목록과 운영 승인 게이트를 확인하는 중입니다." kind="loading" title="판정 정책을 불러오는 중입니다" />
+        <StateView description="정책 목록과 운영 승인 게이트를 확인하는 중이에요." kind="loading" title="판정 정책을 불러오는 중이에요" />
       </div>
     );
   }
@@ -174,7 +174,7 @@ export function PoliciesPage() {
           action={<Button label="다시 조회" onClick={() => { void policiesQuery.refetch(); void gatesQuery.refetch(); }} />}
           description={queryErrorText(policiesQuery.error ?? gatesQuery.error, "정책 화면")}
           kind="error"
-          title="정책 화면을 불러오지 못했습니다."
+          title="정책 화면을 불러오지 못했어요"
         />
       </div>
     );
@@ -212,8 +212,8 @@ export function PoliciesPage() {
     <div className="crit-workspace" id="criteria-panel-policies" role="tabpanel">
       <Queue
         count={policies.length}
-        emptyText="생성된 정책이 없습니다."
-        footer="기존 버전은 보존됩니다 · 변경은 새 버전으로"
+        emptyText="생성된 정책이 없어요."
+        footer="기존 버전은 보존돼요 · 변경은 새 버전으로"
         items={policies.map((policy) => ({
           id: policy.policy_version,
           title: policy.policy_version,
@@ -243,7 +243,7 @@ export function PoliciesPage() {
                 <Note
                   action={<Button label="닫기" onClick={() => setActivationNotice(null)} size="sm" />}
                   role="status"
-                  title="정책이 활성화되었습니다"
+                  title="정책이 활성화되었어요"
                 >
                   {`이전 active 정책 ${activationNotice.previous_active_policy_version ?? "없음"} · 결합 evaluation ${activationNotice.quality_gate_result_id} · ${moment(activationNotice.activated_at)}`}
                 </Note>
@@ -262,17 +262,17 @@ export function PoliciesPage() {
                             <Text weight="semibold">{label}</Text>
                             <Small><code>{field}</code></Small>
                           </span>,
-                          <Text key="keys">{body === null ? "JSON object가 아닙니다" : keys.length === 0 ? "값 없음 (빈 object)" : keys.join(", ")}</Text>,
+                          <Text key="keys">{body === null ? "JSON object가 아니에요" : keys.length === 0 ? "값 없음 (빈 object)" : keys.join(", ")}</Text>,
                           <Text key="shape">{body === null ? "확인 불가" : `키 ${keys.length}개`}</Text>,
                         ];
                       })}
                     />
                   </Section>
-                  <Note title="화면은 정책 본문의 키를 업무 의미로 해석하지 않습니다">
-                    본문의 키 이름과 값은 그대로 보여 줍니다. 임의의 키나 버전명으로 무엇을 판정하는지 추정하지 않습니다.
+                  <Note title="화면은 정책 본문의 키를 업무 의미로 해석하지 않아요">
+                    본문의 키 이름과 값은 그대로 보여 줘요. 임의의 키나 버전명으로 무엇을 판정하는지 추정하지 않아요.
                   </Note>
-                  <Note title="등급과 참여 준비 상태는 별도로 판단합니다">
-                    자격이 미확인이라는 이유만으로 적합성 등급을 낮추지 않습니다.
+                  <Note title="등급과 참여 준비 상태는 별도로 판단해요">
+                    자격이 미확인이라는 이유만으로 적합성 등급을 낮추지 않아요.
                   </Note>
                   <Disclosure summary="불변 정책 본문 원문 (편집 불가)">
                     <pre>{JSON.stringify(Object.fromEntries(BODY_FIELDS.map(([field]) => [field, bodyObject(selected, field)])), null, 2)}</pre>
@@ -331,7 +331,7 @@ export function PoliciesPage() {
                           label: gate.latest_evaluation_id,
                           description: `${gate.gate_id} · ${gate.policy_version} · ${gate.prompt_version}`,
                         }))}
-                        placeholder={bindableGates.length > 0 ? "게이트 평가를 선택하십시오" : "결합할 수 있는 통과 평가가 없습니다"}
+                        placeholder={bindableGates.length > 0 ? "게이트 평가를 선택해 주세요" : "결합할 수 있는 통과 평가가 없어요"}
                         value={selectedEvaluationId}
                       />
                       {selectedGate ? (
@@ -345,17 +345,17 @@ export function PoliciesPage() {
                         ]} />
                       ) : (
                         <Small>
-                          통과한 최신 운영 게이트를 고르면 정책·프롬프트·모델·프로필 식별 해시를 확인할 수 있습니다.
-                          목적·최신 평가·통과·완료와 정책·프롬프트 결합이 모두 맞는 게이트만 목록에 오릅니다.
+                          통과한 최신 운영 게이트를 고르면 정책·프롬프트·모델·프로필 식별 해시를 확인할 수 있어요.
+                          목적·최신 평가·통과·완료와 정책·프롬프트 결합이 모두 맞는 게이트만 목록에 올라요.
                         </Small>
                       )}
                     </Section>
                   ) : null}
                   <Note
-                    title={bindableGates.length > 0 ? "통과한 최신 운영 평가가 있습니다" : "연결할 수 있는 통과 운영 평가가 없습니다"}
+                    title={bindableGates.length > 0 ? "통과한 최신 운영 평가가 있어요" : "연결할 수 있는 통과 운영 평가가 없어요"}
                     tone={bindableGates.length > 0 ? "neutral" : "warning"}
                   >
-                    모델 비교용 평가나 참조 실행만으로 정책을 활성화할 수 없습니다. 결과 수치가 통과여도 운영 승인용 게이트의 최신 통과 평가가 아니면 근거가 되지 않습니다.
+                    모델 비교용 평가나 참조 실행만으로 정책을 활성화할 수 없어요. 결과 수치가 통과여도 운영 승인용 게이트의 최신 통과 평가가 아니면 근거가 되지 않아요.
                   </Note>
                   <Note title="지금 이 정책의 상태" tone="neutral">{blockReason(selected)}</Note>
                 </>
@@ -377,8 +377,8 @@ export function PoliciesPage() {
                       ["응답 규격", <code key="s">{selected.schema_version}</code>],
                     ]} />
                   </Section>
-                  <Note title="본문 변경은 새 버전으로 기록됩니다">
-                    새 기준은 이후 시작한 실행에 적용되며 기존 판정 결과를 소급해 바꾸지 않습니다.
+                  <Note title="본문 변경은 새 버전으로 기록돼요">
+                    새 기준은 이후 시작한 실행에 적용되며 기존 판정 결과를 소급해 바꾸지 않아요.
                   </Note>
                 </>
               ) : null}
@@ -397,7 +397,7 @@ export function PoliciesPage() {
                         ["대상 정책", selected.policy_version],
                         ["정책 식별 해시", selected.content_digest],
                         ["프롬프트", selected.prompt_version],
-                        ["바뀌는 것", "draft → activation_candidate · 본문은 바뀌지 않습니다"],
+                        ["바뀌는 것", "draft → activation_candidate · 본문은 바뀌지 않아요"],
                       ],
                     });
                   }}
@@ -436,9 +436,9 @@ export function PoliciesPage() {
         ) : (
           <StateView
             action={<Button icon={<Plus aria-hidden="true" />} label="새 정책 버전" onClick={() => setCreateOpen(true)} />}
-            description="정책을 만들면 목록과 상세에서 불변 본문과 활성화 조건을 확인할 수 있습니다."
+            description="정책을 만들면 목록과 상세에서 불변 본문과 활성화 조건을 확인할 수 있어요."
             kind="empty"
-            title="생성된 정책이 없습니다."
+            title="생성된 정책이 없어요"
           />
         )}
       </section>

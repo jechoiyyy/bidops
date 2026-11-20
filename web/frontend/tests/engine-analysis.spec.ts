@@ -20,7 +20,7 @@ const result: EngineRun = {
     schema_version: 1,
     recommendation: { decision: "CONDITIONAL_GO", fit_score: 0, summary: "회사 자격 확인이 필요한 mock 결과", preconditions: ["자격 확인 필요"], why_not: [] },
     assessment: { state: "abstain", decision: null, reason_codes: ["unknown_gate"], score_interval: null },
-    gates: [{ code: "SW_BUSINESS_REPORT", rule_text: "소프트웨어 사업자 신고 확인", company_value: "unknown", verdict: "UNKNOWN", evidence: [{ quote: "소프트웨어 사업자 신고", page: 1, verified: true, location_status: "exact" }], action: "신고 확인서를 확인하십시오.", unknown_fields: ["qualifications.sw_business_report"] }],
+    gates: [{ code: "SW_BUSINESS_REPORT", rule_text: "소프트웨어 사업자 신고 확인", company_value: "unknown", verdict: "UNKNOWN", evidence: [{ quote: "소프트웨어 사업자 신고", page: 1, verified: true, location_status: "exact" }], action: "신고 확인서를 확인해 주세요.", unknown_fields: ["qualifications.sw_business_report"] }],
     fits: [], data_to_confirm: [{ field: "qualifications.sw_business_report", why: "확인된 회사 근거 없음" }],
   },
 };
@@ -51,7 +51,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     const posts = await setup(page);
     await page.goto(path);
     const panel = page.getByTestId("engine-analysis-panel");
-    await expect(panel).toContainText("엔진 실행 기록이 없습니다.");
+    await expect(panel).toContainText("엔진 실행 기록이 없어요.");
     expect(posts).toHaveLength(0);
     await panel.getByLabel("엔진 참조 실행 담당자 이름").fill("참조 검증 담당");
     await panel.getByRole("button", { name: "mock 참조 실행", exact: true }).click();
@@ -81,7 +81,7 @@ test("failed engine run keeps failure code and no invented analysis", async ({ p
   const panel = page.getByTestId("engine-analysis-panel");
   await expect(panel.getByTestId("engine-run-status")).toHaveAttribute("data-status", "failed");
   await expect(panel).toContainText("engine_artifact_invalid");
-  await expect(panel).toContainText("저장된 분석 결과가 없습니다.");
+  await expect(panel).toContainText("저장된 분석 결과가 없어요.");
   await expect(panel.getByTestId("engine-analysis-result")).toHaveCount(0);
 });
 
@@ -142,7 +142,7 @@ test("delayed engine detail shows loading until its result arrives", async ({ pa
   const panel = page.getByTestId("engine-analysis-panel");
   try {
     await expect.poll(() => detailRequested).toBe(true);
-    await expect(panel.getByTestId("engine-detail-pending")).toHaveText("선택한 엔진 실행의 상세 결과를 불러오는 중입니다.");
+    await expect(panel.getByTestId("engine-detail-pending")).toHaveText("선택한 엔진 실행의 상세 결과를 불러오는 중이에요.");
     await expect(panel.getByTestId("engine-analysis-result")).toHaveCount(0);
     await expect(panel.getByTestId("engine-run-status")).toHaveCount(0);
   } finally {
@@ -193,14 +193,14 @@ test.skip("normal prespec preserves actor draft when its bundle arrives late wit
   const panel = page.getByTestId("engine-analysis-panel");
   const actor = panel.getByLabel("엔진 참조 실행 담당자 이름");
   try {
-    await expect(panel).toContainText("확정된 준비 완료 문서 묶음이 필요합니다.");
+    await expect(panel).toContainText("확정된 준비 완료 문서 묶음이 필요해요.");
     await actor.fill("Bundle Arrival Reviewer");
     await expect(actor).toHaveValue("Bundle Arrival Reviewer");
     await expect(panel.getByRole("button", { name: "mock 참조 실행", exact: true })).toBeDisabled();
   } finally {
     release();
   }
-  await expect(panel).not.toContainText("확정된 준비 완료 문서 묶음이 필요합니다.");
+  await expect(panel).not.toContainText("확정된 준비 완료 문서 묶음이 필요해요.");
   await expect(actor).toHaveValue("Bundle Arrival Reviewer");
   await panel.getByRole("button", { name: "mock 참조 실행", exact: true }).click();
   await expect.poll(() => posts.length).toBe(1);
@@ -270,7 +270,7 @@ test.skip("normal prespec retries frozen receipt after ready bundle becomes a ne
   if (await openDocuments.isVisible()) await openDocuments.click();
   await page.getByLabel("문서 준비 담당자 이름").fill("New Draft Reviewer");
   await page.getByRole("button", { name: "새 문서 묶음 만들기", exact: true }).click();
-  await expect(panel).toContainText("확정된 준비 완료 문서 묶음이 필요합니다.");
+  await expect(panel).toContainText("확정된 준비 완료 문서 묶음이 필요해요.");
   await expect.poll(() => listReads).toBeGreaterThan(beforeChange.listReads);
   await expect.poll(() => detailReads).toBeGreaterThan(beforeChange.detailReads);
   await expect(panel.getByTestId("engine-currentness")).toHaveText("입력 현재성 · 현재 입력과 일치");

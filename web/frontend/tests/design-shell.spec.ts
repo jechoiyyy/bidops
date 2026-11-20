@@ -250,7 +250,7 @@ test("제목 모드 패널 헤더가 화면 이름·26px 문장형 제목·설�
 test("native compact 셸이 드롭다운·대화상자를 viewport 안에 두고 키보드 초점을 되돌린다", async ({ page }) => {
   await page.goto("/pre-specs", { waitUntil: "domcontentloaded" });
   const viewport = page.viewportSize();
-  if (!viewport) throw new Error("viewport 정보를 읽을 수 없습니다.");
+  if (!viewport) throw new Error("viewport 정보를 읽을 수 없어요.");
 
   // 사전규격의 실제 Selector는 body layer로 목록을 그린다. 먼저 비동기 목록과
   // 상세 필터를 열어야 combobox가 DOM에 생긴다.
@@ -266,9 +266,9 @@ test("native compact 셸이 드롭다운·대화상자를 viewport 안에 두고
   const popoverGeometry = await selector.evaluate((trigger) => {
     const panel = [...document.querySelectorAll<HTMLElement>('[role="listbox"]')]
       .find((candidate) => candidate.getBoundingClientRect().width > 0 && candidate.getBoundingClientRect().height > 0);
-    if (!panel) throw new Error("업무구분 드롭다운을 찾을 수 없습니다.");
+    if (!panel) throw new Error("업무구분 드롭다운을 찾을 수 없어요.");
     const selectedOption = panel.querySelector<HTMLElement>('[role="option"][aria-selected="true"]');
-    if (!selectedOption) throw new Error("업무구분 드롭다운의 선택 항목을 찾을 수 없습니다.");
+    if (!selectedOption) throw new Error("업무구분 드롭다운의 선택 항목을 찾을 수 없어요.");
     const triggerRect = trigger.getBoundingClientRect();
     const panelRect = panel.getBoundingClientRect();
     const selectedRect = selectedOption.getBoundingClientRect();

@@ -50,8 +50,8 @@ class RouteErrorBoundary extends Component<RouteErrorBoundaryProps, RouteErrorBo
           className="lazy-route-error"
           compact
           tone="error"
-          title="화면을 불러오지 못했습니다."
-          description="일시적인 네트워크 문제일 수 있습니다. 다시 시도하면 새로고침 없이 이 화면만 다시 그립니다. 입력 중인 다른 화면의 내용은 사라지지 않습니다."
+          title="화면을 불러오지 못했어요"
+          description="일시적인 네트워크 문제일 수 있어요. 다시 시도하면 새로고침 없이 이 화면만 다시 그려요. 입력 중인 다른 화면의 내용은 사라지지 않아요."
           action={{ label: "다시 시도", onClick: this.retry }}
         />
       );

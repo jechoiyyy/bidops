@@ -40,17 +40,17 @@ export function PageViewDialog({ open, onClose, structureId, page, highlightBloc
     >
       <div className="opportunity-dialog-body">
         <DialogHeader onOpenChange={(next) => { if (!next) onClose(); }} title={page === null ? "원문 쪽 전체" : `원문 ${page}쪽 전체`} />
-        {query.isPending && enabled ? <p role="status">쪽을 불러오는 중입니다.</p> : null}
+        {query.isPending && enabled ? <p role="status">쪽을 불러오는 중이에요.</p> : null}
         {query.isError ? (
           <MutationFeedback
             onRecover={() => { void query.refetch(); }}
-            problem={describeApiError(query.error, "원문 쪽을 불러오지 못했습니다.")}
+            problem={describeApiError(query.error, "원문 쪽을 불러오지 못했어요.")}
             tone="error"
           />
         ) : null}
         {query.data ? (
           query.data.blocks.length === 0 ? (
-            <p>이 쪽에 저장된 블록이 없습니다.</p>
+            <p>이 쪽에 저장된 블록이 없어요.</p>
           ) : (
             <ol aria-label="쪽 블록" className="vd-page-blocks">
               {query.data.blocks.map((block, index) => (

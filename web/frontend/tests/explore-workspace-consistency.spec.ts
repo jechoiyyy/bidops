@@ -55,11 +55,11 @@ interface ScreenSpec {
    */
   title: string;
   /**
-   * 상세 머리 여백. 발주계획은 승인 최종 시안(`FinalOrderPlans`)의 상세 머리(28/32)를 쓰고, 나머지 세 화면은
-   * 공용 sticky 머리(12/16)다. 값은 화면이 준다.
+   * 상세 머리 여백. 발주계획은 승인 최종 시안(`FinalOrderPlans`)의 상세 머리(위 28·옆 32, 아래는 본문이 잇는다)이고,
+   * 사전규격·사업기회·최종 Go/No-Go도 2026-11-20부터 같은 단(위 28·옆 32·아래 16)이다. 값은 화면이 준다.
    */
   detailHeadPadding: string;
-  /** 선택이 없을 때도 선택 도구줄을 그리는가. 발주계획은 1건 이상 골랐을 때만 그린다(2026-11-19 승인). */
+  /** 선택이 없을 때도 선택 도구줄을 그리는가. 발주계획(2026-11-19)·사전규격(2026-11-20)은 1건 이상 골랐을 때만 그린다. */
   toolbarWhenEmpty?: boolean;
   /** 필터 바 바로 아래, 목록·상세를 감싸는 면. */
   workspace: string;
@@ -111,11 +111,11 @@ const screens: ScreenSpec[] = [
     listPane: ".pre-specs-list-pane",
     listHead: ".pre-specs-list-head",
     detailHead: ".pre-specs-detail-header",
-    detailHeadPadding: "12px 16px 12px 16px",
-    toolbarWhenEmpty: true,
+    detailHeadPadding: "28px 32px 16px 32px",
+    toolbarWhenEmpty: false,
     unifiedFrame: true,
     unifiedListParts: true,
-    rowType: { title: ".pre-specs-row-title", agency: ".pre-specs-row-agency", size: "14px", titleWeight: "600" },
+    rowType: { title: ".pre-specs-row-title", agency: ".pre-specs-row-agency", size: "16px", agencySize: "14px", titleWeight: "700" },
   },
   {
     // 사업 추적도 공용 분할 골격으로 옮겼다(시안 M1c A안). 여기 selector가 공용
@@ -128,7 +128,7 @@ const screens: ScreenSpec[] = [
     listPane: ".review-split-list",
     listHead: ".review-list-head",
     detailHead: ".review-detail-head",
-    detailHeadPadding: "12px 16px 12px 16px",
+    detailHeadPadding: "28px 32px 16px 32px",
     unifiedFrame: true,
     // 목록은 Astryx `Table`을 유지하고(M1c A안) 묶음 선택이 없어 열 이름 줄·선택
     // 도구줄 부품이 없다. 행 글자 단은 아래 `rowType`이 따로 본다.
@@ -144,7 +144,7 @@ const screens: ScreenSpec[] = [
     listPane: ".review-split-list",
     listHead: ".review-list-head",
     detailHead: ".review-detail-head",
-    detailHeadPadding: "12px 16px 12px 16px",
+    detailHeadPadding: "28px 32px 16px 32px",
     unifiedFrame: true,
     // 목록은 Astryx `Table`을 유지하고(M1c A안) 묶음 선택이 없어 열 이름 줄·선택
     // 도구줄 부품이 없다 — `unifiedListParts`는 켜지 않는다.
@@ -353,7 +353,7 @@ test("탐색과 추적 목록 4화면은 두 지원 폭에서 같은 상단바·
         expect(metrics.listColumnCount, `${where} 열 이름 칸`).toBe(2);
         expect(metrics.listColumnsPadding, `${where} 열 이름 줄 여백`).toBe("4px 16px 4px 16px");
         if (screen.toolbarWhenEmpty === false) {
-          // 발주계획은 고른 것이 없으면 일괄 바를 그리지 않고 목록 머리 체크박스가 `현재 페이지 전체 선택`을 맡는다.
+          // 발주계획·사전규격은 고른 것이 없으면 일괄 바를 그리지 않고 목록 머리 체크박스가 `현재 페이지 전체 선택`을 맡는다.
           expect(metrics.toolbarCount, `${where} 선택 도구줄`).toBe(0);
         } else {
           expect(metrics.toolbarCount, `${where} 선택 도구줄`).toBe(1);

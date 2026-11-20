@@ -127,10 +127,10 @@ function useQualityGatePolling({
 }
 
 function queryErrorText(error: unknown, resource: string): string {
-  if (error instanceof ApiError && error.status === 409) return "최신 상태와 충돌했습니다. 목록을 새로 고치십시오.";
-  if (error instanceof ApiError && error.status === 503) return "모델 상태를 확인할 수 없습니다. 잠시 후 다시 시도하십시오.";
-  if (error instanceof ApiError && error.status > 0) return `${resource}을(를) 불러오지 못했습니다 (${error.status}).`;
-  return `${resource}을(를) 불러오지 못했습니다.`;
+  if (error instanceof ApiError && error.status === 409) return "최신 상태와 충돌했어요. 목록을 새로 고쳐 주세요.";
+  if (error instanceof ApiError && error.status === 503) return "모델 상태를 확인할 수 없어요. 잠시 후 다시 시도해 주세요.";
+  if (error instanceof ApiError && error.status > 0) return `${resource}을(를) 불러오지 못했어요 (${error.status}).`;
+  return `${resource}을(를) 불러오지 못했어요.`;
 }
 
 function purposeLabel(purpose: QualityGateResponse["purpose"]): string {
@@ -200,7 +200,7 @@ export function QualityGatesPage() {
   if (gatesQuery.isPending || policiesQuery.isPending) {
     return (
       <div className="crit-workspace" id="criteria-panel-quality-gates" role="tabpanel">
-        <StateView description="게이트 목록과 정책을 확인하는 중입니다." kind="loading" title="품질 게이트를 불러오는 중입니다" />
+        <StateView description="게이트 목록과 정책을 확인하는 중이에요." kind="loading" title="품질 게이트를 불러오는 중이에요" />
       </div>
     );
   }
@@ -211,7 +211,7 @@ export function QualityGatesPage() {
           action={<Button label="다시 조회" onClick={() => { void gatesQuery.refetch(); void policiesQuery.refetch(); }} />}
           description={queryErrorText(gatesQuery.error ?? policiesQuery.error, "품질 게이트")}
           kind="error"
-          title="품질 게이트를 불러오지 못했습니다."
+          title="품질 게이트를 불러오지 못했어요"
         />
       </div>
     );
@@ -230,8 +230,8 @@ export function QualityGatesPage() {
     <div className="crit-workspace" id="criteria-panel-quality-gates" role="tabpanel">
       <Queue
         count={gatesQuery.data?.total ?? listItems.length}
-        emptyText="생성된 게이트가 없습니다."
-        footer="목적과 최신 평가 결과를 구분합니다 · 고정 표본 40건"
+        emptyText="생성된 게이트가 없어요."
+        footer="목적과 최신 평가 결과를 구분해요 · 고정 표본 40건"
         items={listItems.map((item) => ({
           id: item.gate_id,
           title: `${purposeLabel(item.purpose)} 검증`,
@@ -248,23 +248,23 @@ export function QualityGatesPage() {
       />
       <section aria-label="선택한 품질 게이트" className="crit-detail">
         {detailQuery.isPending && selectedGateId ? (
-          <StateView description="A/B 실행 상태와 지표를 확인하는 중입니다." kind="loading" title="게이트 상세를 불러오는 중입니다" />
+          <StateView description="A/B 실행 상태와 지표를 확인하는 중이에요." kind="loading" title="게이트 상세를 불러오는 중이에요" />
         ) : null}
         {/* 상세 조회 실패를 "게이트 없음"으로 접지 않는다. */}
         {detailQuery.error ? (
           <StateView
             action={<Button label="다시 조회" onClick={() => { void detailQuery.refetch(); }} />}
-            description={`${queryErrorText(detailQuery.error, "게이트 상세")} 선택한 게이트가 없어진 것이 아니라 상태를 확인하지 못한 것입니다.`}
+            description={`${queryErrorText(detailQuery.error, "게이트 상세")} 선택한 게이트가 없어진 것이 아니라 상태를 확인하지 못한 것이에요.`}
             kind="error"
-            title="선택한 게이트의 상세를 불러오지 못했습니다."
+            title="선택한 게이트의 상세를 불러오지 못했어요"
           />
         ) : null}
         {!selectedGateId && !detailQuery.error ? (
           <StateView
             action={<Button icon={<Plus aria-hidden="true" />} label="새 품질 게이트" onClick={() => setCreateOpen(true)} />}
-            description="목적·정책·담당자를 입력해 첫 게이트를 만들면 A/B 검증 실행이 시작됩니다."
+            description="목적·정책·담당자를 입력해 첫 게이트를 만들면 A/B 검증 실행이 시작돼요."
             kind="empty"
-            title="생성된 품질 게이트가 없습니다."
+            title="생성된 품질 게이트가 없어요"
           />
         ) : null}
         {gate && !detailQuery.error ? (
@@ -280,8 +280,8 @@ export function QualityGatesPage() {
             />
             <div className="crit-detail-scroll" id={`criteria-gate-${detailTab}`} role="tabpanel">
               {comparison ? (
-                <Note role="alert" title="모델 비교 결과는 운영 활성화에 사용할 수 없습니다" tone="warning">
-                  수치가 통과해도 정책 활성화와 상시 운영 승인에는 연결하지 않습니다.
+                <Note role="alert" title="모델 비교 결과는 운영 활성화에 사용할 수 없어요" tone="warning">
+                  수치가 통과해도 정책 활성화와 상시 운영 승인에는 연결하지 않아요.
                 </Note>
               ) : null}
 
@@ -294,7 +294,7 @@ export function QualityGatesPage() {
                   ]} />
                   {gate.result_status === "미측정" || gate.result_status === "보류" ? (
                     <Note role="status" title={`최종 품질 결과 · ${gateResultLabel(gate.result_status)}`} tone="warning">
-                      A/B 실행이 종결되고 유효 리뷰 10건·서로 다른 공고 10건이 모이기 전까지 최종 품질 결과를 계산할 수 없습니다. 측정 미완은 미달이 아닙니다.
+                      A/B 실행이 종결되고 유효 리뷰 10건·서로 다른 공고 10건이 모이기 전까지 최종 품질 결과를 계산할 수 없어요. 측정 미완은 미달이 아니에요.
                     </Note>
                   ) : null}
                   <QualityGateRuns passA={gate.pass_a} passB={gate.pass_b} />
@@ -327,11 +327,11 @@ export function QualityGatesPage() {
                           <Text key="u">{moment(review.updated_at)}</Text>,
                         ])}
                       />
-                    ) : <Small>아직 저장된 리뷰가 없습니다. 0건이며 계산 실패와는 다른 상태입니다.</Small>}
+                    ) : <Small>아직 저장된 리뷰가 없어요. 0건이며 계산 실패와는 다른 상태예요.</Small>}
                   </Section>
-                  <Note title="리뷰 저장 뒤 평가 결과를 다시 확인합니다">
-                    리뷰는 Pass A 판정의 식별 해시에 묶입니다. 판단 보류와 식별 해시 불일치는 유효 분모에서 빠지며,
-                    리뷰 개수가 채워졌다는 이유만으로 화면이 통과 판정을 만들지 않습니다.
+                  <Note title="리뷰 저장 뒤 평가 결과를 다시 확인해요">
+                    리뷰는 Pass A 판정의 식별 해시에 묶여요. 판단 보류와 식별 해시 불일치는 유효 분모에서 빠지며,
+                    리뷰 개수가 채워졌다는 이유만으로 화면이 통과 판정을 만들지 않아요.
                   </Note>
                 </>
               ) : null}
@@ -365,7 +365,7 @@ export function QualityGatesPage() {
                         <Text key="r">{evaluation.reasons.length > 0 ? evaluation.reasons.join(" ") : "사유 없음"}</Text>,
                       ])}
                     />
-                    <Small>계산 이력은 덧붙기만 하며 이전 수정본을 덮지 않습니다. 활성화에 연결할 수 있는 것은 최신 수정본뿐입니다.</Small>
+                    <Small>계산 이력은 덧붙기만 하며 이전 수정본을 덮지 않아요. 활성화에 연결할 수 있는 것은 최신 수정본뿐이에요.</Small>
                   </Section>
                 </>
               ) : null}

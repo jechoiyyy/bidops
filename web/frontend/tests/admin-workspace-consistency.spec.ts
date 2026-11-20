@@ -128,7 +128,7 @@ test("상시 운영 변경은 상세와 상단 요약에 함께 반영된다", a
   await expect.poll(() => trace.alwaysOnPuts.length).toBe(1);
   await expect(dialog).toBeHidden();
   await expect(summaryValue).toHaveText("켜짐");
-  await expect(page.locator(".rs-detail-pane")).toContainText("상시 운영을 켰습니다");
+  await expect(page.locator(".rs-detail-pane")).toContainText("상시 운영을 켰어요");
 });
 
 test("실행 상태 새로고침은 현재 목록과 상세를 갱신하고 닫힌 탭은 조회하지 않는다", async ({ page }) => {

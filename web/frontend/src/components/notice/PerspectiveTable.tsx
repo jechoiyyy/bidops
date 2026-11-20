@@ -36,7 +36,7 @@ export function PerspectiveTable({ perspectives }: PerspectiveTableProps) {
       action={<span className="panel-note">{perspectives.length || "없음"}개 관점</span>}
     >
       {perspectives.length === 0 ? (
-        <EmptyState compact title="관점별 판단이 없습니다." />
+        <EmptyState compact title="관점별 판단이 없어요" />
       ) : (
         <div className="table-wrap">
           <table className="data-table perspective-table">

@@ -30,10 +30,10 @@ const STATUS_LABEL = {
 } as const;
 
 const STATUS_NOTE = {
-  comparable: "핏과 심층 검토가 모두 있고 현재 입력 기준입니다.",
-  stale: "이전 입력으로 만든 결과입니다.",
-  missing: "실행 기록이 없습니다.",
-  different_input: "다른 문서 버전을 입력으로 삼았습니다.",
+  comparable: "핏과 심층 검토가 모두 있고 현재 입력 기준이에요.",
+  stale: "이전 입력으로 만든 결과예요.",
+  missing: "실행 기록이 없어요.",
+  different_input: "다른 문서 버전을 입력으로 삼았어요.",
 } as const;
 
 async function installMocks(page: Page, options: { longText?: boolean } = {}) {
@@ -167,7 +167,7 @@ test("T3: 비교 상태가 '비교 가능'이어도 실패한 실행은 실패�
   await expect(dataAi.locator("[data-fit-decision]")).toContainText("실행 실패");
   await expect(dataAi.locator("[data-review-status]")).toHaveAttribute("data-review-status", "failed");
   await expect(dataAi.locator("[data-review-status] .badge")).toHaveText("심층 검토 실패");
-  await expect(dataAi.locator("td[data-comparison-status]")).toContainText("각 실행이 성공했다는 뜻은 아닙니다");
+  await expect(dataAi.locator("td[data-comparison-status]")).toContainText("각 실행이 성공했다는 뜻은 아니에요");
   await expect(dataAi.locator("[data-fit-decision]")).not.toContainText("불일치");
   await expect(dataAi.locator("[data-fit-decision]")).not.toContainText("부합");
 
@@ -228,7 +228,7 @@ test("T3: 순위·종합 점수·보정값·재정렬 조작이 없다", async (
   await table.locator("thead th", { hasText: "비교 상태" }).click();
   const slugs = await comparisonRows(page).evaluateAll((rows) => rows.map((row) => row.getAttribute("data-company-slug")));
   expect(slugs).toEqual(["demo-cloud-si", "demo-data-ai", "demo-public-si"]);
-  await expect(page.getByText("회사 순위·종합 점수·최고 회사는 만들지 않습니다.", { exact: false })).toBeVisible();
+  await expect(page.getByText("회사 순위·종합 점수·최고 회사는 만들지 않아요.", { exact: false })).toBeVisible();
 });
 
 test("T3: 네 가지 비교 상태가 서로 다른 한국어 문구와 설명으로 안내된다", async ({ page }) => {
@@ -271,7 +271,7 @@ test("회사 이름 링크는 그 회사의 같은 공고 상세로 가고, 원�
 test("비교 오류: 없는 공고 404, 서버 오류 500, 잘못된 주소를 성공 화면으로 그리지 않는다", async ({ page }) => {
   const trace = await installMocks(page);
   await page.goto("/pre-specs/7999/company-comparison");
-  const failure = page.getByRole("alert").filter({ hasText: "3사 비교를 불러오지 못했습니다." });
+  const failure = page.getByRole("alert").filter({ hasText: "3사 비교를 불러오지 못했어요" });
   await expect(failure).toBeVisible();
   await expect(page.getByRole("table", { name: /3사 비교/ })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "비교 상태 안내" })).toHaveCount(0);
@@ -286,7 +286,7 @@ test("비교 오류: 없는 공고 404, 서버 오류 500, 잘못된 주소를 �
 
   const comparisonCallsBefore = trace.requests.filter((entry) => entry.includes("/company-comparison")).length;
   await page.goto("/pre-specs/abc/company-comparison");
-  await expect(page.getByRole("alert").filter({ hasText: "사전규격 주소가 올바르지 않습니다." })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "사전규격 주소가 올바르지 않아요" })).toBeVisible();
   // 주소가 잘못되면 비교 API를 부르지 않는다(회사 목록 같은 셸 조회와 다르다).
   expect(trace.requests.filter((entry) => entry.includes("/company-comparison")).length).toBe(comparisonCallsBefore);
 });
@@ -299,7 +299,7 @@ test("T6: 비교를 읽는 중에는 완료 화면을 그리지 않는다", asyn
     await route.fallback();
   });
   await page.goto("/pre-specs/7101/company-comparison");
-  await expect(page.getByRole("status")).toContainText("3사 비교를 불러오는 중입니다.");
+  await expect(page.getByRole("status")).toContainText("3사 비교를 불러오는 중이에요.");
   await expect(page.getByRole("table", { name: /3사 비교/ })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "비교 상태 안내" })).toHaveCount(0);
   await expect(page.locator("main")).not.toContainText(STATUS_LABEL.comparable);
@@ -323,17 +323,17 @@ test("T6: 사전규격 목록·상세의 읽는 중 상태도 완료로 보이�
     await route.fallback();
   });
   await page.goto(`/companies/${company.company_id}/pre-specs`);
-  await expect(page.getByRole("status").filter({ hasText: "이 회사의 사전규격을 불러오는 중입니다." })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "이 회사의 사전규격을 불러오는 중이에요." })).toBeVisible();
   await expect(page.getByRole("table", { name: "회사별 사전규격 판정" })).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "회사 사전규격 페이지" })).toHaveCount(0);
-  await expect(page.locator("main")).not.toContainText("조건에 맞는 사전규격이 없습니다.");
-  await expect(page.locator("main")).not.toContainText("이 회사에 표시할 사전규격이 없습니다.");
+  await expect(page.locator("main")).not.toContainText("조건에 맞는 사전규격이 없어요");
+  await expect(page.locator("main")).not.toContainText("이 회사에 표시할 사전규격이 없어요.");
   listGate.release();
   await expect(page.getByRole("table", { name: "회사별 사전규격 판정" }).locator("tbody tr")).toHaveCount(4);
 
   await page.goto(`/companies/${company.company_id}/pre-specs/7101`);
   await expect(page.getByTestId("company-pre-spec-title")).toBeVisible();
-  await expect(page.getByTestId("company-fit").getByRole("status")).toContainText("핏 판정 이력을 불러오는 중입니다.");
+  await expect(page.getByTestId("company-fit").getByRole("status")).toContainText("핏 판정 이력을 불러오는 중이에요.");
   await expect(page.getByTestId("company-fit").locator("li.cw-attempt")).toHaveCount(0);
   await expect(page.getByTestId("company-fit-empty")).toHaveCount(0);
   fitGate.release();

@@ -320,7 +320,7 @@ function subjectParticle(name: string): string | null {
 
 export function reactionRecord(item: BriefingItemView): string {
   if (item.reaction === null) return "";
-  if (!item.reacted_by || !item.reacted_at) return "아직 반응이 없습니다";
+  if (!item.reacted_by || !item.reacted_at) return "아직 반응이 없어요";
   const at = new Date(item.reacted_at);
   const time = Number.isNaN(at.getTime()) ? null : clockTime(at);
   const via = item.reacted_via === "slack" ? "Slack" : null;

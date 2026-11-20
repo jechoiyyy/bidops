@@ -60,7 +60,7 @@ export function NarrativeReportReader({ report, checks, revision, executionStatu
     <header className="narrative-masthead">
       <p className="narrative-eyebrow">사전규격 검토 · {revision ? `수정본 ${revision}` : "저장된 보고서"} · {formatDateTime(report.created_at)}</p>
       <h3>문서의 조건에서<br />우리의 판단까지</h3>
-      <p>문서가 요구하는 일, 회사 근거와 수행 영향을 읽고 확인할 사항을 결정합니다.</p>
+      <p>문서가 요구하는 일, 회사 근거와 수행 영향을 읽고 확인할 사항을 결정해요.</p>
       <div className="narrative-tools">
         <Button label="최신 보고서 확인" variant="ghost" size="sm" onClick={onRefresh} />
         <Button label={large ? "기본 글자" : "큰 글자"} variant="ghost" size="sm" onClick={() => setLarge(!large)} aria-pressed={large} />
@@ -68,8 +68,8 @@ export function NarrativeReportReader({ report, checks, revision, executionStatu
         {["completed", "failed"].includes(executionStatus) ? <Button label="분석 설정" variant="ghost" size="sm" onClick={() => { setFocused(false); onAnalysisSettings(); }} /> : null}
         <Button label="검토 의견·수정 기록" size="sm" onClick={() => { setFocused(false); onRecords(); }} />
       </div>
-      <p className="narrative-note">{qualityStatusLabel(report.quality_status)} · {resultValidationSkipped ? "검증 미실시 · 내용·참조·누락을 직접 확인하십시오" : sourceVerificationSkipped ? "원문 대조 미실시" : "근거 검증"} {resultValidationSkipped ? "" : sourceVerificationSkipped ? "· 인용과 수치는 직접 확인하십시오" : report.validation_summary.status === "passed" ? (report.validation_summary.warnings ? `확인 필요 ${report.validation_summary.warnings}건` : "통과") : "실패 · 원문 재확인 필요"}. 최종 입찰 Go/No-Go는 별도 판단입니다.</p>
-      {executionStatus !== "completed" ? <p role="status" className="narrative-notice">이전 완성 보고서를 표시합니다. 현재 분석은 {executionStatus === "failed" ? "실패했습니다" : "진행 중입니다"}. 새 분석이 완료되기 전에는 이 보고서를 수정하거나 의견을 저장할 수 없습니다.</p> : null}
+      <p className="narrative-note">{qualityStatusLabel(report.quality_status)} · {resultValidationSkipped ? "검증 미실시 · 내용·참조·누락을 직접 확인해 주세요" : sourceVerificationSkipped ? "원문 대조 미실시" : "근거 검증"} {resultValidationSkipped ? "" : sourceVerificationSkipped ? "· 인용과 수치는 직접 확인해 주세요" : report.validation_summary.status === "passed" ? (report.validation_summary.warnings ? `확인 필요 ${report.validation_summary.warnings}건` : "통과") : "실패 · 원문 재확인 필요"}. 최종 입찰 Go/No-Go는 별도 판단이에요.</p>
+      {executionStatus !== "completed" ? <p role="status" className="narrative-notice">이전 완성 보고서를 표시해요. 현재 분석은 {executionStatus === "failed" ? "실패했어요" : "진행 중이에요"}. 새 분석이 완료되기 전에는 이 보고서를 수정하거나 의견을 저장할 수 없어요.</p> : null}
     </header>
     <div className={`narrative-reading${selected ? " has-source" : ""}`}>
       <nav aria-label="보고서 목차" className="narrative-toc">
@@ -79,7 +79,7 @@ export function NarrativeReportReader({ report, checks, revision, executionStatu
       <div className="narrative-paper">
         {report.sections.map((section, index) => <section key={section.section_key} id={`narrative-${section.section_key}`} tabIndex={-1} aria-labelledby={`narrative-title-${section.section_key}`} className="narrative-section">
           <header><span className="narrative-number">{String(index + 1).padStart(2, "0")}</span><h4 id={`narrative-title-${section.section_key}`}>{section.title}</h4></header>
-          {section.status === "not_analyzed" ? <p className="narrative-notice">이 항목의 분석이 제공되지 않았습니다. 문제가 없다는 뜻이 아니며 원문 확인이 필요합니다.</p> : null}
+          {section.status === "not_analyzed" ? <p className="narrative-notice">이 항목의 분석이 제공되지 않았어요. 문제가 없다는 뜻이 아니며 원문 확인이 필요해요.</p> : null}
           {[...section.blocks].sort((a, b) => Number(b.is_key_point) - Number(a.is_key_point)).map(block => {
             const claim = byId.get(block.claim_ids[0]);
             if (!claim) return null;
@@ -97,13 +97,13 @@ export function NarrativeReportReader({ report, checks, revision, executionStatu
             </div>;
           })}
         </section>)}
-        <section className="narrative-limits" aria-label="분석 범위와 미확인 사항"><h4>판단 전에 확인할 한계</h4><ul>{report.analysis_limitations.map(text => <li key={text}>{text}</li>)}</ul><h5>아직 확인되지 않은 내용</h5>{report.unknowns.length ? <ul>{report.unknowns.map(text => <li key={text}>{text}</li>)}</ul> : <p>별도로 기록된 미확인 사항은 없습니다. 분석이 제공되지 않은 항목까지 확인되었다는 의미는 아닙니다.</p>}</section>
+        <section className="narrative-limits" aria-label="분석 범위와 미확인 사항"><h4>판단 전에 확인할 한계</h4><ul>{report.analysis_limitations.map(text => <li key={text}>{text}</li>)}</ul><h5>아직 확인되지 않은 내용</h5>{report.unknowns.length ? <ul>{report.unknowns.map(text => <li key={text}>{text}</li>)}</ul> : <p>별도로 기록된 미확인 사항은 없어요. 분석이 제공되지 않은 항목까지 확인되었다는 의미는 아니에요.</p>}</section>
       </div>
       {selected ? <aside ref={panel} tabIndex={-1} className="narrative-source-panel" aria-label="선택한 원문 근거" onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); closeSource(); } }}>
         <header><h4>근거 {sourceIds.indexOf(selected) + 1}</h4><Button label="근거 닫기" size="sm" variant="ghost" onClick={closeSource} /></header>
-        {evidence.isPending ? <p role="status">원문을 불러오고 있습니다.</p> : null}
-        {evidence.isError ? <><p role="alert">원문 근거를 불러오지 못했습니다.</p><Button label="근거 다시 조회" onClick={() => void evidence.refetch()} /></> : null}
-        {evidence.data ? <>{evidence.data.source_verification_enabled === false ? <p className="narrative-notice">원문 대조 미실시 · 모델이 인용한 내용은 아래 원문과 직접 비교하십시오.</p> : null}<p className="narrative-eyebrow">{evidence.data.source_kind === "profile" ? "승인된 회사 자료" : evidence.data.source_verification_enabled === false ? "모델이 인용한 내용" : `문서 원문 · ${evidence.data.locator.page ?? evidence.data.page?.page ?? "쪽수 미확인"}${evidence.data.locator.page || evidence.data.page ? "쪽" : ""}`}</p><blockquote>{evidence.data.quote}</blockquote>{evidence.data.page ? <details open={evidence.data.source_verification_enabled === false}><summary>같은 페이지의 문맥 보기</summary>{evidence.data.page.blocks.map(row => <p key={row.block_key}>{row.text || "추출된 본문 없음"}</p>)}</details> : null}</> : null}
+        {evidence.isPending ? <p role="status">원문을 불러오고 있어요.</p> : null}
+        {evidence.isError ? <><p role="alert">원문 근거를 불러오지 못했어요.</p><Button label="근거 다시 조회" onClick={() => void evidence.refetch()} /></> : null}
+        {evidence.data ? <>{evidence.data.source_verification_enabled === false ? <p className="narrative-notice">원문 대조 미실시 · 모델이 인용한 내용은 아래 원문과 직접 비교해 주세요.</p> : null}<p className="narrative-eyebrow">{evidence.data.source_kind === "profile" ? "승인된 회사 자료" : evidence.data.source_verification_enabled === false ? "모델이 인용한 내용" : `문서 원문 · ${evidence.data.locator.page ?? evidence.data.page?.page ?? "쪽수 미확인"}${evidence.data.locator.page || evidence.data.page ? "쪽" : ""}`}</p><blockquote>{evidence.data.quote}</blockquote>{evidence.data.page ? <details open={evidence.data.source_verification_enabled === false}><summary>같은 페이지의 문맥 보기</summary>{evidence.data.page.blocks.map(row => <p key={row.block_key}>{row.text || "추출된 본문 없음"}</p>)}</details> : null}</> : null}
       </aside> : null}
     </div>
   </article>;

@@ -21,10 +21,10 @@ import "../../styles/confirm-decision-dialog.css";
  */
 
 /** 확인 다이얼로그가 기본으로 쓰는 경고 문장. 화면마다 다르게 쓰지 않는다. */
-export const IRREVERSIBLE_DECISION_WARNING = "이 결정은 저장 뒤 되돌릴 수 없습니다.";
+export const IRREVERSIBLE_DECISION_WARNING = "이 결정은 저장 뒤 되돌릴 수 없어요.";
 
 /** 저장하지 않은 입력을 버리는 경고. 되돌릴 수 없다는 점은 결정과 같지만 원인이 다르다. */
-export const UNSAVED_INPUT_WARNING = "저장하지 않고 이동하면 입력한 내용이 사라집니다.";
+export const UNSAVED_INPUT_WARNING = "저장하지 않고 이동하면 입력한 내용이 사라져요.";
 
 /**
  * 이 확인 단계가 무엇을 확인하는지의 두 갈래.
@@ -169,7 +169,7 @@ export function trackingEndConfirmContent({
   reason: string;
 }): { title: string; confirmLabel: string; summary: ConfirmDecisionSummaryItem[] } {
   return {
-    title: "추적을 종료합니다",
+    title: "추적을 종료해요",
     confirmLabel: "종료 상태로 저장",
     summary: [
       { label: "대상", value: target },

@@ -106,9 +106,9 @@ test("기억된 담당자 이름은 인증으로 표현되지 않고 스스로 �
   const describedBy = await actor.getAttribute("aria-describedby");
   const description = page.locator(`#${describedBy}`);
   await expect(description).toContainText("감사 귀속용");
-  await expect(description).toContainText("로그인·신원 인증·권한 부여가 아닙니다");
-  await expect(description).toContainText("이 브라우저에 기억됩니다");
-  await expect(description).toContainText("로그인이나 신원 인증이 아닙니다");
+  await expect(description).toContainText("로그인·신원 인증·권한 부여가 아니에요");
+  await expect(description).toContainText("이 브라우저에 기억돼요");
+  await expect(description).toContainText("로그인이나 신원 인증이 아니에요");
 
   await page.reload();
   await openPanel();

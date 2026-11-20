@@ -89,7 +89,7 @@ export function QueueList({ notices, selectedId, reviews, total, sort, onSelect 
       </div>
       <div className="queue-list-scroll">
         {notices.length === 0 ? (
-          <EmptyState compact title="조건에 맞는 공고가 없습니다." description="필터를 넓혀 다른 공고를 확인하십시오." />
+          <EmptyState compact title="조건에 맞는 공고가 없어요" description="필터를 넓혀 다른 공고를 확인해 주세요." />
         ) : (
           <DenseList aria-label="검토 대기 공고 목록">
             {groups ? (

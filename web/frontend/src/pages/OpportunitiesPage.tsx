@@ -120,8 +120,8 @@ export function OpportunitiesPage() {
   const guard = useUnsavedGuard(dirty, {
     blockSpaNavigation: true,
     scope: "pathname",
-    title: "사업 추적 목록을 떠납니다",
-    message: "저장하지 않은 입력이 있습니다. 지금 이동하면 사라지며 저장된 추적 상태와 연결은 바뀌지 않습니다.",
+    title: "사업 추적 목록을 떠나요",
+    message: "저장하지 않은 입력이 있어요. 지금 이동하면 사라지며 저장된 추적 상태와 연결은 바뀌지 않아요.",
   });
 
   const requestedView = searchParams.get("section");
@@ -218,8 +218,8 @@ export function OpportunitiesPage() {
 
   const changeFilters = (changes: Record<string, string | null>) =>
     applyParams(changes, {
-      title: "목록을 바꿉니다",
-      message: "목록을 바꾸면 열려 있던 사업기회가 닫히고 저장하지 않은 입력이 사라집니다.",
+      title: "목록을 바꿔요",
+      message: "목록을 바꾸면 열려 있던 사업기회가 닫히고 저장하지 않은 입력이 사라져요.",
       confirmLabel: "저장하지 않고 목록 바꾸기",
     });
   const changeFilter = (key: string, value: string | null) => changeFilters({ [key]: value });
@@ -240,8 +240,8 @@ export function OpportunitiesPage() {
       return;
     }
     applyParams({ q: next }, {
-      title: "목록을 바꿉니다",
-      message: "검색어를 적용하면 열려 있던 사업기회가 닫히고 저장하지 않은 입력이 사라집니다.",
+      title: "목록을 바꿔요",
+      message: "검색어를 적용하면 열려 있던 사업기회가 닫히고 저장하지 않은 입력이 사라져요.",
       confirmLabel: "저장하지 않고 검색",
     }, () => setSearchText(next ?? ""));
   }
@@ -253,8 +253,8 @@ export function OpportunitiesPage() {
 
   const resetFilters = () => {
     applyParams({ section: null, first_registered_stage: null, sort: null, q: null, reason: null, deadline_within_days: null }, {
-      title: "필터를 초기화합니다",
-      message: "필터를 초기화하면 열려 있던 사업기회가 닫히고 저장하지 않은 입력이 사라집니다.",
+      title: "필터를 초기화해요",
+      message: "필터를 초기화하면 열려 있던 사업기회가 닫히고 저장하지 않은 입력이 사라져요.",
       confirmLabel: "저장하지 않고 초기화",
     }, () => setSearchText(""));
   };
@@ -268,8 +268,8 @@ export function OpportunitiesPage() {
       setSearchParams(next, { replace: true });
       onApplied?.();
     }, {
-      title: "목록 페이지를 옮깁니다",
-      message: "페이지를 옮기면 열려 있던 사업기회가 닫히고 저장하지 않은 입력이 사라집니다.",
+      title: "목록 페이지를 옮겨요",
+      message: "페이지를 옮기면 열려 있던 사업기회가 닫히고 저장하지 않은 입력이 사라져요.",
       confirmLabel: "저장하지 않고 페이지 이동",
     });
   }
@@ -300,8 +300,8 @@ export function OpportunitiesPage() {
       setSearchParams(next, { replace: true });
       open();
     }, {
-      title: "다른 사업기회를 엽니다",
-      message: "저장하지 않은 입력은 이 사업기회를 닫으면 사라집니다.",
+      title: "다른 사업기회를 열어요",
+      message: "저장하지 않은 입력은 이 사업기회를 닫으면 사라져요.",
     });
   }
 
@@ -312,8 +312,8 @@ export function OpportunitiesPage() {
       next.set("selected", String(id));
       setSearchParams(next, { replace: true });
     }, {
-      title: "다른 사업기회를 엽니다",
-      message: "저장하지 않은 입력은 이 사업기회를 닫으면 사라집니다.",
+      title: "다른 사업기회를 열어요",
+      message: "저장하지 않은 입력은 이 사업기회를 닫으면 사라져요.",
     });
   }
 
@@ -493,7 +493,7 @@ export function OpportunitiesPage() {
               appliedValue={rawSearch}
               className="opportunity-search"
               errorMessage={showSearchError
-                ? "검색어는 공백을 정리한 뒤 2~100자여야 합니다."
+                ? "검색어는 공백을 정리한 뒤 2~100자여야 해요."
                 : null}
               label="사업명·발주기관 검색"
               onChange={(value) => { setSearchText(value); setSearchError(false); }}
@@ -527,8 +527,8 @@ export function OpportunitiesPage() {
               </div>
               <p className="opportunity-caption">
                 {reason
-                  ? `${actionReasonLabel(reason)} 사유만 봅니다. 구역 건수도 이 사유 기준이며 같은 칩을 다시 누르면 풀립니다.`
-                  : "사유 칩을 누르면 그 사유가 있는 사업만 봅니다. 한 사업이 여러 사유에 들어갈 수 있습니다."}
+                  ? `${actionReasonLabel(reason)} 사유만 봐요. 구역 건수도 이 사유 기준이며 같은 칩을 다시 누르면 풀려요.`
+                  : "사유 칩을 누르면 그 사유가 있는 사업만 봐요. 한 사업이 여러 사유에 들어갈 수 있어요."}
               </p>
             </WorkspaceFilterContext>
           ) : null}
@@ -598,7 +598,7 @@ export function OpportunitiesPage() {
             >
               {invalidUrlSearch ? (
                 <div className="opportunity-empty">
-                  <p role="alert">주소의 검색어는 공백을 정리한 뒤 2~100자여야 합니다. 검색어를 고치거나 지우십시오.</p>
+                  <p role="alert">주소의 검색어는 공백을 정리한 뒤 2~100자여야 해요. 검색어를 고치거나 지워 주세요.</p>
                 </div>
               ) : list.isPending ? (
                 <SkeletonPanel label="사업 목록을 불러오는 중" lines={5} />
@@ -607,7 +607,7 @@ export function OpportunitiesPage() {
                   <EmptyState
                     compact
                     tone="error"
-                    title="사업 목록을 불러오지 못했습니다."
+                    title="사업 목록을 불러오지 못했어요"
                     action={{ label: "다시 시도", onClick: () => void list.refetch() }}
                   />
                 </div>
@@ -615,9 +615,9 @@ export function OpportunitiesPage() {
                 <div className="opportunity-empty">
                   <EmptyState
                     compact
-                    title="조건에 맞는 사업이 없습니다"
-                    description={search ? `적용된 검색어 "${search}"와 다른 활성 필터에 맞는 사업이 없습니다.`
-                      : "다른 구역이나 다음 페이지에 있을 수 있으며, 사업이 없다는 뜻은 아닙니다."}
+                    title="조건에 맞는 사업이 없어요"
+                    description={search ? `적용된 검색어 "${search}"와 다른 활성 필터에 맞는 사업이 없어요.`
+                      : "다른 구역이나 다음 페이지에 있을 수 있으며, 사업이 없다는 뜻은 아니에요."}
                     action={{
                       label: search ? "검색어만 지우기" : "필터 초기화",
                       onClick: search ? () => applySearch("") : resetFilters,
@@ -639,22 +639,22 @@ export function OpportunitiesPage() {
             <footer className="opportunity-list-foot">
               <p className="opportunity-caption">
                 {invalidUrlSearch
-                  ? "검색어 오류로 목록을 조회하지 않았습니다."
-                  : `서버 ${formatCount(total)}건 중 ${formatCount(rows.length)}건 표시${search ? ` · 검색어 "${search}"는 서버가 페이지를 나누기 전에 적용합니다` : ""}`}
+                  ? "검색어 오류로 목록을 조회하지 않았어요."
+                  : `서버 ${formatCount(total)}건 중 ${formatCount(rows.length)}건 표시${search ? ` · 검색어 "${search}"는 서버가 페이지를 나누기 전에 적용해요` : ""}`}
               </p>
               {invalidUrlSearch || searchError ? (
                 <p className="opportunity-caption">
-                  검색어는 공백을 정리한 뒤 {SEARCH_MIN}~{SEARCH_MAX}자여야 합니다. {search && !invalidUrlSearch ? `현재 목록은 검색어 "${search}" 결과입니다.` : "검색어를 고치거나 지우십시오."}
+                  검색어는 공백을 정리한 뒤 {SEARCH_MIN}~{SEARCH_MAX}자여야 해요. {search && !invalidUrlSearch ? `현재 목록은 검색어 "${search}" 결과예요.` : "검색어를 고치거나 지워 주세요."}
                 </p>
               ) : null}
               {undecided > 0 ? (
                 <p className="opportunity-caption">
-                  구역이 정해지지 않은 미결정 {formatCount(undecided)}건은 전체에서만 보입니다.
+                  구역이 정해지지 않은 미결정 {formatCount(undecided)}건은 전체에서만 보여요.
                 </p>
               ) : null}
               {/* 페이저는 목록 pane 안쪽 바닥이고 발주계획·사전규격과 같은 공용 부품을
                   쓴다(명세 §2.2, U3). 한 쪽뿐이어도 줄은 남기고 단추만 끈다 — 그래서
-                  "뒤에 N건이 더 있습니다" 문단은 없앴다. 페이저의 `1–100 / 1,234`가
+                  "뒤에 N건이 더 있어요" 문단은 없앴다. 페이저의 `1–100 / 1,234`가
                   같은 사실을 말한다. */}
               {list.isSuccess ? (
                 <ListPagerControls
@@ -673,11 +673,11 @@ export function OpportunitiesPage() {
           <section aria-label="선택한 사업" className="review-split-detail opportunity-detail-pane">
             {list.isPending ? (
               <div className="opportunity-empty">
-                <p>목록을 불러온 뒤 사업 상세를 표시합니다.</p>
+                <p>목록을 불러온 뒤 사업 상세를 표시해요.</p>
               </div>
             ) : selectedId === null ? (
               <div className="opportunity-empty">
-                <h3>선택할 사업이 없습니다</h3>
+                <h3>선택할 사업이 없어요</h3>
               </div>
             ) : (
               <OpportunityDetail
@@ -704,25 +704,25 @@ export function OpportunitiesPage() {
         <div className="opportunity-dialog-body">
           <DialogHeader title="이 목록의 기준" onOpenChange={(next) => setDataDialog(next)} />
           <p>
-            구역 건수는 서버가 센 수이며 <strong>구역 조건만 빼고</strong> 검색어·최초 발견 단계·사유 필터를 반영합니다.
+            구역 건수는 서버가 센 수이며 <strong>구역 조건만 빼고</strong> 검색어·최초 발견 단계·사유 필터를 반영해요.
             사유 칩 건수는 사유 필터만 빼고 센 수이고, 한 사업이 여러 사유에 들어갈 수 있어 합이 구역 건수와 같지
-            않습니다. 목록은 한 번에 최대 {formatCount(PAGE_SIZE)}건을 받으며, 검색어는 서버가 페이지를 나누기 전에
-            적용합니다.
+            않아요. 목록은 한 번에 최대 {formatCount(PAGE_SIZE)}건을 받으며, 검색어는 서버가 페이지를 나누기 전에
+            적용해요.
           </p>
           <p>
-            구역은 서버가 정합니다. 사람이 고른 추적 상태와 구역은 서로 다른 축이며, 한 사업기회는 어느 구역에서도 한
-            행으로만 나타납니다. 구역이 정해지지 않은 건은 <strong>미결정</strong>으로 세고 전체에서만 보입니다.
+            구역은 서버가 정해요. 사람이 고른 추적 상태와 구역은 서로 다른 축이며, 한 사업기회는 어느 구역에서도 한
+            행으로만 나타나요. 구역이 정해지지 않은 건은 <strong>미결정</strong>으로 세고 전체에서만 보여요.
           </p>
           <p>
-            연결 현황의 체크는 <strong>연결 확정</strong>을 뜻하며 분석 완료나 입찰 참여 승인이 아닙니다.
-            <strong> 검색 미확인</strong>은 이름 검색으로 찾지 못했다는 뜻이고 레코드가 없다는 뜻이 아닙니다. 입찰 변경
-            비교 결과가 없으면 계산 대기이며, 화면이 결과를 만들어 내지 않습니다.
+            연결 현황의 체크는 <strong>연결 확정</strong>을 뜻하며 분석 완료나 입찰 참여 승인이 아니에요.
+            <strong> 검색 미확인</strong>은 이름 검색으로 찾지 못했다는 뜻이고 레코드가 없다는 뜻이 아니에요. 입찰 변경
+            비교 결과가 없으면 계산 대기이며, 화면이 결과를 만들어 내지 않아요.
           </p>
           <p className="opportunity-caption">
-            현재 구역 {view} · 서버 {formatCount(total)}건 중 {formatCount(rows.length)}건을 받았습니다.
+            현재 구역 {view} · 서버 {formatCount(total)}건 중 {formatCount(rows.length)}건을 받았어요.
             {counts
               ? ` 구역 건수 — ${SECTIONS.map((key) => `${key} ${formatCount(counts[key])}`).join(" · ")} · 미결정 ${formatCount(undecided)}`
-              : " 구역 건수를 아직 받지 못했습니다."}
+              : " 구역 건수를 아직 받지 못했어요."}
           </p>
           <div className="opportunity-dialog-actions">
             <Button label="닫기" onClick={() => setDataDialog(false)} variant="primary" />

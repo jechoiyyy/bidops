@@ -264,8 +264,8 @@ function DailyTriggerOffBanner({ state }: { state: C2DailyTriggerStateResponse }
   return (
     <Banner
       status="warning"
-      title="자동 선별이 꺼져 있습니다."
-      description="새 발주계획이 판정되지 않을 수 있습니다."
+      title="자동 선별이 꺼져 있어요"
+      description="새 발주계획이 판정되지 않을 수 있어요."
       collapsible={false}
       endContent={<Link className="c2l-scope-link" to="/order-plan-policies">운영 화면에서 확인 →</Link>}
     />
@@ -540,7 +540,7 @@ function ExecutionHealthChip({
   if (isError) {
     return (
       <span className="c2l-status-chip is-problem" role="status">
-        선별 실행 상태를 확인하지 못했습니다
+        선별 실행 상태를 확인하지 못했어요
         <Button label="다시 시도" size="sm" variant="ghost" onClick={onRetry} />
       </span>
     );
@@ -671,7 +671,7 @@ function OrderPlansWorkspace() {
   const rowDraftSummary = [
     ...(feedbackDirty ? feedbackDraftSummary : []),
     ...(reasonDirty ? reasonDraftSummary : []),
-    ...(bulkPending ? [{ label: "일괄 추적 요청", value: "저장 결과 확인 전까지 요청과 선택을 보호합니다." }] : []),
+    ...(bulkPending ? [{ label: "일괄 추적 요청", value: "저장 결과 확인 전까지 요청과 선택을 보호해요." }] : []),
   ];
   // route를 떠나면 사람 판단 수정 입력과 선택 사유가 사라진다. 담당자 이름은 이제 탭
   // 세션에 남으므로 잃는 값이 아니고, 그래서 이 확인의 조건에서 뺐다. 화면 안의
@@ -682,8 +682,8 @@ function OrderPlansWorkspace() {
     // During an in-flight bulk request even same-path back/forward/filter
     // navigation must be confirmed; the request binding is URL-contextual.
     scope: bulkPending ? "any" : "pathname",
-    title: "발주계획 검토 화면을 떠납니다",
-    message: "저장하지 않은 입력 또는 확인 중인 일괄 요청이 있습니다. 지금 이동하면 입력이 사라지거나 요청 결과를 놓칠 수 있습니다.",
+    title: "발주계획 검토 화면을 떠나요",
+    message: "저장하지 않은 입력 또는 확인 중인 일괄 요청이 있어요. 지금 이동하면 입력이 사라지거나 요청 결과를 놓칠 수 있어요.",
     summary: rowDraftSummary,
   });
 
@@ -694,10 +694,10 @@ function OrderPlansWorkspace() {
   function withRowGuard(run: () => void) {
     guard.confirmDiscard(run, {
       dirty: feedbackDirty || reasonDirty || bulkPending,
-      title: "다른 발주계획으로 이동합니다",
+      title: "다른 발주계획으로 이동해요",
       message: bulkPending
-        ? "일괄 추적 요청이 결과 확인 중입니다. 이동하면 요청과 선택을 잃을 수 있습니다."
-        : "저장하지 않은 사람 판단 수정 입력과 선택 사유는 이 발주계획을 떠나면 사라집니다. 담당자 이름은 그대로 남습니다.",
+        ? "일괄 추적 요청이 결과 확인 중이에요. 이동하면 요청과 선택을 잃을 수 있어요."
+        : "저장하지 않은 사람 판단 수정 입력과 선택 사유는 이 발주계획을 떠나면 사라져요. 담당자 이름은 그대로 남아요.",
       summary: rowDraftSummary,
     });
   }
@@ -709,8 +709,8 @@ function OrderPlansWorkspace() {
   function withFeedbackGuard(run: () => void) {
     guard.confirmDiscard(run, {
       dirty: feedbackDirty,
-      title: "다른 발주계획으로 이동합니다",
-      message: "저장하지 않은 사람 판단 수정 입력은 이 발주계획을 떠나면 사라집니다. 담당자 이름은 그대로 남습니다.",
+      title: "다른 발주계획으로 이동해요",
+      message: "저장하지 않은 사람 판단 수정 입력은 이 발주계획을 떠나면 사라져요. 담당자 이름은 그대로 남아요.",
       summary: feedbackDraftSummary,
     });
   }
@@ -1303,7 +1303,7 @@ function OrderPlansWorkspace() {
       actorName,
     ),
     onSuccess: async () => {
-      setSavedMessage("사람 판단 수정본을 저장했습니다. 추적 상태는 바뀌지 않았습니다.");
+      setSavedMessage("사람 판단 수정본을 저장했어요. 추적 상태는 바뀌지 않았어요.");
       // 저장한 값이 새 기준이 된다. 화면의 입력은 그대로 두고 "저장되지 않은 입력"만 푼다.
       setFeedbackBaseline({ relevance, priority, memo });
       await queryClient.invalidateQueries({ queryKey: ["order-plan-c2", "list"] });
@@ -1312,15 +1312,15 @@ function OrderPlansWorkspace() {
   });
 
   const feedbackBlockedReason = !feedbackExecutionId
-    ? "이 발주계획에는 판정 결과가 없어 모델 판단에 대한 수정본을 저장할 수 없습니다. 판정한 실행 없이 수정본을 만들지 않습니다."
+    ? "이 발주계획에는 판정 결과가 없어 모델 판단에 대한 수정본을 저장할 수 없어요. 판정한 실행 없이 수정본을 만들지 않아요."
     : undefined;
   const ready = !bulkPending && Boolean(selectedItem) && !feedbackBlockedReason && expectedRevision !== null && actorName.trim().length > 0;
   const decisionDisabledReason = feedbackBlockedReason
     ?? (feedbackHistoryQuery.isError
-      ? "수정본 이력을 불러오지 못해 저장할 수 없습니다."
+      ? "수정본 이력을 불러오지 못해 저장할 수 없어요."
       : expectedRevision === null
-        ? "수정본 이력을 확인한 뒤 저장할 수 있습니다."
-        : !actorName.trim() ? "담당자 이름을 입력하면 저장할 수 있습니다." : undefined);
+        ? "수정본 이력을 확인한 뒤 저장할 수 있어요."
+        : !actorName.trim() ? "담당자 이름을 입력하면 저장할 수 있어요." : undefined);
 
   // 사람 판단 수정은 저장만 하고 다음 건으로 이동하지 않는다. 이동은 추적 결정이 소유한다.
   function handleSave() {
@@ -1340,7 +1340,7 @@ function OrderPlansWorkspace() {
   const trackingMutation = useMutation({
     mutationFn: (status: Exclude<OpportunityTrackingStatus, "미선택">) => {
       const tracking = selectedItem?.tracking;
-      if (!tracking) throw new Error("추적 결정을 기록할 소유 사업기회가 없습니다.");
+      if (!tracking) throw new Error("추적 결정을 기록할 소유 사업기회가 없어요.");
       return api.updateOpportunityTrackingStatus(
         tracking.opportunity_id,
         { tracking_status: status, reason: trackingReason },
@@ -1383,8 +1383,8 @@ function OrderPlansWorkspace() {
       if (next) {
         const opportunityId = selectedItem?.tracking?.opportunity_id ?? saved.id;
         showToast(next.moved
-          ? `${trackingSavedMessage(saved.tracking_status)} 다음 발주계획으로 이동합니다.`
-          : `${trackingSavedMessage(saved.tracking_status)} 현재 목록의 마지막 발주계획이라 이동하지 않습니다.`,
+          ? `${trackingSavedMessage(saved.tracking_status)} 다음 발주계획으로 이동해요.`
+          : `${trackingSavedMessage(saved.tracking_status)} 현재 목록의 마지막 발주계획이라 이동하지 않아요.`,
         "success",
         [
           { label: "사업기회에서 보기", to: `/opportunities/${opportunityId}/activity` },
@@ -1395,13 +1395,13 @@ function OrderPlansWorkspace() {
   });
 
   const trackingDisabledReason = bulkPending
-    ? "일괄 추적 저장 요청이 끝날 때까지 단건 추적 입력과 저장을 잠급니다."
+    ? "일괄 추적 저장 요청이 끝날 때까지 단건 추적 입력과 저장을 잠가요."
     : trackingAvailabilityState === "contract_missing"
     // 서버 API 계약이 없다는 사실을 실무 결과로 적는다 — 이 화면에서 `계약`은 조달
     // 계약(계약방법)을 가리키는 낱말이라 뜻이 겹친다(0921 명세 §3.1).
-    ? "이 발주계획은 추적 결정을 기록하는 기능이 아직 제공되지 않습니다."
+    ? "이 발주계획은 추적 결정을 기록하는 기능이 아직 제공되지 않아요."
     : trackingAvailabilityState === "opportunity_missing"
-      ? "이 발주계획을 소유한 사업기회를 확인하지 못해 추적 결정을 기록할 수 없습니다."
+      ? "이 발주계획을 소유한 사업기회를 확인하지 못해 추적 결정을 기록할 수 없어요."
       // 입력 검증은 세 추적 결정 자리가 같은 순서·같은 문장을 쓴다(C-7).
       : trackingInputBlockedReason({
         choice: reasonChoice,
@@ -1457,8 +1457,8 @@ function OrderPlansWorkspace() {
         setTrackingMessage({
           pk: next.pk,
           text: next.moved
-            ? "추적 상태를 바꾸지 않고 다음 발주계획으로 이동했습니다. 미선택은 추적 종료가 아닙니다."
-            : "추적 상태를 바꾸지 않았습니다. 현재 목록의 마지막 발주계획이라 이동하지 않습니다. 미선택은 추적 종료가 아닙니다.",
+            ? "추적 상태를 바꾸지 않고 다음 발주계획으로 이동했어요. 미선택은 추적 종료가 아니에요."
+            : "추적 상태를 바꾸지 않았어요. 현재 목록의 마지막 발주계획이라 이동하지 않아요. 미선택은 추적 종료가 아니에요.",
         });
       }
     });
@@ -1525,13 +1525,13 @@ function OrderPlansWorkspace() {
       decideTracking("계속 추적");
       return;
     }
-    setTrackingMessage({ pk, text: "사유와 담당자를 입력하면 Ctrl+Enter로 추적을 시작합니다." });
+    setTrackingMessage({ pk, text: "사유와 담당자를 입력하면 Ctrl+Enter로 추적을 시작해요." });
     trackingSectionRef.current?.querySelector<HTMLElement>('[role="combobox"]')?.focus();
   }
 
   // 오류 문구는 화면마다 따로 만들지 않는다. 서버 raw message를 그대로 싣지
   // 않고 `describeApiError`가 옮긴 문장만 쓴다.
-  const listError = describeApiError(listQuery.error, "발주계획 목록을 확인할 수 없습니다.").title;
+  const listError = describeApiError(listQuery.error, "발주계획 목록을 확인할 수 없어요.").title;
   // 목록 머리글이 "무엇을 보고 있는가"를 문장으로 밝힌다. 축 안은 OR, 축끼리는 AND다.
   // 축 값은 화면 라벨로 조립한다 — URL·서버 값(`relevant`·`filtered_out` …)은 그대로다.
   const filterMeaning = (() => {
@@ -1668,7 +1668,7 @@ function OrderPlansWorkspace() {
       {dailyTriggerQuery.data ? <DailyTriggerOffBanner state={dailyTriggerQuery.data} /> : null}
       {dailyTriggerQuery.isError ? (
         <Text type="supporting" color="secondary" as="p" className="c2l-daily-trigger-unknown">
-          일일 자동 실행 상태를 확인하지 못했습니다. 켜져 있다고 가정하지 않습니다.
+          일일 자동 실행 상태를 확인하지 못했어요. 켜져 있다고 가정하지 않아요.
         </Text>
       ) : null}
 
@@ -1679,20 +1679,20 @@ function OrderPlansWorkspace() {
           판정 없음을 비관련·실패로 바꾸지 않는다. */}
       {listQuery.isSuccess && listScope === null ? (
         <Banner status="info" title="선별 전 · 수집 데이터 조회"
-          description="이 회차에 게시된 선별 결과가 없습니다. 원본 발주계획을 조회하며 모델 판단은 값 없음으로 표시합니다." collapsible={false} />
+          description="이 회차에 게시된 선별 결과가 없어요. 원본 발주계획을 조회하며 모델 판단은 값 없음으로 표시해요." collapsible={false} />
       ) : null}
       {/* 판정이 없다는 사실과 그것이 비관련이 아니라는 뜻은 남기고, 실행 식별자 나열은
           운영 화면으로 보냈다(0921 명세 §3.1). 실패·중단·중지를 성공으로 읽지 않는다는
           경고 문장은 그대로다(경고 ④). */}
       {listQuery.isSuccess && listScope?.mode === "cumulative" && listScope.policy_versions.length === 0 ? (
         <Banner status="info" title="누적 판정 없음 · 수집 데이터 조회"
-          description="운영 선별 판정이 아직 없습니다. 수집된 발주계획을 조회하며 모델 판단은 값 없음으로 표시합니다. 실패·중단·중지 상태를 성공 결과로 해석하지 않습니다."
+          description="운영 선별 판정이 아직 없어요. 수집된 발주계획을 조회하며 모델 판단은 값 없음으로 표시해요. 실패·중단·중지 상태를 성공 결과로 해석하지 않아요."
           collapsible={false} />
       ) : null}
 
       {isExplicitDeepLink && invalidSelectedParam ? (
-        <Banner status="error" title="발주계획 식별자가 올바르지 않습니다."
-          description="요청한 발주계획을 선택하지 못했습니다. 목록의 행을 직접 선택하십시오." collapsible={false} />
+        <Banner status="error" title="발주계획 식별자가 올바르지 않아요"
+          description="요청한 발주계획을 선택하지 못했어요. 목록의 행을 직접 선택해 주세요." collapsible={false} />
       ) : null}
       </div>
       <PageHeaderTabs>
@@ -1994,7 +1994,7 @@ function OrderPlansWorkspace() {
                   남는다(`applyAxes`·`toggleChecked`·`선택 전체 해제`가 지운다). */}
               {bulkEndNotice !== null ? (
                 <p className="c2l-bulk-end-notice" role="status">
-                  {bulkEndNotice.toLocaleString("ko-KR")}건을 추적 종료했습니다 · 추적 필터 &apos;종료&apos;에서 볼 수 있습니다
+                  {bulkEndNotice.toLocaleString("ko-KR")}건을 추적 종료했어요 · 추적 필터 &apos;종료&apos;에서 볼 수 있어요
                 </p>
               ) : null}
               {orderPlanSelection.selectedIds.length > 0 || bulkPending ? <SelectionToolbar
@@ -2004,18 +2004,18 @@ function OrderPlansWorkspace() {
                 label="발주계획 선택 작업"
                 reasonId="c2l-selection-action-reason"
                 reason={bulkPending
-                  ? "일괄 추적 요청을 처리하는 동안 선택을 바꿀 수 없습니다."
+                  ? "일괄 추적 요청을 처리하는 동안 선택을 바꿀 수 없어요."
                   : mutation.isPending || trackingMutation.isPending
-                    ? "기존 저장 요청이 끝날 때까지 일괄 추적을 시작할 수 없습니다."
+                    ? "기존 저장 요청이 끝날 때까지 일괄 추적을 시작할 수 없어요."
                   : !orderPlanSelection.hydrated
-                    ? "목록 선택 상태를 준비하는 중입니다."
+                    ? "목록 선택 상태를 준비하는 중이에요."
                     : !orderPlanSelection.storageAvailable || orderPlanSelection.storageError
-                      ? "선택 저장소를 확인하지 못해 단건 추적 경로를 사용하십시오."
+                      ? "선택 저장소를 확인하지 못해 단건 추적 경로를 사용해 주세요."
                       : orderPlanSelection.selectedIds.length === 0
-                        ? "계획을 선택하면 일괄 추적 시작·종료를 쓸 수 있습니다."
+                        ? "계획을 선택하면 일괄 추적 시작·종료를 쓸 수 있어요."
                         : orderPlanSelection.selectedIds.length > ORDER_PLAN_BULK_END_MAX_SELECTION
-                          ? "한 번에 200건까지 종료할 수 있습니다. 선택을 줄이십시오."
-                          : "전체 선택은 현재 페이지의 행만 더합니다. 추적 시작은 사유·담당자 확인 창을 거칩니다."}
+                          ? "한 번에 200건까지 종료할 수 있어요. 선택을 줄여 주세요."
+                          : "전체 선택은 현재 페이지의 행만 더해요. 추적 시작은 사유·담당자 확인 창을 거쳐요."}
                 actions={(
                   <>
                     {/* M7 ②(ADR-0062 결정 표): 선택 도구 4개를 사전규격과 같은 부품·같은
@@ -2065,13 +2065,13 @@ function OrderPlansWorkspace() {
                     >
                       선택 항목 추적 시작
                     </button>
-                    <span className="visually-hidden" id="c2l-selection-exclude-note">선택한 계획의 추적을 종료합니다</span>
+                    <span className="visually-hidden" id="c2l-selection-exclude-note">선택한 계획의 추적을 종료해요</span>
                   </>
                 )}
               /> : null}
               {(!orderPlanSelection.storageAvailable || orderPlanSelection.storageError) && orderPlanSelection.hydrated ? (
                 <p className="c2l-selection-storage-warning" role="alert">
-                  이 탭의 선택 저장소를 사용할 수 없어 일괄 추적을 사용할 수 없습니다. 단건 추적 경로를 사용하십시오.
+                  이 탭의 선택 저장소를 사용할 수 없어 일괄 추적을 사용할 수 없어요. 단건 추적 경로를 사용해 주세요.
                 </p>
               ) : null}
               <ListColumns className="c2l-list-columns">
@@ -2087,7 +2087,7 @@ function OrderPlansWorkspace() {
                   <EmptyState
                     compact
                     tone="error"
-                    title="발주계획 목록을 불러오지 못했습니다."
+                    title="발주계획 목록을 불러오지 못했어요"
                     description={listError}
                     action={{ label: "다시 시도", onClick: () => { void listQuery.refetch(); } }}
                   />
@@ -2097,10 +2097,10 @@ function OrderPlansWorkspace() {
                 <div className="c2l-list-empty">
                   <EmptyState
                     compact
-                    title="조건에 맞는 계획이 없습니다"
+                    title="조건에 맞는 계획이 없어요"
                     description={searchKey(qText)
-                      ? `적용된 검색어 "${qText}"와 다른 활성 필터에 맞는 계획이 없습니다.`
-                      : "필터를 바꿔보세요. 표시되지 않은 값이나 판정 실패를 다른 모델 판단으로 바꾸지 않습니다."}
+                      ? `적용된 검색어 "${qText}"와 다른 활성 필터에 맞는 계획이 없어요.`
+                      : "필터를 바꿔보세요. 표시되지 않은 값이나 판정 실패를 다른 모델 판단으로 바꾸지 않아요."}
                     action={searchKey(qText)
                       ? { label: "검색어만 지우기", onClick: () => applySearch("") }
                       : { label: "필터 초기화", onClick: resetFilters }}
@@ -2222,7 +2222,7 @@ function OrderPlansWorkspace() {
         />
         <div className="c2l-dialog-body c2l-feedback-dialog">
           <Text type="supporting" color="secondary" as="p">
-            기존 사람 판단을 그대로 둡니다. 추적 결정과는 별도 수정본이며 적합성 등급·참여 준비 상태·심층 추적 승인·최종 Go/No-Go를 채우거나 대신하지 않습니다.
+            기존 사람 판단을 그대로 둬요. 추적 결정과는 별도 수정본이며 적합성 등급·참여 준비 상태·심층 추적 승인·최종 Go/No-Go를 채우거나 대신하지 않아요.
           </Text>
           <Badge variant="neutral" label={selectedItem?.human_feedback ? feedbackSummaryLabel : "사람 판단 미입력"} />
           {/* 수정본이 붙는 판정의 실행 식별자·policy는 운영 화면이 진다(0921 명세 §3.1).
@@ -2234,11 +2234,11 @@ function OrderPlansWorkspace() {
           {feedbackHistoryQuery.isPending ? (
               <Text type="supporting" color="secondary" as="p" role="status">사람 판단 수정 이력을 불러오는 중…</Text>
             ) : feedbackHistoryQuery.isError ? (
-              <Text type="supporting" color="secondary" as="p" role="alert">사람 판단 수정 이력을 불러오지 못했습니다. 저장 전 현재 수정본을 확인할 수 없습니다.</Text>
+              <Text type="supporting" color="secondary" as="p" role="alert">사람 판단 수정 이력을 불러오지 못했어요. 저장 전 현재 수정본을 확인할 수 없어요.</Text>
             ) : (
               <ReviewRevisionHistory
                 className="c2l-feedback-history"
-                empty="사람 판단 수정이 없습니다. 사람 판단을 새 수정본으로 기록할 수 있습니다."
+                empty="사람 판단 수정이 없어요. 사람 판단을 새 수정본으로 기록할 수 있어요."
                 entries={(feedbackHistoryQuery.data?.items ?? []).map((item) => ({
                   actor: item.claimed_name,
                   at: formatMoment(item.created_at),
@@ -2290,12 +2290,12 @@ function OrderPlansWorkspace() {
             label="사람 판단 담당자 이름"
             value={actorName}
             onChange={setActorName}
-            description="감사 귀속용 이름이며 로그인·신원 인증·권한 부여가 아닙니다."
+            description="감사 귀속용 이름이며 로그인·신원 인증·권한 부여가 아니에요."
             isDisabled={bulkPending || Boolean(feedbackBlockedReason)}
           />
 
           <div className="c2l-feedback-actions">
-            {mutation.isError ? <Text type="body" color="secondary" role="alert">{describeApiError(mutation.error, "사람 판단 수정을 저장하지 못했습니다.").title}</Text> : null}
+            {mutation.isError ? <Text type="body" color="secondary" role="alert">{describeApiError(mutation.error, "사람 판단 수정을 저장하지 못했어요.").title}</Text> : null}
             {savedMessage ? <Text type="body" color="secondary" role="status">{savedMessage}</Text> : null}
             <ReviewDecisionAction
               disabledReason={decisionDisabledReason}
@@ -2321,7 +2321,7 @@ function OrderPlansWorkspace() {
         onOpenChange={(next) => { if (!next) setEndConfirm(null); }}
         open={endConfirm !== null}
         summary={endConfirm?.summary ?? []}
-        title={endConfirm?.title ?? "추적을 종료합니다"}
+        title={endConfirm?.title ?? "추적을 종료해요"}
       />
       <OrderPlanBulkTrackingDialog
         open={bulkDialogMode !== null}

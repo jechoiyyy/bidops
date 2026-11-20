@@ -23,8 +23,8 @@ import { generateRequestId } from "../../lib/requestId";
 const API_PREFIX = "/api";
 const UTF8_ACTOR_PREFIX = "UTF-8''";
 const UTF8_ACTOR_FORMAT = "utf-8-percent-v1";
-const GENERAL_ERROR_MESSAGE = "요청이 실패했습니다.";
-const NETWORK_ERROR_MESSAGE = "API에 연결할 수 없습니다.";
+const GENERAL_ERROR_MESSAGE = "요청이 실패했어요.";
+const NETWORK_ERROR_MESSAGE = "API에 연결할 수 없어요.";
 
 type LeanErrorBody = {
   error: {

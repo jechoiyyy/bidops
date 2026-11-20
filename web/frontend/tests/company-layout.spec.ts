@@ -30,7 +30,7 @@ const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 const DELIVERY_CLAIM_ID = "d797cdbf-520d-5e6d-b903-25f6319844fb";
 /** 사람이 입력하는 긴 한글 사유(서버 응답이 아니라 입력 초안). 공백이 없어 줄바꿈 규칙이 없으면 넘친다. */
 const LONG_SUMMARY_DRAFT =
-  "내초안사유로데이터인력확인후보류하며공백없이길게이어지는한글문장이상세패널의칸을넘지않고줄바꿈되는지확인하는구조점검용긴사유입니다";
+  "내초안사유로데이터인력확인후보류하며공백없이길게이어지는한글문장이상세패널의칸을넘지않고줄바꿈되는지확인하는구조점검용긴사유예요";
 
 const id = (slug: Slug) => COMPANY_BY_SLUG[slug].company_id;
 const listPath = (slug: Slug) => `/companies/${id(slug)}/pre-specs`;
@@ -119,7 +119,7 @@ function expectFits(measure: LayoutMeasure, name: string) {
   expect(measure.documentOverflow, `${name}: 문서 가로 넘침`).toBeLessThanOrEqual(1);
   for (const key of ["topbar", "sidebar", "canvas"] as const) {
     const region = measure.shell[key];
-    expect(region, `${name}: ${key} 영역이 없습니다`).not.toBeNull();
+    expect(region, `${name}: ${key} 영역이 없어요`).not.toBeNull();
     expect(region!.left, `${name}: ${key} 왼쪽 끝`).toBeGreaterThanOrEqual(-1);
     expect(region!.right, `${name}: ${key} 오른쪽 끝(폭 ${measure.viewport})`).toBeLessThanOrEqual(measure.viewport + 1);
     expect(region!.overflow, `${name}: ${key} 안쪽 가로 넘침`).toBeLessThanOrEqual(1);
@@ -130,16 +130,16 @@ function expectFits(measure: LayoutMeasure, name: string) {
 
 /** 읽는 중인 영역이 남아 있으면 완료 화면이 아니다. 측정은 반드시 이 뒤에 한다. */
 async function expectSettled(page: Page) {
-  await expect(page.locator('.app-shell [aria-busy="true"]'), "읽는 중 표식(aria-busy)이 남아 있습니다").toHaveCount(0);
-  await expect(page.locator("main [role='status']").filter({ hasText: /불러오는 중/ }), "읽는 중 문구가 남아 있습니다").toHaveCount(0);
-  await expect(page.locator("main [data-skeleton], main .skeleton"), "스켈레톤이 남아 있습니다").toHaveCount(0);
+  await expect(page.locator('.app-shell [aria-busy="true"]'), "읽는 중 표식(aria-busy)이 남아 있어요").toHaveCount(0);
+  await expect(page.locator("main [role='status']").filter({ hasText: /불러오는 중/ }), "읽는 중 문구가 남아 있어요").toHaveCount(0);
+  await expect(page.locator("main [data-skeleton], main .skeleton"), "스켈레톤이 남아 있어요").toHaveCount(0);
   await page.waitForLoadState("networkidle");
 }
 
 async function expectInViewport(locator: Locator, name: string) {
-  await expect(locator, `${name}: 보이지 않습니다`).toBeVisible();
+  await expect(locator, `${name}: 보이지 않아요`).toBeVisible();
   const box = await locator.boundingBox();
-  expect(box, `${name}: 상자를 잴 수 없습니다`).not.toBeNull();
+  expect(box, `${name}: 상자를 잴 수 없어요`).not.toBeNull();
   const width = locator.page().viewportSize()!.width;
   expect(box!.x, `${name}: 왼쪽 끝`).toBeGreaterThanOrEqual(-1);
   expect(box!.x + box!.width, `${name}: 오른쪽 끝(폭 ${width})`).toBeLessThanOrEqual(width + 1);
@@ -147,9 +147,9 @@ async function expectInViewport(locator: Locator, name: string) {
 
 /** 글자가 칸보다 넓어 잘리지 않았다(줄바꿈으로 칸 안에 들어간다). */
 async function expectNotClipped(locator: Locator, name: string) {
-  await expect(locator, `${name}: 보이지 않습니다`).toBeVisible();
+  await expect(locator, `${name}: 보이지 않아요`).toBeVisible();
   const overflow = await locator.evaluate((element) => element.scrollWidth - element.clientWidth);
-  expect(overflow, `${name}: 글자가 칸보다 넓습니다`).toBeLessThanOrEqual(1);
+  expect(overflow, `${name}: 글자가 칸보다 넓어요`).toBeLessThanOrEqual(1);
 }
 
 /** 상단바의 회사 선택기·가상회사 표식과 사이드바가 폭 안에 있다. */
@@ -164,7 +164,7 @@ async function expectCompanyShell(page: Page, name: string) {
   await expectInViewport(selector, `${name}: 회사 선택기`);
   const topbarBox = (await topbar.boundingBox())!;
   const selectorBox = (await selector.boundingBox())!;
-  expect(selectorBox.x + selectorBox.width, `${name}: 회사 선택기가 상단바 밖으로 나갔습니다`).toBeLessThanOrEqual(topbarBox.x + topbarBox.width + 1);
+  expect(selectorBox.x + selectorBox.width, `${name}: 회사 선택기가 상단바 밖으로 나갔어요`).toBeLessThanOrEqual(topbarBox.x + topbarBox.width + 1);
   await expectInViewport(page.locator("aside.sidebar"), `${name}: 사이드바`);
   await expectInViewport(page.locator("aside.sidebar").getByRole("link", { name: "회사 선택" }), `${name}: 사이드바 회사 선택 링크`);
 }
@@ -324,7 +324,7 @@ test("3사 비교 표: 긴 한글에서도 비교 상태 열이 숨지 않고 �
     const parent = element.parentElement!;
     return { table: element.getBoundingClientRect().width, parent: parent.getBoundingClientRect().width, overflowX: getComputedStyle(parent).overflowX };
   });
-  expect(containment.table, "비교 표가 부모 폭보다 넓습니다").toBeLessThanOrEqual(containment.parent + 1);
+  expect(containment.table, "비교 표가 부모 폭보다 넓어요").toBeLessThanOrEqual(containment.parent + 1);
   await expectScreenFits(page, "3사 비교", info, "company-comparison");
 });
 
@@ -333,7 +333,7 @@ test("읽는 중 3사 비교는 완료 화면으로 측정하지 않고, 완료 
   const held = await holdNext(page, /\/api\/pre-specs\/\d+\/company-comparison$/, "GET");
   await page.goto("/pre-specs/7101/company-comparison");
   await expect.poll(() => held.seen()).toBe(true);
-  await expect(page.getByText("3사 비교를 불러오는 중입니다.")).toBeVisible();
+  await expect(page.getByText("3사 비교를 불러오는 중이에요.")).toBeVisible();
   await expect(page.getByRole("table", { name: /3사 비교/ })).toHaveCount(0);
   await expect(page.locator("tr[data-company-slug]")).toHaveCount(0);
   await expect(expectSettled(page)).rejects.toThrow();

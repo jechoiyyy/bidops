@@ -57,8 +57,8 @@ export function LunaRequest<P extends DeepReviewPreview = DeepReviewPreview>({ n
       }
     } catch (failure) {
       const problem = adapter
-        ? adapter.describeError(failure, "요청을 처리할 수 없습니다.")
-        : describeApiError(failure, "요청을 처리할 수 없습니다.");
+        ? adapter.describeError(failure, "요청을 처리할 수 없어요.")
+        : describeApiError(failure, "요청을 처리할 수 없어요.");
       setError(`${problem.code}: ${problem.title} ${problem.detail}`);
       if (APPROVAL_DISCARD_CODES.includes(problem.code ?? "")) setPreview(null);
     } finally { lock.current = false; setBusy(false); }
@@ -68,16 +68,16 @@ export function LunaRequest<P extends DeepReviewPreview = DeepReviewPreview>({ n
   const validationOff = validation && typeof validation === "object" && "result_checks" in validation && validation.result_checks === "disabled_reference_v1";
   const blockedReason = preview && adapter?.approvalBlockedReason ? adapter.approvalBlockedReason(preview) : null;
   return <section aria-label="Luna 심층검토 요청">
-    <p>사용자 요청 시 순차 실행합니다. 참조 분석이며 품질은 미측정입니다. 실행 중 개요검토가 대기할 수 있습니다.</p>
+    <p>사용자 요청 시 순차 실행해요. 참조 분석이며 품질은 미측정이에요. 실행 중 개요검토가 대기할 수 있어요.</p>
     <Button label="전송 내용 미리보기" onClick={() => void act(false)} isDisabled={busy || submitted} />
     {preview && <section aria-label="외부 전송 승인">
       {adapter?.renderApprovalContext ? adapter.renderApprovalContext(preview) : null}
       <p>{preview.model} · {preview.reasoning_effort} · {preview.provider}</p>
       <p>{validationOff ? "내용·참조·누락 검증 미실시 · 형식·저장 무결성 검사만 수행" : `원문 대조 ${preview.source_verification_enabled ? "사용" : "사용 안 함"}`} · 품질 미측정</p>
-      <p>아래 문서 내용과 회사자료, 같은 실행의 선행 분석 결과를 외부 모델에 전송합니다.</p>
+      <p>아래 문서 내용과 회사자료, 같은 실행의 선행 분석 결과를 외부 모델에 전송해요.</p>
       <details><summary>전송 원천 입력과 정책 전체 확인</summary><pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxBlockSize: "344px", overflow: "auto" }}>{JSON.stringify(preview.input, null, 2)}</pre></details>
       <p style={{ overflowWrap: "anywhere" }}>입력 해시: {preview.input_sha256}</p>
-      <p>담당자 이름은 감사 기록입니다. 최종 제출하면 이 실행의 외부 전송에 동의한 것으로 기록합니다.</p>
+      <p>담당자 이름은 감사 기록이에요. 최종 제출하면 이 실행의 외부 전송에 동의한 것으로 기록해요.</p>
       {blockedReason ? <p role="alert">{blockedReason}</p> : null}
       <Button label={submitted ? "요청 등록됨" : busy ? "처리 중" : "전송 승인하고 심층검토 요청"} onClick={() => void act(true)} isDisabled={busy || submitted || !actor.trim() || blockedReason !== null} />
     </section>}
@@ -126,19 +126,19 @@ export function createCompanyLunaAdapter({ companyId, company, noticeId, bundleI
       // 승인 상자는 어느 회사로 실행이 가는지 이름으로 보여야 한다. 회사 조회가 끝나지 않았거나
       // 실패했거나 다른 회사이면 승인하지 않는다.
       if (company === null) {
-        return "전송 대상 회사 정보를 아직 확인하지 못했습니다(불러오는 중이거나 실패). 회사 이름이 확인될 때까지 승인할 수 없습니다.";
+        return "전송 대상 회사 정보를 아직 확인하지 못했어요(불러오는 중이거나 실패). 회사 이름이 확인될 때까지 승인할 수 없어요.";
       }
       if (company.company_id !== companyId) {
-        return "확인한 회사 정보가 이 화면의 회사와 다릅니다. 이 미리보기로는 승인하지 않습니다.";
+        return "확인한 회사 정보가 이 화면의 회사와 달라요. 이 미리보기로는 승인하지 않아요.";
       }
       if (preview.company_id !== companyId || textOf(input, "company_id") !== companyId) {
-        return "미리보기 응답의 회사가 이 화면의 회사와 다릅니다. 이 미리보기로는 승인하지 않습니다.";
+        return "미리보기 응답의 회사가 이 화면의 회사와 달라요. 이 미리보기로는 승인하지 않아요.";
       }
       if (textOf(input, "notice_id") !== String(noticeId) || textOf(input, "bundle_id") !== bundleId) {
-        return "미리보기 응답의 공고 또는 문서 묶음이 요청과 다릅니다. 이 미리보기로는 승인하지 않습니다.";
+        return "미리보기 응답의 공고 또는 문서 묶음이 요청과 달라요. 이 미리보기로는 승인하지 않아요.";
       }
       if ((textOf(input, "target_review_id") ?? null) !== (reviewId ?? null)) {
-        return "미리보기 응답의 재시도 대상이 요청과 다릅니다. 이 미리보기로는 승인하지 않습니다.";
+        return "미리보기 응답의 재시도 대상이 요청과 달라요. 이 미리보기로는 승인하지 않아요.";
       }
       return null;
     },
@@ -169,7 +169,7 @@ export function createCompanyLunaAdapter({ companyId, company, noticeId, bundleI
             <dt>그래프 경로</dt><dd>{countOf(input, "graph_paths")}</dd>
             <dt>재시도 대상</dt><dd>{textOf(input, "target_review_id") ?? "없음 · 새 검토"}</dd>
           </dl>
-          <p className="cw-caption">회사 설정은 가상 시나리오이며 실제 회사 사실이 아닙니다. 이 승인은 외부 전송 동의이며 회사 핏(적합성) 판정 승인이 아닙니다.</p>
+          <p className="cw-caption">회사 설정은 가상 시나리오이며 실제 회사 사실이 아니에요. 이 승인은 외부 전송 동의이며 회사 핏(적합성) 판정 승인이 아니에요.</p>
         </div>
       );
     },

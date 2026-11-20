@@ -99,7 +99,7 @@ export function PerformanceMatches({
       action={<span className="panel-note">{topScoreLabel(performanceTopScore)}</span>}
     >
       <p className="performance-matches-note">
-        유사도는 수집 단계의 모델 점수이며 판단 보조입니다. 실적 동등성이나 참여 자격의 증거가 아닙니다.
+        유사도는 수집 단계의 모델 점수이며 판단 보조예요. 실적 동등성이나 참여 자격의 증거가 아니에요.
       </p>
       {bothEmpty ? (
         <EmptyState compact title="대조된 실적 없음" />

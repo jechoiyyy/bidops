@@ -39,7 +39,7 @@ import "../styles/company-ground-truth.css";
  * - 활성 버전이 없으면 수치를 0으로 적지 않고 "아직 활성화되지 않았습니다"라고 말한다.
  */
 
-const NOTICE_LINE = "값 수정은 회사 파일을 고쳐 다시 등록합니다(운영 담당자가 등록 절차를 수행)";
+const NOTICE_LINE = "값 수정은 회사 파일을 고쳐 다시 등록해요(운영 담당자가 등록 절차를 수행)";
 const TABLE_GROUPS: readonly CompanyFactTableGroup[] = ["qualification", "performance", "staff", "preference"];
 
 /** 서버 시각을 한국 날짜로 적는다(`2026년 10월 16일`). 읽을 수 없으면 원문을 그대로 둔다. */
@@ -73,7 +73,7 @@ function CompanyTopbarActions({ context }: { context: CompanyContextView }) {
     <PageHeaderActions>
       <span className="co-topbar-meta" data-testid="company-topbar-meta">
         {context.company.name}
-        {active ? ` · 마지막 저장 ${formatSavedDate(active.created_at)}` : " · 아직 저장된 버전이 없습니다"}
+        {active ? ` · 마지막 저장 ${formatSavedDate(active.created_at)}` : " · 아직 저장된 버전이 없어요"}
       </span>
       <div className="basis-popover" ref={containerRef}>
         <button
@@ -88,9 +88,9 @@ function CompanyTopbarActions({ context }: { context: CompanyContextView }) {
         {open ? (
           <div aria-label="회사 근거 버전" className="basis-popover-panel" id="company-version-panel" role="region">
             <p className="co-version-line">
-              {active ? `현재 버전 · ${formatSavedDate(active.created_at)} 저장` : "현재 활성 버전이 없습니다."}
+              {active ? `현재 버전 · ${formatSavedDate(active.created_at)} 저장` : "현재 활성 버전이 없어요."}
             </p>
-            <p className="co-version-line is-secondary">이전 버전 선택은 아직 지원하지 않습니다. 현재 버전만 볼 수 있습니다.</p>
+            <p className="co-version-line is-secondary">이전 버전 선택은 아직 지원하지 않아요. 현재 버전만 볼 수 있어요.</p>
           </div>
         ) : null}
       </div>
@@ -106,7 +106,7 @@ function GroupNav({ group, attentionCount }: { group: CompanyFactGroup; attentio
         if (value === "proposal-assets") {
           // 제안서 자료는 RL-04가 채운다. 자리만 두고 링크로 만들지 않는다.
           return (
-            <span aria-disabled="true" className={`co-nav-item is-disabled${group === value ? " is-active" : ""}`} key={value} title="RL-04에서 채웁니다">
+            <span aria-disabled="true" className={`co-nav-item is-disabled${group === value ? " is-active" : ""}`} key={value} title="RL-04에서 채워요">
               {label}
             </span>
           );
@@ -160,7 +160,7 @@ function GroupBody({ group, facts, today, warningDays }: {
     return (
       <section aria-labelledby="co-group-title" className="co-group">
         <h2 className="co-block-title" id="co-group-title">{COMPANY_GROUP_LABEL[group]}</h2>
-        <p className="co-empty" role="status">RL-04에서 채웁니다</p>
+        <p className="co-empty" role="status">RL-04에서 채워요</p>
       </section>
     );
   }
@@ -205,23 +205,23 @@ export function CompanyPage() {
   let body;
   let ready = false;
   if (contextQuery.isPending) {
-    body = <p className="co-status" role="status">회사 근거를 불러오는 중입니다.</p>;
+    body = <p className="co-status" role="status">회사 근거를 불러오는 중이에요.</p>;
   } else if (contextQuery.isError && describeCompanyApiError(contextQuery.error, "").code === "company_not_registered") {
     // 운영 회사 근거가 등록되지 않은 환경이다. 실패가 아니라 "이 환경에서 꺼져 있음"으로 먼저 말한다
     // (설계고도화안 C-4). 수치를 0으로 적지 않는다.
     body = (
       <EmptyState
-        description="이 환경에는 운영 회사 근거가 등록되지 않았습니다. 회사 파일 등록·활성화는 운영 담당자가 하며, 그 전에는 회사 기준 판정·브리핑·분석 엔진도 쓸 수 없습니다."
+        description="이 환경에는 운영 회사 근거가 등록되지 않았어요. 회사 파일 등록·활성화는 운영 담당자가 하며, 그 전에는 회사 기준 판정·브리핑·분석 엔진도 쓸 수 없어요."
         title={`회사 근거 · ${FEATURE_OFF_LABEL}`}
       />
     );
   } else if (contextQuery.isError || !context) {
-    const problem = describeCompanyApiError(contextQuery.error, "회사 근거를 불러오지 못했습니다.");
+    const problem = describeCompanyApiError(contextQuery.error, "회사 근거를 불러오지 못했어요.");
     body = (
       <EmptyState
         action={apiErrorRecoveryAction(problem, () => { void contextQuery.refetch(); }, "다시 시도")}
         problem={problem}
-        title="회사 근거를 불러오지 못했습니다."
+        title="회사 근거를 불러오지 못했어요"
         tone="error"
       />
     );
@@ -229,19 +229,19 @@ export function CompanyPage() {
     // 활성 버전이 없으면 수치를 0으로 적지 않는다(값 없음과 0은 다르다).
     body = (
       <EmptyState
-        description="회사 파일을 등록하고 활성화하면 이곳에 확인된 값과 확인이 필요한 값이 나타납니다."
-        title="회사 근거가 아직 활성화되지 않았습니다"
+        description="회사 파일을 등록하고 활성화하면 이곳에 확인된 값과 확인이 필요한 값이 나타나요."
+        title="회사 근거가 아직 활성화되지 않았어요"
       />
     );
   } else if (profileQuery.isPending) {
-    body = <p className="co-status" role="status">회사 근거를 불러오는 중입니다.</p>;
+    body = <p className="co-status" role="status">회사 근거를 불러오는 중이에요.</p>;
   } else if (profileQuery.isError || !profile) {
-    const problem = describeCompanyApiError(profileQuery.error, "회사 근거를 불러오지 못했습니다.");
+    const problem = describeCompanyApiError(profileQuery.error, "회사 근거를 불러오지 못했어요.");
     body = (
       <EmptyState
         action={apiErrorRecoveryAction(problem, () => { void profileQuery.refetch(); }, "다시 시도")}
         problem={problem}
-        title="회사 근거를 불러오지 못했습니다."
+        title="회사 근거를 불러오지 못했어요"
         tone="error"
       />
     );
@@ -250,8 +250,8 @@ export function CompanyPage() {
     body = (
       <EmptyState
         action={{ label: "다시 불러오기", onClick: () => { void contextQuery.refetch(); void profileQuery.refetch(); } }}
-        description="회사 근거 버전이 읽는 사이에 바뀌었습니다. 다시 불러오면 같은 버전으로 보여 드립니다."
-        title="회사 근거 버전이 일치하지 않습니다"
+        description="회사 근거 버전이 읽는 사이에 바뀌었어요. 다시 불러오면 같은 버전으로 보여 드려요."
+        title="회사 근거 버전이 일치하지 않아요"
         tone="warning"
       />
     );

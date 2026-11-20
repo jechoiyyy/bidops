@@ -77,7 +77,7 @@ export function AttachmentPanel({ noticePk, attachments, documentPreparationHref
       action={<Badge label={statusLabel} variant="neutral" />}
     >
       <div className="attachment-status-line">
-        <span>예전 첨부의 출처를 확인하는 영역입니다. 문서 준비 완료나 심층 검토 가능 상태를 뜻하지 않습니다.</span>
+        <span>예전 첨부의 출처를 확인하는 영역이에요. 문서 준비 완료나 심층 검토 가능 상태를 뜻하지 않아요.</span>
         {procedure?.agency ? <span className="attachment-agency">{procedure.agency}</span> : null}
       </div>
 
@@ -86,16 +86,16 @@ export function AttachmentPanel({ noticePk, attachments, documentPreparationHref
           {currentAttachments.map((attachment) => <AttachmentRow key={attachment.id} attachment={attachment} />)}
         </div>
       ) : (
-        <p className="attachment-empty">조회할 기존 첨부 provenance가 없습니다.</p>
+        <p className="attachment-empty">조회할 기존 첨부 provenance가 없어요.</p>
       )}
 
       <div className="attachment-safe-guidance">
         <strong>{TERM_SENSE.nextActionGuide} · 안전한 문서 묶음 준비</strong>
-        <p>예전 첨부 이력은 심층 검토 입력으로 쓸 수 없습니다. 원문 격리, 악성코드 검사, 변환·구조화, 문서 역할 확인을 거쳐 문서 묶음을 직접 확정하십시오.</p>
+        <p>예전 첨부 이력은 심층 검토 입력으로 쓸 수 없어요. 원문 격리, 악성코드 검사, 변환·구조화, 문서 역할 확인을 거쳐 문서 묶음을 직접 확정해 주세요.</p>
         {documentPreparationHref ? (
           <a href={documentPreparationHref}>문서 준비 상태 확인</a>
         ) : (
-          <span>공고 상세의 문서 준비 영역에서 문서 묶음 확정 상태를 확인하십시오.</span>
+          <span>공고 상세의 문서 준비 영역에서 문서 묶음 확정 상태를 확인해 주세요.</span>
         )}
       </div>
     </Panel>

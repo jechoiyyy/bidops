@@ -35,8 +35,8 @@ export function NextActions({ actions, hasHistory, loading, failed, pendingNoteI
     <section aria-labelledby="rec-next-title" className="rec-side-block" data-testid="next-actions">
       <h3 className="rec-side-title" id="rec-next-title">{TERM_SENSE.nextActionNote}</h3>
       {loading ? <p className="rec-side-note" role="status">불러오는 중…</p> : null}
-      {failed ? <p className="rec-side-note">다음 행동을 불러오지 못했습니다. 없다는 뜻이 아닙니다.</p> : null}
-      {!loading && !failed && shown.length === 0 ? <p className="rec-side-note">남은 다음 행동이 없습니다.</p> : null}
+      {failed ? <p className="rec-side-note">다음 행동을 불러오지 못했어요. 없다는 뜻이 아니에요.</p> : null}
+      {!loading && !failed && shown.length === 0 ? <p className="rec-side-note">남은 다음 행동이 없어요.</p> : null}
       {shown.length > 0 ? (
         <ul className="rec-next-list">
           {shown.map((action) => {
@@ -62,7 +62,7 @@ export function NextActions({ actions, hasHistory, loading, failed, pendingNoteI
         </ul>
       ) : null}
       {actions.length > NEXT_ACTION_LIMIT ? (
-        <p className="rec-side-note">남은 다음 행동 {actions.length}건 중 {NEXT_ACTION_LIMIT}건을 보여 줍니다.</p>
+        <p className="rec-side-note">남은 다음 행동 {actions.length}건 중 {NEXT_ACTION_LIMIT}건을 보여 줘요.</p>
       ) : null}
       {hasHistory ? (
         <Button label="모두 보기" onClick={onShowAll} size="sm" variant="ghost" />

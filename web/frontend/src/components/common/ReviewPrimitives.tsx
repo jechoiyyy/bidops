@@ -822,7 +822,7 @@ export function ReviewRevisionHistory({
       </header>
       {error ? <p className="review-revision-history-error" role="alert">{error}</p> : null}
       {entries.length === 0 ? (
-        <p className="review-revision-history-empty">{empty ?? "기록된 수정본이 없습니다."}</p>
+        <p className="review-revision-history-empty">{empty ?? "기록된 수정본이 없어요."}</p>
       ) : (
         <List className="review-revision-history-list" density="compact" hasDividers>
           {entries.map((entry) => (
@@ -876,7 +876,7 @@ export function ReviewEvidenceList({ className, empty, items, label }: ReviewEvi
         className={joinClassNames("review-evidence-list-empty", className)}
         data-review-primitive="evidence-list"
       >
-        {empty ?? "근거 항목이 없습니다."}
+        {empty ?? "근거 항목이 없어요."}
       </div>
     );
   }
@@ -966,7 +966,7 @@ export function ReviewHistoryLinkRail({
                   ))}
                 </List>
               ) : (
-                <p className="review-history-empty">{section.empty ?? "이력이 없습니다."}</p>
+                <p className="review-history-empty">{section.empty ?? "이력이 없어요."}</p>
               )}
             </>
           )}

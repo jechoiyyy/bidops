@@ -33,7 +33,7 @@ const TITLE = {
   3: "2027년 차세대 민원 포털 구축",
   7: "도로 관리 시스템 재구축(정정공고)",
 } as const;
-const NOT_FOUND = "이 환경에서 만들어진 브리핑이 없습니다";
+const NOT_FOUND = "이 환경에서 만들어진 브리핑이 없어요";
 
 test.beforeEach(async ({ page }) => {
   await page.route("**://fonts.googleapis.com/**", (route) => route.fulfill({ status: 200, contentType: "text/css", body: "" }));
@@ -196,7 +196,7 @@ test("T10: 행을 누르면 피크가 열린다 — 머리·제목·보조·판�
   // 반응 버튼은 행 안에만 있다(최종 시안). 피크는 판정 이름(서버 글자 그대로)과 반응 기록 한 줄을 보인다.
   await expect(panel.locator("[data-reaction]")).toHaveCount(0);
   await expect(panel.getByTestId("briefing-peek-verdict")).toHaveText("판정 · 분석 대기");
-  await expect(panel.getByTestId("briefing-peek-record")).toHaveText("아직 반응이 없습니다");
+  await expect(panel.getByTestId("briefing-peek-record")).toHaveText("아직 반응이 없어요");
 
   // 왜 추천: 키워드·비슷한 실적 n건·기관 거래 이력(칩 3개).
   await expect(panel.getByRole("heading", { name: "왜 추천" })).toBeVisible();
@@ -283,7 +283,7 @@ test("T10: 키보드 1·2·H·Z — 저장 본문·담당자·다음 행 이동�
   await expect(peek(page)).toContainText(TITLE[2]);
   await expect(rowButton(page, ID[2])).toBeFocused();
   // 5초 토스트 + 되돌리기.
-  await expect(toast(page)).toContainText("반응을 저장했습니다 · 채택");
+  await expect(toast(page)).toContainText("반응을 저장했어요 · 채택");
   await expect(toast(page).getByRole("button", { name: "되돌리기" })).toBeVisible();
 
   // 2 = 무시.
@@ -305,7 +305,7 @@ test("T10: 키보드 1·2·H·Z — 저장 본문·담당자·다음 행 이동�
   await expect(count(page, "later")).toHaveText("2");
   // 건수 0은 그리지 않는다(최종 시안). 불러오지 못한 경우(`–`)와 모양이 다르다.
   await expect(sidebarCount(page)).toHaveCount(0);
-  await expect(page.getByText("반응 대기 항목이 없습니다")).toBeVisible();
+  await expect(page.getByText("반응 대기 항목이 없어요")).toBeVisible();
   // 다음 행은 추적 변화 묶음(7번)이다. 이 행에는 반응이 없다.
   await expect.poll(() => selectedParam(page)).toBe(ID[7]);
   await expect(row(page, ID[7]).locator("[data-reaction]")).toHaveCount(0);
@@ -324,7 +324,7 @@ test("T10: 키보드 1·2·H·Z — 저장 본문·담당자·다음 행 이동�
   await expect(count(page, "later")).toHaveText("1");
   await expect(sidebarCount(page)).toHaveText("1");
   await expect.poll(() => selectedParam(page)).toBe(ID[3]);
-  await expect(toast(page)).toContainText("되돌렸습니다");
+  await expect(toast(page)).toContainText("되돌렸어요");
   await expect(toast(page).getByRole("button", { name: "되돌리기" })).toHaveCount(0);
 
   // 되돌린 뒤에는 되돌릴 것이 없다. Z를 다시 눌러도 저장하지 않는다 — 이어서 2를 누르면
@@ -345,7 +345,7 @@ test("T10: 토스트 되돌리기 버튼 · 5초 뒤 사라지면 Z는 아무것
   await setActor(page);
   await rowButton(page, ID[1]).click();
   await page.keyboard.press("1");
-  await expect(toast(page)).toContainText("반응을 저장했습니다 · 채택");
+  await expect(toast(page)).toContainText("반응을 저장했어요 · 채택");
 
   // 토스트의 되돌리기 버튼 = 이전 값(대기)으로 새 PATCH.
   await toast(page).getByRole("button", { name: "되돌리기" }).click();
@@ -360,7 +360,7 @@ test("T10: 토스트 되돌리기 버튼 · 5초 뒤 사라지면 Z는 아무것
   // 타이머가 멈추므로(Toast hold) 치워 둔다.
   await page.mouse.move(0, 0);
   await page.keyboard.press("2");
-  await expect(toast(page)).toContainText("반응을 저장했습니다 · 무시");
+  await expect(toast(page)).toContainText("반응을 저장했어요 · 무시");
   const shownAt = Date.now();
   await expect(toast(page)).toBeHidden({ timeout: 9_000 });
   const elapsed = Date.now() - shownAt;
@@ -386,10 +386,10 @@ test("T10: 이미 선택된 반응을 다시 누르면 대기로 돌아간다 ·
   await accept.click();
   await expect.poll(() => trace.patches.length).toBe(1);
   expect(trace.patches[0]).toMatchObject({ itemId: ID[4], actor: "김담당", body: { reaction: "대기", expected_revision: 1 } });
-  await expect(toast(page)).toContainText("반응을 취소했습니다");
+  await expect(toast(page)).toContainText("반응을 취소했어요");
   await expect(count(page, "accepted")).toHaveText("0");
   await expect(count(page, "pending")).toHaveText("4");
-  await expect(page.getByText("채택 항목이 없습니다")).toBeVisible();
+  await expect(page.getByText("채택 항목이 없어요")).toBeVisible();
 
   // 되돌리기 → 채택으로 복원, 선택이 그 행으로 돌아온다.
   await toast(page).getByRole("button", { name: "되돌리기" }).click();
@@ -474,7 +474,7 @@ test("T10: 409 version_conflict는 조용히 덮어쓰지 않고 다시 읽은 �
   await page.keyboard.press("1");
   await expect.poll(() => trace.patches.length).toBe(1);
   expect(trace.patches[0].body).toMatchObject({ reaction: "채택", expected_revision: 0 });
-  await expect(toast(page)).toContainText("다른 담당자가 먼저 반응했습니다");
+  await expect(toast(page)).toContainText("다른 담당자가 먼저 반응했어요");
   // 서버 상태는 덮어쓰지 않았다: 먼저 남긴 무시가 그대로다.
   expect(trace.server(BRIEFING_DATE)!.items[0]).toMatchObject({ reaction: "무시", reacted_by: "박기획", revision: 1 });
 
@@ -521,10 +521,10 @@ test("T10: 추적 변화 행에는 반응 버튼이 없고 서버도 반응을 �
 
 test("T10: 추천 0건이면 수집 정상 빈 상태를 보여 준다", async ({ page }) => {
   await openBriefing(page, "", { briefings: { [BRIEFING_DATE]: emptyBriefingFixture() } });
-  await expect(page.getByText("오늘 추천할 공고가 없습니다 · 수집 정상")).toBeVisible();
+  await expect(page.getByText("오늘 추천할 공고가 없어요 · 수집 정상")).toBeVisible();
   await expect(page.locator("header.topbar h1")).toHaveText("오늘 추천할 공고가 없어요");
   await expect(page.getByTestId("briefing-collection-status")).toHaveText("수집 완료 · 10월 15일 기준");
-  await expect(page.getByText("오늘 수집이 끝나지 않았습니다")).toHaveCount(0);
+  await expect(page.getByText("오늘 수집이 끝나지 않았어요")).toHaveCount(0);
   await expect(page.locator("li[data-item-id]")).toHaveCount(0);
   await expect(count(page, "pending")).toHaveText("0");
   // 건수 0은 그리지 않는다(최종 시안). 불러오지 못한 경우(`–`)와 모양이 다르다.
@@ -534,7 +534,7 @@ test("T10: 추천 0건이면 수집 정상 빈 상태를 보여 준다", async (
 test("T10: 수집이 끝나지 않은 날은 경고 블록과 함께 항목도 보여 준다", async ({ page }) => {
   await openBriefing(page, "", { briefings: { [BRIEFING_DATE]: incompleteBriefingFixture("기준일 수집 회차 없음") } });
   const warning = page.getByRole("status", { name: "수집 상태" });
-  await expect(warning).toContainText("오늘 수집이 끝나지 않았습니다");
+  await expect(warning).toContainText("오늘 수집이 끝나지 않았어요");
   await expect(warning).toContainText("기준일 수집 회차 없음");
   // 헤더의 수집 상태도 완료라고 말하지 않는다(브리핑 status 그대로).
   await expect(page.getByTestId("briefing-collection-status")).toHaveText("수집이 끝나지 않았어요 · 10월 15일 기준");
@@ -568,7 +568,7 @@ test("T10: 브리핑이 없으면 현재 자리 화면의 안내 문구를 보�
   // 형식이 잘못된 날짜는 서버를 부르지 않고 같은 안내를 보여 준다.
   await page.goto("/briefing?date=abc");
   await expect(page.getByText(NOT_FOUND)).toBeVisible();
-  await expect(page.getByText(/날짜 형식이 올바르지 않습니다/)).toBeVisible();
+  await expect(page.getByText(/날짜 형식이 올바르지 않아요/)).toBeVisible();
 });
 
 test("T10: 브리핑 API를 mock하지 않아도(고정 응답 404) 안내 문구가 나오고 외부로 새지 않는다", async ({ page }) => {
@@ -737,7 +737,7 @@ test("T10: 서버 오류는 안정 오류 문구와 다시 시도로 보여 준�
     route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: { code: "processing_failed", message: "합성", details: null }, request_id: null }) }),
   );
   await page.goto("/briefing");
-  await expect(page.getByRole("alert")).toContainText("브리핑을 불러오지 못했습니다");
+  await expect(page.getByRole("alert")).toContainText("브리핑을 불러오지 못했어요");
   await expect(page.getByRole("alert")).toContainText("processing_failed");
   await expect(page.getByRole("button", { name: "다시 시도" })).toBeVisible();
   await expect(page.getByText(NOT_FOUND)).toHaveCount(0);

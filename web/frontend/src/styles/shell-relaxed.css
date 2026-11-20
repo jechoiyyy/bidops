@@ -1149,18 +1149,45 @@ body {
   font-weight: 700;
 }
 
-/* 사전규격 상세(2026-11-19, ADR-0076): 옛 초록 띠·포인트 테두리 대신 fill 채움과 옅은 선으로 구분한다.
-   구역 차례·내용·결정 동작은 그대로다. */
+/* 사전규격 상세(2026-11-19·2026-11-20, ADR-0076): 카드 더미 대신 패널 한 장 안의 구역이다. 그림자·둥근 상자·
+   초록 띠·회색 머리 띠 없이, 구역 제목 줄과 구역 사이 옅은 선 한 줄로 나눈다. 본문은 헤더와 같은 왼쪽 선에서
+   시작한다. 구역 차례·내용·결정 동작은 그대로다. */
 .app-shell .page-canvas .ps-record {
-  --ps-brand-band: var(--color-background-muted);
+  --ps-brand-band: transparent;
+  /* 읽기 폭 상한 1040px(spec §4)은 그대로 두고, 가운데 대신 헤더와 같은 왼쪽 선에 붙인다. */
+  align-items: flex-start;
+  gap: 0;
 }
 
-.app-shell .page-canvas .ps-record-tracking-card {
-  box-shadow: var(--shadow-low);
+.app-shell .page-canvas .ps-record :is(.ps-card, .ps-record-tracking-card) {
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
-.app-shell .page-canvas .ps-record .ps-record-tracking-head {
-  border-bottom-color: var(--bo-line-soft);
+.app-shell .page-canvas .ps-record :is(.ps-card, .ps-record-tracking-card):last-child {
+  border-bottom: 0;
+}
+
+.app-shell .page-canvas .ps-record :is(.ps-sec > .ps-sec-head:first-child, .ps-record-tracking-head) {
+  padding: var(--spacing-6) 0 var(--spacing-3);
+  border-bottom: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.app-shell .page-canvas .ps-record .ps-sec > :not(.ps-sec-head:first-child) {
+  margin-inline: 0;
+}
+
+.app-shell .page-canvas .ps-record .ps-record-tracking-body {
+  padding: 0 0 var(--spacing-6);
+}
+
+.app-shell .page-canvas .ps-record .ps-record-header-body {
+  padding: 0 0 var(--spacing-4);
 }
 
 .app-shell .page-canvas .ps-record .ps-chip-accent {
@@ -1202,4 +1229,182 @@ body {
    바닥만 1280×800의 남는 높이 안으로 낮춘다(ADR-0076). */
 .app-shell .page-canvas :is(.crit-page, .rs-page, .bid-delta-page) {
   min-height: 520px;
+}
+
+/* ---- 사전규격 목록: 발주계획과 같은 행·머리 규칙(2026-11-20) ----
+   머리 한 줄(14px 보조), 행은 여백 16·radius 10·고른 행 채움, 사업명 16px(고른 행 700)·발주기관 14px.
+   열 이름 줄은 그리지 않는다(행 구조가 스스로 말한다). */
+.app-shell .pre-specs-page .pre-specs-list-head {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-4) var(--spacing-6) 10px;
+  border-bottom: 0;
+}
+
+.app-shell .pre-specs-page .pre-specs-list-heading {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell .pre-specs-page .pre-specs-list-scope {
+  font-weight: 400;
+}
+
+.app-shell .pre-specs-page .pre-specs-list-columns {
+  display: none;
+}
+
+.app-shell .pre-specs-page .pre-specs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 0 var(--spacing-2);
+}
+
+.app-shell .pre-specs-page .pre-specs-row {
+  gap: var(--spacing-3);
+  margin: 0 var(--spacing-2);
+  padding: var(--spacing-4);
+  border: 0;
+  border-radius: 10px;
+}
+
+.app-shell .pre-specs-page .pre-specs-row:hover,
+.app-shell .pre-specs-page .pre-specs-row[aria-current="true"] {
+  background: var(--color-background-muted);
+}
+
+.app-shell .pre-specs-page .pre-specs-row[data-selection-mode="multiple"] [type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 3px 0 0;
+  accent-color: var(--color-accent);
+}
+
+.app-shell .pre-specs-page .pre-specs-row-title {
+  font-size: var(--bo-k-body);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.app-shell .pre-specs-page .pre-specs-row[aria-current="true"] .pre-specs-row-title {
+  font-weight: 700;
+}
+
+.app-shell .pre-specs-page .pre-specs-row-agency {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+}
+
+/* ---- 상세 머리: 사전규격·사업기회·최종 Go/No-Go를 발주계획과 같은 단으로(2026-11-20) ----
+   위 28 · 옆 32, 기관은 14px 보조 글자(채움 상자 없음), 사업명은 상세 단 22px/700. */
+.app-shell .page-canvas[data-canvas="flush"] :is(.pre-specs-detail-header, .opportunity-detail-head, .gng-detail-head) {
+  padding: 28px var(--spacing-8) var(--spacing-4);
+  border: 0;
+  background: var(--color-background-surface);
+  box-shadow: none;
+}
+
+.app-shell .page-canvas[data-canvas="flush"] :is(.pre-specs-detail-header, .opportunity-detail-head, .gng-detail-head) [data-review-primitive="agency-feature"] {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: var(--bo-k-meta);
+}
+
+/* 사전규격 상세 본문·바닥도 머리와 같은 옆 32px. 숫자 칸은 색 채움이 아니라 옅은 회색 채움이다
+   (브랜드 옅은 채움은 상태 표식 전용, ADR-0076 결정 7). */
+.app-shell .pre-specs-page .pre-specs-detail-scroll {
+  gap: var(--spacing-5);
+  padding: var(--spacing-2) var(--spacing-8) var(--spacing-6);
+}
+
+.app-shell .pre-specs-page .pre-specs-detail-actions {
+  padding: var(--spacing-4) var(--spacing-8);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-background-surface);
+}
+
+.app-shell .pre-specs-page .pre-specs-detail-figures > div {
+  border-radius: 10px;
+  background: var(--color-background-muted);
+}
+
+.app-shell .page-canvas[data-canvas="flush"] :is(.pre-specs-detail-title :is(h1, h2, h3, h4), .opportunity-detail-title, .gng-detail-head > :is(h1, h2, h3, h4)) {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--bo-k-detail);
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: -0.03em;
+}
+
+/* ---- 목록|상세 상세 칸의 본문·바닥·안쪽 탭(사업기회·최종 Go/No-Go, 2026-11-20) ----
+   머리와 같은 옆 32px. 안쪽 보기 전환은 밑줄 탭이 아니라 패널 헤더와 같은 둥근 칸(36px)이다. */
+.app-shell .page-canvas[data-canvas="flush"] :is(.opportunity-detail-scroll, .gng-detail-scroll) {
+  padding-right: var(--spacing-8);
+  padding-left: var(--spacing-8);
+}
+
+.app-shell .page-canvas[data-canvas="flush"] :is(.opportunity-action-footer, .gng-action-footer) {
+  padding-right: var(--spacing-8);
+  padding-left: var(--spacing-8);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-background-surface);
+}
+
+.app-shell .page-canvas[data-canvas="flush"] :is(.opportunity-detail-tabs, .gng-detail-tabs) {
+  gap: 2px;
+  padding: 0 var(--spacing-8) var(--spacing-2);
+  border-bottom: 0;
+}
+
+/* 본문 안 탭(Astryx TabList)과 눌림 단추 탭 줄을 둥근 칸으로. 선택은 채움 + 굵은 본문색이다. */
+.app-shell .page-canvas :is([role="tablist"] [role="tab"], .gng-detail-tabs .astryx-button) {
+  height: var(--bo-k-control-nav);
+  min-height: var(--bo-k-control-nav);
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-element);
+  color: var(--color-text-secondary);
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--bo-k-meta);
+  font-weight: 500;
+}
+
+.app-shell .page-canvas :is([role="tablist"] [role="tab"][aria-selected="true"], .gng-detail-tabs [aria-pressed="true"]) {
+  color: var(--color-text-primary);
+  background: var(--bo-sidebar-active);
+  font-weight: 700;
+}
+
+.app-shell .page-canvas [role="tablist"] [role="tab"] > span:last-child:not([class*="label"]) {
+  /* Astryx 탭의 밑줄 표시 요소. */
+  display: none;
+}
+
+.app-shell .page-canvas [role="tablist"] {
+  gap: 2px;
+  border-bottom: 0;
+  box-shadow: none;
+}
+
+/* ---- 옛 강조 블록(왼쪽 굵은 선 + 색 채움)을 패널 규칙으로(2026-11-20) ----
+   안내·참고는 옅은 회색 채움 블록 하나다. 경고·오류는 의미색 알림(`rs-inline-error` 등)으로 남겨
+   뜻이 약해지지 않게 한다. 변경 표시·인용처럼 데이터를 가리키는 선은 그대로다. */
+.app-shell :is(.crit-note, .rs-note, .gng-review-notice, .opportunity-next-check, .bid-delta-worker-note, .bid-delta-decision-conditions) {
+  border: 0;
+  border-left: 0;
+  border-radius: 10px;
+  background: var(--color-background-muted);
+  box-shadow: none;
 }

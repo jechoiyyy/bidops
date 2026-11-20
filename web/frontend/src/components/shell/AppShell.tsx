@@ -136,8 +136,8 @@ export function AppShell({ demoEnabled = false }: { demoEnabled?: boolean }) {
           <div className="shell-notice">
             <EmptyState
               compact
-              description={runError instanceof Error ? runError.message : "회차 정보를 확인할 수 없습니다."}
-              title="회차 정보를 불러오지 못했습니다."
+              description={runError instanceof Error ? runError.message : "회차 정보를 확인할 수 없어요."}
+              title="회차 정보를 불러오지 못했어요"
             />
           </div>
         ) : null}

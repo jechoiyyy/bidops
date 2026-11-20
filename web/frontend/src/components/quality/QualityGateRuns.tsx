@@ -28,7 +28,7 @@ function stateDescription(run: ScreeningExecutionResponse): string {
   }
   if (run.status === "부분 성공") return `완료 ${run.completed_count}건 · 실패 ${run.failure_count}건`;
   if (run.status === "성공") return `완료 ${run.completed_count}건`;
-  return run.error_summary ?? "결과를 확인할 수 없습니다.";
+  return run.error_summary ?? "결과를 확인할 수 없어요.";
 }
 
 function runRow(label: string, run: ScreeningExecutionResponse) {
@@ -52,7 +52,7 @@ function runRow(label: string, run: ScreeningExecutionResponse) {
 export function QualityGateRuns({ passA, passB }: QualityGateRunsProps) {
   return (
     <Section title="A/B 독립 실행">
-      <Small>두 실행은 같은 고정 입력을 사용합니다. 실행 종결이 품질 통과를 뜻하지 않습니다.</Small>
+      <Small>두 실행은 같은 고정 입력을 사용해요. 실행 종결이 품질 통과를 뜻하지 않아요.</Small>
       <DataTable
         caption="A/B 실행 상태"
         headings={["실행", "상태", "진행", "상태 갱신"]}

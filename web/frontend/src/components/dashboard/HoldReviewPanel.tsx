@@ -26,12 +26,12 @@ export function HoldReviewPanel({ data, isPending, isError, onRetry, overdueNote
     : items.length ? `기한 지남·임박 ${formatNumber(data.total)}건 중 ${formatNumber(items.length)}건 표시` : `기한 지남·임박 ${formatNumber(data.total)}건`;
   let body: ReactNode;
   if (isError) {
-    body = <HoldReviewState kind="error" text="보류 재검토 목록을 불러오지 못했습니다."
+    body = <HoldReviewState kind="error" text="보류 재검토 목록을 불러오지 못했어요."
       action={<Button label="보류 재검토 다시 조회" size="sm" icon={<RefreshCw aria-hidden="true" />} onClick={onRetry} />} />;
   } else if (isPending || !data) {
-    body = <HoldReviewState kind="loading" text="보류 재검토 목록을 불러오는 중입니다." />;
+    body = <HoldReviewState kind="loading" text="보류 재검토 목록을 불러오는 중이에요." />;
   } else if (!items.length) {
-    body = <HoldReviewState kind="empty" text="재검토가 필요한 보류 사업이 없습니다." />;
+    body = <HoldReviewState kind="empty" text="재검토가 필요한 보류 사업이 없어요." />;
   } else {
     // 사유와 선택자는 값이 없을 때 서로 다른 말로 남긴다 — 빈 값을 다른 사람이나
     // 다른 사유로 바꾸지 않는다.
@@ -42,7 +42,7 @@ export function HoldReviewPanel({ data, isPending, isError, onRetry, overdueNote
         end={<DueText text={due.text} urgent={due.urgent} />} />;
     })}</ul>;
   }
-  return <DashboardPanel title="보류 재검토" caption="보류는 선택 후 14일이 지나면 다시 검토합니다." className="dash-hold-panel"
+  return <DashboardPanel title="보류 재검토" caption="보류는 선택 후 14일이 지나면 다시 검토해요." className="dash-hold-panel"
     action={<Small>{overdueNote}</Small>}
     footer={<><Small>{summary}</Small><LinkButton label="사업기회에서 모두 보기" to={HOLD_REVIEW_LIST_PATH} icon={<ArrowRight aria-hidden="true" />} /></>}>
     {body}

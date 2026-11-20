@@ -56,7 +56,7 @@ const EVIDENCE_ANCHOR = "ps-evidence";
 /** 새 계약에는 `stale`이 없다. 남은 자리를 위한 문장만 두고 상태를 지어내지 않는다. */
 function overviewWaitingDescription(status: PageOverviewCurrentStatus): string {
   return status === "stale"
-    ? "이전 입력 기준의 결과는 현재 결과로 쓸 수 없습니다. 사람 확인이 필요합니다."
+    ? "이전 입력 기준의 결과는 현재 결과로 쓸 수 없어요. 사람 확인이 필요해요."
     : PRE_SPEC_OVERVIEW_WAITING_DESCRIPTION[status];
 }
 
@@ -150,10 +150,10 @@ export function PreSpecDetail({
   // 결과 자리가 비었을 때 무엇을 기다리는지. 상태 어휘와 문장은
   // `preSpecOverviewStatus`가 소유하며 여기서 새 문장을 만들지 않는다.
   const emptyOverviewText = ((): string => {
-    if (overviewQuery.isPending) return "개요 검토 결과를 불러오는 중입니다.";
-    if (overviewQuery.isError) return "개요 검토 API 응답을 확인할 수 없습니다.";
-    if (!overviewValid) return "개요 검토 결과를 확인할 수 없습니다.";
-    if (payload) return "이번 입력에서는 확인되지 않았습니다.";
+    if (overviewQuery.isPending) return "개요 검토 결과를 불러오는 중이에요.";
+    if (overviewQuery.isError) return "개요 검토 API 응답을 확인할 수 없어요.";
+    if (!overviewValid) return "개요 검토 결과를 확인할 수 없어요.";
+    if (payload) return "이번 입력에서는 확인되지 않았어요.";
     if (pageOverview.current) return overviewWaitingDescription(pageOverview.current.status);
     if (item.overview_review_status) return PRE_SPEC_OVERVIEW_WAITING_DESCRIPTION[item.overview_review_status];
     return PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL;
@@ -365,7 +365,7 @@ export function PreSpecDetail({
             {/* 경계 문장은 상세 페이지 ② 추적 결정 카드와 같은 문안 하나로
                 통일한다(M4 승인 2026-09-21). 앞의 `다음 작업`과는 다른 사실이라
                 한 줄을 따로 쓴다. */}
-            <span className="pre-specs-detail-decision-note">적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않습니다. 입찰 참여 여부는 최종 Go/No-Go에서 정합니다.</span>
+            <span className="pre-specs-detail-decision-note">적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않아요. 입찰 참여 여부는 최종 Go/No-Go에서 정해요.</span>
           </div>
           {onReviewExclusion ? <Button size="sm" variant="secondary"
             label={item.review_exclusion_status === "excluded" ? "검토 목록으로 복원" : "검토 제외"}

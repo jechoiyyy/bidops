@@ -40,11 +40,11 @@ export function parseRecordTab(value: string | undefined): RecordTab | null {
 
 /** 후속 기능이 채울 탭의 빈 상태 문장(spec "화면"). 판정 탭은 RL-03, 제안서 탭은 RL-04가 채웠으므로 여기에 없다. */
 export const RECORD_TAB_EMPTY: Partial<Record<RecordTab, string>> = {
-  documents: "제출 서류 체크는 준비 중입니다",
-  source: "원문은 공고 상세에서 봅니다",
+  documents: "제출 서류 체크는 준비 중이에요",
+  source: "원문은 공고 상세에서 봐요",
 };
 
-export const SIMILAR_EMPTY_NO_NOTICE = "공고가 연결되면 비슷한 공고를 찾습니다";
+export const SIMILAR_EMPTY_NO_NOTICE = "공고가 연결되면 비슷한 공고를 찾아요";
 
 // ---------------------------------------------------------------------------
 // 단계 바

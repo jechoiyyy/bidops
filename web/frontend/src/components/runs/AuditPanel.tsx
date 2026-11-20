@@ -96,20 +96,20 @@ export function AuditPanel({ panelId }: { panelId: string }) {
           />
         </div>
         <div className="rs-list-scroll">
-          {detailQuery.isPending && selectedRunId ? <div className="rs-list-empty"><Caption>산출물 목록을 불러오는 중입니다.</Caption></div> : null}
+          {detailQuery.isPending && selectedRunId ? <div className="rs-list-empty"><Caption>산출물 목록을 불러오는 중이에요.</Caption></div> : null}
           {detailQuery.isError ? (
             <div className="rs-list-empty">
               <FileSearch aria-hidden="true" />
-              <Text as="p">산출물 목록을 불러오지 못했습니다.</Text>
-              <Caption>조회 실패는 산출물 0건이 아닙니다.</Caption>
+              <Text as="p">산출물 목록을 불러오지 못했어요.</Text>
+              <Caption>조회 실패는 산출물 0건이 아니에요.</Caption>
               <Button label="다시 시도" size="sm" onClick={() => void detailQuery.refetch()} />
             </div>
           ) : null}
           {!detailQuery.isPending && !detailQuery.isError && artifacts.length === 0 ? (
             <div className="rs-list-empty">
               <FileSearch aria-hidden="true" />
-              <Text as="p">이 회차에 연결된 산출물이 없습니다.</Text>
-              <Caption>없음을 검증 통과로 읽지 않습니다.</Caption>
+              <Text as="p">이 회차에 연결된 산출물이 없어요.</Text>
+              <Caption>없음을 검증 통과로 읽지 않아요.</Caption>
             </div>
           ) : null}
           {artifacts.map((item) => (
@@ -129,7 +129,7 @@ export function AuditPanel({ panelId }: { panelId: string }) {
         </div>
         <footer className="rs-list-foot">
           <Caption>
-            {selectedRunId ? `회차 ${selectedRunId} 기준` : "회차를 먼저 고릅니다"}
+            {selectedRunId ? `회차 ${selectedRunId} 기준` : "회차를 먼저 골라요"}
             {detail ? ` · 경고 합계 ${warningTotal}건` : ""}
           </Caption>
         </footer>
@@ -170,24 +170,24 @@ export function AuditPanel({ panelId }: { panelId: string }) {
                   />
                 </Section>
               ) : (
-                <Caption>{artifact.present ? "기록된 검증 경고가 없습니다." : "생성 전이므로 검증 경고를 셀 수 없습니다."}</Caption>
+                <Caption>{artifact.present ? "기록된 검증 경고가 없어요." : "생성 전이므로 검증 경고를 셀 수 없어요."}</Caption>
               )}
 
               {activeExecution ? (
-                <Note title="이 회차의 판정 실행이 아직 진행 중입니다" tone="warning">
+                <Note title="이 회차의 판정 실행이 아직 진행 중이에요" tone="warning">
                   실행 <span className="rs-mono">{activeExecution.execution_id}</span>이 {screeningStatusLabel(activeExecution.status)}
-                  {" "}상태입니다. 지금 산출물은 부분 결과일 수 있으므로 완전한 성공 결과로 발행하지 않습니다.
+                  {" "}상태예요. 지금 산출물은 부분 결과일 수 있으므로 완전한 성공 결과로 발행하지 않아요.
                 </Note>
               ) : null}
               {!executionScopeKnown ? (
-                <Note title="이 회차와 연결된 실행 상태를 확인하지 못했습니다">
-                  최종 결과인지 부분 결과인지 이 화면이 단정하지 않습니다.
+                <Note title="이 회차와 연결된 실행 상태를 확인하지 못했어요">
+                  최종 결과인지 부분 결과인지 이 화면이 단정하지 않아요.
                 </Note>
               ) : null}
 
-              <Note title="최종 결과 여부는 파일 이름으로 판단하지 않습니다">
-                산출물이 최종인지 부분인지는 연결된 실행의 종결 상태로만 확인합니다. 이 화면은 파일이 있다는
-                사실을 완료로 바꾸지 않습니다.
+              <Note title="최종 결과 여부는 파일 이름으로 판단하지 않아요">
+                산출물이 최종인지 부분인지는 연결된 실행의 종결 상태로만 확인해요. 이 화면은 파일이 있다는
+                사실을 완료로 바꾸지 않아요.
               </Note>
 
               <Section title="회차 수집 범위">
@@ -208,7 +208,7 @@ export function AuditPanel({ panelId }: { panelId: string }) {
                 />
               </Section>
 
-              <Caption>내부 경로와 원문·모델 응답 본문은 이 화면에 노출하지 않습니다.</Caption>
+              <Caption>내부 경로와 원문·모델 응답 본문은 이 화면에 노출하지 않아요.</Caption>
 
               <details className="rs-disclosure">
                 <summary>회차 전체 경고 집계</summary>
@@ -219,7 +219,7 @@ export function AuditPanel({ panelId }: { panelId: string }) {
                     rows={Object.entries(warningCounts).map(([key, value]) => ({ id: key, cells: [key, `${value}건`] }))}
                   />
                 ) : (
-                  <Caption>집계된 경고가 없습니다.</Caption>
+                  <Caption>집계된 경고가 없어요.</Caption>
                 )}
               </details>
             </div>
@@ -241,8 +241,8 @@ export function AuditPanel({ panelId }: { panelId: string }) {
         ) : (
           <div className="rs-detail-empty">
             <FileSearch aria-hidden="true" />
-            <Text as="p">확인할 산출물을 고르십시오.</Text>
-            <Caption>회차를 고르면 그 회차에 연결된 산출물과 검증 상태를 확인할 수 있습니다.</Caption>
+            <Text as="p">확인할 산출물을 골라 주세요.</Text>
+            <Caption>회차를 고르면 그 회차에 연결된 산출물과 검증 상태를 확인할 수 있어요.</Caption>
           </div>
         )}
       </section>

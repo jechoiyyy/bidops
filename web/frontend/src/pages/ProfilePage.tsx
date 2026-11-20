@@ -66,12 +66,12 @@ const STATE_LABELS: Record<ProfileSectionState, string> = {
 };
 
 const ERROR_LABELS: Record<ProfileErrorCode, string> = {
-  profile_snapshot_unavailable: "승인된 프로필 사본을 읽지 못했습니다.",
-  profile_source_unavailable: "프로필 원본을 읽지 못했습니다.",
-  profile_yaml_unclosed: "YAML 블록이 닫히지 않아 해당 절을 구조화하지 못했습니다.",
-  profile_yaml_invalid: "YAML 형식이 올바르지 않아 해당 절을 구조화하지 못했습니다.",
-  profile_section_unstructured: "해당 절에 구조화되지 않은 내용이 있습니다.",
-  profile_references_unavailable: "판정 참조 횟수를 집계할 수 없습니다.",
+  profile_snapshot_unavailable: "승인된 프로필 사본을 읽지 못했어요.",
+  profile_source_unavailable: "프로필 원본을 읽지 못했어요.",
+  profile_yaml_unclosed: "YAML 블록이 닫히지 않아 해당 절을 구조화하지 못했어요.",
+  profile_yaml_invalid: "YAML 형식이 올바르지 않아 해당 절을 구조화하지 못했어요.",
+  profile_section_unstructured: "해당 절에 구조화되지 않은 내용이 있어요.",
+  profile_references_unavailable: "판정 참조 횟수를 집계할 수 없어요.",
 };
 
 /** 사본 자체를 읽지 못한 상태. 빈 목록과 뜻이 다르므로 따로 센다. */
@@ -135,9 +135,9 @@ function hasUnknownsPayload(data: ProfileUnknownsResponse | undefined): boolean 
 }
 
 function errorMessages(value: unknown, label: string): string[] {
-  if (!isStringArray(value)) return [`${label} 응답의 오류 코드를 확인할 수 없습니다.`];
+  if (!isStringArray(value)) return [`${label} 응답의 오류 코드를 확인할 수 없어요.`];
   return value.map((code) => {
-    if (!Object.prototype.hasOwnProperty.call(ERROR_LABELS, code)) return `확인되지 않은 프로필 오류 코드입니다 (코드: ${code}).`;
+    if (!Object.prototype.hasOwnProperty.call(ERROR_LABELS, code)) return `확인되지 않은 프로필 오류 코드예요 (코드: ${code}).`;
     return `${ERROR_LABELS[code as ProfileErrorCode]} (코드: ${code})`;
   });
 }
@@ -227,7 +227,7 @@ function visibleItems(section: ProfileSection, filter: ProfileFilter, query: str
 }
 
 function referenceLabel(item: ProfileUnknown): string {
-  if (item.reference_status === "unavailable" || item.reference_count === null) return "집계 불가 · 판정 원문을 읽지 못했습니다";
+  if (item.reference_status === "unavailable" || item.reference_count === null) return "집계 불가 · 판정 원문을 읽지 못했어요";
   return `${formatNumber(item.reference_count)}회`;
 }
 
@@ -266,17 +266,17 @@ function SectionTree({ section, filter, query, unknowns, depth }: {
             <span className="crit-cell-stack" key="value">
               <Text>{valueLabel(item.value)}</Text>
               {/* 확정 항목에는 덧붙이지 않는다. 상태 자체는 오른쪽 칸이 말한다. */}
-              {item.status === "unknown" ? <Small>확인 전까지 확정된 회사 역량으로 사용하지 않습니다.</Small> : null}
-              {item.status === "inferred" ? <Small>원문과 증빙 확인 전까지 추정입니다.</Small> : null}
+              {item.status === "unknown" ? <Small>확인 전까지 확정된 회사 역량으로 사용하지 않아요.</Small> : null}
+              {item.status === "inferred" ? <Small>원문과 증빙 확인 전까지 추정이에요.</Small> : null}
             </span>,
             <StatusToken key="status" label={STATE_LABELS[item.status]} />,
           ])}
         />
       ) : (
-        <Small>{counts.items === 0 ? "이 절에는 구조화된 항목이 없습니다." : "현재 필터·검색에 맞는 항목이 이 절에 없습니다."}</Small>
+        <Small>{counts.items === 0 ? "이 절에는 구조화된 항목이 없어요." : "현재 필터·검색에 맞는 항목이 이 절에 없어요."}</Small>
       )}
       {codes.length > 0 ? (
-        <Note role="alert" title="이 절의 일부 내용을 구조화하지 못했습니다" tone="warning">
+        <Note role="alert" title="이 절의 일부 내용을 구조화하지 못했어요" tone="warning">
           {`위치 ${section.id}${section.number ? ` · ${section.number}` : ""} · ${section.title} — ${errorMessages(codes, "이 절").join(" ")}`}
         </Note>
       ) : null}
@@ -304,7 +304,7 @@ function SectionTree({ section, filter, query, unknowns, depth }: {
             <Small>
               {`이 절의 상태 집계 · ${Object.entries(section.status_counts).map(([status, count]) => `${status} ${countLabel(count)}`).join(" · ") || "값 없음 (빈 목록)"}`}
             </Small>
-          ) : <Small>이 절의 상태 집계를 확인할 수 없습니다.</Small>}
+          ) : <Small>이 절의 상태 집계를 확인할 수 없어요.</Small>}
         </Disclosure>
       ) : null}
       {children.length > 0 ? (
@@ -362,9 +362,9 @@ export function ProfilePage() {
         <VerificationRequestsPanel />
         <div className="crit-workspace">
           <StateView
-            description="확인되지 않은 항목 수와 상태는 조회가 끝난 뒤 표시합니다."
+            description="확인되지 않은 항목 수와 상태는 조회가 끝난 뒤 표시해요."
             kind="loading"
-            title="회사 프로필을 읽는 중입니다"
+            title="회사 프로필을 읽는 중이에요"
           />
         </div>
       </div>
@@ -377,9 +377,9 @@ export function ProfilePage() {
         <div className="crit-workspace">
           <StateView
             action={<Button label="다시 조회" onClick={() => { void sectionsQuery.refetch(); void unknownsQuery.refetch(); }} />}
-            description="승인된 프로필 사본과 구조화 상태를 확인할 수 없습니다. 조회 실패를 0건이나 정상 상태로 표시하지 않습니다."
+            description="승인된 프로필 사본과 구조화 상태를 확인할 수 없어요. 조회 실패를 0건이나 정상 상태로 표시하지 않아요."
             kind="error"
-            title="회사 프로필을 불러오지 못했습니다."
+            title="회사 프로필을 불러오지 못했어요"
           />
         </div>
       </div>
@@ -409,7 +409,7 @@ export function ProfilePage() {
       <div className="crit-workspace">
       <Queue
         count={!readFailure && sectionsPayloadAvailable ? visibleSections.length : null}
-        emptyText={readFailure ? "프로필 응답을 확인할 수 없습니다." : sections.length === 0 ? "표시할 프로필 절이 없습니다." : "검색·필터 조건에 맞는 절이 없습니다."}
+        emptyText={readFailure ? "프로필 응답을 확인할 수 없어요." : sections.length === 0 ? "표시할 프로필 절이 없어요." : "검색·필터 조건에 맞는 절이 없어요."}
         footer={
           <span className="crit-profile-summary">
             {(["confirmed", "inferred", "unknown"] as const).map((status, index) => (
@@ -466,7 +466,7 @@ export function ProfilePage() {
         {readFailure && selected ? (
           <div className="crit-detail-alert">
             <Note role="alert" title="프로필 응답 확인 필요" tone="error">
-              {responseMessages.length > 0 ? responseMessages.join(" ") : "응답 형식이 불완전하여 일부 상태를 미확인으로 표시합니다."}
+              {responseMessages.length > 0 ? responseMessages.join(" ") : "응답 형식이 불완전하여 일부 상태를 미확인으로 표시해요."}
             </Note>
           </div>
         ) : null}
@@ -487,25 +487,25 @@ export function ProfilePage() {
               </ul>
               {selectedCounts.confirmed < selectedCounts.items ? (
                 <Note title={`추가 확인 필요 · ${selectedCounts.items - selectedCounts.confirmed}개 항목`}>
-                  추정·미확인 항목은 원문과 증빙 확인 전까지 확정된 회사 역량으로 사용하지 않습니다.
+                  추정·미확인 항목은 원문과 증빙 확인 전까지 확정된 회사 역량으로 사용하지 않아요.
                 </Note>
               ) : null}
               <Section title="미확인 항목 참조 횟수">
                 <Small>
-                  {`판정의 근거 source·fact와 확인 항목 why에서 절 번호 또는 항목 이름이 언급된 횟수입니다. 참조 필드 · ${referenceFields.length > 0 ? referenceFields.join(", ") : "값 없음 (빈 목록)"}`}
+                  {`판정의 근거 source·fact와 확인 항목 why에서 절 번호 또는 항목 이름이 언급된 횟수예요. 참조 필드 · ${referenceFields.length > 0 ? referenceFields.join(", ") : "값 없음 (빈 목록)"}`}
                 </Small>
                 <Facts items={[
                   ["프로필 전체 미확인 항목", unknownTotal === null ? "미확인" : `${formatNumber(unknownTotal)}건`],
                   ["이 절의 미확인 항목", `${unknowns.filter((item) => item.section_id === selected.id).length}건`],
                 ]} />
                 {unknownTotal === null ? (
-                  <Note role="alert" title="미확인 항목 수를 확정할 수 없습니다" tone="warning">
-                    프로필 사본 읽기 오류가 있어 0건으로 표시하지 않습니다.
+                  <Note role="alert" title="미확인 항목 수를 확정할 수 없어요" tone="warning">
+                    프로필 사본 읽기 오류가 있어 0건으로 표시하지 않아요.
                   </Note>
                 ) : null}
               </Section>
             </div>
-            <DetailFooter note={<><LockKeyhole aria-hidden="true" /> 승인 사본은 이 화면에서 편집할 수 없습니다.</>}>
+            <DetailFooter note={<><LockKeyhole aria-hidden="true" /> 승인 사본은 이 화면에서 편집할 수 없어요.</>}>
               <Button label="사본 정보" onClick={() => setSnapshotOpen(true)} size="sm" />
             </DetailFooter>
           </>
@@ -515,12 +515,12 @@ export function ProfilePage() {
               ? <Button label="다시 조회" onClick={() => { void sectionsQuery.refetch(); void unknownsQuery.refetch(); }} />
               : <Button label="필터 초기화" onClick={() => updateParams({ pq: null, pstatus: null, psection: null })} />}
             description={readFailure
-              ? responseMessages.join(" ") || "응답 형식이 불완전하여 항목 수와 상태를 확인할 수 없습니다."
+              ? responseMessages.join(" ") || "응답 형식이 불완전하여 항목 수와 상태를 확인할 수 없어요."
               : sections.length === 0
-              ? "승인된 사본에 표시할 절이 없습니다. 조회 실패와 빈 사본은 다른 상태입니다."
-              : "검색어와 확인 상태 필터를 바꾸면 다른 절을 볼 수 있습니다."}
+              ? "승인된 사본에 표시할 절이 없어요. 조회 실패와 빈 사본은 다른 상태예요."
+              : "검색어와 확인 상태 필터를 바꾸면 다른 절을 볼 수 있어요."}
             kind={readFailure ? "error" : "empty"}
-            title={readFailure ? "프로필 응답 확인 필요" : sections.length === 0 ? "표시할 프로필 절이 없습니다." : "조건에 맞는 절이 없습니다."}
+            title={readFailure ? "프로필 응답 확인 필요" : sections.length === 0 ? "표시할 프로필 절이 없어요." : "조건에 맞는 절이 없어요."}
           />
         )}
       </section>
@@ -534,8 +534,8 @@ export function ProfilePage() {
           ["절 수", sectionsPayloadAvailable ? `${sections.length}개` : "미확인"],
           ["미확인 항목", unknownTotal === null ? "미확인" : `${formatNumber(unknownTotal)}건`],
         ]} />
-        <Note title="이 화면에는 프로필 편집 API가 없습니다">
-          원본 파일 경로와 원문 블록은 응답에 포함되지 않으며 화면도 보관하지 않습니다.
+        <Note title="이 화면에는 프로필 편집 API가 없어요">
+          원본 파일 경로와 원문 블록은 응답에 포함되지 않으며 화면도 보관하지 않아요.
         </Note>
         {responseMessages.length > 0 ? (
           <Disclosure summary="응답 오류 코드">

@@ -106,7 +106,7 @@ function RecordFacts({ link }: { link: OpportunityLinkView }) {
       {route ? (
         <Link className="opportunity-linked-link" to={route}>{recordRouteLabel(link)} →</Link>
       ) : (
-        <p className="opportunity-caption">원천 상세 화면으로 갈 식별자가 없습니다.</p>
+        <p className="opportunity-caption">원천 상세 화면으로 갈 식별자가 없어요.</p>
       )}
     </>
   );
@@ -185,10 +185,10 @@ export function CandidateLinkDialog({
       await queryClient.invalidateQueries({ queryKey: ["opportunities"] });
       onSaved(
         chosen === "기각"
-          ? "후보 연결을 기각으로 기록했습니다."
+          ? "후보 연결을 기각으로 기록했어요."
           : saved?.status === "사람 확인 병합"
-            ? "후보를 수용해 두 사업기회를 병합했습니다(사람 확인 병합)."
-            : "후보 연결을 수용으로 기록했습니다.",
+            ? "후보를 수용해 두 사업기회를 병합했어요(사람 확인 병합)."
+            : "후보 연결을 수용으로 기록했어요.",
       );
     },
     onError: (caught: unknown) => {
@@ -199,7 +199,7 @@ export function CandidateLinkDialog({
         return;
       }
       setConflict(null);
-      setProblem(describeApiError(caught, "후보 연결 판정을 저장하지 못했습니다."));
+      setProblem(describeApiError(caught, "후보 연결 판정을 저장하지 못했어요."));
     },
   });
 
@@ -213,11 +213,11 @@ export function CandidateLinkDialog({
   };
 
   const disabledReason = mutation.isPending
-    ? "후보 연결 판정을 저장하고 있습니다."
+    ? "후보 연결 판정을 저장하고 있어요."
     : !validReason
-      ? "판정을 저장하려면 판단 사유를 고르거나 직접 입력하십시오."
+      ? "판정을 저장하려면 판단 사유를 고르거나 직접 입력해 주세요."
       : !actorName.trim()
-        ? "판정을 저장하려면 결정 기록자를 입력하십시오."
+        ? "판정을 저장하려면 결정 기록자를 입력해 주세요."
         : null;
 
   return (
@@ -240,7 +240,7 @@ export function CandidateLinkDialog({
         />
         {discarding ? (
           <>
-            <p>저장하지 않은 입력이 있습니다. 닫으면 입력한 내용이 사라지며 연결 상태는 바뀌지 않습니다.</p>
+            <p>저장하지 않은 입력이 있어요. 닫으면 입력한 내용이 사라지며 연결 상태는 바뀌지 않아요.</p>
             <div className="opportunity-dialog-actions">
               <Button label="계속 작성" onClick={() => setDiscarding(false)} />
               <Button
@@ -261,7 +261,7 @@ export function CandidateLinkDialog({
                 {current ? (
                   <RecordFacts link={current} />
                 ) : (
-                  <p>확정된 연결이 아직 없습니다. 비교할 확정 레코드가 없다는 뜻이며 후보가 맞다는 뜻이 아닙니다.</p>
+                  <p>확정된 연결이 아직 없어요. 비교할 확정 레코드가 없다는 뜻이며 후보가 맞다는 뜻이 아니에요.</p>
                 )}
               </section>
               <section aria-label={mergeCandidate ? "공식 번호로 이어진 병합 확인 후보" : "이름 검색으로 발견한 후보"}>
@@ -275,8 +275,8 @@ export function CandidateLinkDialog({
             </div>
             <p>
               {mergeCandidate
-                ? "이 레코드는 공식 번호로 이어졌지만 사람이 고른 추적 상태를 가진 다른 사업기회가 갖고 있어 자동으로 병합하지 않았습니다. 수용하면 두 사업기회가 병합되고 후보는 사람 확인 병합으로 남습니다."
-                : "사업명과 기관이 같아도 같은 사업으로 자동 확정하지 않습니다. 원천 정보를 확인하고 연결 여부를 선택해 주세요."}
+                ? "이 레코드는 공식 번호로 이어졌지만 사람이 고른 추적 상태를 가진 다른 사업기회가 갖고 있어 자동으로 병합하지 않았어요. 수용하면 두 사업기회가 병합되고 후보는 사람 확인 병합으로 남아요."
+                : "사업명과 기관이 같아도 같은 사업으로 자동 확정하지 않아요. 원천 정보를 확인하고 연결 여부를 선택해 주세요."}
             </p>
             <div className="opportunity-form-columns">
               <Selector
@@ -302,7 +302,7 @@ export function CandidateLinkDialog({
                 <span>판단 사유 직접 입력</span>
                 <input
                   onChange={(event) => setCustom(event.target.value)}
-                  placeholder="사유를 직접 입력합니다"
+                  placeholder="사유를 직접 입력해요"
                   value={custom}
                 />
               </label>
@@ -317,17 +317,17 @@ export function CandidateLinkDialog({
             />
             {problem ? (
               <MutationFeedback problem={problem} tone="error">
-                <p>연결 상태는 바뀌지 않았습니다. 입력한 내용은 그대로 남아 있습니다.</p>
+                <p>연결 상태는 바뀌지 않았어요. 입력한 내용은 그대로 남아 있어요.</p>
               </MutationFeedback>
             ) : null}
             {conflict ? (
               <MutationFeedback className="opportunity-merge-conflict" tone="error">
-                <p><strong>병합할 수 없습니다</strong></p>
+                <p><strong>병합할 수 없어요</strong></p>
                 {/* 상태가 같고 신호가 없으면 서버가 병합하므로(ADR-0068) 이 안내가
                     뜨는 경우는 둘뿐이다. 시안 문구를 그 사실에 맞춰 적는다. */}
                 <p>
-                  두 사업기회의 추적 상태가 다르거나 한쪽에 재검토 신호가 있어 병합할 수 없습니다. 한쪽을
-                  미선택으로 되돌린 뒤 다시 수락하십시오.
+                  두 사업기회의 추적 상태가 다르거나 한쪽에 재검토 신호가 있어 병합할 수 없어요. 한쪽을
+                  미선택으로 되돌린 뒤 다시 수락해 주세요.
                 </p>
                 {conflict.length > 0 ? (
                   <ul aria-label="병합 대상 사업기회의 추적 상태" className="opportunity-dialog-list">
@@ -344,18 +344,18 @@ export function CandidateLinkDialog({
                         </p>
                         {reverted.includes(state.id) ? (
                           <p className="opportunity-caption">
-                            미선택으로 되돌렸습니다. 위 상태는 되돌리기 전의 값입니다.
+                            미선택으로 되돌렸어요. 위 상태는 되돌리기 전의 값이에요.
                           </p>
                         ) : (
                           <TrackingResetControl
                             actorName={actorName}
                             currentStatus={state.tracking_status}
                             label={trackingResetLabel(state.id)}
-                            note="되돌려도 후보 수락은 자동으로 다시 시도하지 않습니다. 되돌린 뒤 다시 수락하십시오."
+                            note="되돌려도 후보 수락은 자동으로 다시 시도하지 않아요. 되돌린 뒤 다시 수락해 주세요."
                             onReset={() => {
                               setReverted((current) => [...current, state.id]);
                               setNotice(
-                                `사업 #${String(state.id).padStart(3, "0")}의 추적 결정을 미선택으로 되돌렸습니다. 다시 수락하십시오.`,
+                                `사업 #${String(state.id).padStart(3, "0")}의 추적 결정을 미선택으로 되돌렸어요. 다시 수락해 주세요.`,
                               );
                             }}
                             opportunityId={state.id}
@@ -365,9 +365,9 @@ export function CandidateLinkDialog({
                     ))}
                   </ul>
                 ) : (
-                  <p className="opportunity-caption">서버가 양쪽 사업기회의 상태를 주지 않았습니다. 사업 추적 목록에서 두 사업을 직접 확인하세요.</p>
+                  <p className="opportunity-caption">서버가 양쪽 사업기회의 상태를 주지 않았어요. 사업 추적 목록에서 두 사업을 직접 확인하세요.</p>
                 )}
-                <p>연결 상태는 바뀌지 않았습니다. 입력한 내용은 그대로 남아 있습니다.</p>
+                <p>연결 상태는 바뀌지 않았어요. 입력한 내용은 그대로 남아 있어요.</p>
               </MutationFeedback>
             ) : null}
             {notice ? (
@@ -377,7 +377,7 @@ export function CandidateLinkDialog({
             ) : null}
             <div className="opportunity-dialog-actions">
               <p className="opportunity-caption">
-                이 판정은 연결 관계만 바꿉니다. 추적 상태·적합성 등급·참여 준비 상태·최종 Go/No-Go는 그대로입니다.
+                이 판정은 연결 관계만 바꿔요. 추적 상태·적합성 등급·참여 준비 상태·최종 Go/No-Go는 그대로예요.
               </p>
               <Button label="취소" onClick={requestClose} />
               <Button
