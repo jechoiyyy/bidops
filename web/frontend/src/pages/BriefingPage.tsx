@@ -4,9 +4,10 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { BriefingTable } from "../components/briefing/BriefingTable";
 import { PeekPanel } from "../components/briefing/PeekPanel";
-import { ActorField } from "../components/common/ActorField";
+import { useRememberedActorName } from "../components/common/ActorField";
 import { EmptyState } from "../components/common/EmptyState";
-import { PageHeaderActions } from "../components/common/PageHeaderActions";
+import { PageHeaderActions, PageHeaderTabs } from "../components/common/PageHeaderActions";
+import { usePageHeader } from "../components/shell/PageHeaderContext";
 import { Toast, type ToastVariant } from "../components/common/Toast";
 import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
 import { ApiError, api } from "../lib/api";
@@ -15,9 +16,14 @@ import {
   BRIEFING_TABS,
   BRIEFING_TAB_LABEL,
   BRIEFING_TAB_REACTION,
+  collectionBasisLabel,
   countByTab,
-  formatBriefingDate,
+  deadlineCell,
+  deadlineGroup,
+  formatBriefingDateLong,
   isIsoDate,
+  kstToday,
+  monthDayLabel,
   parseBriefingTab,
   previousWeekday,
   safeRecordPath,
@@ -38,6 +44,10 @@ import "../styles/briefing.css";
  * - 반응은 추적 상태를 바꾸지 않는다. 저장은 서버가 확인한 뒤 화면에 반영하고(조용한 덮어쓰기
  *   없음), 5초 토스트의 되돌리기·`Z`는 이전 값으로의 새 PATCH다.
  * - 판정 블록·다음 행동·공고 추가·공유·가져오기·보기 설정은 대응 필드가 없어 그리지 않는다.
+ * - 2026-11-19 최종 시안(`docs/1119_kstyle-shell/mockups/FinalBriefing.dc.html`): 패널 헤더에 문장형
+ *   제목(반응 대기 건수)·설명(마감 전 건수·가장 가까운 마감)·수집 상태(브리핑 status와 계약상 기준일
+ *   D-1)·이전 브리핑 링크·탭을 올리고, 본문은 마감 전 / 마감일 없음 / 마감 지남 묶음의 행이며 반응
+ *   버튼은 행 안에 있다. 담당자 이름은 사이드바 담당자 칸 하나(`bidops.actorName`)를 쓴다.
  * - 표시 금지: 정책·점수·초 단위 생성 시각·집계 분모·모델명.
  */
 
@@ -45,6 +55,17 @@ const NOT_FOUND_TITLE = "이 환경에서 만들어진 브리핑이 없습니다
 const EMPTY_TITLE = "오늘 추천할 공고가 없습니다 · 수집 정상";
 const COLLECTION_TITLE = "오늘 수집이 끝나지 않았습니다";
 const PANEL_ID = "briefing-panel";
+
+/** 행 묶음 순서(최종 시안): 마감 전 → 마감일 없음 → 마감 지남. 추적 변화는 따로 맨 뒤다. */
+type RowGroup = "open" | "undated" | "closed";
+const GROUP_ORDER: readonly RowGroup[] = ["open", "undated", "closed"];
+
+function groupTitle(group: RowGroup, items: readonly BriefingItemView[]): string {
+  if (group === "open") return "마감 전";
+  if (group === "undated") return "마감일이 정해지지 않았어요";
+  // 지난 마감이 모두 의견 마감이면 시안 그대로 `의견 마감이 지났어요`다.
+  return items.every((item) => item.deadline_kind === "opinion_close") ? "의견 마감이 지났어요" : "마감이 지났어요";
+}
 /** 되돌리기 토스트가 떠 있는 시간. 이 안에서만 `Z`가 이전 값으로 되돌린다. */
 const UNDO_WINDOW_MS = 5_000;
 /** 반응할 곳이 없어 초점을 목록 영역 자체에 둘 때의 표식. */
@@ -101,7 +122,8 @@ export function BriefingPage() {
   });
   const briefing = query.data;
 
-  const [actorName, setActorName] = useState("");
+  // 담당자 이름은 사이드바 담당자 칸 하나(`bidops.actorName`)를 쓴다(최종 시안). 감사 표식이며 인증이 아니다.
+  const actorName = useRememberedActorName().trim();
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const lockRef = useRef(false);
@@ -207,8 +229,11 @@ export function BriefingPage() {
       if (!current || current.kind !== "recommendation" || current.reaction === null) return;
       if (lockRef.current) return;
       if (!state.actorName.trim()) {
-        showNotice("담당자 이름을 입력한 뒤 다시 누르세요. 이름은 기록에 남는 표식이며 인증이 아닙니다.", "warning");
-        document.getElementById("briefing-actor")?.focus();
+        showNotice("담당자 이름을 입력한 뒤 다시 눌러 주세요. 사이드바 담당자 칸의 이름이 기록에 남아요(인증이 아니에요).", "warning");
+        // 이름은 사이드바 담당자 칸에서 받는다. 칸이 닫혀 있으면 열어 입력에 초점을 둔다.
+        const field = document.getElementById("sidebar-actor-input");
+        if (field) field.focus();
+        else document.querySelector<HTMLButtonElement>(".sidebar-actor-trigger")?.click();
         return;
       }
       // 이미 선택된 반응을 다시 누르면 `대기`로 돌아간다(토글). 되돌리기는 이전 값 그대로다.
@@ -351,9 +376,41 @@ export function BriefingPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [navigate, react, select, undo]);
 
-  // ---- 본문 ----------------------------------------------------------------
+  // ---- 패널 헤더 ------------------------------------------------------------
   const notFound = invalidDate || (query.isError && query.error instanceof ApiError && query.error.status === 404);
   const previousDate = briefing ? previousWeekday(briefing.briefing_date) : null;
+  // 문장의 숫자는 이미 받은 응답에서만 센다: 반응 대기 건수(탭 건수와 같은 값)와 그 가운데 마감 전인 건.
+  const openPending = useMemo(
+    () => recommendations
+      .filter((item) => item.reaction === "대기" && deadlineGroup(item) === "open")
+      .sort((left, right) => (deadlineCell(left).days ?? 0) - (deadlineCell(right).days ?? 0)),
+    [recommendations],
+  );
+  const headerContent = briefing ? (() => {
+    const today = briefing.briefing_date === kstToday() ? "오늘 " : "";
+    const pending = counts.pending;
+    const title = briefing.status === "empty"
+      ? `${today}추천할 공고가 없어요`
+      : pending > 0
+        ? `${today}반응할 추천이 ${pending.toLocaleString("ko-KR")}건 있어요`
+        : `${today}추천에 모두 반응했어요`;
+    const nearest = openPending[0]?.deadline_at ? monthDayLabel(openPending[0].deadline_at) : null;
+    const description = briefing.status === "empty" || pending === 0
+      ? null
+      : openPending.length === 0
+        ? "반응을 기다리는 추천 가운데 마감 전인 건은 없어요."
+        : openPending.length === 1
+          ? `마감 전인 건은 1건이고, ${nearest}에 마감돼요.`
+          : `마감 전인 건은 ${openPending.length.toLocaleString("ko-KR")}건이고, 가장 가까운 마감은 ${nearest}이에요.`;
+    return { eyebrow: `오늘의 브리핑 · ${formatBriefingDateLong(briefing.briefing_date)}`, title, description };
+  })() : null;
+  usePageHeader(headerContent);
+  const basis = briefing ? collectionBasisLabel(briefing.briefing_date) : null;
+  const grouped = useMemo(() => {
+    const result: Record<RowGroup, BriefingItemView[]> = { open: [], undated: [], closed: [] };
+    for (const item of visibleRecommendations) result[deadlineGroup(item)].push(item);
+    return result;
+  }, [visibleRecommendations]);
 
   let body;
   if (notFound) {
@@ -375,8 +432,8 @@ export function BriefingPage() {
     const tabEmpty = visibleRecommendations.length === 0;
     body = (
       <>
-        <div className="briefing-subbar">
-          <TabList onChange={changeTab} role="tablist" size="sm" value={activeTab}>
+        <PageHeaderTabs>
+          <TabList onChange={changeTab} role="tablist" size="md" value={activeTab}>
             {BRIEFING_TABS.map((tab) => (
               <Tab
                 endContent={<span className="briefing-tab-count" data-testid={`briefing-count-${tab}`}>{counts[tab]}</span>}
@@ -387,17 +444,8 @@ export function BriefingPage() {
               />
             ))}
           </TabList>
-          <div className="briefing-actor">
-            <ActorField
-              description="기록에 남는 이름이며 인증이 아닙니다."
-              id="briefing-actor"
-              label="담당자 이름"
-              onChange={setActorName}
-              showRememberNote={false}
-              value={actorName}
-            />
-          </div>
-        </div>
+        </PageHeaderTabs>
+
 
         {briefing.status === "collection_incomplete" ? (
           <section aria-label="수집 상태" className="briefing-warning" role="status">
@@ -426,23 +474,42 @@ export function BriefingPage() {
                 title={`${BRIEFING_TAB_LABEL[activeTab]} 항목이 없습니다`}
               />
             ) : (
-              <BriefingTable
-                items={visibleRecommendations}
-                label={`${BRIEFING_TAB_LABEL[activeTab]} 추천`}
-                onSelect={select}
-                rowProps={rowNavigation.rowProps}
-                selectedId={selectedId}
-              />
+              GROUP_ORDER.map((group) => {
+                const items = grouped[group];
+                if (items.length === 0) return null;
+                const titleId = `briefing-group-${group}`;
+                const heading = groupTitle(group, items);
+                return (
+                  <section aria-labelledby={titleId} className={`briefing-group is-${group}`} key={group}>
+                    <div className="briefing-group-head">
+                      <h2 className="briefing-group-title" id={titleId}>{heading}</h2>
+                      <span className="briefing-count" data-testid={`briefing-group-count-${group}`}>{items.length.toLocaleString("ko-KR")}건</span>
+                    </div>
+                    <BriefingTable
+                      busy={busy}
+                      emphasis={group === "open"}
+                      items={items}
+                      label={`${heading} 추천`}
+                      onReact={onReactPointer}
+                      onSelect={select}
+                      rowProps={rowNavigation.rowProps}
+                      selectedId={selectedId}
+                    />
+                  </section>
+                );
+              })
             )}
             {visibleTracked.length > 0 ? (
-              <section aria-labelledby="briefing-tracked-title" className="briefing-group">
-                <h3 className="briefing-group-title" id="briefing-tracked-title">
-                  추적 중인 사업의 변화
+              <section aria-labelledby="briefing-tracked-title" className="briefing-group is-tracked">
+                <div className="briefing-group-head">
+                  <h2 className="briefing-group-title" id="briefing-tracked-title">추적 중인 사업의 변화</h2>
                   <span className="briefing-count" data-testid="briefing-tracked-count">{visibleTracked.length}</span>
-                </h3>
+                </div>
                 <BriefingTable
+                  busy={busy}
                   items={visibleTracked}
                   label="추적 중인 사업의 변화"
+                  onReact={onReactPointer}
                   onSelect={select}
                   rowProps={rowNavigation.rowProps}
                   selectedId={selectedId}
@@ -452,7 +519,7 @@ export function BriefingPage() {
             ) : null}
           </div>
           {selectedItem ? (
-            <PeekPanel busy={busy} item={selectedItem} onClose={() => select(null)} onReact={onReactPointer} />
+            <PeekPanel item={selectedItem} onClose={() => select(null)} />
           ) : null}
         </div>
       </>
@@ -461,16 +528,25 @@ export function BriefingPage() {
 
   return (
     <section aria-labelledby="briefing-page-title" className="briefing-page" ref={pageRef}>
-      <h2 className="visually-hidden" id="briefing-page-title">오늘의 브리핑</h2>
+      <span className="visually-hidden" id="briefing-page-title">오늘의 브리핑</span>
       {briefing ? (
         <PageHeaderActions>
-          <span className="briefing-topbar-meta" data-testid="briefing-topbar-meta">
-            {briefing.item_count}건 · {formatBriefingDate(briefing.briefing_date)}
+          {/* 수집 상태: 브리핑 status가 수집 회차(계약상 D-1)의 완료 여부를 말한다. */}
+          <span className="panel-header-status" data-testid="briefing-collection-status">
+            {briefing.status === "collection_incomplete" ? (
+              <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} viewBox="0 0 24 24"><path d="M12 3 2 20h20z" /><path d="M12 10v4M12 17h.01" /></svg>
+            ) : (
+              <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.6} viewBox="0 0 24 24"><path d="m5 12 5 5 9-10" /></svg>
+            )}
+            <span>
+              <strong>{briefing.status === "collection_incomplete" ? "수집이 끝나지 않았어요" : "수집 완료"}</strong>
+              {basis ? ` · ${basis} 기준` : null}
+            </span>
           </span>
           {previousDate ? (
-            <Link className="briefing-topbar-link" to={{ pathname: "/briefing", search: `?date=${previousDate}` }}>이전 브리핑</Link>
+            <Link className="panel-header-link briefing-topbar-link" to={{ pathname: "/briefing", search: `?date=${previousDate}` }}>이전 브리핑</Link>
           ) : null}
-          {validDate ? <Link className="briefing-topbar-link" to="/briefing">최신 브리핑</Link> : null}
+          {validDate ? <Link className="panel-header-link briefing-topbar-link" to="/briefing">최신 브리핑</Link> : null}
         </PageHeaderActions>
       ) : null}
       {body}

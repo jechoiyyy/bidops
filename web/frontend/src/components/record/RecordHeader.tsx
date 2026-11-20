@@ -1,7 +1,8 @@
 import { Button } from "@astryxdesign/core/Button";
 import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
 import { Ellipsis } from "lucide-react";
-import { initialOf, type RecordDecisionAxis, type RecordPill } from "../../lib/record";
+import { PageHeaderActions } from "../common/PageHeaderActions";
+import type { RecordDecisionAxis, RecordPill } from "../../lib/record";
 
 /*
  * 레코드 헤더(ui-spec §3, RL-02 spec "레코드 헤더"): 기관 머리글자 아이콘(40px, teal) · 제목 ·
@@ -68,9 +69,11 @@ export interface RecordMenuState {
 
 interface RecordHeaderProps {
   title: string;
-  agency: string | null;
-  pills: readonly RecordPill[];
-  axes: readonly RecordDecisionAxis[];
+  /** 예전 머리글자 아이콘 자리. 최종 시안에서 아이콘을 뺐고 값은 셸 헤더의 화면 이름 줄이 쓴다. */
+  agency?: string | null;
+  /** 예전 상태 줄(pill·결정 축). 2026-11-19부터 셸 헤더의 태그·사실 줄이 같은 값을 보인다(여기서는 그리지 않는다). */
+  pills?: readonly RecordPill[];
+  axes?: readonly RecordDecisionAxis[];
   menu: RecordMenuState;
   verdict: RecordVerdictActions;
   proposal: RecordProposalActions;
@@ -78,7 +81,7 @@ interface RecordHeaderProps {
 
 const FOLLOW_UP_REASON = "후속 기능입니다";
 
-export function RecordHeader({ title, agency, pills, axes, menu, verdict, proposal }: RecordHeaderProps) {
+export function RecordHeader({ title, menu, verdict, proposal }: RecordHeaderProps) {
   const trackingItems = [
     { label: "추적 상태 변경", onClick: () => menu.onSelect("tracking") },
     {
@@ -132,25 +135,13 @@ export function RecordHeader({ title, agency, pills, axes, menu, verdict, propos
       ]
     : trackingItems;
   return (
-    <header className="rec-header" data-testid="record-header">
-      <span aria-hidden="true" className="rec-icon">{initialOf(agency)}</span>
-      <div className="rec-heading">
-        <h2 className="rec-title" data-testid="record-title">{title}</h2>
-        <ul aria-label="사업기회 상태" className="rec-pills">
-          {pills.map((pill) => (
-            <li className={`rec-pill is-${pill.tone}`} data-pill={pill.key} key={pill.key}>{pill.label}</li>
-          ))}
-        </ul>
-        <dl aria-label="결정 축 요약" className="rec-axes" data-testid="record-decision-axes">
-          {axes.map((axis) => (
-            <div className={`rec-axis is-${axis.tone}`} data-axis={axis.key} key={axis.key}>
-              <dt>{axis.label}</dt>
-              <dd>{axis.value}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
-      <div className="rec-actions">
+    <>
+      {/* 2026-11-19 최종 시안: 레코드 제목은 셸 패널 헤더의 `<h1>`이고, 상태(추적 태그·단계·마감·판정·판정 확인·최종
+          Go/No-Go)는 헤더의 태그와 사실 줄이 보인다. 이 컴포넌트는 탭별 액션을 헤더 오른쪽 슬롯으로 올리고 제목은
+          구역 이름으로 낭독기에만 남긴다. */}
+      <h2 className="rec-title visually-hidden" data-testid="record-title">{title}</h2>
+      <PageHeaderActions>
+      <div className="rec-actions" data-testid="record-header">
         {proposal.onProposalTab ? (
           <>
             {/* 초안이 없거나 생성 중이면 내보낼 수 없다. 이유는 title(마우스)과 숨은 설명(낭독기) 둘 다로 준다. */}
@@ -248,6 +239,7 @@ export function RecordHeader({ title, agency, pills, axes, menu, verdict, propos
           menuWidth={224}
         />
       </div>
-    </header>
+      </PageHeaderActions>
+    </>
   );
 }

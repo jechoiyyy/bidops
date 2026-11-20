@@ -626,3 +626,326 @@
 .rec-source-external {
   text-align: center;
 }
+
+/* ============================================================================
+ * 2026-11-19 최종 시안(docs/1119_kstyle-shell/mockups/FinalOpportunity.dc.html, ADR 초안 승인 대기).
+ *
+ * 레코드 제목·화면 이름 줄·추적 상태 표식·연결 상태 문장·탭은 셸 패널 헤더가 그린다. 이 화면의 머리
+ * (`.rec-header`)는 상태 요약(pill·결정 축)과 탭별 액션만 남은 한 줄이다. 활동 탭은 왼쪽 `사업 흐름`
+ * (세로 단계 흐름 → 활동) + 오른쪽 420px(`지금 할 일` 채움 블록 · `추적 상태` · 사업 정보)이다.
+ * 다른 탭(판정·제안서·서류·원문·비슷한 공고)은 이전 배치(왼쪽 정보 280px)를 그대로 쓴다.
+ * ==========================================================================*/
+.app-shell .rec-page {
+  font-size: var(--bo-k-body);
+  line-height: 1.5;
+}
+
+.app-shell .rec-header {
+  align-items: center;
+  padding: 0 0 var(--spacing-5);
+}
+
+.app-shell .rec-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2) var(--spacing-4);
+}
+
+.app-shell .rec-pill {
+  font-size: var(--bo-k-tag);
+}
+
+.app-shell .rec-axes {
+  font-size: var(--bo-k-meta);
+}
+
+/* 활동 탭: 왼쪽 흐름 + 오른쪽 420px(시안의 바깥 여백 24 사이). */
+.app-shell .rec-body.is-activity {
+  grid-template-columns: minmax(0, 1fr) 420px;
+  gap: var(--spacing-6);
+}
+
+.app-shell .rec-body.is-activity .rec-main {
+  gap: var(--spacing-5);
+  padding: 0;
+}
+
+.app-shell .rec-side.is-right {
+  gap: var(--spacing-3);
+  padding: 0;
+  border-right: 0;
+}
+
+.app-shell .rec-section-title {
+  margin: 0;
+  font-size: var(--bo-k-section);
+  font-weight: 700;
+}
+
+.app-shell .rec-section-title.is-activity {
+  margin-top: var(--spacing-3);
+}
+
+/* ---- 사업 흐름(세로) ---- */
+.app-shell .rec-flow {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell .rec-stagebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.app-shell .rec-stage,
+.app-shell .rec-flow-final {
+  position: relative;
+  display: flex;
+  justify-items: initial;
+  gap: var(--spacing-4);
+  padding: 0;
+}
+
+.app-shell .rec-stage::before {
+  display: none;
+}
+
+.app-shell .rec-stage-rail {
+  display: flex;
+  flex: 0 0 28px;
+  flex-direction: column;
+  align-items: center;
+}
+
+.app-shell .rec-stage-marker {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-full);
+  color: var(--color-on-dark);
+  background: var(--color-background-surface);
+  box-shadow: none;
+}
+
+.app-shell .rec-stage-marker svg {
+  width: 16px;
+  height: 16px;
+}
+
+.app-shell .rec-stage[data-state="done"] .rec-stage-marker {
+  border-color: var(--color-text-primary);
+  background: var(--color-text-primary);
+}
+
+.app-shell .rec-stage[data-state="current"] .rec-stage-marker {
+  border: 3px solid var(--color-text-primary);
+  background: var(--color-background-surface);
+  box-shadow: none;
+}
+
+.app-shell .rec-stage[data-state="upcoming_deadline"] .rec-stage-marker {
+  border: 3px solid var(--color-warning);
+}
+
+.app-shell .rec-stage-line {
+  flex: 1 1 auto;
+  width: 2px;
+  min-height: var(--spacing-4);
+  background: var(--color-border);
+}
+
+.app-shell .rec-stage[data-state="done"] .rec-stage-line {
+  background: var(--color-text-primary);
+}
+
+.app-shell .rec-stage-body {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: 0;
+  padding-bottom: 28px;
+}
+
+.app-shell .rec-stage.is-minor .rec-stage-body {
+  padding-bottom: var(--spacing-4);
+}
+
+.app-shell .rec-flow-final .rec-stage-body {
+  padding-bottom: 0;
+}
+
+.app-shell .rec-stage-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-height: 28px;
+}
+
+.app-shell .rec-stage-label {
+  color: var(--color-text-primary);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.app-shell .rec-stage.is-minor .rec-stage-label {
+  font-size: var(--bo-k-lead);
+  font-weight: 600;
+}
+
+.app-shell .rec-stage[data-state="pending"] .rec-stage-label,
+.app-shell .rec-stage[data-state="unknown"] .rec-stage-label {
+  color: var(--color-text-primary);
+}
+
+.app-shell .rec-stage[data-state="upcoming_deadline"] .rec-stage-label {
+  color: var(--color-warning);
+}
+
+.app-shell .rec-stage-status,
+.app-shell .rec-stage-unknown {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+  font-weight: 600;
+}
+
+.app-shell .rec-stage-day {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+}
+
+.app-shell .rec-stage-fact {
+  color: var(--color-text-primary);
+  font-size: var(--bo-k-lead);
+}
+
+.app-shell .rec-stage-sub {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+}
+
+/* ---- 지금 할 일(채움 블록) ---- */
+.app-shell .rec-todo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  padding: var(--spacing-6);
+  border-radius: var(--bo-panel-radius);
+  background: var(--color-background-muted);
+}
+
+.app-shell .rec-todo-title {
+  margin: 0;
+  font-size: var(--bo-k-section);
+  font-weight: 700;
+}
+
+.app-shell .rec-todo-candidate {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--spacing-4) 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-background-surface);
+}
+
+.app-shell .rec-todo-candidate-title {
+  font-size: var(--bo-k-body);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.app-shell .rec-todo-meta,
+.app-shell .rec-todo-note {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+}
+
+.app-shell .rec-todo-meta.is-primary {
+  color: var(--color-text-primary);
+}
+
+.app-shell .rec-todo-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.app-shell .rec-todo-primary,
+.app-shell .rec-todo-secondary {
+  height: var(--bo-k-control-primary);
+  border-radius: var(--radius-element);
+  font: inherit;
+  cursor: pointer;
+}
+
+.app-shell .rec-todo-primary {
+  border: 0;
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  font-size: var(--bo-k-button-lg);
+  font-weight: 700;
+}
+
+.app-shell .rec-todo-secondary {
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  background: var(--color-background-surface);
+  font-size: var(--bo-k-body);
+  font-weight: 600;
+}
+
+.app-shell .rec-todo-link,
+.app-shell .rec-tracking-change {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  color: var(--color-text-primary);
+  background: transparent;
+  font: inherit;
+  font-size: var(--bo-k-lead);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* ---- 추적 상태(테두리 블록) ---- */
+.app-shell .rec-tracking-block {
+  gap: var(--spacing-1);
+  padding: var(--spacing-5) var(--spacing-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--bo-panel-radius);
+}
+
+.app-shell .rec-tracking-block .rec-side-title {
+  margin-bottom: var(--spacing-1);
+  font-size: var(--bo-k-body);
+  font-weight: 700;
+}
+
+.app-shell .rec-tracking-sentence {
+  font-size: var(--bo-k-lead);
+}
+
+.app-shell .rec-tracking-block .rec-side-note {
+  font-size: var(--bo-k-meta);
+}
+
+.app-shell .rec-tracking-change {
+  align-self: flex-start;
+}
+
+/* 오른쪽 열의 나머지(사업 정보·다음 행동·다른 화면·제출 서류)는 위 블록과 같은 안쪽 여백으로 맞춘다. */
+.app-shell .rec-side.is-right > :not(.rec-todo, .rec-tracking-block) {
+  padding: var(--spacing-2) var(--spacing-6) 0;
+}
