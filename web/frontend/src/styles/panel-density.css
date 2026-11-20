@@ -1,0 +1,267 @@
+/*
+ * 패널 안쪽 밀도(ADR-0076 결정 11, 2026-11-20 4차 사용자 지시 "나머지 화면 안쪽").
+ *
+ * 셸·패널 헤더·문구는 바뀌었는데 안쪽은 옛 조밀 단(12·14px 글자, 28~32px 단추, 테두리 상자)이 남은 화면을
+ * 최종 시안의 단(`--bo-k-*`, typography.css)으로 맞춘다. 화면마다 글자 규칙을 다시 쓰지 않고, 화면 root 안에서
+ * **옛 단 토큰이 k 단을 가리키게** 한다:
+ *
+ *   옛 단(typography.css)            → k 단
+ *   caption 12 · Astryx sm/xs 12     → meta 14   (보조·메타. 12px은 시안이 쓰는 자리에만 남는다)
+ *   body 14 · Astryx base 14         → body 16
+ *   list-title 14                    → body 16   (목록 첫 줄)
+ *   section-title 14/600             → section 18/700
+ *   page-title 16                    → section 18
+ *   detail-title 20                  → detail 22
+ *   Astryx 단추 sm 28 · md 32        → row 44    (행·보조 단추)
+ *   Astryx lg 36                     → input 48  (입력)
+ *
+ * 범위: 패널 본문(`.page-canvas`)의 화면 root 가운데 최종 시안대로 이미 다시 지은 셋(브리핑 `.briefing-page`,
+ * 발주계획 `.c2l-page`, 사업기회 레코드 `.rec-page`)은 뺀다 — 그 화면은 `--bo-k-*`를 직접 쓴다. 대화상자는 이번
+ * 범위가 아니므로 옛 단으로 되돌린다(아래 마지막 블록). 색 토큰(`--color-*`)은 건드리지 않는다. 화면 root가
+ * `data-astryx-theme`로 테마 토큰을 다시 정의하므로 그 자리에도 같은 값을 준다(테마 선택자보다 특이도가 높다).
+ */
+.app-shell .page-canvas > :not(.c2l-page, .briefing-page, .rec-page),
+.app-shell .page-canvas > :not(.c2l-page, .briefing-page, .rec-page) [data-astryx-theme]:not(dialog, [role="dialog"], [role="alertdialog"], :is(dialog, [role="dialog"], [role="alertdialog"]) *) {
+  --bo-type-detail-title: var(--bo-k-detail);
+  --bo-type-page-title: var(--bo-k-section);
+  --bo-type-page-title-weight: 700;
+  --bo-type-list-title: var(--bo-k-body);
+  --bo-type-section-title: var(--bo-k-section);
+  --bo-type-section-title-weight: 700;
+  --bo-type-body: var(--bo-k-body);
+  --bo-type-caption: var(--bo-k-meta);
+  --font-size-4xs: var(--bo-k-meta);
+  --font-size-3xs: var(--bo-k-meta);
+  --font-size-2xs: var(--bo-k-meta);
+  --font-size-xs: var(--bo-k-meta);
+  --font-size-sm: var(--bo-k-meta);
+  --font-size-base: var(--bo-k-body);
+  --font-size-lg: var(--bo-k-section);
+  --size-element-sm: var(--bo-k-control-row);
+  --size-element-md: var(--bo-k-control-row);
+  --size-element-lg: var(--bo-k-control-input);
+}
+
+/* ---- 패널 안 테두리 상자 → 섹션 머리·실선·옅은 채움 블록 ----
+   테두리·그림자 고리를 걷고, 요약 줄·작은 묶음은 옅은 채움 블록(radius 10), 큰 묶음은 위 실선 한 줄로 나눈다.
+   의미색 경고·오류 알림(`mutation-feedback-*`, `rs-inline-error` 등)과 표의 칸·행 선은 그대로 둔다. */
+.app-shell .page-canvas :is(
+  .daily-collection,
+  .dash-count-strip,
+  .rs-summary,
+  .crit-summary,
+  .rs-stage-track,
+  .co-attention,
+  .opportunity-lifecycle,
+  .gng-delta-counts,
+  .bid-delta-basis,
+  .bid-delta-round,
+  .bid-delta-compare-values > div,
+  .bid-delta-form-fence,
+  .bid-delta-candidate,
+  .bid-delta-check-state,
+  .bid-delta-evidence-card,
+  .pre-spec-auto-step,
+  .document-preparation-gate
+) {
+  border: 0;
+  border-radius: 10px;
+  background: var(--color-background-muted);
+  box-shadow: none;
+}
+
+.app-shell .page-canvas :is(
+  .dash-panel,
+  .rs-workspace,
+  .crit-workspace,
+  .crit-verification-requests,
+  .bid-delta-comparison-list-panel,
+  .document-preparation,
+  .ps-record .panel,
+  .ps-record .engine-panel,
+  .ps-record .company-fit,
+  .bid-delta-attempt-panel,
+  .detail-skeleton-rail-panel
+) {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* 요약 줄과 작업 영역이 이어 붙던 자리(옛 seam)는 채움 블록 아래 여백으로 띄운다. */
+.app-shell .page-canvas :is(.rs-summary, .crit-summary) {
+  margin-bottom: var(--spacing-2);
+}
+
+/* ---- 조작 높이(대화상자 밖) ----
+   안쪽 보기 전환(탭)은 40px 둥근 칸. 행·보조 단추는 44px, 입력은 48px(Astryx sm/md 단추·입력은 위 토큰이 44로
+   올린다). 메타 줄 안의 글자형 단추(번호 복사·원문 링크·접힌 기술 정보)도 클릭 대상 44px를 갖는다. */
+.app-shell .page-canvas > :not(.c2l-page, .briefing-page, .rec-page) :is([role="tablist"] [role="tab"], :is(.gng-detail-tabs, .rs-detail-tabs) .astryx-button) {
+  height: var(--bo-k-control-tab);
+  min-height: var(--bo-k-control-tab);
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-element);
+  color: var(--color-text-secondary);
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--bo-k-lead);
+  font-weight: 500;
+}
+
+.app-shell .page-canvas > :not(.c2l-page, .briefing-page, .rec-page) :is([role="tablist"] [role="tab"][aria-selected="true"], :is(.gng-detail-tabs, .rs-detail-tabs) [aria-pressed="true"]) {
+  color: var(--color-text-primary);
+  background: var(--bo-sidebar-active);
+  font-weight: 700;
+}
+
+.app-shell .page-canvas .rs-detail-tabs {
+  gap: 2px;
+  padding-block: var(--spacing-2);
+  border-top: 0;
+  border-bottom: 0;
+}
+
+/* 상태 표식(Token)은 조작이 아니라 글자 표식이다 — 단추 높이 토큰을 따라 커지지 않게 13px 칩으로 둔다. */
+.app-shell .page-canvas > :not(.c2l-page, .briefing-page, .rec-page) .astryx-token {
+  height: auto;
+  min-height: 0;
+  padding: 2px 8px;
+  font-size: var(--bo-k-tag);
+  line-height: 1.5;
+}
+
+.app-shell .page-canvas > :not(.c2l-page, .briefing-page, .rec-page) :is(.astryx-text-input, .astryx-selector.input, .actor-field input):not(:is(dialog, [role="dialog"], [role="alertdialog"]) *) {
+  min-height: var(--bo-k-control-input);
+}
+
+/* 추적 결정 입력 한 벌의 조작 높이는 화면이 변수로 정한다(사전규격 미리보기·상세). 그 변수를 k 단으로 올린다. */
+.app-shell .page-canvas .pre-spec-tracking-decision {
+  --tdc-inline-control: var(--bo-k-control-row);
+}
+
+.app-shell .page-canvas .ps-record-tracking-card {
+  --ps-tracking-control: var(--bo-k-control-input);
+}
+
+.app-shell .page-canvas .pre-spec-tracking-decision.is-inline .pre-spec-tracking-save {
+  font-size: var(--bo-k-lead);
+}
+
+.app-shell .page-canvas > :not(.c2l-page, .briefing-page, .rec-page) :is(.astryx-button, .astryx-collapsible-trigger, .interaction-control, .document-preparation button:not([role="tab"])):not(:is(dialog, [role="dialog"], [role="alertdialog"]) *) {
+  min-height: var(--bo-k-control-row);
+}
+
+/* 화면의 주 CTA 하나(56px): 입찰 변경 비교 `결정 확인`, 최종 Go/No-Go 미리보기 `변경 검토·결정 열기`.
+   화면당 하나만 이 크기다. 사전규격 목록 미리보기는 바닥 결정 칸이 커지면 본문 미리보기가 첫 화면에서 사라져
+   44px로 둔다(`추적 시작하기`·`상세 페이지 열기`). */
+.app-shell .page-canvas :is(.bid-delta-decision-footer, .gng-action-footer) .astryx-button.primary {
+  min-height: var(--bo-k-control-primary);
+  font-size: var(--bo-k-button-lg);
+  font-weight: 700;
+}
+
+/* 숫자는 잉크색(브랜드색 아님). */
+.app-shell .page-canvas :is(.dash-count-value, .gng-delta-count-value, .rs-summary-value, .crit-summary-value) {
+  color: var(--color-text-primary);
+}
+
+/* 판정 기준 `확인 요청` 묶음은 작업 영역 위에 놓인다. 글자가 커진 만큼 노트북 폭(1280×800)에서 아래 작업 영역의
+   바닥 액션이 밀리지 않도록 묶음 안쪽 여백과 표 칸 높이를 줄인다(글자는 줄이지 않는다). */
+.app-shell .page-canvas .crit-verification-requests {
+  padding: var(--spacing-2) 0;
+}
+
+.app-shell[data-astryx-theme="bidops"] .page-canvas .crit-verification-requests :is(td, th) {
+  padding-top: var(--spacing-1);
+  padding-bottom: var(--spacing-1);
+  font-size: var(--bo-k-meta);
+}
+
+.app-shell .page-canvas .crit-verification-requests :is(td, th) * {
+  font-size: inherit;
+}
+
+/* 표의 행 높이는 조작이 아니라 읽기 단위다. 단추 높이 토큰(44)을 따라 행이 부풀지 않게 표 안에서는 36px 단을
+   쓴다(행 구분선은 그대로). */
+.app-shell .page-canvas > :not(.c2l-page, .briefing-page, .rec-page) :is(table, .astryx-table) {
+  --size-element-sm: var(--bo-k-control-nav);
+  --size-element-md: var(--bo-k-control-nav);
+}
+
+/* 요약 줄(채움 블록)은 한 줄 높이만 쓴다. */
+.app-shell .page-canvas :is(.crit-summary, .rs-summary) {
+  padding-top: var(--spacing-2);
+  padding-bottom: var(--spacing-2);
+}
+
+/* 판정 기준 상세 머리·바닥은 노트북 폭에서 긴 절 제목(두 줄)이 와도 바닥 액션이 작업 영역 안에 남도록 여백을 줄인다. */
+.app-shell .page-canvas .crit-page .crit-detail-head {
+  gap: var(--spacing-1);
+  padding-top: var(--spacing-3);
+  padding-bottom: var(--spacing-3);
+}
+
+.app-shell .page-canvas .crit-page .crit-detail-head :is(h2, h3, .astryx-heading) {
+  line-height: 1.35;
+}
+
+.app-shell .page-canvas .crit-page .crit-detail-foot {
+  padding-top: var(--spacing-2);
+  padding-bottom: var(--spacing-2);
+}
+
+/* 판정 기준·실행 상태는 요약 줄 + 작업 영역 + 경계 문장이 패널 높이를 다 쓴다. 바닥 여백을 16px로 줄여 작업 영역에
+   그만큼 높이를 돌려준다(경계 문장은 빼지 않는다). */
+.app-shell[data-astryx-theme="bidops"] .page-canvas:has(> :is(.crit-page, .rs-page)) {
+  padding-bottom: var(--spacing-4);
+}
+
+/* 입찰 변경 비교의 결정 칸: 노트북 폭(1280×800)에서도 결정 이유·기록자 칸과 `결정 확인`이 첫 화면에 남아야 한다
+   (bid-delta spec). 글자는 줄이지 않고 칸 사이 간격과 이유 입력의 기본 높이(두 줄)만 줄인다. 입력하면 칸이 늘어난다. */
+.app-shell .page-canvas .bid-delta-page :is(.bid-delta-decision-scroll, .bid-delta-final-form) {
+  gap: var(--spacing-2);
+}
+
+.app-shell .page-canvas .bid-delta-page .bid-delta-decision-scroll {
+  padding-top: var(--spacing-2);
+}
+
+/* 두 선택(결정 근거·최종 결정)은 이름과 선택지를 한 줄에 둔다. */
+.app-shell .page-canvas .bid-delta-page .bid-delta-decision-pane .astryx-field:has(> .astryx-radio-list) {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--spacing-4);
+}
+
+.app-shell .page-canvas .bid-delta-page .bid-delta-final-form textarea {
+  height: calc(var(--bo-k-control-input) + var(--spacing-6));
+  min-height: calc(var(--bo-k-control-input) + var(--spacing-6));
+}
+
+.app-shell .page-canvas .bid-delta-page .bid-delta-decision-footer {
+  gap: var(--spacing-1);
+  padding-top: var(--spacing-2);
+  padding-bottom: var(--spacing-2);
+}
+
+/* 목록|상세 상세 머리의 기관 줄은 발주계획처럼 보조 14px이다(이름 강조 글자도 같은 크기). */
+.app-shell .page-canvas[data-canvas="flush"] :is(.pre-specs-detail-header, .opportunity-detail-head, .gng-detail-head) [data-review-primitive="agency-feature"] * {
+  font-size: var(--bo-k-meta);
+}
+
+/* ---- 대화상자는 이번 범위 밖: 옛 단으로 되돌린다 ----
+   값은 typography.css의 옛 네 단 그대로다(12·14·16·20, 굵기 600). 대화상자 root가 `data-astryx-theme`를 가지면
+   Astryx 글자·크기 토큰은 테마가 다시 정한다(위 첫 블록이 대화상자 root를 고르지 않는다). */
+.app-shell .page-canvas :is(dialog, [role="dialog"], [role="alertdialog"]) {
+  --bo-type-detail-title: 20px;
+  --bo-type-page-title: 16px;
+  --bo-type-page-title-weight: 600;
+  --bo-type-list-title: 14px;
+  --bo-type-section-title: 14px;
+  --bo-type-section-title-weight: 600;
+  --bo-type-body: 14px;
+  --bo-type-caption: 12px;
+}

@@ -178,7 +178,6 @@ export function OpportunitiesPage() {
   usePageHeader(list.isSuccess ? {
     eyebrow: "사업기회",
     title: total > 0 ? `사업기회 ${total.toLocaleString("ko-KR")}건을 보고 있어요` : "이 보기에 사업기회가 없어요",
-    description: "추적 결정과 확인할 일을 사업 단위로 모았어요. 추적 선택은 최종 Go/No-Go가 아니에요.",
   } : null);
   const counts = list.data?.section_counts ?? null;
   const reasonCounts = list.data?.action_reason_counts ?? null;

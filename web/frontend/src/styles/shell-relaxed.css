@@ -424,27 +424,28 @@ body {
 }
 
 /* ---- 패널 헤더 --------------------------------------------------------------
-   작은 화면 이름(14px) + 문장형 제목 `<h1>`(26px/700) + 한 줄 설명(15px) / 오른쪽 액션 /
-   아래 둥근 칸 탭(40px) / 아래 1px 경계(시안). 별도 상단바는 없다. */
+   작은 화면 이름(14px) + 문장형 제목 `<h1>`(24px/700) / 오른쪽 액션 / 아래 둥근 칸 탭(40px) / 아래 1px 경계.
+   별도 상단바는 없다. 2026-11-20 사용자 요청으로 압축했다: 위아래 16px, 제목과 탭 사이 12px, 고정 설명 줄 없음
+   (그 순간의 데이터를 말하는 문장만 설명 줄에 남는다). 탭 없는 헤더는 88px 안팎이다. */
 .app-shell[data-astryx-theme="bidops"] .topbar {
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
   align-items: stretch;
-  gap: var(--spacing-4);
+  gap: var(--spacing-3);
   height: auto;
   min-height: 0;
-  padding: 28px var(--shell-canvas-inline-padding) var(--spacing-4);
+  padding: var(--spacing-4) var(--shell-canvas-inline-padding);
   overflow: visible;
   color: var(--color-text-primary);
   background: var(--color-background-surface);
   border-bottom: 1px solid var(--color-border);
 }
 
-/* 상세 배치는 맨 위 돌아갈 링크 줄이 있어 위 여백이 작다(시안 16px). 돌아갈 곳이 없으면 목록과 같다. */
+/* 상세 배치는 맨 위 돌아갈 링크 줄이 있어 위 여백과 줄 간격이 작다. 돌아갈 곳이 없으면 목록과 같다. */
 .app-shell[data-astryx-theme="bidops"] .topbar[data-header-layout="page"]:has(> .topbar-back) {
-  gap: var(--spacing-3);
-  padding-top: var(--spacing-4);
+  gap: var(--spacing-1);
+  padding-top: var(--spacing-3);
 }
 
 .app-shell[data-astryx-theme="bidops"] .topbar-main {
@@ -461,7 +462,7 @@ body {
   display: flex;
   flex: 0 1 auto;
   flex-direction: column;
-  gap: var(--spacing-1);
+  gap: 2px;
   min-width: 0;
 }
 
@@ -508,7 +509,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
-  height: var(--bo-k-control-nav);
+  height: calc(var(--spacing-6) + var(--spacing-1));
   color: var(--color-text-secondary);
   font-size: var(--bo-k-meta);
   font-weight: 600;

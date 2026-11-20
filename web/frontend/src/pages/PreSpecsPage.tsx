@@ -10,7 +10,6 @@ import { EmptyState } from "../components/common/EmptyState";
 import { CollectionStatus } from "../components/shell/CollectionStatus";
 import { PageHeaderActions, PageHeaderTabs } from "../components/common/PageHeaderActions";
 import { usePageHeader } from "../components/shell/PageHeaderContext";
-import { withCopula } from "../lib/format";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
 import { DenseList, ListColumns, ListPagerControls, ReviewFilterSegmentedControl, SelectionToolbar, SplitWorkspace } from "../components/common/ReviewPrimitives";
@@ -678,7 +677,6 @@ export function PreSpecsPage() {
     title: activeWorkspace.key === "actionable"
       ? (total > 0 ? `검토할 사전규격이 ${formatCount(total)}건 있어요` : "검토할 사전규격이 없어요")
       : `${activeWorkspace.label} 사전규격 ${formatCount(total)}건을 보고 있어요`,
-    description: `${withCopula(activeWorkspace.description)}.`,
   } : null);
   /**
    * 접힌 상세 필터에 걸려 있는 조건 수(명세 §2.1, U3). 상세 필터 안의 축 가운데

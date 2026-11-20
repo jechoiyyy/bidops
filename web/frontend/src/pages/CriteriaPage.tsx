@@ -46,7 +46,6 @@ export function CriteriaPage() {
   usePageHeader({
     eyebrow: "판정 기준",
     title: "판정에 쓰는 기준을 확인해요",
-    description: "기준을 바꾸면 이후 실행에만 적용돼요. 지난 판정은 바뀌지 않아요.",
   });
   const { pathname, search } = useLocation();
   const navigate = useNavigate();

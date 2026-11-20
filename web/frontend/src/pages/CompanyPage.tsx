@@ -199,7 +199,6 @@ export function CompanyPage() {
   usePageHeader({
     eyebrow: "회사 근거",
     title: "판정에 쓰는 회사 근거를 확인해요",
-    description: "확인된 값만 판정·제안서에 쓰여요. 값은 회사 파일을 고쳐 새 버전으로 등록해요.",
   });
 
   let body;

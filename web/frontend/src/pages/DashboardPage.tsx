@@ -52,7 +52,6 @@ export function DashboardPage() {
   usePageHeader({
     eyebrow: "대시보드",
     title: "오늘 정하고 확인할 일을 모았어요",
-    description: "건수는 각 목록의 기본 보기와 같은 기준이에요. 화면은 읽기 전용이에요.",
   });
   return <InternationalizationProvider locale="ko-KR" messages={{ "ko-KR": koKR }}><DashboardWorkspace /></InternationalizationProvider>;
 }

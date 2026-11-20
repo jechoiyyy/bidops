@@ -262,7 +262,6 @@ export function GoNoGoPage() {
   usePageHeader(queueQuery.isSuccess ? {
     eyebrow: "최종 Go/No-Go",
     title: total > 0 ? `최종 결정을 볼 사업이 ${total.toLocaleString("ko-KR")}건 있어요` : "최종 결정을 볼 사업이 없어요",
-    description: "입찰 참여는 사람이 정해요. 추적 선택이나 판정은 Go/No-Go를 대신하지 않아요.",
   } : null);
   // 받은 범위가 전체인지. 넘치면 보기 건수와 검색은 받은 범위 기준이라고 밝힌다.
   const receivedAll = offset === 0 && queueItems.length >= total;
@@ -497,9 +496,9 @@ export function GoNoGoPage() {
   const footerAction = !selectedItem
     ? null
     : comparisonBasisReady
-      ? { label: "변경 검토·결정 열기", note: "검토 결과를 확인한 뒤 사람이 Go 또는 No-Go를 선택해요. 이 목록에서는 저장하지 않아요." }
+      ? { label: "변경 검토·결정 열기", note: "검토 결과를 확인한 뒤 사람이 Go 또는 No-Go를 선택해요. 추적 선택이나 판정은 Go/No-Go를 대신하지 않아요. 이 목록에서는 저장하지 않아요." }
       : selectedItem.bid_notice_external_id
-        ? { label: "공고 조건 검토·결정 열기", note: "완료된 변경 비교가 없어 결정 화면에서 최신 입찰공고 조건을 근거로 기록해요. 이 목록에서는 저장하지 않아요." }
+        ? { label: "공고 조건 검토·결정 열기", note: "완료된 변경 비교가 없어 결정 화면에서 최신 입찰공고 조건을 근거로 기록해요. 추적 선택이나 판정은 Go/No-Go를 대신하지 않아요. 이 목록에서는 저장하지 않아요." }
         : { label: "결정 화면 열기", note: "연결된 입찰공고가 없어 최종 결정을 기록할 수 없어요. 결정 화면에서 공고 연결 상태를 확인해요." };
 
   return (
