@@ -601,7 +601,8 @@ function OrderPlansWorkspace() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
 
-  const [searchText, setSearchText] = useState(searchParams.get("q") ?? "");
+  const qText = searchParams.get("q") ?? "";
+  const [searchText, setSearchText] = useState(qText);
   const [dialog, setDialog] = useState<SecondaryDialog | null>(null);
   // A3: 시작·종료 두 단추가 같은 다이얼로그를 다른 mode로 연다. null이면 닫힘이다.
   const [bulkDialogMode, setBulkDialogMode] = useState<"start" | "end" | null>(null);
@@ -715,7 +716,8 @@ function OrderPlansWorkspace() {
     });
   }
 
-  useEffect(() => setSearchText(searchParams.get("q") ?? ""), [searchParams.get("q")]);
+  // 누락된 q와 q=는 둘 다 빈 검색어다. 이 둘 사이의 전환은 새로 입력한 검색어를 지우지 않는다.
+  useEffect(() => setSearchText(qText), [qText]);
 
   const selectedParam = searchParams.get("selected");
   const selectedPk = parseOrderPlanPk(selectedParam);
@@ -843,7 +845,6 @@ function OrderPlansWorkspace() {
   const trackingSet = isDefaultView ? new Set<TrackingToken>(DEFAULT_VIEW_AXES.tracking) : parseTokenSet(searchParams.get("tracking"), TRACKING_TOKENS);
   const issueOn = isDefaultView ? DEFAULT_VIEW_AXES.issue : searchParams.get("issue") === "yes";
   const unjudgedOn = isDefaultView ? DEFAULT_VIEW_AXES.unjudged : searchParams.get("unjudged") === "yes";
-  const qText = searchParams.get("q") ?? "";
   const offsetRaw = Number(searchParams.get("offset") ?? "0");
   const offset = Number.isFinite(offsetRaw) && offsetRaw >= 0 ? Math.floor(offsetRaw / PAGE_SIZE) * PAGE_SIZE : 0;
   /**
