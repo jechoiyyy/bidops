@@ -603,6 +603,19 @@ body {
   font-weight: 700;
 }
 
+/* 수집이 완료가 아니거나 확인할 수 없을 때. 글자가 상태 이름이고 색은 아이콘에만 쓴다. */
+.app-shell[data-astryx-theme="bidops"] .panel-header-status.is-warning svg {
+  color: var(--color-warning);
+}
+
+.app-shell[data-astryx-theme="bidops"] .panel-header-status-link {
+  margin-left: var(--spacing-1);
+  color: var(--color-text-primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* 보기 탭·검색 줄 portal 슬롯. 비어 있으면 접는다. */
 .app-shell[data-astryx-theme="bidops"] .topbar-tabs {
   display: flex;

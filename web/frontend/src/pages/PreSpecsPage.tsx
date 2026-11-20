@@ -7,6 +7,7 @@ import type { ISODateString } from "@astryxdesign/core/Calendar";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Selector } from "@astryxdesign/core/Selector";
 import { EmptyState } from "../components/common/EmptyState";
+import { CollectionStatus } from "../components/shell/CollectionStatus";
 import { PageHeaderActions, PageHeaderTabs } from "../components/common/PageHeaderActions";
 import { usePageHeader } from "../components/shell/PageHeaderContext";
 import { withCopula } from "../lib/format";
@@ -706,6 +707,8 @@ export function PreSpecsPage() {
         <div className="pre-specs-header-actions">
           {/* 목록 범위를 설명하는 단추는 네 화면이 같은 이름을 쓴다(시안 M1 승인 결정 3). */}
           {import.meta.env.BIDOPS_REVIEW_MOCK && <Button label="가상 사업 심층검토" size="sm" onClick={() => navigate("/pre-specs/mock-review")} />}
+          {/* 사전규격은 공고 트랙 일일 수집이 채운다. 판정은 서버다. */}
+          <CollectionStatus track="notices" />
           <button className="panel-header-link" type="button" onClick={() => setScopeDialogOpen(true)}>목록 기준</button>
         </div>
       </PageHeaderActions>

@@ -6,6 +6,7 @@ import type {
   BidDeltaDecisionQueueResponse,
   OpportunityTrackingDecisionsResponse,
   WorkloadResponse,
+  DailyCollectionStatusResponse,
   FeatureFlagsResponse,
   OrderPlanScreeningExecutionCreateRequest,
   OrderPlanScreeningExecutionCreateResponse,
@@ -895,6 +896,8 @@ export function toPageOverviewResponse(envelope: OverviewEnvelope): PageOverview
 
 export const api = {
   getWorkload: (options?: ReadRequestOptions) => request<WorkloadResponse>("/workload", options),
+  getDailyCollectionStatus: (options?: ReadRequestOptions) =>
+    request<DailyCollectionStatusResponse>("/daily-collection-status", options),
   /** `GET /api/feature-flags` — 환경 스위치의 참·거짓만(contracts.md "기능 스위치"). */
   getFeatureFlags: (options?: ReadRequestOptions) => request<FeatureFlagsResponse>("/feature-flags", options),
 
