@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 
 export type ToastVariant = "success" | "info" | "warning" | "error";
 
@@ -16,6 +17,8 @@ interface ToastProps {
   variant?: ToastVariant;
   /** 자동 소멸 시간(ms). `null`이면 자동으로 사라지지 않는다. */
   autoDismissMs?: number | null;
+  /** 결과에서 이어 갈 화면 링크(최종 시안: `사업기회에서 보기`·`추적 되돌리기`). 저장을 새로 하지 않는다. */
+  links?: ReadonlyArray<{ label: string; to: string }>;
 }
 
 /**
@@ -32,6 +35,7 @@ export function Toast({
   onDismiss,
   variant = "success",
   autoDismissMs = AUTO_DISMISS_MS,
+  links = [],
 }: ToastProps) {
   const isError = variant === "error";
   const [held, setHeld] = useState(false);
@@ -60,6 +64,9 @@ export function Toast({
       onBlurCapture={release}
     >
       <span className="toast-message">{message}</span>
+      {links.map((link) => (
+        <Link className="toast-action" key={link.to} to={link.to}>{link.label}</Link>
+      ))}
       {actionLabel && onAction ? (
         <button className="toast-action" type="button" onClick={onAction}>{actionLabel}</button>
       ) : null}

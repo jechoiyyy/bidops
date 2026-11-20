@@ -31,9 +31,9 @@ export function RelatedNotices({ noticePk }: RelatedNoticesProps) {
 
   return (
     <Panel className="related-notices-panel" title="관련 공고" action={<span className="panel-note">같은 수집 회차에서 찾음</span>}>
-      {relatedQuery.isLoading ? <div className="inline-loading" role="status" aria-live="polite">관련 공고를 찾는 중입니다.</div> : null}
-      {relatedQuery.error ? <div className="inline-error" role="alert">관련 공고를 불러오지 못했습니다.</div> : null}
-      {!relatedQuery.isLoading && !relatedQuery.error && items.length === 0 ? <EmptyState compact title="관련 공고가 없습니다." description="비어 있는 식별자는 연결 기준으로 사용하지 않습니다." /> : null}
+      {relatedQuery.isLoading ? <div className="inline-loading" role="status" aria-live="polite">관련 공고를 찾는 중이에요.</div> : null}
+      {relatedQuery.error ? <div className="inline-error" role="alert">관련 공고를 불러오지 못했어요.</div> : null}
+      {!relatedQuery.isLoading && !relatedQuery.error && items.length === 0 ? <EmptyState compact title="관련 공고가 없어요" description="비어 있는 식별자는 연결 기준으로 사용하지 않아요." /> : null}
       {items.length > 0 ? (
         <div className="related-notice-list">
           {items.map((item) => (

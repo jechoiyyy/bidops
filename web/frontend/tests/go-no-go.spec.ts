@@ -105,7 +105,7 @@ test("목록은 결정 대기열 한 번으로 그리고 행마다 비교를 조
   await page.goto("/go-no-go?show=all&selected=903");
   await expect(rows(page)).toHaveCount(SCENARIOS.length);
   // 선택한 사업의 상세가 실제로 그려질 때까지 기다린 뒤 센다.
-  await expect(page.getByRole("heading", { name: "변경 비교 계산을 기다리고 있습니다" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "변경 비교 계산을 기다리고 있어요" })).toBeVisible();
   expect(queueQueries).toHaveLength(1);
   expect(queueQueries[0]).toMatchObject({ status: "all", limit: "500", offset: "0" });
   expect(opportunityListRequests).toBe(0);
@@ -113,7 +113,7 @@ test("목록은 결정 대기열 한 번으로 그리고 행마다 비교를 조
 
   // 다른 행을 골라도 대기열은 다시 받지 않고 그 행 하나만 조회한다.
   await rows(page).filter({ hasText: "학교 통합정보서비스 운영 및 유지관리" }).locator(".gng-row").click();
-  await expect(page.getByRole("heading", { name: "변경 비교 결과가 아직 없습니다" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "변경 비교 결과가 아직 없어요" })).toBeVisible();
   expect(queueQueries).toHaveLength(1);
   expect([...new Set(workspaceIds)].sort()).toEqual([903, 904]);
 });
@@ -135,8 +135,8 @@ test("집계와 검색 범위를 밝히고 대기열이 넘치면 받은 범위 
   await input.fill("없는사업");
   await expect(rows(page)).toHaveCount(1);
   await input.press("Enter");
-  await expect(page.getByText("조건에 맞는 사업이 없습니다", { exact: true })).toBeVisible();
-  await expect(page.locator(".gng-list-empty")).toContainText('적용된 검색어 "없는사업"와 다른 활성 보기 조건에 맞는 사업이 없습니다.');
+  await expect(page.getByText("조건에 맞는 사업이 없어요", { exact: true })).toBeVisible();
+  await expect(page.locator(".gng-list-empty")).toContainText('적용된 검색어 "없는사업"와 다른 활성 보기 조건에 맞는 사업이 없어요.');
   await page.getByRole("button", { name: "검색어만 지우기", exact: true }).click();
   await expect(rows(page)).toHaveCount(9);
 
@@ -148,8 +148,8 @@ test("집계와 검색 범위를 밝히고 대기열이 넘치면 받은 범위 
   await page.goto("/go-no-go?show=all&q=교통정보");
   await expect(rows(page)).toHaveCount(1);
   await expect(page.locator(".gng-summary")).toContainText(`받은 ${SCENARIOS.length}건 기준`);
-  await expect(page.locator(".gng-summary")).toContainText("전체 600건 중 일부입니다");
-  await expect(page.locator(".gng-filter-context")).toContainText("검색은 받은 범위 안에서만 좁힙니다");
+  await expect(page.locator(".gng-summary")).toContainText("전체 600건 중 일부예요");
+  await expect(page.locator(".gng-filter-context")).toContainText("검색은 받은 범위 안에서만 좁혀요");
   await expect(page.getByRole("navigation", { name: "결정 대기열 페이지" })).toContainText(`1–${SCENARIOS.length} / 600`);
 });
 
@@ -195,30 +195,30 @@ test("상세 조회 중·조회 실패·비교 없음·계산 대기를 미결�
 
   // 상세 조회가 실패해도 대기열이 준 사람 결정은 그대로이고, 상세를 단정하지 않는다.
   await rows(page).filter({ hasText: "의료정보 연계 기반 구축" }).locator(".gng-row").click();
-  await expect(page.getByRole("heading", { name: "비교·결정 상세를 불러오지 못했습니다" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "비교·결정 상세를 불러오지 못했어요" })).toBeVisible();
   await expect(rows(page).filter({ hasText: "의료정보 연계 기반 구축" })).toContainText("미결정");
   await expect(page.locator(".gng-action-footer")).toContainText("아직 결정하지 않음");
 
   await rows(page).filter({ hasText: "관광데이터 분석 환경 구축" }).locator(".gng-row").click();
-  await expect(page.getByRole("heading", { name: "비교·결정 상세를 확인하고 있습니다" })).toBeVisible();
-  await expect(page.getByText("조회가 끝나기 전에는 변경 없음으로 표시하지 않습니다.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "비교·결정 상세를 확인하고 있어요" })).toBeVisible();
+  await expect(page.getByText("조회가 끝나기 전에는 변경 없음으로 표시하지 않아요.", { exact: false })).toBeVisible();
 });
 
 test("완료된 비교가 없으면 결정 화면의 공고 조건 근거로 안내하고 저장을 열지 않는다", async ({ page }) => {
   await openList(page, "?show=all&selected=902");
-  await expect(page.getByRole("heading", { name: "변경 비교 계산을 기다리고 있습니다" })).toBeVisible();
-  await expect(page.locator(".gng-action-footer")).toContainText("공고 조건을 근거로 기록합니다");
+  await expect(page.getByRole("heading", { name: "변경 비교 계산을 기다리고 있어요" })).toBeVisible();
+  await expect(page.locator(".gng-action-footer")).toContainText("공고 조건을 근거로 기록해요");
   await expect(page.getByRole("button", { name: "공고 조건 검토·결정 열기" })).toBeVisible();
   await expect(page.getByRole("button", { name: "변경 검토·결정 열기" })).toHaveCount(0);
 
   await page.goto("/go-no-go?show=all&selected=904");
-  await expect(page.getByRole("heading", { name: "변경 비교 결과가 아직 없습니다" })).toBeVisible();
-  await expect(page.getByText("비교가 없다는 것은 변경이 없다는 뜻이 아닙니다.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "변경 비교 결과가 아직 없어요" })).toBeVisible();
+  await expect(page.getByText("비교가 없다는 것은 변경이 없다는 뜻이 아니에요.", { exact: false })).toBeVisible();
 
   // 입찰공고가 없으면 결정할 공고가 없다고 적는다.
   await page.goto("/go-no-go?show=all&selected=911");
   await expect(page.getByRole("button", { name: "결정 화면 열기" })).toBeVisible();
-  await expect(page.locator(".gng-action-footer")).toContainText("연결된 입찰공고가 없어 최종 결정을 기록할 수 없습니다");
+  await expect(page.locator(".gng-action-footer")).toContainText("연결된 입찰공고가 없어 최종 결정을 기록할 수 없어요");
   await expect(page.locator(".gng-detail-head")).toContainText("입찰공고 미연결");
 });
 
@@ -233,7 +233,7 @@ test("완료된 비교는 중요·비중요·확인 필요를 서로 다르게 �
   await expect(counts.locator("> div").nth(2)).toContainText("확인 필요");
   await expect(counts.locator("> div").nth(2)).toContainText("1");
   await expect(counts.locator("> div").nth(2)).toContainText("unknown·분석 실패");
-  await expect(page.getByText("확인 필요를 변경 없음으로 읽지 않습니다.", { exact: false })).toBeVisible();
+  await expect(page.getByText("확인 필요를 변경 없음으로 읽지 않아요.", { exact: false })).toBeVisible();
 
   // 결정 전에 볼 항목은 중요 변경과 확인 필요만 남긴다.
   const deltaRows = page.locator(".gng-delta-row");
@@ -243,8 +243,8 @@ test("완료된 비교는 중요·비중요·확인 필요를 서로 다르게 �
 
   // 실제 0건은 0으로 적는다(전 범주 변경 없음).
   await page.goto("/go-no-go?show=all&selected=905");
-  await expect(page.getByText("양쪽 근거로 확인한 범위에서 결정 전에 볼 변경 항목이 없습니다.")).toBeVisible();
-  await expect(page.getByText("변경 없음은 입찰 참여에 대한 추천이 아닙니다.")).toBeVisible();
+  await expect(page.getByText("양쪽 근거로 확인한 범위에서 결정 전에 볼 변경 항목이 없어요.")).toBeVisible();
+  await expect(page.getByText("변경 없음은 입찰 참여에 대한 추천이 아니에요.")).toBeVisible();
   await expect(page.locator(".gng-delta-counts").locator("> div").nth(0)).toContainText("0");
 });
 
@@ -269,7 +269,7 @@ test("근거 대화상자는 양쪽 원문과 검증 상태를 그대로 보여 
 
   // 양쪽 근거가 없는 항목은 변경 없음이나 요건 충족으로 해석하지 않는다.
   await page.locator(".gng-delta-row").filter({ hasText: "참가자격" }).click();
-  await expect(page.getByRole("dialog")).toContainText("양쪽 근거가 갖춰지지 않았습니다.");
+  await expect(page.getByRole("dialog")).toContainText("양쪽 근거가 갖춰지지 않았어요.");
 });
 
 test("비교 문서 탭은 API가 준 양쪽 문서 스냅숏만 보여 준다", async ({ page }) => {
@@ -280,12 +280,12 @@ test("비교 문서 탭은 API가 준 양쪽 문서 스냅숏만 보여 준다",
   await expect(documents).toContainText("BN-2026-901");
   await expect(documents).toContainText("문서 버전 1");
   await expect(documents).toContainText("문서 버전 2");
-  await expect(documents).toContainText("문서 쌍은 화면이 고르지 않습니다");
+  await expect(documents).toContainText("문서 쌍은 화면이 고르지 않아요");
 
   // 비교가 없으면 문서가 없다고 단정하지 않는다.
   await page.goto("/go-no-go?show=all&selected=904");
   await page.getByRole("button", { name: "비교 문서", exact: true }).click();
-  await expect(page.getByText("문서가 없다는 뜻은 아닙니다.", { exact: false })).toBeVisible();
+  await expect(page.getByText("문서가 없다는 뜻은 아니에요.", { exact: false })).toBeVisible();
 });
 
 test("결정 기록 탭은 마지막 결정과 근거 종류만 보여 주고 이력을 지어내지 않는다", async ({ page }) => {
@@ -297,7 +297,7 @@ test("결정 기록 탭은 마지막 결정과 근거 종류만 보여 주고 �
   await expect(history).toContainText("기존 검토자");
   await expect(history).toContainText("결정 이후 새 정정공고 문서 버전이 연결되었습니다.");
   await expect(history).toContainText("비교 결과 기준 · 비교 버전 2");
-  await expect(history).toContainText("이 목록은 사업기회의 마지막 결정만 보여 줍니다");
+  await expect(history).toContainText("이 목록은 사업기회의 마지막 결정만 보여 줘요");
   await expect(page.locator(".gng-history-entry")).toHaveCount(1);
 
   // 공고 조건 근거 결정은 비교 필드 대신 기준 입찰공고와 관측 해시를 적는다.
@@ -310,14 +310,14 @@ test("결정 기록 탭은 마지막 결정과 근거 종류만 보여 주고 �
   // 결정이 없으면 없다고 적고 추적 상태를 결정으로 승격하지 않는다.
   await page.goto("/go-no-go?show=all&selected=901");
   await page.getByRole("button", { name: "결정 기록", exact: true }).click();
-  await expect(page.getByText("아직 기록된 최종 결정이 없습니다.")).toBeVisible();
-  await expect(page.getByText("추적 상태 ‘계속 추적’은 입찰 참여를 결정했다는 뜻이 아닙니다.")).toBeVisible();
+  await expect(page.getByText("아직 기록된 최종 결정이 없어요.")).toBeVisible();
+  await expect(page.getByText("추적 상태 ‘계속 추적’은 입찰 참여를 결정했다는 뜻이 아니에요.")).toBeVisible();
 });
 
 test("오래된 결정은 상세에서 재검토로 보이고 현재 승인으로 읽히지 않는다", async ({ page }) => {
   await openList(page, "?show=all&selected=903");
-  await expect(page.locator(".gng-review-notice")).toContainText("기존 Go 결정을 다시 검토해야 합니다");
-  await expect(page.locator(".gng-review-notice")).toContainText("이전 결정 기록은 보존되며 새 결정은 덮어쓰지 않고 추가됩니다");
+  await expect(page.locator(".gng-review-notice")).toContainText("기존 Go 결정을 다시 검토해야 해요");
+  await expect(page.locator(".gng-review-notice")).toContainText("이전 결정 기록은 보존되며 새 결정은 덮어쓰지 않고 추가돼요");
   await expect(page.locator(".gng-action-footer")).toContainText("Go · 재검토 필요");
 });
 
@@ -342,7 +342,9 @@ test("화면 제목과 페이지 액션은 상단바에 있고 경로·편집 �
   const topbar = page.locator("header.topbar");
 
   await expect(topbar).toHaveAttribute("data-topbar-mode", "title");
-  await expect(topbar.locator("h1")).toHaveText("최종 Go/No-Go");
+  // 화면 이름은 패널 헤더의 작은 글자이고 `<h1>`은 받은 대기열 건수를 쓴 문장이다(ADR-0076).
+  await expect(topbar.getByTestId("page-header-eyebrow")).toHaveText("최종 Go/No-Go");
+  await expect(topbar.locator("h1")).toHaveText(/^최종 결정을 볼 사업이 (\d+건 있어요|없어요)$/);
   await expect(topbar.locator(".topbar-breadcrumb")).toHaveCount(0);
   await expect(topbar.locator(".topbar-status")).toHaveCount(0);
 
@@ -353,7 +355,7 @@ test("화면 제목과 페이지 액션은 상단바에 있고 경로·편집 �
   const dataAction = topbar.getByRole("button", { name: "목록 기준", exact: true });
   await expect(dataAction).toBeVisible();
   await dataAction.click();
-  await expect(page.getByRole("dialog")).toContainText("‘계속 추적’인 사업기회만 최종 Go/No-Go 대상입니다");
+  await expect(page.getByRole("dialog")).toContainText("‘계속 추적’인 사업기회만 최종 Go/No-Go 대상이에요");
 });
 
 test("중복 페이지 머리말 없이 workspace가 화면의 남은 높이를 채운다", async ({ page }) => {
@@ -458,7 +460,7 @@ test("조회 중에도 분할 골격이 남고 건수를 0건으로 적지 않�
   await expect(detailPane).toBeVisible();
   await expect(page.locator(".gng-list-head")).toContainText("최종 결정 목록 · 불러오는 중");
   await expect(listPane.getByRole("status")).toContainText("최종 결정 대기열을 불러오는 중");
-  await expect(detailPane).toContainText("목록을 불러온 뒤 사업 상세를 표시합니다.");
+  await expect(detailPane).toContainText("목록을 불러온 뒤 사업 상세를 표시해요.");
   // 받지 못한 범위를 요약·페이저로 말하지 않는다.
   await expect(page.locator(".gng-summary")).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "결정 대기열 페이지" })).toHaveCount(0);
@@ -481,10 +483,10 @@ test("대기열 조회 실패도 분할 골격 안에서 말하고 건수를 0�
   const listPane = page.getByRole("region", { name: "최종 결정 검토 목록" });
   await expect(listPane).toBeVisible();
   await expect(page.locator(".gng-list-head")).toContainText("최종 결정 목록 · 건수 확인 불가");
-  await expect(page.locator(".gng-list-empty")).toContainText("최종 결정 대기열을 불러오지 못했습니다.");
-  await expect(page.locator(".gng-list-empty")).toContainText("조회 실패를 결정 대기 없음으로 해석하지 않습니다.");
+  await expect(page.locator(".gng-list-empty")).toContainText("최종 결정 대기열을 불러오지 못했어요");
+  await expect(page.locator(".gng-list-empty")).toContainText("조회 실패를 결정 대기 없음으로 해석하지 않아요.");
   await expect(page.getByRole("region", { name: "선택한 결정 검토 사업" }))
-    .toContainText("목록을 불러오지 못해 상세를 표시할 수 없습니다.");
+    .toContainText("목록을 불러오지 못해 상세를 표시할 수 없어요.");
   await expect(page.locator(".gng-summary")).toHaveCount(0);
 });
 
@@ -492,11 +494,11 @@ test("목록 기준은 API 경계와 집계 범위를 기본 화면 밖에서 �
   await openList(page);
   await page.getByRole("button", { name: "목록 기준", exact: true }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText("‘계속 추적’인 사업기회만 최종 Go/No-Go 대상입니다");
-  await expect(dialog).toContainText("최종 결정 대기열을 한 번 받아 그립니다");
-  await expect(dialog).toContainText("입찰공고가 연결되지 않은 사업은 결정할 공고가 없어 전체 보기에만 둡니다");
-  await expect(dialog).toContainText("변경 비교를 계산하는 프로그램은 아직 운영에 없습니다");
-  await expect(dialog).toContainText("최종 결정 저장은 결정 화면에서만 합니다");
+  await expect(dialog).toContainText("‘계속 추적’인 사업기회만 최종 Go/No-Go 대상이에요");
+  await expect(dialog).toContainText("최종 결정 대기열을 한 번 받아 그려요");
+  await expect(dialog).toContainText("입찰공고가 연결되지 않은 사업은 결정할 공고가 없어 전체 보기에만 둬요");
+  await expect(dialog).toContainText("변경 비교를 계산하는 프로그램은 아직 운영에 없어요");
+  await expect(dialog).toContainText("최종 결정 저장은 결정 화면에서만 해요");
 });
 
 // 실패한 것은 결정 대기열이 아니라 **선택한 사업의 비교·결정 상세 조회**다. 대기열을
@@ -508,7 +510,7 @@ test("선택한 사업의 상세 조회 실패는 그 조회를 다시 불러 �
   await page.goto("/go-no-go?show=all&selected=909");
 
   const failedRow = rows(page).filter({ hasText: "의료정보 연계 기반 구축" });
-  await expect(page.getByRole("heading", { name: "비교·결정 상세를 불러오지 못했습니다" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "비교·결정 상세를 불러오지 못했어요" })).toBeVisible();
   // 행의 사람 결정은 대기열 값이라 상세 조회 실패와 무관하게 그대로다.
   await expect(failedRow).toContainText("미결정");
   const failedGets = trace.gets;
@@ -519,7 +521,7 @@ test("선택한 사업의 상세 조회 실패는 그 조회를 다시 불러 �
 
   // 같은 조회가 다시 나가고, 회복된 뒤에는 실제 상태를 말한다.
   await expect.poll(() => trace.gets).toBeGreaterThan(failedGets);
-  await expect(page.getByRole("heading", { name: "비교·결정 상세를 불러오지 못했습니다" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "비교·결정 상세를 불러오지 못했어요" })).toHaveCount(0);
   await expect(page.locator(".gng-delta-counts")).toBeVisible();
   await expect(page.getByRole("button", { name: "다시 조회", exact: true })).toHaveCount(0);
 });

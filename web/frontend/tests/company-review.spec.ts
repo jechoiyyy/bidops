@@ -101,7 +101,7 @@ test("T4: 회사 경로는 계속 추적·보류·종료 세 상태를 저장하
   await expect(control.getByTestId("company-tracking-current")).toContainText("현재 계속 추적 · 업무SI 담당");
   await expect(control.getByTestId("company-tracking-current")).toContainText("기록 1회");
   await expect(facts).toHaveAttribute("data-tracking-status", "계속 추적");
-  await expect(control.getByRole("status").filter({ hasText: "계속 추적(으)로 저장했습니다." })).toBeVisible();
+  await expect(control.getByRole("status").filter({ hasText: "계속 추적(으)로 저장했어요." })).toBeVisible();
   await expect(control.getByLabel("추적 결정 사유")).toHaveValue("");
   // 저장 뒤 다시 읽는 것은 시작한 회사(A)의 자원뿐이다.
   const after = trace.requests.slice(before);
@@ -120,7 +120,7 @@ test("T4: 회사 경로는 계속 추적·보류·종료 세 상태를 저장하
   await fillTrackingDraft(page, "종료", "범위가 달라 추적 종료", "업무SI 담당");
   await control.getByRole("button", { name: "추적 결정 저장" }).click();
   const confirm = page.getByRole("alertdialog");
-  await expect(confirm).toContainText("추적을 종료합니다");
+  await expect(confirm).toContainText("추적을 종료해요");
   await expect(confirm).toContainText("범위가 달라 추적 종료");
   expect(trace.trackingPatches).toHaveLength(2);
   await confirm.getByRole("button", { name: "종료 상태로 저장" }).click();
@@ -162,7 +162,7 @@ test("T4: 같은 저장의 재시도는 같은 request_id, 내용을 바꾸면 �
   await expect(control.getByTestId("company-tracking-current")).toContainText("현재 미선택");
   await fillTrackingDraft(page, "보류", "클라우드 범위 확인 중", "클라우드SI 담당");
   await control.getByRole("button", { name: "추적 결정 저장" }).click();
-  await expect(control.getByRole("alert")).toContainText("서버에 연결할 수 없습니다.");
+  await expect(control.getByRole("alert")).toContainText("서버에 연결할 수 없어요.");
   // 입력은 그대로 남는다. 같은 입력의 재시도는 같은 request_id다.
   await expect(control.getByLabel("추적 결정 사유")).toHaveValue("클라우드 범위 확인 중");
   await control.getByRole("button", { name: "다시 저장" }).click();
@@ -193,7 +193,7 @@ test("T4: 409 version_conflict는 초안을 지우지 않고 서버 최신값을
 
   const conflict = control.getByTestId("company-tracking-conflict");
   await expect(conflict).toBeVisible();
-  await expect(control.getByRole("alert")).toContainText("이 회사의 대상이 그사이 바뀌었습니다.");
+  await expect(control.getByRole("alert")).toContainText("이 회사의 대상이 그사이 바뀌었어요.");
   const draft = conflict.getByTestId("company-tracking-conflict-draft");
   const latest = conflict.getByTestId("company-tracking-conflict-latest");
   await expect(draft).toContainText("보류");
@@ -246,7 +246,7 @@ test("T4 합성 응답: 409 idempotency_conflict는 재전송 충돌로 안내�
   await expect(control.getByTestId("company-tracking-current")).toContainText("현재 미선택");
   await fillTrackingDraft(page, "보류", "재전송 충돌 확인", "업무SI 담당");
   await control.getByRole("button", { name: "추적 결정 저장" }).click();
-  await expect(control.getByRole("alert")).toContainText("같은 요청 식별자가 다른 요청에 이미 쓰였습니다.");
+  await expect(control.getByRole("alert")).toContainText("같은 요청 식별자가 다른 요청에 이미 쓰였어요.");
   await expect(control.getByTestId("company-tracking-resend-conflict")).toContainText("재전송 충돌");
   await expect(control.getByTestId("company-tracking-resend-conflict")).toContainText("새 저장 요청으로 다시 시작");
   await expect(control.getByRole("button", { name: "추적 결정 저장" })).toBeDisabled();
@@ -297,7 +297,7 @@ test("T4: 보고서에서 추적 결정으로 이어지고, 미저장 입력으�
   // 같은 회사 안의 다른 화면으로 떠나기 → 확인 → 머물기
   await page.getByTestId("company-header").getByRole("link", { name: "사전규격 목록" }).click();
   const guard = page.getByRole("alertdialog");
-  await expect(guard).toContainText("이 회사의 추적 결정을 저장하지 않았습니다");
+  await expect(guard).toContainText("이 회사의 추적 결정을 저장하지 않았어요");
   await guard.getByRole("button", { name: "이 회사에 머물기", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`${reviewPath("demo-public-si", 7101)}$`));
   await expect(control.getByRole("radio", { name: "보류" })).toBeChecked();
@@ -369,7 +369,7 @@ test("T5: 미리보기 → 승인 상자(회사·가상 표식·모델·품질·
   await expect(scope).toContainText("요구사항2건");
   await expect(scope).toContainText("문서 버전1건");
   await expect(scope).toContainText("재시도 대상없음 · 새 검토");
-  await expect(box).toContainText("회사 핏(적합성) 판정 승인이 아닙니다");
+  await expect(box).toContainText("회사 핏(적합성) 판정 승인이 아니에요");
   expect(trace.previewPosts).toEqual([{ companyId: idC, noticeId: 7102, body: { bundle_id: target.bundle_id, source_verification_enabled: true } }]);
   expect(trace.reviewPosts).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
@@ -391,7 +391,7 @@ test("T5: 미리보기 → 승인 상자(회사·가상 표식·모델·품질·
 
   // 대기 중 보고서는 아직 없다. worker가 완료하면 같은 화면이 회사 보고서를 reader로 그린다.
   await expect(page.getByTestId("company-report-status")).toHaveAttribute("data-review-status", "queued");
-  await expect(page.getByTestId("company-report-not-ready")).toContainText("분석이 끝나면 보고서를 표시합니다.");
+  await expect(page.getByTestId("company-report-not-ready")).toContainText("분석이 끝나면 보고서를 표시해요.");
   trace.setReviewStatus(idC, reviewId("demo-cloud-si", 7102), "completed");
   const reader = page.getByRole("article", { name: "심층검토 보고서 본문" });
   await expect(reader).toBeVisible({ timeout: 15_000 });
@@ -431,7 +431,7 @@ test("T5 합성 이벤트: 같은 프레임의 이중 제출도 생성 요청 1�
   await expect(approval(page)).toBeVisible();
   await page.evaluate(() => {
     const button = Array.from(document.querySelectorAll<HTMLButtonElement>('[aria-label="외부 전송 승인"] button')).find((entry) => entry.textContent?.trim() === "전송 승인하고 심층검토 요청");
-    if (!button) throw new Error("승인 버튼을 찾지 못했습니다");
+    if (!button) throw new Error("승인 버튼을 찾지 못했어요");
     button.click();
     button.click();
   });
@@ -456,7 +456,7 @@ test("T5: 미리보기 뒤 원문 대조를 끄면 승인을 폐기하고, 다�
 
   await request(page).getByRole("checkbox", { name: "원문 인용·숫자 대조" }).uncheck();
   await expect(approval(page)).toHaveCount(0);
-  await expect(request(page).getByTestId("company-deep-review-verification-required")).toContainText("이전 미리보기 승인은 폐기했습니다");
+  await expect(request(page).getByTestId("company-deep-review-verification-required")).toContainText("이전 미리보기 승인은 폐기했어요");
   await expect(request(page).getByRole("button", { name: "전송 내용 미리보기" })).toHaveCount(0);
 
   await request(page).getByRole("checkbox", { name: "원문 인용·숫자 대조" }).check();
@@ -488,18 +488,18 @@ test("T5: gate 오류와 preview_changed는 회사 오류표로 안내하고, pr
 
   trace.setDeepReviewGate({ status: 409, code: "overview_not_completed" });
   await region.getByRole("button", { name: "전송 내용 미리보기" }).click();
-  await expect(region.getByRole("alert")).toContainText("overview_not_completed: 개요 검토가 아직 완료되지 않았습니다.");
+  await expect(region.getByRole("alert")).toContainText("overview_not_completed: 개요 검토가 아직 완료되지 않았어요.");
   await expect(approval(page)).toHaveCount(0);
   trace.setDeepReviewGate({ status: 503, code: "luna_disabled" });
   await region.getByRole("button", { name: "전송 내용 미리보기" }).click();
-  await expect(region.getByRole("alert")).toContainText("luna_disabled: Luna 심층 검토가 비활성입니다.");
+  await expect(region.getByRole("alert")).toContainText("luna_disabled: Luna 심층 검토가 비활성이에요.");
   trace.setDeepReviewGate(null);
 
   await region.getByRole("button", { name: "전송 내용 미리보기" }).click();
   await expect(approval(page)).toBeVisible();
   trace.markPreviewChanged();
   await approveButton(page).click();
-  await expect(region.getByRole("alert")).toContainText("preview_changed: 미리보기 뒤에 전송 입력이 바뀌었습니다.");
+  await expect(region.getByRole("alert")).toContainText("preview_changed: 미리보기 뒤에 전송 입력이 바뀌었어요.");
   await expect(approval(page)).toHaveCount(0);
   await expect(page).toHaveURL(new RegExp(`${detailPath("demo-cloud-si", 7102)}$`));
 
@@ -534,7 +534,7 @@ test("T5 합성 응답: 409 preview_used는 승인을 폐기하고 새 미리보
   await request(page).getByLabel("심층 검토 요청 담당자 이름").fill("클라우드SI 담당");
   await request(page).getByRole("button", { name: "전송 내용 미리보기" }).click();
   await approveButton(page).click();
-  await expect(request(page).getByRole("alert")).toContainText("preview_used: 이미 승인에 쓰인 미리보기입니다.");
+  await expect(request(page).getByRole("alert")).toContainText("preview_used: 이미 승인에 쓰인 미리보기예요.");
   await expect(approval(page)).toHaveCount(0);
   expect(trace.reviewPosts).toEqual([]);
 });
@@ -595,7 +595,7 @@ test("T5: 실패한 회사 검토는 보고서 화면에서 미리보기 후 새
   });
   await page.goto(reviewPath("demo-data-ai", 7103));
   await expect(page.getByTestId("company-report-status")).toHaveAttribute("data-review-status", "failed");
-  await expect(page.getByTestId("company-report-not-ready")).toContainText("아직 완성된 보고서가 없습니다");
+  await expect(page.getByTestId("company-report-not-ready")).toContainText("아직 완성된 보고서가 없어요");
   const retry = page.getByTestId("company-review-retry");
   await retry.getByLabel("재시도 담당자 이름").fill("데이터AI 담당");
   await retry.getByRole("button", { name: "전송 내용 미리보기" }).click();
@@ -604,7 +604,7 @@ test("T5: 실패한 회사 검토는 보고서 화면에서 미리보기 후 새
   await expect(approval(page).getByTestId("company-approval-company")).toHaveText("전송 대상 회사 · 데모 데이터AI · 가상회사");
 
   await approveButton(page).click();
-  await expect(retry.getByRole("alert")).toContainText("서버에 연결할 수 없습니다.");
+  await expect(retry.getByRole("alert")).toContainText("서버에 연결할 수 없어요.");
   await approveButton(page).click();
   await expect(page.getByTestId("company-report-status")).toHaveAttribute("data-review-status", "queued");
   expect(trace.attemptPosts).toHaveLength(2);
@@ -632,7 +632,7 @@ test("T5: 회사 보고서는 NarrativeReportReader로 그리고 회사·그래�
   await expect(identity.getByTestId("company-report-graph-version")).toHaveText(COMPANY_BY_SLUG["demo-public-si"].graph_version_id);
   await expect(identity.getByTestId("company-report-current")).toHaveAttribute("data-is-current", "true");
   await expect(identity).toContainText("참조 실행 · 품질 미측정");
-  await expect(reader.locator(".narrative-note")).toContainText("최종 입찰 Go/No-Go는 별도 판단입니다.");
+  await expect(reader.locator(".narrative-note")).toContainText("최종 입찰 Go/No-Go는 별도 판단이에요.");
   await reader.locator(`[data-claim-id="${DELIVERY_CLAIM_ID}"]`).getByRole("button", { name: "근거 1 확인" }).click();
   await expect(page.getByRole("complementary", { name: "선택한 원문 근거" }).locator("blockquote")).toHaveText(companyReviewEvidence.quote);
   expect(trace.requests).toContain(`GET /api/companies/${idA}/deep-reviews/${reviewId("demo-public-si", 7101)}/report`);
@@ -659,7 +659,7 @@ test("T5: 전송 대상 회사 이름을 확인하기 전(조회 중·실패)에
   const box = approval(page);
   await expect(box.getByTestId("company-approval-company")).toContainText("회사 이름 확인 중");
   await expect(approveButton(page)).toBeDisabled();
-  await expect(box.getByRole("alert")).toContainText("전송 대상 회사 정보를 아직 확인하지 못했습니다");
+  await expect(box.getByRole("alert")).toContainText("전송 대상 회사 정보를 아직 확인하지 못했어요");
   expect(trace.reviewPosts).toEqual([]);
 
   release();
@@ -678,7 +678,7 @@ test("T5: 회사 이름 조회가 실패하면 승인 버튼은 계속 막힌다
   await page.goto(detailPath("demo-cloud-si", 7102));
   await request(page).getByLabel("심층 검토 요청 담당자 이름").fill("클라우드SI 담당");
   await request(page).getByRole("button", { name: "전송 내용 미리보기" }).click();
-  await expect(approval(page).getByRole("alert")).toContainText("회사 이름이 확인될 때까지 승인할 수 없습니다");
+  await expect(approval(page).getByRole("alert")).toContainText("회사 이름이 확인될 때까지 승인할 수 없어요");
   await expect(approveButton(page)).toBeDisabled();
   expect(trace.reviewPosts).toEqual([]);
 });

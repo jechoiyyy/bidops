@@ -27,38 +27,38 @@ export const PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL: Record<PreSpecAutoPreparati
  * 화면 문구만 `회사 적합성`으로 통일한다(docs/0915_ui-redesign/spec.md §4 용어).
  * 사유 코드(`company_fit_*`)와 계약은 그대로다. */
 export const COMPANY_FIT_REASON_LABEL: Record<string, string> = {
-  company_fit_disabled: "회사 적합성 자동 판정이 비활성입니다.",
-  company_fit_pending: "회사 적합성 판정이 필요합니다.",
-  company_fit_queued: "회사 적합성 판정을 기다리고 있습니다.",
-  company_fit_running: "회사 적합성 판정 중입니다.",
-  company_fit_stale: "개요·회사 프로필·정책이 바뀌어 새 판정이 필요합니다.",
-  company_fit_mismatch: "회사 업무 범위와 불일치하여 자동 시작 조건을 충족하지 못했습니다.",
-  company_fit_unknown: "회사 적합성 판단에 필요한 정보가 부족하여 사람 확인이 필요합니다.",
-  company_fit_failed: "회사 적합성 실행에 실패하여 자동 시작할 수 없습니다.",
-  company_fit_needs_human_review: "회사 적합성 근거 검증에 실패하여 사람 확인이 필요합니다.",
-  company_fit_validation_failed: "회사 적합성 근거 검증에 실패하여 사람 확인이 필요합니다.",
-  company_fit_reference_only: "참조 판정으로는 운영 자동 시작 조건을 충족할 수 없습니다.",
+  company_fit_disabled: "회사 적합성 자동 판정이 비활성이에요.",
+  company_fit_pending: "회사 적합성 판정이 필요해요.",
+  company_fit_queued: "회사 적합성 판정을 기다리고 있어요.",
+  company_fit_running: "회사 적합성 판정 중이에요.",
+  company_fit_stale: "개요·회사 프로필·정책이 바뀌어 새 판정이 필요해요.",
+  company_fit_mismatch: "회사 업무 범위와 불일치하여 자동 시작 조건을 충족하지 못했어요.",
+  company_fit_unknown: "회사 적합성 판단에 필요한 정보가 부족하여 사람 확인이 필요해요.",
+  company_fit_failed: "회사 적합성 실행에 실패하여 자동 시작할 수 없어요.",
+  company_fit_needs_human_review: "회사 적합성 근거 검증에 실패하여 사람 확인이 필요해요.",
+  company_fit_validation_failed: "회사 적합성 근거 검증에 실패하여 사람 확인이 필요해요.",
+  company_fit_reference_only: "참조 판정으로는 운영 자동 시작 조건을 충족할 수 없어요.",
 };
 
 const REASON_LABEL: Record<string, string> = {
   ...COMPANY_FIT_REASON_LABEL,
   // 자동 문서 준비 자격이 없다 — 개요 자동 검토가 꺼져 있거나 SW사업대상이 아니다
   // (`우선 검토` 등급 규칙은 그대로지만 C-1 판정이 돌지 않아 등급은 없다).
-  grade_not_priority: "자동 문서 준비 대상이 아닙니다.",
-  deadline_passed_untracked: "의견 마감이 지났고 추적 중이 아니라 자동으로 처리하지 않습니다. 추적을 시작하면 처리합니다.",
-  awaiting_fetch: "첨부 원문 취득이 끝나지 않았습니다.",
-  no_ready_document: "구조화가 끝난 문서가 없습니다.",
-  bundle_has_blocking_issues: "묶음에 차단 issue가 있습니다.",
-  bundle_unchanged: "직전 묶음과 내용이 같아 새 준비를 만들지 않았습니다.",
-  human_bundle_draft: "사람이 만든 초안 묶음이라 자동으로 확정하지 않습니다.",
-  processing_failed: "처리가 실패했습니다.",
-  not_sw_business: "SW사업대상이 아닙니다.",
-  bundle_not_auto_ready: "자동 확정 조건을 채우지 못한 묶음입니다.",
+  grade_not_priority: "자동 문서 준비 대상이 아니에요.",
+  deadline_passed_untracked: "의견 마감이 지났고 추적 중이 아니라 자동으로 처리하지 않아요. 추적을 시작하면 처리해요.",
+  awaiting_fetch: "첨부 원문 취득이 끝나지 않았어요.",
+  no_ready_document: "구조화가 끝난 문서가 없어요.",
+  bundle_has_blocking_issues: "묶음에 차단 issue가 있어요.",
+  bundle_unchanged: "직전 묶음과 내용이 같아 새 준비를 만들지 않았어요.",
+  human_bundle_draft: "사람이 만든 초안 묶음이라 자동으로 확정하지 않아요.",
+  processing_failed: "처리가 실패했어요.",
+  not_sw_business: "SW사업대상이 아니에요.",
+  bundle_not_auto_ready: "자동 확정 조건을 채우지 못한 묶음이에요.",
   // 새 계약(prespec_overview_run)에서 이 사유는 "최신 개요 run이 completed가
   // 아니다"라는 뜻이다. 실패·취소·사람 확인 필요도 모두 여기로 온다.
-  overview_not_completed: "개요 run이 completed가 아닙니다.",
-  service_unavailable: "필요한 버전이나 서비스를 확인할 수 없습니다.",
-  attachments_failed: "첨부 원문 취득이 모두 차단·실패로 끝났습니다.",
+  overview_not_completed: "개요 run이 completed가 아니에요.",
+  service_unavailable: "필요한 버전이나 서비스를 확인할 수 없어요.",
+  attachments_failed: "첨부 원문 취득이 모두 차단·실패로 끝났어요.",
 };
 
 /** 사유가 없으면 `null`을 돌려준다. 사유 `null`은 정상이므로 호출부는 아무것도

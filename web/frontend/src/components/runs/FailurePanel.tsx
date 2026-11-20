@@ -53,7 +53,7 @@ export function FailurePanel({ detail, summary, loading }: FailurePanelProps) {
         title="실패한 공고"
         action={<Caption as="span">{failureCount === null ? "건수 미확인" : `${failureCount.toLocaleString("ko-KR")}건`}</Caption>}
       >
-        {loading && !detail ? <Caption>실패 내역을 불러오는 중입니다.</Caption> : null}
+        {loading && !detail ? <Caption>실패 내역을 불러오는 중이에요.</Caption> : null}
         {failures.length > 0 ? (
           <div>
             {failures.map((failure) => (
@@ -74,10 +74,10 @@ export function FailurePanel({ detail, summary, loading }: FailurePanelProps) {
           </div>
         ) : null}
         {!loading && failures.length === 0 ? (
-          <Note title={failureCount === 0 ? "실패한 항목이 없습니다 · 0건" : "건별 실패 내역은 미확인입니다"}>
+          <Note title={failureCount === 0 ? "실패한 항목이 없어요 · 0건" : "건별 실패 내역은 미확인이에요"}>
             {failureCount === 0
-              ? "실행이 기록한 실패 건수가 실제로 0입니다."
-              : "실패 건수는 기록됐지만 건별 목록을 아직 받지 못했습니다. 0건이 아닙니다."}
+              ? "실행이 기록한 실패 건수가 실제로 0이에요."
+              : "실패 건수는 기록됐지만 건별 목록을 아직 받지 못했어요. 0건이 아니에요."}
           </Note>
         ) : null}
       </Section>
@@ -88,11 +88,11 @@ export function FailurePanel({ detail, summary, loading }: FailurePanelProps) {
             <a href={failureArtifactUrl} target="_blank" rel="noreferrer">실패 목록 산출물 열기</a>
           </div>
         ) : (
-          <Caption>이 실행에는 내려받을 수 있는 실패 산출물 경로가 없습니다.</Caption>
+          <Caption>이 실행에는 내려받을 수 있는 실패 산출물 경로가 없어요.</Caption>
         )}
-        <Note title="실패 기록을 바탕으로 다음 조치를 사람이 판단합니다">
-          근거 확인이 필요한 항목과 실행 오류를 구분해 검토합니다. 실패를 자동으로 보정하거나 다시 시작하지
-          않습니다.
+        <Note title="실패 기록을 바탕으로 다음 조치를 사람이 판단해요">
+          근거 확인이 필요한 항목과 실행 오류를 구분해 검토해요. 실패를 자동으로 보정하거나 다시 시작하지
+          않아요.
         </Note>
       </Section>
 
@@ -121,7 +121,7 @@ export function FailurePanel({ detail, summary, loading }: FailurePanelProps) {
                   ["span", <span className="rs-mono" key="span">{present(selected.span_id, "값 없음")}</span>],
                 ]}
               />
-              <Note title="실행이 남긴 요약" tone="error">{present(selected.error_summary, "서버가 요약을 남기지 않았습니다.")}</Note>
+              <Note title="실행이 남긴 요약" tone="error">{present(selected.error_summary, "서버가 요약을 남기지 않았어요.")}</Note>
               {attemptsFor(detail, selected.notice_id).length > 0 ? (
                 <Section title="이 공고의 시도 기록">
                   <DataTable
@@ -139,9 +139,9 @@ export function FailurePanel({ detail, summary, loading }: FailurePanelProps) {
                   />
                 </Section>
               ) : (
-                <Caption>이 공고의 시도 기록은 받은 실행 상세에 없습니다.</Caption>
+                <Caption>이 공고의 시도 기록은 받은 실행 상세에 없어요.</Caption>
               )}
-              <Caption>내부 경로·자격증명·원문·전체 프롬프트와 모델 응답 본문은 화면에 표시하지 않습니다.</Caption>
+              <Caption>내부 경로·자격증명·원문·전체 프롬프트와 모델 응답 본문은 화면에 표시하지 않아요.</Caption>
             </div>
           ) : null}
           <div className="rs-dialog-actions">
@@ -175,8 +175,8 @@ export function TelemetrySummary({ detail }: { detail: ScreeningExecutionDetailR
         <code>{present(detail?.model_digest, "값 없음")}</code>
       </details>
       <Caption>
-        model_digest · token 수 · duration_ms는 판정 화면의 기본 표시에서 뺐을 뿐 삭제하지 않았습니다.
-        감사 목적으로 이 자리에서 확인합니다.
+        model_digest · token 수 · duration_ms는 판정 화면의 기본 표시에서 뺐을 뿐 삭제하지 않았어요.
+        감사 목적으로 이 자리에서 확인해요.
       </Caption>
     </Section>
   );

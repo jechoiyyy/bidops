@@ -49,7 +49,7 @@ export function ScheduleExecutionTable({ items, onRecover }: ScheduleExecutionTa
         ))}
       </div>
       {items.length === 0 ? (
-        <Caption>아직 예약·catch-up·실행 이력이 없습니다.</Caption>
+        <Caption>아직 예약·catch-up·실행 이력이 없어요.</Caption>
       ) : (
         <DataTable
           caption="정기 실행 상태와 기간, 실행 결과, 실패·건너뜀 사유"
@@ -93,8 +93,8 @@ export function ScheduleExecutionTable({ items, onRecover }: ScheduleExecutionTa
         />
       )}
       <Caption>
-        건수의 &quot;값 없음&quot;은 0건이 아니라 서버가 기록하지 않은 상태입니다. 거절되거나 건너뛴 예약을
-        실행 성공으로 표시하지 않습니다.
+        건수의 &quot;값 없음&quot;은 0건이 아니라 서버가 기록하지 않은 상태예요. 거절되거나 건너뛴 예약을
+        실행 성공으로 표시하지 않아요.
       </Caption>
     </Section>
   );

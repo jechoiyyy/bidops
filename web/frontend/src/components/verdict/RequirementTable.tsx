@@ -186,8 +186,8 @@ export function RequirementTable({ rows, selectedUnitId, onSelect, note = null }
       {filtered.length === 0 ? (
         <p className="vd-req-empty" role="status">
           {counts.total === 0
-            ? "대조한 요구사항이 아직 없습니다."
-            : "이 조건에 해당하는 요구사항이 없습니다. 상태나 필수만 조건을 바꿔 보세요."}
+            ? "대조한 요구사항이 아직 없어요."
+            : "이 조건에 해당하는 요구사항이 없어요. 상태나 필수만 조건을 바꿔 보세요."}
         </p>
       ) : (
         <div className="vd-table-scroll">

@@ -65,7 +65,12 @@ async function openVerdict(
 const rows = (page: Page) => page.locator("tr.vd-row");
 const rowTitles = (page: Page) => page.locator("tr.vd-row .vd-row-title").allTextContents();
 const rowOf = (page: Page, text: string) => page.locator("tr.vd-row").filter({ hasText: text });
-const headerPills = (page: Page) => page.locator('[data-testid="record-header"] .rec-pill').allTextContents();
+// 2026-11-19 패널 헤더(ADR-0076): 단계·마감·판정은 헤더 사실 줄, 추적 결정은 헤더 태그다(옛 헤더 pill 넷의 자리).
+// 추적 태그 문구는 `추적 중`(계속 추적)·`추적 미선택`(미선택)이다.
+const headerPills = async (page: Page) => [
+  ...(await page.locator('[data-testid="page-header-facts"] .topbar-fact:is([data-fact="stage"], [data-fact="deadline"], [data-fact="verdict"]) dd').allTextContents()),
+  ...(await page.getByTestId("page-header-tag").allTextContents()),
+];
 const toast = (page: Page) => page.locator(".toast");
 const panel = (page: Page) => page.getByTestId("source-panel");
 const actorInput = (dialog: ReturnType<Page["getByRole"]>) => dialog.getByLabel(/기록자/);
@@ -79,14 +84,14 @@ async function waitTable(page: Page) {
   await expect(page.getByRole("table", { name: "요구사항 대조표" })).toBeVisible();
 }
 
-test("판정이 없으면 '아직 판정이 없습니다'와 판정 요청을 보이고 헤더는 분석 대기·판정 보기 비활성이다", async ({ page }) => {
+test("판정이 없으면 '아직 판정이 없어요'와 판정 요청을 보이고 헤더는 분석 대기·판정 보기 비활성이다", async ({ page }) => {
   const trace = await openVerdict(page, null);
   const tabpanel = page.getByRole("tabpanel");
-  await expect(tabpanel.getByText("아직 판정이 없습니다", { exact: true })).toBeVisible();
+  await expect(tabpanel.getByText("아직 판정이 없어요", { exact: true })).toBeVisible();
   // 첫 요청은 "다시"가 아니다(설계고도화안 C-4).
   await expect(tabpanel.getByRole("button", { name: "판정 요청", exact: true })).toBeEnabled();
   await expect(tabpanel.getByRole("button", { name: "다시 판정", exact: true })).toHaveCount(0);
-  expect(await headerPills(page)).toEqual(["입찰공고", "D-4", "분석 대기", "계속 추적"]);
+  await expect.poll(() => headerPills(page)).toEqual(["입찰공고", "D-4", "분석 대기", "추적 중"]);
   // 판정 탭에서는 제안서 초안(판정이 없으면 비활성)·판정 요청·⋯가 헤더 액션이고 판정 보기는 없다.
   const header = page.locator('[data-testid="record-header"]');
   await expect(header.getByRole("button", { name: "제안서 초안", exact: true })).toBeDisabled();
@@ -99,7 +104,7 @@ test("판정이 없으면 '아직 판정이 없습니다'와 판정 요청을 �
   await header.getByRole("button", { name: "사업기회 더보기" }).click();
   await expect(page.getByRole("menuitem", { name: /판정 오류 제보/ })).toBeDisabled();
   await expect(page.getByRole("menuitem", { name: /실행 정보/ })).toBeDisabled();
-  await expect(page.getByRole("menu")).toContainText("제보할 판정이 없습니다");
+  await expect(page.getByRole("menu")).toContainText("제보할 판정이 없어요");
   expect(trace.verdictGets.length).toBeGreaterThan(0);
   expect(trace.unhandled).toEqual([]);
 });
@@ -139,7 +144,7 @@ test("완료 판정은 좌측에 판정 이름·사유·체크리스트 5행·�
   await expect(actions.nth(1).locator(".rec-avatar")).toHaveCount(0);
   await expect(actions.nth(1).locator('[data-owner="unassigned"]')).toHaveText("미지정");
 
-  await expect(page.getByText("판정은 참고 의견입니다. 추적 여부와 참여 결정은 담당자가 정합니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("판정은 참고 의견이에요. 추적 여부와 참여 결정은 담당자가 정해요.", { exact: true })).toBeVisible();
   // 판정은 추적 결정·Go/No-Go가 아니다: 그런 버튼이 없다.
   await expect(page.getByRole("button", { name: /Go\/No-Go|추적 시작|입찰/ })).toHaveCount(0);
 });
@@ -149,7 +154,7 @@ test("원문에서 찾지 못한 영역이 있는 완료 판정은 그 영역을
   const trace = await openVerdict(page, completedView({ missing_sections: ["contract"] }));
   await waitTable(page);
   const note = page.getByTestId("missing-sections-note");
-  await expect(note).toHaveText("원문에서 찾지 못한 영역: 계약조건 — 이 영역의 요구사항은 확인 필요입니다.");
+  await expect(note).toHaveText("원문에서 찾지 못한 영역: 계약조건 — 이 영역의 요구사항은 확인 필요예요.");
   await expect(page.getByTestId("review-banner")).toHaveCount(0);
 
   trace.setVerdict(7101, completedView());
@@ -229,8 +234,8 @@ test("코드가 붙인 다음 행동은 '사람 확인' 표식으로 모델 행�
 
 test("헤더 판정 pill은 판정 이름이고 판정 보기는 결과가 있을 때만 열려 판정 탭으로 간다", async ({ page }) => {
   const trace = await openVerdict(page, completedView(), "/opportunities/7101/activity");
-  await expect.poll(() => headerPills(page)).toEqual(["입찰공고", "D-4", "조건부 진행", "계속 추적"]);
-  await expect(page.locator('.rec-pill[data-pill="verdict"]')).toHaveClass(/is-warning/);
+  await expect.poll(() => headerPills(page)).toEqual(["입찰공고", "D-4", "조건부 진행", "추적 중"]);
+  await expect(page.locator('[data-testid="page-header-facts"] [data-fact="verdict"]')).toHaveClass(/is-warning/);
   const open = page.getByRole("button", { name: "판정 보기", exact: true });
   await expect(open).toBeEnabled();
   await open.click();
@@ -244,23 +249,23 @@ test("헤더 판정 pill은 판정 이름이고 판정 보기는 결과가 있�
     trace.setVerdict(7101, view);
     await page.goto("/opportunities/7101/verdict");
     await expect(page.getByTestId("verdict-summary").getByRole("heading", { name: verdict })).toHaveClass(new RegExp(tone));
-    if (tone !== "is-muted") await expect(page.locator('.rec-pill[data-pill="verdict"]')).toHaveClass(new RegExp(tone));
-    await expect(page.locator('.rec-pill[data-pill="verdict"]')).toHaveText(verdict);
+    if (tone !== "is-muted") await expect(page.locator('[data-testid="page-header-facts"] [data-fact="verdict"]')).toHaveClass(new RegExp(tone));
+    await expect(page.locator('[data-testid="page-header-facts"] [data-fact="verdict"] dd')).toHaveText(verdict);
   }
 });
 
 test("발주계획만 있는 레코드는 판정 pill이 연차 추적으로 남는다", async ({ page }) => {
   const trace = await openVerdict(page, null, "/opportunities/7102/verdict");
-  await expect.poll(() => headerPills(page)).toEqual(["발주계획", "연차 추적", "미선택"]);
+  await expect.poll(() => headerPills(page)).toEqual(["발주계획", "연차 추적", "추적 미선택"]);
   const tabpanel = page.getByRole("tabpanel");
-  await expect(tabpanel.getByText("아직 판정이 없습니다", { exact: true })).toBeVisible();
+  await expect(tabpanel.getByText("아직 판정이 없어요", { exact: true })).toBeVisible();
   // 사전규격이 없으면 서버는 `notice_id=null`을 준다(B14). 판정 대상이 없으므로 요청 버튼을 두지 않고
   // 이유를 말한다 — 0으로 접어 요청하지 않는다.
-  await expect(tabpanel.getByText(/연결된 사전규격이 없어 판정 대상이 아닙니다/)).toBeVisible();
+  await expect(tabpanel.getByText(/연결된 사전규격이 없어 판정 대상이 아니에요/)).toBeVisible();
   await expect(tabpanel.getByRole("button", { name: /^(판정 요청|다시 판정)$/ })).toHaveCount(0);
   const header = page.locator('[data-testid="record-header"]');
   await expect(header.getByRole("button", { name: "판정 요청", exact: true })).toBeDisabled();
-  await expect(page.locator('.rec-action-hint[title="연결된 사전규격이 없습니다"]')).toHaveCount(1);
+  await expect(page.locator('.rec-action-hint[title="연결된 사전규격이 없어요"]')).toHaveCount(1);
   expect(trace.verdictRequests).toEqual([]);
   expect(trace.unhandled).toEqual([]);
 });
@@ -336,7 +341,7 @@ test("조건에 맞는 행이 없으면 표 대신 안내를 보이고 요구사
   await openVerdict(page, completedView({}, allMet));
   await expect(page.getByRole("heading", { name: "요구사항 2" })).toBeVisible();
   await expect(page.getByTestId("verdict-counts")).toHaveText("부족 0 · 확인 필요 0 · 충족 2");
-  await expect(page.getByRole("status").filter({ hasText: "이 조건에 해당하는 요구사항이 없습니다" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "이 조건에 해당하는 요구사항이 없어요" })).toBeVisible();
   await expect(rows(page)).toHaveCount(0);
   await chooseFilter(page, "전체");
   await expect(rows(page)).toHaveCount(2);
@@ -400,11 +405,11 @@ test("행을 고르면 원문 패널이 열려 인용 2개를 mark로 보이고 
   await rowOf(page, R[4]).locator(".vd-row-main").click();
   await expect(panel(page).getByRole("heading", { name: "원문 · 쪽 미확인" })).toBeVisible();
   await expect(panel(page).getByRole("button", { name: "쪽 전체 보기" })).toBeDisabled();
-  await expect(panel(page)).toContainText("쪽을 알 수 없어 열 수 없습니다");
+  await expect(panel(page)).toContainText("쪽을 알 수 없어 열 수 없어요");
 
   // 인용이 없는 행.
   await rowOf(page, R[7]).locator(".vd-row-main").click();
-  await expect(panel(page)).toContainText("서버가 연결한 원문 인용이 없습니다");
+  await expect(panel(page)).toContainText("서버가 연결한 원문 인용이 없어요");
   await expect(panel(page).locator("mark")).toHaveCount(0);
 
   // 닫기 · 필터를 바꾸면 패널이 닫힌다.
@@ -435,7 +440,7 @@ test("서버가 문서 구조 id를 주지 않으면 쪽 전체 보기를 열지
   await waitTable(page);
   await rowOf(page, R[3]).locator(".vd-row-main").click();
   await expect(panel(page).getByRole("button", { name: "쪽 전체 보기" })).toBeDisabled();
-  await expect(panel(page)).toContainText("문서 구조 정보가 없어 열 수 없습니다");
+  await expect(panel(page)).toContainText("문서 구조 정보가 없어 열 수 없어요");
   expect(trace.pageGets).toEqual([]);
 });
 
@@ -451,23 +456,23 @@ test("원문 패널 행동은 담당자 이름을 받아 오류 제보를 보내
   // 요구사항 식별자(원문 hash를 포함한다)는 화면에 없다.
   await expect(dialog).not.toContainText(SOURCE_SHA);
   await expect(dialog).not.toContainText("card:");
-  await expect(dialog.getByRole("combobox", { name: "제보 유형" })).toContainText("요구사항이 아닙니다");
+  await expect(dialog.getByRole("combobox", { name: "제보 유형" })).toContainText("요구사항이 아니에요");
   // 이름이 없으면 보내지 않고 이유를 말한다.
   const submit = dialog.getByRole("button", { name: "제보 보내기" });
   await expect(submit).toBeDisabled();
-  await expect(dialog).toContainText("제보하려면 담당자 이름을 입력하십시오");
+  await expect(dialog).toContainText("제보하려면 담당자 이름을 입력해 주세요");
   await actorInput(dialog).fill("김담당");
-  await dialog.getByLabel("메모 (선택)").fill("이 항목은 평가 배점 안내일 뿐 요구사항이 아닙니다");
+  await dialog.getByLabel("메모 (선택)").fill("이 항목은 평가 배점 안내일 뿐 요구사항이 아니에요");
 
   trace.failVerdictFeedbacks({ status: 503, code: "service_unavailable" });
   await submit.click();
-  await expect(dialog.getByRole("alert")).toContainText("입력한 내용은 그대로 남아 있습니다");
-  await expect(dialog.getByLabel("메모 (선택)")).toHaveValue("이 항목은 평가 배점 안내일 뿐 요구사항이 아닙니다");
+  await expect(dialog.getByRole("alert")).toContainText("입력한 내용은 그대로 남아 있어요");
+  await expect(dialog.getByLabel("메모 (선택)")).toHaveValue("이 항목은 평가 배점 안내일 뿐 요구사항이 아니에요");
 
   trace.failVerdictFeedbacks(null);
   await submit.click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(toast(page)).toContainText("판정 오류 제보를 남겼습니다");
+  await expect(toast(page)).toContainText("판정 오류 제보를 남겼어요");
   expect(trace.verdictFeedbacks).toHaveLength(2);
   const [first, second] = trace.verdictFeedbacks;
   expect(second.body.request_id).toBe(first.body.request_id);
@@ -475,7 +480,7 @@ test("원문 패널 행동은 담당자 이름을 받아 오류 제보를 보내
     attempt_id: VERDICT_ATTEMPT_ID,
     kind: "not_requirement",
     unit_id: `card:${SOURCE_SHA}:3:REQ-003`,
-    note: "이 항목은 평가 배점 안내일 뿐 요구사항이 아닙니다",
+    note: "이 항목은 평가 배점 안내일 뿐 요구사항이 아니에요",
     request_id: expect.stringMatching(UUID),
   });
   expect(second.companyId).toBe(VERDICT_COMPANY_ID);
@@ -486,7 +491,7 @@ test("원문 패널 행동은 담당자 이름을 받아 오류 제보를 보내
   // 원문과 다름 → source_mismatch, 메모 없이도 보낸다. 새 대화상자는 새 요청 식별자다.
   await panel(page).getByRole("button", { name: "원문과 다름" }).click();
   const again = page.getByRole("dialog");
-  await expect(again.getByRole("combobox", { name: "제보 유형" })).toContainText("원문과 다릅니다");
+  await expect(again.getByRole("combobox", { name: "제보 유형" })).toContainText("원문과 달라요");
   await actorInput(again).fill("김담당");
   await again.getByRole("button", { name: "제보 보내기" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -499,7 +504,7 @@ test("원문 패널 행동은 담당자 이름을 받아 오류 제보를 보내
   });
   expect(trace.verdictFeedbacks[2].body.request_id).not.toBe(first.body.request_id);
   // 제보는 판정·추적을 바꾸지 않는다: 헤더 pill이 그대로다.
-  expect(await headerPills(page)).toEqual(["입찰공고", "D-4", "조건부 진행", "계속 추적"]);
+  await expect.poll(() => headerPills(page)).toEqual(["입찰공고", "D-4", "조건부 진행", "추적 중"]);
 });
 
 test("⋯ 판정 오류 제보는 판정 전체(wrong_verdict)를 요구사항 식별자 없이 보낸다", async ({ page }) => {
@@ -508,7 +513,7 @@ test("⋯ 판정 오류 제보는 판정 전체(wrong_verdict)를 요구사항 �
   await expect(page.getByRole("menu").getByRole("menuitem")).toHaveText([/추적 상태 변경/, /추적 되돌리기/, /신호 확인/, /후보 연결/, /판정 오류 제보/, /실행 정보/]);
   await page.getByRole("menuitem", { name: /판정 오류 제보/ }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText("이 판정 전체가 틀렸다고 제보합니다");
+  await expect(dialog).toContainText("이 판정 전체가 틀렸다고 제보해요");
   await expect(dialog.getByRole("combobox")).toHaveCount(0);
   await actorInput(dialog).fill("김담당");
   await dialog.getByRole("button", { name: "제보 보내기" }).click();
@@ -523,47 +528,47 @@ test("다시 판정은 담당자 이름과 함께 UUID 요청 식별자로 접�
   await header.getByRole("button", { name: "다시 판정", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("heading", { name: "다시 판정" })).toBeVisible();
-  await expect(dialog).toContainText("이전 판정은 지워지지 않고 남습니다");
+  await expect(dialog).toContainText("이전 판정은 지워지지 않고 남아요");
   const submit = dialog.getByRole("button", { name: "판정 요청", exact: true });
   await expect(submit).toBeDisabled();
-  await expect(dialog).toContainText("판정을 요청하려면 담당자 이름을 입력하십시오");
+  await expect(dialog).toContainText("판정을 요청하려면 담당자 이름을 입력해 주세요");
   await actorInput(dialog).fill("김담당");
 
   // 승인·한도 조건으로 막히면 그 안전한 코드의 문구를 말하고 입력을 남긴다.
   trace.failVerdictRequests({ status: 409, code: "policy_not_approved" });
   await submit.click();
-  await expect(dialog.getByRole("alert")).toContainText("분석 정책 전송 승인이 없습니다");
+  await expect(dialog.getByRole("alert")).toContainText("분석 정책 전송 승인이 없어요");
   await expect(dialog.getByRole("alert")).toContainText("policy_not_approved");
   await expect(actorInput(dialog)).toHaveValue("김담당");
   trace.failVerdictRequests({ status: 409, code: "daily_cap_reached" });
   await submit.click();
-  await expect(dialog.getByRole("alert")).toContainText("오늘 판정 한도에 도달했습니다");
+  await expect(dialog.getByRole("alert")).toContainText("오늘 판정 한도에 도달했어요");
   trace.failVerdictRequests({ status: 409, code: "bundle_not_ready" });
   await submit.click();
-  await expect(dialog.getByRole("alert")).toContainText("문서 준비가 끝나지 않았습니다");
+  await expect(dialog.getByRole("alert")).toContainText("문서 준비가 끝나지 않았어요");
   trace.failVerdictRequests({ status: 403, code: "effective_grade_ineligible" });
   await submit.click();
-  await expect(dialog.getByRole("alert")).toContainText("SW사업 공고가 아니라 판정 대상이 아닙니다");
+  await expect(dialog.getByRole("alert")).toContainText("SW사업 공고가 아니라 판정 대상이 아니에요");
   trace.failVerdictRequests({ status: 409, code: "active_attempt_exists" });
   await submit.click();
-  await expect(dialog.getByRole("alert")).toContainText("이미 분석 중인 판정이 있습니다");
+  await expect(dialog.getByRole("alert")).toContainText("이미 분석 중인 판정이 있어요");
   // 기존 서비스 gate 코드도 판정 문맥의 문구로 말한다(B14).
   trace.failVerdictRequests({ status: 503, code: "reference_mode_required" });
   await submit.click();
-  await expect(dialog.getByRole("alert")).toContainText("참조 실행 모드가 꺼져 있습니다");
+  await expect(dialog.getByRole("alert")).toContainText("참조 실행 모드가 꺼져 있어요");
   trace.failVerdictRequests({ status: 409, code: "company_input_invalid" });
   await submit.click();
-  await expect(dialog.getByRole("alert")).toContainText("판정 입력을 만들 수 없습니다");
+  await expect(dialog.getByRole("alert")).toContainText("판정 입력을 만들 수 없어요");
   trace.failVerdictRequests({ status: 404, code: "not_found" });
   await submit.click();
-  await expect(dialog.getByRole("alert")).toContainText("판정할 사전규격을 찾을 수 없습니다");
+  await expect(dialog.getByRole("alert")).toContainText("판정할 사전규격을 찾을 수 없어요");
   // 실패한 시도는 새 판정을 시작하지 않았다.
   await expect(header.getByRole("button", { name: "다시 판정", exact: true })).toBeEnabled();
 
   trace.failVerdictRequests(null);
   await submit.click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(toast(page)).toContainText("판정을 요청했습니다");
+  await expect(toast(page)).toContainText("판정을 요청했어요");
   expect(trace.verdictRequests).toHaveLength(9);
   // 같은 대화상자의 재시도는 같은 요청 식별자다(응답을 잃은 요청이 두 번 접수되지 않게).
   const ids = new Set(trace.verdictRequests.map((entry) => entry.body.request_id));
@@ -572,10 +577,10 @@ test("다시 판정은 담당자 이름과 함께 UUID 요청 식별자로 접�
   expect(decodeURIComponent(trace.verdictRequests[5].headers["x-bidops-actor-name"].replace("UTF-8''", ""))).toBe("김담당");
 
   // 접수되면 서버 상태(분석 중)를 다시 읽어 헤더 pill과 탭이 바뀐다. 진행 중에는 다시 판정이 막힌다.
-  await expect.poll(() => headerPills(page)).toEqual(["입찰공고", "D-4", "분석 중", "계속 추적"]);
+  await expect.poll(() => headerPills(page)).toEqual(["입찰공고", "D-4", "분석 중", "추적 중"]);
   await expect(page.getByTestId("running-banner")).toContainText("분석 중");
   await expect(header.getByRole("button", { name: "다시 판정", exact: true })).toBeDisabled();
-  await expect(page.locator('.rec-action-hint[title="분석이 진행 중입니다"]')).toHaveCount(1);
+  await expect(page.locator('.rec-action-hint[title="분석이 진행 중이에요"]')).toHaveCount(1);
   await expect(header.getByRole("button", { name: "판정 보기" })).toHaveCount(0);
   expect(trace.unhandled).toEqual([]);
 });
@@ -608,17 +613,17 @@ test("분석 중이면 안내와 검증이 끝난 부분표만 보이고 최종 
   await expect(page.getByTestId("running-banner")).toContainText("검증이 끝난 요구사항부터");
   await expect(page.getByTestId("verdict-summary")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "요구사항 2" })).toBeVisible();
-  await expect(page.getByText("검증이 끝난 요구사항만 보입니다. 최종 판정은 아직 없습니다.")).toBeVisible();
+  await expect(page.getByText("검증이 끝난 요구사항만 보여요. 최종 판정은 아직 없어요.")).toBeVisible();
   // 부분표도 같은 규칙으로 부족 → 확인 필요 순이다.
   await expect.poll(() => rowTitles(page)).toEqual([R[3], R[2]]);
-  expect(await headerPills(page)).toEqual(["입찰공고", "D-4", "분석 중", "계속 추적"]);
+  await expect.poll(() => headerPills(page)).toEqual(["입찰공고", "D-4", "분석 중", "추적 중"]);
   await expect(page.getByRole("button", { name: "판정 보기" })).toHaveCount(0);
 
   // pending은 아직 검증된 행이 없어 표 대신 안내다.
   trace.setVerdict(7101, runningView("pending"));
   await page.goto("/opportunities/7101/verdict");
   await expect(page.getByTestId("running-banner")).toContainText("분석 중");
-  await expect(page.getByText("대조한 요구사항이 아직 없습니다.")).toBeVisible();
+  await expect(page.getByText("대조한 요구사항이 아직 없어요.")).toBeVisible();
   await expect(rows(page)).toHaveCount(0);
 });
 
@@ -630,7 +635,7 @@ test("분석 중 상태가 끝나면 주기적으로 다시 읽어 완료 판정
   await expect(page.getByTestId("verdict-summary")).toBeVisible({ timeout: 15_000 });
   expect(trace.verdictGets.length).toBeGreaterThan(reads);
   await expect(page.getByTestId("running-banner")).toHaveCount(0);
-  expect(await headerPills(page)).toEqual(["입찰공고", "D-4", "조건부 진행", "계속 추적"]);
+  await expect.poll(() => headerPills(page)).toEqual(["입찰공고", "D-4", "조건부 진행", "추적 중"]);
   // 완료 뒤에는 더 읽지 않는다.
   const after = trace.verdictGets.length;
   await page.waitForTimeout(6_000);
@@ -640,28 +645,28 @@ test("분석 중 상태가 끝나면 주기적으로 다시 읽어 완료 판정
 test("검증 실패·시간 초과는 사람 검토 필요로 부분표를 보이고 안전한 코드만 말하며 자동 보정하지 않는다", async ({ page }) => {
   const trace = await openVerdict(page, failedView("needs_human_review", "card_extract_invalid"));
   const banner = page.getByTestId("review-banner");
-  await expect(banner).toContainText("사람 검토가 필요합니다");
-  await expect(banner).toContainText("요구사항 추출 결과가 원문 검증을 통과하지 못했습니다");
+  await expect(banner).toContainText("사람 검토가 필요해요");
+  await expect(banner).toContainText("요구사항 추출 결과가 원문 검증을 통과하지 못했어요");
   await expect(banner).toContainText("card_extract_invalid");
   await expect(banner).toContainText("찾지 못한 영역: 입찰참가자격, 평가기준");
-  await expect(banner).toContainText("원문에 없다는 뜻은 아닙니다");
-  await expect(banner).toContainText("자동으로 고치지 않습니다");
+  await expect(banner).toContainText("원문에 없다는 뜻은 아니에요");
+  await expect(banner).toContainText("자동으로 고치지 않아요");
   // 부분표(검증이 끝난 행만)·최종 판정 없음·다시 판정.
   await expect(page.getByRole("heading", { name: "요구사항 1" })).toBeVisible();
   await expect.poll(() => rowTitles(page)).toEqual([R[3]]);
   await expect(page.getByTestId("verdict-summary")).toHaveCount(0);
-  expect(await headerPills(page)).toEqual(["입찰공고", "D-4", "사람 검토 필요", "계속 추적"]);
-  await expect(page.locator('.rec-pill[data-pill="verdict"]')).toHaveClass(/is-warning/);
+  await expect.poll(() => headerPills(page)).toEqual(["입찰공고", "D-4", "사람 검토 필요", "추적 중"]);
+  await expect(page.locator('[data-testid="page-header-facts"] [data-fact="verdict"]')).toHaveClass(/is-warning/);
   await expect(page.getByRole("button", { name: "판정 보기" })).toHaveCount(0);
 
   // 시간 초과 · 모르는 코드는 숨기지 않고 코드 그대로.
   trace.setVerdict(7101, failedView("failed", "card_review_timeout"));
   await page.goto("/opportunities/7101/verdict");
-  await expect(page.getByTestId("review-banner")).toContainText("정해진 시간 안에 분석이 끝나지 않았습니다");
+  await expect(page.getByTestId("review-banner")).toContainText("정해진 시간 안에 분석이 끝나지 않았어요");
   trace.setVerdict(7101, failedView("failed", "card_future_code"));
   await page.goto("/opportunities/7101/verdict");
   await expect(page.getByTestId("review-banner")).toContainText("card_future_code");
-  await expect(page.getByTestId("review-banner")).toContainText("분석 중 안전 오류가 기록됐습니다");
+  await expect(page.getByTestId("review-banner")).toContainText("분석 중 안전 오류가 기록됐어요");
 
   // 실패 배너의 다시 판정은 같은 요청 대화상자다.
   await page.getByTestId("review-banner").getByRole("button", { name: "다시 판정" }).click();
@@ -671,11 +676,11 @@ test("검증 실패·시간 초과는 사람 검토 필요로 부분표를 보�
 test("legacy는 기존 보고서 링크를 주고 다시 판정을 둔다", async ({ page }) => {
   await openVerdict(page, legacyView());
   const tabpanel = page.getByRole("tabpanel");
-  await expect(tabpanel.getByText("기존 보고서가 있습니다", { exact: true })).toBeVisible();
+  await expect(tabpanel.getByText("기존 보고서가 있어요", { exact: true })).toBeVisible();
   await expect(tabpanel.getByRole("link", { name: "기존 보고서 보기" })).toHaveAttribute("href", `/pre-specs/${VERDICT_NOTICE_ID}`);
   await expect(tabpanel.getByRole("button", { name: "다시 판정" })).toBeVisible();
   await expect(page.getByTestId("verdict-summary")).toHaveCount(0);
-  expect(await headerPills(page)).toEqual(["입찰공고", "D-4", "분석 대기", "계속 추적"]);
+  await expect.poll(() => headerPills(page)).toEqual(["입찰공고", "D-4", "분석 대기", "추적 중"]);
 });
 
 test("과거 기준 판정은 과거 기준 pill과 한글 사유를 보이고 모르는 사유는 코드 그대로 둔다", async ({ page }) => {
@@ -683,8 +688,8 @@ test("과거 기준 판정은 과거 기준 pill과 한글 사유를 보이고 �
   const trace = await openVerdict(page, view);
   const banner = page.getByTestId("stale-banner");
   await expect(banner.locator(".vd-pill")).toHaveText("과거 기준");
-  await expect(banner).toContainText("공고 문서가 그 뒤에 바뀌었습니다");
-  await expect(banner).toContainText("더 새로운 판정이 있습니다");
+  await expect(banner).toContainText("공고 문서가 그 뒤에 바뀌었어요");
+  await expect(banner).toContainText("더 새로운 판정이 있어요");
   // 과거 기준이어도 결과는 그대로 보인다(없애지 않는다).
   await expect(page.getByTestId("verdict-summary")).toBeVisible();
   await waitTable(page);
@@ -706,9 +711,9 @@ test("판정을 읽지 못하면 오류와 다시 시도를 보이고 헤더는 
   trace.failVerdictGets({ status: 500, code: "processing_failed" });
   await page.goto("/opportunities/7101/verdict");
   const tabpanel = page.getByRole("tabpanel");
-  await expect(tabpanel.getByRole("alert")).toContainText("판정을 불러오지 못했습니다");
+  await expect(tabpanel.getByRole("alert")).toContainText("판정을 불러오지 못했어요");
   await expect(tabpanel.getByRole("alert")).toContainText("processing_failed");
-  expect(await headerPills(page)).toEqual(["입찰공고", "D-4", "분석 대기", "계속 추적"]);
+  await expect.poll(() => headerPills(page)).toEqual(["입찰공고", "D-4", "분석 대기", "추적 중"]);
   await expect(page.getByRole("button", { name: "판정 보기" })).toHaveCount(0);
 
   trace.failVerdictGets(null);
@@ -755,7 +760,7 @@ test("실무 화면 DOM에는 정책 id·모델명·해시·참조 실행 표식
   await expect(dialog).toContainText("10월 16일 (금) 09:51");
   // 품질 표식은 문구로 말하고 운영 완료로 보이지 않는다(AGENTS 네 상태).
   await expect(dialog).toContainText("참조 실행 · 품질 미측정");
-  await expect(dialog).toContainText("운영 완료로 읽지 마십시오");
+  await expect(dialog).toContainText("운영 완료로 읽지 마세요");
   await expect(dialog).toContainText("현재 기준");
   await dialog.getByRole("button", { name: "닫기", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -769,7 +774,7 @@ test("품질 표식이 없으면 표식 없음으로 말하고 미측정으로 �
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("표식 없음");
   await expect(dialog).not.toContainText("품질 미측정");
-  await expect(dialog).toContainText("없음을 미측정으로 바꾸지 않습니다");
+  await expect(dialog).toContainText("없음을 미측정으로 바꾸지 않아요");
 });
 
 test("브리핑 v2 판정 칸은 서버가 준 판정 이름 글자 그대로이고 의미 색을 쓴다", async ({ page }) => {
@@ -785,7 +790,8 @@ test("브리핑 v2 판정 칸은 서버가 준 판정 이름 글자 그대로이
     if (display) entry.verdict_display = display;
   }
   await mockBriefing(page, { briefings: { [view.briefing_date]: view } });
-  const pill = (index: number) => page.locator(`tr[data-item-id="${briefingItemId(index)}"] .briefing-pill`).nth(1);
+  // 2026-11-19 최종 시안: 판정 이름은 행 보조 줄의 글자다(표식 칸이 아니다). 의미 색 규칙은 그대로다.
+  const pill = (index: number) => page.locator(`li[data-item-id="${briefingItemId(index)}"] .briefing-row-verdict`);
 
   await page.goto("/briefing");
   await expect(pill(1)).toHaveText("진행 가능");
@@ -820,8 +826,9 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       const canvas = document.querySelector(".page-canvas") as HTMLElement;
       const side = document.querySelector(".rec-side") as HTMLElement;
       const source = document.querySelector(".vd-source") as HTMLElement;
-      const header = document.querySelector(".rec-header") as HTMLElement;
-      const actions = document.querySelector(".rec-actions") as HTMLElement;
+      // 레코드 액션은 패널 헤더 오른쪽 칸에 있다(ADR-0076).
+      const header = document.querySelector("header.topbar") as HTMLElement;
+      const actions = document.querySelector("header.topbar .rec-actions") as HTMLElement;
       const center = document.querySelector(".vd-center") as HTMLElement;
       const scroll = document.querySelector(".vd-table-scroll") as HTMLElement;
       return {
@@ -867,7 +874,7 @@ test("RL 분석이 꺼진 환경은 판정 탭·헤더·제안서가 요청 전�
   const header = page.locator('[data-testid="record-header"]');
   await expect(header.getByRole("button", { name: "판정 요청", exact: true })).toBeDisabled();
   await expect(header.getByRole("button", { name: "제안서 초안", exact: true })).toBeDisabled();
-  await expect(page.locator('.rec-action-hint[title="이 환경에서 꺼져 있음 — 참여 판정(RL 분석)이 비활성입니다"]')).toHaveCount(2);
+  await expect(page.locator('.rec-action-hint[title="이 환경에서 꺼져 있음 — 참여 판정(RL 분석)이 비활성이에요"]')).toHaveCount(2);
   await page.goto("/opportunities/7101/proposal");
   await expect(page.getByRole("tabpanel").getByText("제안서 초안 · 이 환경에서 꺼져 있음", { exact: true })).toBeVisible();
   expect(trace.verdictGets).toEqual([]);
@@ -880,7 +887,7 @@ test("기능 스위치를 읽지 못하면 켜졌다고 가정하지 않고 기�
   const trace = await mockOpportunityRecord(page);
   await page.route("**/api/feature-flags", (route) => route.fulfill({ status: 503, json: { detail: "합성 장애" } }));
   await page.goto("/opportunities/7101/verdict");
-  await expect(page.getByRole("tabpanel").getByText("아직 판정이 없습니다", { exact: true })).toBeVisible();
+  await expect(page.getByRole("tabpanel").getByText("아직 판정이 없어요", { exact: true })).toBeVisible();
   await expect(page.getByText(/이 환경에서 꺼져 있음/)).toHaveCount(0);
   expect(trace.verdictGets.length).toBeGreaterThan(0);
 });

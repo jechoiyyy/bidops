@@ -58,12 +58,12 @@ test("발주계획 C-2는 공통 필터·목록·상세·상태·결정 action�
   await expect(page.locator('[data-review-primitive="decision-bar"] [data-review-primitive="decision-action"]')).toHaveCount(4);
   // 같은 사유로 함께 막힌 세 결정이 문구를 한 번만 그린다. 사유·담당자가 모두 비어 있는
   // 첫 상태에서는 둘을 한 문장으로 합쳐 말한다.
-  await expect(page.getByText("선택 사유와 담당자 이름을 입력하면 추적 결정을 기록할 수 있습니다.", { exact: true })).toHaveCount(1);
-  for (const label of ["추적 시작", "보류", "추적 종료"]) {
+  await expect(page.getByText("선택 사유와 담당자 이름을 입력하면 추적 결정을 기록할 수 있어요.", { exact: true })).toHaveCount(1);
+  for (const label of ["추적 시작하기", "보류", "추적 종료"]) {
     await expect(page.getByRole("button", { name: label, exact: true })).toHaveAttribute("aria-describedby", "c2l-tracking-decision-reason");
   }
   // 저장하지 않는 넘기기에는 사유가 붙지 않는다.
-  await expect(page.getByRole("button", { name: "이번 건 넘기기", exact: true })).not.toHaveAttribute("aria-describedby", /.+/);
+  await expect(page.getByRole("button", { name: "넘기기", exact: true })).not.toHaveAttribute("aria-describedby", /.+/);
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
@@ -99,7 +99,7 @@ test("사전규격 고급 상태 필터는 0건인 진행·대기도 숨기지 �
   await page.getByRole("option", { name: "진행·대기", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("overview_view")).toBe("pending");
   await expect(page.locator(".pre-specs-row")).toHaveCount(0);
-  await expect(page.getByText("조건에 맞는 사전규격이 없습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("조건에 맞는 사전규격이 없어요", { exact: true })).toBeVisible();
   await pending.click();
   await page.getByRole("option", { name: "전체 상태", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.has("overview_view")).toBe(false);
@@ -209,19 +209,19 @@ test("분할 화면의 결정 액션 바는 상세 pane 바닥에 남아 스크�
   // 상세 pane의 sticky 헤더에는 결정 action을 복제하지 않는다.
   await expect(page.locator('[data-review-primitive="sticky-decision-header"] [data-review-primitive="decision-action"]')).toHaveCount(0);
 
-  const start = page.getByRole("button", { name: "추적 시작", exact: true });
+  const start = page.getByRole("button", { name: "추적 시작하기", exact: true });
   await expect(start).toBeInViewport();
 
   // 상세 pane 본문을 끝까지 내려도 결정 액션은 제자리에 남는다.
   await page.locator(".c2l-detail-scroll").evaluate((element) => element.scrollTo({ top: element.scrollHeight, behavior: "instant" }));
-  for (const label of ["추적 시작", "보류", "추적 종료", "이번 건 넘기기"]) {
+  for (const label of ["추적 시작하기", "보류", "추적 종료", "넘기기"]) {
     await expect(page.getByRole("button", { name: label, exact: true })).toBeInViewport();
   }
 
   const geometry = await page.locator(".c2l-detail-pane").evaluate((pane) => {
     const actions = pane.querySelector<HTMLElement>('[data-review-primitive="decision-bar"]');
     const scroll = pane.querySelector<HTMLElement>(".c2l-detail-scroll");
-    if (!actions || !scroll) throw new Error("결정 액션 바 또는 상세 스크롤 영역을 찾을 수 없습니다.");
+    if (!actions || !scroll) throw new Error("결정 액션 바 또는 상세 스크롤 영역을 찾을 수 없어요.");
     return {
       paneBottom: pane.getBoundingClientRect().bottom,
       paneHeight: pane.getBoundingClientRect().height,
@@ -255,7 +255,7 @@ test("추적 입력 창은 키보드로 열고 닫으며 현재 추적 값과 �
 
   const dialog = page.getByRole("dialog", { name: "추적 상태 변경", exact: true });
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("적합성 등급·참여 준비 상태·심층 검토 승인·최종 입찰 Go/No-Go는 바뀌지 않습니다.");
+  await expect(dialog).toContainText("적합성 등급·참여 준비 상태·심층 검토 승인·최종 입찰 Go/No-Go는 바뀌지 않아요.");
   await expect(dialog.getByRole("combobox", { name: "선택 사유" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();

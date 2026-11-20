@@ -60,7 +60,7 @@ export function RunInfoDialog({ open, onClose, view }: RunInfoDialogProps) {
             <p className="opportunity-caption">{qualityStatusNote(view.quality_status)}</p>
           </>
         ) : (
-          <p>표시할 실행이 없습니다.</p>
+          <p>표시할 실행이 없어요.</p>
         )}
         <div className="opportunity-dialog-actions">
           <Button label="닫기" onClick={onClose} />

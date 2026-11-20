@@ -1,3 +1,5 @@
+import { PageHeaderTabs } from "../components/common/PageHeaderActions";
+import { usePageHeader } from "../components/shell/PageHeaderContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
@@ -74,7 +76,7 @@ function SummaryLine({ onOpenConditions }: { onOpenConditions: () => void }) {
       ? "확인 중"
       : alwaysOn.effective_enabled ? "켜짐" : "꺼짐";
   const alwaysOnDetail = alwaysOnQuery.isError
-    ? "조회 실패 · 꺼짐도 켜짐도 아닙니다"
+    ? "조회 실패 · 꺼짐도 켜짐도 아니에요"
     : !alwaysOn
       ? "조회 중"
       : `설정 ${alwaysOn.configured_enabled ? "켜짐" : "꺼짐"} · 환경 ${alwaysOn.environment_enabled ? "허용" : "차단"}`;
@@ -149,14 +151,14 @@ function ConditionsDialog({ open, onClose }: { open: boolean; onClose: () => voi
       <div className="rs-dialog-body" data-astryx-theme="bidops">
         <DialogHeader title="운영 조건과 경계" onOpenChange={(next) => { if (!next) onClose(); }} />
         <div className="rs-dialog-scroll">
-          <Note title="운영 텔레메트리는 삭제하지 않았습니다">
+          <Note title="운영 텔레메트리는 삭제하지 않았어요">
             model_digest · token 입력/캐시/출력 · duration_ms · 오류 코드는 판정 화면의 기본 표시에서
-            뺐을 뿐입니다. 공고 판정은 수집 실행 탭에서 실행을 고르고 실행 기록·실행 기준 탭에서,
-            발주계획 선별은 발주계획 회차의 발주계획 선별 탭에서 확인합니다.
+            뺐을 뿐이에요. 공고 판정은 수집 실행 탭에서 실행을 고르고 실행 기록·실행 기준 탭에서,
+            발주계획 선별은 발주계획 회차의 발주계획 선별 탭에서 확인해요.
           </Note>
           {alwaysOnQuery.isError ? (
-            <Note title="상시 운영 상태를 불러오지 못했습니다" tone="error">
-              꺼져 있다는 뜻도 켜져 있다는 뜻도 아닙니다. 현재 상태는 미확인입니다.
+            <Note title="상시 운영 상태를 불러오지 못했어요" tone="error">
+              꺼져 있다는 뜻도 켜져 있다는 뜻도 아니에요. 현재 상태는 미확인이에요.
             </Note>
           ) : null}
           {state ? (
@@ -166,7 +168,7 @@ function ConditionsDialog({ open, onClose }: { open: boolean; onClose: () => voi
                 ["실제 운영", state.effective_enabled ? "켜짐" : "꺼짐"],
                 ["환경 허용", state.environment_enabled ? "허용" : "차단"],
                 ["품질 게이트", state.quality_gate_status ?? "연결 없음"],
-                ["거절 사유", state.rejection_reason ?? (state.effective_enabled ? "차단 없음" : "서버가 사유를 남기지 않았습니다")],
+                ["거절 사유", state.rejection_reason ?? (state.effective_enabled ? "차단 없음" : "서버가 사유를 남기지 않았어요")],
                 [
                   "승인 조합",
                   <span className="rs-mono" key="binding">
@@ -176,9 +178,9 @@ function ConditionsDialog({ open, onClose }: { open: boolean; onClose: () => voi
               ]}
             />
           ) : null}
-          <Note title="앱 시작은 아무것도 실행하지 않습니다">
-            startup은 migration·seed·정책 활성화·모델 호출을 수행하지 않습니다. 승인 조합이 맞지
-            않으면 상시 운영을 켤 수 없습니다.
+          <Note title="앱 시작은 아무것도 실행하지 않아요">
+            startup은 migration·seed·정책 활성화·모델 호출을 수행하지 않아요. 승인 조합이 맞지
+            않으면 상시 운영을 켤 수 없어요.
           </Note>
         </div>
         <div className="rs-dialog-actions">
@@ -190,6 +192,11 @@ function ConditionsDialog({ open, onClose }: { open: boolean; onClose: () => voi
 }
 
 export function RunStatusPage() {
+  usePageHeader({
+    eyebrow: "실행 상태",
+    title: "수집·첨부·판정 실행을 확인해요",
+    description: "실패·부분 성공·중단은 성공과 따로 보여요. 참조 실행은 운영 완료가 아니에요.",
+  });
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const tab = runStatusTabFromPathname(pathname);
@@ -198,7 +205,9 @@ export function RunStatusPage() {
 
   return (
     <section aria-labelledby="run-status-page-title" className="rs-page" data-astryx-theme="bidops">
-      <h2 className="visually-hidden" id="run-status-page-title">실행 상태</h2>
+      <span className="visually-hidden" id="run-status-page-title">실행 상태</span>
+      {/* 탭은 패널 헤더의 둥근 칸 탭 줄에 둔다(2026-11-19 최종 시안 패턴). */}
+      <PageHeaderTabs>
       <div className="rs-tabs">
         <TabList
           value={tab}
@@ -208,13 +217,13 @@ export function RunStatusPage() {
             if (next) navigate({ pathname: next.path, search });
           }}
           role="tablist"
-          hasDivider
         >
           {TABS.map((item) => (
             <Tab key={item.value} label={item.label} panelId={`run-status-panel-${item.value}`} value={item.value} />
           ))}
         </TabList>
       </div>
+      </PageHeaderTabs>
 
       <SummaryLine onOpenConditions={() => setConditionsOpen(true)} />
 
@@ -227,8 +236,8 @@ export function RunStatusPage() {
 
       <div className="rs-boundary">
         <Caption>
-          진행 상태와 품질 표식은 별도입니다. 미확인·미측정을 0이나 성공으로 표시하지 않습니다.
-          추적 승인과 최종 입찰 Go/No-Go는 이 화면에서 결정하지 않습니다.
+          진행 상태와 품질 표식은 별도예요. 미확인·미측정을 0이나 성공으로 표시하지 않아요.
+          추적 승인과 최종 입찰 Go/No-Go는 이 화면에서 결정하지 않아요.
         </Caption>
       </div>
 

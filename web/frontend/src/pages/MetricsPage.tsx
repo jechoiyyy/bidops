@@ -103,8 +103,8 @@ function runLabel(run: RunSummary): string {
 }
 
 function queryErrorText(error: unknown, resource: string): string {
-  if (error instanceof ApiError && error.status > 0) return `${resource}을(를) 불러오지 못했습니다 (${error.status}).`;
-  return `${resource}을(를) 불러오지 못했습니다.`;
+  if (error instanceof ApiError && error.status > 0) return `${resource}을(를) 불러오지 못했어요 (${error.status}).`;
+  return `${resource}을(를) 불러오지 못했어요.`;
 }
 
 export function MetricsPage() {
@@ -161,7 +161,7 @@ export function MetricsPage() {
   if (runsQuery.isPending || selectedPending) {
     return (
       <div className="crit-workspace" id="criteria-panel-metrics" role="tabpanel">
-        <StateView description="회차와 지표 계산 결과를 확인하는 중입니다." kind="loading" title="검증 지표를 불러오는 중입니다" />
+        <StateView description="회차와 지표 계산 결과를 확인하는 중이에요." kind="loading" title="검증 지표를 불러오는 중이에요" />
       </div>
     );
   }
@@ -172,7 +172,7 @@ export function MetricsPage() {
           action={<Button label="다시 조회" onClick={() => { void runsQuery.refetch(); }} />}
           description={queryErrorText(runsQuery.error, "회차 목록")}
           kind="error"
-          title="회차 목록을 불러오지 못했습니다."
+          title="회차 목록을 불러오지 못했어요"
         />
       </div>
     );
@@ -181,9 +181,9 @@ export function MetricsPage() {
     return (
       <div className="crit-workspace" id="criteria-panel-metrics" role="tabpanel">
         <StateView
-          description="판정이 적재된 회차가 생기면 검증 지표를 계산할 수 있습니다. 회차가 없는 것과 계산 실패는 다른 상태입니다."
+          description="판정이 적재된 회차가 생기면 검증 지표를 계산할 수 있어요. 회차가 없는 것과 계산 실패는 다른 상태예요."
           kind="empty"
-          title="계산할 회차가 없습니다."
+          title="계산할 회차가 없어요"
         />
       </div>
     );
@@ -197,7 +197,7 @@ export function MetricsPage() {
     <div className="crit-workspace" id="criteria-panel-metrics" role="tabpanel">
       <Queue
         count={selectedFailed ? null : metrics.length}
-        emptyText={selectedFailed ? "지표를 불러오지 못했습니다. 0건이 아닙니다." : "이 회차에는 계산된 지표가 없습니다."}
+        emptyText={selectedFailed ? "지표를 불러오지 못했어요. 0건이 아니에요." : "이 회차에는 계산된 지표가 없어요."}
         footer={`회차 ${selectedRun.run_id} · ${runLabel(selectedRun)}`}
         items={metrics.map((item) => ({
           id: item.key,
@@ -214,9 +214,9 @@ export function MetricsPage() {
         {selectedFailed ? (
           <StateView
             action={<Button label="다시 조회" onClick={refetchSelected} />}
-            description={`${queryErrorText(selectedError, "이 회차의 검증 지표")} 조회 실패를 0%나 계산 불가로 바꾸지 않습니다.`}
+            description={`${queryErrorText(selectedError, "이 회차의 검증 지표")} 조회 실패를 0%나 계산 불가로 바꾸지 않아요.`}
             kind="error"
-            title="이 회차의 검증 지표를 불러오지 못했습니다."
+            title="이 회차의 검증 지표를 불러오지 못했어요"
           />
         ) : metric ? (
           <>
@@ -234,8 +234,8 @@ export function MetricsPage() {
                 ["계산 근거", basisLabel(metric)],
               ]} />
               {metric.percentage === null ? (
-                <Note role="status" title={metric.status === "not_measurable" ? "계산 불가" : "측정값이 없습니다"} tone="warning">
-                  {`${metric.reason ?? "사유 미기록"} · 0%로 표시하지 않습니다.`}
+                <Note role="status" title={metric.status === "not_measurable" ? "계산 불가" : "측정값이 없어요"} tone="warning">
+                  {`${metric.reason ?? "사유 미기록"} · 0%로 표시하지 않아요.`}
                 </Note>
               ) : null}
               <Section title="계산 근거">
@@ -257,11 +257,11 @@ export function MetricsPage() {
               </Section>
               <Section title={`회차별 값과 상태 · 최근 ${historyRuns.length}개 회차`}>
                 <Small>
-                  {`전체 회차 ${runs.length}개 가운데 최근 ${historyRuns.length}개만 조회합니다. 조회 범위 밖 회차의 값은 미확인이며 없음을 뜻하지 않습니다.`}
+                  {`전체 회차 ${runs.length}개 가운데 최근 ${historyRuns.length}개만 조회해요. 조회 범위 밖 회차의 값은 미확인이며 없음을 뜻하지 않아요.`}
                 </Small>
                 {failedHistory > 0 ? (
-                  <Note role="alert" title={`과거 회차 지표 ${failedHistory}건을 불러오지 못했습니다`} tone="warning">
-                    실패한 회차만 조회 실패로 남기고 나머지 회차의 값과 계산 근거는 그대로 표시합니다.
+                  <Note role="alert" title={`과거 회차 지표 ${failedHistory}건을 불러오지 못했어요`} tone="warning">
+                    실패한 회차만 조회 실패로 남기고 나머지 회차의 값과 계산 근거는 그대로 표시해요.
                   </Note>
                 ) : null}
                 <DataTable
@@ -282,20 +282,20 @@ export function MetricsPage() {
                   })}
                 />
               </Section>
-              <Note title="지표와 운영 승인은 구분합니다">
-                이 회차의 수치가 좋아도 승인용 품질 게이트 통과를 대신하지 않습니다.
+              <Note title="지표와 운영 승인은 구분해요">
+                이 회차의 수치가 좋아도 승인용 품질 게이트 통과를 대신하지 않아요.
               </Note>
             </div>
-            <DetailFooter note="측정하지 않은 값과 실제 0을 구분합니다. 조회 범위 밖은 미확인입니다.">
+            <DetailFooter note="측정하지 않은 값과 실제 0을 구분해요. 조회 범위 밖은 미확인이에요.">
               <Button label="회차 선택" onClick={() => setRunPickerOpen(true)} size="sm" />
             </DetailFooter>
           </>
         ) : (
           <StateView
             action={<Button label="회차 선택" onClick={() => setRunPickerOpen(true)} />}
-            description="다른 회차를 고르면 계산된 지표를 확인할 수 있습니다. 지표 없음과 계산 실패는 다른 상태입니다."
+            description="다른 회차를 고르면 계산된 지표를 확인할 수 있어요. 지표 없음과 계산 실패는 다른 상태예요."
             kind="empty"
-            title="이 회차에는 계산된 지표가 없습니다."
+            title="이 회차에는 계산된 지표가 없어요"
           />
         )}
       </section>
@@ -312,10 +312,10 @@ export function MetricsPage() {
             label: runOptionLabel(run),
             description: `${run.run_id} · ${runStatusLabel(run.status)} · 판정 ${formatNumber(run.counts.judgments)}건`,
           }))}
-          placeholder="회차를 선택하십시오"
+          placeholder="회차를 선택해 주세요"
           value={selectedRun.run_id}
         />
-        <Small>{`조회한 회차 목록 ${runs.length}개 · 회차별 지표는 최근 ${HISTORY_LIMIT}개까지 함께 조회합니다.`}</Small>
+        <Small>{`조회한 회차 목록 ${runs.length}개 · 회차별 지표는 최근 ${HISTORY_LIMIT}개까지 함께 조회해요.`}</Small>
         <DialogActions>
           <CancelButton label="닫기" onClick={() => setRunPickerOpen(false)} />
         </DialogActions>

@@ -27,8 +27,8 @@ export function PreSpecRecordIdentity({ number, url }: { number: string | null; 
         finally { field.remove(); if (active instanceof HTMLElement) active.focus({ preventScroll: true }); }
         if (!copied) throw new Error("clipboard-unavailable");
       }
-      setMessage("사전규격번호를 복사했습니다.");
-    } catch { setMessage("복사하지 못했습니다. 표시된 번호를 선택해 복사해 주세요."); }
+      setMessage("사전규격번호를 복사했어요.");
+    } catch { setMessage("복사하지 못했어요. 표시된 번호를 선택해 복사해 주세요."); }
   }
   return <div className="ps-record-identity">
     <div className="ps-record-number-group"><span>사전규격번호</span><strong className="ps-record-number">{number ?? "미확인"}</strong><Button label="번호 복사" variant="ghost" size="sm" icon={<Copy />} isDisabled={!number} onClick={() => { void copy(); }} /></div>

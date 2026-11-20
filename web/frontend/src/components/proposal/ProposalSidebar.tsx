@@ -53,7 +53,7 @@ export function ProposalSidebar({ draft }: { draft: ProposalDraft }) {
         </dl>
         {coverage.unlinked_unit_ids.length > 0 ? (
           <p className="rec-side-note" data-testid="proposal-unlinked">
-            연결되지 않은 요구사항 {coverage.unlinked_unit_ids.length}건이 있습니다.
+            연결되지 않은 요구사항 {coverage.unlinked_unit_ids.length}건이 있어요.
           </p>
         ) : null}
       </section>
@@ -61,7 +61,7 @@ export function ProposalSidebar({ draft }: { draft: ProposalDraft }) {
       <section aria-labelledby="pp-needs-title" className="rec-side-block" data-testid="proposal-needs">
         <h3 className="rec-side-title" id="pp-needs-title">채워야 할 것</h3>
         {needs.length === 0 ? (
-          <p className="rec-side-note">비어 있는 자리가 없습니다.</p>
+          <p className="rec-side-note">비어 있는 자리가 없어요.</p>
         ) : (
           <ul className="pp-needs">
             {needs.map((need) => (
@@ -75,7 +75,7 @@ export function ProposalSidebar({ draft }: { draft: ProposalDraft }) {
       </section>
 
       <p className="rec-side-note" data-testid="proposal-legend">
-        <mark className="pp-legend-mark">주황 표시</mark>는 사람이 채우거나 확인할 자리입니다. 가격·투입 인력·전략은 초안에 넣지 않으며, 초안은 참고 자료입니다.
+        <mark className="pp-legend-mark">주황 표시</mark>는 사람이 채우거나 확인할 자리예요. 가격·투입 인력·전략은 초안에 넣지 않으며, 초안은 참고 자료예요.
       </p>
     </>
   );

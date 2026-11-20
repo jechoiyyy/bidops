@@ -27,11 +27,11 @@ import type { PolicyVersionListResponse, ProfileSource, QualityGatePurpose } fro
 const COMPARISON_PROFILE_SOURCE: ProfileSource = "git:ee621835db934ddac944f7a07a986ed0b73ecc7a";
 
 function safeError(error: unknown): string {
-  if (!(error instanceof ApiError)) return "게이트 생성에 실패했습니다.";
-  if (error.status === 409) return "현재 상태가 변경되어 게이트를 만들 수 없습니다. 최신 목록을 다시 확인하십시오.";
-  if (error.status === 422) return "게이트 목적, 정책, 프로필 조합을 확인하십시오.";
-  if (error.status === 503) return "모델 확인을 완료하지 못했습니다. 잠시 후 다시 시도하십시오.";
-  return error.status > 0 ? `게이트 생성에 실패했습니다 (${error.status}).` : "게이트 생성에 실패했습니다.";
+  if (!(error instanceof ApiError)) return "게이트 생성에 실패했어요.";
+  if (error.status === 409) return "현재 상태가 변경되어 게이트를 만들 수 없어요. 최신 목록을 다시 확인해 주세요.";
+  if (error.status === 422) return "게이트 목적, 정책, 프로필 조합을 확인해 주세요.";
+  if (error.status === 503) return "모델 확인을 완료하지 못했어요. 잠시 후 다시 시도해 주세요.";
+  return error.status > 0 ? `게이트 생성에 실패했어요 (${error.status}).` : "게이트 생성에 실패했어요.";
 }
 
 export function QualityGateCreateDialog({ open, policies, onClose, onCreated }: {
@@ -59,7 +59,7 @@ export function QualityGateCreateDialog({ open, policies, onClose, onCreated }: 
   function submit() {
     if (submitting) return;
     if (!policyVersion || !createdBy.trim()) {
-      setError("정책과 담당자 이름을 입력하십시오.");
+      setError("정책과 담당자 이름을 입력해 주세요.");
       return;
     }
     setSubmitting(true);
@@ -93,7 +93,7 @@ export function QualityGateCreateDialog({ open, policies, onClose, onCreated }: 
           label: policy.policy_version,
           description: `${policy.status} · 프롬프트 ${policy.prompt_version}`,
         }))}
-        placeholder={availablePolicies.length > 0 ? "정책을 선택하십시오" : "초안이 아닌 정책이 없습니다"}
+        placeholder={availablePolicies.length > 0 ? "정책을 선택해 주세요" : "초안이 아닌 정책이 없어요"}
         value={policyVersion}
       />
       <Facts items={[
@@ -102,12 +102,12 @@ export function QualityGateCreateDialog({ open, policies, onClose, onCreated }: 
         ["실행", "A/B 두 실행이 같은 고정 입력으로 시작"],
       ]} />
       <Note
-        title={purpose === "model_comparison" ? "모델 비교용 결과는 운영 활성화에 사용할 수 없습니다" : "운영 승인용 게이트를 만듭니다"}
+        title={purpose === "model_comparison" ? "모델 비교용 결과는 운영 활성화에 사용할 수 없어요" : "운영 승인용 게이트를 만들어요"}
         tone={purpose === "model_comparison" ? "warning" : "neutral"}
       >
         {purpose === "model_comparison"
-          ? "수치가 통과해도 정책 활성화와 상시 운영 승인의 근거가 되지 않습니다."
-          : "통과한 최신 evaluation만 정책 활성화에 연결할 수 있습니다. 생성만으로 통과가 되지는 않습니다."}
+          ? "수치가 통과해도 정책 활성화와 상시 운영 승인의 근거가 되지 않아요."
+          : "통과한 최신 evaluation만 정책 활성화에 연결할 수 있어요. 생성만으로 통과가 되지는 않아요."}
       </Note>
       <TextInput label="생성 담당자 · 필수" onChange={setCreatedBy} placeholder="담당자 이름" value={createdBy} />
       {error ? <Text as="p" className="crit-error" role="alert">{error}</Text> : null}

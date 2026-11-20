@@ -2279,6 +2279,35 @@ export interface WorkloadResponse {
   items: WorkloadItem[];
 }
 
+/**
+ * `GET /api/daily-collection-status`(`bidops.daily-collection-status.v1`, 2026-11-20). 판정은 서버가 하고
+ * 화면은 옮겨 적기만 한다(`docs/contracts/lifecycle-rest.md` "일일 수집 기준일 상태").
+ */
+export type DailyCollectionTrack = "order-plans" | "notices";
+export type DailyCollectionState = "complete" | "incomplete" | "missing";
+export type DailyCollectionReason = "no_run" | "ingest_warnings";
+
+export interface DailyCollectionTrackStatus {
+  track: DailyCollectionTrack;
+  /** 이 상태가 말하는 기준일(`YYYY-MM-DD`, 한국 시간). */
+  basis_date: string;
+  state: DailyCollectionState;
+  reasons: DailyCollectionReason[];
+  run_id: string | null;
+  collected_at: string | null;
+  /** 회차가 없으면 `null`(0과 구분). */
+  warning_count: number | null;
+  latest_basis_date: string | null;
+}
+
+export interface DailyCollectionStatusResponse {
+  schema_version: "bidops.daily-collection-status.v1";
+  generated_at: string;
+  timezone: "Asia/Seoul";
+  today: string;
+  tracks: DailyCollectionTrackStatus[];
+}
+
 export interface BidDeltaDecisionQueueQuery {
   status?: "pending" | "all" | null;
   limit?: number | null;

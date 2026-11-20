@@ -43,12 +43,15 @@ export function DeadlineMark({ value }: { value: string | null }) {
 export function PreSpecRow({
   item,
   isSelected,
+  hideUntracked = false,
   onSelect,
   selection,
   ...rowProps
 }: {
   item: PreSpecListItem;
   isSelected: boolean;
+  /** 활성 보기가 `추적 결정 없음`을 말할 때 행의 `미선택`을 숨긴다. 다른 추적 값(예외)은 그대로 보인다. */
+  hideUntracked?: boolean;
   onSelect: () => void;
   selection?: DenseListRowSelection;
 } & Partial<RowKeyboardNavigationRowProps> & {
@@ -117,7 +120,9 @@ export function PreSpecRow({
               label={overviewStatusLabel(item.overview_review_status)}
               color={overviewTokenColor(item.overview_review_status)}
             />
-            <span className="pre-specs-row-tracking">{trackingLabel(item)}</span>
+            {hideUntracked && item.opportunity_id !== null && item.tracking_status === "미선택"
+              ? null
+              : <span className="pre-specs-row-tracking">{trackingLabel(item)}</span>}
             {/* M7 ④(2026-09-22 승인): "다음: …"은 개요 상태 칩·추적 상태와 같은 말의
                 반복이라 행에서 뺐다. `next_action` 값은 우측 상세의 다음 행동 안내
                 (`PreSpecListDetailPane`)에만 남는다. 응답 필드는 그대로다. */}

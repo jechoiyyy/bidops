@@ -24,8 +24,8 @@ import {
  */
 
 const SOURCE_MISSING_TEXT: Record<OpportunitySearchTarget, string> = {
-  pre_spec: "이 사업기회가 소유한 발주계획이 없어 사전규격을 찾아볼 기준이 없습니다. 발주계획이 확정 연결된 뒤에 찾아볼 수 있습니다.",
-  bid_notice: "이 사업기회가 소유한 사전규격이나 발주계획이 없어 입찰공고를 찾아볼 기준이 없습니다. 둘 중 하나가 확정 연결된 뒤에 찾아볼 수 있습니다.",
+  pre_spec: "이 사업기회가 소유한 발주계획이 없어 사전규격을 찾아볼 기준이 없어요. 발주계획이 확정 연결된 뒤에 찾아볼 수 있어요.",
+  bid_notice: "이 사업기회가 소유한 사전규격이나 발주계획이 없어 입찰공고를 찾아볼 기준이 없어요. 둘 중 하나가 확정 연결된 뒤에 찾아볼 수 있어요.",
 };
 
 function sourceMissingTarget(error: unknown, fallback: OpportunitySearchTarget): OpportunitySearchTarget | null {
@@ -82,14 +82,14 @@ export function RecordSearchPanel({
         return;
       }
       setMissing(null);
-      setProblem(describeApiError(caught, `${label} 찾아보기를 실행하지 못했습니다.`));
+      setProblem(describeApiError(caught, `${label} 찾아보기를 실행하지 못했어요.`));
     },
   });
 
   const disabledReason = mutation.isPending
-    ? `${label} 찾아보기를 실행하고 있습니다.`
+    ? `${label} 찾아보기를 실행하고 있어요.`
     : !actorName.trim()
-      ? "찾아보기를 실행하려면 결정 기록자를 입력하십시오."
+      ? "찾아보기를 실행하려면 결정 기록자를 입력해 주세요."
       : null;
   const shown = result && result.target === target ? result : null;
 
@@ -100,7 +100,7 @@ export function RecordSearchPanel({
         <Button label="찾아보기 닫기" onClick={onClose} size="sm" variant="ghost" />
       </div>
       <p className="opportunity-caption">
-        수집 색인에서 이름으로 찾아 후보만 만듭니다. 연결을 확정하지 않으며 수용·기각은 사람이 합니다.
+        수집 색인에서 이름으로 찾아 후보만 만들어요. 연결을 확정하지 않으며 수용·기각은 사람이 해요.
       </p>
       <div className="opportunity-record-search-form">
         <ActorField
@@ -129,7 +129,7 @@ export function RecordSearchPanel({
       {missing ? (
         <MutationFeedback tone="warning">
           <p>{SOURCE_MISSING_TEXT[missing]}</p>
-          <p className="opportunity-caption">최신 연결 현황을 다시 읽었습니다.</p>
+          <p className="opportunity-caption">최신 연결 현황을 다시 읽었어요.</p>
         </MutationFeedback>
       ) : null}
       {problem ? <MutationFeedback problem={problem} tone="error" /> : null}
@@ -164,12 +164,12 @@ export function RecordSearchPanel({
           ) : shown.search_unconfirmed ? (
             <div className="opportunity-search-log">
               <p><strong>검색 미확인 · 마지막 검색 {formatMoment(shown.searched_at)}</strong></p>
-              <p>이름으로 찾지 못했습니다. 레코드가 없다는 뜻이 아닙니다.</p>
+              <p>이름으로 찾지 못했어요. 레코드가 없다는 뜻이 아니에요.</p>
             </div>
           ) : (
             <p className="opportunity-caption">
-              새로 만든 후보가 없고 검색 미확인도 아닙니다. 찾은 레코드가 이미 이 사업에 연결됐을 수 있어 연결 현황을
-              다시 읽었습니다.
+              새로 만든 후보가 없고 검색 미확인도 아니에요. 찾은 레코드가 이미 이 사업에 연결됐을 수 있어 연결 현황을
+              다시 읽었어요.
             </p>
           )}
         </div>

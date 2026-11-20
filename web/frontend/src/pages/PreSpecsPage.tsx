@@ -7,7 +7,10 @@ import type { ISODateString } from "@astryxdesign/core/Calendar";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Selector } from "@astryxdesign/core/Selector";
 import { EmptyState } from "../components/common/EmptyState";
-import { PageHeaderActions } from "../components/common/PageHeaderActions";
+import { CollectionStatus } from "../components/shell/CollectionStatus";
+import { PageHeaderActions, PageHeaderTabs } from "../components/common/PageHeaderActions";
+import { usePageHeader } from "../components/shell/PageHeaderContext";
+import { withCopula } from "../lib/format";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
 import { DenseList, ListColumns, ListPagerControls, ReviewFilterSegmentedControl, SelectionToolbar, SplitWorkspace } from "../components/common/ReviewPrimitives";
@@ -227,8 +230,8 @@ export function PreSpecsPage() {
   const [trackingDirty, setTrackingDirty] = useState(false);
   const trackingGuard = useUnsavedGuard(trackingDirty, {
     scope: "pathname",
-    title: "추적 결정 입력을 저장하지 않고 옮깁니다",
-    message: "저장하지 않은 추적 결정 사유와 담당자 이름이 있습니다. 지금 옮기면 사라지며 저장된 추적 상태는 바뀌지 않습니다.",
+    title: "추적 결정 입력을 저장하지 않고 옮겨요",
+    message: "저장하지 않은 추적 결정 사유와 담당자 이름이 있어요. 지금 옮기면 사라지며 저장된 추적 상태는 바뀌지 않아요.",
     confirmLabel: "저장하지 않고 옮기기",
   });
   const selection = useListSelection<number, PreSpecSelectionSortMetadata>({
@@ -457,12 +460,12 @@ export function PreSpecsPage() {
       return;
     }
     if (!sortedIds) {
-      setSelectionMessage("선택한 항목의 게시·마감·관측 시각을 확인할 수 없어 선택 검토를 시작하지 못했습니다.");
+      setSelectionMessage("선택한 항목의 게시·마감·관측 시각을 확인할 수 없어 선택 검토를 시작하지 못했어요.");
       return;
     }
     const durable = selection.persist();
     if (!durable.ok) {
-      setSelectionMessage(durable.error?.message ?? "선택 검토 순서를 저장하지 못했습니다.");
+      setSelectionMessage(durable.error?.message ?? "선택 검토 순서를 저장하지 못했어요.");
       return;
     }
     const created = createPreSpecSelectionReview({
@@ -499,7 +502,7 @@ export function PreSpecsPage() {
   const reviewSelected = useCallback(() => {
     const sortedIds = selectedReviewIds;
     if (!sortedIds || sortedIds.length === 0) {
-      setSelectionMessage("선택한 항목의 게시·마감·관측 시각을 확인할 수 없어 선택 검토를 시작하지 못했습니다.");
+      setSelectionMessage("선택한 항목의 게시·마감·관측 시각을 확인할 수 없어 선택 검토를 시작하지 못했어요.");
       return;
     }
     openDetail(sortedIds[0]);
@@ -645,29 +648,38 @@ export function PreSpecsPage() {
   }
 
   function emptyDescription(): string {
-    if (searchKey(queryText)) return `적용된 검색어 "${queryText}"와 다른 활성 필터에 맞는 사전규격이 없습니다.`;
+    if (searchKey(queryText)) return `적용된 검색어 "${queryText}"와 다른 활성 필터에 맞는 사전규격이 없어요.`;
     // 구간은 검토할 항목의 시야이지 항목을 없애는 필터가 아니다(ADR-0064 결정 1).
     // 비었으면 다른 구간에 무엇이 남아 있는지 서버 건수로 알린다.
     if (scopedWorkspace(workspace) && deadlineScope === "passed") {
       return workspace === "needs_check"
-        ? "마감 경과 구간에 확인 필요 건이 없습니다. 마감 전·미확인 구간으로 돌아가십시오."
-        : "마감 경과 구간에 검토할 항목이 없습니다. 마감 전·미확인 구간으로 돌아가십시오.";
+        ? "마감 경과 구간에 확인 필요 건이 없어요. 마감 전·미확인 구간으로 돌아가 주세요."
+        : "마감 경과 구간에 검토할 항목이 없어요. 마감 전·미확인 구간으로 돌아가 주세요.";
     }
     if (scopedWorkspace(workspace) && deadlineScope === "current" && (deadlineScopeCounts?.passed ?? 0) > 0) {
-      return `마감 전·미확인 구간에는 없습니다. 마감 경과 ${deadlineScopeCounts?.passed}건은 구간 전환으로 볼 수 있습니다.`;
+      return `마감 전·미확인 구간에는 없어요. 마감 경과 ${deadlineScopeCounts?.passed}건은 구간 전환으로 볼 수 있어요.`;
     }
-    if (workspace === "needs_check") return "개요가 실패·취소로 끝났거나 문서 준비가 멈춘 건이 없습니다.";
-    if (isDefaultView) return "SW 중심 기본 보기에 맞는 항목이 없습니다. 전체 보기는 SW사업대상과 무관한 사전규격까지 명시적으로 요청합니다.";
-    if (overviewView !== "all") return `현재 개요 상태 보기와 필터에 맞는 사전규격이 없습니다. 보기를 바꾸거나 조건을 넓혀 보십시오.`;
-    if (swOnly) return "SW 중심 기본 보기와 추가 필터가 함께 적용되어 있습니다. 기본값으로 돌아가거나 조건을 조정해 보십시오.";
+    if (workspace === "needs_check") return "개요가 실패·취소로 끝났거나 문서 준비가 멈춘 건이 없어요.";
+    if (isDefaultView) return "SW 중심 기본 보기에 맞는 항목이 없어요. 전체 보기는 SW사업대상과 무관한 사전규격까지 명시적으로 요청해요.";
+    if (overviewView !== "all") return `현재 개요 상태 보기와 필터에 맞는 사전규격이 없어요. 보기를 바꾸거나 조건을 넓혀 보세요.`;
+    if (swOnly) return "SW 중심 기본 보기와 추가 필터가 함께 적용되어 있어요. 기본값으로 돌아가거나 조건을 조정해 보세요.";
     if (autoPreparationStatus || trackingDecision || trackingStatus || sourceRunId || observedFrom || observedTo || deadlineStatus) {
-      return "현재 선택한 업무구분·구분·추적·관측·마감 조건에 맞는 누적 데이터가 없습니다.";
+      return "현재 선택한 업무구분·구분·추적·관측·마감 조건에 맞는 누적 데이터가 없어요.";
     }
-    if (businessDivision || origin || queryText) return "현재 선택한 업무구분·구분·검색어 조건에 맞는 누적 데이터가 없습니다.";
-    return "누적 수집된 사전규격 데이터가 아직 없습니다.";
+    if (businessDivision || origin || queryText) return "현재 선택한 업무구분·구분·검색어 조건에 맞는 누적 데이터가 없어요.";
+    return "누적 수집된 사전규격 데이터가 아직 없어요.";
   }
 
   const activeWorkspace = workspaceOf(workspace);
+  // 패널 헤더(2026-11-19 최종 시안 패턴): 화면 이름 · 문장형 제목(목록 total) · 보기 설명. 읽기 전·실패면
+  // 올리지 않아 route 이름이 `<h1>`이다. 숫자는 서버 total 그대로다.
+  usePageHeader(result.isSuccess ? {
+    eyebrow: "사전규격",
+    title: activeWorkspace.key === "actionable"
+      ? (total > 0 ? `검토할 사전규격이 ${formatCount(total)}건 있어요` : "검토할 사전규격이 없어요")
+      : `${activeWorkspace.label} 사전규격 ${formatCount(total)}건을 보고 있어요`,
+    description: `${withCopula(activeWorkspace.description)}.`,
+  } : null);
   /**
    * 접힌 상세 필터에 걸려 있는 조건 수(명세 §2.1, U3). 상세 필터 안의 축 가운데
    * 기본값이 아닌 것을 센다 — `필터 초기화`(`기본값으로`)가 되돌리는 것과 같은
@@ -690,16 +702,18 @@ export function PreSpecsPage() {
       {/* 화면 제목은 셸 상단바가 그린다(제목 모드). 페이지는 같은 이름을 세로로 한 번
           더 쓰지 않고, `aria-labelledby`가 가리킬 숨긴 제목만 남긴다. 페이지 상태를
           쓰는 액션(`표시 범위`)은 상단바 슬롯으로 portal한다. */}
-      <h2 className="visually-hidden" id="page-title">사전규격</h2>
+      <span className="visually-hidden" id="page-title">사전규격</span>
       <PageHeaderActions>
         <div className="pre-specs-header-actions">
           {/* 목록 범위를 설명하는 단추는 네 화면이 같은 이름을 쓴다(시안 M1 승인 결정 3). */}
           {import.meta.env.BIDOPS_REVIEW_MOCK && <Button label="가상 사업 심층검토" size="sm" onClick={() => navigate("/pre-specs/mock-review")} />}
-          <Button label="목록 기준" size="sm" variant="ghost" onClick={() => setScopeDialogOpen(true)} />
+          {/* 사전규격은 공고 트랙 일일 수집이 채운다. 판정은 서버다. */}
+          <CollectionStatus track="notices" />
+          <button className="panel-header-link" type="button" onClick={() => setScopeDialogOpen(true)}>목록 기준</button>
         </div>
       </PageHeaderActions>
 
-      <WorkspaceFrame>
+      <PageHeaderTabs>
         <WorkspaceFilterBar activeFilterCount={activeFilterCount} aria-label="사전규격 필터" className="pre-specs-filters">
           <WorkspaceFilterLine>
             <WorkspaceViewTabs
@@ -916,19 +930,41 @@ export function PreSpecsPage() {
             </WorkspaceFilterContext>
           ) : null}
         </WorkspaceFilterBar>
+      </PageHeaderTabs>
+      <WorkspaceFrame>
 
         {/* 조회 중이거나 실패해도 좌우 분할 골격은 그대로 두고 상태를 목록 pane 안에
             그린다(ADR-0062: 발주계획 방식). 화면이 통째로 접혔다 펴지면 사람이 보던
             자리를 잃는다. */}
         <SplitWorkspace className="pre-specs-split-workspace">
             <section className="review-split-list pre-specs-list-pane" aria-label="사전규격 목록">
+              {/* 머리는 한 줄이다(발주계획과 같은 규칙, 2026-11-20): 보기 이름과 건수 · 정렬. 보기의 긴 뜻은
+                  title(마우스)과 `목록 기준` 대화상자가 진다. 선택이 없을 때 `현재 페이지 전체 선택`은
+                  머리 체크박스가 맡고, 선택이 생기면 아래 일괄 바가 같은 조작을 갖는다. */}
               <header className="review-list-head pre-specs-list-head">
-                <strong>
-                  사전규격 목록 · <span className="mono tabular-nums">{formatCount(total)}</span>건
-                </strong>
-                <span>{activeWorkspace.description} · {SORT_OPTIONS.find((option) => option.value === sort)?.label}</span>
+                {selection.selectedIds.length === 0 ? (
+                  <input
+                    aria-label="현재 페이지 전체 선택"
+                    checked={false}
+                    className="c2l-list-select-all"
+                    disabled={!selection.hydrationReady || !selection.storageAvailable || items.length === 0}
+                    onChange={selectCurrentPage}
+                    type="checkbox"
+                  />
+                ) : null}
+                <p className="pre-specs-list-heading" title={activeWorkspace.description}>
+                  <span className="pre-specs-list-count">
+                    {activeWorkspace.label} {result.isError
+                      ? "건수 확인 불가"
+                      : result.isPending
+                        ? "불러오는 중"
+                        : <><span className="mono tabular-nums">{formatCount(total)}</span>건</>}
+                  </span>
+                  <span className="pre-specs-list-scope"> · {SORT_OPTIONS.find((option) => option.value === sort)?.label}</span>
+                </p>
               </header>
-              <SelectionToolbar
+              {/* 일괄 바는 고른 것이 있을 때만 선다. 이 탭의 선택 저장소를 쓸 수 없으면 그 사실을 알리려고 남긴다. */}
+              {selection.selectedIds.length > 0 || (selection.hydrationReady && !selection.storageAvailable) ? <SelectionToolbar
                 className="pre-specs-selection-toolbar"
                 count={selection.selectedIds.length}
                 countClassName="pre-specs-selection-count"
@@ -936,13 +972,13 @@ export function PreSpecsPage() {
                 reasonClassName="pre-specs-selection-disabled-reason"
                 reasonId="pre-specs-selection-disabled"
                 reason={!selection.hydrationReady
-                  ? "선택 저장소를 준비하는 중입니다."
+                  ? "선택 저장소를 준비하는 중이에요."
                   : !selection.storageAvailable
-                    ? "이 탭의 선택 저장소를 사용할 수 없어 검토 순서를 저장할 수 없습니다."
+                    ? "이 탭의 선택 저장소를 사용할 수 없어 검토 순서를 저장할 수 없어요."
                   : selection.selectedIds.length === 0
-                    ? "선택한 항목이 없습니다."
+                    ? "선택한 항목이 없어요."
                     : !selectedReviewIds
-                      ? "선택 항목의 정렬 시각을 확인할 수 없습니다."
+                      ? "선택 항목의 정렬 시각을 확인할 수 없어요."
                       : ""}
                 end={(
                   /* `전체 선택`의 범위를 글자로 밝힌다 — 이 단추는 검색 결과 전체가
@@ -985,8 +1021,8 @@ export function PreSpecsPage() {
                     </button>
                   </>
                 )}
-              />
-              {selection.selectedIds.length > 200 ? <p role="alert">한 번에 200건까지 제외할 수 있습니다. 선택을 줄여 주세요.</p> : null}
+              /> : null}
+              {selection.selectedIds.length > 200 ? <p role="alert">한 번에 200건까지 제외할 수 있어요. 선택을 줄여 주세요.</p> : null}
               {selectionMessage ? <p className="pre-specs-selection-message" role="alert">{selectionMessage}</p> : null}
               <ListColumns className="pre-specs-list-columns">
                 <span>사업명 / 발주기관</span>
@@ -1000,19 +1036,19 @@ export function PreSpecsPage() {
                 onPointerDownCapture={rowKeyboard.onPointerDownCapture}
               >
                 {result.isPending ? (
-                  <div className="pre-specs-loading" role="status" aria-live="polite">사전규격 목록을 불러오는 중입니다.</div>
+                  <div className="pre-specs-loading" role="status" aria-live="polite">사전규격 목록을 불러오는 중이에요.</div>
                 ) : result.isError ? (
                   <EmptyState
                     compact
                     tone="error"
-                    title="사전규격 목록을 불러오지 못했습니다."
-                    description="사전규격 API 응답을 확인할 수 없습니다."
+                    title="사전규격 목록을 불러오지 못했어요"
+                    description="사전규격 API 응답을 확인할 수 없어요."
                     action={{ label: "다시 시도", onClick: () => { void result.refetch(); } }}
                   />
                 ) : items.length === 0 ? (
                   <EmptyState
                     compact
-                    title="조건에 맞는 사전규격이 없습니다."
+                    title="조건에 맞는 사전규격이 없어요"
                     description={emptyDescription()}
                     action={searchKey(queryText)
                       ? { label: "검색어만 지우기", onClick: () => applySearch("") }
@@ -1027,6 +1063,8 @@ export function PreSpecsPage() {
                         key={item.notice_pk}
                         item={item}
                         isSelected={item.notice_pk === selectedPk}
+                        // 검토할 항목·확인 필요는 `추적 결정 없음`이 보기의 뜻이라 행의 `미선택`을 되풀이하지 않는다.
+                        hideUntracked={workspace === "actionable" || workspace === "needs_check"}
                         onSelect={() => selectPk(item.notice_pk)}
                         selection={{
                           checked: selection.selectedIdSet.has(item.notice_pk),
@@ -1099,8 +1137,8 @@ export function PreSpecsPage() {
                 <div className="pre-specs-detail-empty">
                   <EmptyState
                     compact
-                    title="사전규격을 선택하십시오."
-                    description="왼쪽 목록에서 행을 선택하면 개요 검토 결과와 추적 선택을 확인할 수 있습니다. 이 선택은 최종 Go/No-Go와 별개입니다."
+                    title="사전규격을 선택해 주세요"
+                    description="왼쪽 목록에서 행을 선택하면 개요 검토 결과와 추적 선택을 확인할 수 있어요. 이 선택은 최종 Go/No-Go와 별개예요."
                   />
                 </div>
               )}
@@ -1114,19 +1152,19 @@ export function PreSpecsPage() {
         <DialogHeader title="이 목록의 기준" onOpenChange={() => setScopeDialogOpen(false)} />
         <div className="pre-specs-dialog-body">
           <p>
-            현재 조건의 서버 전체 건수는 <strong>{formatCount(total)}건</strong>이고, 한 번에 최대 {formatCount(PAGE_SIZE)}건을 불러옵니다.
-            {loadedItems.length > 0 ? ` 지금 화면에는 ${formatCount(loadedItems.length)}건이 보입니다.` : ""}
+            현재 조건의 서버 전체 건수는 <strong>{formatCount(total)}건</strong>이고, 한 번에 최대 {formatCount(PAGE_SIZE)}건을 불러와요.
+            {loadedItems.length > 0 ? ` 지금 화면에는 ${formatCount(loadedItems.length)}건이 보여요.` : ""}
           </p>
           <ul>
             {/* 응답 필드 이름(`workspace_counts`·`projection`)은 실무 화면의 말이
                 아니다(ADR-0066 결정 1 `한글화`). 뜻은 그대로 두고 표기만 바꾼다 —
                 `projection`은 용어 사전이 정한 `요약 정보`를 쓴다(`lib/glossary.ts`). */}
-            <li>상단 업무 화면 건수는 현재 조건에서 업무 화면만 바꿔 서버가 센 값이며 페이지 범위와 무관합니다.</li>
-            <li>개요 상태·등급·추적 결정·추적 상태·관측일·마감 상태·자동 준비 상태는 모두 서버가 페이지 전에 적용합니다.</li>
-            <li>최근 수집의 날짜 범위와 수집 회차는 관측 기록에만 적용하고, 응답 행은 해당 회차의 과거 값이 아닌 현재 요약 정보입니다.</li>
-            <li>SW 중심 기본 보기는 SW사업대상=Y와 추적 중인 발주계획에 연결된 예외를 함께 남깁니다. 목록의 <strong>추적 예외</strong>는 SW사업대상이 Y가 아니지만 추적 중인 발주계획에 연결된 건이고, 값이 없는 SW사업대상은 <strong>SW 미확인</strong>으로 적습니다.</li>
-            <li>추적 상태는 사업기회 연결이 없으면 <strong>사업기회 미연결</strong>, 연결은 있는데 서버 값이 없으면 <strong>미확인</strong>입니다. 사람이 고른 <strong>미선택</strong>과 다릅니다.</li>
-            <li>품질 표식 · 참조 실행과 mock 참조는 운영 완료가 아니고, 표식 없음을 미측정으로 바꾸지 않습니다. 선택한 건의 현재 표식은 개요 검토 결과 머리줄에 있습니다.</li>
+            <li>상단 업무 화면 건수는 현재 조건에서 업무 화면만 바꿔 서버가 센 값이며 페이지 범위와 무관해요.</li>
+            <li>개요 상태·등급·추적 결정·추적 상태·관측일·마감 상태·자동 준비 상태는 모두 서버가 페이지 전에 적용해요.</li>
+            <li>최근 수집의 날짜 범위와 수집 회차는 관측 기록에만 적용하고, 응답 행은 해당 회차의 과거 값이 아닌 현재 요약 정보예요.</li>
+            <li>SW 중심 기본 보기는 SW사업대상=Y와 추적 중인 발주계획에 연결된 예외를 함께 남겨요. 목록의 <strong>추적 예외</strong>는 SW사업대상이 Y가 아니지만 추적 중인 발주계획에 연결된 건이고, 값이 없는 SW사업대상은 <strong>SW 미확인</strong>으로 적어요.</li>
+            <li>추적 상태는 사업기회 연결이 없으면 <strong>사업기회 미연결</strong>, 연결은 있는데 서버 값이 없으면 <strong>미확인</strong>이에요. 사람이 고른 <strong>미선택</strong>과 달라요.</li>
+            <li>품질 표식 · 참조 실행과 mock 참조는 운영 완료가 아니고, 표식 없음을 미측정으로 바꾸지 않아요. 선택한 건의 현재 표식은 개요 검토 결과 머리줄에 있어요.</li>
           </ul>
         </div>
       </Dialog>

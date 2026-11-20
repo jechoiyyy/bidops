@@ -52,7 +52,7 @@ function StageIcon({ status }: { status: string }) {
  */
 export function PipelineStageTrack({ stages, counts }: { stages: PipelineStageResponse[]; counts: RunCounts }) {
   if (stages.length === 0) {
-    return <Caption>이 회차의 파이프라인 단계 기록이 없습니다. 없음을 완료로 읽지 않습니다.</Caption>;
+    return <Caption>이 회차의 파이프라인 단계 기록이 없어요. 없음을 완료로 읽지 않아요.</Caption>;
   }
   return (
     <div className="rs-stage-track" aria-label="파이프라인 단계">

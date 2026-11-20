@@ -27,9 +27,9 @@ export function SourcePanel({ row, structureId, onClose, onViewPage, onFeedback,
   const pageLabel = pageRangeLabel(row);
   const suffix = mappingSuffix(row);
   const pageBlockedReason = !pageLabel
-    ? "쪽을 알 수 없어 열 수 없습니다"
+    ? "쪽을 알 수 없어 열 수 없어요"
     : structureId === null
-      ? "문서 구조 정보가 없어 열 수 없습니다"
+      ? "문서 구조 정보가 없어 열 수 없어요"
       : null;
   return (
     <aside aria-label="원문 패널" className="vd-source" data-testid="source-panel">
@@ -42,7 +42,7 @@ export function SourcePanel({ row, structureId, onClose, onViewPage, onFeedback,
       </div>
       <p className="vd-source-requirement">{requirementText(row)}</p>
       {quotes.length === 0 ? (
-        <p className="rec-side-note">서버가 연결한 원문 인용이 없습니다.</p>
+        <p className="rec-side-note">서버가 연결한 원문 인용이 없어요.</p>
       ) : (
         <ul aria-label="원문 인용" className="vd-quotes">
           {quotes.map((ref, index) => (

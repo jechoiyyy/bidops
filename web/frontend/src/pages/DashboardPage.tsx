@@ -1,3 +1,4 @@
+import { usePageHeader } from "../components/shell/PageHeaderContext";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@astryxdesign/core/Button";
@@ -48,6 +49,11 @@ const WORKLOAD_UNAVAILABLE_REASON: Record<string, string> = {
  * 길이로 덮지 않고 목록이 비었다고 건수를 0으로 고치지 않는다.**
  */
 export function DashboardPage() {
+  usePageHeader({
+    eyebrow: "대시보드",
+    title: "오늘 정하고 확인할 일을 모았어요",
+    description: "건수는 각 목록의 기본 보기와 같은 기준이에요. 화면은 읽기 전용이에요.",
+  });
   return <InternationalizationProvider locale="ko-KR" messages={{ "ko-KR": koKR }}><DashboardWorkspace /></InternationalizationProvider>;
 }
 
@@ -195,7 +201,7 @@ function DashboardWorkspace() {
     {/* "어제 일일 실행이 돌았는가"(설계고도화안 A-5). 발주계획·공고 두 트랙의 마지막 실행 사실만 적는다. */}
     <DailyCollectionStatus />
 
-    <DashboardBlock id="decide" title="오늘 결정할 것" caption="사람이 정해야 다음 단계로 넘어갑니다.">
+    <DashboardBlock id="decide" title="오늘 결정할 것" caption="사람이 정해야 다음 단계로 넘어가요.">
       <CountStrip label="오늘 결정할 것 건수" items={decideCounts} />
       <div className="dash-work-grid">
         <FinalDecisionPanel data={decisionQuery.data} now={now}
@@ -206,7 +212,7 @@ function DashboardWorkspace() {
       </div>
     </DashboardBlock>
 
-    <DashboardBlock id="check" title="확인할 것" caption="실패·사람 확인·마감 임박을 봅니다.">
+    <DashboardBlock id="check" title="확인할 것" caption="실패·사람 확인·마감 임박을 봐요.">
       <CountStrip label="확인할 것 건수" items={checkCounts} />
       <div className="dash-work-grid">
         <HumanCheckPanel failed={overviewFailedQuery.data} attention={overviewAttentionQuery.data} blocking={blockingQuery.data}
@@ -220,7 +226,7 @@ function DashboardWorkspace() {
       </div>
     </DashboardBlock>
 
-    <DashboardBlock id="new" title="새로 볼 것" caption={`${newSince.slice(5)} 이후 처음 수집된 것입니다.`}>
+    <DashboardBlock id="new" title="새로 볼 것" caption={`${newSince.slice(5)} 이후 처음 수집된 것이에요.`}>
       <CountStrip label="새로 볼 것 건수" items={newCounts} />
       <div className="dash-work-grid">
         <NewPriorityOrderPlanPanel data={newPlanQuery.data} newSince={newSince}
@@ -229,6 +235,6 @@ function DashboardWorkspace() {
           footCount={workloadNote("order_plan_new_priority", "추적 미선택", ` 중 상위 ${WORK_PANEL_LIMIT}건`)} />
       </div>
     </DashboardBlock>
-    <footer className="dash-dashboard-foot"><Small>최종 참여 판단은 최종 Go/No-Go에서 진행합니다.</Small></footer>
+    <footer className="dash-dashboard-foot"><Small>최종 참여 판단은 최종 Go/No-Go에서 진행해요.</Small></footer>
   </section>;
 }

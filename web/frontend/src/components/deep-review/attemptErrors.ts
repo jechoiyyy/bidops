@@ -19,30 +19,30 @@
 export const ATTEMPT_ERROR_SENTENCES: Record<string, string> = {
   // 워커가 직접 기록하는 코드.
   validation_failed:
-    "모델 결과가 결정적 검증을 통과하지 못해 분석을 마치지 못했습니다. 화면이 실패를 보정하지 않습니다.",
-  processing_failed: "분석 실행이 실패해 결과가 만들어지지 않았습니다.",
-  service_unavailable: "분석에 필요한 서비스를 사용할 수 없어 분석을 마치지 못했습니다.",
+    "모델 결과가 결정적 검증을 통과하지 못해 분석을 마치지 못했어요. 화면이 실패를 보정하지 않아요.",
+  processing_failed: "분석 실행이 실패해 결과가 만들어지지 않았어요.",
+  service_unavailable: "분석에 필요한 서비스를 사용할 수 없어 분석을 마치지 못했어요.",
   // 모델 호출이 분류한 실패(`model_client.py:1187-1199`).
-  timeout: "모델 응답이 제한 시간 안에 오지 않아 분석을 마치지 못했습니다.",
-  response_too_large: "모델 응답이 허용 크기를 넘어 분석을 마치지 못했습니다.",
-  provider_http_error: "모델 서버가 오류를 돌려주어 분석을 마치지 못했습니다.",
-  provider_unavailable: "모델 서버에 연결하지 못해 분석을 마치지 못했습니다.",
-  truncated_json: "모델 응답이 끝까지 오지 않아 분석을 마치지 못했습니다.",
-  malformed_json: "모델 응답을 약속된 형식으로 읽지 못해 분석을 마치지 못했습니다.",
-  provider_error: "모델 호출이 실패해 분석을 마치지 못했습니다.",
+  timeout: "모델 응답이 제한 시간 안에 오지 않아 분석을 마치지 못했어요.",
+  response_too_large: "모델 응답이 허용 크기를 넘어 분석을 마치지 못했어요.",
+  provider_http_error: "모델 서버가 오류를 돌려주어 분석을 마치지 못했어요.",
+  provider_unavailable: "모델 서버에 연결하지 못해 분석을 마치지 못했어요.",
+  truncated_json: "모델 응답이 끝까지 오지 않아 분석을 마치지 못했어요.",
+  malformed_json: "모델 응답을 약속된 형식으로 읽지 못해 분석을 마치지 못했어요.",
+  provider_error: "모델 호출이 실패해 분석을 마치지 못했어요.",
   // 모델 신원·설정 확인이 막은 실패(`model_client.py:860-967`, `:1109`·`:1116`).
-  identity_unavailable: "분석 모델의 신원을 확인하지 못해 분석을 멈췄습니다.",
-  model_not_served: "승인된 분석 모델이 서버에 올라와 있지 않아 분석을 멈췄습니다.",
-  model_revision_invalid: "서버가 알린 모델 판이 승인된 값과 달라 분석을 멈췄습니다.",
-  generation_config_mismatch: "서버의 생성 설정이 승인된 값과 달라 분석을 멈췄습니다.",
+  identity_unavailable: "분석 모델의 신원을 확인하지 못해 분석을 멈췄어요.",
+  model_not_served: "승인된 분석 모델이 서버에 올라와 있지 않아 분석을 멈췄어요.",
+  model_revision_invalid: "서버가 알린 모델 판이 승인된 값과 달라 분석을 멈췄어요.",
+  generation_config_mismatch: "서버의 생성 설정이 승인된 값과 달라 분석을 멈췄어요.",
   // 호출 전에 fail closed로 막힌 경우(`model_client.py:676`·`:1072`-`:1085`).
-  input_capacity_exceeded: "입력이 모델이 한 번에 받을 수 있는 크기를 넘어 분석을 마치지 못했습니다.",
-  model_not_allowed: "승인되지 않은 모델이라 호출하지 않고 멈췄습니다.",
-  policy_invalid: "분석 정책 설정이 올바르지 않아 호출하지 않고 멈췄습니다.",
-  correction_invalid: "재시도 지시가 올바르지 않아 호출하지 않고 멈췄습니다.",
+  input_capacity_exceeded: "입력이 모델이 한 번에 받을 수 있는 크기를 넘어 분석을 마치지 못했어요.",
+  model_not_allowed: "승인되지 않은 모델이라 호출하지 않고 멈췄어요.",
+  policy_invalid: "분석 정책 설정이 올바르지 않아 호출하지 않고 멈췄어요.",
+  correction_invalid: "재시도 지시가 올바르지 않아 호출하지 않고 멈췄어요.",
 };
 
 /** 사람 말 문장. 사전에 없는 코드는 코드를 문장 안에 그대로 싣는다. */
 export function attemptFailureSentence(code: string): string {
-  return ATTEMPT_ERROR_SENTENCES[code] ?? `분석을 마치지 못했습니다 · 코드 ${code}`;
+  return ATTEMPT_ERROR_SENTENCES[code] ?? `분석을 마치지 못했어요 · 코드 ${code}`;
 }

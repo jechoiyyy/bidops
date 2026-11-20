@@ -56,15 +56,15 @@ export function OpportunityVerdictTab({ query, onRequest, onFeedback }: Opportun
   }, [view]);
 
   if (query.isPending) {
-    return <p className="rec-status" role="status">판정을 불러오는 중입니다.</p>;
+    return <p className="rec-status" role="status">판정을 불러오는 중이에요.</p>;
   }
   if (query.isError || !view) {
     return (
       <EmptyState
         action={{ label: "다시 시도", onClick: () => { void query.refetch(); } }}
         compact
-        problem={describeVerdictApiError(query.error, "판정을 불러오지 못했습니다.")}
-        title="판정을 불러오지 못했습니다"
+        problem={describeVerdictApiError(query.error, "판정을 불러오지 못했어요.")}
+        title="판정을 불러오지 못했어요"
         tone="error"
       />
     );
@@ -79,8 +79,8 @@ export function OpportunityVerdictTab({ query, onRequest, onFeedback }: Opportun
       <span className="vd-pill is-muted">과거 기준</span>
       <p>
         {view.stale_reasons.length > 0
-          ? `${view.stale_reasons.map(staleReasonLabel).join(" · ")}. 이 판정은 지금 기준이 아닙니다.`
-          : "이 판정은 지금 기준이 아닙니다."}
+          ? `${view.stale_reasons.map(staleReasonLabel).join(" · ")}. 이 판정은 지금 기준이 아니에요.`
+          : "이 판정은 지금 기준이 아니에요."}
       </p>
     </div>
   ) : null;
@@ -91,8 +91,8 @@ export function OpportunityVerdictTab({ query, onRequest, onFeedback }: Opportun
     return (
       <EmptyState
         compact
-        description="이 사업기회에는 연결된 사전규격이 없어 판정 대상이 아닙니다. 판정은 사전규격 제안요청서를 기준으로 합니다."
-        title="아직 판정이 없습니다"
+        description="이 사업기회에는 연결된 사전규격이 없어 판정 대상이 아니에요. 판정은 사전규격 제안요청서를 기준으로 해요."
+        title="아직 판정이 없어요"
       />
     );
   }
@@ -102,8 +102,8 @@ export function OpportunityVerdictTab({ query, onRequest, onFeedback }: Opportun
       <EmptyState
         action={{ label: "판정 요청", onClick: onRequest }}
         compact
-        description="판정은 SW사업 사전규격의 문서 준비가 끝나고 분석이 승인되어 있을 때 시작됩니다. 문서 준비가 끝났으면 판정을 요청할 수 있습니다."
-        title="아직 판정이 없습니다"
+        description="판정은 SW사업 사전규격의 문서 준비가 끝나고 분석이 승인되어 있을 때 시작돼요. 문서 준비가 끝났으면 판정을 요청할 수 있어요."
+        title="아직 판정이 없어요"
       />
     );
   }
@@ -115,9 +115,9 @@ export function OpportunityVerdictTab({ query, onRequest, onFeedback }: Opportun
         <EmptyState
           action={{ label: "기존 보고서 보기", to: `/pre-specs/${view.notice_id}` }}
           compact
-          description="이전 방식의 심층 검토 보고서만 있고 요구사항 단위 판정은 없습니다."
+          description="이전 방식의 심층 검토 보고서만 있고 요구사항 단위 판정은 없어요."
           secondaryAction={{ label: "다시 판정", onClick: onRequest }}
-          title="기존 보고서가 있습니다"
+          title="기존 보고서가 있어요"
         />
       </>
     );
@@ -136,8 +136,8 @@ export function OpportunityVerdictTab({ query, onRequest, onFeedback }: Opportun
       <EmptyState
         action={{ label: "다시 시도", onClick: () => { void query.refetch(); } }}
         compact
-        description="서버가 완료로 알렸지만 판정 결과가 비어 있습니다. 완료로 보여 주지 않습니다."
-        title="판정 결과를 읽을 수 없습니다"
+        description="서버가 완료로 알렸지만 판정 결과가 비어 있어요. 완료로 보여 주지 않아요."
+        title="판정 결과를 읽을 수 없어요"
         tone="error"
       />
     );
@@ -150,7 +150,7 @@ export function OpportunityVerdictTab({ query, onRequest, onFeedback }: Opportun
         {active ? (
           <div className="vd-banner" data-testid="running-banner" role="status">
             <strong>분석 중</strong>
-            <p>검증이 끝난 요구사항부터 아래 표에 나타납니다. 분석이 끝나면 판정이 보입니다.</p>
+            <p>검증이 끝난 요구사항부터 아래 표에 나타나요. 분석이 끝나면 판정이 보여요.</p>
           </div>
         ) : null}
         {view.availability === "completed" && view.missing_sections.length > 0 ? (
@@ -158,7 +158,7 @@ export function OpportunityVerdictTab({ query, onRequest, onFeedback }: Opportun
           // 확인 필요로 남는다(서버가 이때 "진행 가능"을 내지 않는다). 화면은 영역 목록만 그대로 보인다.
           <div className="vd-banner" data-testid="missing-sections-note" role="note">
             <p>
-              원문에서 찾지 못한 영역: {view.missing_sections.map(sectionLabel).join(", ")} — 이 영역의 요구사항은 확인 필요입니다.
+              원문에서 찾지 못한 영역: {view.missing_sections.map(sectionLabel).join(", ")} — 이 영역의 요구사항은 확인 필요예요.
             </p>
           </div>
         ) : null}
@@ -170,7 +170,7 @@ export function OpportunityVerdictTab({ query, onRequest, onFeedback }: Opportun
           <section aria-label="검증 실패 — 사람 확인 필요" className="vd-rejected" data-testid="rejected-units">
             <h3 className="vd-rejected-title">검증 실패 — 사람 확인 필요 {isolationCount}</h3>
             <p className="vd-rejected-help">
-              아래 항목은 원문 근거 검증을 통과하지 못해 판정 근거에서 뺐습니다. 역할 판단이 격리된 요구사항은 "확인 필요"로 남습니다. 자동으로 고치지 않았으며 담당자가 원문을 확인해야 합니다.
+              아래 항목은 원문 근거 검증을 통과하지 못해 판정 근거에서 뺐어요. 역할 판단이 격리된 요구사항은 "확인 필요"로 남아요. 자동으로 고치지 않았으며 담당자가 원문을 확인해야 해요.
             </p>
             <ul className="vd-rejected-list">
               {rejectedUnits.map((unit, index) => (
@@ -201,7 +201,7 @@ export function OpportunityVerdictTab({ query, onRequest, onFeedback }: Opportun
         {humanReview ? (
           <div className="vd-banner is-warning" data-testid="review-banner" role="status">
             <div className="vd-banner-body">
-              <strong>사람 검토가 필요합니다</strong>
+              <strong>사람 검토가 필요해요</strong>
               {runCode ? (
                 <p>
                   {runCode.title}
@@ -211,18 +211,18 @@ export function OpportunityVerdictTab({ query, onRequest, onFeedback }: Opportun
               ) : null}
               {view.missing_sections.length > 0 ? (
                 <p>
-                  찾지 못한 영역: {view.missing_sections.map(sectionLabel).join(", ")}. 원문에 없다는 뜻은 아닙니다.
+                  찾지 못한 영역: {view.missing_sections.map(sectionLabel).join(", ")}. 원문에 없다는 뜻은 아니에요.
                 </p>
               ) : null}
               {runCode?.detail ? null : (
-                <p>검증을 통과하지 못한 결과는 자동으로 고치지 않습니다. 아래 표는 검증이 끝난 부분만 보여 줍니다.</p>
+                <p>검증을 통과하지 못한 결과는 자동으로 고치지 않아요. 아래 표는 검증이 끝난 부분만 보여 줘요.</p>
               )}
             </div>
             <Button label="다시 판정" onClick={onRequest} size="sm" />
           </div>
         ) : null}
         <RequirementTable
-          note={incomplete ? "검증이 끝난 요구사항만 보입니다. 최종 판정은 아직 없습니다." : null}
+          note={incomplete ? "검증이 끝난 요구사항만 보여요. 최종 판정은 아직 없어요." : null}
           onSelect={setSelectedUnitId}
           rows={rows}
           selectedUnitId={selected?.unit_id ?? null}
@@ -231,7 +231,7 @@ export function OpportunityVerdictTab({ query, onRequest, onFeedback }: Opportun
 
       {selected ? (
         <SourcePanel
-          feedbackDisabledReason={view.attempt_id === null ? "제보할 판정 실행이 없습니다" : null}
+          feedbackDisabledReason={view.attempt_id === null ? "제보할 판정 실행이 없어요" : null}
           onClose={() => setSelectedUnitId(null)}
           onFeedback={(kind) => onFeedback({ row: selected, kind })}
           onViewPage={() => {

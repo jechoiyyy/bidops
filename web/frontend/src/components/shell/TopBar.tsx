@@ -3,6 +3,7 @@ import { Link, useLocation, useMatches } from "react-router-dom";
 import type { RunSummary } from "../../lib/types";
 import { BasisPopover } from "./BasisPopover";
 import { RunSelector } from "./RunSelector";
+import type { PageHeaderContent } from "./PageHeaderContext";
 import { runSearchFor, type RouteCrumb, type RouteDataScope, type RouteTopbarMode } from "./route-meta";
 
 /** 칸의 목적지. 목록 주소에 붙은 검색어(`?selected=`)는 유지하고 회차 선택은 목적지가 읽을 때만 붙인다. */
@@ -34,28 +35,30 @@ interface TopBarProps {
   isLoading?: boolean;
   /** 가상회사 데모의 회사 선택기·데모 표식. demo-config가 enabled일 때만 셸이 넘긴다. */
   companyContext?: ReactNode;
+  /** 화면이 올린 패널 헤더 글자(`usePageHeader`). 지금 주소의 화면 것만 온다. */
+  pageHeader?: PageHeaderContent | null;
 }
 
+/** 패널 헤더의 배치. `data-header-layout`으로 CSS가 고른다. */
+type HeaderLayout = "title" | "page";
+
 /**
- * 상단바는 두 모드로 그린다. 어느 쪽이든 문서의 `<h1>`은 정확히 하나다.
+ * 패널 헤더(2026-11-19 최종 시안, `docs/1119_kstyle-shell/mockups/`). 흰 패널 맨 위에 붙고
+ * 아래 1px 경계로 본문과 나뉜다. 별도 상단바는 없다. 어느 배치든 문서의 `<h1>`은 정확히 하나다.
  *
- * - **경로 모드**(`breadcrumb`, 기본): 화면 제목을 다시 쓰지 않고 **현재 위치**를
- *   보여 준다. 각 화면의 `<h2>`가 시각 제목이고, 여기 `<h1>`은 접근성 랜드마크이자
- *   경로의 한 칸이다. `<h1>`이 `<nav>` 안에 있는 것은 의도적이다 — 제목을 두 번
- *   쓰지 않으면서 문서에 level 1 제목을 남기려면 경로의 화면 이름 칸이 그 역할을
- *   해야 한다. 상세 화면은 목록으로 돌아갈 링크가 필요하므로 늘 이 모드다.
- * - **제목 모드**(`title`): 탐색과 추적 목록 4화면이다. 경로를 빼고 화면 이름
- *   하나만 `<h1>`으로 그린다(사용자 결정 2026-09-08). 페이지가 제목 줄을 두지
- *   않으므로 같은 이름이 세로로 두 번 나오지 않는다.
+ * - **제목 배치**(`title`, 목록 화면 — route-meta의 제목 모드): 작은 화면 이름 · 문장형 제목
+ *   `<h1>` · 한 줄 설명 / 오른쪽 액션 / 아래 탭. 화면이 `usePageHeader`로 문장을 올리기 전
+ *   (로딩·오류)에는 route 이름이 `<h1>`이다.
+ * - **상세 배치**(`page`, 경로 모드 route — 상세·운영 화면): 돌아갈 곳이 있으면 맨 위에 `‹ 목록`
+ *   링크(`nav[aria-label="현재 위치"]`) · 화면 이름 줄과 상태 표식 · 제목 `<h1>` · 설명 · 탭.
+ *   화면이 제목을 올리지 않으면 `<h1>`은 route 이름이고 화면 이름 줄은 식별자(`#501`·`notice 991`)다.
+ *   옛 경로(`그룹 › 상위 › 화면 › 식별자`) 배치는 2026-11-19에 없앴다.
  *
- * 편집 범위 칩(`… 저장 가능`)은 두 모드 모두에서 없앴다(ADR-0066 §3.3, 시안 M4
- * 결정 2). 로그인·권한이 없어 이 칩은 모든 사용자에게 늘 같은 말을 했고, 무엇을
- * 저장할 수 있는지는 각 화면의 결정 UI가 이미 말한다. 읽기 전용이라는 사실을
- * 말해야 하는 화면(대시보드의 `읽기 전용`, 회사 프로필)은 화면 안에서 그대로
- * 말한다. 담당자 이름이 인증이 아니라는 안내도 이름 입력칸 옆에 그대로 있다.
+ * 편집 범위 칩(`… 저장 가능`)은 없앴다(ADR-0066 §3.3, 시안 M4 결정 2). 담당자 이름이 인증이
+ * 아니라는 안내는 이름 입력칸 옆에 그대로 있다.
  *
- * 페이지 액션은 두 모드 모두 `#page-header-actions` portal 슬롯으로 들어온다
- * (`components/common/PageHeaderActions.tsx`).
+ * 페이지 액션은 `#page-header-actions`, 보기 탭·검색 줄은 `#page-header-tabs` portal 슬롯으로
+ * 들어온다(`components/common/PageHeaderActions.tsx`). 두 슬롯은 모든 배치에서 늘 있다.
  */
 export function TopBar({
   crumbs,
@@ -70,9 +73,10 @@ export function TopBar({
   runSearch,
   isLoading = false,
   companyContext = null,
+  pageHeader = null,
 }: TopBarProps) {
-  // 상단바 오른쪽 칸은 회차 축과 (데모가 켜졌을 때만) 회사 축이다. 회차 선택기는
-  // 모드와 무관하게 화면의 데이터 축이 회차일 때만 나온다.
+  // 오른쪽 칸은 회차 축과 (데모가 켜졌을 때만) 회사 축이다. 회차 선택기는
+  // 배치와 무관하게 화면의 데이터 축이 회차일 때만 나온다.
   const contextVisible = runSelectorVisible || companyContext !== null;
   const routeLocation = useLocation();
   const matches = useMatches();
@@ -85,79 +89,86 @@ export function TopBar({
     )
     : null;
 
+  // 시안의 경로는 `상위 화면 / 레코드`다. 사이드바 1차 분류 칸은 사이드바가 이미 보여 주므로 그리지 않는다.
+  const visibleCrumbs = crumbs.filter((crumb) => crumb.role !== "group");
+  const layout: HeaderLayout = topbarMode === "title" ? "title" : "page";
+  // 상세 배치의 돌아갈 곳: 레코드 칸 앞에서 링크를 가진 마지막 칸(사업기회 레코드는 `사업기회` 목록,
+  // 입찰 변경 비교는 그 사업기회). 사전규격 상세는 목록의 필터·선택 순회를 되살리는 주소로 간다.
+  const backCrumb = layout === "page"
+    ? [...visibleCrumbs].reverse().find((crumb) => crumb.role !== "record" && crumb.to !== null) ?? null
+    : null;
+  const backTarget = backCrumb
+    ? (backCrumb.context === "pre-spec-list" && preSpecListUrl ? preSpecListUrl : crumbDestination(backCrumb.to as string, runSearch))
+    : null;
+  const recordCrumb = visibleCrumbs.find((crumb) => crumb.role === "record") ?? null;
+  const headingTitle = pageHeader?.title?.trim() || title;
+  // 화면이 화면 이름 줄을 올리지 않은 상세는 식별자 칸을 그 줄로 쓴다(값을 지어내지 않는다).
+  const eyebrow = pageHeader?.eyebrow ?? (layout === "page" && !pageHeader?.title ? recordCrumb?.label ?? null : null);
+
   return (
-    <header className="topbar" data-route-data-scope={dataScope} data-shell-region="topbar" data-topbar-mode={topbarMode}>
-      {topbarMode === "title" ? (
-        /* 제목 모드(ui-spec §1.3): 리스트 색 점 + 이름. 글자만 `<h1>`에 넣는다 —
-           링크·칩이 들어오면 제목을 읽는 쪽이 달라진다. */
-        <div className="topbar-list-title">
-          <span aria-hidden="true" className="topbar-list-dot" />
-          <h1 className="topbar-title">{title}</h1>
-        </div>
-      ) : (
-        <nav aria-label="현재 위치" className="topbar-breadcrumb">
-          <ol>
-            {/* 시안의 breadcrumb은 `상위 화면 / 레코드`다. 사이드바 1차 분류 칸은
-                사이드바가 이미 보여 주므로 그리지 않는다(ui-spec §1.3). */}
-            {crumbs.filter((crumb) => crumb.role !== "group").map((crumb, index, visible) => (
-              /* 구분자 `›`는 CSS ::before가 그린다. DOM에 넣으면 화면 이름 칸의
-                 `<h1>` 글자에 섞여 제목을 읽는 쪽이 달라진다. */
-              <li className={`topbar-crumb is-${crumb.role}`} key={`${crumb.role}-${crumb.label}`}>
-                <CrumbLabel
-                  crumb={crumb}
-                  isLast={index === visible.length - 1}
-                  preSpecListUrl={preSpecListUrl}
-                  runSearch={runSearch}
-                />
-              </li>
-            ))}
-          </ol>
+    <header
+      className="topbar"
+      data-header-layout={layout}
+      data-route-data-scope={dataScope}
+      data-shell-region="topbar"
+      data-topbar-mode={topbarMode}
+    >
+      {backCrumb && backTarget ? (
+        <nav aria-label="현재 위치" className="topbar-back">
+          <Link className="topbar-back-link topbar-crumb-link" to={backTarget}>
+            <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} viewBox="0 0 24 24"><path d="m15 6-6 6 6 6" /></svg>
+            {backCrumb.label}
+          </Link>
         </nav>
-      )}
-      {/* 화면 액션 portal 슬롯. 페이지 헤더를 하나 더 두지 않고도 상단바에 액션을
-          넣는 자리다. `display:contents`가 아니라 실제 flex 칸이라 셸이 정렬·간격과
-          4단 글자를 준다(portal 내용은 페이지 root 밖이라 화면 CSS가 닿지 않는다). */}
-      <div className="topbar-page-actions" id="page-header-actions" />
-      {contextVisible ? (
-        <div className="topbar-context">
-          {companyContext}
-          {runSelectorVisible ? (
-            <RunSelector
-              disabled={isLoading}
-              onChange={onRunChange}
-              runs={runs}
-              selectedRunId={selectedRunId}
-            />
-          ) : null}
-          {runSelectorVisible ? <BasisPopover run={selectedRun} /> : null}
-        </div>
       ) : null}
+      <div className="topbar-main">
+        {(
+          <div className="topbar-heading">
+            {eyebrow || pageHeader?.tag ? (
+              <div className="topbar-eyebrow-row">
+                {eyebrow ? <p className="topbar-eyebrow" data-testid="page-header-eyebrow">{eyebrow}</p> : null}
+                {pageHeader?.tag ? (
+                  <span className={`bo-tag is-${pageHeader.tag.tone}`} data-testid="page-header-tag">{pageHeader.tag.label}</span>
+                ) : null}
+              </div>
+            ) : null}
+            {/* 글자만 `<h1>`에 넣는다 — 링크·칩이 들어오면 제목을 읽는 쪽이 달라진다. */}
+            <h1 className="topbar-title">{headingTitle}</h1>
+            {pageHeader?.description ? (
+              <p className="topbar-description" data-testid="page-header-description">{pageHeader.description}</p>
+            ) : null}
+            {pageHeader?.facts && pageHeader.facts.length > 0 ? (
+              <dl aria-label="상태 요약" className="topbar-facts" data-testid="page-header-facts">
+                {pageHeader.facts.map((fact) => (
+                  <div className={`topbar-fact${fact.tone ? ` is-${fact.tone}` : ""}`} data-fact={fact.key} key={fact.key}>
+                    <dt>{fact.label}</dt>
+                    <dd>{fact.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : null}
+          </div>
+        )}
+        {/* 화면 액션 portal 슬롯. 페이지 root 밖이라 화면 CSS가 닿지 않으므로 셸이
+            정렬·간격과 글자를 준다. 액션이 없는 화면에서는 칸 자체가 사라진다. */}
+        <div className="topbar-page-actions" id="page-header-actions" />
+        {contextVisible ? (
+          <div className="topbar-context">
+            {companyContext}
+            {runSelectorVisible ? (
+              <RunSelector
+                disabled={isLoading}
+                onChange={onRunChange}
+                runs={runs}
+                selectedRunId={selectedRunId}
+              />
+            ) : null}
+            {runSelectorVisible ? <BasisPopover run={selectedRun} /> : null}
+          </div>
+        ) : null}
+      </div>
+      {/* 보기 탭·검색 줄 portal 슬롯(시안의 둥근 칸 탭 줄). 비어 있으면 CSS가 접는다. */}
+      <div className="topbar-tabs" id="page-header-tabs" />
     </header>
   );
-}
-
-function CrumbLabel({
-  crumb,
-  isLast,
-  preSpecListUrl,
-  runSearch,
-}: {
-  crumb: RouteCrumb;
-  isLast: boolean;
-  preSpecListUrl: string | null;
-  runSearch: string;
-}) {
-  const current = isLast ? "page" as const : undefined;
-  const destination = crumb.context === "pre-spec-list" && preSpecListUrl
-    ? preSpecListUrl
-    : crumb.to
-      ? crumbDestination(crumb.to, runSearch)
-      : null;
-  const label = crumb.to
-    ? <Link className="topbar-crumb-link" to={destination!}>{crumb.label}</Link>
-    : crumb.label;
-  // 화면 이름 칸만 `<h1>`이다. 나머지 칸은 위치를 설명하는 보조 문구다.
-  // `<h1>`의 글자는 화면 제목 그대로 남기고 상세에서는 목록 링크가 된다.
-  if (crumb.role === "screen") return <h1 aria-current={current}>{label}</h1>;
-  return <span aria-current={current} className="topbar-crumb-text">{label}</span>;
 }

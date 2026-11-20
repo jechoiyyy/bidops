@@ -79,28 +79,28 @@ export function VerificationRequestsPanel() {
     <div className="crit-verification-requests" aria-label="확인 요청 · 프로필 절 기준">
       <Section action={action} title="확인 요청 · 프로필 절 기준">
         {runsQuery.isPending ? (
-          <StateView description="확인 요청을 표시할 회차를 확인하는 중입니다." kind="loading" title="회차를 불러오는 중입니다" />
+          <StateView description="확인 요청을 표시할 회차를 확인하는 중이에요." kind="loading" title="회차를 불러오는 중이에요" />
         ) : runsQuery.error ? (
           <StateView
             action={<Button label="다시 조회" onClick={() => { void runsQuery.refetch(); }} />}
-            description="회차 목록을 확인할 수 없어 확인 요청을 표시할 수 없습니다. 0건이 아니라 조회 실패입니다."
+            description="회차 목록을 확인할 수 없어 확인 요청을 표시할 수 없어요. 0건이 아니라 조회 실패예요."
             kind="error"
-            title="회차 목록을 불러오지 못했습니다."
+            title="회차 목록을 불러오지 못했어요"
           />
         ) : !selectedRun ? (
           <StateView
-            description="적재된 회차가 생기면 이 절에서 회사 역량 미확인 확인 요청을 볼 수 있습니다."
+            description="적재된 회차가 생기면 이 절에서 회사 역량 미확인 확인 요청을 볼 수 있어요."
             kind="empty"
-            title="확인할 회차가 없습니다."
+            title="확인할 회차가 없어요"
           />
         ) : statsQuery.isPending ? (
-          <StateView description="선택한 회차의 확인 요청을 확인하는 중입니다." kind="loading" title="확인 요청을 불러오는 중입니다" />
+          <StateView description="선택한 회차의 확인 요청을 확인하는 중이에요." kind="loading" title="확인 요청을 불러오는 중이에요" />
         ) : statsQuery.isError ? (
           <StateView
             action={<Button label="다시 조회" onClick={() => { void statsQuery.refetch(); }} />}
-            description="이 회차의 확인 요청을 불러오지 못했습니다. 조회 실패를 0건으로 표시하지 않습니다."
+            description="이 회차의 확인 요청을 불러오지 못했어요. 조회 실패를 0건으로 표시하지 않아요."
             kind="error"
-            title="확인 요청을 불러오지 못했습니다."
+            title="확인 요청을 불러오지 못했어요"
           />
         ) : (
           <>
@@ -109,9 +109,9 @@ export function VerificationRequestsPanel() {
             </Small>
             {requests.length === 0 ? (
               <StateView
-                description="공고별로만 걸리는 확인 항목은 대시보드 `사람 확인 필요` 패널에서 확인합니다."
+                description="공고별로만 걸리는 확인 항목은 대시보드 `사람 확인 필요` 패널에서 확인해요."
                 kind="empty"
-                title="이 회차에는 프로필 절이 식별된 확인 요청이 없습니다."
+                title="이 회차에는 프로필 절이 식별된 확인 요청이 없어요"
               />
             ) : (
               <DataTable
@@ -137,7 +137,7 @@ export function VerificationRequestsPanel() {
             label: runOptionLabel(run),
             description: `${run.run_id} · ${runStatusLabel(run.status)} · 판정 ${formatNumber(run.counts.judgments)}건`,
           }))}
-          placeholder="회차를 선택하십시오"
+          placeholder="회차를 선택해 주세요"
           value={selectedRun?.run_id ?? ""}
         />
         <Small>{`조회한 회차 목록 ${runs.length}개.`}</Small>

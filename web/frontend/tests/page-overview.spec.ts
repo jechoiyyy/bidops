@@ -82,10 +82,10 @@ for (const width of [1280, 1440]) {
     await expect(page.locator('.ps-collapsed dl[aria-label="현재 개요 결과 식별 정보"]'))
       .toContainText('c1, c2, c3');
     // 같은 취지의 경계 문장은 ② 추적 결정 카드 한 곳만 갖는다(M4 승인 2026-09-21).
-    await expect(page.getByText('적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않습니다. 입찰 참여 여부는 최종 Go/No-Go에서 정합니다.')).toHaveCount(1);
+    await expect(page.getByText('적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않아요. 입찰 참여 여부는 최종 Go/No-Go에서 정해요.')).toHaveCount(1);
     await expect(page.getByText('추적 승인과 최종 입찰 결정은 사람이')).toHaveCount(0);
     await expect(page.getByText('서로 대신하지 않음')).toHaveCount(0);
-    await expect(page.getByText('추적 선택과 최종 입찰 Go/No-Go는 사람이 결정합니다.')).toHaveCount(0);
+    await expect(page.getByText('추적 선택과 최종 입찰 Go/No-Go는 사람이 결정해요.')).toHaveCount(0);
 
     expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
     await page.goto('/pre-specs/991');
@@ -97,12 +97,12 @@ test('page overview errors and wrong-notice results stay distinct from a rendere
   await mockApi(page);
   await page.route(OVERVIEW_PATH, route => route.fulfill({ status: 503, json: { error: { code: 'unavailable', message: 'unavailable' } } }));
   await page.goto('/pre-specs/991');
-  await expect(page.getByText('PDF 기반 개요를 불러오지 못했습니다.', { exact: false })).toBeVisible();
+  await expect(page.getByText('PDF 기반 개요를 불러오지 못했어요.', { exact: false })).toBeVisible();
   await page.route(OVERVIEW_PATH, route => route.fulfill({
     json: { ...envelope(overviewCompletedRunFixture, [overviewCompletedRunFixture]), notice_id: 992 },
   }));
   await page.getByRole('button', { name: '개요 다시 불러오기' }).click();
-  await expect(page.getByText('개요 응답의 공고 또는 구조가 일치하지 않아 표시하지 않습니다.')).toBeVisible();
+  await expect(page.getByText('개요 응답의 공고 또는 구조가 일치하지 않아 표시하지 않아요.')).toBeVisible();
   await expect(page.getByRole('region', { name: 'PDF 기반 개요 검토' })).toHaveCount(0);
 });
 
@@ -186,7 +186,7 @@ test('current claim verification remains visible when a previous successful resu
   await page.goto('/pre-specs/991');
 
   const currentRegion = page.getByRole('region', { name: '현재 개요 검토' });
-  await expect(currentRegion).toContainText('주장과 검증된 근거를 사람이 확인해야 합니다. 입력 범위 확인 대기와는 별도 상태입니다.');
+  await expect(currentRegion).toContainText('주장과 검증된 근거를 사람이 확인해야 해요. 입력 범위 확인 대기와는 별도 상태예요.');
   // 시도 ID·처리 사유 코드는 ⑥ 접힌 `기술 정보`가 갖는다. 사람 확인 필요 상태라
   // 접힌 곳은 기본으로 열린 채 들어온다(0915 spec §4 ⑥).
   await expect(currentRegion).not.toContainText('claim_verification_required');
@@ -223,8 +223,8 @@ test('current claim verification remains visible when a previous successful resu
 });
 
 for (const state of [
-  { status: 'failed', label: '개요 검토에 실패했습니다. 사람 확인이 필요합니다.' },
-  { status: 'cancelled', label: '개요 검토가 취소되었습니다. 사람 확인이 필요합니다.' },
+  { status: 'failed', label: '개요 검토에 실패했어요. 사람 확인이 필요해요.' },
+  { status: 'cancelled', label: '개요 검토가 취소되었어요. 사람 확인이 필요해요.' },
 ] as const) {
   test(`current ${state.status} never falls back to a previous success`, async ({ page }) => {
     await mockApi(page);
@@ -262,11 +262,11 @@ for (const width of [1280, 1440]) {
     await expect(current).toContainText('선택 범위와 요청 예산을 확인해 주세요.');
     await expect(current).toContainText('안전 한도를 확인할 수 없어');
     await expect(current).toContainText('단계별 payload 상한은 정책이 정하며');
-    await expect(current).toContainText('같은 시도의 앞선 초안 호출 여부를 뜻하지 않습니다.');
-    await expect(current).toContainText('원문을 몰래 자르거나 사전 요약·자동 분할하지 않습니다.');
+    await expect(current).toContainText('같은 시도의 앞선 초안 호출 여부를 뜻하지 않아요.');
+    await expect(current).toContainText('원문을 몰래 자르거나 사전 요약·자동 분할하지 않아요.');
     await expect(current).toContainText('사람이 새 범위를 확정해야 하고');
     await expect(current).toContainText('모델 호출 증가가 필요하면 별도 승인');
-    await expect(current).not.toContainText('개요 검토에 실패했습니다. 사람 확인이 필요합니다.');
+    await expect(current).not.toContainText('개요 검토에 실패했어요. 사람 확인이 필요해요.');
     await expect(page.getByRole('region', { name: 'PDF 기반 개요 검토' })).toHaveCount(0);
     await expect(page.getByRole('region', { name: '현재 주장 검증 진단' })).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
@@ -274,7 +274,7 @@ for (const width of [1280, 1440]) {
 }
 
 test('current body keeps long text and limitations without client truncation', async ({ page }) => {
-  const longText = `${'긴 본문을 임의로 줄이지 않고 그대로 표시해야 합니다. '.repeat(80)}끝 문장`;
+  const longText = `${'긴 본문을 임의로 줄이지 않고 그대로 표시해야 해요. '.repeat(80)}끝 문장`;
   const longRun: OverviewRun = {
     ...overviewCompletedRunFixture,
     id: '00000000-0000-0000-0000-000000000617',
@@ -286,7 +286,7 @@ test('current body keeps long text and limitations without client truncation', a
         text: longText,
         evidence: [{ page: 3, quote: '차세대 통합 데이터 플랫폼 구축' }],
       }],
-      input_limitations: ['선택된 PDF 3~11페이지를 기준으로 검토했습니다.'],
+      input_limitations: ['선택된 PDF 3~11페이지를 기준으로 검토했어요.'],
     },
   };
   await mockApi(page);
@@ -300,7 +300,7 @@ test('current body keeps long text and limitations without client truncation', a
     new RegExp(`${longRun.id}/pdf#page=3$`),
   );
   // 검토 범위·실행 정보는 ⑥ 카드의 접힌 진단 줄이 갖는다(spec §4 ⑥). 본문은 잘리지 않는다.
-  await expect(page.locator('#ps-process')).toContainText('선택된 PDF 3~11페이지를 기준으로 검토했습니다.');
+  await expect(page.locator('#ps-process')).toContainText('선택된 PDF 3~11페이지를 기준으로 검토했어요.');
 });
 
 test('an envelope that does not match the contract fails closed', async ({ page }) => {
@@ -309,7 +309,7 @@ test('an envelope that does not match the contract fails closed', async ({ page 
   const { current: _current, ...missingCurrent } = complete;
   await page.route(OVERVIEW_PATH, route => route.fulfill({ json: missingCurrent }));
   await page.goto('/pre-specs/991');
-  await expect(page.getByText('개요 응답의 공고 또는 구조가 일치하지 않아 표시하지 않습니다.')).toBeVisible();
+  await expect(page.getByText('개요 응답의 공고 또는 구조가 일치하지 않아 표시하지 않아요.')).toBeVisible();
   await expect(page.getByRole('region', { name: 'PDF 기반 개요 검토' })).toHaveCount(0);
   await expect(page.getByRole('region', { name: '현재 개요 검토' })).toHaveCount(0);
 });
@@ -375,7 +375,7 @@ test('pending range review confirms a clause range and refetches the overview', 
   const region = page.getByRole('region', { name: '개요 범위 확인' });
   await expect(region).toContainText('범위 확인 필요');
   await expect(region).toContainText('범위 제목을 찾지 못함');
-  await expect(region).toContainText('확정하면 그 범위로 개요 검토 실행 하나를 예약합니다.');
+  await expect(region).toContainText('확정하면 그 범위로 개요 검토 실행 하나를 예약해요.');
   const table = region.getByRole('table');
   for (const candidate of overviewRangeCandidatesFixture) await expect(table).toContainText(candidate.title);
   await expect(table).toContainText('12쪽');
@@ -385,18 +385,18 @@ test('pending range review confirms a clause range and refetches the overview', 
   // 끝이 시작보다 앞이면 저장할 수 없다.
   await region.getByRole('radio', { name: '끝 #0' }).check();
   await region.getByRole('radio', { name: '시작 #1' }).check();
-  await expect(region.getByText('끝 절은 시작 절과 같거나 뒤여야 합니다')).toBeVisible();
+  await expect(region.getByText('끝 절은 시작 절과 같거나 뒤여야 해요')).toBeVisible();
   await expect(confirm).toBeDisabled();
 
   await region.getByRole('radio', { name: '끝 #2' }).check();
-  await expect(region.getByText('끝 절은 시작 절과 같거나 뒤여야 합니다')).toHaveCount(0);
+  await expect(region.getByText('끝 절은 시작 절과 같거나 뒤여야 해요')).toHaveCount(0);
   await expect(confirm).toBeDisabled();
   await region.getByLabel('담당자 이름 (필수)').fill('최정인');
   await expect(confirm).toBeEnabled();
 
   const callsBeforeConfirm = overviewCalls;
   await confirm.click();
-  await expect(region.getByText('범위가 확정되었습니다 · 그 범위로 개요 검토를 예약했습니다')).toBeVisible();
+  await expect(region.getByText('범위가 확정되었어요 · 그 범위로 개요 검토를 예약했어요')).toBeVisible();
   expect(posts).toHaveLength(1);
   expect(posts[0].method).toBe('POST');
   expect(posts[0].body).toEqual({ candidate_indices: [1, 2] });
@@ -425,7 +425,7 @@ test('range review without clause candidates confirms a page range', async ({ pa
 
   await page.goto('/pre-specs/991');
   const region = page.getByRole('region', { name: '개요 범위 확인' });
-  await expect(region).toContainText('쪽 범위로 직접 확정합니다.');
+  await expect(region).toContainText('쪽 범위로 직접 확정해요.');
   await expect(region.getByRole('link', { name: '변환 PDF 열기 ↗' })).toHaveAttribute(
     'href',
     '/api/pre-specs/991/overview/snapshot/pdf',
@@ -441,7 +441,7 @@ test('range review without clause candidates confirms a page range', async ({ pa
   await expect(confirm).toBeEnabled();
   await confirm.click();
 
-  await expect(region.getByText('범위가 확정되었습니다 · 그 범위로 개요 검토를 예약했습니다')).toBeVisible();
+  await expect(region.getByText('범위가 확정되었어요 · 그 범위로 개요 검토를 예약했어요')).toBeVisible();
   expect(posts).toEqual([{ page_start: 4, page_end: 9 }]);
 });
 
@@ -492,8 +492,8 @@ test('partial candidates are reference-only and page selection remains available
   await expect(region.getByLabel('시작 쪽')).toBeVisible();
   await expect(region.getByRole('table')).toContainText('1. 사업 개요');
   await expect(region.getByRole('radio')).toHaveCount(0);
-  await expect(region).toContainText('일부 후보이므로 표는 참고용입니다');
-  await expect(region).toContainText('후보 표는 참고하고 쪽 범위를 직접 입력하십시오');
+  await expect(region).toContainText('일부 후보이므로 표는 참고용이에요');
+  await expect(region).toContainText('후보 표는 참고하고 쪽 범위를 직접 입력해 주세요');
 });
 
 test('ready automatic range with failed capacity keeps PDF and separates preparation from validation at both widths', async ({ page }) => {
@@ -550,7 +550,7 @@ test('unsafe or active ready target explains why confirmation is blocked without
 
   await page.goto('/pre-specs/991');
   const region = page.getByRole('region', { name: '개요 범위 확인' });
-  await expect(region).toContainText('실행 중인 개요가 있어 새 범위를 저장할 수 없습니다');
+  await expect(region).toContainText('실행 중인 개요가 있어 새 범위를 저장할 수 없어요');
   await expect(region.getByRole('button', { name: '범위 확정' })).toBeDisabled();
   await expect(region.getByRole('link', { name: '변환 PDF 열기 ↗' })).toBeVisible();
 });
@@ -582,7 +582,7 @@ test('confirmed range review renders the read-only summary on the detail record'
   // 확정 기록은 쪽만 남는다. 절 제목을 지어내지 않는다.
   await expect(region).toContainText('쪽 범위 직접 입력');
   await expect(region).toContainText('최정인');
-  await expect(region).toContainText('확정된 범위로 개요 검토 실행 하나가 예약됩니다');
+  await expect(region).toContainText('확정된 범위로 개요 검토 실행 하나가 예약돼요');
   await expect(region.getByRole('button', { name: '범위 확정' })).toHaveCount(0);
 });
 

@@ -192,7 +192,7 @@ export function useListSelection<Id extends ListSelectionId = ListSelectionId, M
         ok: false,
         error: {
           code: "invalid_state",
-          message: "목록 선택 저장소가 현재 적용된 목록 조건에 맞게 준비되지 않았습니다.",
+          message: "목록 선택 저장소가 현재 적용된 목록 조건에 맞게 준비되지 않았어요.",
         },
       };
     }

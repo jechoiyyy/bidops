@@ -176,7 +176,7 @@ export function QualityGateMetrics({ metrics, resultStatus }: QualityGateMetrics
       ]} />
       <Section title={`지표와 제외 근거 · ${entries.length}개`}>
         <Small>
-          결정적 계산 결과입니다. 임계값이 없는 항목은 합격/불합격이 아니라 진단 지표이며, 계산하지 못한 값은 0%로 바꾸지 않습니다.
+          결정적 계산 결과예요. 임계값이 없는 항목은 합격/불합격이 아니라 진단 지표이며, 계산하지 못한 값은 0%로 바꾸지 않아요.
         </Small>
         <DataTable
           caption="품질 게이트의 모든 top-level 지표와 중첩 지표별 계산 결과와 명시적 임계값"
@@ -185,7 +185,7 @@ export function QualityGateMetrics({ metrics, resultStatus }: QualityGateMetrics
             if (isGroup) {
               return [
                 <code key="k">{key}</code>,
-                <Small key="v">하위 지표를 아래에서 확인하십시오.</Small>,
+                <Small key="v">하위 지표를 아래에서 확인해 주세요.</Small>,
                 <Small key="b">—</Small>,
                 <Small key="s">지표 묶음</Small>,
                 <Small key="t">—</Small>,
@@ -219,7 +219,7 @@ export function QualityGateMetrics({ metrics, resultStatus }: QualityGateMetrics
               <Text key="r">{textValue(item.reason) ?? "제외 사유 없음"}</Text>,
             ])}
           />
-        ) : <Note title="제외된 공고가 없습니다">표본에서 빠진 공고가 없다는 뜻이며, 계산 실패와는 다른 상태입니다.</Note>}
+        ) : <Note title="제외된 공고가 없어요">표본에서 빠진 공고가 없다는 뜻이며, 계산 실패와는 다른 상태예요.</Note>}
       </Section>
     </>
   );

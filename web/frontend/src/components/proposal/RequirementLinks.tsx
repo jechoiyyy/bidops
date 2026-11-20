@@ -64,7 +64,7 @@ export function RequirementLinks({ rows, onGoParagraph }: RequirementLinksProps)
     <section aria-labelledby="pp-req-title" className="pp-req" data-testid="requirement-links">
       <h3 className="rec-section-title" id="pp-req-title">이 절이 답하는 요구사항</h3>
       {rows.length === 0 ? (
-        <p className="rec-side-note" role="status">이 절에 연결된 요구사항이 없습니다.</p>
+        <p className="rec-side-note" role="status">이 절에 연결된 요구사항이 없어요.</p>
       ) : (
         <div className="pp-req-scroll">
           <Table

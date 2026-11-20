@@ -96,7 +96,7 @@ test.describe("실행 상태", () => {
     await gotoRuns(page);
     const summary = page.getByLabel("실행 상태 요약");
     await expect(summary).toContainText("미확인");
-    await expect(summary).toContainText("조회 실패 · 꺼짐도 켜짐도 아닙니다");
+    await expect(summary).toContainText("조회 실패 · 꺼짐도 켜짐도 아니에요");
     await expect(summary).not.toContainText("설정 꺼짐");
   });
 
@@ -105,12 +105,12 @@ test.describe("실행 상태", () => {
     await gotoRuns(page);
     await page.getByRole("button", { name: "운영 조건" }).click();
     const dialog = page.getByRole("dialog");
-    await expect(dialog).toContainText("운영 텔레메트리는 삭제하지 않았습니다");
+    await expect(dialog).toContainText("운영 텔레메트리는 삭제하지 않았어요");
     await expect(dialog).toContainText("model_digest");
     await expect(dialog).toContainText("duration_ms");
     await expect(dialog).toContainText("거절 사유");
     await expect(dialog).toContainText("합성 승인 조합 불일치로 상시 운영을 거부했습니다.");
-    await expect(dialog).toContainText("startup은 migration·seed·정책 활성화·모델 호출을 수행하지 않습니다");
+    await expect(dialog).toContainText("startup은 migration·seed·정책 활성화·모델 호출을 수행하지 않아요");
   });
 
   test("회차 목록은 회차 상태와 판정 실행 상태를 구분하고 조회 범위를 적는다", async ({ page }) => {
@@ -122,7 +122,7 @@ test.describe("실행 상태", () => {
     await expect(list).toContainText("판정 실행 실행 중");
     // 조회 범위 안에 실행 기록이 없는 회차는 없음으로만 말한다.
     await expect(list).toContainText("조회 범위 안 기록 없음");
-    await expect(list).toContainText("판정 실행 상태는 최근 3건 조회 범위 기준이며 범위 밖은 미확인입니다");
+    await expect(list).toContainText("판정 실행 상태는 최근 3건 조회 범위 기준이며 범위 밖은 미확인이에요");
   });
 
   test("판정 실행 목록 조회가 실패하면 실행 상태를 0으로 바꾸지 않는다", async ({ page }) => {
@@ -132,7 +132,7 @@ test.describe("실행 상태", () => {
     await expect(list).toContainText("판정 실행 미확인");
     await expect(page.getByRole("button", { name: "실행 중 미확인" })).toBeVisible();
     await expect(page.getByRole("button", { name: "확인 필요 미확인" })).toBeVisible();
-    await expect(list).toContainText("판정 실행 상태는 미확인입니다");
+    await expect(list).toContainText("판정 실행 상태는 미확인이에요");
   });
 
   test("진행률은 실제 건수에서 나오고 상태 값은 서로를 대신하지 않는다", async ({ page }) => {
@@ -145,7 +145,7 @@ test.describe("실행 상태", () => {
     await expect(detail).toContainText("18 / 40건 처리");
     await expect(detail).toContainText("남은 대상");
     await expect(detail).toContainText("22건");
-    await expect(detail).toContainText("처리 완료와 품질 검증은 별도입니다");
+    await expect(detail).toContainText("처리 완료와 품질 검증은 별도예요");
   });
 
   test("회차 상세는 대시보드에서 빠진 등급 분포와 검증 지표를 보여 주고 0으로 접지 않는다", async ({ page }) => {
@@ -176,10 +176,10 @@ test.describe("실행 상태", () => {
     await installRunStatusMock(page, { runStatsError: true, validationMetricsError: true });
     await gotoRuns(page);
     const gradeSection = section(page, "적합성 등급 분포");
-    await expect(gradeSection).toContainText("불러오지 못했습니다");
+    await expect(gradeSection).toContainText("불러오지 못했어요");
     const validationSection = section(page, "검증 지표");
     await expect(validationSection).toContainText("미확인");
-    await expect(validationSection).toContainText("검증 지표를 불러오지 못했습니다");
+    await expect(validationSection).toContainText("검증 지표를 불러오지 못했어요");
   });
 
   test("원본 회차와 게시된 파생 회차를 구분해 적는다", async ({ page }) => {
@@ -188,9 +188,9 @@ test.describe("실행 상태", () => {
     const detail = page.getByLabel("선택한 실행 회차");
     await expect(detail).toContainText("원본 회차");
     await expect(detail).toContainText("게시된 파생 회차");
-    await expect(detail).toContainText("수집·기존 판정을 덮어쓰지 않습니다");
+    await expect(detail).toContainText("수집·기존 판정을 덮어쓰지 않아요");
     // 진행 중 실행에는 게시된 파생 회차가 없다. 없음을 게시로 바꾸지 않는다.
-    await expect(detail).toContainText("게시 전이거나 게시하지 않았습니다");
+    await expect(detail).toContainText("게시 전이거나 게시하지 않았어요");
   });
 
   test("실패 내역은 안전한 식별자·코드만 보여 주고 0건과 미확인을 구분한다", async ({ page }) => {
@@ -207,7 +207,7 @@ test.describe("실행 상태", () => {
     const dialog = page.getByRole("dialog");
     await expect(dialog).toContainText("truncated_output");
     await expect(dialog).toContainText("사람 검토 대기");
-    await expect(dialog).toContainText("내부 경로·자격증명·원문·전체 프롬프트와 모델 응답 본문은 화면에 표시하지 않습니다");
+    await expect(dialog).toContainText("내부 경로·자격증명·원문·전체 프롬프트와 모델 응답 본문은 화면에 표시하지 않아요");
     // 관측 수치가 없으면 0이 아니라 미측정이다.
     await expect(dialog).toContainText("미측정");
   });
@@ -216,8 +216,8 @@ test.describe("실행 상태", () => {
     await installRunStatusMock(page, { successOnly: true });
     await gotoRuns(page);
     await page.getByRole("button", { name: /실패 내역/ }).click();
-    await expect(page.getByText("실패한 항목이 없습니다 · 0건")).toBeVisible();
-    await expect(page.getByText("실행이 기록한 실패 건수가 실제로 0입니다.")).toBeVisible();
+    await expect(page.getByText("실패한 항목이 없어요 · 0건")).toBeVisible();
+    await expect(page.getByText("실행이 기록한 실패 건수가 실제로 0이에요.")).toBeVisible();
   });
 
   test("진행 중인 전량 판정이 있으면 새 실행을 시작할 수 없다", async ({ page }) => {
@@ -225,7 +225,7 @@ test.describe("실행 상태", () => {
     await gotoRuns(page);
     const start = page.getByRole("button", { name: "전량 판정 대기열에 넣기" });
     await expect(start).toBeDisabled();
-    await expect(page.getByText("진행 중인 전량 판정 실행이 있어 새 실행을 시작할 수 없습니다.")).toBeVisible();
+    await expect(page.getByText("진행 중인 전량 판정 실행이 있어 새 실행을 시작할 수 없어요.")).toBeVisible();
   });
 
   test("전량 판정 요청은 정책·프로필·담당자를 고정해 기존 payload로 보낸다", async ({ page }) => {
@@ -240,7 +240,7 @@ test.describe("실행 상태", () => {
     const submit = dialog.getByRole("button", { name: "전량 판정 실행 요청" });
     await expect(submit).toBeDisabled();
     await dialog.getByLabel("담당자 이름 필수").fill("실행 담당자");
-    await expect(dialog).toContainText("이 실행의 입력은 요청 시점에 고정됩니다");
+    await expect(dialog).toContainText("이 실행의 입력은 요청 시점에 고정돼요");
     await expect(submit).toBeEnabled();
     await submit.click();
 
@@ -261,7 +261,7 @@ test.describe("실행 상태", () => {
     await dialog.getByLabel("담당자 이름 필수").fill("실행 담당자");
     await dialog.getByRole("button", { name: "전량 판정 실행 요청" }).click();
 
-    await expect(dialog.getByRole("alert")).toContainText("판정 실행 요청을 처리하지 못했습니다");
+    await expect(dialog.getByRole("alert")).toContainText("판정 실행 요청을 처리하지 못했어요");
     await expect(dialog).toBeVisible();
     await expect(dialog.getByLabel("담당자 이름 필수")).toHaveValue("실행 담당자");
     expect(trace.judgmentPosts.length).toBe(1);
@@ -275,7 +275,7 @@ test.describe("실행 상태", () => {
     const dialog = page.getByRole("dialog");
     await expect(dialog).toContainText("scr-progress");
     await expect(dialog).toContainText("완료");
-    await expect(dialog).toContainText("협력적으로 중지합니다");
+    await expect(dialog).toContainText("협력적으로 중지해요");
     const confirm = dialog.getByRole("button", { name: "중지 요청" });
     await expect(confirm).toBeDisabled();
     await dialog.getByLabel("중지 담당자 필수").fill("중지 담당자");
@@ -295,7 +295,7 @@ test.describe("실행 상태", () => {
     await dialog.getByLabel("중지 담당자 필수").fill("중지 담당자");
     await dialog.getByRole("button", { name: "중지 요청" }).click();
 
-    await expect(dialog.getByRole("alert")).toContainText("판정 실행 요청을 처리하지 못했습니다");
+    await expect(dialog.getByRole("alert")).toContainText("판정 실행 요청을 처리하지 못했어요");
     await expect(dialog.getByLabel("중지 담당자 필수")).toHaveValue("중지 담당자");
     expect(trace.stopPosts.length).toBe(1);
   });
@@ -316,7 +316,7 @@ test.describe("실행 상태", () => {
     await expect(dialog.getByRole("button", { name: "표본 선정 실행" })).toBeVisible();
     await expect(dialog.getByRole("button", { name: "보고 생성 실행" })).toBeVisible();
     // 판정 단계는 실행 버튼이 아니라 판정 실행으로만 진행한다.
-    await expect(dialog).toContainText("이 단계는 판정 실행으로만 진행합니다");
+    await expect(dialog).toContainText("이 단계는 판정 실행으로만 진행해요");
 
     await dialog.getByRole("button", { name: "원문 재분류 실행" }).click();
     await expect.poll(() => trace.pipelinePosts.length).toBe(1);
@@ -347,10 +347,10 @@ test.describe("실행 상태", () => {
     const detail = page.getByLabel("선택한 실행 회차");
     await expect(detail).toContainText("screening-policy.v1.20260825");
     await expect(detail).toContainText("sha256:합성모델");
-    await expect(detail).toContainText("현재 판정 기준이 바뀌어도 이미 시작한 실행에 소급 적용하지 않습니다");
+    await expect(detail).toContainText("현재 판정 기준이 바뀌어도 이미 시작한 실행에 소급 적용하지 않아요");
 
     await page.getByRole("button", { name: "실행 기록" }).click();
-    await expect(detail).toContainText("model_digest · token 수 · duration_ms는 판정 화면의 기본 표시에서 뺐을 뿐 삭제하지 않았습니다");
+    await expect(detail).toContainText("model_digest · token 수 · duration_ms는 판정 화면의 기본 표시에서 뺐을 뿐 삭제하지 않았어요");
   });
 
   // ── 첨부 확보 ──────────────────────────────────────────────────────────
@@ -358,10 +358,10 @@ test.describe("실행 상태", () => {
     await installRunStatusMock(page);
     await page.goto("/attachments");
     const detail = page.getByLabel("확인할 공고");
-    await expect(detail).toContainText("등록된 첨부가 없습니다");
-    await expect(detail).toContainText("미확보 문서의 종류는 확인되지 않았습니다");
+    await expect(detail).toContainText("등록된 첨부가 없어요");
+    await expect(detail).toContainText("미확보 문서의 종류는 확인되지 않았어요");
     await expect(detail).not.toContainText("제안요청서 미확인");
-    await expect(detail).toContainText("첨부가 없다는 사실만으로 공고의 적합성 등급이나 참여 준비 상태를 낮추지 않습니다");
+    await expect(detail).toContainText("첨부가 없다는 사실만으로 공고의 적합성 등급이나 참여 준비 상태를 낮추지 않아요");
     await expect(detail).toContainText("검토 권장");
     await expect(detail).toContainText("부분 확인 필요");
   });
@@ -407,12 +407,12 @@ test.describe("실행 상태", () => {
   test("첨부 확보 큐 조회 실패를 미확보 0건으로 바꾸지 않는다", async ({ page }) => {
     await installRunStatusMock(page, { attachmentQueueError: true });
     await page.goto("/attachments");
-    await expect(page.getByText("첨부 확보 큐를 불러오지 못했습니다.")).toBeVisible();
-    await expect(page.getByText("조회 실패는 미확보 0건이 아닙니다.")).toBeVisible();
+    await expect(page.getByText("첨부 확보 큐를 불러오지 못했어요.")).toBeVisible();
+    await expect(page.getByText("조회 실패는 미확보 0건이 아니에요.")).toBeVisible();
 
     await installRunStatusMock(page, { emptyAttachmentQueue: true });
     await page.goto("/attachments");
-    await expect(page.getByText("첨부 미확보 공고가 0건입니다.")).toBeVisible();
+    await expect(page.getByText("첨부 미확보 공고가 0건이에요.")).toBeVisible();
   });
 
   // ── 상시 운영 ──────────────────────────────────────────────────────────
@@ -423,9 +423,9 @@ test.describe("실행 상태", () => {
     await expect(detail).toContainText("설정값");
     await expect(detail).toContainText("실제 운영");
     await expect(detail).toContainText("환경 허용");
-    await expect(detail).toContainText("상시 운영이 거부되었습니다.");
+    await expect(detail).toContainText("상시 운영이 거부되었어요");
     await expect(detail).toContainText("합성 승인 조합 불일치로 상시 운영을 거부했습니다.");
-    await expect(page.getByRole("alert", { name: "상시 운영 켜기 차단 사유" })).toContainText("켤 수 없는 상태입니다");
+    await expect(page.getByRole("alert", { name: "상시 운영 켜기 차단 사유" })).toContainText("켤 수 없는 상태예요");
     await expect(page.getByRole("button", { name: "상시 운영 켜기" })).toHaveCount(0);
   });
 
@@ -433,8 +433,8 @@ test.describe("실행 상태", () => {
     await installRunStatusMock(page, { alwaysOnError: true });
     await page.goto("/operations");
     const pane = page.getByLabel("선택한 운영 항목");
-    await expect(pane.getByText("상시 운영 상태를 불러오지 못했습니다")).toBeVisible();
-    await expect(pane).toContainText("꺼져 있다는 뜻도 켜져 있다는 뜻도 아닙니다");
+    await expect(pane.getByText("상시 운영 상태를 불러오지 못했어요")).toBeVisible();
+    await expect(pane).toContainText("꺼져 있다는 뜻도 켜져 있다는 뜻도 아니에요");
     await expect(page.getByRole("button", { name: "상시 운영 켜기" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "상시 운영 끄기" })).toHaveCount(0);
   });
@@ -481,7 +481,7 @@ test.describe("실행 상태", () => {
     await expect(dialog.getByLabel("일간 실행 시각 필수")).toHaveValue("02:00");
     await dialog.getByLabel("일간 실행 시각 필수").fill("05:30");
     await dialog.getByLabel("변경 담당자 필수").fill("설정 담당자");
-    await expect(dialog).toContainText("예약 시각을 바꿔도 상시 운영은 켜지지 않습니다");
+    await expect(dialog).toContainText("예약 시각을 바꿔도 상시 운영은 켜지지 않아요");
     await dialog.getByRole("button", { name: "설정 저장" }).click();
 
     await expect.poll(() => trace.settingsPatches.length).toBe(1);
@@ -502,7 +502,7 @@ test.describe("실행 상태", () => {
     await page.getByRole("button", { name: "수동 실행 예약" }).click();
 
     const dialog = page.getByRole("dialog");
-    await expect(dialog).toContainText("수동 실행은 상시 운영과 별개입니다");
+    await expect(dialog).toContainText("수동 실행은 상시 운영과 별개예요");
     await dialog.getByLabel("실행 종류 필수").selectOption("weekly");
     const from = await dialog.getByLabel("기간 시작 필수").inputValue();
     const to = await dialog.getByLabel("기간 종료 필수").inputValue();
@@ -528,7 +528,7 @@ test.describe("실행 상태", () => {
     const detail = page.getByLabel("선택한 운영 항목");
     await expect(detail).toContainText("후보 값 없음");
     await expect(detail).toContainText("실패 0");
-    await expect(detail).toContainText("거절되거나 건너뛴 예약을 실행 성공으로 표시하지 않습니다");
+    await expect(detail).toContainText("거절되거나 건너뛴 예약을 실행 성공으로 표시하지 않아요");
   });
 
   test("복구는 대상 실행을 고정한 채 복구 예약으로 보낸다", async ({ page }) => {
@@ -551,9 +551,9 @@ test.describe("실행 상태", () => {
     await page.goto("/audit");
     const detail = page.getByLabel("선택한 산출물");
     await expect(detail).toContainText("normalized.json");
-    await expect(detail).toContainText("최종 결과 여부는 파일 이름으로 판단하지 않습니다");
-    await expect(detail).toContainText("이 회차의 판정 실행이 아직 진행 중입니다");
-    await expect(detail).toContainText("완전한 성공 결과로 발행하지 않습니다");
+    await expect(detail).toContainText("최종 결과 여부는 파일 이름으로 판단하지 않아요");
+    await expect(detail).toContainText("이 회차의 판정 실행이 아직 진행 중이에요");
+    await expect(detail).toContainText("완전한 성공 결과로 발행하지 않아요");
   });
 
   test("생성 전 산출물은 검증 미확인으로 남고 경고를 0으로 세지 않는다", async ({ page }) => {
@@ -565,17 +565,17 @@ test.describe("실행 상태", () => {
     await list.getByRole("button", { name: /screening-results.json/ }).click();
     const detail = page.getByLabel("선택한 산출물");
     await expect(detail).toContainText("생성 전");
-    await expect(detail).toContainText("생성 전이므로 검증 경고를 셀 수 없습니다");
+    await expect(detail).toContainText("생성 전이므로 검증 경고를 셀 수 없어요");
   });
 
   test("감사 회차 선택기는 조회 실패와 회차 없음을 구분한다", async ({ page }) => {
     await installRunStatusMock(page, { runsError: true });
     await page.goto("/audit");
-    await expect(page.getByText("회차 목록을 불러오지 못했습니다.")).toBeVisible();
+    await expect(page.getByText("회차 목록을 불러오지 못했어요.")).toBeVisible();
 
     await installRunStatusMock(page, { emptyRuns: true });
     await page.goto("/audit");
-    await expect(page.getByText("적재된 회차가 없습니다. 없음을 정상으로 해석하지 않습니다.")).toBeVisible();
+    await expect(page.getByText("적재된 회차가 없어요. 없음을 정상으로 해석하지 않아요.")).toBeVisible();
   });
 
   test("실행 기록은 회차 주소를 유지한 채 감사 탭에서도 열린다", async ({ page }) => {
@@ -625,12 +625,12 @@ test.describe("실행 상태", () => {
   test("회차가 없거나 상세 조회가 실패해도 화면이 사실만 말한다", async ({ page }) => {
     await installRunStatusMock(page, { emptyRuns: true });
     await gotoRuns(page);
-    await expect(page.getByText("적재된 실행 회차가 없습니다.")).toBeVisible();
+    await expect(page.getByText("적재된 실행 회차가 없어요.")).toBeVisible();
 
     await installRunStatusMock(page, { runDetailError: true });
     await gotoRuns(page);
-    await expect(page.getByText("회차 상세를 불러오지 못했습니다.")).toBeVisible();
-    await expect(page.getByText("조회 실패를 실행 없음으로 읽지 않습니다.")).toBeVisible();
+    await expect(page.getByText("회차 상세를 불러오지 못했어요.")).toBeVisible();
+    await expect(page.getByText("조회 실패를 실행 없음으로 읽지 않아요.")).toBeVisible();
   });
 
   test("파생 회차 이동은 원본 회차를 지우지 않고 주소만 옮긴다", async ({ page }) => {
@@ -673,7 +673,7 @@ test.describe("실행 상태", () => {
     await expect(basis).not.toContainText(C2_MEASUREMENT_EXECUTION_ID);
     // 계획별 신호는 회차의 최신 완료 실행 기준이다. 고른 실행과 다르면 그 사실을 적는다.
     await expect(section(page, "계획별 신호"))
-      .toContainText("고른 실행과 계획별 신호의 기준 실행이 다릅니다");
+      .toContainText("고른 실행과 계획별 신호의 기준 실행이 달라요");
 
     // 새로고침해도 고른 실행이 복원된다.
     await page.reload();
@@ -729,7 +729,7 @@ test.describe("실행 상태", () => {
     const artifacts = section(page, "산출물 요약");
     await expect(artifacts).toContainText("screening_input");
     await expect(artifacts).toContainText(C2_ARTIFACT_SHA256);
-    await expect(artifacts).toContainText("본문·원문 경로·다운로드 URL은 이 화면에서 노출하지 않습니다.");
+    await expect(artifacts).toContainText("본문·원문 경로·다운로드 URL은 이 화면에서 노출하지 않아요.");
   });
 
   test("상세 조회가 실패해도 실행 목록은 남고 상세 자리에만 오류를 말한다", async ({ page }) => {
@@ -740,9 +740,9 @@ test.describe("실행 상태", () => {
     await expect(executions.getByRole("button", { name: C2_OPERATIONAL_EXECUTION_ID })).toBeVisible();
     await expect(executions.getByRole("button", { name: C2_MEASUREMENT_EXECUTION_ID })).toBeVisible();
 
-    const alert = page.getByRole("alert").filter({ hasText: "선택한 실행의 상세를 불러오지 못했습니다" });
+    const alert = page.getByRole("alert").filter({ hasText: "선택한 실행의 상세를 불러오지 못했어요" });
     await expect(alert).toBeVisible();
-    await expect(alert).toContainText("미확인이며 없음이 아닙니다");
+    await expect(alert).toContainText("미확인이며 없음이 아니에요");
     // 목록 응답이 준 실행 기준은 그대로 남는다.
     await expect(section(page, "실행 기준")).toContainText(C2_MEASUREMENT_EXECUTION_ID);
   });
@@ -751,12 +751,12 @@ test.describe("실행 상태", () => {
     await installRunStatusMock(page, { orderPlanScreeningEmpty: true });
     await gotoOrderPlanScreeningTab(page);
     await expect(section(page, /이 회차의 선별 실행/))
-      .toContainText("조회 범위 안에 이 회차의 발주계획 선별 실행이 없습니다");
+      .toContainText("조회 범위 안에 이 회차의 발주계획 선별 실행이 없어요");
 
     await installRunStatusMock(page, { orderPlanScreeningListError: true });
     await gotoOrderPlanScreeningTab(page);
-    await expect(page.getByRole("alert").filter({ hasText: "선별 실행 목록을 불러오지 못했습니다" }))
-      .toContainText("조회 실패는 실행 0건이 아닙니다");
+    await expect(page.getByRole("alert").filter({ hasText: "선별 실행 목록을 불러오지 못했어요" }))
+      .toContainText("조회 실패는 실행 0건이 아니에요");
   });
 
   test("계획별 신호가 순위·점수와 실무 화면 링크를 보인다", async ({ page }) => {

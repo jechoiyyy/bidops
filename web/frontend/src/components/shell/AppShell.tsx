@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Outlet, useMatches, useSearchParams } from "react-router-dom";
+import { Outlet, useLocation, useMatches, useSearchParams } from "react-router-dom";
 import { EmptyState } from "../common/EmptyState";
 import { api } from "../../lib/api";
 import { demoConfigQueryKey, isCompanyUuid } from "../../lib/companyApi";
 import { CompanySelector } from "./CompanySelector";
 import { Sidebar } from "./Sidebar";
+import { currentPageHeader, PageHeaderSetterContext, type PageHeaderContent, type PublishedPageHeader } from "./PageHeaderContext";
 import { applyRecordTitle, RecordTitleContext, RecordTitleSetterContext, type RecordTitleValue } from "./RecordTitleContext";
 import { TopBar } from "./TopBar";
 import {
@@ -33,6 +34,16 @@ export function AppShell({ demoEnabled = false }: { demoEnabled?: boolean }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [recordTitle, setRecordTitle] = useState<RecordTitleValue>(null);
+  // 화면이 올린 패널 헤더 글자(`usePageHeader`). 올린 화면의 pathname과 함께 둔다.
+  const { pathname } = useLocation();
+  const [publishedHeader, setPublishedHeader] = useState<PublishedPageHeader | null>(null);
+  const publishHeader = useCallback((key: string, content: PageHeaderContent | null) => {
+    setPublishedHeader((current) => {
+      if (content) return { pathname: key, content };
+      return current?.pathname === key ? null : current;
+    });
+  }, []);
+  const pageHeader = currentPageHeader(publishedHeader, pathname);
   const location = useMemo(
     () => resolveRouteLocation(activeRouteMetadata, activeMatch?.params ?? {}, searchParams),
     [activeRouteMetadata, activeMatch?.params, searchParams],
@@ -104,10 +115,12 @@ export function AppShell({ demoEnabled = false }: { demoEnabled?: boolean }) {
         demoNav={demoEnabled ? { companyId: activeCompanyId } : null}
         runSearch={runSearch}
       />
-      <div className="app-content">
+      {/* 본문은 바탕(frame) 위에 뜬 흰 패널 하나다(2026-11-19 최종 시안). 패널 헤더 → 본문. */}
+      <div className="app-content" data-shell-region="panel">
         <TopBar
           companyContext={demoEnabled ? <CompanySelector companyId={activeCompanyId} /> : null}
           crumbs={crumbs}
+          pageHeader={pageHeader}
           dataScope={activeRouteMetadata.dataScope}
           isLoading={runContextEnabled && (runsQuery.isLoading || detailQuery.isLoading)}
           onRunChange={onRunChange}
@@ -123,17 +136,19 @@ export function AppShell({ demoEnabled = false }: { demoEnabled?: boolean }) {
           <div className="shell-notice">
             <EmptyState
               compact
-              description={runError instanceof Error ? runError.message : "회차 정보를 확인할 수 없습니다."}
-              title="회차 정보를 불러오지 못했습니다."
+              description={runError instanceof Error ? runError.message : "회차 정보를 확인할 수 없어요."}
+              title="회차 정보를 불러오지 못했어요"
             />
           </div>
         ) : null}
-        <main className="page-canvas" data-shell-region="canvas">
-          <RecordTitleSetterContext.Provider value={setRecordTitle}>
-            <RecordTitleContext.Provider value={recordTitle}>
-              <Outlet />
-            </RecordTitleContext.Provider>
-          </RecordTitleSetterContext.Provider>
+        <main className="page-canvas" data-canvas={location.canvas} data-shell-region="canvas">
+          <PageHeaderSetterContext.Provider value={publishHeader}>
+            <RecordTitleSetterContext.Provider value={setRecordTitle}>
+              <RecordTitleContext.Provider value={recordTitle}>
+                <Outlet />
+              </RecordTitleContext.Provider>
+            </RecordTitleSetterContext.Provider>
+          </PageHeaderSetterContext.Provider>
         </main>
       </div>
     </div>

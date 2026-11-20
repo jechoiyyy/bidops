@@ -35,17 +35,32 @@ interface RowTypeSpec {
    */
   size: string;
   /**
+   * 발주기관 줄이 사업명과 다른 크기일 때만 준다. 발주계획은 승인 최종 시안대로 사업명 16px · 발주기관 14px다
+   * (2026-11-19 ADR-0076, ADR-0062 ⓒ를 발주계획에서 바꿨다).
+   */
+  agencySize?: string;
+  /**
    * 사업명(title)의 굵기. 발주계획·사전규격 두 화면은 같은 semibold를 읽는다
-   * (2026-09-22 M7 ② 승인 — `--font-weight-semibold`/`600`). 값을 주지 않은 화면은
-   * 아직 비교하지 않는다.
+   * (2026-09-22 M7 ② 승인 — `--font-weight-semibold`/`600`). 2026-11-19부터 발주계획은 승인 최종 시안대로
+   * 16px/700이다(ADR-0076). 값을 주지 않은 화면은 아직 비교하지 않는다.
    */
   titleWeight?: string;
 }
 
 interface ScreenSpec {
   path: string;
-  /** 상단바 `<h1>`이 그리는 화면 이름(`route-meta.ts`). */
+  /**
+   * 화면 이름(`route-meta.ts`·사이드바). 2026-11-19 패널 헤더(ADR-0076)부터는 제목 위 작은 글자(eyebrow)이고,
+   * `<h1>`은 받은 값으로 만든 문장형 제목이다. 문장을 올리기 전에는 `<h1>`이 이 이름이다.
+   */
   title: string;
+  /**
+   * 상세 머리 여백. 발주계획은 승인 최종 시안(`FinalOrderPlans`)의 상세 머리(위 28·옆 32, 아래는 본문이 잇는다)이고,
+   * 사전규격·사업기회·최종 Go/No-Go도 2026-11-20부터 같은 단(위 28·옆 32·아래 16)이다. 값은 화면이 준다.
+   */
+  detailHeadPadding: string;
+  /** 선택이 없을 때도 선택 도구줄을 그리는가. 발주계획(2026-11-19)·사전규격(2026-11-20)은 1건 이상 골랐을 때만 그린다. */
+  toolbarWhenEmpty?: boolean;
   /** 필터 바 바로 아래, 목록·상세를 감싸는 면. */
   workspace: string;
   listPane: string;
@@ -72,9 +87,6 @@ interface ScreenSpec {
   mock?: (page: Page) => Promise<unknown>;
 }
 
-// 2026-11-18 ×0.9 compact 축척을 없앴다. 시안 치수가 그대로 렌더된다.
-const UI_SCALE = 1;
-const physical = (logical: number) => logical * UI_SCALE;
 
 // 방문 순서가 곧 route mock의 등록 순서다. 뒤에 등록한 handler가 이기므로
 // 사업 추적 → Go/No-Go 차례로만 두 `**/api/opportunities**` mock이 겹치지 않는다.
@@ -86,9 +98,11 @@ const screens: ScreenSpec[] = [
     listPane: ".c2l-list-pane",
     listHead: ".c2l-list-head",
     detailHead: ".c2l-detail-head",
+    detailHeadPadding: "28px 32px 0px 32px",
+    toolbarWhenEmpty: false,
     unifiedFrame: true,
     unifiedListParts: true,
-    rowType: { title: ".c2l-row-title", agency: ".c2l-row-agency", size: "14px", titleWeight: "600" },
+    rowType: { title: ".c2l-row-title", agency: ".c2l-row-agency", size: "16px", agencySize: "14px", titleWeight: "700" },
   },
   {
     path: "/pre-specs?sw_only=false", // S3: 기본 보기 fixture는 추적 결정으로 0건
@@ -97,20 +111,24 @@ const screens: ScreenSpec[] = [
     listPane: ".pre-specs-list-pane",
     listHead: ".pre-specs-list-head",
     detailHead: ".pre-specs-detail-header",
+    detailHeadPadding: "28px 32px 16px 32px",
+    toolbarWhenEmpty: false,
     unifiedFrame: true,
     unifiedListParts: true,
-    rowType: { title: ".pre-specs-row-title", agency: ".pre-specs-row-agency", size: "14px", titleWeight: "600" },
+    rowType: { title: ".pre-specs-row-title", agency: ".pre-specs-row-agency", size: "16px", agencySize: "14px", titleWeight: "700" },
   },
   {
     // 사업 추적도 공용 분할 골격으로 옮겼다(시안 M1c A안). 여기 selector가 공용
     // 클래스인 것 자체가 그 사실을 검사한다 — 화면 클래스(`.opportunity-*`)는
     // 화면별 spec이 계속 쓴다.
     path: "/opportunities",
-    title: "사업 추적",
+    // 사이드바·route 이름은 C-6(2026-11-18)부터 `사업기회`다.
+    title: "사업기회",
     workspace: ".review-split-workspace",
     listPane: ".review-split-list",
     listHead: ".review-list-head",
     detailHead: ".review-detail-head",
+    detailHeadPadding: "28px 32px 16px 32px",
     unifiedFrame: true,
     // 목록은 Astryx `Table`을 유지하고(M1c A안) 묶음 선택이 없어 열 이름 줄·선택
     // 도구줄 부품이 없다. 행 글자 단은 아래 `rowType`이 따로 본다.
@@ -126,6 +144,7 @@ const screens: ScreenSpec[] = [
     listPane: ".review-split-list",
     listHead: ".review-list-head",
     detailHead: ".review-detail-head",
+    detailHeadPadding: "28px 32px 16px 32px",
     unifiedFrame: true,
     // 목록은 Astryx `Table`을 유지하고(M1c A안) 묶음 선택이 없어 열 이름 줄·선택
     // 도구줄 부품이 없다 — `unifiedListParts`는 켜지 않는다.
@@ -149,6 +168,7 @@ interface Selectors {
 function measure(selectors: Selectors) {
   const topbar = document.querySelector<HTMLElement>('header.topbar[data-topbar-mode="title"]')!;
   const heading = topbar.querySelector<HTMLElement>("h1")!;
+  const canvas = document.querySelector<HTMLElement>(".page-canvas")!;
   const slot = topbar.querySelector<HTMLElement>(".topbar-page-actions")!;
   const filters = document.querySelector<HTMLElement>(".workspace-filters")!;
   const workspace = document.querySelector<HTMLElement>(selectors.workspace)!;
@@ -179,13 +199,21 @@ function measure(selectors: Selectors) {
     // 검색·상세 필터·회차는 탭 아래 도구 행 하나에 있고, 도구 행의 DOM 순서가
     // 키보드 순서와 같다. 사전규격의 추가 조건은 이 행에서 필요할 때만 줄바꿈한다.
     filterToolsCount: filters.querySelectorAll(":scope > .workspace-filter-tools").length,
-    filterToolsBelowLine: (() => {
+    // 패널 헤더 안에서 조회 도구 행은 보기 탭 줄 뒤에 온다 — 폭이 되면 같은 줄 오른쪽, 모자라면 아래 줄.
+    filterToolsAfterLine: (() => {
       const line = filters.querySelector<HTMLElement>(":scope > .workspace-filter-line");
       const tools = filters.querySelector<HTMLElement>(":scope > .workspace-filter-tools");
-      return Boolean(line && tools && tools.getBoundingClientRect().top >= line.getBoundingClientRect().bottom - 1);
+      if (!line || !tools) return false;
+      const lineBox = line.getBoundingClientRect();
+      const toolsBox = tools.getBoundingClientRect();
+      const rightOfLine = toolsBox.top < lineBox.bottom && toolsBox.left >= lineBox.right - 1;
+      return rightOfLine || toolsBox.top >= lineBox.bottom - 1;
     })(),
+    filtersInHeader: Boolean(filters.closest("header.topbar")),
 
-    filtersBottom: filters.getBoundingClientRect().bottom,
+    canvasTop: canvas.getBoundingClientRect().top,
+    canvasPaddingTop: getComputedStyle(canvas).paddingTop,
+    canvasScroll: canvas.scrollHeight - canvas.clientHeight,
     workspaceTop: workspace.getBoundingClientRect().top,
     // Native CSS coordinates are already the rendered coordinates.
     listRatio: listPane.getBoundingClientRect().width / workspace.getBoundingClientRect().width,
@@ -259,10 +287,14 @@ test("탐색과 추적 목록 4화면은 두 지원 폭에서 같은 상단바·
       await screen.mock?.(page);
       await page.goto(screen.path);
 
-      await expect(page.locator('header.topbar[data-topbar-mode="title"] h1'), `${where} 상단바 제목`)
-        .toHaveText(screen.title);
+      // 화면 이름은 패널 헤더의 작은 글자(문장을 올린 뒤) 또는 `<h1>`(올리기 전)이다(ADR-0076).
+      await expect(page.locator('header.topbar[data-topbar-mode="title"] h1'), `${where} 상단바 제목`).toHaveCount(1);
       await expect(page.locator(screen.listHead), `${where} 목록 머리`).toBeVisible();
       await expect(page.locator(screen.detailHead), `${where} 상세 머리`).toBeVisible();
+      await expect.poll(() => page.locator("header.topbar").evaluate((topbar) => {
+        const eyebrow = topbar.querySelector('[data-testid="page-header-eyebrow"]')?.textContent?.trim();
+        return eyebrow ? eyebrow.split(" · ")[0] : topbar.querySelector("h1")?.textContent?.trim() ?? "";
+      }), `${where} 화면 이름`).toBe(screen.title);
       await page.evaluate(() => document.fonts.ready);
 
       const metrics = await page.evaluate(measure, {
@@ -273,31 +305,32 @@ test("탐색과 추적 목록 4화면은 두 지원 폭에서 같은 상단바·
         rowType: screen.rowType ? { title: screen.rowType.title, agency: screen.rowType.agency } : null,
       });
 
-      // 상단바 — 제목 하나가 화면 이름이고 경로·편집 범위 칩은 없다. 화면 액션은
-      // 상단바 오른쪽 가장자리에 붙는다(떨어지는 것은 상단바 padding 만큼뿐이다).
-      // 상단바 화면 제목은 모든 화면 16px/600이다(2026-11-18 결정).
-      expect(metrics.titleFont, `${where} 제목 크기`).toBe("16px");
-      expect(metrics.titleWeight, `${where} 제목 굵기`).toBe("600");
-      expect(metrics.topbarHeight, `${where} 상단바 높이`).toBeCloseTo(44, 0);
+      // 패널 헤더 — `<h1>`은 26px/700 문장형 제목이고 경로·편집 범위 칩은 없다. 화면 액션은
+      // 헤더 오른쪽 가장자리에 붙는다(떨어지는 것은 헤더 padding 만큼뿐이다). 2026-11-19 ADR-0076.
+      expect(metrics.titleFont, `${where} 제목 크기`).toBe("26px");
+      expect(metrics.titleWeight, `${where} 제목 굵기`).toBe("700");
       expect(metrics.crumbCount, `${where} 제목 모드에는 경로 칸이 없다`).toBe(0);
       expect(metrics.statusCount, `${where} 제목 모드에는 편집 범위 칩이 없다`).toBe(0);
       expect(metrics.actionsGap, `${where} 액션이 상단바 오른쪽 끝에 붙는다`)
         .toBeLessThanOrEqual(metrics.topbarPaddingRight + 1);
 
-      // 필터 바 — 배경이 네 화면에서 같고, 아래 workspace와 선을 두 번 그리지 않으며,
-      // 첫 줄은 보기 탭이고 조회 도구는 그 아래 한 행이다.
+      // 필터 바 — 패널 헤더 안 탭 줄이고, 배경이 네 화면에서 같으며 아래 workspace와 선을 두 번 그리지 않는다.
+      // 조회 도구는 보기 탭 줄 뒤 한 행이다.
       background ??= metrics.filtersBackground;
+      expect(metrics.filtersInHeader, `${where} 필터 바는 패널 헤더 안에 있다`).toBe(true);
       expect(metrics.filtersBackground, `${where} 필터 바 배경`).toBe(background);
       expect(metrics.filtersBorderBottom, `${where} 필터 바와 workspace 사이 선은 하나다`).toBe("0px");
-      expect(metrics.filterToolsCount, `${where} 보기 탭 아래 조회 도구 행`).toBe(1);
-      expect(metrics.filterToolsBelowLine, `${where} 조회 도구 행이 보기 탭 아래에 놓인다`).toBe(true);
+      expect(metrics.filterToolsCount, `${where} 보기 탭 뒤 조회 도구 행`).toBe(1);
+      expect(metrics.filterToolsAfterLine, `${where} 조회 도구 행이 보기 탭 줄 뒤에 놓인다`).toBe(true);
 
-      // 프레임 — 필터 바 아래 8px에서 workspace가 시작하고 목록은 38%다.
-      expect(metrics.workspaceTop - metrics.filtersBottom, `${where} 필터 바와 workspace 사이 틈`)
-        .toBeCloseTo(physical(8), 0);
+      // 프레임 — 목록|상세가 패널 헤더 바로 아래에서 여백 없이 시작하고(flush) 목록은 38%다. 화면 자체는
+      // 세로로 넘치지 않고 각 칸이 스크롤한다.
+      expect(metrics.canvasPaddingTop, `${where} 본문 위 여백`).toBe("0px");
+      expect(metrics.workspaceTop - metrics.canvasTop, `${where} 헤더와 workspace 사이 틈`).toBeCloseTo(0, 0);
+      expect(metrics.canvasScroll, `${where} 본문 세로 넘침`).toBeLessThanOrEqual(1);
       expect(metrics.listRatio, `${where} 목록 pane 비율`).toBeCloseTo(0.38, 2);
-      expect(metrics.listHeadPadding, `${where} 목록 머리 여백`).toBe("8px 16px 8px 16px");
-      expect(metrics.detailHeadPadding, `${where} 상세 머리 여백`).toBe("12px 16px 12px 16px");
+      expect(metrics.listHeadPadding, `${where} 목록 머리 여백`).toBe("16px 24px 10px 24px");
+      expect(metrics.detailHeadPadding, `${where} 상세 머리 여백`).toBe(screen.detailHeadPadding);
 
       // 공용 골격으로 옮긴 화면 — 상세 머리가 sticky 부품이고, 발주기관 강조 블록이
       // 같은 값을 쓰며, 페이저는 목록 pane 안쪽 바닥에만 있다.
@@ -311,24 +344,30 @@ test("탐색과 추적 목록 4화면은 두 지원 폭에서 같은 상단바·
         expect(metrics.pagerInsideListPane, `${where} 페이저 줄은 늘 목록 pane 안에 있다`).toBe(1);
         agencyBackground ??= metrics.agencyFeatureBackground;
         expect(metrics.agencyFeatureBackground, `${where} 발주기관 블록 배경`).toBe(agencyBackground);
-        expect(metrics.agencyFeaturePadding, `${where} 발주기관 블록 여백`).toBe("12px 16px 12px 16px");
+        // 발주기관 강조는 채움 상자 없이 글자로만 남는다(최종 시안: 본문에 중첩 상자를 두지 않는다).
+        expect(metrics.agencyFeaturePadding, `${where} 발주기관 블록 여백`).toBe("0px 0px 0px 0px");
       }
 
       // 목록 pane 안쪽 구성 — 열 이름 줄·선택 도구줄을 갖는 탐색 두 화면만(ADR-0062).
       if (screen.unifiedListParts) {
         expect(metrics.listColumnCount, `${where} 열 이름 칸`).toBe(2);
         expect(metrics.listColumnsPadding, `${where} 열 이름 줄 여백`).toBe("4px 16px 4px 16px");
-        expect(metrics.toolbarCount, `${where} 선택 도구줄`).toBe(1);
-        // 축소 배율을 적용한 뒤에도 도구줄 단추의 클릭 대상이 24 CSS px 이상이다.
-        expect(metrics.toolbarButtonMinHeight, `${where} 도구줄 단추 클릭 대상 높이`)
-          .toBeGreaterThanOrEqual(24);
-        expect(metrics.toolbarReasonHeight, `${where} 비활성 사유 줄 높이`).toBeGreaterThan(0);
+        if (screen.toolbarWhenEmpty === false) {
+          // 발주계획·사전규격은 고른 것이 없으면 일괄 바를 그리지 않고 목록 머리 체크박스가 `현재 페이지 전체 선택`을 맡는다.
+          expect(metrics.toolbarCount, `${where} 선택 도구줄`).toBe(0);
+        } else {
+          expect(metrics.toolbarCount, `${where} 선택 도구줄`).toBe(1);
+          // 도구줄 단추의 클릭 대상이 24 CSS px 이상이다.
+          expect(metrics.toolbarButtonMinHeight, `${where} 도구줄 단추 클릭 대상 높이`)
+            .toBeGreaterThanOrEqual(24);
+          expect(metrics.toolbarReasonHeight, `${where} 비활성 사유 줄 높이`).toBeGreaterThan(0);
+        }
       }
 
       // 목록 행의 두 줄은 화면이 선언한 글자 단을 지킨다.
       if (screen.rowType) {
         expect(metrics.rowType?.title, `${where} 목록 사업명 크기`).toBe(screen.rowType.size);
-        expect(metrics.rowType?.agency, `${where} 목록 발주기관 크기`).toBe(screen.rowType.size);
+        expect(metrics.rowType?.agency, `${where} 목록 발주기관 크기`).toBe(screen.rowType.agencySize ?? screen.rowType.size);
         if (screen.rowType.titleWeight) {
           expect(metrics.rowType?.titleWeight, `${where} 목록 사업명 굵기`).toBe(screen.rowType.titleWeight);
         }

@@ -71,8 +71,8 @@ export function SourceRunFilter({
     <div className={joinClassNames("source-run-filter", className)} data-review-primitive="source-run-filter">
       <Selector
         className="source-run-filter-selector"
-        emptySearchText="일치하는 수집 회차가 없습니다"
-        emptyText="조회된 수집 회차가 없습니다"
+        emptySearchText="일치하는 수집 회차가 없어요"
+        emptyText="조회된 수집 회차가 없어요"
         hasSearch
         isDisabled={isDisabled}
         isLoading={isPending}
@@ -88,7 +88,7 @@ export function SourceRunFilter({
           맨 위 배너가 아니라 이 컨트롤 안에서만 알리고 목록 자체는 막지 않는다. */}
       {isError ? (
         <div className="source-run-filter-error" role="alert">
-          <Text type="supporting" color="secondary" as="span">수집 회차 목록을 불러오지 못했습니다.</Text>
+          <Text type="supporting" color="secondary" as="span">수집 회차 목록을 불러오지 못했어요.</Text>
           <Button label="다시 시도" onClick={onRetry} size="sm" variant="ghost" />
         </div>
       ) : null}

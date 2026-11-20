@@ -37,14 +37,14 @@ export function VerdictRequestDialog({ opportunityId, onClose, onRequested, titl
       setProblem(null);
       onRequested();
     },
-    onError: (error: unknown) => setProblem(describeVerdictApiError(error, "판정을 요청하지 못했습니다.")),
+    onError: (error: unknown) => setProblem(describeVerdictApiError(error, "판정을 요청하지 못했어요.")),
   });
 
   const ready = actorName.trim().length > 0;
   const disabledReason = mutation.isPending
-    ? "판정 요청을 접수하고 있습니다."
+    ? "판정 요청을 접수하고 있어요."
     : !ready
-      ? "판정을 요청하려면 담당자 이름을 입력하십시오."
+      ? "판정을 요청하려면 담당자 이름을 입력해 주세요."
       : null;
 
   return (
@@ -59,8 +59,8 @@ export function VerdictRequestDialog({ opportunityId, onClose, onRequested, titl
       <div className="opportunity-dialog-body">
         <DialogHeader onOpenChange={(next) => { if (!next && !mutation.isPending) onClose(); }} title={title} />
         <p>
-          같은 공고 문서와 현재 회사 근거로 새 판정을 요청합니다. 이전 판정은 지워지지 않고 남습니다.
-          분석이 끝나면 이 탭에 결과가 보입니다. 판정은 참고 의견이며 추적 여부와 참여 결정은 바뀌지 않습니다.
+          같은 공고 문서와 현재 회사 근거로 새 판정을 요청해요. 이전 판정은 지워지지 않고 남아요.
+          분석이 끝나면 이 탭에 결과가 보여요. 판정은 참고 의견이며 추적 여부와 참여 결정은 바뀌지 않아요.
         </p>
         <ActorField
           autoComplete="off"
@@ -72,7 +72,7 @@ export function VerdictRequestDialog({ opportunityId, onClose, onRequested, titl
         />
         {problem ? (
           <MutationFeedback problem={problem} tone="error">
-            <p>입력한 내용은 그대로 남아 있습니다. 새 판정은 시작되지 않았습니다.</p>
+            <p>입력한 내용은 그대로 남아 있어요. 새 판정은 시작되지 않았어요.</p>
           </MutationFeedback>
         ) : null}
         <div className="opportunity-dialog-actions">

@@ -50,4 +50,37 @@
 
   --bo-type-caption: 12px;
   --bo-type-caption-leading: 1.45;
+
+  /*
+   * 셸·패널 헤더와 재구성한 네 화면(브리핑·발주계획·사업기회 레코드)의 글자 단.
+   * 2026-11-19 최종 시안(docs/1119_kstyle-shell/mockups/) 값이며 ADR 초안(승인 대기)에 적었다.
+   * 다른 화면은 위의 네 단을 그대로 쓴다 — 이 단을 다른 화면에 퍼뜨리지 않는다.
+   *
+   *   k-display   26px/700  패널 헤더 `<h1>` 문장형 제목
+   *   k-detail    22px/700  상세 제목(발주계획 상세 h2)
+   *   k-figure    20px/700  상세의 큰 숫자(예산·발주 예정)
+   *   k-section   18px/700  구역 제목
+   *   k-lead      15px      헤더 설명·탭·행 안 버튼 글자
+   *   k-body      16px      본문·목록 제목
+   *   k-meta      14px      보조(기관·금액·날짜), 화면 이름, 사이드바
+   *   k-tag       13px/700  상태 표식·dt
+   *   k-small     12px      사이드바 묶음 이름·건수
+   */
+  --bo-k-display: 26px;
+  --bo-k-display-leading: 1.36;
+  --bo-k-detail: 22px;
+  --bo-k-figure: 20px;
+  --bo-k-section: 18px;
+  --bo-k-button-lg: 17px;
+  --bo-k-body: 16px;
+  --bo-k-lead: 15px;
+  --bo-k-meta: 14px;
+  --bo-k-tag: 13px;
+  --bo-k-small: 12px;
+  /* 컨트롤 높이: 주 버튼 56 · 입력 48 · 행 안 버튼 44 · 탭 40 · 사이드바 행 36 */
+  --bo-k-control-primary: 56px;
+  --bo-k-control-input: 48px;
+  --bo-k-control-row: 44px;
+  --bo-k-control-tab: 40px;
+  --bo-k-control-nav: 36px;
 }

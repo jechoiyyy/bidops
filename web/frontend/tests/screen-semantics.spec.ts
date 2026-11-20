@@ -136,7 +136,7 @@ test("프로필의 불완전한 응답은 상태와 미확인을 0으로 확정�
   await expect(page.locator(".crit-profile-summary strong")).toHaveText(["미확인", "미확인", "미확인"]);
   // 승인 시안의 요약·목록에서도 파싱 실패가 실제 미확인 0건으로 바뀌지 않는다.
   await expect(page.locator(".crit-summary")).not.toContainText(/미확인 항목 0(?:\D|$)/);
-  await expect(page.getByText("미확인 항목이 없습니다. · 0건", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("미확인 항목이 없어요. · 0건", { exact: true })).toHaveCount(0);
 });
 
 test("프로필 읽기 실패는 빈 정상 상태가 아니라 오류 상태로 표시한다", async ({ page }) => {
@@ -144,20 +144,20 @@ test("프로필 읽기 실패는 빈 정상 상태가 아니라 오류 상태로
     await route.fulfill({
       status: 500,
       contentType: "application/json",
-      body: JSON.stringify({ detail: "프로필 원문을 읽을 수 없습니다." }),
+      body: JSON.stringify({ detail: "프로필 원문을 읽을 수 없어요." }),
     });
   });
 
   await page.goto("/profile");
-  await expect(page.getByText("회사 프로필을 불러오지 못했습니다.", { exact: true })).toBeVisible();
-  await expect(page.getByText(/^승인된 프로필 사본과 구조화 상태를 확인할 수 없습니다\./)).toBeVisible();
+  await expect(page.getByText("회사 프로필을 불러오지 못했어요", { exact: true })).toBeVisible();
+  await expect(page.getByText(/^승인된 프로필 사본과 구조화 상태를 확인할 수 없어요\./)).toBeVisible();
 });
 
 test("진행 중인 전량 판정은 중복 실행할 수 없다", async ({ page }) => {
   await page.goto(`/runs?run=${encodeURIComponent(RUN_ID)}`);
   await expect(page.getByRole("heading", { name: "전체 후보 판정 실행" })).toBeVisible();
   await expect(page.getByRole("button", { name: "전량 판정 대기열에 넣기" })).toBeDisabled();
-  await expect(page.getByText("진행 중인 전량 판정 실행이 있어 새 실행을 시작할 수 없습니다.")).toBeVisible();
+  await expect(page.getByText("진행 중인 전량 판정 실행이 있어 새 실행을 시작할 수 없어요.")).toBeVisible();
 });
 
 test("정책 활성화는 최신 운영 게이트와 담당자 없이는 열리지 않는다", async ({ page }) => {
@@ -178,8 +178,8 @@ test("정책 활성화는 최신 운영 게이트와 담당자 없이는 열리�
 
 test("상시 운영은 승인 조합 불일치 상태에서 켤 수 없다", async ({ page }) => {
   await page.goto("/operations");
-  await expect(page.getByText("상시 운영이 거부되었습니다.")).toBeVisible();
-  await expect(page.getByRole("alert", { name: "상시 운영 켜기 차단 사유" })).toContainText("켤 수 없는 상태입니다");
+  await expect(page.getByText("상시 운영이 거부되었어요")).toBeVisible();
+  await expect(page.getByRole("alert", { name: "상시 운영 켜기 차단 사유" })).toContainText("켤 수 없는 상태예요");
   await expect(page.getByRole("button", { name: "상시 운영 켜기" })).toHaveCount(0);
 });
 
@@ -432,7 +432,7 @@ test("유사 실적은 수집 탐색 신호와 판정 검토 결과를 따로 �
 
   const performance = page.locator(".performance-matches-panel");
   await expect(performance.locator(".panel-note")).toHaveText("최고 유사도 0.67");
-  await expect(performance).toContainText("유사도는 수집 단계의 모델 점수이며 판단 보조입니다.");
+  await expect(performance).toContainText("유사도는 수집 단계의 모델 점수이며 판단 보조예요.");
   await expect(performance.getByText("대조된 실적 없음")).toHaveCount(0);
 
   const retrieved = performance.locator(".performance-matches-block").filter({ hasText: "수집 탐색 신호" }).locator("tbody tr");

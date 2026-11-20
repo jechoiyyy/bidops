@@ -82,7 +82,7 @@ async function tabTo(page: Page, target: Locator, maximumTabs = 120): Promise<vo
     if (await target.evaluate((element) => document.activeElement === element)) return;
     await page.keyboard.press("Tab");
   }
-  throw new Error(`키보드 Tab ${maximumTabs}회 안에 대상 control에 도달하지 못했습니다.`);
+  throw new Error(`키보드 Tab ${maximumTabs}회 안에 대상 control에 도달하지 못했어요.`);
 }
 
 // Native compact CSS preserves the former 90% physical control size without a
@@ -159,7 +159,7 @@ test("UC-01은 키보드만으로 추적 저장 직전까지 이동하고 비활
   await page.keyboard.press("Enter");
 
   // C-7: 결정 버튼이 곧 고르는 상태다. 아직 아무도 고르지 않은 건이라 `계속 추적`은 `추적 시작`이다.
-  const save = page.getByRole("dialog").getByRole("button", { name: "추적 시작", exact: true });
+  const save = page.getByRole("dialog").getByRole("button", { name: "추적 시작하기", exact: true });
   await expect(save).toBeDisabled();
   await expect(page.locator(`#${await save.getAttribute("aria-describedby")}`)).toContainText("선택 사유");
 
@@ -170,7 +170,7 @@ test("UC-01은 키보드만으로 추적 저장 직전까지 이동하고 비활
   await page.keyboard.press("Enter");
   const reason = page.getByLabel("선택 사유 직접 입력");
   await tabTo(page, reason);
-  await page.keyboard.type("새 사전규격을 계속 확인합니다.");
+  await page.keyboard.type("새 사전규격을 계속 확인해요.");
   const actor = page.getByLabel("담당자 이름 (필수)", { exact: true });
   await tabTo(page, actor);
   await page.keyboard.type("홍길동");
@@ -187,7 +187,7 @@ test("UC-03은 키보드만으로 draft bundle 생성 직전까지 이동한다"
   const actor = page.getByLabel("문서 준비 담당자 이름");
   const create = page.getByRole("button", { name: "새 문서 묶음 만들기" });
   await expect(create).toBeDisabled();
-  await expect(page.locator(`#${await create.getAttribute("aria-describedby")}`)).toContainText("이름을 입력하십시오");
+  await expect(page.locator(`#${await create.getAttribute("aria-describedby")}`)).toContainText("이름을 입력해 주세요");
   await tabTo(page, actor);
   await expect(actor).toHaveAttribute("aria-describedby", /description/);
   await page.keyboard.type("문서 담당자");
@@ -213,7 +213,7 @@ test("사업 추적 상세는 변경 비교로 이동하고 추적 저장과 최
   await expect(page.locator(".opportunity-action-footer")).toContainText("미선택");
   await page.getByRole("tab", { name: "추적 이력", exact: true }).click();
   await expect(page.locator("#opportunity-panel-decision")).toContainText("미선택");
-  await expect(page.locator("#opportunity-panel-decision")).toContainText("아직 선택하지 않았습니다");
+  await expect(page.locator("#opportunity-panel-decision")).toContainText("아직 선택하지 않았어요");
 });
 
 // ADR-0046 결정 3으로 공고 1차 판정의 리뷰 저장이 사업 추적의 예외 작업으로
@@ -288,7 +288,13 @@ test("사이드바 항목 이름은 여는 화면의 제목과 같다", async ({
     await page.goto("/");
     await page.locator("aside.sidebar").getByRole("link", { name: item.label, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`^[^?]*${item.path.replace(/\//g, "\\/")}(\\?|$)`));
-    await expect(page.locator("header.topbar h1")).toHaveText(item.title);
+    // 2026-11-19 패널 헤더(ADR-0076): 화면 이름은 제목 위 작은 글자(eyebrow)이고 `<h1>`은 문장형 제목이다.
+    // 문장을 올리지 않는 화면(읽기 전·실패)은 `<h1>`이 화면 이름 그대로다. 어느 쪽이든 화면 이름은 사이드바와 같다.
+    await expect(page.locator("header.topbar h1")).toBeVisible();
+    await expect.poll(() => page.locator("header.topbar").evaluate((topbar) => {
+      const eyebrow = topbar.querySelector('[data-testid="page-header-eyebrow"]')?.textContent?.trim();
+      return eyebrow ? eyebrow.split(" · ")[0] : topbar.querySelector("h1")?.textContent?.trim() ?? "";
+    })).toBe(item.title);
     await expect(page.locator(".lazy-route-error")).toHaveCount(0);
   }
 });
@@ -439,12 +445,12 @@ test("실행 상태는 모든 탭에서 운영 텔레메트리 위치와 상시 
     const conditions = page.getByRole("dialog", { name: "운영 조건과 경계" });
     await expect(conditions).toBeVisible();
     // 판정 화면에서 뺐지만 삭제하지 않았다(ADR-0041 결정 5).
-    await expect(conditions).toContainText("삭제하지 않았습니다");
+    await expect(conditions).toContainText("삭제하지 않았어요");
     await expect(conditions).toContainText("model_digest");
     await expect(conditions).toContainText("duration_ms");
     await expect(conditions).toContainText("거절 사유");
     await expect(conditions).toContainText("승인 조합");
-    await expect(conditions).toContainText("startup은 migration·seed·정책 활성화·모델 호출을 수행하지 않습니다");
+    await expect(conditions).toContainText("startup은 migration·seed·정책 활성화·모델 호출을 수행하지 않아요");
     await conditions.getByRole("button", { name: "확인", exact: true }).click();
   }
 });
@@ -528,7 +534,7 @@ test("최종 Go/No-Go 목록은 사업 이름과 변경 비교 결과 없음을 
   // 비교 0건은 값이다. `비교 0건`으로 눌러 담아 "아직 안 봤다"와 섞지 않는다.
   await expect(rows.nth(0)).toContainText("변경 비교 결과 없음");
   // 선택한 사업의 상세가 그려진 뒤에 요청을 센다.
-  await expect(page.getByRole("heading", { name: "변경 비교 결과가 아직 없습니다" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "변경 비교 결과가 아직 없어요" })).toBeVisible();
   // 대기열을 한 번에 다 받았으므로 요약은 전체 기준이라고 말한다.
   await expect(page.locator(".gng-summary")).toHaveText("전체 1건 기준 · 1건 표시");
   expect(trace.queueQueries).toHaveLength(1);
@@ -550,7 +556,7 @@ test("최종 Go/No-Go 목록은 결정 대기열 한 번으로 그리고 행마�
   await page.goto("/go-no-go?show=all");
 
   await expect(page.locator(".gng-row")).toHaveCount(30);
-  await expect(page.getByRole("heading", { name: "변경 비교 결과가 아직 없습니다" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "변경 비교 결과가 아직 없어요" })).toBeVisible();
   expect(trace.queueQueries).toHaveLength(1);
   expect(trace.queueQueries[0]).toMatchObject({ status: "all", limit: "500", offset: "0" });
   expect(trace.opportunityListRequests).toBe(0);
@@ -581,7 +587,7 @@ test("UC-05 추적 종료 확인 단계는 취소에 초점이 오고 Esc로 요
   await page.getByRole("button", { name: "추적 상태 변경", exact: true }).click();
   await page.getByRole("combobox", { name: "선택 사유", exact: true }).click();
   await page.getByRole("option", { name: "기타 · 직접 입력", exact: true }).click();
-  await page.getByLabel("선택 사유 직접 입력").fill("현재 범위와 맞지 않아 능동 추적을 종료합니다.");
+  await page.getByLabel("선택 사유 직접 입력").fill("현재 범위와 맞지 않아 능동 추적을 종료해요.");
   await page.getByLabel("담당자 이름 (필수)", { exact: true }).fill("홍길동");
 
   const save = page.getByRole("dialog").getByRole("button", { name: "추적 종료", exact: true });
@@ -598,5 +604,5 @@ test("UC-05 추적 종료 확인 단계는 취소에 초점이 오고 Esc로 요
   await page.keyboard.press("Escape");
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
   expect(trace.patchCount()).toBe(0);
-  await expect(page.getByLabel("선택 사유 직접 입력")).toHaveValue("현재 범위와 맞지 않아 능동 추적을 종료합니다.");
+  await expect(page.getByLabel("선택 사유 직접 입력")).toHaveValue("현재 범위와 맞지 않아 능동 추적을 종료해요.");
 });

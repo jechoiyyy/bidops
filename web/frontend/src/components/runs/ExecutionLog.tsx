@@ -41,10 +41,10 @@ export function ExecutionLog({ data, loading, error }: ExecutionLogProps) {
         </Caption>
       }
     >
-      {loading && !data ? <Caption>로그를 불러오는 중입니다.</Caption> : null}
+      {loading && !data ? <Caption>로그를 불러오는 중이에요.</Caption> : null}
       {error ? (
         <div className="rs-inline-error" role="alert">
-          <Text as="span">실행 로그를 불러오지 못했습니다. 기록이 없다는 뜻이 아닙니다.</Text>
+          <Text as="span">실행 로그를 불러오지 못했어요. 기록이 없다는 뜻이 아니에요.</Text>
         </div>
       ) : null}
       {executions.length > 0 ? (
@@ -69,7 +69,7 @@ export function ExecutionLog({ data, loading, error }: ExecutionLogProps) {
           }))}
         />
       ) : null}
-      {!loading && !error && executions.length === 0 ? <Caption>이 회차에 기록된 파이프라인 실행이 없습니다.</Caption> : null}
+      {!loading && !error && executions.length === 0 ? <Caption>이 회차에 기록된 파이프라인 실행이 없어요.</Caption> : null}
 
       {data?.items.length ? (
         <div className="rs-log-lines" aria-label="실행 로그" aria-live={running ? "polite" : "off"}>
@@ -81,7 +81,7 @@ export function ExecutionLog({ data, loading, error }: ExecutionLogProps) {
           ))}
         </div>
       ) : null}
-      {!loading && !error && data && data.items.length === 0 ? <Caption>아직 기록된 로그 줄이 없습니다.</Caption> : null}
+      {!loading && !error && data && data.items.length === 0 ? <Caption>아직 기록된 로그 줄이 없어요.</Caption> : null}
     </Section>
   );
 }

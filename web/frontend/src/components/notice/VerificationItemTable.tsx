@@ -33,7 +33,7 @@ export function VerificationItemTable({ items, answers, onAnswerChange }: Verifi
       }
     >
       {items.length === 0 ? (
-        <EmptyState compact title="확인 항목이 없습니다." />
+        <EmptyState compact title="확인 항목이 없어요" />
       ) : (
         <div className="verification-list">
           {items.map((item) => {

@@ -274,8 +274,8 @@ test("blocker가 있으면 활성화 단추가 닫히고 이유가 옆에 보인
   await open(page, `/order-plan-policies?c2policy=${CANDIDATE_BLOCKED}`);
   await waitForDetail(page, CANDIDATE_BLOCKED);
   await expect(footer(page).getByRole("button", { name: "활성화", exact: true })).toBeDisabled();
-  await expect(footer(page)).toContainText("활성화할 수 없습니다");
-  await expect(footer(page)).toContainText("최신 게이트 평가가 미달입니다");
+  await expect(footer(page)).toContainText("활성화할 수 없어요");
+  await expect(footer(page)).toContainText("최신 게이트 평가가 미달이에요");
   await expect(footer(page)).toContainText("외 1건");
   const list = detail(page).getByRole("list", { name: "활성화를 막는 조건" });
   await expect(list.getByRole("listitem")).toHaveCount(2);
@@ -290,7 +290,7 @@ test("미측정 · 미달 · 통과는 서로 다른 표면이다", async ({ pag
   await expect(surface(page)).toHaveAttribute("data-gate-result", "미측정");
   await expect(surface(page)).toHaveAttribute("data-tone", "neutral");
   await expect(surface(page)).toContainText("임계값 미정");
-  await expect(surface(page)).toContainText("미측정은 미달이 아닙니다");
+  await expect(surface(page)).toContainText("미측정은 미달이 아니에요");
   await expect(detail(page).getByRole("table", { name: "임계값 대 측정값" })).toContainText("미정");
   // 초안은 후보 지정만 할 수 있다.
   await expect(footer(page).getByRole("button", { name: "후보로 지정" })).toBeEnabled();
@@ -325,11 +325,11 @@ test("활성화 확인 창은 digest와 현재 버전의 자동 실행이 꺼진
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText(DIGEST[CANDIDATE_READY].policy.slice(0, 12));
   await expect(dialog).toContainText(DIGEST[CANDIDATE_READY].artifact);
-  await expect(dialog).toContainText(`현재 버전 ${ACTIVE}의 자동 실행이 꺼집니다. 활성화 뒤 이 화면에서 다시 켜세요.`);
+  await expect(dialog).toContainText(`현재 버전 ${ACTIVE}의 자동 실행이 꺼져요. 활성화 뒤 이 화면에서 다시 켜세요.`);
   const submit = dialog.getByRole("button", { name: "활성화", exact: true });
   await dialog.getByLabel("확인 담당자 · 필수").fill("승인 담당");
   await expect(submit).toBeDisabled();
-  await dialog.getByText("운영 활성화를 승인합니다").click();
+  await dialog.getByText("운영 활성화를 승인해요").click();
   await expect(submit).toBeEnabled();
   await submit.click();
   await expect(dialog).toBeHidden();
@@ -352,8 +352,8 @@ test("스위치는 운영 활성 버전에만 있고 옆에 안내문구와 환�
   await waitForDetail(page, ACTIVE);
   const row = page.getByTestId("daily-trigger-row");
   await expect(row.getByRole("switch", { name: "이 버전의 일일 자동 실행 스위치" })).toBeChecked();
-  await expect(row).toContainText("policy를 교체하면 자동 실행이 멈춥니다. 새 버전에서 다시 켜야 합니다.");
-  await expect(row).toContainText("운영자가 환경 설정을 켜야 합니다");
+  await expect(row).toContainText("policy를 교체하면 자동 실행이 멈춰요. 새 버전에서 다시 켜야 해요.");
+  await expect(row).toContainText("운영자가 환경 설정을 켜야 해요");
   await expect(row).toContainText("자동 실행 꺼짐");
 });
 
@@ -364,10 +364,10 @@ test("스위치를 끄려면 확인 창에서 사유와 명시 확인을 받는�
   await expect(row).toContainText("자동 실행 켜짐");
   await row.getByRole("switch", { name: "이 버전의 일일 자동 실행 스위치" }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText("일일 자동 실행을 끕니다");
+  await expect(dialog).toContainText("일일 자동 실행을 꺼요");
   const submit = dialog.getByRole("button", { name: "자동 실행 끄기" });
   await dialog.getByLabel("확인 담당자 · 필수").fill("승인 담당");
-  await dialog.getByText("이 버전의 일일 자동 실행을 끕니다").click();
+  await dialog.getByText("이 버전의 일일 자동 실행을 꺼요").click();
   await expect(submit).toBeDisabled();
   await dialog.getByLabel("사유 · 필수 (200자 이내)").fill("점검 기간");
   await submit.click();
@@ -412,7 +412,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     await waitForDetail(page, ACTIVE);
     const row = page.getByTestId("daily-trigger-row");
     await expect(row).toContainText("자동 실행 켜짐");
-    await expect(row).toContainText("스위치는 예약된 일일 스크립트가 이 버전으로 실행하는 것을 허용할 뿐입니다");
+    await expect(row).toContainText("스위치는 예약된 일일 스크립트가 이 버전으로 실행하는 것을 허용할 뿐이에요");
     await expect(row).not.toContainText("다음 일일 스크립트가");
     const line = row.getByTestId("daily-run-status");
     await expect(line).toHaveAttribute("data-state", "ok");

@@ -110,7 +110,7 @@ test("LS-PN 선택 도구와 상세 오류 순회가 지원 폭 안에 보인다
     });
   });
   await page.reload();
-  await expect(page.getByText(/상세를 불러오지 못했습니다/)).toBeVisible();
+  await expect(page.getByText(/상세를 불러오지 못했어요/)).toBeVisible();
   await expect(navigation).toContainText("1 / 1");
   await expectNoHorizontalOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("prespec-review-error.png") });
@@ -126,7 +126,7 @@ test("pre-specs 제외 확인 창과 전체 이력 필터가 지원 폭 안에 �
   await dialog.getByRole('textbox', { name: '담당자 이름 · 감사 표식 (필수)' }).fill('화면 검증 담당자');
   await dialog.getByRole('combobox', { name: '제외 사유 (필수)' }).click();
   await page.getByRole('option', { name: '기타 · 직접 입력', exact: true }).click();
-  await dialog.getByRole('textbox', { name: '사유 직접 입력' }).fill('긴 사전규격 제목과 검토 범위를 확인하고 목록에서 제외합니다.');
+  await dialog.getByRole('textbox', { name: '사유 직접 입력' }).fill('긴 사전규격 제목과 검토 범위를 확인하고 목록에서 제외해요.');
   await expect(dialog.getByRole('button', { name: '1건 검토 제외', exact: true })).toBeEnabled();
   await expectNoHorizontalOverflow(page);
   const bounds = await dialog.boundingBox();
@@ -162,10 +162,65 @@ async function expectSearchToolsBelowTabs(
   await page.screenshot({ path: testInfo.outputPath("search-tools.png") });
 }
 
-test("[search-ux] 발주계획 도구가 탭 아래 필터·검색 순으로 놓인다", async ({ page }, testInfo) => {
+// 2026-11-19 최종 시안(ADR-0076): 보기 탭이 짧은 화면(사업기회·Go/No-Go)은 도구가 패널 헤더 탭 줄의 같은 줄
+// 오른쪽에 놓인다. DOM 차례(필터 → 검색)는 그대로이며 가로로 넘치지 않는다.
+async function expectSearchToolsRightOfTabs(
+  page: import("@playwright/test").Page,
+  testInfo: import("@playwright/test").TestInfo,
+  rowSelector: string,
+  expectedChildren: string[],
+) {
+  await expect(page.locator(rowSelector).first()).toBeVisible();
+  const metrics = await page.locator('header.topbar [data-review-primitive="filter-bar"]').evaluate((bar) => {
+    const line = bar.querySelector<HTMLElement>(".workspace-filter-line");
+    const tools = bar.querySelector<HTMLElement>(".workspace-filter-tools");
+    if (!line || !tools) throw new Error("workspace filter rows missing");
+    const lineBox = line.getBoundingClientRect();
+    const toolsBox = tools.getBoundingClientRect();
+    return {
+      sameRow: toolsBox.top < lineBox.bottom && toolsBox.bottom > lineBox.top,
+      toolsRightOfTabs: toolsBox.left >= lineBox.right - 1,
+      toolsRight: toolsBox.right,
+      barRight: bar.getBoundingClientRect().right,
+      children: [...tools.children].map((child) => child.className),
+    };
+  });
+  expect(metrics.sameRow).toBe(true);
+  expect(metrics.toolsRightOfTabs).toBe(true);
+  expect(metrics.toolsRight).toBeLessThanOrEqual(metrics.barRight + 1);
+  for (const [index, className] of expectedChildren.entries()) {
+    expect(metrics.children[index]).toContain(className);
+  }
+  await expectNoHorizontalOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("search-tools.png") });
+}
+
+// 2026-11-19 최종 시안: 발주계획의 보기 탭 줄은 패널 헤더 안에 있고 필터·검색이 같은 줄 오른쪽에 놓인다.
+// DOM 차례(필터 → 검색)는 그대로이며 가로로 넘치지 않는다.
+test("[search-ux] 발주계획 도구가 패널 헤더 탭 줄 오른쪽에 필터·검색 순으로 놓인다", async ({ page }, testInfo) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
-  await expectSearchToolsBelowTabs(page, testInfo, ".c2l-row", ["workspace-advanced-toggle", "workspace-search-field"]);
+  await expect(page.locator(".c2l-row").first()).toBeVisible();
+  const metrics = await page.locator('header.topbar [data-review-primitive="filter-bar"]').evaluate((bar) => {
+    const line = bar.querySelector<HTMLElement>(".workspace-filter-line")!;
+    const tools = bar.querySelector<HTMLElement>(".workspace-filter-tools")!;
+    const lineBox = line.getBoundingClientRect();
+    const toolsBox = tools.getBoundingClientRect();
+    return {
+      sameRow: toolsBox.top < lineBox.bottom && toolsBox.bottom > lineBox.top,
+      toolsRightOfTabs: toolsBox.left >= lineBox.left,
+      barRight: bar.getBoundingClientRect().right,
+      toolsRight: toolsBox.right,
+      children: [...tools.children].map((child) => child.className),
+    };
+  });
+  expect(metrics.sameRow).toBe(true);
+  expect(metrics.toolsRightOfTabs).toBe(true);
+  expect(metrics.toolsRight).toBeLessThanOrEqual(metrics.barRight + 1);
+  expect(metrics.children[0]).toContain("workspace-advanced-toggle");
+  expect(metrics.children[1]).toContain("workspace-search-field");
+  await expectNoHorizontalOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("search-tools.png") });
 });
 
 test("[search-ux] 사전규격 도구가 탭 아래 필터·검색·회차·추가 조건 순으로 놓인다", async ({ page }, testInfo) => {
@@ -174,16 +229,16 @@ test("[search-ux] 사전규격 도구가 탭 아래 필터·검색·회차·추�
   await expectSearchToolsBelowTabs(page, testInfo, ".pre-specs-row", ["workspace-advanced-toggle", "workspace-search-field", "pre-specs-filter-context-range", "astryx-field"]);
 });
 
-test("[search-ux] 사업 추적 도구가 탭 아래 필터·검색 순으로 놓인다", async ({ page }, testInfo) => {
+test("[search-ux] 사업 추적 도구가 패널 헤더 탭 줄 오른쪽에 필터·검색 순으로 놓인다", async ({ page }, testInfo) => {
   await mockApi(page);
   await mockOpportunities(page);
   await page.goto("/opportunities");
-  await expectSearchToolsBelowTabs(page, testInfo, ".opportunity-table-scroll tbody tr", ["workspace-advanced-toggle", "workspace-search-field"]);
+  await expectSearchToolsRightOfTabs(page, testInfo, ".opportunity-table-scroll tbody tr", ["workspace-advanced-toggle", "workspace-search-field"]);
 });
 
-test("[search-ux] Go/No-Go 도구는 탭 아래 검색만 둔다", async ({ page }, testInfo) => {
+test("[search-ux] Go/No-Go 도구는 패널 헤더 탭 줄 오른쪽에 검색만 둔다", async ({ page }, testInfo) => {
   await mockApi(page);
   await mockGoNoGo(page);
   await page.goto("/go-no-go");
-  await expectSearchToolsBelowTabs(page, testInfo, ".gng-row", ["workspace-search-field"]);
+  await expectSearchToolsRightOfTabs(page, testInfo, ".gng-row", ["workspace-search-field"]);
 });

@@ -84,7 +84,7 @@ async function expectSelected(page: Page, noticeId: number | null) {
   const pressed = companyList(page).locator('button.cw-row-select[aria-pressed="true"]');
   if (noticeId === null) {
     await expect(pressed).toHaveCount(0);
-    await expect(page.getByRole("complementary", { name: "선택한 사전규격" })).toContainText("목록에서 사전규격을 고르십시오.");
+    await expect(page.getByRole("complementary", { name: "선택한 사전규격" })).toContainText("목록에서 사전규격을 골라 주세요.");
     return;
   }
   await expect(pressed).toHaveCount(1);
@@ -99,7 +99,7 @@ async function installMocks(page: Page, options: { enabled?: boolean } = {}) {
 test("첫 진입은 회사 선택이고 기본 회사를 정하지 않는다", async ({ page }) => {
   const trace = await installMocks(page);
   await page.goto("/companies");
-  await expect(page.getByRole("heading", { name: "검토할 가상회사를 고르십시오" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "검토할 가상회사를 골라 주세요" })).toBeVisible();
   await expect(page.getByRole("note", { name: "가상회사 데모 화면" })).toHaveText("가상회사 데모");
   await expect(companySelect(page)).toHaveValue("");
   const companies = page.getByRole("list", { name: "가상회사 목록" }).getByRole("listitem");
@@ -173,7 +173,8 @@ test("demo가 켜져 있으면 /companies/:id/profile은 세 회사 모두 /comp
     await page.goto(`/companies/${companyId(slug)}/profile`);
     // replace 이동이라 주소가 /company이고(기본 그룹 attention은 쿼리 없이 열린다) 뒤로 가기가 옛 주소로 돌아가지 않는다.
     await expect(page).toHaveURL(/\/company$/);
-    await expect(page.locator("header.topbar h1")).toHaveText("회사 근거");
+    // 화면 이름은 패널 헤더의 작은 글자다(ADR-0076). `<h1>`은 문장형 제목이다.
+    await expect(page.locator("header.topbar").getByTestId("page-header-eyebrow")).toHaveText("회사 근거");
     await expect(page.getByTestId("company-attention")).toBeVisible();
     await expect(page.getByTestId("company-header")).toHaveCount(0);
     await expect(page.locator("main")).not.toContainText(COMPANY_BY_SLUG[slug].name);
@@ -227,8 +228,8 @@ test("미저장 추적 입력이 있으면 회사 전환 전에 확인하고, �
   await companySelect(page).selectOption(companyId("demo-data-ai"));
   const guard = page.getByRole("alertdialog");
   await expect(guard).toBeVisible();
-  await expect(guard).toContainText("이 회사의 추적 결정을 저장하지 않았습니다");
-  await expect(guard).toContainText("다른 회사에 저장되지 않습니다");
+  await expect(guard).toContainText("이 회사의 추적 결정을 저장하지 않았어요");
+  await expect(guard).toContainText("다른 회사에 저장되지 않아요");
   await guard.getByRole("button", { name: "이 회사에 머물기", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
 
@@ -278,8 +279,8 @@ test("회사 A에서 시작한 저장은 A로 끝나고, 그사이 연 회사 B 
   // 보낸 요청이 회사 A에 저장될 수 있다고 말해야 한다.
   await companySelect(page).selectOption(idB);
   const pendingGuard = page.getByRole("alertdialog");
-  await expect(pendingGuard).toContainText("추적 결정 저장 요청을 처리하고 있습니다");
-  await expect(pendingGuard).toContainText("그 요청은 취소되지 않으며 회사 데모 업무SI에 저장될 수 있습니다");
+  await expect(pendingGuard).toContainText("추적 결정 저장 요청을 처리하고 있어요");
+  await expect(pendingGuard).toContainText("그 요청은 취소되지 않으며 회사 데모 업무SI에 저장될 수 있어요");
   await expect(pendingGuard).toContainText("보류 · 처리 중");
   await expect(pendingGuard).not.toContainText("사라지며");
   await expect(pendingGuard.getByRole("button", { name: "입력을 버리고 이동", exact: true })).toHaveCount(0);
@@ -339,7 +340,7 @@ test("경쟁 재현: 머물기 직후 같은 task에서 다시 회사를 바꿔�
     const dialog = document.querySelector('[role="alertdialog"]');
     const stay = Array.from(dialog?.querySelectorAll("button") ?? []).find((button) => button.textContent?.trim() === "이 회사에 머물기");
     const select = document.querySelector<HTMLSelectElement>('select[aria-label="데모 회사 선택"]');
-    if (!stay || !select) throw new Error("경쟁 재현 대상(머물기 버튼·회사 선택기)을 찾지 못했습니다");
+    if (!stay || !select) throw new Error("경쟁 재현 대상(머물기 버튼·회사 선택기)을 찾지 못했어요");
     stay.click();
     select.value = nextCompanyId;
     select.dispatchEvent(new Event("change", { bubbles: true }));
@@ -347,7 +348,7 @@ test("경쟁 재현: 머물기 직후 같은 task에서 다시 회사를 바꿔�
 
   const guard = page.getByRole("alertdialog");
   await expect(guard).toBeVisible({ timeout: 5_000 });
-  await expect(guard).toContainText("이 회사의 추적 결정을 저장하지 않았습니다");
+  await expect(guard).toContainText("이 회사의 추적 결정을 저장하지 않았어요");
   await expect(page).toHaveURL(new RegExp(`${detailA}$`));
 
   // 다시 머물면 A에 남고, 버리고 이동하면 B로 한 번만 간다.
@@ -378,7 +379,7 @@ test("demo-config가 꺼져 있으면 회사 메뉴·선택기·경로가 SPA에
   await expect(page.getByRole("table", { name: "회사별 사전규격 판정" })).toHaveCount(0);
   await expect(page.getByTestId("company-header")).toHaveCount(0);
   await page.goto("/companies");
-  await expect(page.getByRole("heading", { name: "검토할 가상회사를 고르십시오" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "검토할 가상회사를 골라 주세요" })).toHaveCount(0);
   expect(trace.requests).toEqual([]);
 });
 

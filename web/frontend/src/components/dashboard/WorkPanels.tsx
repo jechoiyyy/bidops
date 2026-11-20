@@ -105,7 +105,7 @@ export function DeadlineImminentPanel({ data, state, footBasis, footCount, now, 
   // 구역은 `전체`로 연다 — 그 화면의 기본 구역(`조치 필요`)이 걸리면 다른 집합이 된다.
   const to = `/opportunities?section=${ALL_SECTION}&deadline_within_days=${windowDays}&sort=deadline`;
   return <WorkPanel title="마감 임박 추적 건" to={to} linkLabel="사업기회" state={state} rows={rows}
-    emptyTitle="7일 이내 마감인 추적 건이 없습니다" errorTitle="마감 임박 추적 건을 불러오지 못했습니다"
+    emptyTitle="7일 이내 마감인 추적 건이 없어요" errorTitle="마감 임박 추적 건을 불러오지 못했어요"
     footBasis={footBasis} footCount={footCount} />;
 }
 
@@ -124,7 +124,7 @@ export function FinalDecisionPanel({ data, state, footBasis, footCount, now }: {
       end={<DueText text={deadline.text} urgent={deadline.urgent} />} />;
   });
   return <WorkPanel title="최종 결정 대기" to="/go-no-go" linkLabel="최종 Go/No-Go" state={state} rows={rows}
-    emptyTitle="최종 결정을 기다리는 사업이 없습니다" errorTitle="최종 결정 대기 목록을 불러오지 못했습니다"
+    emptyTitle="최종 결정을 기다리는 사업이 없어요" errorTitle="최종 결정 대기 목록을 불러오지 못했어요"
     footBasis={footBasis} footCount={footCount} />;
 }
 
@@ -168,9 +168,9 @@ export function HumanCheckPanel({ failed, attention, blocking, state, footBasis,
       title={row.item.title?.trim() || "제목 미확인"}
       meta={row.kind === "overview_failed" ? "개요 검토 실패" : "개요 검토 · 사람 확인 필요"}
       end={<Tag label={row.kind === "overview_failed" ? "실패" : "확인"} tone={row.kind === "overview_failed" ? "error" : "warning"} />} />);
-  return <WorkPanel title="사람 확인 필요" caption="확인 항목은 추적 상태와 무관하게 셉니다." to="/pre-specs?workspace=all&sw_only=false&overview_view=attention"
+  return <WorkPanel title="사람 확인 필요" caption="확인 항목은 추적 상태와 무관하게 세요." to="/pre-specs?workspace=all&sw_only=false&overview_view=attention"
     linkLabel="사전규격" state={state} rows={rows}
-    emptyTitle="사람이 확인할 개요 검토와 확인 항목이 없습니다" errorTitle="사람 확인 필요 목록을 불러오지 못했습니다"
+    emptyTitle="사람이 확인할 개요 검토와 확인 항목이 없어요" errorTitle="사람 확인 필요 목록을 불러오지 못했어요"
     footBasis={footBasis} footCount={footCount} />;
 }
 
@@ -192,6 +192,6 @@ export function NewPriorityOrderPlanPanel({ data, state, footBasis, footCount, n
   const to = `/order-plans?qwen=relevant&tracking=미선택&first_observed_from=${newSince}`;
   return <WorkPanel title="새 관련 발주계획" to={to} linkLabel="발주계획"
     state={state} rows={rows} className="dash-work-wide"
-    emptyTitle="새로 관측된 관련 발주계획이 없습니다" errorTitle="새 관련 발주계획을 불러오지 못했습니다"
+    emptyTitle="새로 관측된 관련 발주계획이 없어요" errorTitle="새 관련 발주계획을 불러오지 못했어요"
     footBasis={footBasis} footCount={footCount} />;
 }

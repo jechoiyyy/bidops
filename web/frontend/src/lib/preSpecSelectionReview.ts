@@ -84,7 +84,7 @@ export function createPreSpecSelectionReview(
   } catch {
     return {
       ok: false,
-      error: "보안 난수를 생성하지 못해 선택 검토를 시작할 수 없습니다. 브라우저의 보안 난수 기능을 확인한 뒤 다시 시도해 주세요.",
+      error: "보안 난수를 생성하지 못해 선택 검토를 시작할 수 없어요. 브라우저의 보안 난수 기능을 확인한 뒤 다시 시도해 주세요.",
     };
   }
 
@@ -96,16 +96,16 @@ export function createPreSpecSelectionReview(
       orderedNoticeIds: [...input.orderedNoticeIds],
       listSearch: preSpecListSearch(input.listSearch),
     };
-    if (!isReview(snapshot)) return { ok: false, error: "선택 검토 순서를 확인할 수 없습니다. 목록을 다시 확인해 주세요." };
+    if (!isReview(snapshot)) return { ok: false, error: "선택 검토 순서를 확인할 수 없어요. 목록을 다시 확인해 주세요." };
     const serialized = JSON.stringify(snapshot);
     const key = REVIEW_KEY_PREFIX + snapshot.reviewId;
     sessionStorage.setItem(key, serialized);
     if (sessionStorage.getItem(key) !== serialized) {
-      return { ok: false, error: "이 탭에 검토 순서를 저장하지 못했습니다. 단건 상세를 이용해 주세요." };
+      return { ok: false, error: "이 탭에 검토 순서를 저장하지 못했어요. 단건 상세를 이용해 주세요." };
     }
     return { ok: true, value: snapshot };
   } catch {
-    return { ok: false, error: "이 탭에 검토 순서를 저장하지 못했습니다. 브라우저 저장소 설정을 확인하거나 단건 상세를 이용해 주세요." };
+    return { ok: false, error: "이 탭에 검토 순서를 저장하지 못했어요. 브라우저 저장소 설정을 확인하거나 단건 상세를 이용해 주세요." };
   }
 }
 

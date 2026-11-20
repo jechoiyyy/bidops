@@ -89,7 +89,7 @@ const trackingException = {
     axes: [{
       axis: "public_si_integration",
       relation: "direct",
-      reason: "통합관리 시스템 구축이 계약의 핵심 과업입니다.",
+      reason: "통합관리 시스템 구축이 계약의 핵심 과업이에요.",
       claim_refs: ["claim-1"],
       company_refs: [],
     }],
@@ -522,8 +522,9 @@ test("목록 행은 사업명·기관·예산·상태를 정해진 순서와 글
 
   const fontSize = (locator: ReturnType<typeof preSpecRow>) => locator
     .evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+  // 2026-11-20(ADR-0076 결정 10): 발주계획과 같은 행 단 — 사업명 16px, 발주기관 14px.
   expect(await fontSize(agency)).toBe(14);
-  expect(await fontSize(title)).toBe(14);
+  expect(await fontSize(title)).toBe(16);
   const fontWeight = (locator: ReturnType<typeof preSpecRow>) => locator
     .evaluate((element) => Number(getComputedStyle(element).fontWeight));
   expect(await fontWeight(title)).toBeGreaterThanOrEqual(600);
@@ -640,9 +641,11 @@ test("화면 제목과 `목록 기준` 액션은 상단바에 있고 페이지�
 
   const topbar = page.locator("header.topbar");
   await expect(topbar).toHaveAttribute("data-topbar-mode", "title");
-  await expect(topbar.locator("h1")).toHaveText("사전규격");
-  // 페이지에 남는 것은 `aria-labelledby`가 가리킬 숨긴 제목뿐이고, 제목 줄은 없다.
-  await expect(page.locator(".pre-specs-page > h2.visually-hidden#page-title")).toHaveText("사전규격");
+  // 화면 이름은 패널 헤더의 작은 글자이고 `<h1>`은 문장형 제목이다(ADR-0076).
+  await expect(topbar.getByTestId("page-header-eyebrow")).toHaveText("사전규격");
+  await expect(topbar.locator("h1")).toHaveText(/사전규격/);
+  // 페이지에 남는 것은 `aria-labelledby`가 가리킬 숨긴 이름(제목 아님)뿐이고, 제목 줄은 없다.
+  await expect(page.locator(".pre-specs-page > span.visually-hidden#page-title")).toHaveText("사전규격");
   await expect(page.locator(".pre-specs-page-header")).toHaveCount(0);
 
   // 목록 범위를 설명하는 단추는 네 화면이 같은 이름을 쓴다(시안 M1 승인 결정 3).
@@ -666,12 +669,13 @@ test("사전규격 workspace가 canvas 남은 높이를 채우고 pane 안에서
 
   const metrics = await page.locator(".pre-specs-page").evaluate((pageRoot) => {
     const frame = pageRoot.querySelector<HTMLElement>(".workspace-frame");
-    const filterBar = pageRoot.querySelector<HTMLElement>(".workspace-filters");
+    // 보기 탭·검색 줄은 패널 헤더(`#page-header-tabs`)로 올라갔다(ADR-0076). 페이지 root 밖이다.
+    const filterBar = document.querySelector<HTMLElement>("header.topbar .workspace-filters");
     const workspace = pageRoot.querySelector<HTMLElement>(".pre-specs-split-workspace");
     const listScroll = pageRoot.querySelector<HTMLElement>(".pre-specs-list-scroll");
     const detailScroll = pageRoot.querySelector<HTMLElement>(".pre-specs-detail-scroll");
     if (!frame || !filterBar || !workspace || !listScroll || !detailScroll) {
-      throw new Error("사전규격 workspace 구조가 없습니다.");
+      throw new Error("사전규격 workspace 구조가 없어요.");
     }
     const frameRect = frame.getBoundingClientRect();
     const workspaceRect = workspace.getBoundingClientRect();
@@ -877,9 +881,9 @@ test("발주계획에서 승계한 건은 폼 대신 현재 추적 상태를 보
   await selectPreSpecRow(page, trackingException.title);
 
   const decision = page.locator(".pre-specs-detail-actions");
-  await expect(decision.getByRole("heading", { name: "발주계획에서 추적 결정을 이어받았습니다" })).toBeVisible();
+  await expect(decision.getByRole("heading", { name: "발주계획에서 추적 결정을 이어받았어요" })).toBeVisible();
   await expect(decision).toContainText("현재 추적 상태 · 계속 추적");
-  await expect(decision.getByRole("button", { name: "추적 시작", exact: true })).toHaveCount(0);
+  await expect(decision.getByRole("button", { name: "추적 시작하기", exact: true })).toHaveCount(0);
   await expect(decision.getByRole("button", { name: "보류", exact: true })).toHaveCount(0);
   await expect(decision.getByRole("button", { name: "종료", exact: true })).toHaveCount(0);
   await expect(decision.getByRole("link", { name: "사업 추적에서 상태 관리 ↗", exact: true })).toBeVisible();
@@ -898,7 +902,7 @@ test("신규 사전규격은 사유 드롭다운과 담당자로 추적을 시�
   await expect(decision).toContainText("현재 · 미선택 → 저장하면 계속 추적");
   // 사유는 비어 있는 상태로 시작하고 자유 입력은 열려 있지 않다.
   await expect(decision.locator("textarea")).toHaveCount(0);
-  const save = decision.getByRole("button", { name: "추적 시작", exact: true });
+  const save = decision.getByRole("button", { name: "추적 시작하기", exact: true });
   await expect(save).toBeDisabled();
 
   await fillRecordReason(page, "발주계획에 없던 신규 건");
@@ -927,7 +931,7 @@ test("사유 예시를 고르면 그 문장이 그대로 저장 사유가 된다
   // 예시를 고른 뒤에는 자유 입력이 열리지 않는다.
   await expect(decision.locator("textarea")).toHaveCount(0);
   await decision.getByRole("textbox", { name: "담당자 이름 (필수)" }).fill("홍길동");
-  await decision.getByRole("button", { name: "추적 시작", exact: true }).click();
+  await decision.getByRole("button", { name: "추적 시작하기", exact: true }).click();
 
   await expect.poll(() => trace.trackingPatches).toEqual([{
     opportunityId: 78,
@@ -966,7 +970,7 @@ test("사유를 고르고 행을 옮기면 확인 없이 버리지 않는다", a
   await selectPreSpecRow(page, trackingException.title);
   const guard = page.getByRole("alertdialog");
   await expect(guard).toBeVisible();
-  await expect(guard).toContainText("저장하지 않은 추적 결정 사유와 담당자 이름이 있습니다.");
+  await expect(guard).toContainText("저장하지 않은 추적 결정 사유와 담당자 이름이 있어요.");
   await guard.getByRole("button", { name: "계속 편집", exact: true }).click();
   await expect(guard).toHaveCount(0);
   await expect(decision.getByRole("textbox", { name: "선택 사유 직접 입력 (필수)" })).toHaveValue("아직 저장하지 않은 사유");
@@ -988,7 +992,7 @@ test("사유를 고른 뒤 지우기 단추를 누르면 빈 상태로 돌아가
   await decision.getByRole("combobox", { name: "선택 사유" }).click();
   await page.getByRole("option", { name: "후속 입찰공고 확인" }).click();
   await decision.getByRole("textbox", { name: "담당자 이름 (필수)" }).fill("홍길동");
-  const save = decision.getByRole("button", { name: "추적 시작", exact: true });
+  const save = decision.getByRole("button", { name: "추적 시작하기", exact: true });
   await expect(save).toBeEnabled();
 
   await decision.getByRole("button", { name: "선택 사유 지우기" }).click();
@@ -1046,7 +1050,7 @@ test("개요 결과가 없으면 상태가 무엇을 기다리는지 말하고 �
 
   const detail = page.locator(".pre-specs-detail-pane");
   await expect(detail.locator('.pre-specs-detail-block[aria-label="사업 설명"]'))
-    .toContainText("승인된 모델 실행이 큐에서 차례를 기다리고 있습니다.");
+    .toContainText("승인된 모델 실행이 큐에서 차례를 기다리고 있어요.");
   // 결과가 없으면 과업 목록도 규모 한 줄도 만들지 않는다.
   await expect(detail.locator(".pre-specs-detail-tasks")).toHaveCount(0);
   await expect(detail.locator(".pre-specs-detail-scale")).toHaveCount(0);
@@ -1058,7 +1062,7 @@ test("개요 응답의 notice ID가 어긋나면 목록 화면도 교차 정본�
 
   const detail = page.locator(".pre-specs-detail-pane");
   // 담당자 어휘로 적되 교차 표시를 막는 의미는 그대로다(ADR-0055 D11).
-  await expect(detail).toContainText("개요 검토 결과를 확인할 수 없습니다.");
+  await expect(detail).toContainText("개요 검토 결과를 확인할 수 없어요.");
   await expect(detail.locator(".pre-specs-detail-tasks")).toHaveCount(0);
 });
 
@@ -1073,13 +1077,13 @@ test("notice 991 정본 상세는 29로 치환되지 않고 unknown을 사람 �
 
   await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs/991");
   expect(new URL(page.url()).search).toBe("?workspace=all&sw_only=false&sort=deadline");
-  await expect(page.getByRole("heading", { level: 2, name: trackingException.title })).toBeVisible();
-  await expect(page.getByText("notice 991", { exact: true }).first()).toBeVisible();
+  // 상세의 사업명은 패널 헤더의 `<h1>` 하나다(ADR-0076). 정본 번호는 위 경로와 조회 기록(991)이 말한다.
+  await expect(page.getByRole("heading", { level: 1, name: trackingException.title })).toBeVisible();
   expect(trace.noticeGets).toEqual([991]);
   expect(trace.noticeGets).not.toContain(29);
 
   await page.reload();
-  await expect(page.getByRole("heading", { level: 2, name: trackingException.title })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: trackingException.title })).toBeVisible();
   expect(trace.noticeGets).toEqual([991, 991]);
   expect(trace.noticeGets).not.toContain(29);
 });
@@ -1090,7 +1094,7 @@ test("사전규격 상세는 notice_pk projection의 현재 추적 상태와 첨
 
   await expect(page.locator(".ps-record-saved-decision")).toContainText("현재 추적 상태 · 계속 추적");
   // 991은 발주계획에서 승계한 건이라 상세도 상태만 밝히고 다시 묻지 않는다.
-  await expect(page.getByRole("heading", { name: "발주계획에서 추적 결정을 이어받았습니다" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "발주계획에서 추적 결정을 이어받았어요" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "첨부 원문 취득 집계", exact: true })).toBeVisible();
   await expect(page.getByText("완료", { exact: true })).toBeVisible();
   await expect(page.getByText("차단", { exact: true })).toBeVisible();
@@ -1111,8 +1115,8 @@ test("사유 없이 사전규격 추적 상태를 보낼 수 없다", async ({ p
   await page.goto("/pre-specs/992");
 
   // 저장 버튼과 비활성 사유는 헤더 아래 추적 결정 카드가 함께 소유한다.
-  await expect(page.getByRole("button", { name: "추적 시작", exact: true })).toBeDisabled();
-  await expect(page.locator("#pre-spec-tracking-save-disabled")).toContainText("선택 사유와 담당자 이름을 입력하면 추적 결정을 기록할 수 있습니다.");
+  await expect(page.getByRole("button", { name: "추적 시작하기", exact: true })).toBeDisabled();
+  await expect(page.locator("#pre-spec-tracking-save-disabled")).toContainText("선택 사유와 담당자 이름을 입력하면 추적 결정을 기록할 수 있어요.");
   expect(trace.trackingPatches).toEqual([]);
 });
 
@@ -1121,7 +1125,7 @@ test("추적 결정은 추적만 정한다는 문구이고 심층 검토 실행 
   await mockPreSpecs(page);
   await page.goto("/pre-specs/992");
   const card = page.locator("#ps-tracking");
-  await expect(card.getByRole("button", { name: "추적 시작", exact: true })).toBeVisible();
+  await expect(card.getByRole("button", { name: "추적 시작하기", exact: true })).toBeVisible();
   await expect(card).not.toContainText("심층 검토");
   await expect(page.getByText("추적 시작하고 심층 검토", { exact: false })).toHaveCount(0);
   await expect(page.getByText("심층 검토 실행 승인", { exact: false })).toHaveCount(0);
@@ -1137,14 +1141,14 @@ test("사전규격 추적 선택에 성공하면 사람 결정 상태가 갱신�
   await expect(page.getByRole("button", { name: "계속 추적", exact: true })).toHaveCount(0);
   await fillRecordReason(page, "연계 범위를 확인한 뒤 계속 검토하기로 함");
   await page.getByRole("textbox", { name: "담당자 이름 (필수)" }).fill("홍길동");
-  await page.getByRole("button", { name: "추적 시작", exact: true }).click();
+  await page.getByRole("button", { name: "추적 시작하기", exact: true }).click();
 
   await expect.poll(() => trace.trackingPatches).toEqual([{
     opportunityId: 78,
     trackingStatus: "계속 추적",
     reason: "연계 범위를 확인한 뒤 계속 검토하기로 함",
   }]);
-  await expect(page.getByText("추적 상태를 계속 추적(으)로 기록했습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("추적 상태를 계속 추적(으)로 기록했어요.", { exact: true })).toBeVisible();
   // The mock API returns this audit name; the view must use the response, not the draft.
   await expect(page.locator(".ps-record-saved-decision")).toContainText("테스트 담당자");
 });
@@ -1155,9 +1159,9 @@ test("사업기회가 없으면 추적 결정을 기록할 수 없는 이유를 
 
   // 추적 상태 글자는 화면에 한 번만 나온다(spec §4) — ① 머리 카드의 칩이 그 자리다.
   await expect(page.locator(".pre-spec-detail-header")).toContainText("추적 결정 · 사업기회 미연결");
-  await expect(page.locator(".mutation-feedback-warning")).toContainText("아직 사업기회에 연결되지 않아 추적 상태를 결정할 수 없습니다.");
+  await expect(page.locator(".mutation-feedback-warning")).toContainText("아직 사업기회에 연결되지 않아 추적 상태를 결정할 수 없어요.");
   await expect(page.getByRole("button", { name: "계속 추적", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "추적 시작", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "추적 시작하기", exact: true })).toBeDisabled();
   await expect(page.locator("#pre-spec-tracking-save-disabled")).toContainText("아직 사업기회에 연결되지 않아");
 });
 
@@ -1183,19 +1187,19 @@ test("사전규격 상세는 헤더 아래 추적 결정 카드에서 사유·�
   await page.goto("/pre-specs/992");
   const header = page.locator('header[aria-label="사전규격 상세 정보"]');
   const decision = page.getByRole('complementary', { name: '추적 결정', exact: true });
-  const saveButton = decision.getByRole('button', { name: '추적 시작', exact: true });
+  const saveButton = decision.getByRole('button', { name: '추적 시작하기', exact: true });
   // 되돌릴 수 없는 입력·저장 조작을 헤더에 올리지 않는다(헤더에 남는 것은 번호 복사·원문뿐).
   await expect(header.getByRole('button', { name: /추적|저장/ })).toHaveCount(0);
   await expect(header.locator('textarea, input, [role="combobox"]')).toHaveCount(0);
   await expect(saveButton).toHaveCount(1);
-  await expect(page.getByRole('button', { name: '추적 시작', exact: true })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: '추적 시작하기', exact: true })).toHaveCount(1);
   await expect(decision.getByRole('combobox', { name: '선택 사유' })).toBeVisible();
   await expect(decision.getByRole('textbox', { name: '담당자 이름 (필수)' })).toBeVisible();
   await expect(page.locator('.detail-skeleton-main').getByRole('textbox', { name: '선택 사유 직접 입력 (필수)' })).toHaveCount(0);
   await fillRecordReason(page, '후속 입찰공고까지 확인하기로 함');
   await decision.getByRole('textbox', { name: '담당자 이름 (필수)' }).fill('홍길동');
   await saveButton.click();
-  await expect(decision.getByRole('heading', { name: '추적 상태를 계속 추적(으)로 기록했습니다.' })).toBeVisible();
+  await expect(decision.getByRole('heading', { name: '추적 상태를 계속 추적(으)로 기록했어요.' })).toBeVisible();
   expect(trace.trackingPatches).toEqual([{
     opportunityId: 78,
     trackingStatus: "계속 추적",
@@ -1209,7 +1213,7 @@ test("사전규격 상세는 헤더 아래 추적 결정 카드에서 사유·�
 test("사업기회 미연결 사전규격은 비활성 추적 결정 액션과 사유가 스크롤 없이 함께 보인다", async ({ page }) => {
   await mockPreSpecs(page);
   await page.goto("/pre-specs/993");
-  const saveButton = page.getByRole("button", { name: "추적 시작", exact: true });
+  const saveButton = page.getByRole("button", { name: "추적 시작하기", exact: true });
   await expect(saveButton).toBeInViewport();
   await expect(saveButton).toBeDisabled();
   await expect(page.locator("#pre-spec-tracking-save-disabled")).toBeInViewport();
@@ -1243,7 +1247,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     expect(geometry.overflow).toBe(0);
     const decision = page.getByRole('complementary', { name: '추적 결정', exact: true });
     await expect(decision.getByRole('combobox', { name: '선택 사유' })).toBeInViewport();
-    await expect(decision.getByRole('button', { name: '추적 시작', exact: true })).toBeInViewport();
+    await expect(decision.getByRole('button', { name: '추적 시작하기', exact: true })).toBeInViewport();
     const alignment = await page.evaluate(() => {
       const top = (sel: string) => document.querySelector(sel)!.getBoundingClientRect().top;
       const save = document.querySelector('.ps-record-tracking-card .pre-spec-tracking-action .astryx-button')!.getBoundingClientRect();
@@ -1263,19 +1267,19 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     await expect(page.locator('.ps-record-agency')).toContainText('해솔시청');
     await captureRecord(page, `long-${viewport.width}`);
     // 구역 이동 nav는 새 배치에 없다. 본문은 한 흐름으로 읽고 결정 카드는 헤더 바로 아래에 있다.
-    await expect(decision.getByRole('button', { name: '추적 시작', exact: true })).toBeInViewport();
+    await expect(decision.getByRole('button', { name: '추적 시작하기', exact: true })).toBeInViewport();
     await fillRecordReason(page, '세부 과업과 연계 범위를 확인하고 계속 추적');
     await decision.getByRole('textbox', { name: '담당자 이름 (필수)' }).fill('검토 담당자');
-    await expect(decision.getByRole('button', { name: '추적 시작', exact: true })).toBeEnabled();
+    await expect(decision.getByRole('button', { name: '추적 시작하기', exact: true })).toBeEnabled();
     await captureRecord(page, `documents-${viewport.width}`);
     // 처리 이력과 실행 정보는 접힌 `기술 정보` 하나에 모여 있다가 펼칠 수 있다.
     await page.getByRole('button', { name: '기술 정보 · 주장 검증 진단, 고정 입력과 식별 해시, 회사 적합성 실행 정보' }).click();
     await captureRecord(page, `history-${viewport.width}`);
     await expect(decision.getByRole('textbox', { name: '선택 사유 직접 입력 (필수)' })).toHaveValue('세부 과업과 연계 범위를 확인하고 계속 추적');
     expect(trace.trackingPatches).toEqual([]);
-    await decision.getByRole('button', { name: '추적 시작', exact: true }).click();
+    await decision.getByRole('button', { name: '추적 시작하기', exact: true }).click();
     await expect.poll(() => trace.trackingPatches.length).toBe(1);
-    await expect(decision.getByRole('heading', { name: '추적 상태를 계속 추적(으)로 기록했습니다.' })).toBeVisible();
+    await expect(decision.getByRole('heading', { name: '추적 상태를 계속 추적(으)로 기록했어요.' })).toBeVisible();
     await expect(decision.getByRole('combobox', { name: '선택 사유' })).toHaveCount(0);
     await page.getByRole('link', { name: '목록으로 돌아가기' }).click();
     expect(new URL(page.url()).searchParams.get('sw_only')).toBe('false');
@@ -1287,7 +1291,7 @@ test('사전규격 ERP 상세: 요약 조회 실패를 판정 없음·미선택�
   await mockPreSpecs(page);
   await page.route('**/api/pre-specs?notice_pk=991', route => route.fulfill({ status: 503, json: { detail: 'unavailable' } }));
   await page.goto('/pre-specs/991');
-  await expect(page.getByRole('complementary', { name: '추적 결정', exact: true })).toContainText('사업기회 연결 정보를 확인할 수 없습니다.', { timeout: 15000 });
+  await expect(page.getByRole('complementary', { name: '추적 결정', exact: true })).toContainText('사업기회 연결 정보를 확인할 수 없어요', { timeout: 15000 });
   // 사업기회를 모르므로 참여 판정 열은 판정을 조회하지 않고 "판정 없음 — 추적 후 요청"으로 둔다.
   await expect(page.locator('#ps-conditions')).toContainText('판정 없음 — 추적 후 요청');
   await expect(page.locator('.ps-record-facts')).not.toContainText('판정 없음');
@@ -1331,7 +1335,7 @@ test('공식 번호는 lifecycle fallback과 복사를 지원하고 내부 PK를
   await page.goto('/pre-specs/992');
   await expect(page.locator('.ps-record-number')).toHaveText('R26BD00270001');
   await page.getByRole('button', { name: '번호 복사', exact: true }).click();
-  await expect(page.getByText('사전규격번호를 복사했습니다.', { exact: true })).toBeVisible();
+  await expect(page.getByText('사전규격번호를 복사했어요.', { exact: true })).toBeVisible();
   expect(await page.evaluate(() => (window as Window & { copiedNumber?: string }).copiedNumber)).toBe('R26BD00270001');
   await expect(page.getByRole('button', { name: '번호 복사', exact: true })).toBeFocused();
   await page.route('**/api/notices/992', route => route.fulfill({ json: { ...notice991, id: 992, lifecycle: {}, url: null } }));
@@ -1366,13 +1370,13 @@ test('수집된 원문 URL을 새 탭으로 열고 추적 저장 실패 시 입�
   await page.getByRole('option', { name: '후속 입찰공고 확인', exact: true }).click();
   await page.getByRole('textbox', { name: '담당자 이름 (필수)' }).fill('김기획');
   await page.route('**/api/opportunities/78/tracking-status', route => route.fulfill({ status: 503, json: { detail: 'unavailable' } }));
-  await page.getByRole('button', { name: '추적 시작', exact: true }).click();
+  await page.getByRole('button', { name: '추적 시작하기', exact: true }).click();
   await expect(page.getByRole('complementary', { name: '추적 결정', exact: true }).locator('.mutation-feedback-error')).toBeVisible();
   await expect(page.getByRole('combobox', { name: '선택 사유' })).toContainText('후속 입찰공고 확인');
   await expect(page.getByRole('textbox', { name: '담당자 이름 (필수)' })).toHaveValue('김기획');
   // C-7: 실패 뒤에도 버튼 이름은 그대로이고, 초안이 남았다는 사실은 오류 표시가 말한다.
-  await expect(page.getByRole('complementary', { name: '추적 결정', exact: true }).locator('.mutation-feedback-error')).toContainText('입력한 내용은 그대로 남아 있습니다');
-  await expect(page.getByRole('button', { name: '추적 시작', exact: true })).toBeInViewport();
+  await expect(page.getByRole('complementary', { name: '추적 결정', exact: true }).locator('.mutation-feedback-error')).toContainText('입력한 내용은 그대로 남아 있어요');
+  await expect(page.getByRole('button', { name: '추적 시작하기', exact: true })).toBeInViewport();
   await captureRecord(page, 'save-error-1440');
 });
 
@@ -1542,7 +1546,7 @@ test("발주계획 후보는 요약·대조 방식·기관 일치를 보여 주�
   // 6단 구조를 늘리지 않고 ⑥ 처리 이력 카드 안에 있다.
   await expect(page.locator("#ps-process #ps-record-plan-candidates")).toHaveCount(1);
   await expect(section.getByRole("heading", { name: "발주계획 후보 2건" })).toBeVisible();
-  await expect(section).toContainText("공고명과 기관이 비슷한 발주계획입니다. 같은 사업인지 사람이 확인해야 연결됩니다.");
+  await expect(section).toContainText("공고명과 기관이 비슷한 발주계획이에요. 같은 사업인지 사람이 확인해야 연결돼요.");
 
   const first = section.getByRole("listitem").filter({ hasText: "신규 행정 서비스 통합 구축" });
   await expect(first).toContainText("신규 발주기관 · 발주 예정 2026년 10월 · 예산 1,200,000,000원 · 통합번호 R26DD00001001");
@@ -1570,8 +1574,8 @@ test("발주계획 후보는 요약·대조 방식·기관 일치를 보여 주�
   expect(candidates.decisions[0].headers["x-bidops-actor-name"]).toBe("UTF-8''%ED%99%8D%EA%B8%B8%EB%8F%99");
   await expect(dialog).toHaveCount(0);
   // 결정 응답이 `사람 확인 병합`이므로 수용은 두 사업기회의 병합으로 알린다(CandidateLinkDialog).
-  await expect(page.getByText("후보를 수용해 두 사업기회를 병합했습니다(사람 확인 병합).", { exact: true })).toBeVisible();
-  await expect(section.getByText("발주계획 후보 없음 (자동 대조는 SW사업대상 사전규격에서만 합니다)", { exact: true })).toBeVisible();
+  await expect(page.getByText("후보를 수용해 두 사업기회를 병합했어요(사람 확인 병합).", { exact: true })).toBeVisible();
+  await expect(section.getByText("발주계획 후보 없음 (자동 대조는 SW사업대상 사전규격에서만 해요)", { exact: true })).toBeVisible();
   await expect(section.getByRole("listitem")).toHaveCount(0);
   expect(candidates.candidateGets).toBeGreaterThanOrEqual(2);
   await expect.poll(() => trace.listQueries.filter((query) => query.get("notice_pk") === "992").length).toBeGreaterThan(detailQueriesBefore);
@@ -1584,7 +1588,7 @@ test("발주계획 후보 수용이 병합 충돌이면 대화상자 안에서�
     body: {
       error: {
         code: "candidate_merge_state_conflict",
-        message: "두 사업기회 모두 사람 추적 선택 또는 재검토 신호가 있어 병합할 수 없습니다",
+        message: "두 사업기회 모두 사람 추적 선택 또는 재검토 신호가 있어 병합할 수 없어요",
         details: {
           opportunities: [
             { id: 301, tracking_status: "계속 추적", tracking_selected_by: "김기획", tracking_selected_at: "2026-09-01T00:00:00Z", recheck_signal: false },
@@ -1600,7 +1604,7 @@ test("발주계획 후보 수용이 병합 충돌이면 대화상자 안에서�
   const dialog = await acceptPlanCandidate(page, "신규 행정 서비스 통합 구축");
   const conflict = dialog.locator(".opportunity-merge-conflict");
   // S4(ADR-0068): 같은 상태는 이제 병합되므로 막힘 안내는 상태가 다르거나 신호가 있을 때만 뜬다.
-  await expect(conflict).toContainText("추적 상태가 다르거나 한쪽에 재검토 신호가 있어 병합할 수 없습니다. 한쪽을 미선택으로 되돌린 뒤 다시 수락하십시오.");
+  await expect(conflict).toContainText("추적 상태가 다르거나 한쪽에 재검토 신호가 있어 병합할 수 없어요. 한쪽을 미선택으로 되돌린 뒤 다시 수락해 주세요.");
   const states = conflict.getByRole("list", { name: "병합 대상 사업기회의 추적 상태" }).getByRole("listitem");
   await expect(states).toHaveCount(2);
   await expect(states.nth(0)).toContainText("사업 #301 · 계속 추적");
@@ -1610,10 +1614,10 @@ test("발주계획 후보 수용이 병합 충돌이면 대화상자 안에서�
   await expect(states.nth(1)).toContainText("사업 #078 · 보류");
   await expect(states.nth(1)).toContainText("선택자 · 미확인 · 선택 시각 · 미확인");
   await expect(states.nth(1)).toContainText("재검토 신호 · 있음");
-  await expect(conflict).toContainText("연결 상태는 바뀌지 않았습니다");
+  await expect(conflict).toContainText("연결 상태는 바뀌지 않았어요");
   await expect(dialog.getByLabel("결정 기록자")).toHaveValue("홍길동");
   // 안내는 대화상자 안에 한 번만 있다. 사전규격 구역이 같은 안내를 다시 그리지 않는다.
-  const guidance = page.getByText("추적 상태가 다르거나 한쪽에 재검토 신호가 있어 병합할 수 없습니다", { exact: false });
+  const guidance = page.getByText("추적 상태가 다르거나 한쪽에 재검토 신호가 있어 병합할 수 없어요", { exact: false });
   await expect(guidance).toHaveCount(1);
 
   await dialog.getByRole("button", { name: "취소", exact: true }).click();
@@ -1634,7 +1638,7 @@ test("발주계획 후보가 없으면 없음으로 단정하지 않는 한 줄 
   await page.goto("/pre-specs/992");
 
   const section = page.locator("#ps-record-plan-candidates");
-  await expect(section).toHaveText("발주계획 후보 없음 (자동 대조는 SW사업대상 사전규격에서만 합니다)");
+  await expect(section).toHaveText("발주계획 후보 없음 (자동 대조는 SW사업대상 사전규격에서만 해요)");
   await expect(section.getByRole("heading")).toHaveCount(0);
   await expect(section.getByRole("button")).toHaveCount(0);
   await expect(page.getByText("발주계획 없음", { exact: true })).toHaveCount(0);
@@ -1654,8 +1658,8 @@ test("발주계획 후보 조회가 실패하면 후보 없음 대신 오류를 
 
   const section = page.locator("#ps-record-plan-candidates");
   const alert = section.getByRole("alert");
-  await expect(alert).toContainText("발주계획 후보를 불러오지 못했습니다.");
-  await expect(alert).toContainText("후보가 없다는 뜻이 아닙니다.");
+  await expect(alert).toContainText("발주계획 후보를 불러오지 못했어요");
+  await expect(alert).toContainText("후보가 없다는 뜻이 아니에요.");
   await expect(section).not.toContainText("발주계획 후보 없음");
 
   failing = false;

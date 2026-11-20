@@ -67,8 +67,8 @@ export function ActivityFeed({
       {visible.length === 0 && !problem ? (
         <EmptyState
           compact
-          description={hasMore ? "아래 더 보기로 이전 활동을 불러올 수 있습니다." : undefined}
-          title={items.length === 0 ? "아직 기록된 활동이 없습니다" : "이 필터에 해당하는 활동이 없습니다"}
+          description={hasMore ? "아래 더 보기로 이전 활동을 불러올 수 있어요." : undefined}
+          title={items.length === 0 ? "아직 기록된 활동이 없어요" : "이 필터에 해당하는 활동이 없어요"}
         />
       ) : null}
       {visible.length > 0 ? (

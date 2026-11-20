@@ -56,11 +56,11 @@ export function ScheduleSettingsDialog({ open, onClose, settings, busy, saveErro
   const save = async () => {
     const trimmedActor = actor.trim();
     if (!trimmedActor) {
-      setValidationError("설정을 저장하려면 담당자 이름을 입력하십시오.");
+      setValidationError("설정을 저장하려면 담당자 이름을 입력해 주세요.");
       return;
     }
     if (!dailyTime || !weeklyTime) {
-      setValidationError("일간·주간 실행 시각을 모두 입력하십시오.");
+      setValidationError("일간·주간 실행 시각을 모두 입력해 주세요.");
       return;
     }
     setValidationError(null);
@@ -80,8 +80,8 @@ export function ScheduleSettingsDialog({ open, onClose, settings, busy, saveErro
         <DialogHeader title="스케줄 수정" onOpenChange={(next) => { if (!next && !busy) onClose(); }} />
         <div className="rs-dialog-scroll">
           <Caption>
-            시간대는 <span className="rs-mono">{settings.timezone}</span>로 고정입니다. 모든 날짜 경계와 예약
-            시각이 이 시간대를 따릅니다.
+            시간대는 <span className="rs-mono">{settings.timezone}</span>로 고정이에요. 모든 날짜 경계와 예약
+            시각이 이 시간대를 따라요.
           </Caption>
           <div className="rs-form-grid">
             <label className="rs-field" htmlFor="rs-daily-time">
@@ -94,7 +94,7 @@ export function ScheduleSettingsDialog({ open, onClose, settings, busy, saveErro
                 disabled={busy}
                 required
               />
-              <small>전일 단일 날짜를 수집하고 판정합니다.</small>
+              <small>전일 단일 날짜를 수집하고 판정해요.</small>
             </label>
             <label className="rs-field" htmlFor="rs-weekly-time">
               <span>주간 실행 시각 · 월요일 <em>필수</em></span>
@@ -106,7 +106,7 @@ export function ScheduleSettingsDialog({ open, onClose, settings, busy, saveErro
                 disabled={busy}
                 required
               />
-              <small>월요일부터 일요일까지의 누계 보고를 만듭니다.</small>
+              <small>월요일부터 일요일까지의 누계 보고를 만들어요.</small>
             </label>
           </div>
           <label className="rs-check-field">
@@ -118,7 +118,7 @@ export function ScheduleSettingsDialog({ open, onClose, settings, busy, saveErro
             />
             <span>
               <Text as="span" weight="semibold">사전규격 수집</Text>
-              <Caption as="span">정기 수집 범위에 사전규격을 포함합니다.</Caption>
+              <Caption as="span">정기 수집 범위에 사전규격을 포함해요.</Caption>
             </span>
           </label>
           <label className="rs-field" htmlFor="rs-settings-actor">
@@ -133,8 +133,8 @@ export function ScheduleSettingsDialog({ open, onClose, settings, busy, saveErro
               required
             />
           </label>
-          <Note title="설정만 저장합니다">
-            예약 시각을 바꿔도 상시 운영은 켜지지 않습니다. 환경 허용과 승인 조합 확인은 그대로 남습니다.
+          <Note title="설정만 저장해요">
+            예약 시각을 바꿔도 상시 운영은 켜지지 않아요. 환경 허용과 승인 조합 확인은 그대로 남아요.
           </Note>
           {validationError ? <Text className="rs-dialog-error" as="p" role="alert">{validationError}</Text> : null}
           {saveError ? <Text className="rs-dialog-error" as="p" role="alert">{saveError}</Text> : null}
