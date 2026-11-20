@@ -39,6 +39,7 @@ bidops/
 │   ├── 0917_opportunity-tracking/   사업 추적 연결·선별 적재·Go/No-Go 분리 정본(2026-09-17 승인, intent·spec·plan)
 │   ├── 0918_daily-operation/       매일 1일치 수집·판정 운영 고도화 정본(2026-09-18 승인, 2026-09-19 main 병합·운영 배포·C-2 v4 게이트 통과와 활성화, 사람 결정 D-a~D-e 값은 plan.md §결정 표, intent·spec·plan)
 │   ├── 1118_launch-hardening/      실사용 전 설계 고도화안(2026-11-18, 범위·순서·승인 경계·진행 기록. 계획이며 품질·운영 활성화 근거가 아님)
+│   ├── 1119_kstyle-shell/          관리 화면 셸·화면 재구성 정본 시안(2026-11-19 승인, ADR-0076, mockups·shots)
 │   ├── deep-review-v2/               첨부문서 분석 설계(결정적 부분만 구현, ADR-0051)와 Luna 시안 검증 계획(보류)
 │   ├── 0910_rhwp-document-pipeline/       rhwp 네이티브 변환 파이프라인 작업 정본(ADR·Requirements·Design·Spec·Plan, 2026-09-10 시작)
 │   ├── reference/                    회사 프로필·실적 근거자료
@@ -60,7 +61,7 @@ bidops/
 
 `docs/validation-runs`는 시점별 실행 증거이며 현재 코드와 위 핵심 문서의 계약을 대체하지 않는다. 완료·미채택 계획, 과거 리뷰·목업, 인수인계 문서는 저장소에 보관하지 않으며 필요하면 git 이력에서 찾는다. 과거의 `R-xx`·`A-xx`·phase·T-번호 체계는 종료됐고 새 작업에 다시 쓰지 않는다. 외부 의존성은 나라장터 OpenAPI, PostgreSQL 17, MinIO, ClamAV, Mac C-2·개요용 LiteLLM/Ollama, RL 분석용 codex-exec Luna, 기존 용도별 OpenAI-compatible 모델 경로, Slack, 문서 변환기, 승인 프로필 기준선 검증용 Git, Astryx 디자인 시스템(`@astryxdesign/core@0.5.2`, `@astryxdesign/cli@0.5.2`, 테마 아이콘 레지스트리가 요구하는 `lucide-react@1.39.0`)이다.
 Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-0040에 따라 이 저장소에 적용하지 않으며 레이아웃은 프로젝트가 소유한다.
-화면의 색은 프로젝트 소유 테마 `bidops`가 정본이다. 초기 무드보드에서 출발했고 2026-10-16 RL 시안 v26의 라이트 테마·셸로 개정됐다(ADR-0048·ADR-0073). 화면은 테마 토큰만 읽고 `:root`나 화면 CSS에서 `--color-*`를 재정의하지 않는다. 의미색도 현재 승인 테마와 대비 게이트를 따른다.
+화면의 색은 프로젝트 소유 테마 `bidops`가 정본이다. 초기 무드보드에서 출발했고 2026-10-16 RL 시안 v26의 라이트 테마·셸로, 2026-11-19 최종 시안(`docs/1119_kstyle-shell/`)의 바탕 위 흰 패널 셸·패널 헤더·따뜻한 회색 중립색으로 개정됐다(ADR-0048·ADR-0073·ADR-0076). 화면은 테마 토큰만 읽고 `:root`나 화면 CSS에서 `--color-*`를 재정의하지 않는다. 의미색도 현재 승인 테마와 대비 게이트를 따른다.
 
 ## RL 기능 문서와 실행 큐
 
