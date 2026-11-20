@@ -202,7 +202,7 @@ test("T3: 쪽 이동은 limit/offset을 서버로 보내고 주소에 남기며 
   await expect(pager(page)).toContainText("3–4 / 4");
   await expect(pager(page).getByRole("button", { name: "다음" })).toBeDisabled();
   // 다른 쪽에 있는 선택은 지우지 않고 그 사실을 알린다.
-  await expect(aside(page)).toContainText("선택했던 notice 7102가 이 쪽 목록에 없습니다.");
+  await expect(aside(page)).toContainText("선택했던 notice 7102가 이 쪽 목록에 없어요.");
 
   await pager(page).getByRole("button", { name: "이전" }).click();
   await expect.poll(() => urlParam(page, "offset")).toBeNull();
@@ -217,7 +217,7 @@ test("T3: 쪽 이동은 limit/offset을 서버로 보내고 주소에 남기며 
 
   // 범위를 넘은 offset은 빈 목록을 성공처럼 그리지 않고 첫 쪽으로 돌아가는 길을 준다.
   await page.goto(`${listPath}?offset=40`);
-  await expect(page.getByText("이 쪽에 표시할 항목이 없습니다.")).toBeVisible();
+  await expect(page.getByText("이 쪽에 표시할 항목이 없어요")).toBeVisible();
   await expect(table(page)).toHaveCount(0);
   await page.getByRole("button", { name: "첫 쪽으로" }).click();
   await expect(rows(page)).toHaveCount(4);
@@ -254,7 +254,7 @@ test("T3: 의미 필터가 바뀌면 offset과 회사별 선택이 초기화되�
   await expect.poll(() => rowIds(page)).toEqual(["7103"]);
   // 선택이 비워졌다: 화면·회사별 저장소 모두.
   await expect(rows(page).locator('button.cw-row-select[aria-pressed="true"]')).toHaveCount(0);
-  await expect(aside(page)).toContainText("목록에서 사전규격을 고르십시오.");
+  await expect(aside(page)).toContainText("목록에서 사전규격을 골라 주세요.");
   await expect.poll(async () => {
     const state = await page.evaluate((key) => JSON.parse(window.sessionStorage.getItem(key) ?? "null"), selectionKey);
     return state === null ? "missing" : state.activeId;
@@ -268,8 +268,8 @@ test("T3: 의미 필터가 바뀌면 offset과 회사별 선택이 초기화되�
 test("T3: 조건에 맞는 항목이 없는 것과 목록이 비어 있는 것을 다르게 안내한다", async ({ page }) => {
   await installMocks(page);
   await page.goto(`${listPath}?fit=matched&tracking_status=종료`);
-  await expect(page.getByText("조건에 맞는 사전규격이 없습니다.")).toBeVisible();
-  await expect(page.getByText("판정 결과가 없다는 뜻이 아닙니다", { exact: false })).toBeVisible();
+  await expect(page.getByText("조건에 맞는 사전규격이 없어요")).toBeVisible();
+  await expect(page.getByText("판정 결과가 없다는 뜻이 아니에요", { exact: false })).toBeVisible();
   await expect(table(page)).toHaveCount(0);
   await expect(pager(page)).toContainText("전체 0건");
   await page.locator(".empty-state").getByRole("button", { name: "필터 초기화" }).click();
@@ -290,9 +290,9 @@ test("목록 오류는 빈 목록이 아니라 오류로 보이고 다시 시도
     await route.fallback();
   });
   await page.goto(listPath);
-  await expect(page.getByRole("alert").filter({ hasText: "회사 사전규격을 불러오지 못했습니다." })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "회사 사전규격을 불러오지 못했어요" })).toBeVisible();
   await expect(table(page)).toHaveCount(0);
-  await expect(page.getByText("이 회사에 표시할 사전규격이 없습니다.")).toHaveCount(0);
+  await expect(page.getByText("이 회사에 표시할 사전규격이 없어요.")).toHaveCount(0);
   await expect(pager(page)).toHaveCount(0);
   await page.getByRole("button", { name: "다시 시도" }).click();
   await expect(rows(page)).toHaveCount(4);
@@ -308,7 +308,7 @@ test("T6: 조건을 바꾼 직후에는 이전 조건의 행을 새 결과처럼
     await route.fallback();
   });
   await fitSelect(page).selectOption("matched");
-  await expect(page.getByRole("status").filter({ hasText: "이 회사의 사전규격을 불러오는 중입니다." })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "이 회사의 사전규격을 불러오는 중이에요." })).toBeVisible();
   await expect(table(page)).toHaveCount(0);
   await expect(pager(page)).toHaveCount(0);
   held.release();
@@ -337,7 +337,7 @@ test("T3: 핏 판정 이력은 최신순이고 완료·실패·이전 입력이 
   await expect(latest).not.toContainText("현재 입력 기준 아님");
   await expect(latest.locator("[data-attempt-summary]")).toHaveText("행정업무 통합 구축 역량과 직접 연결됩니다.");
   await expect(latest).toContainText("참조 실행 · 품질 미측정");
-  await expect(latest).toContainText("참조 실행이며 품질을 측정하지 않았습니다.");
+  await expect(latest).toContainText("참조 실행이며 품질을 측정하지 않았어요.");
   await expect(latest).not.toContainText("측정 통과");
   await expect(latest.locator("[data-input-sha]")).toHaveAttribute("title", /^[0-9a-f]{64}$/);
   await expect(latest.locator("[data-input-sha]")).toHaveText(/^[0-9a-f]{12}$/);
@@ -397,7 +397,7 @@ test("T3: 사유마다 서버가 준 그래프 경로를 그대로 보여 주고
   await expect(gapPath).toHaveAttribute("data-path-index", "2");
   await expect(gapPath).toHaveAttribute("data-path-relation", "unmapped");
   await expect(gapPath).toContainText("경로 2 · 연결 없음");
-  await expect(gapPath).toContainText("서버가 연결된 노드를 주지 않았습니다.");
+  await expect(gapPath).toContainText("서버가 연결된 노드를 주지 않았어요.");
   await expect(gapPath.locator("[data-path-edges]")).toHaveCount(0);
   await expect(latest.getByRole("list", { name: "확인이 필요한 항목" })).toContainText("정보보호 관리체계 인증 보유 여부 확인");
 
@@ -412,7 +412,7 @@ test("T3: 사유마다 서버가 준 그래프 경로를 그대로 보여 주고
   const outOfRange = attempts(page).nth(0).locator("li.cw-reason").nth(0);
   await expect(outOfRange.locator("li.cw-path")).toHaveCount(1);
   await expect(outOfRange.locator("li.cw-path")).toHaveClass(/cw-path-missing/);
-  await expect(outOfRange.locator("li.cw-path")).toContainText("서버가 가리킨 경로 7번이 이 실행의 경로 목록 범위 밖입니다.");
+  await expect(outOfRange.locator("li.cw-path")).toContainText("서버가 가리킨 경로 7번이 이 실행의 경로 목록 범위 밖이에요.");
   await expect(outOfRange.locator("li.cw-path")).not.toContainText("capability.public_admin");
 });
 
@@ -446,7 +446,7 @@ test("T3: unknown·대기·사람 검토 필요·실패는 판정으로 바뀌�
   await expect(attempts(page).first()).toHaveAttribute("data-attempt-status", "queued");
   await expect(attempts(page).first()).toContainText("실행 대기");
   await expect(attempts(page).first()).toContainText("판정 없음");
-  await expect(attempts(page).first()).toContainText("아직 끝나지 않은 실행입니다. 판정이 아닙니다.");
+  await expect(attempts(page).first()).toContainText("아직 끝나지 않은 실행이에요. 판정이 아니에요.");
   await expect(attempts(page).first().getByRole("list", { name: "판정 사유" })).toHaveCount(0);
 
   // 사람 검토 필요
@@ -454,12 +454,12 @@ test("T3: unknown·대기·사람 검토 필요·실패는 판정으로 바뀌�
   await expect(attempts(page).first()).toHaveAttribute("data-attempt-status", "needs_human_review");
   await expect(attempts(page).first()).toContainText("실행 사람 검토 필요");
   await expect(attempts(page).first()).toContainText("판정 없음");
-  await expect(attempts(page).first()).toContainText("판정으로 읽지 않습니다");
+  await expect(attempts(page).first()).toContainText("판정으로 읽지 않아요");
 
   // 기록 없음은 불일치가 아니다.
   await page.goto(detailPath("demo-public-si", 7104));
-  await expect(page.getByTestId("company-fit-empty")).toContainText("핏 실행 기록이 없습니다.");
-  await expect(page.getByTestId("company-fit-empty")).toContainText("불일치가 아닙니다");
+  await expect(page.getByTestId("company-fit-empty")).toContainText("핏 실행 기록이 없어요.");
+  await expect(page.getByTestId("company-fit-empty")).toContainText("불일치가 아니에요");
   await expect(attempts(page)).toHaveCount(0);
 });
 
@@ -467,7 +467,7 @@ test("T5 일부: 회사 핏은 CLI 전용이라 생성·승인 화면이 없고,
   await installMocks(page);
   await page.goto(detailPath("demo-public-si", 7101));
   await expect(attempts(page)).toHaveCount(3);
-  await expect(page.getByTestId("company-fit-cli-note")).toContainText("회사 핏은 CLI로만 실행합니다.");
+  await expect(page.getByTestId("company-fit-cli-note")).toContainText("회사 핏은 CLI로만 실행해요.");
   await expect(page.getByTestId("company-fit-cli-note")).toContainText("만들거나 승인하지 않고");
   await expect(page.getByTestId("company-fit").getByRole("button")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /핏.*(실행|생성|승인)/ })).toHaveCount(0);
@@ -492,7 +492,7 @@ test("핏 판정 이력 오류는 빈 이력이 아니라 오류로 보이고 �
   });
   await page.goto(detailPath("demo-public-si", 7101));
   const fit = page.getByTestId("company-fit");
-  await expect(fit.getByRole("alert")).toContainText("핏 판정 이력을 불러오지 못했습니다.");
+  await expect(fit.getByRole("alert")).toContainText("핏 판정 이력을 불러오지 못했어요");
   await expect(fit.getByTestId("company-fit-empty")).toHaveCount(0);
   await expect(attempts(page)).toHaveCount(0);
   // 오류가 나도 상세 본문(제목·추적)은 그대로 쓸 수 있다.

@@ -96,7 +96,7 @@ export function isBasisStale(basisDate: string, now: number): boolean {
 }
 
 /** 기준일 규칙을 사람 말로(줄의 보조 글). 일정이 있다고 말하지 않는다. */
-export const BASIS_RULE_TEXT = "정오가 지나면 어제 기준일, 정오 전에는 그저께 기준일까지 수집돼 있어야 정상으로 봅니다. 오늘 기준일은 아직 수집 전일 수 있습니다.";
+export const BASIS_RULE_TEXT = "정오가 지나면 어제 기준일, 정오 전에는 그저께 기준일까지 수집돼 있어야 정상으로 봐요. 오늘 기준일은 아직 수집 전일 수 있어요.";
 
 function dayIndex(isoDate: string): number {
   return Date.UTC(Number(isoDate.slice(0, 4)), Number(isoDate.slice(5, 7)) - 1, Number(isoDate.slice(8, 10))) / 86_400_000;

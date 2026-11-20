@@ -41,10 +41,10 @@ const EMPTY_JSON: Record<JsonField, string> = {
 };
 
 function safeError(error: unknown): string {
-  if (!(error instanceof ApiError)) return "새 정책 버전을 만들지 못했습니다.";
-  if (error.status === 409) return "같은 정책 버전이 이미 있거나 상태가 충돌했습니다. 새 버전명을 사용하십시오.";
-  if (error.status === 422) return "정책 본문과 필수 필드를 확인하십시오.";
-  return error.status > 0 ? `정책 생성에 실패했습니다 (${error.status}).` : "정책 생성에 실패했습니다.";
+  if (!(error instanceof ApiError)) return "새 정책 버전을 만들지 못했어요.";
+  if (error.status === 409) return "같은 정책 버전이 이미 있거나 상태가 충돌했어요. 새 버전명을 사용해 주세요.";
+  if (error.status === 422) return "정책 본문과 필수 필드를 확인해 주세요.";
+  return error.status > 0 ? `정책 생성에 실패했어요 (${error.status}).` : "정책 생성에 실패했어요.";
 }
 
 function parseObject(raw: string, label: string): RuntimeJsonObject {
@@ -52,9 +52,9 @@ function parseObject(raw: string, label: string): RuntimeJsonObject {
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new Error(`${label}의 JSON 문법이 올바르지 않습니다.`);
+    throw new Error(`${label}의 JSON 문법이 올바르지 않아요.`);
   }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error(`${label}은(는) JSON object여야 합니다.`);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error(`${label}은(는) JSON object여야 해요.`);
   return parsed as RuntimeJsonObject;
 }
 
@@ -87,7 +87,7 @@ export function PolicyCreateDialog({ open, onClose, onCreated }: {
   function submit() {
     if (submitting) return;
     if (!policyVersion.trim() || !promptVersion.trim() || !createdBy.trim()) {
-      setError("정책 버전, 프롬프트 버전, 생성 담당자를 입력하십시오.");
+      setError("정책 버전, 프롬프트 버전, 생성 담당자를 입력해 주세요.");
       return;
     }
     let parsed: Record<JsonField, RuntimeJsonObject>;
@@ -96,7 +96,7 @@ export function PolicyCreateDialog({ open, onClose, onCreated }: {
         (Object.keys(JSON_FIELDS) as JsonField[]).map((field) => [field, parseObject(jsonFields[field], `${JSON_FIELDS[field]} (${field})`)]),
       ) as Record<JsonField, RuntimeJsonObject>;
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "JSON을 검증하지 못했습니다.");
+      setError(reason instanceof Error ? reason.message : "JSON을 검증하지 못했어요.");
       return;
     }
     const payload: PolicyVersionCreateRequest = {
@@ -119,8 +119,8 @@ export function PolicyCreateDialog({ open, onClose, onCreated }: {
 
   return (
     <CriteriaDialog onClose={close} open={open} title="새 정책 버전" width={820}>
-      <Note title="새 초안으로 저장합니다">
-        저장하면 본문과 식별 해시가 고정됩니다. 바꾸려면 새 버전을 만들어야 하며, 후보 지정과 운영 활성화는 별도로 진행합니다.
+      <Note title="새 초안으로 저장해요">
+        저장하면 본문과 식별 해시가 고정돼요. 바꾸려면 새 버전을 만들어야 하며, 후보 지정과 운영 활성화는 별도로 진행해요.
       </Note>
       <div className="crit-dialog-grid">
         <TextInput label="정책 버전 · 필수" onChange={setPolicyVersion} placeholder="예: screening-policy.v1.20260907" value={policyVersion} />
@@ -130,7 +130,7 @@ export function PolicyCreateDialog({ open, onClose, onCreated }: {
         <div className="crit-dialog-json">
           {(Object.keys(JSON_FIELDS) as JsonField[]).map((field) => (
             <TextArea
-              description={`${field} · JSON object만 저장할 수 있습니다. 배열과 문법 오류는 저장되지 않습니다.`}
+              description={`${field} · JSON object만 저장할 수 있어요. 배열과 문법 오류는 저장되지 않아요.`}
               hasSpellCheck={false}
               key={field}
               label={`${JSON_FIELDS[field]} · 필수`}

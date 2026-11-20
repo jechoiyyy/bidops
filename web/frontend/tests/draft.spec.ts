@@ -55,7 +55,7 @@ test("읽기 전용 화면은 저장된 리뷰와 수정하러 갈 자리를 함
   await expect(record.getByRole("heading", { name: "담당자 리뷰" })).toBeVisible();
   await expect(record).toContainText("읽기 전용 이력");
   // 리뷰가 없는 것과 못 읽은 것을 섞지 않는다.
-  await expect(record).toContainText(/저장된 담당자 리뷰가 없습니다|담당자 감사 표식/);
+  await expect(record).toContainText(/저장된 담당자 리뷰가 없어요|담당자 감사 표식/);
   await expect(record).toContainText("사업 추적");
   await expect(record.getByRole("link", { name: "사업 추적에서 이 사업기회 찾기 →" })).toBeVisible();
 });
@@ -99,7 +99,7 @@ test("사업 추적의 추적 상태 변경은 미저장 입력을 지키라고 
   // 조작할 수 없고, 먼저 입력을 유지할지 버릴지 같은 창 안에서 확인한다.
   await page.keyboard.press("Escape");
   await expect(dialog).toContainText("입력한 내용을 버릴까요?");
-  await expect(dialog).toContainText("저장된 추적 상태는 바뀌지 않습니다");
+  await expect(dialog).toContainText("저장된 추적 상태는 바뀌지 않아요");
   await dialog.getByRole("button", { name: "계속 작성", exact: true }).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe("/opportunities");
   await expect(dialog.getByLabel("선택 사유 직접 입력")).toHaveValue("검증용 미저장 메모");

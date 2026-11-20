@@ -5,7 +5,7 @@
 | 문서 상태 | 현재 결정 기준선·통합 색인 |
 | 기준일 | 2026-09-21 |
 | 범위 | 수집, 선별, 사전규격 검토, 심층 검토, 입찰공고 추적, 운영·보안 |
-| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051·0053~0054·0056~0068, ADR-0039~0041·0046~0048·0055(구 `docs/design/ADR.md`, git 이력에서 확인) |
+| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051·0053~0054·0056~0068·0069~0076, ADR-0039~0041·0046~0048·0055(구 `docs/design/ADR.md`, git 이력에서 확인) |
 | 함께 읽을 문서 | [`PRD.md`](PRD.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`contracts.md`](contracts.md) |
 
 이 문서는 여러 시점에 작성된 결정 기록을 현재 관점에서 읽기 위한 통합 ADR이다. 각 결정의
@@ -129,7 +129,7 @@ R-xx/A-xx 작업 지시, 과거 API 경로는 현재 실행 진입점이 아니�
 | [0045](tracking/decisions/0045-backend-module-layout.md) | 백엔드를 core·lifecycle·screening·deep_review 네 모듈과 조립 계층으로 배치 | 채택 | ADR-0043 보강; lifecycle 확장점·`BIDOPS_MODULES`·경계 강제 테스트; REST 표면 불변. core의 모델 transport 이름은 [0050](tracking/decisions/0050-unified-openai-compatible-model-client.md)이 `model_client`로, 확장점은 [0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)가 다섯째로 갱신 |
 | 0046(git 이력 docs/design/ADR.md, 삭제됨) | 사업 추적 중심 정보구조와 추적 결정의 위치 | 채택 | 사이드바 16→7, 검토 대기열→사업 추적; 결정 1은 발주계획의 추적 결정 |
 | 0047(git 이력 docs/design/ADR.md, 삭제됨) | 데스크톱·노트북 전용 지원 폭 | 채택 | 1280~1920px만 지원; 검증 viewport 두 폭 |
-| 0048(git 이력 docs/design/ADR.md, 삭제됨) | 무드보드 기반 색 팔레트와 테마 소유권 | 채택 · 2026-10-16 개정 | 화면은 토큰만 읽고 `--color-*`를 재정의하지 않음(유지). 2026-10-16 ADR-0073 개정으로 라이트 값을 RL 시안 v26 팔레트(흰 바탕·회색 사이드바 `#F8F8F9`·강조 `#1D7B4E`·시안 의미색)로 교체하고 무드보드 파생 남색 사이드바·회녹 canvas·`#587A2B`를 폐기함. 사이드바 면 등은 `brand.css` `--bo-*` 프로젝트 토큰 |
+| 0048(git 이력 docs/design/ADR.md, 삭제됨) | 무드보드 기반 색 팔레트와 테마 소유권 | 채택 · 2026-10-16·2026-11-19 개정 | 화면은 토큰만 읽고 `--color-*`를 재정의하지 않음(유지). 2026-10-16 ADR-0073 개정으로 라이트 값을 RL 시안 v26 팔레트(흰 바탕·회색 사이드바 `#F8F8F9`·강조 `#1D7B4E`·시안 의미색)로 교체하고 무드보드 파생 남색 사이드바·회녹 canvas·`#587A2B`를 폐기함. 사이드바 면 등은 `brand.css` `--bo-*` 프로젝트 토큰 |
 | [0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md) | 사전규격 문서 준비를 등급으로 자동화하고 `SW사업대상=Y`는 심층 검토까지 자동 시작 | 채택 | FR-DOC-07·ADR-0031·0033의 "사람 승인"을 이 규칙으로 대체; 고비용 전량 분석의 승인 경계는 유지 |
 | [0050](tracking/decisions/0050-unified-openai-compatible-model-client.md) | 모델 호출을 하나의 OpenAI 호환 client와 용도별 설정으로 통일 | 채택 | C-1·개요·심층이 `core/model_client`를 씀; 용도별 endpoint·선언 revision·참조 실행 표식; 이전 로컬 provider 경로 제거; MVP 기간에는 §5 "ADR-0050 모델 호출 게이트의 MVP 기간 완화"로 일부 완화됨 |
 | [0051](tracking/decisions/0051-deep-review-v2-deterministic-subset.md) | deep-review-v2의 결정적 부분만 채택 | 채택 — 부분 채택 | segment manifest·요구사항 inventory·검증 연결만 구현. 역할별 모델 분석과 Luna 평가는 보류 |
@@ -354,3 +354,4 @@ ADR-0021은 “운영 제품 전에 동일 모집단과 사람 정답으로 비�
 - [ADR-0074 분석 엔진 통합 개발 기준선](tracking/decisions/0074-deep-engine-development-baseline.md): 분석 코어 패키지·기존 작업 슬롯·mock_reference adapter, Compose 선택 통합. 품질 인수·운영 활성화 제외.
 
 - [ADR-0075 C-2 1단계 절단 300 → 150(정책 v6)](tracking/decisions/0075-c2-stage1-top150.md) (2026-11-18): 절단 값은 동결 policy `stage1.top_k`(허용 `{150, 300}`, binding과 같아야 함)가 정하고 v6 policy·binding을 발행, 파일은 행마다 digest로 같은 디렉터리에서 찾아 v5 active 중 v6 측정·활성화에 재시작이 필요 없음, 누적 목록은 `실패` 실행의 결과 행을 완료 결과보다 낮은 우선순위로 읽음. migration 없음. v6는 적재·게이트 측정·활성화 전이며 ADR-0037은 대체하지 않는다.
+- [ADR-0076 관리 화면 셸을 바탕 위 흰 패널 한 장과 패널 헤더로](tracking/decisions/0076-kstyle-panel-shell.md) (2026-11-19 사용자 승인): 최종 시안 4장(`docs/1119_kstyle-shell/mockups/`)대로 228px 면 없는 사이드바 + 흰 패널(1px·radius 12) + 패널 헤더(화면 이름·문장형 `<h1>`·설명·둥근 칸 탭, `usePageHeader`), 상세는 `‹ 목록` 배치(옛 breadcrumb 폐기). ADR-0048의 라이트 중립색을 따뜻한 회색(본문 `#1B1B1A`·보조 `#5E5D5A`·경계 `#E4E3E0`·fill `#F6F5F3`)으로, purple을 모델 판단 정보색으로, `--shadow-low`를 옅은 선으로 개정. 강조·의미색과 대비 게이트는 그대로. 2026-11-20 후속: 나머지 화면 안쪽·해요체 문구·읽기 전용 수집 기준일 API(`GET /api/daily-collection-status`)·pixel 기준선 갱신. 구현은 브랜치 `worktree-agent-a72925add1c17cfca`(main 병합 전).

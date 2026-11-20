@@ -101,11 +101,11 @@ export function ScreeningRunPanel({
       action={current ? <StatusToken label={screeningStatusLabel(status)} /> : <Caption as="span">실행 기록 없음</Caption>}
     >
       {listLoading ? (
-        <Caption>이 회차의 판정 실행 목록을 불러오는 중입니다. 목록 확인 전에는 새 실행을 시작할 수 없습니다.</Caption>
+        <Caption>이 회차의 판정 실행 목록을 불러오는 중이에요. 목록 확인 전에는 새 실행을 시작할 수 없어요.</Caption>
       ) : null}
       {listError ? (
         <div className="rs-inline-error" role="alert" aria-live="assertive" aria-busy={listRefreshing}>
-          <Text as="span">판정 실행 기록을 불러오지 못했습니다. 상태는 미확인이며 0건이 아닙니다.</Text>
+          <Text as="span">판정 실행 기록을 불러오지 못했어요. 상태는 미확인이며 0건이 아니에요.</Text>
           <Button
             label={listRefreshing ? "다시 확인 중…" : "다시 시도"}
             size="sm"
@@ -116,14 +116,14 @@ export function ScreeningRunPanel({
       ) : null}
 
       {!current && listReady && !listError ? (
-        <Note title="이 회차에는 조회 범위 안의 전량 판정 실행이 없습니다">
-          범위 밖에 실행이 있을 수 있습니다. 없음을 실행 0건이나 성공으로 읽지 않습니다.
+        <Note title="이 회차에는 조회 범위 안의 전량 판정 실행이 없어요">
+          범위 밖에 실행이 있을 수 있어요. 없음을 실행 0건이나 성공으로 읽지 않아요.
         </Note>
       ) : null}
       {/* 실행이 없어 아래 본문이 그려지지 않는 상태에서도 안내는 남는다. */}
       {!current && blockedReason ? (
         <Note title={blockedReason} tone="warning">
-          회차 상태와 판정 실행 상태, 결과 게시와 품질 표식은 각각 별도입니다.
+          회차 상태와 판정 실행 상태, 결과 게시와 품질 표식은 각각 별도예요.
         </Note>
       ) : null}
       {!current && listRefreshWarning ? <Caption>{listRefreshWarning}</Caption> : null}
@@ -173,7 +173,7 @@ export function ScreeningRunPanel({
             * 핵심 건수 뒤로 옮긴다. */}
           {blockedReason ? (
             <Note title={blockedReason} tone="warning">
-              회차 상태와 판정 실행 상태, 결과 게시와 품질 표식은 각각 별도입니다.
+              회차 상태와 판정 실행 상태, 결과 게시와 품질 표식은 각각 별도예요.
             </Note>
           ) : null}
           {listRefreshWarning ? <Caption>{listRefreshWarning}</Caption> : null}
@@ -205,29 +205,29 @@ export function ScreeningRunPanel({
             ]}
           />
 
-          {executionLoading ? <Caption>실행 상세를 갱신하는 중입니다.</Caption> : null}
+          {executionLoading ? <Caption>실행 상세를 갱신하는 중이에요.</Caption> : null}
           {executionError ? (
-            <Caption>실행 상세를 갱신하지 못했습니다. 자동 갱신을 계속 시도하며 표시된 값은 마지막으로 받은 값입니다.</Caption>
+            <Caption>실행 상세를 갱신하지 못했어요. 자동 갱신을 계속 시도하며 표시된 값은 마지막으로 받은 값이에요.</Caption>
           ) : null}
 
           {current.status === "중지 요청" ? (
-            <Note title="중지 요청을 기록했습니다" tone="warning" role="status">
-              현재 모델 호출이 끝난 뒤 다음 공고를 시작하지 않고 중단됩니다. 완료된 결과는 삭제되지 않습니다.
+            <Note title="중지 요청을 기록했어요" tone="warning" role="status">
+              현재 모델 호출이 끝난 뒤 다음 공고를 시작하지 않고 중단돼요. 완료된 결과는 삭제되지 않아요.
             </Note>
           ) : null}
           {current.failure_count > 0 ? (
-            <Note title={`실패 ${current.failure_count.toLocaleString("ko-KR")}건의 확인이 필요합니다`} tone="warning">
-              실패한 항목은 성공 건수와 구분해 기록합니다. 실패 내역 탭에서 확인합니다.
+            <Note title={`실패 ${current.failure_count.toLocaleString("ko-KR")}건의 확인이 필요해요`} tone="warning">
+              실패한 항목은 성공 건수와 구분해 기록해요. 실패 내역 탭에서 확인해요.
             </Note>
           ) : null}
           {current.status === "실패" ? (
-            <Note title="판정 실행이 실패로 종결됐습니다" tone="error" role="note">
-              {present(current.error_summary, "서버가 실패 사유를 남기지 않았습니다.")}
+            <Note title="판정 실행이 실패로 종결됐어요" tone="error" role="note">
+              {present(current.error_summary, "서버가 실패 사유를 남기지 않았어요.")}
             </Note>
           ) : null}
           {current.status === "중단됨" ? (
-            <Note title="실행이 중단되어 미처리 항목이 남았습니다">
-              기존 실행 기록을 보존하며 자동으로 다시 시작하지 않습니다.
+            <Note title="실행이 중단되어 미처리 항목이 남았어요">
+              기존 실행 기록을 보존하며 자동으로 다시 시작하지 않아요.
               {current.stop_requested_by ? ` 중지 요청 담당자 ${current.stop_requested_by}.` : ""}
             </Note>
           ) : null}
@@ -242,7 +242,7 @@ export function ScreeningRunPanel({
                   cells: [
                     "원본 회차",
                     <span className="rs-mono" key="source">{runId}</span>,
-                    "수집·기존 판정을 덮어쓰지 않습니다",
+                    "수집·기존 판정을 덮어쓰지 않아요",
                   ],
                 },
                 {
@@ -252,7 +252,7 @@ export function ScreeningRunPanel({
                     current.published_run_id
                       ? <span className="rs-mono" key="published">{current.published_run_id}</span>
                       : "없음",
-                    current.published_run_id ? "새 판정 결과가 이 회차에 게시됐습니다" : "게시 전이거나 게시하지 않았습니다",
+                    current.published_run_id ? "새 판정 결과가 이 회차에 게시됐어요" : "게시 전이거나 게시하지 않았어요",
                   ],
                 },
               ]}
@@ -284,21 +284,21 @@ export function ScreeningRunPanel({
           </Section>
 
           {detailExecution ? (
-            <Section title="안전한 산출물 링크" action={<Caption as="span">서버가 준 경로만 엽니다</Caption>}>
+            <Section title="안전한 산출물 링크" action={<Caption as="span">서버가 준 경로만 열어요</Caption>}>
               <div className="rs-link-row">
                 {artifactLinks.map(({ key, label }) => detailExecution.result_urls[key]
                   ? <a href={detailExecution.result_urls[key] as string} key={key} target="_blank" rel="noreferrer">{label}</a>
                   : null)}
                 {!artifactLinks.some(({ key }) => Boolean(detailExecution.result_urls[key]))
-                  ? <Caption as="span">사용 가능한 산출물 링크가 없습니다.</Caption>
+                  ? <Caption as="span">사용 가능한 산출물 링크가 없어요.</Caption>
                   : null}
               </div>
             </Section>
           ) : null}
 
           <Caption>
-            처리 완료와 품질 검증은 별도입니다. 이 실행 API는 품질 표식(quality_status)을 제공하지
-            않으므로 화면은 측정 통과·참조 실행·mock 참조 어느 쪽도 주장하지 않습니다.
+            처리 완료와 품질 검증은 별도예요. 이 실행 API는 품질 표식(quality_status)을 제공하지
+            않으므로 화면은 측정 통과·참조 실행·mock 참조 어느 쪽도 주장하지 않아요.
           </Caption>
         </>
       ) : null}

@@ -62,32 +62,32 @@ export function RecheckAcknowledgement({ onDirtyChange, onSaved, onStale, opport
       onDirtyChange(false);
       queryClient.setQueryData(["opportunity", opportunity.id], saved);
       await refresh();
-      onSaved("새 공고 확인을 기록했습니다. 추적 상태는 바뀌지 않았습니다.");
+      onSaved("새 공고 확인을 기록했어요. 추적 상태는 바뀌지 않았어요.");
     },
     onError: async (caught: unknown) => {
       // 오류는 안정 코드로만 가른다(서버 문구로 가르지 않는다).
       if (caught instanceof ApiError && caught.code === "recheck_signal_changed") {
         setProblem(null);
-        onStale("새 공고 근거가 바뀌었습니다. 최신 상태를 다시 읽습니다.");
+        onStale("새 공고 근거가 바뀌었어요. 최신 상태를 다시 읽어요.");
         await refresh();
         return;
       }
       if (caught instanceof ApiError && caught.code === "recheck_signal_absent") {
         setProblem(null);
-        onStale("확인할 재검토 신호가 이미 없습니다. 최신 상태를 다시 읽습니다.");
+        onStale("확인할 재검토 신호가 이미 없어요. 최신 상태를 다시 읽어요.");
         await refresh();
         return;
       }
-      setProblem(describeApiError(caught, "새 공고 확인을 저장하지 못했습니다."));
+      setProblem(describeApiError(caught, "새 공고 확인을 저장하지 못했어요."));
     },
   });
 
   const disabledReason = mutation.isPending
-    ? "새 공고 확인을 저장하고 있습니다."
+    ? "새 공고 확인을 저장하고 있어요."
     : expectedLinkId === null
-      ? "근거 연결 식별자가 없어 확인 처리할 수 없습니다. 최신 상태를 다시 읽어 주십시오."
+      ? "근거 연결 식별자가 없어 확인 처리할 수 없어요. 최신 상태를 다시 읽어 주세요."
       : !actorName.trim()
-        ? "확인 완료를 기록하려면 결정 기록자를 입력하십시오."
+        ? "확인 완료를 기록하려면 결정 기록자를 입력해 주세요."
         : null;
   const disabledId = `${noteId}-disabled`;
 
@@ -99,7 +99,7 @@ export function RecheckAcknowledgement({ onDirtyChange, onSaved, onStale, opport
           id={noteId}
           maxLength={RECHECK_NOTE_MAX}
           onChange={(event) => setNote(event.target.value)}
-          placeholder="확인한 내용을 남길 수 있습니다. 이력에는 메모가 있었는지만 표시됩니다."
+          placeholder="확인한 내용을 남길 수 있어요. 이력에는 메모가 있었는지만 표시돼요."
           rows={2}
           value={note}
         />
@@ -114,7 +114,7 @@ export function RecheckAcknowledgement({ onDirtyChange, onSaved, onStale, opport
       />
       {problem ? (
         <MutationFeedback problem={problem} tone="error">
-          <p>재검토 신호는 그대로 남아 있습니다. 입력한 메모도 그대로입니다.</p>
+          <p>재검토 신호는 그대로 남아 있어요. 입력한 메모도 그대로예요.</p>
         </MutationFeedback>
       ) : null}
       <div className="opportunity-check-actions">
@@ -128,7 +128,7 @@ export function RecheckAcknowledgement({ onDirtyChange, onSaved, onStale, opport
           size="sm"
           variant="primary"
         />
-        <p className="opportunity-caption">신호만 해제합니다. 추적 상태·최종 Go/No-Go는 바뀌지 않습니다.</p>
+        <p className="opportunity-caption">신호만 해제해요. 추적 상태·최종 Go/No-Go는 바뀌지 않아요.</p>
       </div>
       {disabledReason ? <DisabledReason id={disabledId}>{disabledReason}</DisabledReason> : null}
     </div>

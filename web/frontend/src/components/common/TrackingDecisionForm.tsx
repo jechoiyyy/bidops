@@ -38,10 +38,11 @@ export type TrackingDecisionStatus = (typeof TRACKING_DECISION_ORDER)[number];
 
 /**
  * 결정 버튼 이름. `계속 추적`은 아직 아무도 고르지 않은 건(`미선택`·사업기회 없음)에서는
- * `추적 시작`, 이미 다른 결정이 있으면 `계속 추적`이다. `종료`는 어디서나 `추적 종료`다.
+ * `추적 시작하기`(2026-11-19 최종 시안 — 주 버튼은 `~하기`), 이미 다른 결정이 있으면 `계속 추적`이다.
+ * `종료`는 어디서나 `추적 종료`다.
  */
 export function trackingActionLabel(status: TrackingDecisionStatus, current: OpportunityTrackingStatus | null): string {
-  if (status === "계속 추적") return current === null || current === "미선택" ? "추적 시작" : "계속 추적";
+  if (status === "계속 추적") return current === null || current === "미선택" ? "추적 시작하기" : "계속 추적";
   if (status === "종료") return "추적 종료";
   return "보류";
 }
@@ -56,29 +57,29 @@ export function trackingReasonValue(choice: string, custom: string): string {
  * 화면 사정으로 막는 이유는 화면이 이보다 앞에 둔다.
  */
 export function trackingInputBlockedReason(input: { choice: string; custom: string; actorName: string; pending?: boolean }): string | null {
-  if (input.pending) return "추적 결정 저장 요청을 처리하고 있습니다.";
+  if (input.pending) return "추적 결정 저장 요청을 처리하고 있어요.";
   const reason = trackingReasonValue(input.choice, input.custom);
   const actor = input.actorName.trim();
-  if (!reason && !actor) return "선택 사유와 담당자 이름을 입력하면 추적 결정을 기록할 수 있습니다.";
+  if (!reason && !actor) return "선택 사유와 담당자 이름을 입력하면 추적 결정을 기록할 수 있어요.";
   if (!reason) {
     return input.choice === TRACKING_OTHER_REASON
-      ? "선택 사유를 직접 입력하면 추적 결정을 기록할 수 있습니다."
-      : "선택 사유를 고르면 추적 결정을 기록할 수 있습니다.";
+      ? "선택 사유를 직접 입력하면 추적 결정을 기록할 수 있어요."
+      : "선택 사유를 고르면 추적 결정을 기록할 수 있어요.";
   }
-  if (!actor) return "담당자 이름을 입력하면 추적 결정을 기록할 수 있습니다.";
+  if (!actor) return "담당자 이름을 입력하면 추적 결정을 기록할 수 있어요.";
   return null;
 }
 
 /** 저장 성공 문장. 화면은 뒤에 이동 사실 같은 한 문장만 덧붙인다. */
 export function trackingSavedMessage(status: OpportunityTrackingStatus): string {
-  return `추적 상태를 ${status}(으)로 기록했습니다.`;
+  return `추적 상태를 ${status}(으)로 기록했어요.`;
 }
 
 /** 저장 실패의 기본 제목(`describeApiError` fallback). */
-export const TRACKING_SAVE_FAILED = "추적 결정을 저장하지 못했습니다.";
+export const TRACKING_SAVE_FAILED = "추적 결정을 저장하지 못했어요.";
 
 /** 저장 실패 뒤에 붙는 사실. 초안은 남고 서버 상태는 그대로다. */
-export const TRACKING_SAVE_KEPT_NOTE = "입력한 내용은 그대로 남아 있습니다. 저장된 추적 상태는 바뀌지 않았습니다.";
+export const TRACKING_SAVE_KEPT_NOTE = "입력한 내용은 그대로 남아 있어요. 저장된 추적 상태는 바뀌지 않았어요.";
 
 export interface TrackingDecisionInputsProps {
   /** 사유 예시. 화면마다 내용은 다르고 끝에 `기타 · 직접 입력`이 붙는다. */
@@ -100,6 +101,11 @@ export interface TrackingDecisionInputsProps {
   /** 담당자 이름을 이 브라우저(localStorage)에 기억할지. 탭 단위로 따로 기억하는 화면은 끈다. */
   rememberActor?: boolean;
   actorPlaceholder?: string;
+  /**
+   * 담당자 칸 대신 둘 내용. 이름이 이미 정해진 화면(발주계획 — 최종 시안 `이하늘 이름으로 기록해요`)이
+   * 문장과 `이름 바꾸기`를 넣는다. 없으면 입력 칸이다.
+   */
+  actorSlot?: ReactNode;
 }
 
 /**
@@ -121,6 +127,7 @@ export function TrackingDecisionInputs({
   reasonRef,
   rememberActor = true,
   actorPlaceholder = "예: 홍길동",
+  actorSlot,
 }: TrackingDecisionInputsProps) {
   return (
     <>
@@ -155,19 +162,19 @@ export function TrackingDecisionInputs({
           />
         ) : null}
       </div>
-      <ActorField
+      {actorSlot ?? <ActorField
         label={TRACKING_FIELD_LABEL.actor}
         required
         value={actorName}
         onChange={onActorNameChange}
         remember={rememberActor}
         // 세 자리가 같은 짧은 설명을 쓴다. 기억 여부는 자리마다 달라 문장 끝에서만 갈린다.
-        description={rememberActor ? "결정 이력에 남는 이름이며 인증이 아닙니다. 이 브라우저에 기억됩니다." : "결정 이력에 남는 이름이며 인증이 아닙니다."}
+        description={rememberActor ? "결정 이력에 남는 이름이며 인증이 아니에요. 이 브라우저에 기억돼요." : "결정 이력에 남는 이름이며 인증이 아니에요."}
         showRememberNote={false}
         placeholder={actorPlaceholder}
         autoComplete="off"
         disabled={isDisabled}
-      />
+      />}
     </>
   );
 }
@@ -203,6 +210,7 @@ export function TrackingDecisionActions({
           disabledReasonId={disabledReasonId}
           isDisabled={isDisabled}
           label={pendingStatus === status ? "저장 중…" : trackingActionLabel(status, current)}
+          className={`tracking-action is-${status === "계속 추적" ? "continue" : status === "보류" ? "hold" : "end"}`}
           variant={index === 0 ? "primary" : "secondary"}
           onClick={() => onDecide(status)}
         />

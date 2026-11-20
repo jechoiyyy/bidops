@@ -34,8 +34,8 @@ export function qualityStatusVariant(
 export function qualityStatusNote(
   status: QualityStatus | null | undefined,
 ): string {
-  if (status === "measured") return "고정 입력의 품질 게이트를 통과한 실행입니다.";
-  if (status === "mock_reference") return "mock provider로 만든 참조 실행입니다. 운영 결과가 아닙니다.";
-  if (status === "unmeasured_reference") return "참조 실행이며 품질을 측정하지 않았습니다. 운영 완료로 읽지 마십시오.";
-  return "이 기록에는 품질 표식이 없습니다. 없음을 미측정으로 바꾸지 않습니다.";
+  if (status === "measured") return "고정 입력의 품질 게이트를 통과한 실행이에요.";
+  if (status === "mock_reference") return "mock provider로 만든 참조 실행이에요. 운영 결과가 아니에요.";
+  if (status === "unmeasured_reference") return "참조 실행이며 품질을 측정하지 않았어요. 운영 완료로 읽지 마세요.";
+  return "이 기록에는 품질 표식이 없어요. 없음을 미측정으로 바꾸지 않아요.";
 }

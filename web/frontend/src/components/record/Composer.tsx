@@ -70,7 +70,7 @@ export function Composer({
           <ActorField
             aria-invalid={actorMissing || undefined}
             autoComplete="off"
-            description={actorMissing ? "담당자 이름을 입력한 뒤 저장하세요. 기록에 남는 이름이며 인증이 아닙니다." : "기록에 남는 이름이며 인증이 아닙니다."}
+            description={actorMissing ? "담당자 이름을 입력한 뒤 저장하세요. 기록에 남는 이름이며 인증이 아니에요." : "기록에 남는 이름이며 인증이 아니에요."}
             id={COMPOSER_ACTOR_ID}
             label="담당자 이름"
             onChange={onActorChange}
@@ -107,7 +107,7 @@ export function Composer({
       </div>
       {problem ? (
         <MutationFeedback problem={problem} tone="error">
-          <p>저장되지 않았습니다. 입력한 내용은 그대로 남아 있습니다.</p>
+          <p>저장되지 않았어요. 입력한 내용은 그대로 남아 있어요.</p>
         </MutationFeedback>
       ) : null}
     </section>

@@ -16,8 +16,8 @@ import type {
  * 않고 그대로 보여 준다(AGENTS "auto_preparation_reason" 규칙과 같다).
  */
 
-/** 뷰 탭 = `reaction` 필터. 주소의 `?view=` 값이다. */
-export const BRIEFING_TABS = ["pending", "accepted", "ignored", "later"] as const;
+/** 뷰 탭 = `reaction` 필터. 주소의 `?view=` 값이다. 순서는 최종 시안(반응 대기 · 채택 · 나중에 · 무시)이다. */
+export const BRIEFING_TABS = ["pending", "accepted", "later", "ignored"] as const;
 export type BriefingTab = (typeof BRIEFING_TABS)[number];
 
 export const BRIEFING_TAB_LABEL: Record<BriefingTab, string> = {
@@ -132,6 +132,31 @@ export function formatBriefingDate(value: string): string {
   return `${day.getUTCMonth() + 1}월 ${day.getUTCDate()}일 (${WEEKDAY[day.getUTCDay()]})`;
 }
 
+const WEEKDAY_LONG = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"] as const;
+
+/** `2026-10-16` → `10월 16일 금요일`(패널 헤더의 화면 이름 줄). 시각대 계산 없이 날짜 문자열만 쓴다. */
+export function formatBriefingDateLong(value: string): string {
+  if (!isIsoDate(value)) return value;
+  const day = utcDay(value);
+  return `${day.getUTCMonth() + 1}월 ${day.getUTCDate()}일 ${WEEKDAY_LONG[day.getUTCDay()]}`;
+}
+
+/**
+ * 브리핑의 수집 기준일. 계약상 브리핑 날짜 D의 수집 회차는 D-1(달력 하루 전)이다
+ * (`docs/contracts/rl.md` "CLI 출력과 경고 code"). `10월 16일`처럼 월·일만 쓴다.
+ */
+export function collectionBasisLabel(briefingDate: string): string | null {
+  if (!isIsoDate(briefingDate)) return null;
+  const day = utcDay(briefingDate);
+  day.setTime(day.getTime() - DAY_MS);
+  return `${day.getUTCMonth() + 1}월 ${day.getUTCDate()}일`;
+}
+
+/** 오늘(한국 시간) 날짜 `YYYY-MM-DD`. */
+export function kstToday(now: Date = new Date()): string {
+  return new Date(now.getTime() + KST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
 /** 직전 평일(월 → 지난 금). 브리핑은 평일에만 만들어진다. */
 export function previousWeekday(value: string): string | null {
   if (!isIsoDate(value)) return null;
@@ -226,6 +251,39 @@ export function deadlineCell(item: BriefingItemView, now: Date = new Date()): De
   };
 }
 
+/** 행의 마감 묶음(최종 시안): 마감 전 · 마감이 지남 · 마감일 없음(발주 예정·미확인). */
+export type DeadlineGroup = "open" | "closed" | "undated";
+
+export function deadlineGroup(item: BriefingItemView, now: Date = new Date()): DeadlineGroup {
+  const days = deadlineCell(item, now).days;
+  if (days === null) return "undated";
+  return days >= 0 ? "open" : "closed";
+}
+
+/** `10월 29일`. 한국 시간 달력의 월·일이다. */
+export function monthDayLabel(value: string): string | null {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const shifted = kst(parsed);
+  return `${shifted.getUTCMonth() + 1}월 ${shifted.getUTCDate()}일`;
+}
+
+export interface DeadlineText {
+  /** 앞의 굵은 D-n. 마감 전만 있다. */
+  dday: string | null;
+  /** 나머지 글자: `10월 29일 마감`·`10월 23일 의견 마감`·`11월 발주 예정`·`마감 미확인`. */
+  rest: string;
+}
+
+/** 행의 마감 칸 글자(최종 시안: 마감은 표식이 아니라 글자). */
+export function deadlineText(item: BriefingItemView, now: Date = new Date()): DeadlineText {
+  const cell = deadlineCell(item, now);
+  if (cell.days === null || item.deadline_at === null) return { dday: null, rest: cell.main };
+  const date = monthDayLabel(item.deadline_at) ?? item.deadline_at;
+  const kind = item.deadline_kind === "opinion_close" ? "의견 마감" : "마감";
+  return { dday: cell.days >= 0 ? cell.main : null, rest: `${date} ${kind}` };
+}
+
 /** 피크 보조 줄의 마감 문구: `10월 20일 (화) 18:00 입찰 마감` 또는 `11월 발주 예정`. */
 export function deadlineDetail(item: BriefingItemView): string {
   if (item.deadline_kind === "planned_month" || (item.deadline_at === null && item.planned_month !== null)) {
@@ -262,7 +320,7 @@ function subjectParticle(name: string): string | null {
 
 export function reactionRecord(item: BriefingItemView): string {
   if (item.reaction === null) return "";
-  if (!item.reacted_by || !item.reacted_at) return "아직 반응이 없습니다";
+  if (!item.reacted_by || !item.reacted_at) return "아직 반응이 없어요";
   const at = new Date(item.reacted_at);
   const time = Number.isNaN(at.getTime()) ? null : clockTime(at);
   const via = item.reacted_via === "slack" ? "Slack" : null;

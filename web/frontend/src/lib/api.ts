@@ -6,6 +6,7 @@ import type {
   BidDeltaDecisionQueueResponse,
   OpportunityTrackingDecisionsResponse,
   WorkloadResponse,
+  DailyCollectionStatusResponse,
   FeatureFlagsResponse,
   OrderPlanScreeningExecutionCreateRequest,
   OrderPlanScreeningExecutionCreateResponse,
@@ -178,7 +179,7 @@ function actorHeaders(actorName: string): Record<string, string> {
 /** A response was received, but it cannot safely be treated as a bulk receipt. */
 export class OrderPlanBulkTrackingResultUnconfirmedError extends ApiError {
   constructor() {
-    super(0, "일괄 추적 결과를 확인할 수 없습니다.", { code: "result_unconfirmed" });
+    super(0, "일괄 추적 결과를 확인할 수 없어요.", { code: "result_unconfirmed" });
     this.name = "OrderPlanBulkTrackingResultUnconfirmedError";
   }
 }
@@ -287,7 +288,7 @@ function isAwareTimestamp(value: unknown): value is string {
 
 function normalizedPlanIds(ids: readonly number[]): number[] {
   if (!Array.isArray(ids) || ids.length === 0 || ids.some((id) => !positiveId(id))) {
-    throw new ApiError(422, "요청 형식이 올바르지 않습니다.", { code: "invalid_request" });
+    throw new ApiError(422, "요청 형식이 올바르지 않아요.", { code: "invalid_request" });
   }
   return [...new Set(ids)].sort((left, right) => left - right);
 }
@@ -659,8 +660,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "네트워크 요청에 실패했습니다.";
-    throw new ApiError(0, `API에 연결할 수 없습니다. ${message}`);
+    const message = error instanceof Error ? error.message : "네트워크 요청에 실패했어요.";
+    throw new ApiError(0, `API에 연결할 수 없어요. ${message}`);
   }
 
   const contentType = response.headers.get("content-type") ?? "";
@@ -680,7 +681,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       : typeof detail === "object" && detail !== null && "message" in detail
         && typeof detail.message === "string"
         ? detail.message
-        : `API 요청이 실패했습니다 (${response.status}).`;
+        : `API 요청이 실패했어요 (${response.status}).`;
     throw new ApiError(response.status, message, detail,
       typeof body === "object" && body !== null && "request_id" in body ? body.request_id : null);
   }
@@ -707,8 +708,8 @@ async function requestBinary(path: string, accept: string): Promise<Response> {
       headers: { Accept: accept },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "네트워크 요청에 실패했습니다.";
-    throw new ApiError(0, `API에 연결할 수 없습니다. ${message}`);
+    const message = error instanceof Error ? error.message : "네트워크 요청에 실패했어요.";
+    throw new ApiError(0, `API에 연결할 수 없어요. ${message}`);
   }
 
   if (!response.ok) {
@@ -727,7 +728,7 @@ async function requestBinary(path: string, accept: string): Promise<Response> {
       : typeof detail === "object" && detail !== null && "message" in detail
         && typeof detail.message === "string"
         ? detail.message
-        : `API 요청이 실패했습니다 (${response.status}).`;
+        : `API 요청이 실패했어요 (${response.status}).`;
     throw new ApiError(response.status, message, detail,
       typeof body === "object" && body !== null && "request_id" in body ? body.request_id : null);
   }
@@ -895,6 +896,8 @@ export function toPageOverviewResponse(envelope: OverviewEnvelope): PageOverview
 
 export const api = {
   getWorkload: (options?: ReadRequestOptions) => request<WorkloadResponse>("/workload", options),
+  getDailyCollectionStatus: (options?: ReadRequestOptions) =>
+    request<DailyCollectionStatusResponse>("/daily-collection-status", options),
   /** `GET /api/feature-flags` — 환경 스위치의 참·거짓만(contracts.md "기능 스위치"). */
   getFeatureFlags: (options?: ReadRequestOptions) => request<FeatureFlagsResponse>("/feature-flags", options),
 

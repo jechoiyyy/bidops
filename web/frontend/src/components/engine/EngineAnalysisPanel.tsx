@@ -18,17 +18,17 @@ const RUN_LABEL: Record<EngineRun["status"], string> = {
 const active = (run: EngineRun | undefined) => run?.status === "queued" || run?.status === "running";
 
 function EngineProblem({ error }: { error: unknown }) {
-  const problem = describeApiError(error, "엔진 실행 정보를 확인하지 못했습니다.");
+  const problem = describeApiError(error, "엔진 실행 정보를 확인하지 못했어요.");
   return <p role="alert">{problem.title} {problem.detail}{problem.code ? ` (${problem.code})` : ""}</p>;
 }
 
 /** Normal prespec route uses the server's real-company context, never a guessed company. */
 export function CurrentCompanyEnginePanel({ noticeId, bundleId }: { noticeId: number; bundleId: string | null }) {
   const company = useQuery({ queryKey: companyContextQueryKey, queryFn: ({ signal }) => getCompanyContext({ signal }), retry: false });
-  if (company.isPending) return <p role="status">엔진 분석의 회사 기준을 확인하는 중입니다.</p>;
+  if (company.isPending) return <p role="status">엔진 분석의 회사 기준을 확인하는 중이에요.</p>;
   // 운영 회사 근거가 없으면 실행할 수 없다. 실패 문구가 아니라 꺼진 사실로 먼저 말한다(설계고도화안 C-4).
   if (company.isError && describeCompanyApiError(company.error, "").code === "company_not_registered") {
-    return <section className="engine-panel" data-testid="engine-analysis-off"><h3>분석 엔진 · mock 참조</h3><p>{FEATURE_OFF_LABEL} — 운영 회사 근거가 등록되지 않아 엔진 참조 실행을 요청할 수 없습니다.</p></section>;
+    return <section className="engine-panel" data-testid="engine-analysis-off"><h3>분석 엔진 · mock 참조</h3><p>{FEATURE_OFF_LABEL} — 운영 회사 근거가 등록되지 않아 엔진 참조 실행을 요청할 수 없어요.</p></section>;
   }
   if (company.isError) return <section className="engine-panel"><h3>분석 엔진 · mock 참조</h3><EngineProblem error={company.error} /><Button label="회사 기준 다시 조회" onClick={() => { void company.refetch(); }} /></section>;
   if (!company.data) return null;
@@ -90,7 +90,7 @@ export function EngineAnalysisPanel({ companyId, noticeId, bundleId }: { company
   return (
     <section className="engine-panel" aria-label="분석 엔진 mock 참조" data-testid="engine-analysis-panel">
       <h3>분석 엔진 · mock 참조</h3>
-      <p>외부 모델 전송 없이 고정 응답으로 실행 경로를 확인합니다. 품질 합격이나 운영 분석 결과가 아니며, 사람의 추적 결정·최종 입찰 Go/No-Go와 별개입니다.</p>
+      <p>외부 모델 전송 없이 고정 응답으로 실행 경로를 확인해요. 품질 합격이나 운영 분석 결과가 아니며, 사람의 추적 결정·최종 입찰 Go/No-Go와 별개예요.</p>
       <ActorField label="엔진 참조 실행 담당자 이름" value={actor} onChange={setActor} disabled={busy || pendingRequest.current !== null} />
       <div className="engine-actions">
         <Button label={pendingRequest.current && mutation.isError ? "같은 요청 다시 확인" : "mock 참조 실행"} isDisabled={(!pendingRequest.current && (!bundleId || !actor.trim())) || busy || list.isPending || list.isError} isLoading={mutation.isPending} onClick={async () => {
@@ -100,19 +100,19 @@ export function EngineAnalysisPanel({ companyId, noticeId, bundleId }: { company
         }} />
         <Button label="엔진 실행 새로고침" variant="ghost" onClick={() => { void list.refetch(); if (runId) void detail.refetch(); }} />
       </div>
-      {!bundleId ? <p>확정된 준비 완료 문서 묶음이 필요합니다.</p> : null}
-      {list.isPending ? <p role="status">엔진 실행 이력을 불러오는 중입니다.</p> : null}
+      {!bundleId ? <p>확정된 준비 완료 문서 묶음이 필요해요.</p> : null}
+      {list.isPending ? <p role="status">엔진 실행 이력을 불러오는 중이에요.</p> : null}
       {list.isError ? <EngineProblem error={list.error} /> : null}
       {mutation.isError ? <EngineProblem error={mutation.error} /> : null}
-      {runId !== null && detail.isPending ? <p role="status" data-testid="engine-detail-pending">선택한 엔진 실행의 상세 결과를 불러오는 중입니다.</p> : null}
+      {runId !== null && detail.isPending ? <p role="status" data-testid="engine-detail-pending">선택한 엔진 실행의 상세 결과를 불러오는 중이에요.</p> : null}
       {detail.isError ? <EngineProblem error={detail.error} /> : null}
-      {rawRun && !run ? <p role="alert">회사·공고가 일치하지 않아 결과를 표시하지 않습니다.</p> : null}
-      {!runId && list.isSuccess ? <p>엔진 실행 기록이 없습니다.</p> : null}
+      {rawRun && !run ? <p role="alert">회사·공고가 일치하지 않아 결과를 표시하지 않아요.</p> : null}
+      {!runId && list.isSuccess ? <p>엔진 실행 기록이 없어요.</p> : null}
       {list.data && list.data.items.length > 1 ? <label className="engine-history">실행 이력<select aria-label="엔진 실행 이력" value={runId ?? ""} onChange={(event) => setSelectedId(event.target.value)}>{list.data.items.map((item) => <option key={item.id} value={item.id}>{formatDateTime(item.created_at)} · {RUN_LABEL[item.status]} · {item.id.slice(0, 8)}</option>)}</select></label> : null}
       {run ? <>
         <p role="status" data-testid="engine-run-status" data-status={run.status}>{RUN_LABEL[run.status]} · {qualityStatusLabel(run.quality_status)}</p>
         <p data-testid="engine-currentness">입력 현재성 · {run.input_currentness === "current" ? "현재 입력과 일치" : run.input_currentness === "stale" ? "입력이 변경된 과거 결과" : "확인되지 않음"}</p>
-        {run.bundle_id !== bundleId ? <p>현재 문서 묶음과 다른 입력으로 실행된 기록입니다.</p> : null}
+        {run.bundle_id !== bundleId ? <p>현재 문서 묶음과 다른 입력으로 실행된 기록이에요.</p> : null}
         {run.error_code ? <p role="alert">실행 오류 · {run.error_code}</p> : null}
         {run.warnings.length > 0 ? <div><h4>실행 경고</h4><ul>{run.warnings.map((warning, index) => <li key={`${index}:${warning}`}>{warning}</li>)}</ul></div> : null}
         {analysis ? <div data-testid="engine-analysis-result">
@@ -133,12 +133,12 @@ export function EngineAnalysisPanel({ companyId, noticeId, bundleId }: { company
             <EvidenceList evidence={gate.evidence} />
           </li>)}</ul> : <p>참여 조건 결과 없음</p>}
           <h4>요구사항 대응</h4>
-          {analysis.fits.length ? <ul className="engine-result-list">{analysis.fits.map((fit, index) => <li key={`${index}:${fit.req_id}`}><strong>{fit.req_id} · {fit.fit}</strong><p>{fit.rationale}</p>{fit.gap_action ? <p>{fit.gap_action}</p> : null}<EvidenceList evidence={fit.evidence ? [fit.evidence] : []} /></li>)}</ul> : <p>요구사항 대응 결과 없음 · 대응 가능으로 해석하지 않습니다.</p>}
+          {analysis.fits.length ? <ul className="engine-result-list">{analysis.fits.map((fit, index) => <li key={`${index}:${fit.req_id}`}><strong>{fit.req_id} · {fit.fit}</strong><p>{fit.rationale}</p>{fit.gap_action ? <p>{fit.gap_action}</p> : null}<EvidenceList evidence={fit.evidence ? [fit.evidence] : []} /></li>)}</ul> : <p>요구사항 대응 결과 없음 · 대응 가능으로 해석하지 않아요.</p>}
           <h4>추가 확인</h4>
           {analysis.data_to_confirm.length ? <ul>{analysis.data_to_confirm.map((item, index) => <li key={`${index}:${item.field}`}>{item.field} · {item.why}</li>)}</ul> : <p>등록된 확인 항목 없음</p>}
           {analysis.recommendation.preconditions.length ? <><h4>전제 조건</h4><ul>{analysis.recommendation.preconditions.map((text, index) => <li key={index}>{text}</li>)}</ul></> : null}
           {analysis.recommendation.why_not.length ? <><h4>제약 사유</h4><ul>{analysis.recommendation.why_not.map((text, index) => <li key={index}>{text}</li>)}</ul></> : null}
-        </div> : <p>{active(run) ? "분석 결과를 기다리고 있습니다." : "저장된 분석 결과가 없습니다."}</p>}
+        </div> : <p>{active(run) ? "분석 결과를 기다리고 있어요." : "저장된 분석 결과가 없어요."}</p>}
         <details><summary>실행 식별 정보</summary><dl className="engine-facts"><dt>실행</dt><dd>{run.id}</dd><dt>회사</dt><dd>{run.company_id}</dd><dt>문서 묶음</dt><dd>{run.bundle_id}</dd><dt>엔진 버전</dt><dd>{run.engine_version}</dd><dt>엔진 SHA-256</dt><dd>{run.engine_sha256}</dd><dt>회사 프로필 버전</dt><dd>{run.profile_version_id}</dd><dt>회사 그래프 버전</dt><dd>{run.graph_version_id}</dd><dt>입력 SHA-256</dt><dd>{run.input_sha256}</dd></dl></details>
       </> : null}
     </section>

@@ -59,6 +59,8 @@ export function OrderPlanListRow({
   onSelect,
   rowProps,
   variant = "default",
+  hideModelLabel = null,
+  hideUntracked = false,
 }: {
   item: OrderPlanListItem;
   isSelected: boolean;
@@ -76,6 +78,13 @@ export function OrderPlanListRow({
    * 상태 배지·`모델 판정 없음 — 사람 확인` 표식·1차 선별 실패 배지는 이 보기에서 겹쳐 그리지 않는다.
    */
   variant?: "default" | "unjudged";
+  /**
+   * 활성 보기가 이미 말해 주는 모델 판단(최종 시안). 그 값과 같은 행의 `모델 · …` 표식은 그리지 않는다.
+   * 판정 실패·거부처럼 보기로 알 수 없는 값은 그대로 남는다.
+   */
+  hideModelLabel?: string | null;
+  /** 활성 보기가 `미선택`만 보이면 행마다 같은 `추적 미선택` 표식을 그리지 않는다. */
+  hideUntracked?: boolean;
 }) {
   const unjudgedKind = variant === "unjudged" ? orderPlanUnjudgedKind(item) : null;
   // 1차 선별의 기본값 둘(`선정`·`제외`)은 그리지 않는다(0921 명세 §3.1). 남는 것은
@@ -136,7 +145,10 @@ export function OrderPlanListRow({
           <span className="c2l-row-state">
             {/* 모델 판단은 이 목록을 훑는 이유이므로 행마다 같은 자리에서 읽힌다. `모델 미판정` 보기에서는
                 갈래 칩 하나(`순위 밖`·`판정 실패`)가 그 자리를 대신한다 — 같은 사실을 두 배지로 겹치지 않는다. */}
-            {variant === "unjudged" ? null : <Badge className="c2l-row-model" variant={qwenBadgeVariant(item)} label={qwenRowLabel(item)} />}
+            {variant === "unjudged"
+              || (hideModelLabel !== null && item.qwen_relevance === hideModelLabel && qwenBadgeVariant(item) !== "error")
+              ? null
+              : <Badge className="c2l-row-model" variant={qwenBadgeVariant(item)} label={qwenRowLabel(item)} />}
             {/* 배치 실패 등으로 모델 판정이 없는 건은 비관련이 아니다. 사람이 직접 봐야 한다는
                 사실을 이유 배지 옆에 글자로 남긴다(설계고도화안 A-6). */}
             {unjudgedKind ? (
@@ -151,7 +163,9 @@ export function OrderPlanListRow({
                 같은 눈길에서 읽게 한다. 사람의 결정이므로 성공·실패 의미색을 쓰지 않고
                 중립으로 둔다 — 보류·종료가 실패로, 계속 추적이 성공으로 읽히면 안 된다.
                 **판단 근거 한 줄은 행에 싣지 않는다**(M5 승인 — 근거는 상세에서만). */}
-            <Badge className="c2l-row-tracking" variant="neutral" label={trackingChipLabel(item)} />
+            {hideUntracked && item.tracking?.tracking_status === "미선택"
+              ? null
+              : <Badge className="c2l-row-tracking" variant="neutral" label={trackingChipLabel(item)} />}
             {/* 예정월이 지났거나 공고가 이미 게시된 건(검토 순서에서 뒤로 간다). 사실 표식일 뿐 제외·추적
                 상태를 바꾸지 않으므로 중립 칩 하나만 둔다(2026-11-18). */}
             {staleReason ? <Badge className="c2l-row-stale" variant="neutral" label={staleReason} /> : null}

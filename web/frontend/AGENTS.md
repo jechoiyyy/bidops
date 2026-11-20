@@ -81,7 +81,24 @@
 ## UI 패턴
 
 - TanStack Query로 서버 상태를 조회하고 mutation 성공 뒤 영향 query만 무효화한다.
-- 색은 `bidops` 테마(무드보드 파생, ADR-0048)가 정본이다. 화면은 토큰만 읽고 `:root`나 화면 CSS에서 `--color-*`를 재정의하지 않는다. 유일한 예외는 `styles/shell-relaxed.css`의 이행용 token bridge이며 새 색 값을 만들지 않는다. 색을 바꾸려면 `src/themes/bidops/bidopsTheme.ts`를 고치고 `astryx theme build`를 다시 돌린다.
+- 색은 `bidops` 테마(무드보드 파생, ADR-0048 → ADR-0073·ADR-0076 개정)가 정본이다. 화면은 토큰만 읽고 `:root`나 화면 CSS에서 `--color-*`를 재정의하지 않는다. 유일한 예외는 `styles/shell-relaxed.css`의 이행용 token bridge이며 새 색 값을 만들지 않는다. 색을 바꾸려면 `src/themes/bidops/bidopsTheme.ts`를 고치고 `astryx theme build`를 다시 돌린다.
+- 셸(ADR-0076, 2026-11-19): 바탕 위 흰 패널 한 장이고 화면 제목은 패널 헤더가 그린다. 화면은 `usePageHeader`
+  (`components/shell/PageHeaderContext.tsx`)로 화면 이름·문장형 제목·설명(·상태 표식·사실 줄)을 **문자열로만** 올리고,
+  액션은 `PageHeaderActions`, 보기 탭·검색 줄은 `PageHeaderTabs` portal로 보낸다. 페이지에 `<h1>`이나 제목 줄을 다시
+  두지 않는다. 문장의 숫자는 이미 받은 값(목록 total·탭 건수)으로만 만들고, 없으면 숫자 없는 문장을 쓴다. 목록|상세
+  화면은 route metadata `canvas: "flush"`로 패널 끝까지 채우고 목록은 38%다.
+- 패널 안에 그림자 카드·카드 속 카드·밑줄 탭·옛 강조색(초록 띠) 상자를 새로 두지 않는다. 구분은 여백, 옅은 선
+  (`--bo-line-soft`), fill 채움(`--color-background-muted`)으로 한다. 선택 행은 fill 채움이고 브랜드 옅은 채움은 `추적 중`
+  같은 상태 표식 전용이다. 마감·단계·건수는 표식이 아니라 글자, 숫자는 먹색, 화면당 주 버튼 하나. 재구성 화면의 글자·조작
+  높이는 `--bo-k-*` 단(typography.css)을 쓴다. 사용자 문구는 해요체이되 값 없음/미확인/계산 불가/0과 사람 결정 경계의 뜻은
+  바꾸지 않는다.
+- 담당자 이름은 사이드바 담당자 칸과 같은 한 값(`bidops.actorName`, `useRememberedActorName`)을 쓴다. 화면별로 따로 기억하지
+  않는다. 감사 표식이며 인증이 아니다. 브리핑·발주계획 결정 영역은 본문에 입력 칸을 두지 않고, 이름이 비면 안내와 함께
+  `requestActorInput()`으로 사이드바 칸을 열어 초점을 옮긴다(저장 전 이름 요구는 그대로, 2026-11-20).
+- 패널 헤더의 수집 상태는 `CollectionStatus`(`GET /api/daily-collection-status`)만 쓴다. 기준일·상태를 화면에서 다시 계산하지
+  않고, `complete`만 "수집 완료"다. 나머지는 사실대로 쓰고 실행 상태 링크를 단다. 조회 실패는 숨기지 않는다.
+- 사용자 문구(화면·대화상자·토스트·빈 상태·오류 안내)는 해요체다. 제목은 마침표 없이, 본문은 마침표로 끝낸다. 서버가 준
+  문자열·계약 값·감사 기록에 저장되는 값은 바꾸지 않는다(2026-11-20 일괄 전환).
 - Tailwind `@theme`에 디자인 시스템과 이름이 겹치는 `--color-*`를 추가하지 않는다. `@theme`은 `:root`로 방출돼 `@layer astryx-theme`을 이기므로 테마 값이 조용히 무시된다([engineering-notes.md](../../docs/engineering-notes.md)).
 - 공고 목록과 상세 정보 밀도를 유지한다. 마케팅식 큰 여백, 장식 아이콘, gradient, glass effect를 사용하지 않는다.
 - 긴 한글 제목, 표의 긴 요구사항, keyboard focus, empty/loading/error 상태를 설계한다. 지원

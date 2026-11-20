@@ -83,7 +83,7 @@ test("[search-ux] 사업 추적의 invalid q는 기존 결과를 유지하고 fi
   await expect.poll(() => new URL(page.url()).searchParams.get("q")).toBeNull();
   await expect(input).toHaveAttribute("aria-invalid", "true");
   await expect(input).toHaveAttribute("aria-describedby", /\S/);
-  await expect(page.locator(".workspace-search-field").getByText("검색어는 공백을 정리한 뒤 2~100자여야 합니다.", { exact: true })).toBeVisible();
+  await expect(page.locator(".workspace-search-field").getByText("검색어는 공백을 정리한 뒤 2~100자여야 해요.", { exact: true })).toBeVisible();
   await expect(page.locator(".opportunity-table-scroll tbody tr")).toHaveCount(initialRows);
 
   await input.fill("공공 데이터");
@@ -105,7 +105,7 @@ test("[search-ux] Go/No-Go는 받은 행의 실제 필드만 검색하고 null �
   await expect(page.locator(".gng-table-scroll tbody tr")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "검색어만 지우기", exact: true })).toBeVisible();
   await expect(page.locator(".gng-list-empty")).toContainText("발주기관 미확인");
-  await expect(page.locator(".gng-list-empty")).toContainText("전체에서 찾았습니다");
+  await expect(page.locator(".gng-list-empty")).toContainText("전체에서 찾았어요");
 });
 
 test("[search-ux] 동등 검색은 선택을 보존하고 키보드 삭제·IME Enter는 적용하지 않는다", async ({ page }) => {

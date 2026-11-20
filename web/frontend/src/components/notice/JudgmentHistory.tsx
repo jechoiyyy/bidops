@@ -29,9 +29,9 @@ export function JudgmentHistory({ noticePk }: JudgmentHistoryProps) {
 
   return (
     <Panel className="judgment-history-panel" title="판정 이력" action={<span className="panel-note">회차별 시간순</span>}>
-      {historyQuery.isLoading ? <div className="inline-loading" role="status" aria-live="polite">판정 이력을 불러오는 중입니다.</div> : null}
-      {historyQuery.error ? <div className="inline-error" role="alert">판정 이력을 불러오지 못했습니다.</div> : null}
-      {!historyQuery.isLoading && !historyQuery.error && items.length === 0 ? <EmptyState compact title="판정 이력이 없습니다." /> : null}
+      {historyQuery.isLoading ? <div className="inline-loading" role="status" aria-live="polite">판정 이력을 불러오는 중이에요.</div> : null}
+      {historyQuery.error ? <div className="inline-error" role="alert">판정 이력을 불러오지 못했어요.</div> : null}
+      {!historyQuery.isLoading && !historyQuery.error && items.length === 0 ? <EmptyState compact title="판정 이력이 없어요" /> : null}
       {items.length > 0 ? (
         <ol className="judgment-history-list">
           {items.map((item, index) => {

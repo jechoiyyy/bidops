@@ -127,7 +127,7 @@ export function SectionBody({
     return (
       <article aria-label="절 본문" className="pp-card" data-section={sectionKey}>
         <h3 className="pp-card-title">{title}</h3>
-        <p className="pp-card-note" role="status">이 절의 정보가 아직 없습니다.</p>
+        <p className="pp-card-note" role="status">이 절의 정보가 아직 없어요.</p>
       </article>
     );
   }
@@ -151,8 +151,8 @@ export function SectionBody({
         {head}
         <p className="pp-card-note" data-testid="section-progress" role="status">
           {section.status === "queued"
-            ? "이 절은 생성을 기다리고 있습니다. 순서가 되면 자동으로 만들어지고 이 화면에 나타납니다."
-            : "이 절을 만드는 중입니다. 끝나면 자동으로 이 화면에 나타납니다."}
+            ? "이 절은 생성을 기다리고 있어요. 순서가 되면 자동으로 만들어지고 이 화면에 나타나요."
+            : "이 절을 만드는 중이에요. 끝나면 자동으로 이 화면에 나타나요."}
         </p>
       </article>
     );
@@ -172,12 +172,12 @@ export function SectionBody({
               {run.code ? <span className="vd-code"> 오류 코드 {run.code}</span> : null}
             </p>
           ) : (
-            <p>이 절은 만들어지지 않았습니다. 자동으로 고치지 않습니다.</p>
+            <p>이 절은 만들어지지 않았어요. 자동으로 고치지 않아요.</p>
           )}
-          <p className="rec-side-note">다시 쓰기로 새 버전을 요청하거나 사람이 직접 작성하십시오. 다른 절은 그대로 검토할 수 있습니다.</p>
+          <p className="rec-side-note">다시 쓰기로 새 버전을 요청하거나 사람이 직접 작성해 주세요. 다른 절은 그대로 검토할 수 있어요.</p>
           <div className="pp-toolbar">
             <HintedButton
-              blockedReason={readOnly ? "이전 초안은 바꿀 수 없습니다" : busy ? "처리 중입니다" : null}
+              blockedReason={readOnly ? "이전 초안은 바꿀 수 없어요" : busy ? "처리 중이에요" : null}
               label="다시 쓰기"
               onClick={onRegenerate}
               pendingLabel={pendingAction === "regenerate" ? "요청 중…" : null}
@@ -207,7 +207,7 @@ export function SectionBody({
     >
       {head}
       {body && body.paragraphs.length === 0 ? (
-        <p className="pp-card-note" role="status">이 절에는 문장이 없습니다.</p>
+        <p className="pp-card-note" role="status">이 절에는 문장이 없어요.</p>
       ) : null}
       {body?.paragraphs.map((paragraph) => {
         const hasSelected = paragraph.sentences.some((sentence) => sentence.sentence_id === selectedSentenceId);
@@ -249,18 +249,18 @@ export function SectionBody({
       })}
       <div className="pp-toolbar" data-testid="section-toolbar">
         <HintedButton
-          blockedReason={readOnly ? "이전 초안은 바꿀 수 없습니다" : selected ? null : "고칠 문장을 먼저 선택하십시오"}
+          blockedReason={readOnly ? "이전 초안은 바꿀 수 없어요" : selected ? null : "고칠 문장을 먼저 선택해 주세요"}
           label="문장 수정"
           onClick={focusEditor}
         />
         <HintedButton
           blockedReason={
             readOnly
-              ? "이전 초안은 바꿀 수 없습니다"
+              ? "이전 초안은 바꿀 수 없어요"
               : rewriteLocked
-                ? "검토 완료 뒤에는 새 초안으로 다시 만듭니다"
+                ? "검토 완료 뒤에는 새 초안으로 다시 만들어요"
                 : busy
-                  ? "처리 중입니다"
+                  ? "처리 중이에요"
                   : null
           }
           label="이 절 다시 쓰기"
@@ -270,11 +270,11 @@ export function SectionBody({
         <HintedButton
           blockedReason={
             readOnly
-              ? "이전 초안은 바꿀 수 없습니다"
+              ? "이전 초안은 바꿀 수 없어요"
               : section.status === "reviewed"
-                ? "이미 검토 완료로 표시했습니다"
+                ? "이미 검토 완료로 표시했어요"
                 : busy
-                  ? "처리 중입니다"
+                  ? "처리 중이에요"
                   : null
           }
           label="검토 완료"

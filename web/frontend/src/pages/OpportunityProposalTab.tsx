@@ -65,7 +65,7 @@ function ActorBar({ actorName, actorMissing, onActorChange }: Pick<OpportunityPr
       <ActorField
         aria-invalid={actorMissing ? true : undefined}
         autoComplete="off"
-        description="기록에 남는 표식이며 인증이 아닙니다."
+        description="기록에 남는 표식이며 인증이 아니에요."
         id={PROPOSAL_ACTOR_ID}
         label="기록자"
         onChange={onActorChange}
@@ -73,7 +73,7 @@ function ActorBar({ actorName, actorMissing, onActorChange }: Pick<OpportunityPr
         showRememberNote={false}
         value={actorName}
       />
-      {actorMissing ? <p className="pp-actor-missing" role="alert">조작하려면 기록자 이름을 입력하십시오.</p> : null}
+      {actorMissing ? <p className="pp-actor-missing" role="alert">조작하려면 기록자 이름을 입력해 주세요.</p> : null}
     </div>
   );
 }
@@ -94,7 +94,7 @@ function DraftBanners({
         <div className="vd-banner" data-testid="draft-running-banner" role="status">
           <div className="vd-banner-body">
             <strong>초안 생성 중</strong>
-            <p>절이 만들어지는 대로 아래 탭에서 읽을 수 있습니다. 끝나면 자동으로 갱신됩니다.</p>
+            <p>절이 만들어지는 대로 아래 탭에서 읽을 수 있어요. 끝나면 자동으로 갱신돼요.</p>
             <ol aria-label="절별 진행" className="pp-progress">
               {SECTION_KEYS.map((key) => {
                 const section = findSection(draft, key);
@@ -112,10 +112,10 @@ function DraftBanners({
       {draft.status === "partial" ? (
         <div className="vd-banner is-warning" data-testid="draft-partial-banner" role="status">
           <div className="vd-banner-body">
-            <strong>일부 절을 만들지 못했습니다</strong>
+            <strong>일부 절을 만들지 못했어요</strong>
             <p>
-              실패한 절 {failed}개는 해당 절 카드에서 다시 쓰거나 사람이 직접 작성하십시오. 나머지 절은 그대로 검토할 수 있고,
-              PDF에는 실패한 절이 생성 실패로 표시됩니다.
+              실패한 절 {failed}개는 해당 절 카드에서 다시 쓰거나 사람이 직접 작성해 주세요. 나머지 절은 그대로 검토할 수 있고,
+              PDF에는 실패한 절이 생성 실패로 표시돼요.
             </p>
           </div>
         </div>
@@ -123,15 +123,15 @@ function DraftBanners({
       {draft.status === "failed" ? (
         <div className="vd-banner is-warning" data-testid="draft-failed-banner" role="status">
           <div className="vd-banner-body">
-            <strong>초안 생성에 실패했습니다</strong>
-            <p>실패한 절의 사유는 각 절에 적혀 있습니다. 검증을 통과하지 못한 결과는 자동으로 고치지 않습니다. 다시 만들거나 사람이 직접 작성하십시오.</p>
+            <strong>초안 생성에 실패했어요</strong>
+            <p>실패한 절의 사유는 각 절에 적혀 있어요. 검증을 통과하지 못한 결과는 자동으로 고치지 않아요. 다시 만들거나 사람이 직접 작성해 주세요.</p>
           </div>
         </div>
       ) : null}
       {draft.status === "superseded" ? (
         <div className="vd-banner" data-testid="draft-superseded-banner" role="status">
           <span className="vd-pill is-muted">{draftStatusLabel("superseded")}</span>
-          <p>더 새로운 초안이 있어 이 초안은 읽기만 할 수 있습니다.</p>
+          <p>더 새로운 초안이 있어 이 초안은 읽기만 할 수 있어요.</p>
           <Button label="최신 초안 보기" onClick={onShowLatest} size="sm" />
         </div>
       ) : null}
@@ -227,7 +227,7 @@ export function OpportunityProposalTab({
   const { query, draft } = controller;
 
   if (query.isPending) {
-    return <p className="rec-status" role="status">제안서 초안을 불러오는 중입니다.</p>;
+    return <p className="rec-status" role="status">제안서 초안을 불러오는 중이에요.</p>;
   }
   if (query.isError || !query.data) {
     const notFound = query.error instanceof ApiError && query.error.status === 404 && viewingDraftId !== null;
@@ -235,15 +235,15 @@ export function OpportunityProposalTab({
       <EmptyState
         action={{ label: "최신 초안 보기", onClick: onShowLatest }}
         compact
-        description="없거나 이 사업기회의 초안이 아닙니다. 최신 초안으로 돌아가 확인하십시오."
-        title="초안을 찾을 수 없습니다"
+        description="없거나 이 사업기회의 초안이 아니에요. 최신 초안으로 돌아가 확인해 주세요."
+        title="초안을 찾을 수 없어요"
       />
     ) : (
       <EmptyState
         action={{ label: "다시 시도", onClick: () => { void query.refetch(); } }}
         compact
-        problem={describeProposalApiError(query.error, "제안서 초안을 불러오지 못했습니다.")}
-        title="제안서 초안을 불러오지 못했습니다"
+        problem={describeProposalApiError(query.error, "제안서 초안을 불러오지 못했어요.")}
+        title="제안서 초안을 불러오지 못했어요"
         tone="error"
       />
     );
@@ -268,15 +268,15 @@ export function OpportunityProposalTab({
           compact
           description={
             verdictCompleted
-              ? "판정이 끝났습니다. 초안을 만들면 제안서 6개 절이 생성됩니다. 가격·투입 인력·전략 수치는 만들지 않고 빈 자리로 둡니다."
-              : "아직 완료된 판정이 없습니다. 판정 탭에서 판정 상태를 확인한 뒤 초안을 만들 수 있습니다."
+              ? "판정이 끝났어요. 초안을 만들면 제안서 6개 절이 생성돼요. 가격·투입 인력·전략 수치는 만들지 않고 빈 자리로 둬요."
+              : "아직 완료된 판정이 없어요. 판정 탭에서 판정 상태를 확인한 뒤 초안을 만들 수 있어요."
           }
-          title="제안서 초안은 판정 뒤 만들 수 있습니다"
+          title="제안서 초안은 판정 뒤 만들 수 있어요"
         />
         <div className="pp-empty-actions">
           <HintedButton
             blockedReason={
-              !verdictCompleted ? "아직 완료된 판정이 없습니다" : controller.pending !== null ? "처리 중입니다" : null
+              !verdictCompleted ? "아직 완료된 판정이 없어요" : controller.pending !== null ? "처리 중이에요" : null
             }
             label="초안 만들기"
             onClick={() => controller.openConfirm({ kind: "create" })}

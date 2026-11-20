@@ -58,9 +58,9 @@ function isDeadlineAlert(value: string): boolean {
  * 않는다. 확인할 수 있는 것만 말한다.
  */
 function missingReason(item: AttachmentQueueItem): string {
-  if (item.attachment_status === "none" && item.attachment_count === 0) return "등록된 첨부가 없습니다";
-  if (item.attachment_count === 0) return "확보된 첨부가 없습니다";
-  return `첨부 ${formatNumber(item.attachment_count)}건이 있으나 확보 대기 상태입니다`;
+  if (item.attachment_status === "none" && item.attachment_count === 0) return "등록된 첨부가 없어요";
+  if (item.attachment_count === 0) return "확보된 첨부가 없어요";
+  return `첨부 ${formatNumber(item.attachment_count)}건이 있으나 확보 대기 상태예요`;
 }
 
 function PortalManagerDialog({
@@ -89,7 +89,7 @@ function PortalManagerDialog({
     event.preventDefault();
     if (saving) return;
     if (!actorName.trim()) {
-      setFormError("담당자 이름을 입력해야 저장할 수 있습니다.");
+      setFormError("담당자 이름을 입력해야 저장할 수 있어요.");
       return;
     }
     setSaving(true);
@@ -109,7 +109,7 @@ function PortalManagerDialog({
       await queryClient.invalidateQueries({ queryKey: ["attachment-queue", runId] });
     } catch (error) {
       // 충돌이면 창을 닫지 않고 입력을 남겨 다시 시도할 수 있게 한다.
-      setFormError(errorMessage(error, "기관 조달시스템 저장에 실패했습니다."));
+      setFormError(errorMessage(error, "기관 조달시스템 저장에 실패했어요."));
     } finally {
       setSaving(false);
     }
@@ -121,15 +121,15 @@ function PortalManagerDialog({
         <DialogHeader title="기관 포털 관리" onOpenChange={(next) => { if (!next && !saving) onClose(); }} />
         <div className="rs-dialog-scroll">
           <Section title="등록된 기관 조달시스템" action={<Caption as="span">{portalsQuery.isError ? "미확인" : `${portals.length}개`}</Caption>}>
-            {portalsQuery.isLoading ? <Caption>기관 목록을 불러오는 중입니다.</Caption> : null}
+            {portalsQuery.isLoading ? <Caption>기관 목록을 불러오는 중이에요.</Caption> : null}
             {portalsQuery.error ? (
               <div className="rs-inline-error" role="alert">
-                <Text as="span">기관 목록을 확인할 수 없습니다. 등록 0건이라는 뜻이 아닙니다.</Text>
+                <Text as="span">기관 목록을 확인할 수 없어요. 등록 0건이라는 뜻이 아니에요.</Text>
                 <Button label="다시 시도" size="sm" onClick={() => void portalsQuery.refetch()} />
               </div>
             ) : null}
             {!portalsQuery.isLoading && !portalsQuery.error && portals.length === 0 ? (
-              <Caption>등록된 조달시스템이 0건입니다.</Caption>
+              <Caption>등록된 조달시스템이 0건이에요.</Caption>
             ) : null}
             <div className="rs-portal-list">
               {portals.map((portal) => (
@@ -184,7 +184,7 @@ function PortalManagerDialog({
                 disabled={saving}
                 required
               />
-              <small>{"{bid_no}"}와 {"{title}"}은 공고 값으로 바뀌며 URL 인코딩됩니다.</small>
+              <small>{"{bid_no}"}와 {"{title}"}은 공고 값으로 바뀌며 URL 인코딩돼요.</small>
             </label>
             <label className="rs-field">
               <span>비고</span>
@@ -192,7 +192,7 @@ function PortalManagerDialog({
                 value={draft.note}
                 onChange={(event) => setDraft({ ...draft, note: event.target.value })}
                 rows={2}
-                placeholder="담당자가 참고할 내용을 입력합니다."
+                placeholder="담당자가 참고할 내용을 입력해요."
                 disabled={saving}
               />
             </label>
@@ -206,7 +206,7 @@ function PortalManagerDialog({
                 disabled={saving}
                 required
               />
-              <small>감사 귀속용 이름이며 로그인·신원 인증·권한 부여가 아닙니다.</small>
+              <small>감사 귀속용 이름이며 로그인·신원 인증·권한 부여가 아니에요.</small>
             </label>
             <label className="rs-check-field">
               <input
@@ -290,30 +290,30 @@ export function AttachmentsPage({ panelId = "run-status-panel-attachments" }: { 
           {!selectedRunId && !isPending ? (
             <div className="rs-list-empty">
               <Paperclip aria-hidden="true" />
-              <Text as="p">선택된 회차가 없습니다.</Text>
-              <Caption>회차를 고르면 그 회차의 첨부 미확보 공고를 확인할 수 있습니다.</Caption>
+              <Text as="p">선택된 회차가 없어요.</Text>
+              <Caption>회차를 고르면 그 회차의 첨부 미확보 공고를 확인할 수 있어요.</Caption>
             </div>
           ) : null}
-          {queueQuery.isPending && selectedRunId ? <div className="rs-list-empty"><Caption>첨부 미확보 공고를 불러오는 중입니다.</Caption></div> : null}
+          {queueQuery.isPending && selectedRunId ? <div className="rs-list-empty"><Caption>첨부 미확보 공고를 불러오는 중이에요.</Caption></div> : null}
           {queueQuery.error ? (
             <div className="rs-list-empty" role="alert">
               <Paperclip aria-hidden="true" />
-              <Text as="p">첨부 확보 큐를 불러오지 못했습니다.</Text>
-              <Caption>조회 실패는 미확보 0건이 아닙니다.</Caption>
+              <Text as="p">첨부 확보 큐를 불러오지 못했어요.</Text>
+              <Caption>조회 실패는 미확보 0건이 아니에요.</Caption>
               <Button label="다시 시도" size="sm" onClick={() => void queueQuery.refetch()} />
             </div>
           ) : null}
           {!queueQuery.isPending && !queueQuery.error && items.length === 0 && selectedRunId ? (
             <div className="rs-list-empty">
               <Paperclip aria-hidden="true" />
-              <Text as="p">첨부 미확보 공고가 0건입니다.</Text>
-              <Caption>선택한 회차의 모든 공고에 첨부가 등록되어 있습니다.</Caption>
+              <Text as="p">첨부 미확보 공고가 0건이에요.</Text>
+              <Caption>선택한 회차의 모든 공고에 첨부가 등록되어 있어요.</Caption>
             </div>
           ) : null}
           {!queueQuery.isPending && items.length > 0 && visible.length === 0 ? (
             <div className="rs-list-empty">
               <Search aria-hidden="true" />
-              <Text as="p">조건에 맞는 공고가 없습니다.</Text>
+              <Text as="p">조건에 맞는 공고가 없어요.</Text>
               <Button label="검색 초기화" size="sm" onClick={() => setListQuery("")} />
             </div>
           ) : null}
@@ -350,7 +350,7 @@ export function AttachmentsPage({ panelId = "run-status-panel-attachments" }: { 
               eyebrow="첨부 확보 · 확인할 공고"
               title={present(selected.title, "공고명 미확인")}
               status="미확보"
-              statusDescription="첨부 원문을 아직 확보하지 못한 상태입니다."
+              statusDescription="첨부 원문을 아직 확보하지 못한 상태예요."
             >
               <div className="rs-row rs-spread">
                 <Text as="span" weight="semibold">{present(selected.agency, "발주기관 미확인")}</Text>
@@ -373,12 +373,12 @@ export function AttachmentsPage({ panelId = "run-status-panel-attachments" }: { 
                   ]}
                 />
                 <Caption>
-                  미확보 문서의 종류는 확인되지 않았습니다. 기관 조달시스템에서 필요한 원문을 확인해 주세요.
+                  미확보 문서의 종류는 확인되지 않았어요. 기관 조달시스템에서 필요한 원문을 확인해 주세요.
                 </Caption>
               </Section>
 
-              <Note title="기관 조달시스템에서 원문을 확인합니다">
-                첨부가 없다는 사실만으로 공고의 적합성 등급이나 참여 준비 상태를 낮추지 않습니다.
+              <Note title="기관 조달시스템에서 원문을 확인해요">
+                첨부가 없다는 사실만으로 공고의 적합성 등급이나 참여 준비 상태를 낮추지 않아요.
               </Note>
 
               <Section title="기관 검색 경로">
@@ -404,8 +404,8 @@ export function AttachmentsPage({ panelId = "run-status-panel-attachments" }: { 
                 ) : (
                   <Caption>
                     {portalsQuery.error
-                      ? "포털 목록을 확인하지 못해 검색 주소를 만들 수 없습니다. 등록 0건이라는 뜻이 아닙니다."
-                      : "이 기관에 등록된 검색 주소가 없습니다. 기관 포털 관리에서 등록할 수 있습니다."}
+                      ? "포털 목록을 확인하지 못해 검색 주소를 만들 수 없어요. 등록 0건이라는 뜻이 아니에요."
+                      : "이 기관에 등록된 검색 주소가 없어요. 기관 포털 관리에서 등록할 수 있어요."}
                   </Caption>
                 )}
               </Section>
@@ -420,8 +420,8 @@ export function AttachmentsPage({ panelId = "run-status-panel-attachments" }: { 
                   ]}
                 />
                 <Caption>
-                  적합성 등급·참여 준비 상태·추적 선택·최종 Go/No-Go는 각각 별도 판단입니다. 첨부 확보가
-                  그중 어느 것도 대신하지 않습니다.
+                  적합성 등급·참여 준비 상태·추적 선택·최종 Go/No-Go는 각각 별도 판단이에요. 첨부 확보가
+                  그중 어느 것도 대신하지 않아요.
                 </Caption>
               </Section>
 
@@ -455,8 +455,8 @@ export function AttachmentsPage({ panelId = "run-status-panel-attachments" }: { 
         ) : (
           <div className="rs-detail-empty">
             <Paperclip aria-hidden="true" />
-            <Text as="p">확인할 공고를 고르십시오.</Text>
-            <Caption>회차를 고르면 그 회차에서 첨부를 확보하지 못한 공고를 확인할 수 있습니다.</Caption>
+            <Text as="p">확인할 공고를 골라 주세요.</Text>
+            <Caption>회차를 고르면 그 회차에서 첨부를 확보하지 못한 공고를 확인할 수 있어요.</Caption>
             <Button label="기관 포털 관리" size="sm" onClick={() => setPortalDialogOpen(true)} />
           </div>
         )}

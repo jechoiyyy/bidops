@@ -30,11 +30,11 @@ import type { QualityGateEvidenceJudgment } from "../../lib/types";
 const JUDGMENTS: QualityGateEvidenceJudgment[] = ["동의", "근거 부족", "판단 보류"];
 
 function safeError(error: unknown): string {
-  if (!(error instanceof ApiError)) return "근거 리뷰를 저장하지 못했습니다.";
-  if (error.status === 409) return "게이트 계산이 갱신되어 리뷰가 저장되지 않았습니다. 입력은 그대로 두었습니다. 최신 상태를 확인한 뒤 다시 저장하십시오.";
-  if (error.status === 404) return "리뷰 대상 공고를 찾을 수 없습니다.";
-  if (error.status === 422) return "담당자와 근거 판단을 확인하십시오.";
-  return error.status > 0 ? `리뷰 저장에 실패했습니다 (${error.status}).` : "리뷰 저장에 실패했습니다.";
+  if (!(error instanceof ApiError)) return "근거 리뷰를 저장하지 못했어요.";
+  if (error.status === 409) return "게이트 계산이 갱신되어 리뷰가 저장되지 않았어요. 입력은 그대로 두었어요. 최신 상태를 확인한 뒤 다시 저장해 주세요.";
+  if (error.status === 404) return "리뷰 대상 공고를 찾을 수 없어요.";
+  if (error.status === 422) return "담당자와 근거 판단을 확인해 주세요.";
+  return error.status > 0 ? `리뷰 저장에 실패했어요 (${error.status}).` : "리뷰 저장에 실패했어요.";
 }
 
 export function QualityGateReviewDialog({ gateId, onClose, onSaved }: {
@@ -59,7 +59,7 @@ export function QualityGateReviewDialog({ gateId, onClose, onSaved }: {
   function submit() {
     if (saving) return;
     if (!noticeId.trim() || !reviewer.trim()) {
-      setError("공고 ID와 담당자 이름은 필수입니다.");
+      setError("공고 ID와 담당자 이름은 필수예요.");
       return;
     }
     setSaving(true);
@@ -82,7 +82,7 @@ export function QualityGateReviewDialog({ gateId, onClose, onSaved }: {
   return (
     <CriteriaDialog onClose={close} open={gateId !== null} title="담당자 근거 리뷰">
       <Note title={`저장 대상 게이트 · ${gateId ?? "선택 없음"}`}>
-        리뷰는 Pass A 판정의 식별 해시에 묶입니다. 판단 보류와 식별 해시 불일치는 유효 분모에서 빠지며, 리뷰 건수가 채워졌다는 이유만으로 통과가 되지 않습니다.
+        리뷰는 Pass A 판정의 식별 해시에 묶여요. 판단 보류와 식별 해시 불일치는 유효 분모에서 빠지며, 리뷰 건수가 채워졌다는 이유만으로 통과가 되지 않아요.
       </Note>
       <div className="crit-dialog-grid">
         <TextInput label="Pass A 공고 ID · 필수" onChange={setNoticeId} placeholder="예: notice-001" value={noticeId} />
@@ -95,7 +95,7 @@ export function QualityGateReviewDialog({ gateId, onClose, onSaved }: {
         value={judgment}
       />
       <TextArea
-        description="추가 확인이 필요한 근거를 남길 수 있습니다."
+        description="추가 확인이 필요한 근거를 남길 수 있어요."
         label="메모 (선택)"
         onChange={setNote}
         rows={4}

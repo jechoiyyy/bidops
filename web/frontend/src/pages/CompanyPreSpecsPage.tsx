@@ -77,22 +77,22 @@ export function CompanyPickerPage() {
   return (
     <section className="cw-page" aria-labelledby="company-picker-title">
       <div className="cw-section">
-        <h2 id="company-picker-title">검토할 가상회사를 고르십시오</h2>
+        <h2 id="company-picker-title">검토할 가상회사를 골라 주세요</h2>
         <p className="cw-caption">
-          가상회사 데모입니다. 기본 회사를 미리 정하지 않습니다. 회사를 고르면 그 회사의 프로필과
-          사전규격 판정만 보이며, 다른 회사의 결과를 대신 채우지 않습니다.
+          가상회사 데모예요. 기본 회사를 미리 정하지 않아요. 회사를 고르면 그 회사의 프로필과
+          사전규격 판정만 보이며, 다른 회사의 결과를 대신 채우지 않아요.
         </p>
         {companiesQuery.isPending ? (
-          <p role="status">회사 목록을 불러오는 중입니다.</p>
+          <p role="status">회사 목록을 불러오는 중이에요.</p>
         ) : companiesQuery.isError ? (
           <EmptyState
             tone="error"
-            title="회사 목록을 불러오지 못했습니다."
-            problem={describeCompanyApiError(companiesQuery.error, "회사 목록을 불러오지 못했습니다.")}
+            title="회사 목록을 불러오지 못했어요"
+            problem={describeCompanyApiError(companiesQuery.error, "회사 목록을 불러오지 못했어요.")}
             action={{ label: "다시 시도", onClick: () => { void companiesQuery.refetch(); } }}
           />
         ) : companiesQuery.data.items.length === 0 ? (
-          <EmptyState title="등록된 회사가 없습니다." description="회사 등록은 데모 CLI로만 합니다. 이 화면은 회사를 만들지 않습니다." />
+          <EmptyState title="등록된 회사가 없어요" description="회사 등록은 데모 CLI로만 해요. 이 화면은 회사를 만들지 않아요." />
         ) : (
           <ul className="cw-company-list" aria-label="가상회사 목록">
             {companiesQuery.data.items.map((company) => (
@@ -128,8 +128,8 @@ function InvalidCompanyAddress() {
     <section className="cw-page">
       <EmptyState
         tone="error"
-        title="회사 주소가 올바르지 않습니다."
-        description="주소의 회사 식별자를 확인할 수 없어 아무 회사의 결과도 보여 주지 않습니다."
+        title="회사 주소가 올바르지 않아요"
+        description="주소의 회사 식별자를 확인할 수 없어 아무 회사의 결과도 보여 주지 않아요."
         action={{ label: "회사 다시 고르기", to: "/companies" }}
       />
     </section>
@@ -217,7 +217,7 @@ function CompanyPreSpecList({ companyId }: { companyId: Uuid }) {
   // 선택은 회사별 저장소에 둔다. 의미 필터(핏·추적·검색)가 바뀌면 선택을 비운다.
   const [selection, setSelection] = useState(() => readSelection(companyId));
   const [storageProblem, setStorageProblem] = useState<string | null>(
-    selection.available ? null : "이 탭의 선택 저장소를 읽지 못해 새로고침 뒤 선택을 복원하지 않습니다.",
+    selection.available ? null : "이 탭의 선택 저장소를 읽지 못해 새로고침 뒤 선택을 복원하지 않아요.",
   );
   const stored = selection.state;
   const currentSelection = stored !== null && stored.filterFingerprint === fingerprint ? stored : null;
@@ -225,7 +225,7 @@ function CompanyPreSpecList({ companyId }: { companyId: Uuid }) {
     if (stored === null || stored.filterFingerprint === fingerprint) return;
     const reset = createEmptyListSelection(fingerprint, { selectionGeneration: nextSelectionGeneration(stored.selectionGeneration) });
     const written = writeListSelection(companySessionKey(companyId, "pre-specs.selection"), reset);
-    setStorageProblem(written.ok ? null : "이 탭의 선택 저장소에 쓰지 못해 새로고침 뒤 선택을 복원하지 않습니다.");
+    setStorageProblem(written.ok ? null : "이 탭의 선택 저장소에 쓰지 못해 새로고침 뒤 선택을 복원하지 않아요.");
     setSelection({ state: reset, available: written.ok });
   }, [companyId, fingerprint, stored]);
   const activeId = currentSelection?.activeId ?? null;
@@ -235,7 +235,7 @@ function CompanyPreSpecList({ companyId }: { companyId: Uuid }) {
       ?? createEmptyListSelection(fingerprint, { selectionGeneration: stored ? nextSelectionGeneration(stored.selectionGeneration) : 0 });
     const next = setSelectionActiveId(base, noticeId);
     const written = writeListSelection(companySessionKey(companyId, "pre-specs.selection"), next);
-    setStorageProblem(written.ok ? null : "이 탭의 선택 저장소에 쓰지 못해 새로고침 뒤 선택을 복원하지 않습니다.");
+    setStorageProblem(written.ok ? null : "이 탭의 선택 저장소에 쓰지 못해 새로고침 뒤 선택을 복원하지 않아요.");
     setSelection({ state: next, available: written.ok });
   }, [companyId, currentSelection, fingerprint, stored]);
 
@@ -248,7 +248,7 @@ function CompanyPreSpecList({ companyId }: { companyId: Uuid }) {
     event.preventDefault();
     const trimmed = draftQ.trim();
     if (Array.from(trimmed).length > COMPANY_PRE_SPEC_QUERY_MAX_LENGTH) {
-      setSearchProblem(`검색어는 ${COMPANY_PRE_SPEC_QUERY_MAX_LENGTH}자 이하로 입력하십시오. 적용하지 않았습니다.`);
+      setSearchProblem(`검색어는 ${COMPANY_PRE_SPEC_QUERY_MAX_LENGTH}자 이하로 입력해 주세요. 적용하지 않았어요.`);
       return;
     }
     setSearchProblem(null);
@@ -264,7 +264,7 @@ function CompanyPreSpecList({ companyId }: { companyId: Uuid }) {
         <div className="cw-section">
           <h3 id="company-pre-spec-list-title">회사별 사전규격 판정</h3>
           <p className="cw-caption">
-            회사 핏 판정·심층 검토·추적 결정은 이 회사 기준이며 서로 다른 칸입니다. 공고 판정 등급(C-1)은 가상회사 판정으로 쓰지 않습니다.
+            회사 핏 판정·심층 검토·추적 결정은 이 회사 기준이며 서로 다른 칸이에요. 공고 판정 등급(C-1)은 가상회사 판정으로 쓰지 않아요.
           </p>
           <form className="cw-filters" role="search" aria-label="회사 사전규격 필터" onSubmit={applySearch}>
             <label className="cw-filter">
@@ -320,33 +320,33 @@ function CompanyPreSpecList({ companyId }: { companyId: Uuid }) {
           </form>
           {searchProblem ? <p className="cw-caption" role="alert">{searchProblem}</p> : null}
           <p className="cw-caption">
-            핏 필터는 서버가 현재 완료된 판정만 대상으로 합니다. 대기·실행 중·실패·사람 검토 필요·기록 없음은 &lsquo;전체&rsquo;에서 봅니다.
-            모든 조건은 서버가 쪽 나누기 전에 적용합니다.
+            핏 필터는 서버가 현재 완료된 판정만 대상으로 해요. 대기·실행 중·실패·사람 검토 필요·기록 없음은 &lsquo;전체&rsquo;에서 봐요.
+            모든 조건은 서버가 쪽 나누기 전에 적용해요.
           </p>
           {listQuery.isPending ? (
-            <p role="status">이 회사의 사전규격을 불러오는 중입니다.</p>
+            <p role="status">이 회사의 사전규격을 불러오는 중이에요.</p>
           ) : listQuery.isError ? (
             <EmptyState
               tone="error"
-              title="회사 사전규격을 불러오지 못했습니다."
-              problem={describeCompanyApiError(listQuery.error, "회사 사전규격을 불러오지 못했습니다.")}
+              title="회사 사전규격을 불러오지 못했어요"
+              problem={describeCompanyApiError(listQuery.error, "회사 사전규격을 불러오지 못했어요.")}
               action={{ label: "다시 시도", onClick: () => { void listQuery.refetch(); } }}
             />
           ) : items.length === 0 ? (
             total === 0 ? (
               activeFilterCount > 0 ? (
                 <EmptyState
-                  title="조건에 맞는 사전규격이 없습니다."
-                  description="필터를 풀면 이 회사의 다른 사전규격이 보일 수 있습니다. 조건에 맞는 항목이 없다는 뜻이며 판정 결과가 없다는 뜻이 아닙니다."
+                  title="조건에 맞는 사전규격이 없어요"
+                  description="필터를 풀면 이 회사의 다른 사전규격이 보일 수 있어요. 조건에 맞는 항목이 없다는 뜻이며 판정 결과가 없다는 뜻이 아니에요."
                   action={{ label: "필터 초기화", onClick: () => update({ fit: null, tracking_status: null, q: null }) }}
                 />
               ) : (
-                <EmptyState title="이 회사에 표시할 사전규격이 없습니다." description="적재된 SW사업대상 사전규격이 없습니다." />
+                <EmptyState title="이 회사에 표시할 사전규격이 없어요" description="적재된 SW사업대상 사전규격이 없어요." />
               )
             ) : (
               <EmptyState
-                title="이 쪽에 표시할 항목이 없습니다."
-                description={`조건에 맞는 항목은 전체 ${total}건이지만 요청한 위치(${state.offset + 1}번째부터)에는 없습니다.`}
+                title="이 쪽에 표시할 항목이 없어요"
+                description={`조건에 맞는 항목은 전체 ${total}건이지만 요청한 위치(${state.offset + 1}번째부터)에는 없어요.`}
                 action={{ label: "첫 쪽으로", onClick: () => update({ offset: null }) }}
               />
             )
@@ -401,9 +401,9 @@ function CompanyPreSpecList({ companyId }: { companyId: Uuid }) {
               <Link className="cw-link" to={`/companies/${companyId}/pre-specs/${activeItem.notice_id}`}>상세 검토 열기</Link>
             </>
           ) : activeId !== null && listQuery.isSuccess ? (
-            <p className="cw-caption">선택했던 notice {activeId}가 이 쪽 목록에 없습니다. 선택을 지우지 않았습니다.</p>
+            <p className="cw-caption">선택했던 notice {activeId}가 이 쪽 목록에 없어요. 선택을 지우지 않았어요.</p>
           ) : (
-            <p className="cw-caption">목록에서 사전규격을 고르십시오.</p>
+            <p className="cw-caption">목록에서 사전규격을 골라 주세요.</p>
           )}
         </aside>
       </div>
@@ -463,7 +463,7 @@ export function CompanyPreSpecDetailPage() {
       <section className="cw-page">
         <EmptyState
           tone="error"
-          title="사전규격 주소가 올바르지 않습니다."
+          title="사전규격 주소가 올바르지 않아요"
           action={{ label: "회사 사전규격 목록", to: `/companies/${companyId}/pre-specs` }}
         />
       </section>
@@ -483,12 +483,12 @@ function CompanyPreSpecDetail({ companyId, noticeId }: { companyId: Uuid; notice
     <section className="cw-page" aria-label="회사 사전규격 상세" data-company-id={companyId}>
       <CompanyHeader companyId={companyId} screen="pre-spec-detail" />
       {detailQuery.isPending ? (
-        <p role="status">이 회사 기준 사전규격을 불러오는 중입니다.</p>
+        <p role="status">이 회사 기준 사전규격을 불러오는 중이에요.</p>
       ) : detailQuery.isError ? (
         <EmptyState
           tone="error"
-          title="이 회사 기준 사전규격을 불러오지 못했습니다."
-          problem={describeCompanyApiError(detailQuery.error, "회사 사전규격을 불러오지 못했습니다.")}
+          title="이 회사 기준 사전규격을 불러오지 못했어요"
+          problem={describeCompanyApiError(detailQuery.error, "회사 사전규격을 불러오지 못했어요.")}
           action={{ label: "회사 사전규격 목록", to: `/companies/${companyId}/pre-specs` }}
         />
       ) : detail ? (
@@ -508,7 +508,7 @@ function CompanyPreSpecDetail({ companyId, noticeId }: { companyId: Uuid; notice
               <dt>추적 결정</dt><dd><CompanyTrackingSummaryView tracking={detail.tracking} /></dd>
             </dl>
             <p className="cw-caption">
-              원문 공고는 회사와 무관하게 공유합니다.{" "}
+              원문 공고는 회사와 무관하게 공유해요.{" "}
               <Link className="cw-link" to={`/pre-specs/${detail.notice_id}`}>원문 사전규격 상세</Link>
               {" · "}
               <Link className="cw-link" to={`/pre-specs/${detail.notice_id}/company-comparison`}>3사 비교</Link>
@@ -602,18 +602,18 @@ function CompanyDeepReviewRequest({ companyId, detail }: { companyId: Uuid; deta
     <section className="cw-section cw-deep-review-request" aria-labelledby="company-deep-review-request-title" data-testid="company-deep-review-request">
       <h3 id="company-deep-review-request-title">이 회사 기준 심층 검토 요청</h3>
       <p className="cw-caption">
-        사람이 요청할 때만 Luna 참조 분석을 시작합니다. 화면을 여는 것만으로는 전송 미리보기나 요청을 보내지 않습니다.
-        심층 검토는 최종 입찰 Go/No-Go가 아니며, 회사 핏은 CLI로만 실행하므로 이 화면에 핏 승인이 없습니다.
+        사람이 요청할 때만 Luna 참조 분석을 시작해요. 화면을 여는 것만으로는 전송 미리보기나 요청을 보내지 않아요.
+        심층 검토는 최종 입찰 Go/No-Go가 아니며, 회사 핏은 CLI로만 실행하므로 이 화면에 핏 승인이 없어요.
       </p>
       {detail.review ? (
         <p className="cw-caption" data-testid="company-deep-review-existing">
-          이 회사의 기존 심층 검토가 있습니다({companyReviewStatusLabel(detail.review.status)}{detail.review.is_current ? "" : " · 현재 입력 기준 아님"}).{" "}
+          이 회사의 기존 심층 검토가 있어요({companyReviewStatusLabel(detail.review.status)}{detail.review.is_current ? "" : " · 현재 입력 기준 아님"}).{" "}
           <Link className="cw-link" to={`/companies/${companyId}/deep-reviews/${detail.review.review_id}`}>보고서·분석 회차 보기</Link>
-          {" "}같은 입력의 검토가 이미 있으면 서버가 새 검토를 막습니다. 다시 분석하려면 보고서 화면의 분석 설정에서 새 회차를 요청하십시오.
+          {" "}같은 입력의 검토가 이미 있으면 서버가 새 검토를 막아요. 다시 분석하려면 보고서 화면의 분석 설정에서 새 회차를 요청해 주세요.
         </p>
       ) : null}
       {bundleId === null || adapter === null ? (
-        <p className="cw-caption" data-testid="company-deep-review-no-bundle">확정된 문서 묶음이 없어 심층 검토를 요청할 수 없습니다.</p>
+        <p className="cw-caption" data-testid="company-deep-review-no-bundle">확정된 문서 묶음이 없어 심층 검토를 요청할 수 없어요.</p>
       ) : (
         <>
           <SourceVerificationSetting value={verification} onChange={setVerification} disabled={createMutation.isPending} />
@@ -642,8 +642,8 @@ function CompanyDeepReviewRequest({ companyId, detail }: { companyId: Uuid; deta
             />
           ) : (
             <p role="status" data-testid="company-deep-review-verification-required">
-              회사 경로는 원문 대조를 사용하는 요청만 받습니다. 이 설정으로는 미리보기와 요청을 보내지 않으며 이전 미리보기 승인은 폐기했습니다.
-              원문 대조를 다시 켜면 새 미리보기부터 시작합니다.
+              회사 경로는 원문 대조를 사용하는 요청만 받아요. 이 설정으로는 미리보기와 요청을 보내지 않으며 이전 미리보기 승인은 폐기했어요.
+              원문 대조를 다시 켜면 새 미리보기부터 시작해요.
             </p>
           )}
         </>

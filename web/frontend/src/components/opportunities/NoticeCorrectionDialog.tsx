@@ -91,10 +91,10 @@ export function NoticeCorrectionDialog({
       onDirtyChange(false);
       onOpenChange(false);
       await queryClient.invalidateQueries({ queryKey: ["notice", notice.id] });
-      onSaved("확인 항목 답변을 저장했습니다.");
+      onSaved("확인 항목 답변을 저장했어요.");
     },
     onError: (caught: unknown) => {
-      setProblem(describeApiError(caught, "확인 항목 답변을 저장하지 못했습니다."));
+      setProblem(describeApiError(caught, "확인 항목 답변을 저장하지 못했어요."));
     },
   });
 
@@ -108,13 +108,13 @@ export function NoticeCorrectionDialog({
   };
 
   const disabledReason = mutation.isPending
-    ? "확인 항목 답변을 저장하고 있습니다."
+    ? "확인 항목 답변을 저장하고 있어요."
     : answered === 0
-      ? "확인 항목에 답을 하나 이상 입력하십시오."
+      ? "확인 항목에 답을 하나 이상 입력해 주세요."
       : !reason.trim()
-        ? "저장하려면 수정 이유를 입력하십시오."
+        ? "저장하려면 수정 이유를 입력해 주세요."
         : !actorName.trim()
-          ? "저장하려면 결정 기록자를 입력하십시오."
+          ? "저장하려면 결정 기록자를 입력해 주세요."
           : null;
 
   return (
@@ -137,7 +137,7 @@ export function NoticeCorrectionDialog({
         />
         {discarding ? (
           <>
-            <p>저장하지 않은 입력이 있습니다. 닫으면 입력한 내용이 사라지며 공고 판정은 바뀌지 않습니다.</p>
+            <p>저장하지 않은 입력이 있어요. 닫으면 입력한 내용이 사라지며 공고 판정은 바뀌지 않아요.</p>
             <div className="opportunity-dialog-actions">
               <Button label="계속 작성" onClick={() => setDiscarding(false)} />
               <Button
@@ -160,7 +160,7 @@ export function NoticeCorrectionDialog({
               {notice.title?.trim() || "제목 미확인"}
             </p>
             <p className="opportunity-caption">
-              이 공고가 속한 수집 회차에 저장합니다. 기존 등급·준비 상태·최종 처리 값은 그대로 둡니다.
+              이 공고가 속한 수집 회차에 저장해요. 기존 등급·준비 상태·최종 처리 값은 그대로 둬요.
             </p>
             <TechnicalInfo summary="기술 정보 · 저장 대상 회차">
               <TechnicalFacts
@@ -173,7 +173,7 @@ export function NoticeCorrectionDialog({
                 <span>{exception.title}</span>
                 <textarea
                   onChange={(event) => setAnswers((current) => ({ ...current, [exception.title]: event.target.value }))}
-                  placeholder="확인한 사실과 원문 위치를 남깁니다. 추정을 적지 않습니다."
+                  placeholder="확인한 사실과 원문 위치를 남겨요. 추정을 적지 않아요."
                   rows={2}
                   value={answers[exception.title] ?? ""}
                 />
@@ -183,7 +183,7 @@ export function NoticeCorrectionDialog({
               <span>수정 이유</span>
               <textarea
                 onChange={(event) => setReason(event.target.value)}
-                placeholder="예외 작업으로 무엇을 해소했는지 남깁니다."
+                placeholder="예외 작업으로 무엇을 해소했는지 남겨요."
                 required
                 rows={2}
                 value={reason}
@@ -199,7 +199,7 @@ export function NoticeCorrectionDialog({
             />
             {problem ? (
               <MutationFeedback problem={problem} tone="error">
-                <p>공고 판정은 바뀌지 않았습니다. 입력한 내용은 그대로 남아 있습니다.</p>
+                <p>공고 판정은 바뀌지 않았어요. 입력한 내용은 그대로 남아 있어요.</p>
               </MutationFeedback>
             ) : null}
             <Link

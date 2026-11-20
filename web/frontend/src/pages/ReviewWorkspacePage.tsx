@@ -69,8 +69,8 @@ function ReviewLogPanel() {
     <section className="placeholder-page" aria-labelledby="review-log-title">
       <h3 className="visually-hidden" id="review-log-title">담당자 리뷰 기록</h3>
       <EmptyState
-        title="담당자 리뷰 기록은 준비 중입니다."
-        description="회차별 리뷰 이력과 담당자별 처리량을 모아 보여 줄 화면입니다. 지금은 검토 대기열 탭에서 공고를 열면 그 공고의 리뷰를 확인하고 저장할 수 있습니다."
+        title="담당자 리뷰 기록은 준비 중이에요"
+        description="회차별 리뷰 이력과 담당자별 처리량을 모아 보여 줄 화면이에요. 지금은 검토 대기열 탭에서 공고를 열면 그 공고의 리뷰를 확인하고 저장할 수 있어요."
         action={{ label: "검토 대기열 탭으로 이동", to: `/queue?${searchParams.toString()}` }}
       />
     </section>
@@ -125,7 +125,7 @@ export function ReviewWorkspacePage() {
         /* 회차를 바꿀 자리를 알려 주는 실무 안내다. 이 탭에는 회차 선택기가 없고,
            어디서 바꾸는지 모르면 다른 회차의 대기열을 볼 길이 없다. */
         <p className="ws-run-note">
-          다른 회차를 보려면 <strong>공고 판정 이력</strong> 탭에서 회차를 고릅니다. 거기서 고른 회차를 이 탭도 함께 봅니다.
+          다른 회차를 보려면 <strong>공고 판정 이력</strong> 탭에서 회차를 골라요. 거기서 고른 회차를 이 탭도 함께 봐요.
         </p>
       ) : null}
       <div className="ws-body">

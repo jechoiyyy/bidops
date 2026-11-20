@@ -36,7 +36,7 @@ export function AttentionList({ facts, today, warningDays }: AttentionListProps)
         <span className="co-block-count" data-testid="company-attention-count">{facts.length}</span>
       </h2>
       {facts.length === 0 ? (
-        <p className="co-empty" role="status">지금 확인이 필요한 항목이 없습니다.</p>
+        <p className="co-empty" role="status">지금 확인이 필요한 항목이 없어요.</p>
       ) : (
         <ul aria-labelledby="co-attention-title" className="co-attention-list">
           {facts.filter(isDisplayedFact).map((fact) => {

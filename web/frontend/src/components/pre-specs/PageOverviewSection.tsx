@@ -35,13 +35,13 @@ const CURRENT_STATUS_LABEL: Record<PageOverviewCurrentStatus, string> = {
 };
 
 const CURRENT_STATUS_DESCRIPTION: Record<PageOverviewCurrentStatus, string> = {
-  queued: "개요 검토 대기 중입니다. 선택한 PDF 입력의 실행을 기다리고 있습니다.",
-  running: "개요 검토 중입니다. 선택한 PDF 입력의 근거를 검증하고 있습니다.",
-  completed: "개요 검토가 완료되었습니다.",
-  failed: "개요 검토에 실패했습니다. 사람 확인이 필요합니다.",
-  needs_human_review: "주장과 검증된 근거를 사람이 확인해야 합니다. 입력 범위 확인 대기와는 별도 상태입니다.",
-  stale: "이전 입력 기준의 결과는 현재 결과로 사용할 수 없습니다. 사람 확인이 필요합니다.",
-  cancelled: "개요 검토가 취소되었습니다. 사람 확인이 필요합니다.",
+  queued: "개요 검토 대기 중이에요. 선택한 PDF 입력의 실행을 기다리고 있어요.",
+  running: "개요 검토 중이에요. 선택한 PDF 입력의 근거를 검증하고 있어요.",
+  completed: "개요 검토가 완료되었어요.",
+  failed: "개요 검토에 실패했어요. 사람 확인이 필요해요.",
+  needs_human_review: "주장과 검증된 근거를 사람이 확인해야 해요. 입력 범위 확인 대기와는 별도 상태예요.",
+  stale: "이전 입력 기준의 결과는 현재 결과로 사용할 수 없어요. 사람 확인이 필요해요.",
+  cancelled: "개요 검토가 취소되었어요. 사람 확인이 필요해요.",
 };
 
 const CURRENT_STATUS_VALUES: readonly PageOverviewCurrentStatus[] = [
@@ -153,7 +153,7 @@ export function PageOverviewExecutionInfo({ review }: { review: PageOverviewView
   const pdfUrl = pageOverviewPdfUrl(review);
   return <details className="page-overview-section"><summary>검토 범위</summary>
     {payload.input_limitations.map((text, i) => <p key={i}>{text}</p>)}
-    <p>표지를 포함한 변환 PDF 순번 기준 · {review.reviewed_pages.join(", ")} / 총 {review.pdf_page_count}페이지. 원본 한컴 쪽 배치와 다를 수 있습니다.</p>
+    <p>표지를 포함한 변환 PDF 순번 기준 · {review.reviewed_pages.join(", ")} / 총 {review.pdf_page_count}페이지. 원본 한컴 쪽 배치와 다를 수 있어요.</p>
     {review.validation_errors.length ? <p>검증 사유: {review.validation_errors.join(", ")}</p> : null}
     <a href={pdfUrl} target="_blank" rel="noreferrer">전체 근거 PDF 열기 ↗</a>
   </details>;
@@ -177,7 +177,7 @@ export function PageOverviewResultFacts({ review, claimIds }: { review: PageOver
     <div><dt>검증 기준</dt><dd>{verificationBasisLabel(review)} · {review.payload.schema_version}</dd></div>
     <div><dt>모델</dt><dd>{review.model_name}</dd></div>
     <div><dt>프롬프트</dt><dd>{review.prompt_version}</dd></div>
-    <div><dt>주장 ID</dt><dd className="mono">{claimIds.length ? claimIds.join(", ") : "이 결과에는 주장 식별자가 없습니다"}</dd></div>
+    <div><dt>주장 ID</dt><dd className="mono">{claimIds.length ? claimIds.join(", ") : "이 결과에는 주장 식별자가 없어요"}</dd></div>
   </dl>;
 }
 
@@ -227,9 +227,9 @@ export function PageOverviewResult({ review, anchor = true }: { review: PageOver
       <strong>{review.validation_status === "failed" ? "검증 실패 · 사람 확인 필요" : isVerifiedV4 ? "주장 검증 완료 · 운영 승인 아님" : "근거 검사 통과 · 이전 검증 기준"}</strong>
       {/* 경계 문장은 ② 추적 결정 카드 한 곳만 갖는다(M4 승인). 자동 시작 조건은
           경계가 아니라 사실이므로 남긴다. */}
-      <p>사업 설명을 위한 요약입니다. 판정이 아니며, 이 요약을 읽고 추적을 정합니다.</p>
+      <p>사업 설명을 위한 요약이에요. 판정이 아니며, 이 요약을 읽고 추적을 정해요.</p>
       {review.validation_status === "failed" && review.evidence_check_status === "passed" ? (
-        <p>새 페이지 근거 검사는 통과했으나, 원실행의 검증 실패 기록은 유지합니다.</p>
+        <p>새 페이지 근거 검사는 통과했으나, 원실행의 검증 실패 기록은 유지해요.</p>
       ) : null}
     </div>
     <PageOverviewFacts title="사업 개요" items={payload.business_overview} review={review} anchor={anchor} />
@@ -308,7 +308,7 @@ export function PageOverviewVerificationDetails({
         <p>주장 사유 코드 · {claim.reason_codes.length ? claim.reason_codes.join(", ") : "없음"}</p>
         <VerificationEvidence noticeId={noticeId} attemptId={attemptId} evidence={claim.verified_evidence} />
       </li>)}
-    </ol> : <p className="page-overview-note">표시할 주장 진단이 없습니다.</p>}
+    </ol> : <p className="page-overview-note">표시할 주장 진단이 없어요.</p>}
   </section>;
 }
 
@@ -331,16 +331,16 @@ export function PageOverviewCurrent({
         <Token label={isRangePending ? "입력 범위 확인 필요" : isInputCapacityExceeded ? "입력 용량 초과로 미실행" : CURRENT_STATUS_LABEL[current.status]} size="sm" />
       </header>
       <div className="page-overview-validation" role={current.status === "failed" ? "alert" : "status"}>
-        <strong>{isRangePending ? "입력 범위를 사람이 확정해야 합니다. 주장 검증은 아직 시작하지 않았습니다." : isInputCapacityExceeded ? "입력 용량을 초과했거나 안전 한도를 확인할 수 없어 이 요청을 실행하지 않았습니다." : CURRENT_STATUS_DESCRIPTION[current.status]}</strong>
+        <strong>{isRangePending ? "입력 범위를 사람이 확정해야 해요. 주장 검증은 아직 시작하지 않았어요." : isInputCapacityExceeded ? "입력 용량을 초과했거나 안전 한도를 확인할 수 없어 이 요청을 실행하지 않았어요." : CURRENT_STATUS_DESCRIPTION[current.status]}</strong>
         {isInputCapacityExceeded ? (
           <>
             {/* 상한 수치는 정책이 소유한다. 화면이 특정 숫자를 외워 적지 않는다. */}
-            <p>선택 범위와 요청 예산을 확인해 주세요. 단계별 payload 상한은 정책이 정하며, 모델 컨텍스트 한도는 실제 요청 전체와 출력·chat template 예약을 함께 계산하는 별도 안전 기준입니다. 이 표시는 같은 시도의 앞선 초안 호출 여부를 뜻하지 않습니다.</p>
-            <p>원문을 몰래 자르거나 사전 요약·자동 분할하지 않습니다. 범위를 바꾸려면 사람이 새 범위를 확정해야 하고, 모델 호출 증가가 필요하면 별도 승인을 받아야 합니다.</p>
+            <p>선택 범위와 요청 예산을 확인해 주세요. 단계별 payload 상한은 정책이 정하며, 모델 컨텍스트 한도는 실제 요청 전체와 출력·chat template 예약을 함께 계산하는 별도 안전 기준이에요. 이 표시는 같은 시도의 앞선 초안 호출 여부를 뜻하지 않아요.</p>
+            <p>원문을 몰래 자르거나 사전 요약·자동 분할하지 않아요. 범위를 바꾸려면 사람이 새 범위를 확정해야 하고, 모델 호출 증가가 필요하면 별도 승인을 받아야 해요.</p>
           </>
         ) : null}
         {hasUnusableCompletedResult ? (
-          <p>검증 통과한 현재 결과를 확인할 수 없어 본문을 표시하지 않습니다.</p>
+          <p>검증 통과한 현재 결과를 확인할 수 없어 본문을 표시하지 않아요.</p>
         ) : null}
         {/* 시도 ID·프롬프트·결과 ID·처리 사유 코드는 ⑥ 접힌 `기술 정보`가 갖는다
             (`PageOverviewCurrentFacts`). 여기 남는 것은 지금 무슨 상태인지다. */}
@@ -452,27 +452,27 @@ const RANGE_REASON_LABEL: Record<string, string> = {
 
 /** 서버가 고정한 안전 코드의 한국어 문구. 모르는 코드는 그대로 보여 준다. */
 const RANGE_ERROR_LABEL: Record<string, string> = {
-  target_not_pending: "이미 다른 결정이 반영된 대상입니다. 새로 고쳐 확인하세요",
-  run_active: "실행 중이거나 대기 중인 개요가 있어 범위를 저장할 수 없습니다",
-  candidate_range_incomplete: "절 후보가 일부만 있어 절로 확정할 수 없습니다. 쪽 범위로 확정하십시오",
-  candidate_range_unavailable: "절 후보를 확인할 수 없어 절로 확정할 수 없습니다. 쪽 범위로 확정하십시오",
-  range_invalid: "선택한 범위가 유효하지 않습니다",
-  input_size_limit: "선택 범위가 입력 한도를 넘습니다",
-  target_not_found: "확정 대상을 찾을 수 없습니다",
-  target_execution_active: "실행 중인 개요가 있어 범위를 저장할 수 없습니다",
-  document_not_current_safe: "현재 안전한 문서가 아니어서 범위를 저장할 수 없습니다",
+  target_not_pending: "이미 다른 결정이 반영된 대상이에요. 새로 고쳐 확인하세요",
+  run_active: "실행 중이거나 대기 중인 개요가 있어 범위를 저장할 수 없어요",
+  candidate_range_incomplete: "절 후보가 일부만 있어 절로 확정할 수 없어요. 쪽 범위로 확정해 주세요",
+  candidate_range_unavailable: "절 후보를 확인할 수 없어 절로 확정할 수 없어요. 쪽 범위로 확정해 주세요",
+  range_invalid: "선택한 범위가 유효하지 않아요",
+  input_size_limit: "선택 범위가 입력 한도를 넘어요",
+  target_not_found: "확정 대상을 찾을 수 없어요",
+  target_execution_active: "실행 중인 개요가 있어 범위를 저장할 수 없어요",
+  document_not_current_safe: "현재 안전한 문서가 아니어서 범위를 저장할 수 없어요",
 };
 
 const RANGE_WARNING_LABEL: Record<string, string> = {
-  section_candidates_incomplete: "절 후보가 일부만 제공되었습니다. 후보 표는 참고하고 쪽 범위를 직접 입력하십시오",
-  section_candidates_unavailable: "절 후보를 확인할 수 없습니다. 변환 PDF를 보고 쪽 범위를 직접 입력하십시오",
-  ambiguous_scope_boundary: "자동 선택 범위의 경계가 모호합니다. 변환 PDF에서 쪽 범위를 확인하십시오",
-  document_not_current_safe: "현재 안전한 문서가 아니어서 새 범위를 저장할 수 없습니다",
-  target_execution_active: "실행 중인 개요가 있어 새 범위를 저장할 수 없습니다",
+  section_candidates_incomplete: "절 후보가 일부만 제공되었어요. 후보 표는 참고하고 쪽 범위를 직접 입력해 주세요",
+  section_candidates_unavailable: "절 후보를 확인할 수 없어요. 변환 PDF를 보고 쪽 범위를 직접 입력해 주세요",
+  ambiguous_scope_boundary: "자동 선택 범위의 경계가 모호해요. 변환 PDF에서 쪽 범위를 확인해 주세요",
+  document_not_current_safe: "현재 안전한 문서가 아니어서 새 범위를 저장할 수 없어요",
+  target_execution_active: "실행 중인 개요가 있어 새 범위를 저장할 수 없어요",
 };
 
-const RANGE_ORDER_ERROR = "끝 절은 시작 절과 같거나 뒤여야 합니다";
-const RANGE_CONFIRMED_NOTE = "범위가 확정되었습니다 · 그 범위로 개요 검토를 예약했습니다";
+const RANGE_ORDER_ERROR = "끝 절은 시작 절과 같거나 뒤여야 해요";
+const RANGE_CONFIRMED_NOTE = "범위가 확정되었어요 · 그 범위로 개요 검토를 예약했어요";
 
 function rangeReasonLabel(reasonCode: string | null): string {
   if (reasonCode === null) return "사유 코드 없음";
@@ -549,9 +549,9 @@ function RangeReviewPending({
   const locked = confirmed || mutation.isPending || !review.can_confirm;
   const ready = valid && actorName.trim().length > 0 && !locked;
   const missing = !selected
-    ? (pagesMode ? "시작 쪽과 끝 쪽을 입력하십시오." : "시작 절과 끝 절을 고르십시오.")
+    ? (pagesMode ? "시작 쪽과 끝 쪽을 입력해 주세요." : "시작 절과 끝 절을 골라 주세요.")
     : actorName.trim().length === 0
-      ? "담당자 이름을 입력하십시오."
+      ? "담당자 이름을 입력해 주세요."
       : null;
 
   // 한 벌의 radio가 표의 행을 가로질러야 한다. Astryx `RadioList`는 자기
@@ -594,9 +594,9 @@ function RangeReviewPending({
       <p className="page-overview-range-reason">
         <strong>확인 사유 · {rangeReasonLabel(review.reason_code)}</strong>{" "}
         {review.selection_status === "ready"
-          ? `자동 선택 범위 ${review.selected_pages.length ? `${review.selected_pages[0]}~${review.selected_pages.at(-1)}쪽` : "확인 불가"}입니다. 필요하면 사람이 새 범위를 확정할 수 있습니다.`
-          : "결정적 선택기가 범위를 정하지 못했습니다. 사람이 시작·끝을 확정해야 개요 검토 입력이 준비됩니다."}{" "}
-        확정하면 그 범위로 개요 검토 실행 하나를 예약합니다.
+          ? `자동 선택 범위 ${review.selected_pages.length ? `${review.selected_pages[0]}~${review.selected_pages.at(-1)}쪽` : "확인 불가"}이에요. 필요하면 사람이 새 범위를 확정할 수 있어요.`
+          : "결정적 선택기가 범위를 정하지 못했어요. 사람이 시작·끝을 확정해야 개요 검토 입력이 준비돼요."}{" "}
+        확정하면 그 범위로 개요 검토 실행 하나를 예약해요.
       </p>
 
       {review.warning_codes.length ? (
@@ -668,7 +668,7 @@ function RangeReviewPending({
               onChange={setLastPage}
             />
           </div>
-          <p className="page-overview-note">쪽 범위로 직접 확정합니다. 전체 {review.pdf_page_count}쪽</p>
+          <p className="page-overview-note">쪽 범위로 직접 확정해요. 전체 {review.pdf_page_count}쪽</p>
         </>
       ) : null}
 
@@ -685,14 +685,14 @@ function RangeReviewPending({
           />
           <p className="page-overview-note">
             절 후보 {review.candidate_count_returned}건 표시 · 전체 {review.candidate_count_total ?? "확인 불가"}건
-            {review.candidate_status === "partial" ? " · 일부 후보이므로 표는 참고용입니다" : null}
+            {review.candidate_status === "partial" ? " · 일부 후보이므로 표는 참고용이에요" : null}
           </p>
         </div>
       ) : null}
 
       {orderInvalid ? (
         <p role="alert" className="page-overview-range-invalid">
-          {pagesMode ? "끝 쪽은 시작 쪽과 같거나 뒤여야 합니다" : RANGE_ORDER_ERROR}
+          {pagesMode ? "끝 쪽은 시작 쪽과 같거나 뒤여야 해요" : RANGE_ORDER_ERROR}
         </p>
       ) : null}
 
@@ -713,13 +713,13 @@ function RangeReviewPending({
           onClick={() => { if (ready) mutation.mutate(); }}
         />
         {missing && !confirmed ? <p className="page-overview-note">{missing}</p> : null}
-        {!review.can_confirm ? <p className="page-overview-note">안전 또는 실행 상태를 확인할 때까지 저장할 수 없습니다.</p> : null}
+        {!review.can_confirm ? <p className="page-overview-note">안전 또는 실행 상태를 확인할 때까지 저장할 수 없어요.</p> : null}
       </div>
 
       {confirmed ? <p role="status">{RANGE_CONFIRMED_NOTE}</p> : null}
       {failure ? (
         <p role="alert" className="page-overview-range-invalid">
-          {failure.code === null ? "범위 확정 요청을 보내지 못했습니다" : RANGE_ERROR_LABEL[failure.code] ?? failure.code}
+          {failure.code === null ? "범위 확정 요청을 보내지 못했어요" : RANGE_ERROR_LABEL[failure.code] ?? failure.code}
         </p>
       ) : null}
     </section>
@@ -752,7 +752,7 @@ function RangeReviewConfirmed({
         <div><dt>담당자</dt><dd>{confirmation.actor}</dd></div>
         <div><dt>확정 시각</dt><dd>{formatDateTime(confirmation.created_at)}</dd></div>
       </dl>
-      <p className="page-overview-note">확정된 범위로 개요 검토 실행 하나가 예약됩니다</p>
+      <p className="page-overview-note">확정된 범위로 개요 검토 실행 하나가 예약돼요</p>
     </section>
   );
 }
@@ -851,13 +851,13 @@ export function useCurrentPageOverview(noticeId: number | null): CurrentPageOver
 export function PageOverviewSection({ noticeId }: { noticeId: number }) {
   const { query, isValid, current, hasCurrentProjection, currentResult, legacyReview, history, rangeReview, verification } = useCurrentPageOverview(noticeId);
 
-  if (query.isPending) return <p role="status">PDF 기반 개요를 불러오는 중입니다.</p>;
+  if (query.isPending) return <p role="status">PDF 기반 개요를 불러오는 중이에요.</p>;
   if (query.isError) return <div role="alert" className="page-overview-validation">
-    <p>PDF 기반 개요를 불러오지 못했습니다. 아래 기존 개요 기록과는 별도 조회입니다.</p>
+    <p>PDF 기반 개요를 불러오지 못했어요. 아래 기존 개요 기록과는 별도 조회예요.</p>
     <Button label="개요 다시 불러오기" size="sm" onClick={() => { void query.refetch(); }} />
   </div>;
   if (!isValid) {
-    return <p role="alert">개요 응답의 공고 또는 구조가 일치하지 않아 표시하지 않습니다.</p>;
+    return <p role="alert">개요 응답의 공고 또는 구조가 일치하지 않아 표시하지 않아요.</p>;
   }
 
   // 범위 확인은 현재 실행 카드보다 위에 온다. 입력 범위가 정해지지 않으면

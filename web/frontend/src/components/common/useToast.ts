@@ -4,13 +4,15 @@ import type { ToastVariant } from "./Toast";
 export interface ToastState {
   message: string;
   variant: ToastVariant;
+  /** 결과에서 이어 갈 화면 링크. 없으면 빈 배열이다. */
+  links: ReadonlyArray<{ label: string; to: string }>;
 }
 
 export interface ToastController {
   /** 지금 떠 있는 알림. 없으면 `null`이다. */
   toast: ToastState | null;
   /** 저장처럼 화면을 바꾸지 않는 동작의 결과를 알린다. */
-  showToast: (message: string, variant?: ToastVariant) => void;
+  showToast: (message: string, variant?: ToastVariant, links?: ReadonlyArray<{ label: string; to: string }>) => void;
   dismissToast: () => void;
 }
 
@@ -28,8 +30,8 @@ export interface ToastController {
 export function useToast(): ToastController {
   const [toast, setToast] = useState<ToastState | null>(null);
 
-  const showToast = useCallback((message: string, variant: ToastVariant = "success") => {
-    setToast({ message, variant });
+  const showToast = useCallback((message: string, variant: ToastVariant = "success", links: ReadonlyArray<{ label: string; to: string }> = []) => {
+    setToast({ message, variant, links });
   }, []);
 
   const dismissToast = useCallback(() => setToast(null), []);

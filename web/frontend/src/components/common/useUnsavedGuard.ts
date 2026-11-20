@@ -14,8 +14,8 @@ import { ConfirmDecisionDialog, type ConfirmDecisionSummaryItem } from "./Confir
  * 수단이 없다.
  */
 
-const DEFAULT_TITLE = "저장하지 않은 입력이 있습니다";
-const DEFAULT_MESSAGE = "저장되지 않은 변경이 있습니다. 이 페이지를 벗어나시겠습니까?";
+const DEFAULT_TITLE = "저장하지 않은 입력이 있어요";
+const DEFAULT_MESSAGE = "저장되지 않은 변경이 있어요. 이 페이지를 벗어날까요?";
 const DEFAULT_CONFIRM_LABEL = "저장하지 않고 이동";
 const DEFAULT_CANCEL_LABEL = "계속 편집";
 

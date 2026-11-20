@@ -17,6 +17,8 @@ import {
 } from "../components/common/ConfirmDecisionDialog";
 import { DisabledReason } from "../components/common/DisabledReason";
 import { EmptyState } from "../components/common/EmptyState";
+import { PageHeaderActions } from "../components/common/PageHeaderActions";
+import { usePageHeader } from "../components/shell/PageHeaderContext";
 import { MutationFeedback } from "../components/common/MutationFeedback";
 import { TechnicalFacts, TechnicalInfo } from "../components/common/TechnicalInfo";
 import { Toast } from "../components/common/Toast";
@@ -55,7 +57,6 @@ import {
   locatorText,
   MATERIALITY_LABELS,
   RESULT_LABELS,
-  SHORT_CALCULATION_LABELS,
   shortHash,
 } from "../components/bid-delta/labels";
 import type {
@@ -90,7 +91,7 @@ import "../styles/bid-delta-decision.css";
  */
 
 /** 최신 입찰공고 fence가 없을 때 저장 단추 아래에 적는 문장. */
-const NOTICE_UNRESOLVED_REASON = "최신 입찰공고를 확정할 수 없어 저장할 수 없습니다";
+const NOTICE_UNRESOLVED_REASON = "최신 입찰공고를 확정할 수 없어 저장할 수 없어요";
 
 /** 입찰공고가 그사이 바뀌어 서버가 공고 조건 결정을 거절한 코드. 공고 조건을 다시 읽는다. */
 const NOTICE_CHANGED_CODES = new Set(["final_decision_notice_not_latest", "final_decision_observation_changed"]);
@@ -188,7 +189,7 @@ function CurrentnessPanel({
           <span className="bid-delta-decision-basis">{BASIS_LABELS[decision.basis_kind]} · {decisionBasisDetail(decision)}</span>
           <p>{decision.reason}</p>
         </div>
-      ) : <p>아직 최종 결정이 저장되지 않았습니다.</p>}
+      ) : <p>아직 최종 결정이 저장되지 않았어요.</p>}
       <p className="bid-delta-currentness-reasons">
         <span>{TERM.currentness} 근거</span> {reasons.length > 0 ? reasons.join(" · ") : "확인된 재검토 사유 없음"}
       </p>
@@ -217,12 +218,12 @@ function WorkspaceCandidates({
         <h3 id="bid-delta-candidates-title">비교 문서 후보</h3>
         <span className="bid-delta-muted">서버 자동 선택 없음</span>
       </div>
-      <p className="bid-delta-help">비교할 문서를 양쪽에서 하나씩 사람이 고릅니다. 후보가 하나뿐인 쪽만 미리 골라 두었고, 요청에는 아래 고정 입력 값 전체를 함께 보냅니다.</p>
+      <p className="bid-delta-help">비교할 문서를 양쪽에서 하나씩 사람이 골라요. 후보가 하나뿐인 쪽만 미리 골라 두었고, 요청에는 아래 고정 입력 값 전체를 함께 보내요.</p>
       <div className="bid-delta-candidate-columns">
         <div>
           <h4>기준 · 사전규격</h4>
           {noBaseline ? (
-            <EmptyState compact tone="warning" title="기준 후보 없음" description="확정된 사전규격 연결과 안전 검사를 마친 문서 묶음이 없어 비교를 시작할 수 없습니다. 이를 변경 없음으로 해석하지 않습니다." />
+            <EmptyState compact tone="warning" title="기준 후보 없음" description="확정된 사전규격 연결과 안전 검사를 마친 문서 묶음이 없어 비교를 시작할 수 없어요. 이를 변경 없음으로 해석하지 않아요." />
           ) : (
             <div className="bid-delta-candidate-list">
               {workspace.baseline_candidates.map((item) => (
@@ -230,12 +231,12 @@ function WorkspaceCandidates({
               ))}
             </div>
           )}
-          {workspace.baseline_candidates.length === 1 ? <p className="bid-delta-selection-note">후보가 하나여서 미리 선택했습니다.</p> : null}
+          {workspace.baseline_candidates.length === 1 ? <p className="bid-delta-selection-note">후보가 하나여서 미리 선택했어요.</p> : null}
         </div>
         <div>
           <h4>비교 · 입찰공고</h4>
           {noComparison ? (
-            <EmptyState compact tone="warning" title="비교 후보 없음" description="확정된 입찰공고 연결과 안전 검사를 마친 문서 묶음이 없어 비교를 시작할 수 없습니다. 이를 변경 없음으로 해석하지 않습니다." />
+            <EmptyState compact tone="warning" title="비교 후보 없음" description="확정된 입찰공고 연결과 안전 검사를 마친 문서 묶음이 없어 비교를 시작할 수 없어요. 이를 변경 없음으로 해석하지 않아요." />
           ) : (
             <div className="bid-delta-candidate-list">
               {workspace.comparison_candidates.map((item) => (
@@ -243,7 +244,7 @@ function WorkspaceCandidates({
               ))}
             </div>
           )}
-          {workspace.comparison_candidates.length === 1 ? <p className="bid-delta-selection-note">후보가 하나여서 미리 선택했습니다.</p> : null}
+          {workspace.comparison_candidates.length === 1 ? <p className="bid-delta-selection-note">후보가 하나여서 미리 선택했어요.</p> : null}
         </div>
       </div>
     </section>
@@ -258,7 +259,7 @@ function ComparisonList({ comparisons, opportunityId, baseSearch }: { comparison
         <span className="bid-delta-muted">{comparisons.length}건 · 바뀌지 않는 기록</span>
       </div>
       {comparisons.length === 0 ? (
-        <EmptyState compact title="생성된 비교가 없습니다." description="비교 계산 프로그램이 아직 없어 새 비교를 만들 수 없습니다. 비교가 없다는 것은 변경이 없다는 뜻이 아닙니다." />
+        <EmptyState compact title="생성된 비교가 없어요" description="비교 계산 프로그램이 아직 없어 새 비교를 만들 수 없어요. 비교가 없다는 것은 변경이 없다는 뜻이 아니에요." />
       ) : (
         <ol className="bid-delta-comparison-list">
           {comparisons.map((item) => (
@@ -291,8 +292,8 @@ function EvidenceCard({ evidence, side }: { evidence: BidDeltaEvidenceView | nul
     return (
       <article className="bid-delta-evidence-card bid-delta-evidence-missing">
         <strong>{side === "baseline" ? "기준 사전규격" : "대상 입찰공고"}</strong>
-        <p>연결된 원문 근거가 없습니다.</p>
-        <span>이 상태를 검증된 결과로 표시하지 않습니다.</span>
+        <p>연결된 원문 근거가 없어요.</p>
+        <span>이 상태를 검증된 결과로 표시하지 않아요.</span>
       </article>
     );
   }
@@ -346,10 +347,10 @@ function DeltaItem({ item, onOpenEvidence }: { item: BidDeltaItemView; onOpenEvi
       {item.summary ? <p className="bid-delta-item-summary">{item.summary}</p> : null}
       {/* 사실·품질 경고는 이 단계에서 보인다. 기술 식별자만 근거 대화상자의
           `기술 식별자 보기` 뒤로 간다. 오류 코드는 접힌 기술 정보로 옮기고(ADR-0066
-          §3.3 F3), "변경 없음으로 해석하지 않습니다" 경고는 접지 않고 밖에 남긴다. */}
+          §3.3 F3), "변경 없음으로 해석하지 않아요" 경고는 접지 않고 밖에 남긴다. */}
       {item.result_status === "unknown" || item.result_status === "failed" ? (
         <>
-          <p className="bid-delta-item-error">이 항목은 변경 없음으로 해석하지 않습니다.</p>
+          <p className="bid-delta-item-error">이 항목은 변경 없음으로 해석하지 않아요.</p>
           {item.error_code ? (
             <TechnicalInfo summary="기술 정보 · 오류 코드">
               <TechnicalFacts facts={[{ label: "오류 코드", value: item.error_code }]} label="변경 항목 오류 코드" />
@@ -363,11 +364,11 @@ function DeltaItem({ item, onOpenEvidence }: { item: BidDeltaItemView; onOpenEvi
       ) : null}
       {unverified ? (
         <p className="bid-delta-item-error">
-          근거 검증 {unverified.verification_status === "missing" ? "missing · 근거 없음" : "mismatch · 불일치"} 항목이 있습니다.
+          근거 검증 {unverified.verification_status === "missing" ? "missing · 근거 없음" : "mismatch · 불일치"} 항목이 있어요.
         </p>
       ) : null}
       {item.baseline_evidence.length === 0 && item.comparison_evidence.length === 0 ? (
-        <p className="bid-delta-item-error">양쪽 근거가 갖춰지지 않아 변경 여부를 확정하지 못했습니다.</p>
+        <p className="bid-delta-item-error">양쪽 근거가 갖춰지지 않아 변경 여부를 확정하지 못했어요.</p>
       ) : null}
       <Button
         label={firstEvidence
@@ -390,7 +391,7 @@ function AttemptHistory({ comparison }: { comparison: BidDeltaComparisonView }) 
         <h3 id="bid-delta-attempt-title">계산 회차 이력</h3>
         <span className="bid-delta-muted">{comparison.attempts.length}건 · 추가만 기록</span>
       </div>
-      {comparison.attempts.length === 0 ? <p>아직 실행한 계산 회차가 없습니다.</p> : (
+      {comparison.attempts.length === 0 ? <p>아직 실행한 계산 회차가 없어요.</p> : (
         <ol className="bid-delta-attempt-list">
           {comparison.attempts.map((attempt) => {
             const current = attempt.id === currentAttempt?.id;
@@ -434,7 +435,7 @@ function DecisionHistory({
         <h3 id="bid-delta-decision-history-title">최종 Go/No-Go 저장 이력</h3>
         <span className="bid-delta-muted">{allDecisions.length}건 · 추가만 기록</span>
       </div>
-      {allDecisions.length === 0 ? <p>아직 저장된 최종 결정이 없습니다.</p> : (
+      {allDecisions.length === 0 ? <p>아직 저장된 최종 결정이 없어요.</p> : (
         <ol className="bid-delta-decision-history-list">
           {allDecisions.map((decision) => (
             <li key={decision.id}>
@@ -485,28 +486,28 @@ function BidDeltaErrorFeedback({ problem, onRefresh, refreshing }: { problem: Ap
  * 준다. 분기는 서버 message가 아니라 안전한 코드로만 한다.
  */
 function describeFinalDecisionError(error: unknown, basis: FinalDecisionBasisKind | undefined): ApiErrorDescription {
-  const base = describeApiError(error, "최종 결정을 저장하지 못했습니다.");
+  const base = describeApiError(error, "최종 결정을 저장하지 못했어요.");
   if (base.code !== null && NOTICE_CHANGED_CODES.has(base.code)) {
     return {
       ...base,
-      title: "입찰공고가 바뀌었습니다. 공고 조건을 다시 읽은 뒤 결정하세요.",
-      detail: "화면이 보여 준 입찰공고가 더는 최신이 아니거나 관측 내용이 달라져 저장하지 않았습니다. 공고 조건을 다시 불러왔으니 바뀐 조건을 확인한 뒤 다시 확인하십시오.",
+      title: "입찰공고가 바뀌었어요. 공고 조건을 다시 읽은 뒤 결정하세요.",
+      detail: "화면이 보여 준 입찰공고가 더는 최신이 아니거나 관측 내용이 달라져 저장하지 않았어요. 공고 조건을 다시 불러왔으니 바뀐 조건을 확인한 뒤 다시 확인해 주세요.",
       action: "reload",
     };
   }
   if (base.code === "final_decision_bid_notice_missing") {
     return {
       ...base,
-      title: "최종 결정할 입찰공고가 없습니다.",
-      detail: "확정 연결된 입찰공고가 없어 공고 조건 기준으로 저장하지 않았습니다. 사업 추적에서 입찰공고 연결을 확인하십시오.",
+      title: "최종 결정할 입찰공고가 없어요.",
+      detail: "확정 연결된 입찰공고가 없어 공고 조건 기준으로 저장하지 않았어요. 사업 추적에서 입찰공고 연결을 확인해 주세요.",
       action: "reload",
     };
   }
   if (base.code === "bid_delta_currentness_unavailable" && basis === "notice_conditions") {
     return {
       ...base,
-      title: "최신 입찰공고를 확정할 수 없습니다.",
-      detail: "입찰공고의 게시 시각이나 관측 기록이 없어 최신 여부를 모르는 채로 저장하지 않았습니다. 최신 상태를 다시 불러오십시오.",
+      title: "최신 입찰공고를 확정할 수 없어요.",
+      detail: "입찰공고의 게시 시각이나 관측 기록이 없어 최신 여부를 모르는 채로 저장하지 않았어요. 최신 상태를 다시 불러와 주세요.",
       action: "reload",
     };
   }
@@ -655,7 +656,7 @@ export function BidDeltaDecisionPage() {
   const retryMutation = useMutation({
     mutationFn: () => {
       const current = comparisonQuery.data;
-      if (!current || !selectedComparisonId) throw new Error("재시도할 비교가 없습니다.");
+      if (!current || !selectedComparisonId) throw new Error("재시도할 비교가 없어요.");
       return retryBidDeltaAttempt(opportunityId, selectedComparisonId, retryActor, {
         schema_version: "bidops.bid-delta-attempt-create.v1",
         request_id: generateRequestId(),
@@ -665,7 +666,7 @@ export function BidDeltaDecisionPage() {
     onSuccess: async (updated) => {
       queryClient.setQueryData(["bid-delta-comparison", opportunityId, updated.id], updated);
       setRetryActor("");
-      showToast("새 계산 회차를 시작했습니다. 이전 회차는 그대로 남습니다.");
+      showToast("새 계산 회차를 시작했어요. 이전 회차는 그대로 남아요.");
       await queryClient.invalidateQueries({ queryKey: ["bid-delta", opportunityId] });
     },
   });
@@ -681,7 +682,7 @@ export function BidDeltaDecisionPage() {
       setReason("");
       // 저장된 스냅숏은 다시 보낼 대상이 아니다. 다음 결정은 새 `request_id`를 받는다.
       lastFrozenRequest.current = null;
-      showToast(`${saved.decision === "go" ? "Go" : "No-Go"} 최종 결정을 저장했습니다. 이전 결정은 그대로 남습니다.`);
+      showToast(`${saved.decision === "go" ? "Go" : "No-Go"} 최종 결정을 저장했어요. 이전 결정은 그대로 남아요.`);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["bid-delta", opportunityId] }),
         queryClient.invalidateQueries({ queryKey: ["bid-delta-comparison", opportunityId, selectedComparisonId] }),
@@ -699,6 +700,19 @@ export function BidDeltaDecisionPage() {
   });
 
   const comparisonView = comparisonQuery.data;
+  // 패널 헤더(2026-11-19, ADR-0076): 무엇에 대한 결정인지(사업명)가 제목이고, 화면 이름은 위 작은 글자,
+  // 현재 결정은 태그다. 값은 이미 받은 사업기회·작업 공간 응답 그대로이며 없으면 식별자만 쓴다.
+  const headerDecision = workspaceQuery.data?.latest_final_decision ?? null;
+  usePageHeader(workspaceQuery.isSuccess ? {
+    eyebrow: "입찰 변경 비교 · 최종 결정",
+    tag: headerDecision
+      ? { label: `현재 결정 ${headerDecision.decision === "go" ? "Go" : "No-Go"} · ${statusTokenLabel(workspaceQuery.data.decision_currentness)}`, tone: "brand" }
+      : { label: "현재 결정 없음", tone: "muted" },
+    title: businessTitle ?? `사업기회 ${opportunityId}`,
+    description: `${businessAgency ?? "발주기관 미확인"} · 사업기회 ${opportunityId}${comparisonView
+      ? ` · 기준 ${comparisonView.baseline.notice_external_id} ↔ 대상 ${comparisonView.comparison.notice_external_id}`
+      : " · 비교 미선택"}`,
+  } : null);
   const comparisonLoading = Boolean(selectedComparisonId) && comparisonQuery.isPending;
   const comparisonBasisAvailable = Boolean(
     comparisonView && comparisonView.calculation_status === "completed" && comparisonView.result_status !== "failed",
@@ -711,26 +725,26 @@ export function BidDeltaDecisionPage() {
     ? { noticeId: conditions.latest_notice_id, observationSha256: conditions.latest_observation_sha256 }
     : null;
   const basisBlockedReason: string | null = comparisonLoading
-    ? "선택한 비교 상세를 불러오는 중입니다."
+    ? "선택한 비교 상세를 불러오는 중이에요."
     : basis === "comparison"
       ? null
       : conditionsQuery.isPending
-        ? "공고 조건을 불러오는 중입니다."
+        ? "공고 조건을 불러오는 중이에요."
         : conditionsQuery.isError || !conditions
-          ? "공고 조건을 불러오지 못해 최종 Go/No-Go를 저장할 수 없습니다."
+          ? "공고 조건을 불러오지 못해 최종 Go/No-Go를 저장할 수 없어요."
           : !noticeFence
             ? NOTICE_UNRESOLVED_REASON
             : null;
   const formAvailable = basisBlockedReason === null;
   const decisionDisabledReason = finalDecisionMutation.isPending
-    ? "최종 결정 저장 요청을 처리하고 있습니다."
+    ? "최종 결정 저장 요청을 처리하고 있어요."
     : basisBlockedReason
       ?? (!decisionActor.trim()
         ? "결정 기록자 이름을 입력해 주세요."
         : !decision
-          ? "최종 결정에서 Go 또는 No-Go를 선택하십시오."
+          ? "최종 결정에서 Go 또는 No-Go를 선택해 주세요."
           : !reason.trim()
-            ? "최종 결정을 저장하려면 이유를 입력하십시오."
+            ? "최종 결정을 저장하려면 이유를 입력해 주세요."
             : null);
   const finalReady = decisionDisabledReason === null;
   const hasUnsavedDraft = Boolean(decisionActor.trim() || retryActor.trim() || reason.trim() || decision);
@@ -785,7 +799,7 @@ export function BidDeltaDecisionPage() {
   }
   useUnsavedGuard(hasUnsavedDraft, {
     blockSpaNavigation: true,
-    message: "저장되지 않은 입찰 최종 결정 초안이 있습니다. 이 페이지를 벗어나시겠습니까?",
+    message: "저장되지 않은 입찰 최종 결정 초안이 있어요. 이 페이지를 벗어날까요?",
   });
 
   async function refreshLatestState() {
@@ -798,7 +812,7 @@ export function BidDeltaDecisionPage() {
       ]);
       if (workspaceResult.isError || comparisonResult?.isError || conditionsResult.isError) return;
       finalDecisionMutation.reset();
-      showToast("최신 비교·공고 조건과 최신 여부를 다시 불러왔습니다. 입력한 초안은 그대로 두었습니다.", "info");
+      showToast("최신 비교·공고 조건과 최신 여부를 다시 불러왔어요. 입력한 초안은 그대로 두었어요.", "info");
     } finally {
       setRefreshing(false);
     }
@@ -879,10 +893,10 @@ export function BidDeltaDecisionPage() {
     });
   }
 
-  if (!validOpportunityId) return <EmptyState tone="error" title="올바른 사업기회 식별자가 필요합니다." />;
-  if (workspaceQuery.isPending) return <p className="bid-delta-page-status" role="status">입찰 변경 비교 화면을 불러오는 중입니다.</p>;
+  if (!validOpportunityId) return <EmptyState tone="error" title="올바른 사업기회 식별자가 필요해요" />;
+  if (workspaceQuery.isPending) return <p className="bid-delta-page-status" role="status">입찰 변경 비교 화면을 불러오는 중이에요.</p>;
   if (workspaceQuery.isError || !workspaceQuery.data) {
-    return <EmptyState tone="error" title="입찰 변경 비교 화면을 불러오지 못했습니다." description={describeApiError(workspaceQuery.error, "안전한 비교 후보를 확인할 수 없습니다.").detail} />;
+    return <EmptyState tone="error" title="입찰 변경 비교 화면을 불러오지 못했어요" description={describeApiError(workspaceQuery.error, "안전한 비교 후보를 확인할 수 없어요.").detail} />;
   }
   const workspace = workspaceQuery.data;
   const opportunityDetailSearch = new URLSearchParams(searchParams);
@@ -893,40 +907,27 @@ export function BidDeltaDecisionPage() {
 
   return (
     <section className="bid-delta-page" data-astryx-theme="bidops" aria-labelledby="bid-delta-title">
-      {/* 시안의 압축 헤더: 되돌아가는 길 · 화면 이름 · 결정 입력으로 이동.
+      {/* 압축 헤더: 되돌아가는 길 · 결정 입력으로 이동. 2026-11-19 패널 헤더(ADR-0076)부터 화면 이름은
+          패널 헤더의 `<h1>`이 그리고, 이 줄은 헤더 오른쪽 액션 칸으로 올라간다(본문에 제목 줄을 두지 않는다).
           되돌릴 수 없는 저장 액션은 오른쪽 결정 칸의 고정 바닥에만 있다. */}
-      <header className="bid-delta-page-header">
-        <div className="bid-delta-head-line">
-          <Link className="bid-delta-back-link" to={{ pathname: "/go-no-go", search: backSearch }}>
+      <span className="visually-hidden" id="bid-delta-title">입찰 변경 비교 · 최종 결정</span>
+      <PageHeaderActions>
+        <div className="bid-delta-page-header">
+          <Link className="bid-delta-back-link panel-header-link" to={{ pathname: "/go-no-go", search: backSearch }}>
             <ArrowLeft aria-hidden="true" />
             결정 목록으로
           </Link>
-          <h2 id="bid-delta-title">입찰 변경 비교 · 최종 결정</h2>
+          {/* 비교 계산 상태는 읽기 칸 머리에 한 번만 둔다(헤더에서 되풀이하지 않는다). */}
+          <div className="bid-delta-head-actions">
+            <button className="interaction-control" type="button" onClick={focusDecisionForm} disabled={!formAvailable}>
+              결정 입력으로 이동
+            </button>
+          </div>
         </div>
-        <div className="bid-delta-head-actions">
-          {comparisonView ? <Token size="sm" label={SHORT_CALCULATION_LABELS[comparisonView.calculation_status]} /> : null}
-          <button className="interaction-control" type="button" onClick={focusDecisionForm} disabled={!formAvailable}>
-            결정 입력으로 이동
-          </button>
-        </div>
-      </header>
+      </PageHeaderActions>
 
-      {/* 무엇에 대한 결정인지. 사업명 → 발주기관 → 양쪽 문서 식별자 순서다. */}
-      <section className="bid-delta-business" aria-label="결정 대상 사업">
-        <div className="bid-delta-business-line">
-          <h3>{businessTitle ?? `사업기회 ${opportunityId}`}</h3>
-          <Token size="sm" label={latestDecision
-            ? `현재 결정 ${latestDecision.decision === "go" ? "Go" : "No-Go"} · ${statusTokenLabel(workspace.decision_currentness)}`
-            : "현재 결정 없음"} />
-        </div>
-        <p className="bid-delta-business-meta">
-          {businessAgency ?? "발주기관 미확인"} · 사업기회 {opportunityId}
-          {comparisonView
-            ? ` · 기준 ${comparisonView.baseline.notice_external_id} ↔ 대상 ${comparisonView.comparison.notice_external_id}`
-            : " · 비교 미선택"}
-        </p>
-      </section>
-
+      {/* 무엇에 대한 결정인지(사업명 → 발주기관 → 양쪽 문서 식별자)와 현재 결정은 패널 헤더의 제목·설명·태그가
+          그린다(2026-11-19). 본문은 읽기 | 결정 두 칸만 둔다. */}
       <div className="bid-delta-workspace">
         <section className="bid-delta-reading" aria-labelledby="bid-delta-reading-title">
           <header className="bid-delta-pane-head">
@@ -948,7 +949,7 @@ export function BidDeltaDecisionPage() {
 
             {!selectedComparisonId ? (
               <>
-                <p className="bid-delta-help">사전규격과 입찰공고의 변경 비교와 사람의 최종 결정을 따로 기록합니다. 이 화면이 정하는 것은 최종 입찰 Go/No-Go 하나이며 적합성 등급·참여 준비 상태·추적 선택을 대신하지 않습니다.</p>
+                <p className="bid-delta-help">사전규격과 입찰공고의 변경 비교와 사람의 최종 결정을 따로 기록해요. 이 화면이 정하는 것은 최종 입찰 Go/No-Go 하나이며 적합성 등급·참여 준비 상태·추적 선택을 대신하지 않아요.</p>
                 <WorkspaceCandidates workspace={workspace} baseline={baseline} comparison={comparison} onBaselineChange={setBaseline} onComparisonChange={setComparison} />
 
                 <section className="bid-delta-create-panel" aria-labelledby="bid-delta-create-title">
@@ -956,9 +957,9 @@ export function BidDeltaDecisionPage() {
                     <h3 id="bid-delta-create-title">고른 문서로 비교 만들기</h3>
                     <span className="bid-delta-muted">지금은 만들 수 없음</span>
                   </div>
-                  <p className="bid-delta-help">변경 비교를 계산하는 프로그램이 아직 없어 새 비교를 만들지 않습니다. 만들어도 계산 대기에 머물기 때문입니다. 최종 결정은 오른쪽에서 공고 조건을 근거로 기록할 수 있습니다.</p>
+                  <p className="bid-delta-help">변경 비교를 계산하는 프로그램이 아직 없어 새 비교를 만들지 않아요. 만들어도 계산 대기에 머물기 때문이에요. 최종 결정은 오른쪽에서 공고 조건을 근거로 기록할 수 있어요.</p>
                   <div className="bid-delta-request-preview" aria-label="비교 요청 미리보기">
-                    <div><span>비교할 문서 두 건</span><strong>{baseline && comparison ? `${baseline.notice_external_id} ↔ ${comparison.notice_external_id}` : "양쪽 후보를 선택하십시오."}</strong></div>
+                    <div><span>비교할 문서 두 건</span><strong>{baseline && comparison ? `${baseline.notice_external_id} ↔ ${comparison.notice_external_id}` : "양쪽 후보를 선택해 주세요."}</strong></div>
                     <div><span>범주 정책 버전</span><strong className="mono">bid-delta-policy.v1</strong></div>
                   </div>
                   <div className="bid-delta-create-controls">
@@ -972,9 +973,9 @@ export function BidDeltaDecisionPage() {
                 <ComparisonList comparisons={workspace.comparisons} opportunityId={opportunityId} baseSearch={searchParams.toString()} />
               </>
             ) : comparisonQuery.isPending ? (
-              <p className="bid-delta-page-status" role="status">선택한 비교 상세를 불러오는 중입니다.</p>
+              <p className="bid-delta-page-status" role="status">선택한 비교 상세를 불러오는 중이에요.</p>
             ) : comparisonQuery.isError || !comparisonView ? (
-              <BidDeltaErrorFeedback problem={describeApiError(comparisonQuery.error, "비교 상세를 불러오지 못했습니다.")} onRefresh={refreshLatestState} refreshing={refreshing} />
+              <BidDeltaErrorFeedback problem={describeApiError(comparisonQuery.error, "비교 상세를 불러오지 못했어요.")} onRefresh={refreshLatestState} refreshing={refreshing} />
             ) : (
               <>
                 {/* 시안의 읽기 칸은 변경 항목이 먼저다. 계산·결과 상태는 한 줄로
@@ -992,8 +993,8 @@ export function BidDeltaDecisionPage() {
                     </span>
                   ) : null}
                 </div>
-                {comparisonView.result_status === "unknown" ? <p className="bid-delta-interpretation">문서 근거로 의미를 확정할 수 없어 미확인 상태입니다.</p> : null}
-                {comparisonView.result_status === "failed" ? <p className="bid-delta-interpretation">계산 전체가 실패하여 결과를 확정할 수 없습니다.</p> : null}
+                {comparisonView.result_status === "unknown" ? <p className="bid-delta-interpretation">문서 근거로 의미를 확정할 수 없어 미확인 상태예요.</p> : null}
+                {comparisonView.result_status === "failed" ? <p className="bid-delta-interpretation">계산 전체가 실패하여 결과를 확정할 수 없어요.</p> : null}
                 {comparisonView.last_error_code ? (
                   <TechnicalInfo summary="기술 정보 · 오류 코드">
                     <TechnicalFacts facts={[{ label: "오류 코드", value: comparisonView.last_error_code }]} label="비교 계산 오류 코드" />
@@ -1001,9 +1002,9 @@ export function BidDeltaDecisionPage() {
                 ) : null}
                 {comparisonView.calculation_status === "pending" || comparisonView.calculation_status === "running" ? (
                   <div className="bid-delta-worker-note" role="status" aria-live="polite">
-                    <strong>{comparisonView.calculation_status === "pending" ? "계산 대기 상태입니다." : "계산 진행 중으로 기록되어 있습니다."}</strong>
-                    <p>계산을 실행하는 프로그램이 아직 운영에 없습니다. 결과가 나오기 전까지 오류나 변경 없음으로 해석하지 않습니다.</p>
-                    <small>상태를 자동으로 다시 조회하지 않습니다. 최종 결정은 오른쪽에서 공고 조건을 근거로 기록할 수 있습니다.</small>
+                    <strong>{comparisonView.calculation_status === "pending" ? "계산 대기 상태예요." : "계산 진행 중으로 기록되어 있어요."}</strong>
+                    <p>계산을 실행하는 프로그램이 아직 운영에 없어요. 결과가 나오기 전까지 오류나 변경 없음으로 해석하지 않아요.</p>
+                    <small>상태를 자동으로 다시 조회하지 않아요. 최종 결정은 오른쪽에서 공고 조건을 근거로 기록할 수 있어요.</small>
                     <button
                       className="interaction-control"
                       type="button"
@@ -1021,13 +1022,13 @@ export function BidDeltaDecisionPage() {
                       <h4 id="bid-delta-retry-title">새 계산 회차로 재시도</h4>
                       <span className="bid-delta-muted">계산 실패</span>
                     </div>
-                    <p>실패한 계산을 새 회차로 다시 실행합니다. 실패한 회차와 부분 결과는 그대로 남고 입력 값과 정책 버전은 바뀌지 않습니다.</p>
+                    <p>실패한 계산을 새 회차로 다시 실행해요. 실패한 회차와 부분 결과는 그대로 남고 입력 값과 정책 버전은 바뀌지 않아요.</p>
                     <div className="bid-delta-retry-controls">
                       <ActorField label="재시도 담당자 이름" value={retryActor} onChange={setRetryActor} required placeholder="예: 홍길동" autoComplete="off" />
                       <button className="interaction-control" type="button" onClick={() => retryMutation.mutate()} disabled={!retryActor.trim() || retryMutation.isPending} aria-describedby={!retryActor.trim() || retryMutation.isPending ? "bid-delta-retry-disabled" : undefined}>{retryMutation.isPending ? "재시도 요청 중" : "재시도"}</button>
-                      {!retryActor.trim() || retryMutation.isPending ? <DisabledReason id="bid-delta-retry-disabled">{retryMutation.isPending ? "재시도 요청을 처리하고 있습니다." : "재시도하려면 담당자 이름을 입력하십시오."}</DisabledReason> : null}
+                      {!retryActor.trim() || retryMutation.isPending ? <DisabledReason id="bid-delta-retry-disabled">{retryMutation.isPending ? "재시도 요청을 처리하고 있어요." : "재시도하려면 담당자 이름을 입력해 주세요."}</DisabledReason> : null}
                     </div>
-                    {retryMutation.error ? <BidDeltaErrorFeedback problem={describeApiError(retryMutation.error, "비교를 재시도하지 못했습니다.")} onRefresh={refreshLatestState} refreshing={refreshing} /> : null}
+                    {retryMutation.error ? <BidDeltaErrorFeedback problem={describeApiError(retryMutation.error, "비교를 재시도하지 못했어요.")} onRefresh={refreshLatestState} refreshing={refreshing} /> : null}
                   </section>
                 ) : null}
 
@@ -1037,7 +1038,7 @@ export function BidDeltaDecisionPage() {
                     <span className="bid-delta-muted">승인된 7개 범주 · {comparisonView.items.length}건</span>
                   </div>
                   {comparisonView.items.length === 0 ? (
-                    <EmptyState compact title="아직 범주별 결과가 없습니다." description="계산이 끝나 결과가 발행될 때까지 대기합니다. 결과 미발행을 변경 없음으로 해석하지 않습니다." />
+                    <EmptyState compact title="아직 범주별 결과가 없어요" description="계산이 끝나 결과가 발행될 때까지 대기해요. 결과 미발행을 변경 없음으로 해석하지 않아요." />
                   ) : (
                     <div className="bid-delta-items-list">
                       {comparisonView.items.map((item) => (
@@ -1111,15 +1112,15 @@ export function BidDeltaDecisionPage() {
           </header>
           <div className="bid-delta-decision-scroll">
             <div className={`bid-delta-decision-conditions ${formAvailable ? "" : "bid-delta-decision-blocked"}`.trim()}>
-              <strong>{formAvailable ? `결정 근거 · ${BASIS_LABELS[basis]}` : "지금은 결정을 기록할 수 없습니다"}</strong>
+              <strong>{formAvailable ? `결정 근거 · ${BASIS_LABELS[basis]}` : "지금은 결정을 기록할 수 없어요"}</strong>
               {/* 무엇에 묶이는지는 폼 아래 안내와 `이 결정이 묶는 값 보기`가 말한다. 결정 칸의
                   첫 화면에 이유·담당자 입력까지 들어오도록 여기서는 한 줄로 줄인다. */}
               <p>
                 {!formAvailable
                   ? basisBlockedReason
                   : basis === "notice_conditions" && !comparisonBasisAvailable
-                    ? "완료된 변경 비교가 없습니다. 입력 가능은 참여 권고가 아닙니다."
-                    : "입력 가능은 참여 권고가 아닙니다."}
+                    ? "완료된 변경 비교가 없어요. 입력 가능은 참여 권고가 아니에요."
+                    : "입력 가능은 참여 권고가 아니에요."}
               </p>
               {formAvailable && basis === "comparison" && counts && counts.unresolved > 0 ? (
                 <p>미확인 {counts.unresolved}건도 검토해 결정 이유에 남겨 주세요.</p>
@@ -1178,9 +1179,9 @@ export function BidDeltaDecisionPage() {
                     같은 말을 두 번 적지 않는다. */}
                 <p className="bid-delta-form-note">
                   {basis === "comparison"
-                    ? "이 결정은 선택한 비교 결과와 양쪽 문서 버전에 연결됩니다."
-                    : "이 결정은 최신 입찰공고와 그 관측 해시에 연결됩니다."}
-                  {" "}최종 결정 값은 Go·No-Go 둘뿐이며, 결정을 미루려면 저장하지 않습니다. 이전 결정은 수정하지 않고 새 기록을 남깁니다.
+                    ? "이 결정은 선택한 비교 결과와 양쪽 문서 버전에 연결돼요."
+                    : "이 결정은 최신 입찰공고와 그 관측 해시에 연결돼요."}
+                  {" "}최종 결정 값은 Go·No-Go 둘뿐이며, 결정을 미루려면 저장하지 않아요. 이전 결정은 수정하지 않고 새 기록을 남겨요.
                 </p>
                 <details className="bid-delta-technical-details">
                   <summary>이 결정이 묶는 값 보기</summary>
@@ -1231,12 +1232,12 @@ export function BidDeltaDecisionPage() {
               aria-describedby={decisionDisabledReason ? "bid-delta-final-disabled" : undefined}
             />
             {decisionDisabledReason ? <DisabledReason id="bid-delta-final-disabled">{decisionDisabledReason}</DisabledReason> : null}
-            <p className="bid-delta-footer-note">확인 후 저장하며, 저장은 되돌릴 수 없습니다.</p>
+            <p className="bid-delta-footer-note">확인 후 저장하며, 저장은 되돌릴 수 없어요.</p>
           </footer>
         </section>
       </div>
 
-      {hasUnsavedDraft ? <p className="bid-delta-unsaved" role="status">저장되지 않은 입찰 최종 결정 초안이 있습니다. 저장하거나 초안 내용을 확인한 뒤 화면을 벗어나십시오.</p> : null}
+      {hasUnsavedDraft ? <p className="bid-delta-unsaved" role="status">저장되지 않은 입찰 최종 결정 초안이 있어요. 저장하거나 초안 내용을 확인한 뒤 화면을 벗어나 주세요.</p> : null}
 
       <Dialog isOpen={evidenceItem !== null} onOpenChange={(open) => { if (!open) setEvidenceItem(null); }} purpose="info" width={880}>
         <DialogHeader title="양쪽 원문 근거" onOpenChange={() => setEvidenceItem(null)} />
@@ -1260,8 +1261,8 @@ export function BidDeltaDecisionPage() {
               </div>
               <p>
                 {evidenceItem.baseline_evidence.length > 0 && evidenceItem.comparison_evidence.length > 0
-                  ? "양쪽 문서의 검증된 위치를 그대로 표시합니다."
-                  : "양쪽 근거가 갖춰지지 않았습니다. 변경 없음 또는 요건 충족으로 해석하지 않습니다."}
+                  ? "양쪽 문서의 검증된 위치를 그대로 표시해요."
+                  : "양쪽 근거가 갖춰지지 않았어요. 변경 없음 또는 요건 충족으로 해석하지 않아요."}
               </p>
               <div className="bid-delta-dialog-actions">
                 <Button label="닫기" onClick={() => setEvidenceItem(null)} />
@@ -1283,9 +1284,9 @@ export function BidDeltaDecisionPage() {
         onOpenChange={(next) => { if (!next) setDecisionConfirm(null); }}
         open={decisionConfirm !== null}
         summary={decisionConfirm?.summary ?? []}
-        title="최종 Go/No-Go를 저장합니다"
-        warning={`이 결정은 저장 뒤 되돌릴 수 없습니다. 추가만 기록되어 이전 결정을 덮어쓰지 않습니다.${
-          confirmDrift ? " 확인하는 동안 비교 또는 공고 조건이 갱신되었습니다. 지금 저장하면 위에 적힌 검토한 값으로 요청하며, 서버가 오래된 값이라고 판단하면 저장을 거절합니다." : ""
+        title="최종 Go/No-Go를 저장해요"
+        warning={`이 결정은 저장 뒤 되돌릴 수 없어요. 추가만 기록되어 이전 결정을 덮어쓰지 않아요.${
+          confirmDrift ? " 확인하는 동안 비교 또는 공고 조건이 갱신되었어요. 지금 저장하면 위에 적힌 검토한 값으로 요청하며, 서버가 오래된 값이라고 판단하면 저장을 거절해요." : ""
         }`}
       />
       {toast ? <Toast message={toast.message} variant={toast.variant} onDismiss={dismissToast} /> : null}

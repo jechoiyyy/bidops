@@ -46,9 +46,9 @@ export function PreSpecVerdictColumn({ opportunityId }: { opportunityId: number 
       ) : opportunityId === null ? (
         <p className="ps-cap ps-muted">{PRE_SPEC_NO_VERDICT_LABEL}</p>
       ) : verdictQuery.isPending ? (
-        <p className="ps-cap ps-muted" role="status">참여 판정을 불러오는 중입니다.</p>
+        <p className="ps-cap ps-muted" role="status">참여 판정을 불러오는 중이에요.</p>
       ) : verdictQuery.isError ? (
-        <p className="ps-cap ps-muted" role="status">참여 판정을 확인할 수 없습니다. 사업기회 레코드에서 다시 확인하십시오.</p>
+        <p className="ps-cap ps-muted" role="status">참여 판정을 확인할 수 없어요. 사업기회 레코드에서 다시 확인해 주세요.</p>
       ) : result ? (
         <div className="ps-record-verdict">
           <p><strong>{result.verdict}</strong>{view?.is_current === false ? " · 이전 입력 기준" : ""}</p>

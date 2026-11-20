@@ -138,7 +138,7 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
     try {
       await api.updateScheduleSettings(payload);
       await refreshOperationsReads(queryClient, Object.values(operationsQueryKeys));
-      setActionMessage("정기 실행 설정을 저장했습니다. 상시 운영 상태는 바뀌지 않았습니다.");
+      setActionMessage("정기 실행 설정을 저장했어요. 상시 운영 상태는 바뀌지 않았어요.");
       return true;
     } catch (error) {
       setActionError(operationsWriteError(error, "settings"));
@@ -159,7 +159,7 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
     try {
       await api.updateAlwaysOn(payload);
       await refreshOperationsReads(queryClient, Object.values(operationsQueryKeys));
-      setActionMessage(payload.enabled ? "상시 운영을 켰습니다." : "상시 운영을 껐습니다. 기존 실행·산출물은 보존됩니다.");
+      setActionMessage(payload.enabled ? "상시 운영을 켰어요." : "상시 운영을 껐어요. 기존 실행·산출물은 보존돼요.");
       return true;
     } catch (error) {
       setActionError(operationsWriteError(error, "always_on"));
@@ -181,7 +181,7 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
       await api.createManualScheduleExecution(payload);
       await refreshOperationsReads(queryClient, Object.values(operationsQueryKeys));
       setRecoveryTarget(null);
-      setActionMessage(payload.recovery_of_execution_id ? "명시 복구를 예약했습니다." : "수동 정기 실행을 예약했습니다.");
+      setActionMessage(payload.recovery_of_execution_id ? "명시 복구를 예약했어요." : "수동 정기 실행을 예약했어요.");
       return true;
     } catch (error) {
       setActionError(operationsWriteError(error, "schedule_execution"));
@@ -211,7 +211,7 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
             ? `실제 ${alwaysOn.effective_enabled ? "켜짐" : "꺼짐"} · 환경 ${alwaysOn.environment_enabled ? "허용" : "차단"}`
             : "상태 확인 중",
         meta: alwaysOnQuery.error
-          ? "조회 실패는 꺼짐이 아닙니다"
+          ? "조회 실패는 꺼짐이 아니에요"
           : activation
             ? activation.blockers.length > 0 ? `미충족 조건 ${activation.blockers.length}건` : "구조 조건 충족"
             : "확인 중",
@@ -234,7 +234,7 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
       ...item,
       subtitle: executionsQuery.error ? "이력 미확인" : `최근 ${executions.length}건`,
       meta: executionsQuery.error
-        ? "조회 실패는 이력 0건이 아닙니다"
+        ? "조회 실패는 이력 0건이 아니에요"
         : `복구 대상 ${executions.filter((execution) => ["실패", "부분 성공", "건너뜀"].includes(execution.status)).length}건`,
       status: undefined,
     };
@@ -260,7 +260,7 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
           ))}
         </div>
         <footer className="rs-list-foot">
-          <Caption>설정 저장과 운영 활성화는 별도입니다. 수동 실행은 상시 운영과 별개로 요청합니다.</Caption>
+          <Caption>설정 저장과 운영 활성화는 별도예요. 수동 실행은 상시 운영과 별개로 요청해요.</Caption>
         </footer>
       </section>
 
@@ -269,11 +269,11 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
           eyebrow="상시 운영 · 수집과 판정 예약"
           title={activePaneTitle}
           status={alwaysOnQuery.error ? "미확인" : alwaysOn ? (alwaysOn.effective_enabled ? "켜짐" : "꺼짐") : "확인 중"}
-          statusDescription="상시 운영의 실제 상태입니다."
+          statusDescription="상시 운영의 실제 상태예요."
         >
           <Caption>
             {settings ? `기준 시간대 ${settings.timezone}` : "기준 시간대 확인 중"}
-            {" · 앱 시작은 migration·seed·정책 활성화·모델 호출을 수행하지 않습니다"}
+            {" · 앱 시작은 migration·seed·정책 활성화·모델 호출을 수행하지 않아요"}
           </Caption>
         </DetailHeader>
 
@@ -284,15 +284,15 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
           {pane === "activation" ? (
             <>
               {alwaysOnQuery.error ? (
-                <Note title="상시 운영 상태를 불러오지 못했습니다" tone="error">
-                  꺼져 있다는 뜻도 켜져 있다는 뜻도 아닙니다. 현재 상태는 미확인이며 이 화면에서 켜거나 끌 수
-                  없습니다.
+                <Note title="상시 운영 상태를 불러오지 못했어요" tone="error">
+                  꺼져 있다는 뜻도 켜져 있다는 뜻도 아니에요. 현재 상태는 미확인이며 이 화면에서 켜거나 끌 수
+                  없어요.
                 </Note>
               ) : null}
-              {loading && !alwaysOn ? <Caption>상시 운영 상태를 불러오는 중입니다.</Caption> : null}
+              {loading && !alwaysOn ? <Caption>상시 운영 상태를 불러오는 중이에요.</Caption> : null}
               <Caption>
-                설정 저장과 운영 활성화는 별도입니다. 수동 실행은 상시 운영이 꺼져 있어도 요청할 수
-                있습니다.
+                설정 저장과 운영 활성화는 별도예요. 수동 실행은 상시 운영이 꺼져 있어도 요청할 수
+                있어요.
               </Caption>
               {alwaysOn && activation ? (
                 <ActivationPaneBody
@@ -308,11 +308,11 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
           {pane === "schedule" ? (
             <>
               {settingsQuery.error ? (
-                <Note title="스케줄 설정을 불러오지 못했습니다" tone="error">
-                  현재 예약 시각은 미확인입니다. 기본값으로 가정하지 않습니다.
+                <Note title="스케줄 설정을 불러오지 못했어요" tone="error">
+                  현재 예약 시각은 미확인이에요. 기본값으로 가정하지 않아요.
                 </Note>
               ) : null}
-              {loading && !settings ? <Caption>스케줄 설정을 불러오는 중입니다.</Caption> : null}
+              {loading && !settings ? <Caption>스케줄 설정을 불러오는 중이에요.</Caption> : null}
               {settings ? (
                 <>
                   <Section title="현재 예약 설정">
@@ -332,9 +332,9 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
                       ]}
                     />
                   </Section>
-                  <Note title="예약 시간을 바꿔도 상시 운영이 켜지지 않습니다">
-                    설정 저장과 운영 활성화는 별도 조작입니다. 수정 창의 초안은 저장하기 전까지 현재 값에
-                    반영되지 않습니다.
+                  <Note title="예약 시간을 바꿔도 상시 운영이 켜지지 않아요">
+                    설정 저장과 운영 활성화는 별도 조작이에요. 수정 창의 초안은 저장하기 전까지 현재 값에
+                    반영되지 않아요.
                   </Note>
                 </>
               ) : null}
@@ -344,11 +344,11 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
           {pane === "history" ? (
             <>
               {executionsQuery.error ? (
-                <Note title="정기 실행 이력을 불러오지 못했습니다" tone="error">
-                  조회 실패는 실행 0건이 아닙니다.
+                <Note title="정기 실행 이력을 불러오지 못했어요" tone="error">
+                  조회 실패는 실행 0건이 아니에요.
                 </Note>
               ) : null}
-              {loading && !executionsQuery.data ? <Caption>정기 실행 이력을 불러오는 중입니다.</Caption> : null}
+              {loading && !executionsQuery.data ? <Caption>정기 실행 이력을 불러오는 중이에요.</Caption> : null}
               {executionsQuery.data ? (
                 <ScheduleExecutionTable
                   items={executions}
@@ -360,9 +360,9 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
                   }}
                 />
               ) : null}
-              <Note title="거절된 예약을 실행 성공으로 표시하지 않습니다">
-                예약, 실제 실행, 결과 게시를 구분해서 확인합니다. 수동 실행은 상시 운영이 꺼져 있어도
-                담당자가 직접 요청할 수 있습니다.
+              <Note title="거절된 예약을 실행 성공으로 표시하지 않아요">
+                예약, 실제 실행, 결과 게시를 구분해서 확인해요. 수동 실행은 상시 운영이 꺼져 있어도
+                담당자가 직접 요청할 수 있어요.
               </Note>
             </>
           ) : null}

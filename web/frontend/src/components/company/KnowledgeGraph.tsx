@@ -260,8 +260,8 @@ export function KnowledgeGraph({ companyId, profile }: { companyId: Uuid; profil
       <header className="kg-header">
         <h3 id={headingId}>관계 탐색</h3>
         <p className="cw-caption">
-          서버가 돌려준 노드와 관계만 보여 줍니다. 화면이 관계·경로·순위를 만들거나 빠진 값을 채우지 않습니다.
-          노드나 관계를 누르면 연결된 근거를 엽니다.
+          서버가 돌려준 노드와 관계만 보여 줘요. 화면이 관계·경로·순위를 만들거나 빠진 값을 채우지 않아요.
+          노드나 관계를 누르면 연결된 근거를 열어요.
         </p>
         <p className="cw-caption" data-testid="graph-version">
           그래프 버전 {profile.graph_version_id} · 그래프 sha256 {shortSha(profile.graph_sha256)} · 온톨로지 {profile.ontology_version}
@@ -299,22 +299,22 @@ export function KnowledgeGraph({ companyId, profile }: { companyId: Uuid; profil
 
       {state === "loading" ? (
         <p className="kg-loading" role="status" data-testid="graph-loading">
-          관계 목록을 불러오는 중입니다. 아직 완료된 목록이 아닙니다.
+          관계 목록을 불러오는 중이에요. 아직 완료된 목록이 아니에요.
         </p>
       ) : graphQuery.isError ? (
         <EmptyState
           tone="error"
           compact
-          title="관계 목록을 불러오지 못했습니다."
-          problem={describeCompanyApiError(graphQuery.error, "관계 목록을 불러오지 못했습니다.")}
+          title="관계 목록을 불러오지 못했어요"
+          problem={describeCompanyApiError(graphQuery.error, "관계 목록을 불러오지 못했어요.")}
           action={{ label: "관계 목록 다시 불러오기", onClick: () => { void graphQuery.refetch(); } }}
         />
       ) : identityProblem ? (
         <EmptyState
           tone="error"
           compact
-          title="관계 목록의 버전이 프로필과 맞지 않습니다."
-          description={`${identityProblem} 다른 버전의 관계를 섞어 보여 주지 않습니다. 프로필을 다시 불러오십시오.`}
+          title="관계 목록의 버전이 프로필과 맞지 않아요"
+          description={`${identityProblem} 다른 버전의 관계를 섞어 보여 주지 않아요. 프로필을 다시 불러와 주세요.`}
         />
       ) : data ? (
         <GraphBody
@@ -334,10 +334,10 @@ export function KnowledgeGraph({ companyId, profile }: { companyId: Uuid; profil
 }
 
 function identityMismatch(data: CompanyKnowledgeGraphView, companyId: Uuid, profile: CompanyProfileView): string | null {
-  if (data.company_id !== companyId) return "응답의 회사가 이 화면의 회사와 다릅니다.";
-  if (data.graph_version_id !== profile.graph_version_id) return `프로필 그래프 버전 ${profile.graph_version_id}와 응답 버전 ${data.graph_version_id}가 다릅니다.`;
-  if (data.graph_sha256 !== profile.graph_sha256) return "프로필과 응답의 그래프 sha256이 다릅니다.";
-  if (data.ontology_version !== profile.ontology_version) return `프로필 온톨로지 ${profile.ontology_version}와 응답 온톨로지 ${data.ontology_version}가 다릅니다.`;
+  if (data.company_id !== companyId) return "응답의 회사가 이 화면의 회사와 달라요.";
+  if (data.graph_version_id !== profile.graph_version_id) return `프로필 그래프 버전 ${profile.graph_version_id}와 응답 버전 ${data.graph_version_id}가 달라요.`;
+  if (data.graph_sha256 !== profile.graph_sha256) return "프로필과 응답의 그래프 sha256이 달라요.";
+  if (data.ontology_version !== profile.ontology_version) return `프로필 온톨로지 ${profile.ontology_version}와 응답 온톨로지 ${data.ontology_version}가 달라요.`;
   return null;
 }
 
@@ -423,14 +423,14 @@ function GraphBody({ data, params, selection, onOpen, onRecenter, onClose, panel
     <>
       <p className="cw-caption" data-testid="graph-summary">
         표시 노드 {data.nodes.length}개 · 관계 {data.edges.length}개 · 깊이 {params.depth}단계 · 최대 {params.limit}개
-        {truncated ? "" : " · 이 깊이 안의 노드를 모두 표시했습니다"}
+        {truncated ? "" : " · 이 깊이 안의 노드를 모두 표시했어요"}
       </p>
       {truncated ? (
         <p className="kg-truncation" role="note" aria-label="목록 잘림 안내" data-testid="graph-truncation">
-          <strong>목록이 잘렸습니다.</strong>{" "}
+          <strong>목록이 잘렸어요.</strong>{" "}
           이 중심에서 깊이 {params.depth}단계 안의 노드 중 <span data-testid="graph-omitted-count">{data.omitted_node_count}</span>개를
-          표시하지 않았습니다(최대 {params.limit}개). 잘림은 분석이 빠졌거나 관계가 없다는 증거가 아닙니다.
-          최대 노드 수를 늘리거나 깊이를 줄여 다시 보십시오.
+          표시하지 않았어요(최대 {params.limit}개). 잘림은 분석이 빠졌거나 관계가 없다는 증거가 아니에요.
+          최대 노드 수를 늘리거나 깊이를 줄여 다시 보세요.
         </p>
       ) : null}
       <div className={`kg-layout${selection ? " has-panel" : ""}`}>
@@ -454,7 +454,7 @@ function GraphBody({ data, params, selection, onOpen, onRecenter, onClose, panel
             <h4>관계 <span className="cw-caption">{data.edges.length}개</span></h4>
             {data.edges.length === 0 ? (
               <p className="cw-caption" data-testid="graph-empty">
-                이 중심에서 깊이 {params.depth}단계 안에 서버가 돌려준 관계가 없습니다. 관계가 없다는 판정이 아니며, 깊이를 늘리거나 다른 노드를 중심으로 보십시오.
+                이 중심에서 깊이 {params.depth}단계 안에 서버가 돌려준 관계가 없어요. 관계가 없다는 판정이 아니며, 깊이를 늘리거나 다른 노드를 중심으로 보세요.
               </p>
             ) : (
               <ul className="kg-list">
@@ -546,13 +546,13 @@ function EvidencePanel({ panelRef, companyId, profileVersionId, title, kindLabel
         {value !== null ? <><dt>값</dt><dd>{value}</dd></> : null}
       </dl>
       {origin === "fictional_scenario" && status === "confirmed" ? (
-        <p className="cw-caption">가상회사 시나리오에서 정한 값입니다. 실제 회사 사실이 아닙니다.</p>
+        <p className="cw-caption">가상회사 시나리오에서 정한 값이에요. 실제 회사 사실이 아니에요.</p>
       ) : null}
       {evidenceIds.length === 0 ? (
         <p className="kg-no-evidence" data-testid="graph-no-evidence">
           {status === "unknown"
-            ? "미확인 항목이라 연결된 근거가 없습니다. 근거가 없다는 것이 미보유나 부적합을 뜻하지 않습니다."
-            : "서버가 연결한 근거가 없습니다."}
+            ? "미확인 항목이라 연결된 근거가 없어요. 근거가 없다는 것이 미보유나 부적합을 뜻하지 않아요."
+            : "서버가 연결한 근거가 없어요."}
         </p>
       ) : (
         <ol className="kg-evidence-list">
@@ -578,13 +578,13 @@ function ProfileEvidenceItem({ companyId, evidenceId, ordinal, profileVersionId 
     retry: false,
   });
   if (evidenceQuery.isPending) {
-    return <li className="kg-evidence" data-evidence-id={evidenceId}><p role="status">근거 {ordinal}을 불러오는 중입니다.</p></li>;
+    return <li className="kg-evidence" data-evidence-id={evidenceId}><p role="status">근거 {ordinal}을 불러오는 중이에요.</p></li>;
   }
   if (evidenceQuery.isError) {
-    const problem = describeCompanyApiError(evidenceQuery.error, "근거를 불러오지 못했습니다.");
+    const problem = describeCompanyApiError(evidenceQuery.error, "근거를 불러오지 못했어요.");
     return (
       <li className="kg-evidence" data-evidence-id={evidenceId}>
-        <p role="alert">근거 {ordinal}을 불러오지 못했습니다. {problem.title} {problem.detail}{problem.code ? ` · 오류 코드 ${problem.code}` : ""}</p>
+        <p role="alert">근거 {ordinal}을 불러오지 못했어요. {problem.title} {problem.detail}{problem.code ? ` · 오류 코드 ${problem.code}` : ""}</p>
         <Button label={`근거 ${ordinal} 다시 조회`} size="sm" onClick={() => { void evidenceQuery.refetch(); }} />
       </li>
     );
@@ -603,9 +603,9 @@ function ProfileEvidenceItem({ companyId, evidenceId, ordinal, profileVersionId 
       </dl>
       {versionMismatch || idMismatch ? (
         <p role="alert" className="kg-evidence-warning">
-          {idMismatch ? "요청한 근거와 다른 근거가 돌아왔습니다. " : ""}
-          {versionMismatch ? "이 근거는 현재 프로필 버전의 근거가 아닙니다. " : ""}
-          현재 프로필의 근거로 쓰지 마십시오.
+          {idMismatch ? "요청한 근거와 다른 근거가 돌아왔어요. " : ""}
+          {versionMismatch ? "이 근거는 현재 프로필 버전의 근거가 아니에요. " : ""}
+          현재 프로필의 근거로 쓰지 마세요.
         </p>
       ) : null}
     </li>

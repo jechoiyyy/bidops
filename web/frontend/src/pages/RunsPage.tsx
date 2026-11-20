@@ -87,7 +87,7 @@ const RUN_KIND_LABELS: Record<string, string> = {
 };
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "수집 실행을 시작하지 못했습니다.";
+  return error instanceof Error ? error.message : "수집 실행을 시작하지 못했어요.";
 }
 
 function countFromCollection(run: RunSummary, key: string): number | null {
@@ -102,7 +102,7 @@ function profileSourceFor(snapshot: CompanyProfileSnapshotResponse): ProfileSour
 
 /** 서버 오류 본문을 화면에 옮기지 않는다(docs/security.md). */
 function screeningActionMessage(): string {
-  return "판정 실행 요청을 처리하지 못했습니다. 입력과 실행 상태를 확인한 뒤 다시 시도해 주세요.";
+  return "판정 실행 요청을 처리하지 못했어요. 입력과 실행 상태를 확인한 뒤 다시 시도해 주세요.";
 }
 
 /**
@@ -479,13 +479,13 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
     const screeningListReady = screeningExecutionsQuery.data !== undefined && !screeningExecutionsQuery.isLoading && !screeningExecutionsQuery.error;
     if (screeningStartInFlight.current) return;
     if (!screeningListReady) {
-      setScreeningActionError("현재 회차의 판정 실행 목록을 확인하는 중입니다. 목록을 불러온 뒤 다시 시도해 주세요.");
+      setScreeningActionError("현재 회차의 판정 실행 목록을 확인하는 중이에요. 목록을 불러온 뒤 다시 시도해 주세요.");
       return;
     }
     const selectedProfileSource = selectedProfile ? profileSourceFor(selectedProfile) : null;
     if (!capturedRunId || !screeningActor.trim() || !selectedPolicy || !selectedProfile || !selectedProfileSource || hasNonterminalManualFullRun) {
-      if (hasNonterminalManualFullRun) setScreeningActionError("이미 진행 중인 전량 판정 실행이 있습니다.");
-      else setScreeningActionError("담당자 이름, 판정 정책, 프로필 사본을 모두 선택해야 합니다.");
+      if (hasNonterminalManualFullRun) setScreeningActionError("이미 진행 중인 전량 판정 실행이 있어요.");
+      else setScreeningActionError("담당자 이름, 판정 정책, 프로필 사본을 모두 선택해야 해요.");
       return;
     }
     screeningStartInFlight.current = true;
@@ -531,7 +531,7 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
       : manualFullRunExecutions.find((item) => item.execution_id === capturedExecutionId)?.status;
     if (screeningStopInFlight.current) return;
     if (!capturedRunId || !capturedExecutionId || !stopActor.trim() || !latestStatus || isScreeningTerminal(latestStatus) || latestStatus === "중지 요청") {
-      setStopActionError("이 실행은 더 이상 중지할 수 없습니다. 상태를 다시 확인해 주세요.");
+      setStopActionError("이 실행은 더 이상 중지할 수 없어요. 상태를 다시 확인해 주세요.");
       return;
     }
     screeningStopInFlight.current = true;
@@ -593,12 +593,12 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
       const refreshed = await runsQuery.refetch();
       if (!isCurrent()) return;
       if (refreshed.error || !refreshed.data) {
-        setPublishedRunNavigationError("파생 회차 목록을 확인하지 못했습니다. 다시 시도해 주세요.");
+        setPublishedRunNavigationError("파생 회차 목록을 확인하지 못했어요. 다시 시도해 주세요.");
         return;
       }
       const targetExists = refreshed.data?.items.some((run) => run.run_id === publishedRunId) ?? false;
       if (!targetExists) {
-        setPublishedRunNavigationError("게시된 파생 회차가 아직 회차 목록에 없습니다. 잠시 후 다시 시도해 주세요.");
+        setPublishedRunNavigationError("게시된 파생 회차가 아직 회차 목록에 없어요. 잠시 후 다시 시도해 주세요.");
         return;
       }
       const currentExecution = currentScreeningExecutionRef.current?.execution_id === capturedExecutionId
@@ -611,7 +611,7 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
         return next;
       }, { replace: false });
     } catch {
-      if (isCurrent()) setPublishedRunNavigationError("파생 회차 목록을 확인하지 못했습니다. 다시 시도해 주세요.");
+      if (isCurrent()) setPublishedRunNavigationError("파생 회차 목록을 확인하지 못했어요. 다시 시도해 주세요.");
     } finally {
       if (mountedRef.current && publishedRunNavigationOperation.current === operationToken) {
         setPublishedRunNavigationBusy(false);
@@ -650,9 +650,9 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
   const screeningListReady = screeningExecutionsQuery.data !== undefined && !screeningExecutionsQuery.isLoading && !screeningExecutionsQuery.error;
   const startDisabled = screeningStartBusy || executionBusy || !screeningListReady || !selectedRunId;
   const startBlockedReason = !screeningListReady
-    ? "현재 회차의 판정 실행 목록을 확인할 때까지 실행할 수 없습니다."
+    ? "현재 회차의 판정 실행 목록을 확인할 때까지 실행할 수 없어요."
     : executionBusy
-      ? "진행 중인 전량 판정 실행이 있어 새 실행을 시작할 수 없습니다."
+      ? "진행 중인 전량 판정 실행이 있어 새 실행을 시작할 수 없어요."
       : null;
   const canStop = Boolean(currentScreeningExecution)
     && !isScreeningTerminal(currentStatus)
@@ -661,8 +661,8 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
 
   const listFooter = `받은 회차 ${runs.length.toLocaleString("ko-KR")}건 · 표시 ${visibleRuns.length.toLocaleString("ko-KR")}건`
     + (executionScopeKnown
-      ? ` · 판정 실행 상태는 최근 ${(recentExecutionsQuery.data?.items.length ?? 0).toLocaleString("ko-KR")}건 조회 범위 기준이며 범위 밖은 미확인입니다`
-      : " · 판정 실행 상태는 미확인입니다");
+      ? ` · 판정 실행 상태는 최근 ${(recentExecutionsQuery.data?.items.length ?? 0).toLocaleString("ko-KR")}건 조회 범위 기준이며 범위 밖은 미확인이에요`
+      : " · 판정 실행 상태는 미확인이에요");
 
   return (
     <div className="rs-workspace" id={panelId} role="tabpanel" aria-label="수집 실행">
@@ -699,27 +699,27 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
           </div>
         </div>
         <div className="rs-list-scroll">
-          {runsQuery.isPending ? <div className="rs-list-empty"><Caption>실행 회차를 불러오는 중입니다.</Caption></div> : null}
+          {runsQuery.isPending ? <div className="rs-list-empty"><Caption>실행 회차를 불러오는 중이에요.</Caption></div> : null}
           {runsQuery.error ? (
             <div className="rs-list-empty" role="alert">
               <Search aria-hidden="true" />
-              <Text as="p">실행 회차를 불러오지 못했습니다.</Text>
-              <Caption>조회 실패는 회차 0건이 아닙니다.</Caption>
+              <Text as="p">실행 회차를 불러오지 못했어요.</Text>
+              <Caption>조회 실패는 회차 0건이 아니에요.</Caption>
               <Button label="다시 시도" size="sm" onClick={() => void runsQuery.refetch()} />
             </div>
           ) : null}
           {!runsQuery.isPending && !runsQuery.error && runs.length === 0 ? (
             <div className="rs-list-empty">
               <Search aria-hidden="true" />
-              <Text as="p">적재된 실행 회차가 없습니다.</Text>
-              <Caption>회차가 적재되면 이곳에서 파이프라인과 판정 실행을 확인할 수 있습니다.</Caption>
+              <Text as="p">적재된 실행 회차가 없어요.</Text>
+              <Caption>회차가 적재되면 이곳에서 파이프라인과 판정 실행을 확인할 수 있어요.</Caption>
             </div>
           ) : null}
           {!runsQuery.isPending && runs.length > 0 && visibleRuns.length === 0 ? (
             <div className="rs-list-empty">
               <Search aria-hidden="true" />
-              <Text as="p">조건에 맞는 회차가 없습니다.</Text>
-              <Caption>받은 목록 안에 없을 뿐, 전체에 없다는 뜻은 아닙니다.</Caption>
+              <Text as="p">조건에 맞는 회차가 없어요.</Text>
+              <Caption>받은 목록 안에 없을 뿐, 전체에 없다는 뜻은 아니에요.</Caption>
               <Button label="필터 초기화" size="sm" onClick={() => { setListQuery(""); setListFilter("all"); }} />
             </div>
           ) : null}
@@ -738,7 +738,7 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
                   subtitle: formatRunRange(run.run_id, run.window_from, run.window_to),
                   meta: `${formatDateTime(run.generated_at)} · 수집 ${formatNumber(countFromCollection(run, "total"))} · 회차 ${runStatusLabel(run.status)} · 판정 실행 ${executionScopeKnown ? (execution ? screeningStatusLabel(execution.status) : "조회 범위 안 기록 없음") : "미확인"}`,
                   status: execution ? screeningStatusLabel(execution.status) : executionScopeKnown ? "판정 실행 없음" : "판정 실행 미확인",
-                  statusDescription: "회차 상태가 아니라 이 회차와 연결된 판정 실행 상태입니다.",
+                  statusDescription: "회차 상태가 아니라 이 회차와 연결된 판정 실행 상태예요.",
                 }}
               />
             );
@@ -752,14 +752,14 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
       <section className="rs-detail-pane" aria-label="선택한 실행 회차">
         {detailQuery.isError ? (
           <div className="rs-detail-empty" role="alert">
-            <Text as="p">회차 상세를 불러오지 못했습니다.</Text>
-            <Caption>조회 실패를 실행 없음으로 읽지 않습니다.</Caption>
+            <Text as="p">회차 상세를 불러오지 못했어요.</Text>
+            <Caption>조회 실패를 실행 없음으로 읽지 않아요.</Caption>
             <Button label="다시 시도" size="sm" onClick={() => void detailQuery.refetch()} />
           </div>
         ) : null}
         {!detailQuery.isError && (!detail || !selectedSummary) ? (
           <div className="rs-detail-empty">
-            <Text as="p">{selectedRunId ? "선택한 회차의 상세 정보를 불러오는 중입니다." : "확인할 실행 회차를 고르십시오."}</Text>
+            <Text as="p">{selectedRunId ? "선택한 회차의 상세 정보를 불러오는 중이에요." : "확인할 실행 회차를 골라 주세요."}</Text>
           </div>
         ) : null}
         {!detailQuery.isError && detail && selectedSummary ? (
@@ -773,7 +773,7 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
               status={currentScreeningExecution
                 ? screeningStatusLabel(currentStatus)
                 : screeningListReady ? "판정 실행 없음" : "판정 실행 미확인"}
-              statusDescription="이 회차에 연결된 판정 실행의 상태입니다. 수집 회차 자체의 상태와 다릅니다."
+              statusDescription="이 회차에 연결된 판정 실행의 상태예요. 수집 회차 자체의 상태와 달라요."
             >
               <div className="rs-row rs-spread">
                 <Caption as="span">
@@ -785,7 +785,7 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
                   * 표식이 제공되지 않는다는 사실만 중립으로 적는다. */}
                 <StatusToken
                   label="품질 표식 미제공"
-                  description="이 실행 API는 품질 표식을 제공하지 않아 측정 통과·참조 실행·mock 참조 여부를 확인할 수 없습니다."
+                  description="이 실행 API는 품질 표식을 제공하지 않아 측정 통과·참조 실행·mock 참조 여부를 확인할 수 없어요."
                 />
               </div>
             </DetailHeader>
@@ -815,7 +815,7 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
                     * 건수 아래로 내린다. 문구를 지우지 않고 자리만 옮긴다. */}
                   <ScreeningRunPanel
                     blockedReason={startBlockedReason}
-                    listRefreshWarning={runsQuery.error ? "회차 목록을 최신화하지 못해 기존 목록을 유지하고 있습니다." : null}
+                    listRefreshWarning={runsQuery.error ? "회차 목록을 최신화하지 못해 기존 목록을 유지하고 있어요." : null}
                     runId={detail.run_id}
                     executions={manualFullRunExecutions}
                     selectedExecutionId={screeningExecutionId}
@@ -845,8 +845,8 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
                       ]}
                     />
                     <Caption>
-                      수집·정규화 건수와 판정 후보·시도 건수는 다른 값입니다. 두 건수를 합치거나 서로
-                      대신하지 않습니다.
+                      수집·정규화 건수와 판정 후보·시도 건수는 다른 값이에요. 두 건수를 합치거나 서로
+                      대신하지 않아요.
                     </Caption>
                   </Section>
 
@@ -855,11 +855,11 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
                   <Section title="적합성 등급 분포">
                     {runStatsQuery.isError ? (
                       <div className="rs-inline-error" role="alert">
-                        <Text as="span">등급 분포를 불러오지 못했습니다.</Text>
+                        <Text as="span">등급 분포를 불러오지 못했어요.</Text>
                         <Button label="다시 조회" size="sm" onClick={() => void runStatsQuery.refetch()} />
                       </div>
                     ) : runStatsQuery.isPending ? (
-                      <Caption>등급 분포를 불러오는 중입니다.</Caption>
+                      <Caption>등급 분포를 불러오는 중이에요.</Caption>
                     ) : runStatsQuery.data && runStatsQuery.data.grade_distribution.length > 0 ? (
                       <DataTable
                         caption="적합성 등급 분포"
@@ -908,11 +908,11 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
                     />
                     {validationQuery.isError ? (
                       <div className="rs-inline-error" role="alert">
-                        <Text as="span">검증 지표를 불러오지 못했습니다.</Text>
+                        <Text as="span">검증 지표를 불러오지 못했어요.</Text>
                         <Button label="검증 지표 다시 조회" size="sm" onClick={() => void validationQuery.refetch()} />
                       </div>
                     ) : validationQuery.isPending ? (
-                      <Caption>검증 지표를 불러오는 중입니다.</Caption>
+                      <Caption>검증 지표를 불러오는 중이에요.</Caption>
                     ) : (validationQuery.data?.metrics.length ?? 0) > 0 ? (
                       <DataTable
                         caption="검증 지표"
@@ -976,8 +976,8 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
                     ) : (
                       <Caption>
                         {screeningListReady
-                          ? "조회 범위 안에 이 회차의 전량 판정 실행이 없어 고정 입력을 확인할 수 없습니다."
-                          : "판정 실행 목록을 확인하지 못해 고정 입력이 미확인입니다."}
+                          ? "조회 범위 안에 이 회차의 전량 판정 실행이 없어 고정 입력을 확인할 수 없어요."
+                          : "판정 실행 목록을 확인하지 못해 고정 입력이 미확인이에요."}
                       </Caption>
                     )}
                   </Section>
@@ -1008,9 +1008,9 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
                       ]}
                     />
                   </Section>
-                  <Note title="이 실행의 입력은 고정되어 있습니다">
-                    현재 판정 기준이 바뀌어도 이미 시작한 실행에 소급 적용하지 않습니다. 회차 원본과 기존
-                    판정 기록은 덮어쓰지 않습니다.
+                  <Note title="이 실행의 입력은 고정되어 있어요">
+                    현재 판정 기준이 바뀌어도 이미 시작한 실행에 소급 적용하지 않아요. 회차 원본과 기존
+                    판정 기록은 덮어쓰지 않아요.
                   </Note>
                 </>
               ) : null}
@@ -1046,7 +1046,7 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
                     이 회차의 사전규격 보기 →
                   </Link>
                 ) : null}
-                <Caption as="span">실무 화면이 `전체` 보기로 이 회차에 걸린 채 열립니다.</Caption>
+                <Caption as="span">실무 화면이 `전체` 보기로 이 회차에 걸린 채 열려요.</Caption>
               </div>
             ) : null}
 

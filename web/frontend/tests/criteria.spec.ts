@@ -85,7 +85,7 @@ test("경계 안내는 이 화면이 정하지 않는 네 판단을 모든 탭�
     await expect(boundary).toContainText("참여 준비");
     await expect(boundary).toContainText("추적 선택");
     await expect(boundary).toContainText("Go/No-Go");
-    await expect(boundary).toContainText("소급해 바꾸지 않습니다");
+    await expect(boundary).toContainText("소급해 바꾸지 않아요");
     await expect(boundary).toContainText("이후 실행에만 적용");
   }
 });
@@ -119,7 +119,7 @@ test("정책 조회 실패는 운영 활성 없음이 아니라 미확인이다"
   await page.goto("/profile");
   await expect(summary(page)).toContainText("미확인");
   await expect(summary(page)).not.toContainText("운영 활성 없음");
-  await expect(summary(page)).toContainText("활성 정책 없음을 뜻하지 않습니다");
+  await expect(summary(page)).toContainText("활성 정책 없음을 뜻하지 않아요");
 });
 
 test("요약의 미확인 항목은 회사 프로필 탭의 미확인 필터를 켠다", async ({ page }) => {
@@ -148,7 +148,7 @@ test("프로필은 계층 절과 값 없음·빈 목록·빈 문자열을 구분
 test("구조화하지 못한 절은 그 사실을 그대로 알린다", async ({ page }) => {
   await open(page, "/profile?psection=certification");
   const alert = page.locator(".crit-detail-scroll [role='alert']").first();
-  await expect(alert).toContainText("이 절의 일부 내용을 구조화하지 못했습니다");
+  await expect(alert).toContainText("이 절의 일부 내용을 구조화하지 못했어요");
   await expect(alert).toContainText("profile_section_unstructured");
 });
 
@@ -163,14 +163,14 @@ test("프로필의 불완전한 응답은 상태와 미확인을 0으로 확정�
   await expect(summary(page)).not.toContainText(/미확인 항목 0(?:\D|$)/);
   await expect(page.locator(".crit-detail").getByRole("alert")).toContainText("프로필 응답 확인 필요");
   await expect(page.locator(".crit-pane-head")).toContainText("건수 미확인");
-  await expect(page.locator(".crit-detail")).not.toContainText("승인된 사본에 표시할 절이 없습니다");
+  await expect(page.locator(".crit-detail")).not.toContainText("승인된 사본에 표시할 절이 없어요");
   await expect(page.locator(".crit-detail").getByRole("button", { name: "다시 조회" })).toBeVisible();
 });
 
 test("프로필 읽기 실패는 빈 정상 상태가 아니라 오류 상태로 표시한다", async ({ page }) => {
   await open(page, "/profile", { profile: "read-error" });
-  await expect(page.getByRole("alert")).toContainText("회사 프로필을 불러오지 못했습니다.");
-  await expect(page.getByRole("alert")).toContainText("0건이나 정상 상태로 표시하지 않습니다");
+  await expect(page.getByRole("alert")).toContainText("회사 프로필을 불러오지 못했어요");
+  await expect(page.getByRole("alert")).toContainText("0건이나 정상 상태로 표시하지 않아요");
 });
 
 test("검색과 상태 필터는 실제 필드에 작동하고 주소에 남는다", async ({ page }) => {
@@ -181,8 +181,8 @@ test("검색과 상태 필터는 실제 필드에 작동하고 주소에 남는�
   await expect(page.locator(".crit-queue-scroll")).toContainText("사업·기술 역량");
 
   await page.getByRole("textbox", { name: "프로필 항목 검색" }).fill("존재하지 않는 항목");
-  await expect(page.locator(".crit-queue-scroll")).toContainText("검색·필터 조건에 맞는 절이 없습니다");
-  await expect(page.locator(".crit-detail")).toContainText("조건에 맞는 절이 없습니다");
+  await expect(page.locator(".crit-queue-scroll")).toContainText("검색·필터 조건에 맞는 절이 없어요");
+  await expect(page.locator(".crit-detail")).toContainText("조건에 맞는 절이 없어요");
 });
 
 test("미확인 필터는 미확인 항목이 있는 절만 남긴다", async ({ page }) => {
@@ -198,7 +198,7 @@ test("사본 정보 창은 버전·해시·읽기 전용을 보여 주고 편집
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("company-profile.sha256:");
   await expect(dialog).toContainText("승인된 구조화 항목 · 읽기 전용");
-  await expect(dialog).toContainText("프로필 편집 API가 없습니다");
+  await expect(dialog).toContainText("프로필 편집 API가 없어요");
   await expect(page.getByRole("button", { name: /프로필 (편집|업로드)/ })).toHaveCount(0);
 });
 
@@ -206,7 +206,7 @@ test("판정 참조 횟수는 집계 불가와 실제 0회를 구분한다", asy
   await open(page, "/profile?psection=certification");
   await page.getByRole("group").getByText("기술 키와 판정 참조 횟수", { exact: false }).click();
   const detail = page.locator(".crit-detail-scroll");
-  await expect(detail).toContainText("집계 불가 · 판정 원문을 읽지 못했습니다");
+  await expect(detail).toContainText("집계 불가 · 판정 원문을 읽지 못했어요");
   await expect(detail).toContainText("2회");
 });
 
@@ -272,7 +272,7 @@ test("정책 활성화는 담당자 없이 나가지 않고 결합 입력을 고
   await expect.poll(() => calls.policyActivate.length).toBe(1);
   expect(calls.policyActivate[0].policyVersion).toBe(POLICY_CANDIDATE);
   expect(calls.policyActivate[0].body).toEqual({ quality_gate_result_id: BINDABLE_EVALUATION, confirmed_by: "합성 승인자" });
-  await expect(page.locator(".crit-detail-scroll")).toContainText("정책이 활성화되었습니다");
+  await expect(page.locator(".crit-detail-scroll")).toContainText("정책이 활성화되었어요");
 });
 
 test("활성화 충돌은 창을 닫지 않고 담당자 입력을 남긴다", async ({ page }) => {
@@ -284,7 +284,7 @@ test("활성화 충돌은 창을 닫지 않고 담당자 입력을 남긴다", a
   await dialog.getByLabel("활성화 담당자 · 필수").fill("합성 승인자");
   await dialog.getByRole("button", { name: "정책 활성화" }).click();
 
-  await expect(dialog.getByRole("alert")).toContainText("입력은 그대로 두었습니다");
+  await expect(dialog.getByRole("alert")).toContainText("입력은 그대로 두었어요");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByLabel("활성화 담당자 · 필수")).toHaveValue("합성 승인자");
   expect(calls.policyActivate).toHaveLength(1);
@@ -296,7 +296,7 @@ test("후보 지정과 활성화는 서로 다른 조작이다", async ({ page }
   await detailFooter(page).getByRole("button", { name: "활성화 후보 지정" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("draft → activation_candidate");
-  await expect(dialog).toContainText("후보 지정은 운영 활성화가 아닙니다");
+  await expect(dialog).toContainText("후보 지정은 운영 활성화가 아니에요");
   await dialog.getByLabel("확인 담당자 · 필수").fill("합성 담당자");
   await dialog.getByRole("button", { name: "후보로 지정" }).click();
   await expect.poll(() => calls.policyCandidate.length).toBe(1);
@@ -339,7 +339,7 @@ test("정책 본문의 JSON 문법 오류는 저장하지 않는다", async ({ p
   await dialog.getByLabel("생성 담당자 · 필수").fill("합성 담당자");
   await dialog.getByLabel("후보 선정 · 필수").fill("[1, 2]");
   await dialog.getByRole("button", { name: "새 불변 버전 저장" }).click();
-  await expect(dialog.getByRole("alert")).toContainText("JSON object여야 합니다");
+  await expect(dialog.getByRole("alert")).toContainText("JSON object여야 해요");
   expect(calls.policyCreate).toHaveLength(0);
 });
 
@@ -348,7 +348,7 @@ test("정책 내용은 본문 키를 그대로 보여 주고 업무 의미로 �
   const detail = page.locator(".crit-detail-scroll");
   await expect(detail).toContainText("perspective_prompts");
   await expect(detail).toContainText("technical_fit, experience_fit");
-  await expect(detail).toContainText("화면은 정책 본문의 키를 업무 의미로 해석하지 않습니다");
+  await expect(detail).toContainText("화면은 정책 본문의 키를 업무 의미로 해석하지 않아요");
 });
 
 // ── 품질 게이트 ───────────────────────────────────────────────────────
@@ -356,7 +356,7 @@ test("정책 내용은 본문 키를 그대로 보여 주고 업무 의미로 �
 test("모델 비교 게이트는 운영 활성화에 쓸 수 없다고 목록과 상세가 함께 말한다", async ({ page }) => {
   await open(page, "/quality-gates?gate=gate-model-comparison");
   await expect(page.locator(".crit-queue-scroll")).toContainText("운영 활성화에 사용 불가");
-  await expect(page.locator(".crit-detail-scroll").getByRole("alert")).toContainText("모델 비교 결과는 운영 활성화에 사용할 수 없습니다");
+  await expect(page.locator(".crit-detail-scroll").getByRole("alert")).toContainText("모델 비교 결과는 운영 활성화에 사용할 수 없어요");
   await expect(detailFooter(page)).toContainText("운영 활성화에 연결 불가");
 });
 
@@ -370,15 +370,15 @@ test("평가 수치 누락은 0/10이 아니라 계산 불가로 남는다", asy
 test("측정 미완(결과 값 보류)은 미달이 아니며 리뷰 수로 통과를 만들지 않는다", async ({ page }) => {
   await open(page, "/quality-gates?gate=gate-operational-held");
   await expect(page.locator(".crit-detail-head")).toContainText("측정 미완");
-  await expect(page.locator(".crit-detail-scroll")).toContainText("측정 미완은 미달이 아닙니다");
+  await expect(page.locator(".crit-detail-scroll")).toContainText("측정 미완은 미달이 아니에요");
   await page.getByRole("tab", { name: "담당자 리뷰" }).click();
-  await expect(page.locator(".crit-detail-scroll")).toContainText("리뷰 개수가 채워졌다는 이유만으로 화면이 통과 판정을 만들지 않습니다");
+  await expect(page.locator(".crit-detail-scroll")).toContainText("리뷰 개수가 채워졌다는 이유만으로 화면이 통과 판정을 만들지 않아요");
 });
 
 test("게이트 상세 조회 실패는 게이트 없음으로 접히지 않는다", async ({ page }) => {
   await open(page, "/quality-gates?gate=gate-operational-pass", { gateDetailError: "gate-operational-pass" });
   const alert = page.locator(".crit-detail").getByRole("alert");
-  await expect(alert).toContainText("선택한 게이트의 상세를 불러오지 못했습니다");
+  await expect(alert).toContainText("선택한 게이트의 상세를 불러오지 못했어요");
   await expect(alert).toContainText("선택한 게이트가 없어진 것이 아니라");
   // 목록은 그대로 남는다.
   await expect(page.locator(".crit-queue-scroll .crit-record")).toHaveCount(4);
@@ -392,7 +392,7 @@ test("고정 입력과 계산 이력은 수정본을 덮지 않고 모두 남긴
   await expect(detail).toContainText("gate-operational-pass-a");
   await expect(detail).toContainText("계산 이력 · 수정본 3건");
   await expect(detail).toContainText("3 · 최신");
-  await expect(detail).toContainText("이전 수정본을 덮지 않습니다");
+  await expect(detail).toContainText("이전 수정본을 덮지 않아요");
 });
 
 test("근거 리뷰 저장은 계약 payload로 나가고 충돌은 입력을 남긴다", async ({ page }) => {
@@ -409,7 +409,7 @@ test("근거 리뷰 저장은 계약 payload로 나가고 충돌은 입력을 �
     noticeId: "notice-109",
     body: { reviewer: "합성 검토자", evidence_judgment: "동의", note: null },
   });
-  await expect(dialog.getByRole("alert")).toContainText("입력은 그대로 두었습니다");
+  await expect(dialog.getByRole("alert")).toContainText("입력은 그대로 두었어요");
   await expect(dialog.getByLabel("Pass A 공고 ID · 필수")).toHaveValue("notice-109");
 });
 
@@ -422,7 +422,7 @@ test("새 품질 게이트 창은 목적에 맞는 프로필 출처를 고정하
   await dialog.getByLabel("검증 목적 · 필수").click();
   await page.getByRole("option", { name: /모델 비교/ }).click();
   await expect(dialog).toContainText("git:ee621835db934ddac944f7a07a986ed0b73ecc7a");
-  await expect(dialog.getByRole("note")).toContainText("운영 활성화에 사용할 수 없습니다");
+  await expect(dialog.getByRole("note")).toContainText("운영 활성화에 사용할 수 없어요");
 
   await dialog.getByLabel("검증 목적 · 필수").click();
   await page.getByRole("option", { name: /운영 승인/ }).click();
@@ -463,14 +463,14 @@ test("회차별 추이는 최근 회차만 조회하고 그 범위를 밝힌다"
   await open(page, "/metrics");
   await expect(page.locator(".crit-detail-scroll")).toContainText("최근 5개 회차");
   await expect(page.locator(".crit-detail-scroll")).toContainText("전체 회차 7개");
-  await expect(page.locator(".crit-detail-scroll")).toContainText("조회 범위 밖 회차의 값은 미확인이며 없음을 뜻하지 않습니다");
+  await expect(page.locator(".crit-detail-scroll")).toContainText("조회 범위 밖 회차의 값은 미확인이며 없음을 뜻하지 않아요");
   await expect.poll(() => new Set(requested).size).toBe(5);
 });
 
 test("과거 회차 하나가 실패해도 나머지 회차의 값은 남는다", async ({ page }) => {
   await open(page, "/metrics", { metricsFailures: ["run-0903-a"] });
   const detail = page.locator(".crit-detail-scroll");
-  await expect(detail.getByRole("alert")).toContainText("과거 회차 지표 1건을 불러오지 못했습니다");
+  await expect(detail.getByRole("alert")).toContainText("과거 회차 지표 1건을 불러오지 못했어요");
   await expect(detail).toContainText("조회 실패");
   await expect(detail).toContainText("98.3%");
   await expect(detail).toContainText("96.7%");
@@ -480,7 +480,7 @@ test("계산 불가와 값 미확인을 0%로 바꾸지 않는다", async ({ pag
   await open(page, "/metrics?metric=human_agreement_rate");
   const detail = page.locator(".crit-detail-scroll");
   await expect(detail).toContainText("계산 불가");
-  await expect(detail).toContainText("0%로 표시하지 않습니다");
+  await expect(detail).toContainText("0%로 표시하지 않아요");
   await expect(detail).toContainText("담당자 리뷰가 기준 수에 미치지 못해");
   await expect(page.locator(".crit-stat-line")).not.toContainText("0.0%");
 });
@@ -532,7 +532,7 @@ for (const width of [1280, 1440]) {
       const boundaryNode = document.querySelector(".crit-boundary") as HTMLElement | null;
       const boundaryStyle = boundaryNode ? window.getComputedStyle(boundaryNode) : null;
       return {
-        tabs: Math.round(box(".crit-tabs .astryx-tab-list")?.height ?? 0),
+        tabs: Math.round(box('.crit-tabs [role="tablist"]')?.height ?? 0),
         strip: Math.round(strip?.height ?? 0),
         footer: Math.round(box(".crit-detail-foot")?.height ?? 0),
         seam: Math.round((work?.top ?? 0) - (strip?.bottom ?? 0)),
@@ -551,8 +551,8 @@ for (const width of [1280, 1440]) {
     expect(geometry.seam).toBe(0);
     expect(geometry.strip).toBeCloseTo(physical(49), 0);
     expect(geometry.footer).toBeCloseTo(physical(57), 0);
-    // 탭 줄은 세 화면 묶음이 같은 36px다(2026-11-18 결정 3). 시안 실측은 37이었다.
-    expect(geometry.tabs).toBeCloseTo(36, 0);
+    // 탭 줄은 패널 헤더의 둥근 칸 탭 한 줄(40px)이다(2026-11-19 ADR-0076, 2026-11-18 결정 3의 36px를 대신한다).
+    expect(geometry.tabs).toBeCloseTo(40, 0);
     // 하단 단추는 Astryx size="sm"이고 sm 단추는 앱 전체에서 12px 한 벌이다(2026-11-18 결정 4).
     expect(geometry.buttonFont).toBe("12px");
     expect(geometry.listTitleFont).toBe("14px");
@@ -565,8 +565,8 @@ for (const width of [1280, 1440]) {
     // The shell fills the viewport and keeps the reference bottom inset (37px,
     // rendered 1:1 since the ×0.9 compact scale was removed on 2026-11-18).
     const viewportHeight = width === 1280 ? 800 : 900;
-    // 2026-11-18부터 캔버스 하단 여백 24px이 모든 화면에 같다(결정 3).
-    expect(geometry.workspaceBottom).toBeCloseTo(viewportHeight - physical(37) - 24, 0);
+    // 2026-11-19 최종 시안 셸: 흰 패널의 바깥 여백 8 + 테두리 1, 캔버스 하단 여백 32px이 모든 화면에 같다.
+    expect(geometry.workspaceBottom).toBeCloseTo(viewportHeight - physical(37) - 8 - 1 - 32, 0);
   });
 
   test(`하단 액션이 ${width}px에서 스크롤 없이 보이고 화면이 가로로 넘치지 않는다`, async ({ page }) => {

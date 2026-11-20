@@ -65,18 +65,18 @@ export function PolicyConfirmDialog({ snapshot, busy, error, onClose, onConfirm 
     <CriteriaDialog
       onClose={close}
       open={snapshot !== null}
-      title={activating ? "판정 정책을 운영에 활성화합니다" : "운영 활성화 후보로 지정합니다"}
+      title={activating ? "판정 정책을 운영에 활성화해요" : "운영 활성화 후보로 지정해요"}
     >
       {snapshot ? (
         <>
           <Facts items={snapshot.facts.map(([term, value]) => [term, <span className="crit-mono" key={term}>{value}</span>])} />
           <Note
             title={activating
-              ? "이후 시작하는 실행의 정책을 바꿉니다"
-              : "후보 지정은 운영 활성화가 아닙니다"}
+              ? "이후 시작하는 실행의 정책을 바꿔요"
+              : "후보 지정은 운영 활성화가 아니에요"}
             tone="warning"
           >
-            정책 본문은 불변입니다. 이 상태 변경을 되돌리려면 새 버전을 만들어야 하며, 이미 기록된 판정과 사람의 결정은 바뀌지 않습니다.
+            정책 본문은 불변이에요. 이 상태 변경을 되돌리려면 새 버전을 만들어야 하며, 이미 기록된 판정과 사람의 결정은 바뀌지 않아요.
           </Note>
           <TextInput
             isDisabled={busy}
@@ -86,7 +86,7 @@ export function PolicyConfirmDialog({ snapshot, busy, error, onClose, onConfirm 
             value={actor}
           />
           <Text as="span" className="crit-small" color="secondary">
-            담당자 이름은 감사 표식이며 로그인이나 신원 인증이 아닙니다.
+            담당자 이름은 감사 표식이며 로그인이나 신원 인증이 아니에요.
           </Text>
           {error ? <Text as="p" className="crit-error" role="alert">{error}</Text> : null}
           <DialogActions>

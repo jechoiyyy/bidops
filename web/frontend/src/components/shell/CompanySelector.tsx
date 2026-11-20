@@ -66,7 +66,7 @@ export function CompanySelector({ companyId }: { companyId: string | null }) {
             navigate(companySwitchTarget(location.pathname, next));
           }}
         >
-          {companyId === null ? <option value="">회사를 고르십시오</option> : null}
+          {companyId === null ? <option value="">회사를 골라 주세요</option> : null}
           {companyId !== null && !known ? (
             <option value={companyId}>{companiesQuery.isPending ? "회사 확인 중" : "확인되지 않은 회사"}</option>
           ) : null}
@@ -80,7 +80,7 @@ export function CompanySelector({ companyId }: { companyId: string | null }) {
           <path d="m6 9 6 6 6-6" />
         </svg>
       </label>
-      {companiesQuery.isError ? <span className="company-switcher-error" role="status">회사 목록을 불러오지 못했습니다</span> : null}
+      {companiesQuery.isError ? <span className="company-switcher-error" role="status">회사 목록을 불러오지 못했어요</span> : null}
     </div>
   );
 }

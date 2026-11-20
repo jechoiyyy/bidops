@@ -59,7 +59,7 @@ function elapsedLabel(ms: number | null): string {
 
 /** 줄을 이루는 사실 조각. 순서: 기준일 → 수집일·경과일 → C-2 상태 → 필수 검토·훑어보기(·모델 미판정) 건수. */
 function factParts(status: DailyRunStatus): string[] {
-  if (!status.latest) return ["일일 발주계획 수집 기록이 없습니다"];
+  if (!status.latest) return ["일일 발주계획 수집 기록이 없어요"];
   const parts = [
     `최근 기준일 ${status.latest.basisDate.slice(5)}`,
     status.collectedDate
@@ -84,16 +84,16 @@ function factParts(status: DailyRunStatus): string[] {
   return parts;
 }
 
-const STALE_SENTENCE = "최근 기준일이 늦었습니다. 일일 스크립트가 돌지 않았을 수 있습니다.";
+const STALE_SENTENCE = "최근 기준일이 늦었어요. 일일 스크립트가 돌지 않았을 수 있어요.";
 
 function problemSentence(status: DailyRunStatus): string | null {
   const { problems } = status;
-  if (problems.includes("no_daily_run")) return "일일 스크립트가 아직 발주계획을 수집한 적이 없습니다.";
+  if (problems.includes("no_daily_run")) return "일일 스크립트가 아직 발주계획을 수집한 적이 없어요.";
   const sentences: string[] = [];
   if (problems.includes("stale")) sentences.push(STALE_SENTENCE);
-  if (problems.includes("no_execution")) sentences.push("이 회차에는 C-2 운영 실행이 없습니다.");
+  if (problems.includes("no_execution")) sentences.push("이 회차에는 C-2 운영 실행이 없어요.");
   if (problems.includes("in_progress_too_long")) sentences.push("오래 진행 중 — 실행 상태 확인.");
-  if (problems.includes("execution_not_done")) sentences.push("C-2 실행이 성공·부분 성공으로 끝나지 않았습니다.");
+  if (problems.includes("execution_not_done")) sentences.push("C-2 실행이 성공·부분 성공으로 끝나지 않았어요.");
   return sentences.length ? sentences.join(" ") : null;
 }
 
@@ -109,13 +109,13 @@ const STATE_BADGE = {
 export function DailyRunStatusLine({ className = "", showLink = true, embedded = false }: { className?: string; showLink?: boolean; embedded?: boolean }) {
   const { status, isPending, isError, refetch } = useDailyRunStatus();
   if (isPending) {
-    return <p className={`daily-run-line ${className}`.trim()} data-testid="daily-run-status" role="status">발주계획 일일 실행 · 기록을 확인하는 중입니다.</p>;
+    return <p className={`daily-run-line ${className}`.trim()} data-testid="daily-run-status" role="status">발주계획 일일 실행 · 기록을 확인하는 중이에요.</p>;
   }
   if (isError) {
     return (
       <div className={`daily-run-line is-warning ${className}`.trim()} data-testid="daily-run-status" data-state="error" role="status">
         <StatusBadge label="확인 불가" tone="warning" />
-        <span>발주계획 일일 실행 기록을 불러오지 못했습니다. 돌았다고 가정하지 않습니다.</span>
+        <span>발주계획 일일 실행 기록을 불러오지 못했어요. 돌았다고 가정하지 않아요.</span>
         <Button label="다시 조회" onClick={refetch} size="sm" variant="ghost" />
       </div>
     );
@@ -157,12 +157,12 @@ export function DailyNoticeStatusLine() {
     retry: false,
   });
   const now = useMemo(() => Date.now(), []);
-  if (runsQuery.isPending) return <p className="daily-run-line is-row" data-testid="daily-notice-status" role="status">공고 · 기록을 확인하는 중입니다.</p>;
+  if (runsQuery.isPending) return <p className="daily-run-line is-row" data-testid="daily-notice-status" role="status">공고 · 기록을 확인하는 중이에요.</p>;
   if (runsQuery.isError) {
     return (
       <div className="daily-run-line is-row is-warning" data-state="error" data-testid="daily-notice-status" role="status">
         <StatusBadge label="확인 불가" tone="warning" />
-        <span>공고 일일 수집 기록을 불러오지 못했습니다. 돌았다고 가정하지 않습니다.</span>
+        <span>공고 일일 수집 기록을 불러오지 못했어요. 돌았다고 가정하지 않아요.</span>
       </div>
     );
   }
@@ -182,14 +182,14 @@ export function DailyNoticeStatusLine() {
         {noticeFactParts(status, warningsQuery.isError).map((part) => <span className="daily-run-fact" key={part}>{part}</span>)}
       </span>
       {status.problems.includes("no_daily_run")
-        ? <span className="daily-run-problem">일일 스크립트가 아직 공고를 수집한 적이 없습니다.</span>
+        ? <span className="daily-run-problem">일일 스크립트가 아직 공고를 수집한 적이 없어요.</span>
         : status.problems.includes("stale") ? <span className="daily-run-problem">{STALE_SENTENCE}</span> : null}
     </div>
   );
 }
 
 function noticeFactParts(status: DailyNoticeStatus, warningsFailed: boolean): string[] {
-  if (!status.latest) return ["일일 공고 수집 기록이 없습니다"];
+  if (!status.latest) return ["일일 공고 수집 기록이 없어요"];
   return [
     `최근 기준일 ${status.latest.basisDate.slice(5)}`,
     status.collectedDate ? `적재 ${shortDate(status.collectedDate)} · ${agoLabel(status.daysSince)}` : "적재 날짜 미확인",
@@ -203,7 +203,7 @@ export function DailyCollectionStatus() {
     <section aria-label="일일 수집" className="daily-collection" data-testid="daily-collection">
       <header className="daily-collection-head">
         <span className="daily-collection-title">일일 수집</span>
-        <span className="daily-collection-aux">오늘 기준일은 아직 수집 전일 수 있습니다 · 정오 전에는 그저께 기준일까지를 정상으로 봅니다</span>
+        <span className="daily-collection-aux">오늘 기준일은 아직 수집 전일 수 있어요 · 정오 전에는 그저께 기준일까지를 정상으로 봐요</span>
         <Link className="daily-run-link" to="/runs">회차 기록 →</Link>
       </header>
       <DailyRunStatusLine embedded showLink={false} />

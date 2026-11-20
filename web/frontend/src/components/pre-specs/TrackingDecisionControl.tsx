@@ -63,8 +63,8 @@ export const TRACKING_DECISION_STATUSES: OpportunityTrackingStatus[] = ["계속 
  * 감사 표식일 뿐 인증이 아니다.
  */
 function requiredDecisionInputReason(reason: string, actorName: string): string | null {
-  if (!reason.trim()) return "추적 결정을 저장하려면 사유를 입력하십시오.";
-  if (!actorName.trim()) return "추적 결정을 저장하려면 담당자 이름을 입력하십시오.";
+  if (!reason.trim()) return "추적 결정을 저장하려면 사유를 입력해 주세요.";
+  if (!actorName.trim()) return "추적 결정을 저장하려면 담당자 이름을 입력해 주세요.";
   return null;
 }
 
@@ -107,7 +107,7 @@ export function PreSpecDocumentSummary({ item }: { item: PreSpecListItem }) {
         <div><dt>차단</dt><dd>{document["차단"]}건</dd></div>
         <div><dt>실패</dt><dd>{document["실패"]}건</dd></div>
       </dl>
-      <p>첨부 취득 상태는 같은 공고의 누적 사전규격 요약 정보에서 확인했습니다.</p>
+      <p>첨부 취득 상태는 같은 공고의 누적 사전규격 요약 정보에서 확인했어요.</p>
     </section>
   );
 }
@@ -204,7 +204,7 @@ function PreSpecTrackingDecisionControl({
     staleTime: 30_000,
   });
   const inheritedContext = !inherited ? null : opportunityQuery.isPending ? (
-    <p role="status">승계 사유를 불러오는 중입니다.</p>
+    <p role="status">승계 사유를 불러오는 중이에요.</p>
   ) : opportunityQuery.isError || opportunityQuery.data?.id !== opportunityId ? (
     <p role="status">승계 사유 확인 불가</p>
   ) : (
@@ -249,8 +249,8 @@ function PreSpecTrackingDecisionControl({
   const guard = useUnsavedGuard(dirty, {
     blockSpaNavigation: true,
     scope: "pathname",
-    title: "추적 결정을 저장하지 않고 떠납니다",
-    message: "저장하지 않은 추적 결정 사유와 담당자 이름이 있습니다. 지금 이동하면 사라지며 저장된 추적 상태는 바뀌지 않습니다.",
+    title: "추적 결정을 저장하지 않고 떠나요",
+    message: "저장하지 않은 추적 결정 사유와 담당자 이름이 있어요. 지금 이동하면 사라지며 저장된 추적 상태는 바뀌지 않아요.",
     summary: [
       { label: "사유", value: reasonValue || "값 없음" },
       { label: "담당자", value: actorName.trim() || "값 없음" },
@@ -296,7 +296,7 @@ function PreSpecTrackingDecisionControl({
   const recorded = record && hasOpportunity && ((currentStatus !== null && currentStatus !== "미선택") || savedDecision !== null);
   const hasForm = Boolean(item) && !isPending && !isError && !(item && isInheritedTracking(item)) && !recorded;
   const disabledReason = !hasOpportunity && !mutation.isPending
-    ? "아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없습니다."
+    ? "아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없어요."
     : trackingInputBlockedReason({ choice, custom, actorName, pending: mutation.isPending });
   const ready = hasOpportunity && disabledReason === null;
   const saveLabel = trackingActionLabel(TRACKING_DECISION_STATUSES[0] as TrackingDecisionStatus, currentStatus);
@@ -309,7 +309,7 @@ function PreSpecTrackingDecisionControl({
     return (
       <section className="pre-spec-tracking-decision" aria-labelledby="pre-spec-tracking-decision-title">
         <Heading id="pre-spec-tracking-decision-title">추적 결정</Heading>
-        <p role="status">사업기회 연결과 첨부 취득 집계를 불러오는 중입니다.</p>
+        <p role="status">사업기회 연결과 첨부 취득 집계를 불러오는 중이에요.</p>
       </section>
     );
   }
@@ -321,8 +321,8 @@ function PreSpecTrackingDecisionControl({
         <EmptyState
           compact
           tone="error"
-          title="사업기회 연결 정보를 확인할 수 없습니다."
-          description="추적 상태와 첨부 취득 집계를 불러오지 못해 이 화면에서 결정을 기록하지 않습니다."
+          title="사업기회 연결 정보를 확인할 수 없어요"
+          description="추적 상태와 첨부 취득 집계를 불러오지 못해 이 화면에서 결정을 기록하지 않아요."
           action={{ label: "다시 시도", onClick: onRetry }}
         />
       </section>
@@ -342,13 +342,13 @@ function PreSpecTrackingDecisionControl({
     <div className="ps-record-tracking-heading"><Heading id="pre-spec-tracking-decision-title">추적 결정</Heading><span aria-label="현재 추적 상태"><Badge label={hasOpportunity ? (currentStatus === "계속 추적" ? "추적 중" : currentStatus === "종료" ? "추적 종료" : currentStatusLabel) : "사업기회 미연결"} variant="neutral" /></span></div>
     <div className="ps-record-tracking-reference"><span>사전규격번호</span><strong>{noticeNumber ?? "미확인"}</strong></div>
   </>;
-  const stateManagement = <p className="pre-spec-tracking-elsewhere"><strong>보류·추적 종료</strong>는 사업 추적에서 변경합니다.{hasOpportunity ? <Link to={`/opportunities/${item.opportunity_id}`}>사업 추적으로 이동 ↗</Link> : null}</p>;
+  const stateManagement = <p className="pre-spec-tracking-elsewhere"><strong>보류·추적 종료</strong>는 사업 추적에서 변경해요.{hasOpportunity ? <Link to={`/opportunities/${item.opportunity_id}`}>사업 추적으로 이동 ↗</Link> : null}</p>;
   if (recorded) {
     return <section className={`pre-spec-tracking-decision is-compact is-record is-recorded${inlineClass}`} aria-labelledby="pre-spec-tracking-decision-title">
       {showRecordHeading ? recordHeading : null}
       <div className="ps-record-saved-decision">
         {/* 방금 저장한 결과도 추적 결정 입력 한 벌(C-7)의 저장 문장으로 알린다. */}
-        <Heading>{savedDecision ? trackingSavedMessage(currentStatus === null || currentStatus === "미선택" ? "계속 추적" : currentStatus) : isInheritedTracking(item) ? "발주계획에서 추적 결정을 이어받았습니다" : "추적 결정이 기록된 사업입니다"}</Heading>
+        <Heading>{savedDecision ? trackingSavedMessage(currentStatus === null || currentStatus === "미선택" ? "계속 추적" : currentStatus) : isInheritedTracking(item) ? "발주계획에서 추적 결정을 이어받았어요" : "추적 결정이 기록된 사업이에요"}</Heading>
         <p>현재 추적 상태 · {currentStatusLabel}</p>
         {inheritedContext}
         {savedDecision ? <dl><div><dt>선택 사유</dt><dd>{savedDecision.reason}</dd></div><div><dt>담당자</dt><dd>{savedDecision.actor}</dd></div></dl> : null}
@@ -371,7 +371,7 @@ function PreSpecTrackingDecisionControl({
           <div>
             <Heading id="pre-spec-tracking-decision-title">추적 상태 · 발주계획에서 승계</Heading>
             <p>
-              발주계획에서 추적 결정을 이어받았습니다.
+              발주계획에서 추적 결정을 이어받았어요.
             </p>
             {inheritedContext}
           </div>
@@ -384,7 +384,7 @@ function PreSpecTrackingDecisionControl({
         {!compact ? <PreSpecDocumentSummary item={item} /> : null}
 
         <p className="pre-spec-tracking-elsewhere">
-          <Link to={`/opportunities/${item.opportunity_id}`}>사업 추적</Link>에서만 <strong>보류</strong>와 <strong>추적 종료</strong>를 고릅니다. 추적 결정은 추적만 정하며 분석 실행 승인이 아닙니다.
+          <Link to={`/opportunities/${item.opportunity_id}`}>사업 추적</Link>에서만 <strong>보류</strong>와 <strong>추적 종료</strong>를 골라요. 추적 결정은 추적만 정하며 분석 실행 승인이 아니에요.
         </p>
       </section>
     );
@@ -405,8 +405,8 @@ function PreSpecTrackingDecisionControl({
               지우지 않는다. compact는 설명을 줄일 뿐 이 구분은 남긴다. */}
           <p>
             {compact
-              ? "개요 검토 권고를 자동 반영하지 않습니다. 최종 입찰 참여 결정(Go/No-Go)이 아닙니다."
-              : "개요 검토 권고를 자동 반영하지 않고 사람이 고르는 추적 결정입니다. 최종 입찰 참여 결정(Go/No-Go)이 아닙니다."}
+              ? "개요 검토 권고를 자동 반영하지 않아요. 최종 입찰 참여 결정(Go/No-Go)이 아니에요."
+              : "개요 검토 권고를 자동 반영하지 않고 사람이 고르는 추적 결정이에요. 최종 입찰 참여 결정(Go/No-Go)이 아니에요."}
           </p>
         </div>
         <div className="pre-spec-tracking-current" aria-label="현재 추적 상태">
@@ -422,7 +422,7 @@ function PreSpecTrackingDecisionControl({
 
       {!hasOpportunity ? (
         <MutationFeedback tone="warning">
-          아직 사업기회에 연결되지 않아 추적 상태를 결정할 수 없습니다. 사업기회 연결이 생긴 뒤 이 화면에서 추적을 시작할 수 있습니다.
+          아직 사업기회에 연결되지 않아 추적 상태를 결정할 수 없어요. 사업기회 연결이 생긴 뒤 이 화면에서 추적을 시작할 수 있어요.
         </MutationFeedback>
       ) : null}
 
@@ -434,7 +434,7 @@ function PreSpecTrackingDecisionControl({
           submit(TRACKING_DECISION_STATUSES[0] as TrackingDecisionStatus);
         }}
       >
-        {record && showIntent ? <div className="ps-record-tracking-intent"><span>저장할 결정</span><h4>추적 시작 <span>→ 계속 추적</span></h4><p>새 문서·입찰공고·정정공고를 계속 확인합니다.</p></div> : null}
+        {record && showIntent ? <div className="ps-record-tracking-intent"><span>저장할 결정</span><h4>추적 시작 <span>→ 계속 추적</span></h4><p>새 문서·입찰공고·정정공고를 계속 확인해요.</p></div> : null}
 
         {hasOpportunity ? (
           <TrackingDecisionInputs
@@ -472,7 +472,7 @@ function PreSpecTrackingDecisionControl({
             inline 폼은 같은 문장을 한 번 더 적지 않는다. 승계·기록된 사업의 상태 블록은
             record와 똑같이 이 문장을 그대로 그린다. */}
         {record ? (inline ? null : stateManagement) : (        <p className="pre-spec-tracking-elsewhere">
-          <strong>보류</strong>와 <strong>추적 종료</strong>는 이 화면에 없습니다. 사업 추적에서만 사람이 고릅니다.
+          <strong>보류</strong>와 <strong>추적 종료</strong>는 이 화면에 없어요. 사업 추적에서만 사람이 골라요.
         </p>)}
       </form>
       <ConfirmDecisionDialog
@@ -482,7 +482,7 @@ function PreSpecTrackingDecisionControl({
         onOpenChange={(next) => { if (!next) setEndConfirm(null); }}
         open={endConfirm !== null}
         summary={endConfirm?.summary ?? []}
-        title={endConfirm?.title ?? "추적을 종료합니다"}
+        title={endConfirm?.title ?? "추적을 종료해요"}
       />
     </section>
   );
@@ -635,8 +635,8 @@ function CompanyTrackingDecision({ adapter, headingLevel = "h3" }: CompanyTracki
   const guard = useUnsavedGuard(dirty, mutation.isPending ? {
     blockSpaNavigation: true,
     scope: "pathname",
-    title: "추적 결정 저장 요청을 처리하고 있습니다",
-    message: `저장 요청을 이미 보냈습니다. 지금 이동해도 그 요청은 취소되지 않으며 ${owner}에 저장될 수 있습니다. 다른 회사에는 저장되지 않습니다. 저장 결과는 ${owner} 화면에서 다시 확인하십시오.`,
+    title: "추적 결정 저장 요청을 처리하고 있어요",
+    message: `저장 요청을 이미 보냈어요. 지금 이동해도 그 요청은 취소되지 않으며 ${owner}에 저장될 수 있어요. 다른 회사에는 저장되지 않아요. 저장 결과는 ${owner} 화면에서 다시 확인해 주세요.`,
     confirmLabel: "이동하기 (보낸 요청은 계속 처리)",
     cancelLabel: "이 회사에 머물기",
     summary: [
@@ -646,8 +646,8 @@ function CompanyTrackingDecision({ adapter, headingLevel = "h3" }: CompanyTracki
   } : {
     blockSpaNavigation: true,
     scope: "pathname",
-    title: "이 회사의 추적 결정을 저장하지 않았습니다",
-    message: "저장하지 않은 추적 결정 입력이 있습니다. 다른 화면이나 다른 회사로 옮기면 이 입력은 사라지며, 다른 회사에 저장되지 않습니다.",
+    title: "이 회사의 추적 결정을 저장하지 않았어요",
+    message: "저장하지 않은 추적 결정 입력이 있어요. 다른 화면이나 다른 회사로 옮기면 이 입력은 사라지며, 다른 회사에 저장되지 않아요.",
     confirmLabel: "입력을 버리고 이동",
     cancelLabel: "이 회사에 머물기",
     summary: [
@@ -660,7 +660,7 @@ function CompanyTrackingDecision({ adapter, headingLevel = "h3" }: CompanyTracki
     return (
       <section className="cw-section" aria-labelledby="company-tracking-title" data-testid="company-tracking-unlinked">
         <Heading id="company-tracking-title">이 회사의 추적 결정</Heading>
-        <p className="cw-caption">아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없습니다.</p>
+        <p className="cw-caption">아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없어요.</p>
       </section>
     );
   }
@@ -669,15 +669,15 @@ function CompanyTrackingDecision({ adapter, headingLevel = "h3" }: CompanyTracki
   const ready = base !== null && status !== null && requiredDecisionInputReason(reason, actorName) === null
     && reason.trim().length <= 2000 && !mutation.isPending && !needsNewIntent;
   const disabledReason = mutation.isPending
-    ? "저장 요청을 처리하고 있습니다."
+    ? "저장 요청을 처리하고 있어요."
     : base === null
-      ? "현재 추적 상태를 확인한 뒤 저장할 수 있습니다."
+      ? "현재 추적 상태를 확인한 뒤 저장할 수 있어요."
       : versionConflict
-        ? "서버 최신값과 초안을 비교한 뒤 ‘최신값 기준으로 다시 저장 준비’를 눌러야 저장합니다."
+        ? "서버 최신값과 초안을 비교한 뒤 ‘최신값 기준으로 다시 저장 준비’를 눌러야 저장해요."
         : resendConflict
-          ? "재전송 충돌을 확인한 뒤 ‘새 저장 요청으로 다시 시작’을 눌러야 저장합니다."
+          ? "재전송 충돌을 확인한 뒤 ‘새 저장 요청으로 다시 시작’을 눌러야 저장해요."
           : status === null
-            ? "추적 상태(계속 추적·보류·종료)를 고르십시오."
+            ? "추적 상태(계속 추적·보류·종료)를 골라 주세요."
             : requiredDecisionInputReason(reason, actorName);
 
   const send = () => {
@@ -688,8 +688,8 @@ function CompanyTrackingDecision({ adapter, headingLevel = "h3" }: CompanyTracki
       requestId = pendingRequest?.fingerprint === fingerprint ? pendingRequest.requestId : generateRequestId();
     } catch {
       setProblem({
-        title: "안전한 요청 식별자를 만들 수 없습니다.",
-        detail: "이 브라우저에서 암호학적 난수를 쓸 수 없어 저장하지 않았습니다. 다른 브라우저에서 다시 시도하십시오.",
+        title: "안전한 요청 식별자를 만들 수 없어요.",
+        detail: "이 브라우저에서 암호학적 난수를 쓸 수 없어 저장하지 않았어요. 다른 브라우저에서 다시 시도해 주세요.",
         action: null,
         code: null,
       });
@@ -711,7 +711,7 @@ function CompanyTrackingDecision({ adapter, headingLevel = "h3" }: CompanyTracki
           setReason("");
           setPendingRequest(null);
           setBase(saved);
-          setSavedMessage(`${saved.tracking_status}(으)로 저장했습니다.`);
+          setSavedMessage(`${saved.tracking_status}(으)로 저장했어요.`);
         },
         onError: (caught) => {
           const code = readErrorCode(caught);
@@ -726,7 +726,7 @@ function CompanyTrackingDecision({ adapter, headingLevel = "h3" }: CompanyTracki
             void trackingQuery.refetch();
           }
           // 그 밖의 실패는 입력과 request_id를 그대로 둔다. 같은 입력의 재시도는 같은 request_id다.
-          setProblem(describeCompanyApiError(caught, "추적 결정을 저장하지 못했습니다."));
+          setProblem(describeCompanyApiError(caught, "추적 결정을 저장하지 못했어요."));
         },
       },
     );
@@ -750,17 +750,17 @@ function CompanyTrackingDecision({ adapter, headingLevel = "h3" }: CompanyTracki
     <section className="cw-section" aria-labelledby="company-tracking-title" data-testid="company-tracking">
       <Heading id="company-tracking-title">이 회사의 추적 결정</Heading>
       <p className="cw-caption" data-testid="company-tracking-boundary">
-        계속 추적·보류·종료는 이 회사의 사업 추적 결정입니다. 회사 핏(적합성) 판정이나 최종 입찰 참여 결정(Go/No-Go)이 아니며 서로 대신하지 않습니다.
-        세 상태 저장은 가상회사 데모 경로에만 있습니다.
+        계속 추적·보류·종료는 이 회사의 사업 추적 결정이에요. 회사 핏(적합성) 판정이나 최종 입찰 참여 결정(Go/No-Go)이 아니며 서로 대신하지 않아요.
+        세 상태 저장은 가상회사 데모 경로에만 있어요.
       </p>
       {trackingQuery.isPending ? (
-        <p role="status">현재 추적 상태를 불러오는 중입니다.</p>
+        <p role="status">현재 추적 상태를 불러오는 중이에요.</p>
       ) : trackingQuery.isError && !latest ? (
         <EmptyState
           compact
           tone="error"
-          title="현재 추적 상태를 확인할 수 없습니다."
-          problem={describeCompanyApiError(trackingQuery.error, "추적 상태를 불러오지 못했습니다.")}
+          title="현재 추적 상태를 확인할 수 없어요"
+          problem={describeCompanyApiError(trackingQuery.error, "추적 상태를 불러오지 못했어요.")}
           action={{ label: "다시 시도", onClick: () => { void trackingQuery.refetch(); } }}
         />
       ) : latest ? (
@@ -775,8 +775,8 @@ function CompanyTrackingDecision({ adapter, headingLevel = "h3" }: CompanyTracki
       {versionConflict && base ? (
         <div className="cw-tracking-conflict" role="group" aria-label="추적 결정 저장 충돌" data-testid="company-tracking-conflict">
           <p>
-            다른 사람이 먼저 이 회사의 추적 결정을 바꿨습니다. 초안은 지우지 않았고 서버 값으로 자동 덮어쓰지 않습니다.
-            두 값을 비교한 뒤 최신값을 기준으로 다시 저장할지 정하십시오.
+            다른 사람이 먼저 이 회사의 추적 결정을 바꿨어요. 초안은 지우지 않았고 서버 값으로 자동 덮어쓰지 않아요.
+            두 값을 비교한 뒤 최신값을 기준으로 다시 저장할지 정해 주세요.
           </p>
           <div className="cw-tracking-conflict-grid">
             <TrackingSnapshot
@@ -791,9 +791,9 @@ function CompanyTrackingDecision({ adapter, headingLevel = "h3" }: CompanyTracki
                 tracking={{ status: latest.tracking_status, reason: latest.reason, actor: latest.selected_by, at: latest.selected_at, revision: latest.revision }}
               />
             ) : trackingQuery.isFetching ? (
-              <p role="status">서버 최신값을 불러오는 중입니다.</p>
+              <p role="status">서버 최신값을 불러오는 중이에요.</p>
             ) : (
-              <p className="cw-caption">서버 최신값을 확인하지 못했습니다. 다시 불러온 뒤 비교하십시오.</p>
+              <p className="cw-caption">서버 최신값을 확인하지 못했어요. 다시 불러온 뒤 비교해 주세요.</p>
             )}
           </div>
           <div className="cw-tracking-actions">
@@ -870,8 +870,8 @@ function CompanyTrackingDecision({ adapter, headingLevel = "h3" }: CompanyTracki
         >
           {resendConflict ? (
             <p data-testid="company-tracking-resend-conflict">
-              같은 요청 식별자로 다른 내용을 보낸 재전송 충돌입니다. 앞선 요청이 이미 저장됐을 수 있으니 위의 현재 상태를 확인하십시오.
-              이 요청 식별자는 다시 쓰지 않습니다. 저장하려면 새 저장 요청으로 다시 시작하십시오.
+              같은 요청 식별자로 다른 내용을 보낸 재전송 충돌이에요. 앞선 요청이 이미 저장됐을 수 있으니 위의 현재 상태를 확인해 주세요.
+              이 요청 식별자는 다시 쓰지 않아요. 저장하려면 새 저장 요청으로 다시 시작해 주세요.
             </p>
           ) : null}
         </MutationFeedback>

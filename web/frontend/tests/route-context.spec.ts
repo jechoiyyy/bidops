@@ -173,33 +173,36 @@ test("누적 화면은 회차 API 실패와 무관하게 열린다", async ({ pa
   expect(new URL(page.url()).searchParams.get("run")).toBe(RUN_ID);
 });
 
-// ── 상단 경로(현재 위치) ────────────────────────────────────────────────────
-// 경로 모드의 상단바는 화면 제목을 다시 쓰지 않는다. 각 화면의 `<h2>`가 시각
-// 제목이고 상단바는 `그룹 › 상위 화면 › 화면 이름 › 상세 식별자`만 보여 준다.
-// 화면 이름 칸이 `<h1>`이라 접근성 랜드마크는 그대로 남는다.
-// 탐색과 추적 목록 4화면은 제목 모드로 빠졌다(아래 `titleCases`).
+// ── 패널 헤더의 현재 위치 ─────────────────────────────────────────────────────
+// 2026-11-19 패널 헤더(ADR-0076): 옛 경로 줄(`그룹 › 상위 화면 › 화면 이름 › 상세 식별자`)은 없다.
+// 상세 화면은 맨 위 `‹ 상위 화면` 돌아가기 링크 하나, 그 아래 화면 이름·식별자(작은 글자)와 `<h1>` 제목이다.
+// 목록·대시보드처럼 돌아갈 곳이 없는 화면은 링크 없이 제목만 둔다. `<h1>`은 언제나 하나다.
 
-type BreadcrumbCase = { name: string; path: string; crumbs: string[] };
+type HeaderCase = { name: string; path: string; back: string | null; heading: string[] };
 
-const breadcrumbCases: BreadcrumbCase[] = [
-  { name: "dashboard", path: "/", crumbs: ["대시보드"] },
-  { name: "pre-spec detail", path: "/pre-specs/991", crumbs: ["사전규격", "notice 991"] },
-  { name: "opportunity detail", path: "/opportunities/501", crumbs: ["사업기회", "#501"] },
-  // 되돌릴 수 없는 결정 화면은 어느 사업기회의 결정인지 경로에 남긴다.
-  { name: "bid delta", path: "/opportunities/501/bid-delta", crumbs: ["사업기회", "#501", "입찰 변경 비교"] },
-  { name: "queue detail", path: "/queue/29", crumbs: ["사업기회", "공고 판정 이력", "공고 29"] },
-  { name: "judgments detail", path: "/judgments/29", crumbs: ["사업기회", "입찰공고 상세", "공고 29"] },
-  { name: "criteria", path: "/criteria", crumbs: ["판정 기준"] },
-  { name: "run-status", path: "/run-status", crumbs: ["실행 상태"] },
+const headerCases: HeaderCase[] = [
+  { name: "dashboard", path: "/", back: null, heading: ["대시보드"] },
+  { name: "pre-spec detail", path: "/pre-specs/991", back: "사전규격", heading: ["사전규격"] },
+  { name: "opportunity detail", path: "/opportunities/501", back: "사업기회", heading: ["#501"] },
+  // 되돌릴 수 없는 결정 화면은 어느 사업기회의 결정인지 돌아가기 링크와 화면 이름이 남긴다.
+  { name: "bid delta", path: "/opportunities/501/bid-delta", back: "#501", heading: ["입찰 변경 비교"] },
+  { name: "queue detail", path: "/queue/29", back: "공고 판정 이력", heading: ["공고 29"] },
+  { name: "judgments detail", path: "/judgments/29", back: "입찰공고 상세", heading: ["공고 29"] },
+  { name: "criteria", path: "/criteria", back: null, heading: ["판정 기준"] },
+  { name: "run-status", path: "/run-status", back: null, heading: ["실행 상태"] },
 ];
 
-for (const context of breadcrumbCases) {
-  test(`${context.name} 상단 경로`, async ({ page }) => {
+for (const context of headerCases) {
+  test(`${context.name} 패널 헤더 위치`, async ({ page }) => {
     await page.goto(context.path);
-    const crumbs = page.locator("header.topbar .topbar-breadcrumb .topbar-crumb");
-    await expect(crumbs).toHaveText(context.crumbs);
-    // 화면 이름 칸 하나만 `<h1>`이다. 제목을 두 번 쓰지 않는다.
-    await expect(page.locator("header.topbar h1")).toHaveCount(1);
+    const topbar = page.locator("header.topbar");
+    await expect(topbar.locator(".topbar-breadcrumb")).toHaveCount(0);
+    const back = topbar.getByRole("navigation", { name: "현재 위치" }).getByRole("link");
+    if (context.back === null) await expect(back).toHaveCount(0);
+    else await expect(back).toHaveText(context.back);
+    for (const text of context.heading) await expect(topbar.locator(".topbar-heading")).toContainText(text);
+    // 제목은 하나만 `<h1>`이다. 제목을 두 번 쓰지 않는다.
+    await expect(topbar.locator("h1")).toHaveCount(1);
   });
 }
 
@@ -226,13 +229,13 @@ for (const context of titleCases) {
   });
 }
 
-// 대시보드는 제목 모드가 아니다. 액션 portal은 두 모드가 함께 쓰므로, 경로 모드
-// 화면에서도 슬롯이 그대로 동작하는지 같은 자리에서 확인한다.
+// 대시보드는 제목 모드가 아니다(문장형 제목을 페이지가 올린다). 액션 portal은 두 배치가 함께 쓰므로
+// 이 배치에서도 슬롯이 그대로 동작하는지 같은 자리에서 확인한다.
 test("대시보드는 경로 모드이면서 상단바 액션 슬롯을 그대로 쓴다", async ({ page }) => {
   await page.goto("/");
   const topbar = page.locator("header.topbar");
   await expect(topbar).toHaveAttribute("data-topbar-mode", "breadcrumb");
-  await expect(topbar.locator(".topbar-breadcrumb")).toHaveCount(1);
+  await expect(topbar).toHaveAttribute("data-header-layout", "page");
   await expect(topbar.locator("#page-header-actions .dash-header-actions")).toBeVisible();
   await expect(topbar.getByRole("button", { name: "새로고침" })).toBeVisible();
 });
@@ -241,7 +244,8 @@ const DETAIL_BACK_LINKS: Array<{ name: string; path: string; back: string; keeps
   { name: "pre-spec detail", path: "/pre-specs/991", back: "/pre-specs", keepsRun: false },
   // 사업기회 레코드의 목록 링크는 이 사업기회를 고른 채 연다(설계고도화안 C-3).
   { name: "opportunity detail", path: "/opportunities/501", back: "/opportunities", keepsRun: false, href: "/opportunities?selected=501" },
-  { name: "bid delta", path: "/opportunities/501/bid-delta", back: "/opportunities", keepsRun: false },
+  // 입찰 변경 비교는 한 단계 위인 그 사업기회 레코드로 돌아간다(ADR-0076, 결정 목록은 화면 안 `결정 목록으로`).
+  { name: "bid delta", path: "/opportunities/501/bid-delta", back: "/opportunities/501", keepsRun: false },
   // 검토 대기열·공고 판정 이력은 목록·상세가 한 화면이라, 목록 주소로 가면
   // 화면이 첫 공고를 스스로 다시 고른다(QueuePage·NoticeDetailPage의 replace
   // navigate). 링크는 목록으로 가고 그 화면이 선택을 되살리므로 착지 주소는
@@ -253,8 +257,9 @@ const DETAIL_BACK_LINKS: Array<{ name: string; path: string; back: string; keeps
 for (const context of DETAIL_BACK_LINKS) {
   test(`${context.name} 상단 경로가 목록으로 돌아가는 링크를 가진다`, async ({ page }) => {
     await page.goto(`${context.path}?run=${RUN_ID}`);
-    const breadcrumb = page.locator("header.topbar .topbar-breadcrumb");
-    const back = breadcrumb.locator(`a[href^="${context.back}?"], a[href="${context.back}"]`);
+    // 돌아가기 링크는 패널 헤더 맨 위 `현재 위치` 링크 하나다(ADR-0076).
+    const nav = page.locator("header.topbar").getByRole("navigation", { name: "현재 위치" });
+    const back = nav.locator(`a[href^="${context.back}?"], a[href="${context.back}"]`);
     await expect(back).toHaveCount(1);
     // 회차 선택은 주소에만 있고, 목적지가 회차를 읽는 화면일 때만 경로 링크에
     // 그대로 남는다(route-meta.ts의 runSearchFor). `run`을 읽지 않는 화면으로
@@ -350,7 +355,7 @@ test("PN-03 상세 새로고침과 오류 branch도 위치·목록 context를 �
 
   await navigation.getByRole("button", { name: "다음 선택 사전규격" }).click();
   await expect(navigation.locator("strong")).toHaveText("2 / 2");
-  await expect(page.getByText("사전규격 992 상세를 불러오지 못했습니다.")).toBeVisible();
+  await expect(page.getByText("사전규격 992 상세를 불러오지 못했어요.")).toBeVisible();
   await expect(page.getByRole("link", { name: "사전규격 목록", exact: true })).toHaveAttribute(
     "href",
     "/pre-specs?sw_only=false&q=%EC%95%88%EC%A0%84&offset=200",
@@ -388,7 +393,7 @@ test("PN-05 notice mismatch에서도 navigation shell은 위치를 잃지 않는
 
   const navigation = page.getByRole("navigation", { name: "사전규격 선택 순회" });
   await expect(navigation.locator("strong")).toHaveText("1 / 2");
-  await expect(page.getByText("사전규격을 확인할 수 없습니다.")).toBeVisible();
+  await expect(page.getByText("사전규격을 확인할 수 없어요")).toBeVisible();
   await expect(navigation.getByRole("button", { name: "이전 선택 사전규격" })).toBeDisabled();
   await expect(navigation.getByRole("button", { name: "다음 선택 사전규격" })).toBeEnabled();
 });
@@ -407,7 +412,7 @@ test("PN-05 projection 부분 오류에서도 notice 본문과 navigation을 유
   const navigation = page.getByRole("navigation", { name: "사전규격 선택 순회" });
   await expect(navigation.locator("strong")).toHaveText("1 / 2");
   await expect(page.getByRole("heading", { name: "안전한 문서 준비 사전규격" })).toBeVisible();
-  await expect(page.getByText("첨부 원문 취득 집계를 불러오지 못했습니다.")).toBeVisible();
+  await expect(page.getByText("첨부 원문 취득 집계를 불러오지 못했어요")).toBeVisible();
   await expect(navigation.getByRole("button", { name: "다음 선택 사전규격" })).toBeEnabled();
 });
 
@@ -473,7 +478,7 @@ test("PN-06 record key가 문서 패널 상태를 초기화하고 guard 취소�
 
   const guard = page.getByRole("alertdialog");
   await expect(guard).toBeVisible();
-  await expect(guard).toContainText("저장하지 않은 추적 결정 사유와 담당자 이름이 있습니다.");
+  await expect(guard).toContainText("저장하지 않은 추적 결정 사유와 담당자 이름이 있어요.");
   await guard.getByRole("button", { name: "계속 편집", exact: true }).click();
   await expect(guard).toHaveCount(0);
   await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs/992");
@@ -501,8 +506,8 @@ test("run 없이 연 공고 상세는 자기 회차를 쓰고 목록에 없어�
 });
 
 test("없는 공고 번호는 다른 공고를 보이지 않고 찾을 수 없다고 말한다", async ({ page }) => {
-  await page.route("**/api/notices/888", (route) => route.fulfill({ status: 404, json: { detail: "공고를 찾을 수 없습니다" } }));
+  await page.route("**/api/notices/888", (route) => route.fulfill({ status: 404, json: { detail: "공고를 찾을 수 없어요" } }));
   await page.goto("/judgments/888");
-  await expect(page.getByText("공고 888을(를) 찾을 수 없습니다.")).toBeVisible();
+  await expect(page.getByText("공고 888을(를) 찾을 수 없어요.")).toBeVisible();
   await expect.poll(() => new URL(page.url()).pathname).toBe("/judgments/888");
 });

@@ -34,7 +34,7 @@ export function RetrievalSignals({ matches }: RetrievalSignalsProps) {
       action={<span className="panel-note">후보로 올라온 근거</span>}
     >
       {matches.length === 0 ? (
-        <EmptyState compact title="검색 신호가 없습니다." />
+        <EmptyState compact title="검색 신호가 없어요" />
       ) : (
         <>
           <div className="retrieval-signal-list">
@@ -51,7 +51,7 @@ export function RetrievalSignals({ matches }: RetrievalSignalsProps) {
             })}
           </div>
           {classificationCount > 0 ? (
-            <p className="retrieval-signal-note">조달분류에서만 나온 {classificationCount}개 신호는 모든 용역 공고에 부여될 수 있어 근거 강도가 낮습니다.</p>
+            <p className="retrieval-signal-note">조달분류에서만 나온 {classificationCount}개 신호는 모든 용역 공고에 부여될 수 있어 근거 강도가 낮아요.</p>
           ) : null}
         </>
       )}

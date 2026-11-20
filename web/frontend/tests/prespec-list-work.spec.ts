@@ -519,12 +519,16 @@ test("LS-04 선택은 두 페이지·새로고침·정렬에 남고 실제 필�
   // 마감 구간은 정렬이 아니라 의미 필터다(ADR-0064 결정 6) — 전환하면 선택을 비운다.
   await page.getByRole("radiogroup", { name: "마감 구간" }).getByRole("radio", { name: /^마감 경과/ }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("deadline_scope")).toBe("passed");
-  await expect(page.getByText("선택 0건", { exact: true })).toBeVisible();
+  // 2026-11-20: 0건이면 일괄 바가 없고 목록 머리 체크박스가 `현재 페이지 전체 선택`이다.
+  await expect(page.locator(".pre-specs-selection-toolbar")).toHaveCount(0);
+  await expect(page.getByRole("checkbox", { name: "현재 페이지 전체 선택", exact: true })).toBeVisible();
   await page.locator(".pre-specs-row").first().getByRole("checkbox").check();
   await expect(page.getByText("선택 1건", { exact: true })).toBeVisible();
   await page.getByRole("combobox", { name: "발견 구분" }).click();
   await page.getByRole("option", { name: "발주계획 연계", exact: true }).click();
-  await expect(page.getByText("선택 0건", { exact: true })).toBeVisible();
+  // 2026-11-20: 0건이면 일괄 바가 없고 목록 머리 체크박스가 `현재 페이지 전체 선택`이다.
+  await expect(page.locator(".pre-specs-selection-toolbar")).toHaveCount(0);
+  await expect(page.getByRole("checkbox", { name: "현재 페이지 전체 선택", exact: true })).toBeVisible();
 });
 
 test("LS-02 native checkbox toggles without changing active row or detail draft", async ({ page }) => {
@@ -545,8 +549,10 @@ test("LS-02 native checkbox toggles without changing active row or detail draft"
   await expect(rows.first()).toHaveAttribute("aria-current", "true");
   await expect(page.locator(".pre-specs-selection-count")).toHaveAttribute("aria-live", "polite");
   await page.getByRole("button", { name: "선택 전체 해제", exact: true }).click();
-  await expect(page.getByText("선택 0건", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "선택 전체 해제", exact: true })).toBeDisabled();
+  // 2026-11-20: 0건이면 일괄 바가 없고 목록 머리 체크박스가 `현재 페이지 전체 선택`이다.
+  await expect(page.locator(".pre-specs-selection-toolbar")).toHaveCount(0);
+  await expect(page.getByRole("checkbox", { name: "현재 페이지 전체 선택", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "선택 전체 해제", exact: true })).toHaveCount(0);
 });
 
 test("PN-01 선택 검토는 목록 정렬의 첫 ID를 opaque context로 연다", async ({ page }) => {
@@ -859,11 +865,13 @@ test("LS-08 전체 선택은 현재 페이지만 더하고 다른 페이지 선�
   await page.goto("/pre-specs?sw_only=false");
   const rows = page.locator(".pre-specs-row");
   await expect(rows).toHaveCount(200);
+  // 0건일 때는 목록 머리 체크박스, 1건 이상이면 일괄 바의 같은 이름 단추가 `현재 페이지 전체 선택`이다(2026-11-20).
+  await expect(page.getByRole("checkbox", { name: "현재 페이지 전체 선택", exact: true })).toBeEnabled();
   const selectPage = page.getByRole("button", { name: "현재 페이지 전체 선택", exact: true });
-  await expect(selectPage).toBeEnabled();
 
   await rows.first().getByRole("checkbox").check();
   await expect(page.getByText("선택 1건", { exact: true })).toBeVisible();
+  await expect(selectPage).toBeEnabled();
 
   await page.getByRole("button", { name: "다음", exact: true }).click();
   await expect(rows).toHaveCount(20);
@@ -990,7 +998,7 @@ test("목록 우측 상세의 경계 문장은 M4 승인 문안 하나다", asyn
   await page.goto("/pre-specs?workspace=all&sw_only=false");
   await expect(page.locator(".pre-specs-detail-header")).toBeVisible();
 
-  await expect(page.getByText("적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않습니다. 입찰 참여 여부는 최종 Go/No-Go에서 정합니다."))
+  await expect(page.getByText("적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않아요. 입찰 참여 여부는 최종 Go/No-Go에서 정해요."))
     .toHaveCount(1);
   await expect(page.getByText("입찰 참여 여부는 최종 Go/No-Go에서 결정", { exact: true })).toHaveCount(0);
 });
@@ -1088,9 +1096,9 @@ test.describe("preSpecCautions (spec §3.2)", () => {
     });
     expect(result.count).toBe(1);
     expect(result.unknownCount).toBe(1);
-    expect(result.headline).toBe("묶음에 차단 issue가 있습니다.");
+    expect(result.headline).toBe("묶음에 차단 issue가 있어요.");
     expect(result.tone).toBe("caution");
-    expect(formatPreSpecCaution(result)).toBe("주의 1건 · 묶음에 차단 issue가 있습니다. · 미확인 1");
+    expect(formatPreSpecCaution(result)).toBe("주의 1건 · 묶음에 차단 issue가 있어요. · 미확인 1");
   });
 
   test("심층 검토 미확인만 있으면 주의는 0건이고 미확인 수만 말한다", () => {

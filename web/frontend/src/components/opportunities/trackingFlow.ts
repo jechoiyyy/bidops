@@ -374,7 +374,7 @@ export function nextCheckOf(item: TrackingFacts): NextCheck {
     return {
       key: "tracking_decision",
       label: "추적 결정",
-      description: "아직 추적 여부를 선택하지 않았습니다. 연결된 공고를 읽고 추적 범위를 정해 주세요.",
+      description: "아직 추적 여부를 선택하지 않았어요. 연결된 공고를 읽고 추적 범위를 정해 주세요.",
     };
   }
   const reason = topActionReason(item);
@@ -382,62 +382,62 @@ export function nextCheckOf(item: TrackingFacts): NextCheck {
     return {
       key: "recheck",
       label: "새 공고 재검토",
-      description: "새 공식 레코드가 연결되어 재검토 신호가 남아 있습니다. 공고 내용과 기존 검토 내용을 확인해 주세요.",
+      description: "새 공식 레코드가 연결되어 재검토 신호가 남아 있어요. 공고 내용과 기존 검토 내용을 확인해 주세요.",
     };
   }
   if (reason === "merge_confirmation") {
     return {
       key: "merge_confirmation",
       label: "병합 확인",
-      description: "공식 번호로 이어진 레코드가 사람이 고른 추적 상태를 가진 다른 사업기회에 있어 자동으로 병합하지 않았습니다. 같은 사업인지 확인해 주세요.",
+      description: "공식 번호로 이어진 레코드가 사람이 고른 추적 상태를 가진 다른 사업기회에 있어 자동으로 병합하지 않았어요. 같은 사업인지 확인해 주세요.",
     };
   }
   if (reason === "candidate_pending") {
     return {
       key: "candidate_link",
       label: "연결 후보 확인",
-      description: "공식 통합번호가 아니라 이름 검색으로 찾은 후보입니다. 같은 사업인지 확인하면 사업 흐름에 연결할 수 있습니다.",
+      description: "공식 통합번호가 아니라 이름 검색으로 찾은 후보예요. 같은 사업인지 확인하면 사업 흐름에 연결할 수 있어요.",
     };
   }
   if (reason === "hold_overdue") {
     return {
       key: "hold_overdue",
       label: "보류 재검토",
-      description: "보류로 저장한 뒤 재검토 기한이 지났습니다. 추적 상태를 다시 정해 주세요. 보류는 자동으로 풀리지 않습니다.",
+      description: "보류로 저장한 뒤 재검토 기한이 지났어요. 추적 상태를 다시 정해 주세요. 보류는 자동으로 풀리지 않아요.",
     };
   }
   if (reason === "blocking_item") {
     return {
       key: "blocking_item",
       label: "확인 항목 답변",
-      description: "연결된 공고의 blocking 확인 항목에 담당자 답변이 없습니다. 원문에서 확인한 사실을 남겨 주세요.",
+      description: "연결된 공고의 blocking 확인 항목에 담당자 답변이 없어요. 원문에서 확인한 사실을 남겨 주세요.",
     };
   }
   if (visibleUnconfirmedSearches(item.links).length > 0) {
     return {
       key: "search_unconfirmed",
       label: "연결 근거 확인",
-      description: "이름 검색에서 레코드를 찾지 못했습니다. 레코드가 없다는 뜻은 아닙니다.",
+      description: "이름 검색에서 레코드를 찾지 못했어요. 레코드가 없다는 뜻은 아니에요.",
     };
   }
   if (item.tracking_status === "보류") {
     return {
       key: "hold_reason",
       label: "보류 사유 확인",
-      description: item.tracking_reason?.trim() || "보류로 저장돼 있지만 기록된 사유가 없습니다.",
+      description: item.tracking_reason?.trim() || "보류로 저장돼 있지만 기록된 사유가 없어요.",
     };
   }
   if (item.tracking_status === "종료") {
     return {
       key: "end_reason",
       label: "종료 사유 확인",
-      description: item.tracking_reason?.trim() || "종료로 저장돼 있지만 기록된 사유가 없습니다.",
+      description: item.tracking_reason?.trim() || "종료로 저장돼 있지만 기록된 사유가 없어요.",
     };
   }
   return {
     key: "linked_records",
     label: "연결 공고 확인",
-    description: "현재 연결된 공고와 추적 결정을 확인할 수 있습니다.",
+    description: "현재 연결된 공고와 추적 결정을 확인할 수 있어요.",
   };
 }
 

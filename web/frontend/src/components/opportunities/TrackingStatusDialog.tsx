@@ -163,12 +163,15 @@ export function TrackingStatusDialog({
           />
           {discarding ? (
             <>
-              <p>저장하지 않은 입력이 있습니다. 닫으면 입력한 내용이 사라지며 저장된 추적 상태는 바뀌지 않습니다.</p>
+              <p>저장하지 않은 입력이 있어요. 닫으면 입력한 내용이 사라지며 저장된 추적 상태는 바뀌지 않아요.</p>
               <div className="opportunity-dialog-actions">
                 <Button label="계속 작성" onClick={() => setDiscarding(false)} />
                 <Button
                   label="입력 버리고 닫기"
                   onClick={() => {
+                    // 사람이 버리기로 정한 순간 이탈 보호를 푼다(저장 성공 경로와 같다). 창이 닫힌 뒤의
+                    // effect를 기다리면 그사이 새로고침·이동이 아직 막힐 수 있다.
+                    onDirtyChange(false);
                     reset();
                     onOpenChange(false);
                   }}
@@ -180,7 +183,7 @@ export function TrackingStatusDialog({
               <p className="opportunity-dialog-target"><strong>{title}</strong></p>
               <p className="opportunity-caption">
                 현재 추적 상태 · {opportunity.tracking_status} — {opportunity.tracking_status === "미선택"
-                  ? "아직 아무도 고르지 않았습니다. 화면이 대신 고르지 않습니다."
+                  ? "아직 아무도 고르지 않았어요. 화면이 대신 고르지 않아요."
                   : trackingDescription(opportunity.tracking_status)}
               </p>
               <TrackingDecisionInputs
@@ -195,12 +198,12 @@ export function TrackingStatusDialog({
                 size="md"
               />
               <p className="opportunity-caption">
-                추적 상태·선택 사유·담당자 이름을 함께 남깁니다. 추적 종료는 능동 추적을 끝내는 선택이며 영구 배제가 아닙니다.{" "}
-                적합성 등급·참여 준비 상태·심층 검토 승인·최종 입찰 Go/No-Go는 바뀌지 않습니다.
+                추적 상태·선택 사유·담당자 이름을 함께 남겨요. 추적 종료는 능동 추적을 끝내는 선택이며 영구 배제가 아니에요.{" "}
+                적합성 등급·참여 준비 상태·심층 검토 승인·최종 입찰 Go/No-Go는 바뀌지 않아요.
               </p>
               {/* 추적 상태 저장은 재검토 신호를 해제한다(spec §6.2). 따로 확인할 필요가 없음을 먼저 알린다. */}
               {opportunity.recheck_signal ? (
-                <p className="opportunity-caption opportunity-tracking-signal-note">저장하면 새 공고 확인도 함께 처리됩니다.</p>
+                <p className="opportunity-caption opportunity-tracking-signal-note">저장하면 새 공고 확인도 함께 처리돼요.</p>
               ) : null}
               {problem ? <TrackingSaveError problem={problem} /> : null}
               <div className="opportunity-dialog-actions">
@@ -232,7 +235,7 @@ export function TrackingStatusDialog({
         }}
         open={endConfirm !== null}
         summary={endConfirm?.summary ?? []}
-        title={endConfirm?.title ?? "추적을 종료합니다"}
+        title={endConfirm?.title ?? "추적을 종료해요"}
       />
     </>
   );

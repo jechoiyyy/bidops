@@ -94,7 +94,7 @@ function purposeCell(purpose: OrderPlanScreeningExecutionPurpose) {
     return (
       <StatusToken
         label={PURPOSE_LABEL.gate_measurement}
-        description="품질 게이트 측정 전용 실행입니다. 운영 판정이 아닙니다."
+        description="품질 게이트 측정 전용 실행이에요. 운영 판정이 아니에요."
       />
     );
   }
@@ -182,17 +182,17 @@ export function OrderPlanScreeningPanel({
         ) : undefined}
       >
         {executionsQuery.isPending ? (
-          <Caption>선별 실행 목록을 불러오는 중입니다.</Caption>
+          <Caption>선별 실행 목록을 불러오는 중이에요.</Caption>
         ) : null}
         {executionsQuery.error ? (
-          <Note title="선별 실행 목록을 불러오지 못했습니다" tone="error">
-            조회 실패는 실행 0건이 아닙니다. 이 회차의 선별 실행 유무는 미확인입니다.
+          <Note title="선별 실행 목록을 불러오지 못했어요" tone="error">
+            조회 실패는 실행 0건이 아니에요. 이 회차의 선별 실행 유무는 미확인이에요.
           </Note>
         ) : null}
         {!executionsQuery.isPending && !executionsQuery.error && executions.length === 0 ? (
           <Caption>
-            조회 범위 안에 이 회차의 발주계획 선별 실행이 없습니다. 조회 범위 밖은 미확인이며
-            실행이 없었다는 뜻이 아닙니다.
+            조회 범위 안에 이 회차의 발주계획 선별 실행이 없어요. 조회 범위 밖은 미확인이며
+            실행이 없었다는 뜻이 아니에요.
           </Caption>
         ) : null}
         {executions.length ? (
@@ -216,7 +216,7 @@ export function OrderPlanScreeningPanel({
                   <StatusToken
                     key="status"
                     label={execution.status}
-                    description="발주계획 선별 실행의 상태입니다. 수집 회차의 상태와 다릅니다."
+                    description="발주계획 선별 실행의 상태예요. 수집 회차의 상태와 달라요."
                   />,
                   mono(execution.policy_version, "policy"),
                   execution.finished_at ? formatDateTime(execution.finished_at) : "종료 기록 없음",
@@ -225,7 +225,7 @@ export function OrderPlanScreeningPanel({
             />
             {executionTotal !== null && executionTotal > executions.length ? (
               <Caption>
-                {`조회 범위 ${formatNumber(executions.length)}건 / 전체 ${formatNumber(executionTotal)}건 · 범위 밖은 미확인입니다.`}
+                {`조회 범위 ${formatNumber(executions.length)}건 / 전체 ${formatNumber(executionTotal)}건 · 범위 밖은 미확인이에요.`}
               </Caption>
             ) : null}
           </>
@@ -233,10 +233,10 @@ export function OrderPlanScreeningPanel({
       </Section>
 
       {detailQuery.error ? (
-        <Note title="선택한 실행의 상세를 불러오지 못했습니다" tone="error" action={(
+        <Note title="선택한 실행의 상세를 불러오지 못했어요" tone="error" action={(
           <Button label="다시 시도" size="sm" onClick={() => { void detailQuery.refetch(); }} />
         )}>
-          실행 목록은 그대로 남겨 둡니다. 배치별 기록과 산출물 요약은 미확인이며 없음이 아닙니다.
+          실행 목록은 그대로 남겨 둬요. 배치별 기록과 산출물 요약은 미확인이며 없음이 아니에요.
         </Note>
       ) : null}
 
@@ -310,17 +310,17 @@ export function OrderPlanScreeningPanel({
               ]}
             />
             <Caption>
-              후보·완료·실패는 이 실행이 시도한 건수입니다. 수집 건수나 판정 대상 전체와 같은
-              값이 아닙니다.
+              후보·완료·실패는 이 실행이 시도한 건수예요. 수집 건수나 판정 대상 전체와 같은
+              값이 아니에요.
             </Caption>
           </Section>
 
           <Section title="배치별 기록">
             {detailQuery.isPending ? (
-              <Caption>배치별 기록을 불러오는 중입니다.</Caption>
+              <Caption>배치별 기록을 불러오는 중이에요.</Caption>
             ) : null}
             {detail && detail.attempts.length === 0 ? (
-              <Caption>서버가 이 실행의 배치 기록을 주지 않았습니다. 0건이 아니라 기록 없음입니다.</Caption>
+              <Caption>서버가 이 실행의 배치 기록을 주지 않았어요. 0건이 아니라 기록 없음이에요.</Caption>
             ) : null}
             {detail && detail.attempts.length ? (
               <DataTable
@@ -382,22 +382,22 @@ export function OrderPlanScreeningPanel({
                 [
                   "부분 산출물",
                   activeExecution.partial_artifact
-                    ? <StatusToken key="partial" label="있음" description="일부 결과만 남은 실행입니다. 완전한 성공으로 읽지 않습니다." />
+                    ? <StatusToken key="partial" label="있음" description="일부 결과만 남은 실행이에요. 완전한 성공으로 읽지 않아요." />
                     : "없음",
                 ],
                 ["오류 코드", activeExecution.error_code === null ? "서버 미제공" : mono(activeExecution.error_code, "error-code")],
               ]}
             />
             <Caption>
-              부분 산출물과 오류 코드는 배치가 아니라 실행 단위 값입니다. 부분 산출물이 있으면
-              일부 결과만 남았다는 뜻이며 성공으로 승격하지 않습니다.
+              부분 산출물과 오류 코드는 배치가 아니라 실행 단위 값이에요. 부분 산출물이 있으면
+              일부 결과만 남았다는 뜻이며 성공으로 승격하지 않아요.
             </Caption>
           </Section>
 
           <Section title="산출물 요약">
-            {detailQuery.isPending ? <Caption>산출물 요약을 불러오는 중입니다.</Caption> : null}
+            {detailQuery.isPending ? <Caption>산출물 요약을 불러오는 중이에요.</Caption> : null}
             {detail && detail.artifacts.length === 0 ? (
-              <Caption>서버가 이 실행의 산출물 요약을 주지 않았습니다.</Caption>
+              <Caption>서버가 이 실행의 산출물 요약을 주지 않았어요.</Caption>
             ) : null}
             {detail && detail.artifacts.length ? (
               <DataTable
@@ -420,31 +420,31 @@ export function OrderPlanScreeningPanel({
                 }))}
               />
             ) : null}
-            <Caption>본문·원문 경로·다운로드 URL은 이 화면에서 노출하지 않습니다.</Caption>
+            <Caption>본문·원문 경로·다운로드 URL은 이 화면에서 노출하지 않아요.</Caption>
           </Section>
 
           <Section title="계획별 신호">
             <Caption>
-              {`이 표는 수집 회차 ${runId} 기준입니다. 서버는 회차마다 완료된 최신 실행 하나를 계획별로 투영합니다.`}
+              {`이 표는 수집 회차 ${runId} 기준이에요. 서버는 회차마다 완료된 최신 실행 하나를 계획별로 투영해요.`}
             </Caption>
             {planScopeDiffers && planScopeExecutionId ? (
-              <Note title="고른 실행과 계획별 신호의 기준 실행이 다릅니다" tone="warning">
-                {`계획별 신호는 실행 ${planScopeExecutionId}의 결과입니다. 위에서 고른 실행의 계획별 결과가 아닙니다.`}
+              <Note title="고른 실행과 계획별 신호의 기준 실행이 달라요" tone="warning">
+                {`계획별 신호는 실행 ${planScopeExecutionId}의 결과예요. 위에서 고른 실행의 계획별 결과가 아니에요.`}
               </Note>
             ) : null}
             {plansQuery.data && planScope === null ? (
-              <Caption>이 회차에는 완료된 선별 실행이 없어 계획별 신호가 투영되지 않았습니다.</Caption>
+              <Caption>이 회차에는 완료된 선별 실행이 없어 계획별 신호가 투영되지 않았어요.</Caption>
             ) : null}
-            {plansQuery.isPending ? <Caption>계획별 신호를 불러오는 중입니다.</Caption> : null}
+            {plansQuery.isPending ? <Caption>계획별 신호를 불러오는 중이에요.</Caption> : null}
             {plansQuery.error ? (
-              <Note title="계획별 신호를 불러오지 못했습니다" tone="error" action={(
+              <Note title="계획별 신호를 불러오지 못했어요" tone="error" action={(
                 <Button label="다시 시도" size="sm" onClick={() => { void plansQuery.refetch(); }} />
               )}>
-                조회 실패는 계획 0건이 아닙니다.
+                조회 실패는 계획 0건이 아니에요.
               </Note>
             ) : null}
             {plansQuery.data && planItems.length === 0 ? (
-              <Caption>이 회차의 발주계획이 조회 범위 안에 없습니다.</Caption>
+              <Caption>이 회차의 발주계획이 조회 범위 안에 없어요.</Caption>
             ) : null}
             {planItems.length ? (
               <>
@@ -521,15 +521,15 @@ export function OrderPlanScreeningPanel({
               </>
             ) : null}
             <Caption>
-              `판정 없음`은 비관련이 아닙니다. 1차 상태·모델 판단은 서버가 준 계약 값 그대로이며
-              실무 화면의 한글 라벨과 같은 값을 가리킵니다.
+              `판정 없음`은 비관련이 아니에요. 1차 상태·모델 판단은 서버가 준 계약 값 그대로이며
+              실무 화면의 한글 라벨과 같은 값을 가리켜요.
             </Caption>
           </Section>
         </>
       ) : null}
 
       {!activeExecution && !executionsQuery.isPending && !executionsQuery.error ? (
-        <Text as="p">고를 수 있는 발주계획 선별 실행이 없어 실행 기준·배치 기록을 보일 수 없습니다.</Text>
+        <Text as="p">고를 수 있는 발주계획 선별 실행이 없어 실행 기준·배치 기록을 보일 수 없어요.</Text>
       ) : null}
     </>
   );

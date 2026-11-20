@@ -832,13 +832,13 @@ export function companyComparisonStatusLabel(status: CompanyComparisonStatus): s
 export function companyComparisonStatusNote(status: CompanyComparisonStatus): string {
   switch (status) {
     case "comparable":
-      return "핏과 심층 검토가 모두 있고 현재 입력 기준입니다. 비교할 수 있다는 뜻일 뿐 각 실행이 성공했다는 뜻은 아닙니다.";
+      return "핏과 심층 검토가 모두 있고 현재 입력 기준이에요. 비교할 수 있다는 뜻일 뿐 각 실행이 성공했다는 뜻은 아니에요.";
     case "stale":
-      return "핏 또는 심층 검토가 현재 회사 지식·문서가 아닌 이전 입력으로 만든 결과입니다. 현재 판정으로 읽지 마십시오.";
+      return "핏 또는 심층 검토가 현재 회사 지식·문서가 아닌 이전 입력으로 만든 결과예요. 현재 판정으로 읽지 마세요.";
     case "missing":
-      return "핏 또는 심층 검토 실행 기록이 없습니다. 기록 없음은 불일치나 낮은 평가가 아닙니다.";
+      return "핏 또는 심층 검토 실행 기록이 없어요. 기록 없음은 불일치나 낮은 평가가 아니에요.";
     case "different_input":
-      return "이 회사의 결과가 다른 문서 버전을 입력으로 삼았습니다. 다른 회사와 같은 기준으로 비교할 수 없습니다.";
+      return "이 회사의 결과가 다른 문서 버전을 입력으로 삼았어요. 다른 회사와 같은 기준으로 비교할 수 없어요.";
   }
 }
 

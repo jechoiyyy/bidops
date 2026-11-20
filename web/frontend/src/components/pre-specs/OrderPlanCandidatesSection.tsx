@@ -91,7 +91,7 @@ function CandidateRow({
         {item.order_plans.length === 0 ? (
           <div className="ps-plan-candidate-plan">
             <p id={titleId} className="ps-plan-candidate-title">발주계획 요약 없음</p>
-            <p className="ps-plan-candidate-meta">후보를 제안한 사업기회에 확정 연결된 발주계획이 없어 요약을 표시하지 않습니다.</p>
+            <p className="ps-plan-candidate-meta">후보를 제안한 사업기회에 확정 연결된 발주계획이 없어 요약을 표시하지 않아요.</p>
           </div>
         ) : item.order_plans.map((plan, index) => (
           <div key={plan.order_plan_id} className="ps-plan-candidate-plan">
@@ -188,26 +188,26 @@ export function OrderPlanCandidatesSection({ noticeId }: { noticeId: number }) {
   );
 
   if (candidatesQuery.isPending) {
-    return frame(<p className="ps-cap ps-muted" role="status">발주계획 후보를 확인하는 중입니다.</p>);
+    return frame(<p className="ps-cap ps-muted" role="status">발주계획 후보를 확인하는 중이에요.</p>);
   }
 
   const invalid = candidatesQuery.isSuccess && !isCandidatesResponse(candidatesQuery.data, noticeId);
   if (candidatesQuery.isError || invalid) {
-    const problem = describeApiError(candidatesQuery.error, "발주계획 후보를 확인할 수 없습니다.");
+    const problem = describeApiError(candidatesQuery.error, "발주계획 후보를 확인할 수 없어요.");
     return frame(invalid ? (
       <EmptyState
         compact
         tone="error"
-        title="발주계획 후보를 표시하지 않았습니다."
-        description="응답의 사전규격 번호 또는 구조가 이 화면과 맞지 않습니다. 후보가 없다는 뜻이 아닙니다."
+        title="발주계획 후보를 표시하지 않았어요"
+        description="응답의 사전규격 번호 또는 구조가 이 화면과 맞지 않아요. 후보가 없다는 뜻이 아니에요."
         action={{ label: "다시 시도", onClick: () => { void candidatesQuery.refetch(); } }}
       />
     ) : (
       <EmptyState
         compact
         tone="error"
-        title="발주계획 후보를 불러오지 못했습니다."
-        description="후보가 없다는 뜻이 아닙니다."
+        title="발주계획 후보를 불러오지 못했어요"
+        description="후보가 없다는 뜻이 아니에요."
         problem={problem}
         action={apiErrorRecoveryAction(problem, () => { void candidatesQuery.refetch(); })}
       />
@@ -216,7 +216,7 @@ export function OrderPlanCandidatesSection({ noticeId }: { noticeId: number }) {
 
   const items = candidatesQuery.data.items;
   if (items.length === 0) {
-    return frame(<p className="ps-cap ps-muted">발주계획 후보 없음 (자동 대조는 SW사업대상 사전규격에서만 합니다)</p>);
+    return frame(<p className="ps-cap ps-muted">발주계획 후보 없음 (자동 대조는 SW사업대상 사전규격에서만 해요)</p>);
   }
 
   const owner = activeOwnerId !== null && ownerQuery.isSuccess
@@ -226,10 +226,10 @@ export function OrderPlanCandidatesSection({ noticeId }: { noticeId: number }) {
   const ownerFailed = active !== null && (ownerQuery.isError || (ownerQuery.isSuccess && owner === null));
   const ownerProblem = ownerFailed
     ? ownerQuery.isError
-      ? describeApiError(ownerQuery.error, "후보 사업기회의 연결 정보를 확인할 수 없습니다.")
+      ? describeApiError(ownerQuery.error, "후보 사업기회의 연결 정보를 확인할 수 없어요.")
       : {
-        title: "후보 사업기회 응답이 요청한 사업기회와 맞지 않습니다.",
-        detail: "다른 사업기회의 연결로 대신 비교하지 않습니다. 다시 불러온 뒤 확인하십시오.",
+        title: "후보 사업기회 응답이 요청한 사업기회와 맞지 않아요.",
+        detail: "다른 사업기회의 연결로 대신 비교하지 않아요. 다시 불러온 뒤 확인해 주세요.",
         action: "reload" as const,
         code: null,
       }
@@ -239,7 +239,7 @@ export function OrderPlanCandidatesSection({ noticeId }: { noticeId: number }) {
     <>
       <div className="ps-plan-candidates-head">
         <h3 id={headingId} className="ps-sub">발주계획 후보 {items.length}건</h3>
-        <p className="ps-cap ps-muted">공고명과 기관이 비슷한 발주계획입니다. 같은 사업인지 사람이 확인해야 연결됩니다.</p>
+        <p className="ps-cap ps-muted">공고명과 기관이 비슷한 발주계획이에요. 같은 사업인지 사람이 확인해야 연결돼요.</p>
       </div>
       <ul className="ps-plan-candidate-list">
         {items.map((item) => (
@@ -247,7 +247,7 @@ export function OrderPlanCandidatesSection({ noticeId }: { noticeId: number }) {
         ))}
       </ul>
       {active !== null && ownerQuery.isPending ? (
-        <p className="ps-cap ps-muted" role="status">후보 사업기회 #{active.opportunity_id}의 연결 정보를 불러오는 중입니다.</p>
+        <p className="ps-cap ps-muted" role="status">후보 사업기회 #{active.opportunity_id}의 연결 정보를 불러오는 중이에요.</p>
       ) : null}
       {ownerProblem && active !== null ? (
         <MutationFeedback
@@ -255,7 +255,7 @@ export function OrderPlanCandidatesSection({ noticeId }: { noticeId: number }) {
           tone="error"
           onRecover={() => { void ownerQuery.refetch(); }}
         >
-          <p>후보 사업기회 #{active.opportunity_id}의 연결을 읽지 못해 확인 대화상자를 열지 않았습니다. 연결 상태는 바뀌지 않았습니다.</p>
+          <p>후보 사업기회 #{active.opportunity_id}의 연결을 읽지 못해 확인 대화상자를 열지 않았어요. 연결 상태는 바뀌지 않았어요.</p>
           <button className="interaction-control" type="button" onClick={() => setActive(null)}>닫기</button>
         </MutationFeedback>
       ) : null}

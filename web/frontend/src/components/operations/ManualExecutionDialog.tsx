@@ -49,9 +49,9 @@ function initialWindow(kind: ScheduleJobKind): { from: string; to: string } {
 }
 
 function validWindow(kind: ScheduleJobKind, from: string, to: string): string | null {
-  if (!parseDate(from) || !parseDate(to)) return "실행 기간을 올바른 날짜로 입력하십시오.";
-  if (kind === "daily" && from !== to) return "일간 실행은 시작일과 종료일이 같아야 합니다.";
-  if (kind === "weekly" && (parseDate(from)?.getUTCDay() !== 1 || to !== addDays(from, 6))) return "주간 실행은 월요일부터 일요일까지 7일이어야 합니다.";
+  if (!parseDate(from) || !parseDate(to)) return "실행 기간을 올바른 날짜로 입력해 주세요.";
+  if (kind === "daily" && from !== to) return "일간 실행은 시작일과 종료일이 같아야 해요.";
+  if (kind === "weekly" && (parseDate(from)?.getUTCDay() !== 1 || to !== addDays(from, 6))) return "주간 실행은 월요일부터 일요일까지 7일이어야 해요.";
   return null;
 }
 
@@ -107,7 +107,7 @@ export function ManualExecutionDialog({
     const actorValue = actor.trim();
     const dateError = validWindow(jobKind, windowFrom, windowTo);
     if (!actorValue) {
-      setValidationError("실행을 요청하려면 담당자 이름을 입력하십시오.");
+      setValidationError("실행을 요청하려면 담당자 이름을 입력해 주세요.");
       return;
     }
     if (dateError) {
@@ -148,8 +148,8 @@ export function ManualExecutionDialog({
                   ["대상 회차 키", <span className="rs-mono" key="key">{recoveryTarget.run_key}</span>],
                 ]}
               />
-              <Note title="이 회차만 복구합니다">
-                복구는 대상 실행의 기간만 다시 요청합니다. 기존 실행 기록과 산출물은 삭제하지 않습니다.
+              <Note title="이 회차만 복구해요">
+                복구는 대상 실행의 기간만 다시 요청해요. 기존 실행 기록과 산출물은 삭제하지 않아요.
               </Note>
               <div className="rs-dialog-actions">
                 <Button label="복구 취소" size="sm" isDisabled={busy} onClick={onCancelRecovery} />
@@ -207,12 +207,12 @@ export function ManualExecutionDialog({
           </div>
 
           <Caption>
-            일간은 같은 날짜, 주간은 월요일~일요일 7일만 요청할 수 있습니다. 실패·부분 성공·건너뜀만
-            이력에서 명시 복구할 수 있습니다.
+            일간은 같은 날짜, 주간은 월요일~일요일 7일만 요청할 수 있어요. 실패·부분 성공·건너뜀만
+            이력에서 명시 복구할 수 있어요.
           </Caption>
-          <Note title="수동 실행은 상시 운영과 별개입니다">
-            상시 운영이 꺼져 있어도 담당자가 직접 요청할 수 있습니다. 실행에 필요한 승인과 전제 조건은
-            서버가 확인하며, 예약이 곧 실행 성공을 뜻하지 않습니다.
+          <Note title="수동 실행은 상시 운영과 별개예요">
+            상시 운영이 꺼져 있어도 담당자가 직접 요청할 수 있어요. 실행에 필요한 승인과 전제 조건은
+            서버가 확인하며, 예약이 곧 실행 성공을 뜻하지 않아요.
           </Note>
           {validationError ? <Text className="rs-dialog-error" as="p" role="alert">{validationError}</Text> : null}
           {submitError ? <Text className="rs-dialog-error" as="p" role="alert">{submitError}</Text> : null}
