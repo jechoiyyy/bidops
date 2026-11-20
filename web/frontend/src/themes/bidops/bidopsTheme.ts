@@ -13,6 +13,10 @@
  * 초록 #1D7B4E 강조·시안 의미색 4종)으로 교체했다. 정본은
  * `docs/1016_rootlab-redefinition/ui-spec.md` §2 와 mockups/v26 이며 ADR-0073 개정에
  * 기록했다. 아래 무드보드 설명은 다크 값과 파생 이력에만 해당한다.
+ * 2026-11-19(사용자 승인 대기 ADR 초안 `docs/1119_kstyle-shell/adr-draft.md`): 중립색을
+ * 최종 시안(`docs/1119_kstyle-shell/mockups/`)의 따뜻한 회색 한 벌로 바꿨다 — 본문 먹색
+ * #1B1B1A, 보조 #5E5D5A, 경계 #E4E3E0, fill #F6F5F3. purple 계열은 시안의 정보색(모델 판단
+ * 표식)이다. 강조·의미색(success·warning·error)은 대비 게이트가 고정한 값 그대로다.
  *
  * 무드보드 anchor 5색:
  *   #D4CDCB warm greige   본문 canvas 계열과 구분선
@@ -156,11 +160,11 @@ export const bidopsTheme = defineTheme({
     '--color-background-body': ['#FFFFFF', '#17181F'], // 흰 바탕 (시안 v26, ADR-0073 개정)
     '--color-background-card': ['#FFFFFF', '#1C1E28'],
     '--color-background-popover': ['#FFFFFF', '#1C1E28'],
-    '--color-background-muted': ['#F1F2F4', '#1C1E28'], // 중립 칩·활성 탭·입력 바탕 (시안 v26)
+    '--color-background-muted': ['#F6F5F3', '#1C1E28'], // 선택 행·강조 블록·중립 칩 (1119 시안 fill, 승인 대기 ADR 초안)
     // 라이트 모드 안의 어두운 면이며 다크 모드가 아니다. 사이드바는 더는 이
     // 토큰을 읽지 않고(spec §2.1), `.ps-chip-dark`·실행 단계 번호 등 어두운 면
     // 전용으로 남는다. 그 위 본문은 --color-on-dark(#E4EAD9) = 10.15:1.
-    '--color-background-inverted': ['#1F2328', '#E8E4E2'],
+    '--color-background-inverted': ['#1B1B1A', '#E8E4E2'], // 1119 시안 먹색(토스트·완료 표식)
 
     // 적합성 등급 ramp 는 이 파일이 아니라 grade-ramp.css 에 있다.
     // Astryx 의 TokenName 이 닫힌 union 이라 커스텀 토큰을 받지 못한다
@@ -179,15 +183,15 @@ export const bidopsTheme = defineTheme({
     '--color-overlay-pressed': ['#0000001A', '#FFFFFF1A'],
 
     // Text
-    '--color-text-primary': ['#1F2328', '#E8E4E2'], // 시안 v26 본문
+    '--color-text-primary': ['#1B1B1A', '#E8E4E2'], // 1119 시안 본문 먹색
     // 보조 텍스트는 포인트 초록에 기운 회색이다(spec §1.1). 밝은 회색은 canvas
     // 위에서 AA 에 미달하므로 disabled 와 비텍스트에만 남긴다.
-    '--color-text-secondary': ['#5F646B', '#A9A6A4'], // 시안 보조 글자(#6B6F76)를 muted 위 4.5:1 이상으로 한 단계 내림
-    '--color-text-disabled': ['#8A8F98', '#6B6E74'], // disabled 한정
+    '--color-text-secondary': ['#5E5D5A', '#A9A6A4'], // 1119 시안 보조 글자(따뜻한 회색). fill·active·frame 위 4.5:1 이상
+    '--color-text-disabled': ['#8C8A86', '#6B6E74'], // disabled 한정(따뜻한 회색)
     '--color-text-accent': ['#1D7B4E', '#93A0B0'], // 링크·강조 글자, 흰 바탕 위 5.0:1
     // 어두운 면(--color-background-inverted #26391A) 위 본문. 10.15:1.
     '--color-on-dark': '#FFFFFF',
-    '--color-on-light': '#17181F',
+    '--color-on-light': '#1B1B1A',
     '--color-on-accent': ['#ffffff', '#17181F'], // accent 위 5.65:1 / 6.65:1
     '--color-on-success': ['#ffffff', '#171717'],
     '--color-on-error': ['#ffffff', '#171717'],
@@ -195,9 +199,9 @@ export const bidopsTheme = defineTheme({
 
     // Icon
     '--color-icon-accent': ['#1D7B4E', '#93A0B0'],
-    '--color-icon-primary': ['#1F2328', '#E8E4E2'],
+    '--color-icon-primary': ['#1B1B1A', '#E8E4E2'],
     // 아이콘은 비텍스트라 3:1 기준. canvas 위 3.65:1, 흰 카드 위 3.92:1 (spec §1.1).
-    '--color-icon-secondary': ['#6B6F76', '#A9A6A4'],
+    '--color-icon-secondary': ['#5E5D5A', '#A9A6A4'], // 1119 시안: 아이콘은 보조 글자색(currentColor)
     '--color-icon-disabled': ['#a3a3a3', '#525252'],
 
     // Status / Sentiment — dark mode follows the issue #2150 rubric:
@@ -237,11 +241,11 @@ export const bidopsTheme = defineTheme({
     '--color-warning-muted': ['#FFF4E5', '#deb4333D'],
 
     // Border
-    '--color-border': ['#E6E7EB', '#FFFFFF1A'], // 경계·표 줄 (시안 v26)
-    '--color-border-emphasized': ['#C9CCD2', '#4A4E5C'], // 입력 테두리
+    '--color-border': ['#E4E3E0', '#FFFFFF1A'], // 경계·패널 테두리 (1119 시안 line)
+    '--color-border-emphasized': ['#C9C7C2', '#4A4E5C'], // 입력 테두리(따뜻한 회색)
 
     // Effects
-    '--color-skeleton': ['#ECEDF0', '#2A2D38'],
+    '--color-skeleton': ['#EFEEEC', '#2A2D38'],
     '--color-shadow': ['#0000001A', '#0000004D'],
     '--color-tint-hover': ['black', 'white'],
 
@@ -335,10 +339,10 @@ export const bidopsTheme = defineTheme({
     '--color-text-blue': ['#1F5AA6', '#c7d3ff'],
 
     // Purple  H=320 — source #980fb2
-    '--color-background-purple': ['#eccef3', '#f297ff3D'],
-    '--color-border-purple': ['#d8bbdf', '#dd74f0'],
-    '--color-icon-purple': ['#700084', '#f297ff'],
-    '--color-text-purple': ['#700084', '#fac1ff'],
+    '--color-background-purple': ['#F2EFFF', '#f297ff3D'], // 1119 시안 정보색(모델 · 관련) 바탕
+    '--color-border-purple': ['#D6CCFB', '#dd74f0'],
+    '--color-icon-purple': ['#5A3EE6', '#f297ff'],
+    '--color-text-purple': ['#5A3EE6', '#fac1ff'], // 1119 시안 정보색 글자
 
     // Pink  H=355 — source #b10e69
     '--color-background-pink': ['#fccadc', '#ff99c33D'],
@@ -413,9 +417,11 @@ export const bidopsTheme = defineTheme({
     // =========================================================================
     // 라이트 값은 spec §1.1 — 카드가 테두리 없이 뜨도록 넓고 옅은 그림자를 쓴다.
     // 다크는 미활성이라 색은 그대로 두고 offset 만 같은 선언을 공유한다.
+    // 2026-11-19(ADR-0076): 흰 패널 안의 상자는 그림자로 뜨지 않는다. 라이트의 low 단은 옅은 선
+    // 한 줄(#EFEEEC, 시안 line-soft)이고 떠 있는 층(popover·dialog)은 med·high 단을 그대로 쓴다.
     '--shadow-low':
-      '0 1px 2px light-dark(rgb(0 0 0 / 4%), oklch(0 0 0 / 25%)), ' +
-      '0 0 0 1px light-dark(rgb(0 0 0 / 0%), oklch(0 0 0 / 40%)), ' +
+      '0 0 0 1px light-dark(#EFEEEC, oklch(0 0 0 / 40%)), ' +
+      '0 1px 2px light-dark(rgb(0 0 0 / 0%), oklch(0 0 0 / 25%)), ' +
       'inset 0 0 0 1px light-dark(transparent, oklch(1 0 0 / 8%))',
     '--shadow-med':
       '0 2px 4px light-dark(oklch(0 0 0 / 5%), oklch(0 0 0 / 35%)), ' +

@@ -155,3 +155,14 @@ export function runStatusLabel(status: string): string {
   if (status === "active") return "완료";
   return present(status, "상태 미확인");
 }
+
+/**
+ * 해요체 서술격 조사. 받침이 있으면 `이에요`, 없으면 `예요`를 붙인다(`건이에요`·`전체예요`).
+ * 한글로 끝나지 않으면 `이에요`를 쓴다.
+ */
+export function withCopula(phrase: string): string {
+  const trimmed = phrase.trim();
+  const last = trimmed.charCodeAt(trimmed.length - 1);
+  if (last >= 0xac00 && last <= 0xd7a3 && (last - 0xac00) % 28 === 0) return `${trimmed}예요`;
+  return `${trimmed}이에요`;
+}
