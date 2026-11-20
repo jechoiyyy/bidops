@@ -169,6 +169,9 @@ export function TrackingStatusDialog({
                 <Button
                   label="입력 버리고 닫기"
                   onClick={() => {
+                    // 사람이 버리기로 정한 순간 이탈 보호를 푼다(저장 성공 경로와 같다). 창이 닫힌 뒤의
+                    // effect를 기다리면 그사이 새로고침·이동이 아직 막힐 수 있다.
+                    onDirtyChange(false);
                     reset();
                     onOpenChange(false);
                   }}
