@@ -87,7 +87,7 @@ export function TrackingResetControl({
       onReset();
     },
     onError: (caught: unknown) => {
-      setProblem(describeApiError(caught, "추적 결정을 되돌리지 못했습니다."));
+      setProblem(describeApiError(caught, "추적 결정을 되돌리지 못했어요."));
     },
   });
 
@@ -103,7 +103,7 @@ export function TrackingResetControl({
         />
         {alreadyUnselected ? (
           <DisabledReason id={disabledId}>
-            이미 미선택입니다. 되돌릴 추적 결정이 없습니다.
+            이미 미선택이에요. 되돌릴 추적 결정이 없어요.
           </DisabledReason>
         ) : null}
       </div>
@@ -111,22 +111,22 @@ export function TrackingResetControl({
   }
 
   const disabledReason = mutation.isPending
-    ? "되돌리기 요청을 처리하고 있습니다."
+    ? "되돌리기 요청을 처리하고 있어요."
     : !validReason
-      ? "되돌리려면 되돌리는 이유를 입력하십시오."
+      ? "되돌리려면 되돌리는 이유를 입력해 주세요."
       : !actor
-        ? "되돌리려면 결정 기록자를 입력하십시오."
+        ? "되돌리려면 결정 기록자를 입력해 주세요."
         : null;
 
   return (
     <div className="opportunity-tracking-reset opportunity-tracking-reset-open">
       <p>
-        저장된 추적 결정(<strong>{currentStatus}</strong>)을 미선택으로 되돌립니다. 되돌리면 이 사업은
-        아직 아무도 고르지 않은 상태가 되어 검토할 항목·조치 필요로 돌아옵니다.
+        저장된 추적 결정(<strong>{currentStatus}</strong>)을 미선택으로 되돌려요. 되돌리면 이 사업은
+        아직 아무도 고르지 않은 상태가 되어 검토할 항목·조치 필요로 돌아와요.
       </p>
       <p className="opportunity-caption">
-        지금 행의 사유·선택자·시각은 비워지지만 사라지지 않습니다 — 되돌린 기록은 추적 이력의 감사
-        이벤트에 남습니다.
+        지금 행의 사유·선택자·시각은 비워지지만 사라지지 않아요 — 되돌린 기록은 추적 이력의 감사
+        이벤트에 남아요.
       </p>
       {note ? <p className="opportunity-caption">{note}</p> : null}
       <label htmlFor={reasonId}>
@@ -135,7 +135,7 @@ export function TrackingResetControl({
           id={reasonId}
           maxLength={500}
           onChange={(event) => setReason(event.target.value)}
-          placeholder="되돌리는 이유를 입력합니다"
+          placeholder="되돌리는 이유를 입력해요"
           value={reason}
         />
       </label>
@@ -150,12 +150,12 @@ export function TrackingResetControl({
         />
       ) : (
         <p className="opportunity-caption">
-          결정 기록자 · {actor || "미입력"} · 감사 표식이며 신원 인증이 아닙니다.
+          결정 기록자 · {actor || "미입력"} · 감사 표식이며 신원 인증이 아니에요.
         </p>
       )}
       {problem ? (
         <MutationFeedback problem={problem} tone="error">
-          <p>추적 결정은 바뀌지 않았습니다. 입력한 내용은 그대로 남아 있습니다.</p>
+          <p>추적 결정은 바뀌지 않았어요. 입력한 내용은 그대로 남아 있어요.</p>
         </MutationFeedback>
       ) : null}
       <div className="opportunity-tracking-reset-actions">

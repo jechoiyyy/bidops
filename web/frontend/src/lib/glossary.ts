@@ -44,7 +44,7 @@ export const TERM = {
   /** `append-only`. 짧게 쓸 때. */
   appendOnly: "추가만 기록",
   /** `append-only`를 한 문장으로 풀 때. 덮어쓰지 않는다는 사실이 핵심이다. */
-  appendOnlyNote: "추가만 기록하며 덮어쓰지 않습니다.",
+  appendOnlyNote: "추가만 기록하며 덮어쓰지 않아요.",
   /** `manifest`. 문서 안 구간을 훑는 목록. */
   manifest: "목록",
   /** `validation`. 서버가 돌린 결정적 검증. */

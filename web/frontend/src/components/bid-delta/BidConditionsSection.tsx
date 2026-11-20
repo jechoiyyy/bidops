@@ -132,7 +132,7 @@ function RoundChanges({ previous, notice, isLatest }: { previous: BidConditionNo
       {changed.length > 0 ? <ul className="bid-delta-round-list bid-delta-round-changed">{changed.map(line)}</ul> : null}
       {unknown.length > 0 ? <ul className="bid-delta-round-list">{unknown.map(line)}</ul> : null}
       {changed.length === 0 && unknown.length === 0 ? (
-        <p className="bid-delta-help">이 차수에서 확인된 변경은 없습니다. 비교한 항목이 모두 같은 값입니다.</p>
+        <p className="bid-delta-help">이 차수에서 확인된 변경은 없어요. 비교한 항목이 모두 같은 값이에요.</p>
       ) : null}
       {unchanged.length > 0 ? (
         <details className="bid-delta-technical-details">
@@ -169,9 +169,9 @@ function PreSpecComparison({ view }: { view: BidConditionsView }) {
               </li>
             ))}
           </ul>
-        ) : <p className="bid-delta-help">서버가 비교 항목을 주지 않았습니다. 변경 없음으로 해석하지 않습니다.</p>
+        ) : <p className="bid-delta-help">서버가 비교 항목을 주지 않았어요. 변경 없음으로 해석하지 않아요.</p>
       ) : (
-        <p className="bid-delta-help">확정 연결된 사전규격이 없어 예산·사업명을 비교하지 않았습니다. 사전규격이 없다는 뜻은 아닙니다.</p>
+        <p className="bid-delta-help">확정 연결된 사전규격이 없어 예산·사업명을 비교하지 않았어요. 사전규격이 없다는 뜻은 아니에요.</p>
       )}
       {view.not_comparable.includes("deadline_at") ? (
         <p className="bid-delta-help" data-not-comparable="deadline_at">비교 불가: 입찰 마감(사전규격 의견등록마감과 의미가 다름)</p>
@@ -204,18 +204,18 @@ export function BidConditionsSection({
       </div>
 
       {isPending ? (
-        <p className="bid-delta-page-status" role="status">공고 조건을 불러오는 중입니다.</p>
+        <p className="bid-delta-page-status" role="status">공고 조건을 불러오는 중이에요.</p>
       ) : error || !view ? (
         <EmptyState
           compact
           tone="error"
-          title="공고 조건을 불러오지 못했습니다."
-          description="조회 실패를 조건 없음이나 변경 없음으로 해석하지 않습니다."
-          problem={describeApiError(error, "공고 조건을 확인할 수 없습니다.")}
+          title="공고 조건을 불러오지 못했어요"
+          description="조회 실패를 조건 없음이나 변경 없음으로 해석하지 않아요."
+          problem={describeApiError(error, "공고 조건을 확인할 수 없어요.")}
           action={{ label: "공고 조건 다시 읽기", onClick: onRetry }}
         />
       ) : view.bid_notices.length === 0 ? (
-        <p className="bid-delta-help">확정 연결된 입찰공고가 없어 공고 조건을 표시할 수 없습니다. 입찰공고가 없다는 뜻은 아닙니다.</p>
+        <p className="bid-delta-help">확정 연결된 입찰공고가 없어 공고 조건을 표시할 수 없어요. 입찰공고가 없다는 뜻은 아니에요.</p>
       ) : (
         <>
           {latest ? (
@@ -237,13 +237,13 @@ export function BidConditionsSection({
             </table>
           ) : (
             <p className="bid-delta-help" role="status">
-              최신 차수를 확정할 수 없습니다. 게시 시각이 없는 차수가 있어 목록 순서로 최신을 대신하지 않으며, 최신 차수 조건을 표시하지 않습니다.
+              최신 차수를 확정할 수 없어요. 게시 시각이 없는 차수가 있어 목록 순서로 최신을 대신하지 않으며, 최신 차수 조건을 표시하지 않아요.
             </p>
           )}
           {latest ? (
             <p className="bid-delta-help">
               공고 ID {latest.notice_id} · 관측 해시 <span className="mono">{shortHash(latest.observation_sha256)}</span>
-              {" · "}값 없음은 수집에서 관측되지 않은 값입니다.
+              {" · "}값 없음은 수집에서 관측되지 않은 값이에요.
             </p>
           ) : null}
 
@@ -253,7 +253,7 @@ export function BidConditionsSection({
               <span className="bid-delta-muted">차수 {view.bid_notices.length}개 · 공고번호·차수 순</span>
             </div>
             {view.bid_notices.length < 2 ? (
-              <p className="bid-delta-help">차수가 하나여서 비교할 이전 차수가 없습니다.</p>
+              <p className="bid-delta-help">차수가 하나여서 비교할 이전 차수가 없어요.</p>
             ) : (
               <div className="bid-delta-round-stack">
                 {view.bid_notices.slice(1).map((notice, index) => (

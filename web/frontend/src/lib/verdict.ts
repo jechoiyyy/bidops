@@ -56,14 +56,14 @@ export const CHECKLIST_LABEL: Record<VerdictChecklistKey, string> = {
   operations_sla_security: "운영·SLA",
 };
 
-export const VERDICT_DISCLAIMER = "판정은 참고 의견입니다. 추적 여부와 참여 결정은 담당자가 정합니다.";
+export const VERDICT_DISCLAIMER = "판정은 참고 의견이에요. 추적 여부와 참여 결정은 담당자가 정해요.";
 
 export const STALE_REASON_LABEL: Record<VerdictStaleReason, string> = {
-  company_changed: "회사 근거가 그 뒤에 바뀌었습니다",
-  ontology_changed: "분류 기준이 그 뒤에 바뀌었습니다",
-  documents_changed: "공고 문서가 그 뒤에 바뀌었습니다",
-  policy_changed: "분석 기준이 그 뒤에 바뀌었습니다",
-  superseded: "더 새로운 판정이 있습니다",
+  company_changed: "회사 근거가 그 뒤에 바뀌었어요",
+  ontology_changed: "분류 기준이 그 뒤에 바뀌었어요",
+  documents_changed: "공고 문서가 그 뒤에 바뀌었어요",
+  policy_changed: "분석 기준이 그 뒤에 바뀌었어요",
+  superseded: "더 새로운 판정이 있어요",
 };
 
 /** 모르는 사유는 숨기지 않고 코드 그대로 둔다. */
@@ -85,10 +85,10 @@ export function sectionLabel(section: string): string {
 }
 
 export const FEEDBACK_KIND_LABEL: Record<VerdictFeedbackKind, string> = {
-  wrong_verdict: "판정이 틀렸습니다",
-  wrong_unit: "요구사항 항목이 잘못됐습니다",
-  not_requirement: "요구사항이 아닙니다",
-  source_mismatch: "원문과 다릅니다",
+  wrong_verdict: "판정이 틀렸어요",
+  wrong_unit: "요구사항 항목이 잘못됐어요",
+  not_requirement: "요구사항이 아니에요",
+  source_mismatch: "원문과 달라요",
 };
 
 // ---------------------------------------------------------------------------

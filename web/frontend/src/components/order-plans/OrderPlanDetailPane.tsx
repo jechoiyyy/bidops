@@ -1,4 +1,4 @@
-import { useState, type Ref } from "react";
+import { type Ref } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@astryxdesign/core/Badge";
@@ -17,6 +17,7 @@ import {
   ReviewValue,
   StickyDecisionHeader,
 } from "../common/ReviewPrimitives";
+import { requestActorInput } from "../common/ActorField";
 import { EmptyState } from "../common/EmptyState";
 import { api } from "../../lib/api";
 import type { ApiErrorDescription } from "../../lib/apiErrors";
@@ -139,10 +140,11 @@ function TrackingDecisionFields({
 }) {
   /** 지금 계약에 실릴 사유. 이 값이 이미 있으면 다시 쓰기 단추를 그리지 않는다. */
   const currentReason = reasonChoice === TRACKING_OTHER_REASON ? customReason.trim() : reasonChoice;
-  // 이름이 이미 있으면(탭 세션 또는 사이드바 담당자 칸) 시안대로 `… 이름으로 기록해요` 한 줄로 접는다.
-  // 화면에 들어올 때 이름이 없었으면 입력 칸을 그대로 두어 적는 중에 칸이 사라지지 않게 한다.
-  const [actorCollapsed, setActorCollapsed] = useState(() => actorName.trim() !== "");
-  const showActorLine = actorCollapsed && actorName.trim() !== "";
+  // 담당자 이름은 사이드바 담당자 칸 한 곳에서만 적는다(2026-11-20 사용자 지시). 본문에는 입력 칸이 없고,
+  // 이름이 있으면 `… 이름으로 기록해요` 한 줄, 없으면 이름이 필요하다는 안내와 사이드바 칸을 여는 단추다.
+  // 저장 전 이름 요구(`trackingInputBlockedReason`)는 그대로다.
+  const actor = actorName.trim();
+  const showActorLine = actor !== "";
   return (
     <section className="c2l-tracking" aria-labelledby={`c2l-tracking-${item.order_plan_pk}`} ref={sectionRef}>
       <header className="c2l-tracking-head">
@@ -151,7 +153,7 @@ function TrackingDecisionFields({
         <span className="visually-hidden">현재 상태 {trackingStatusLabel(item)}</span>
         <p className="c2l-tracking-position">
           {position}
-          {showActorLine ? ` · ${actorName.trim()} 이름으로 기록해요` : ""}
+          {showActorLine ? ` · ${actor} 이름으로 기록해요` : ""}
         </p>
       </header>
       <div className="c2l-tracking-fields">
@@ -170,10 +172,15 @@ function TrackingDecisionFields({
           actorPlaceholder="이름 입력"
           actorSlot={showActorLine ? (
             <p className="c2l-actor-line">
-              <span className="visually-hidden">담당자 이름 {actorName.trim()} · 결정 이력에 남는 이름이며 인증이 아닙니다.</span>
-              <button className="c2l-actor-change" disabled={isDisabled} onClick={() => setActorCollapsed(false)} type="button">이름 바꾸기</button>
+              <span className="visually-hidden">담당자 이름 {actor} · 결정 이력에 남는 이름이며 인증이 아니에요.</span>
+              <button className="c2l-actor-change" disabled={isDisabled} onClick={requestActorInput} type="button">이름 바꾸기</button>
             </p>
-          ) : undefined}
+          ) : (
+            <p className="c2l-actor-line is-missing" data-testid="order-plan-actor-missing">
+              <span>담당자 이름이 필요해요. 결정 이력에 남는 이름이며 인증이 아니에요.</span>
+              <button className="c2l-actor-change" disabled={isDisabled} onClick={requestActorInput} type="button">사이드바에서 이름 입력하기</button>
+            </p>
+          )}
           reasonExtra={lastReason && !currentReason ? (
             /* 드롭다운을 미리 채우지 않는다(PRD §3.3). 직전 사유는 **사람이 누를 때에만**
                들어가는 후보이고, 무엇이 들어갈지 단추 이름이 그대로 말한다. 긴 사유는 CSS가
@@ -207,8 +214,8 @@ function ExecutionWarningLine({ execution }: { execution: OrderPlanScreeningExec
   const failed = execution.status === "실패" || execution.status === "부분 성공";
   if (!execution.partial_artifact && !failed) return null;
   const fact = execution.partial_artifact
-    ? "이 판정의 실행에 부분 산출물이 있습니다"
-    : `이 판정의 실행이 ${execution.status}입니다`;
+    ? "이 판정의 실행에 부분 산출물이 있어요"
+    : `이 판정의 실행이 ${execution.status}이에요`;
   return (
     <p className="c2l-detail-warn c2l-exec-warn" role="note">
       <svg aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} viewBox="0 0 24 24"><path d="M12 3 2 20h20z" /><path d="M12 10v4M12 17h.01" /></svg>
@@ -328,7 +335,7 @@ export function OrderPlanDetailPane({
       {listPending || listError ? (
         <div className="c2l-detail-empty">
           <Text type="body" color="secondary" as="p">
-            {listPending ? "목록을 불러온 뒤 상세 정보를 표시합니다." : "목록을 불러오지 못해 상세를 표시할 수 없습니다."}
+            {listPending ? "목록을 불러온 뒤 상세 정보를 표시해요." : "목록을 불러오지 못해 상세를 표시할 수 없어요."}
           </Text>
         </div>
       ) : isExplicitDeepLink && deepLinkFailed ? (
@@ -337,9 +344,9 @@ export function OrderPlanDetailPane({
             compact
             tone="error"
             title={invalidSelectedParam
-              ? "발주계획 식별자가 올바르지 않습니다."
-              : isCumulative ? "요청한 발주계획을 누적 목록에서 찾을 수 없습니다." : "요청한 발주계획을 이 회차에서 찾을 수 없습니다."}
-            description="요청한 대상을 첫 번째 행으로 바꾸지 않았습니다. 회차와 선택한 식별자를 확인하십시오."
+              ? "발주계획 식별자가 올바르지 않아요."
+              : isCumulative ? "요청한 발주계획을 누적 목록에서 찾을 수 없어요." : "요청한 발주계획을 이 회차에서 찾을 수 없어요."}
+            description="요청한 대상을 첫 번째 행으로 바꾸지 않았어요. 회차와 선택한 식별자를 확인해 주세요."
           />
         </div>
       ) : isExplicitDeepLink && !explicitTargetInFilteredItems ? (
@@ -382,7 +389,7 @@ export function OrderPlanDetailPane({
                 알린다. 실패를 `미제공`으로 낮추지 않으며(경고 ④) 같은 자리에서 다시 시도한다. */}
             {detailState.failed ? (
               <p className="c2l-detail-error" role="alert">
-                <span>상세 정보를 불러오지 못했습니다 · 목록에서 받은 값만 보입니다</span>
+                <span>상세 정보를 불러오지 못했어요 · 목록에서 받은 값만 보여요</span>
                 <Button
                   label="다시 시도"
                   size="sm"
@@ -449,7 +456,7 @@ export function OrderPlanDetailPane({
               {/* 모델 판정이 없는 건(배치 실패 포함)은 비관련이 아니다. 이유와 할 일을 한 줄로 남긴다. */}
               {hasNoModelJudgment(selectedItem) ? (
                 <p className="c2l-detail-warn" role="note">
-                  {NO_MODEL_JUDGMENT_LABEL} · {qwenRowLabel(selectedItem)}. 모델 판단이 없으므로 비관련으로 보지 않습니다. 사업명·발주기관을 직접 보고 추적 여부를 정하십시오.
+                  {NO_MODEL_JUDGMENT_LABEL} · {qwenRowLabel(selectedItem)}. 모델 판단이 없으므로 비관련으로 보지 않아요. 사업명·발주기관을 직접 보고 추적 여부를 정해 주세요.
                 </p>
               ) : null}
               {/* 없앤 `선별 신호 · 실행 기록` 다이얼로그에서 판단에 쓰는 두 값만 본문으로
@@ -537,7 +544,7 @@ export function OrderPlanDetailPane({
                   ? <span className="c2l-decision-message" role="status">{trackingMessage.text}</span>
                   : null}
                 <span className="c2l-decision-hint" id="c2l-tracking-decision-reason">
-                  {trackingDisabledReason ?? "선택 후 다음 후보로 이동합니다 · 목록에서 ↑↓ 이동, Ctrl+Enter로 추적 시작하기 · 최종 입찰 참여 결정과 별개"}
+                  {trackingDisabledReason ?? "선택 후 다음 후보로 이동해요 · 목록에서 ↑↓ 이동, Ctrl+Enter로 추적 시작하기 · 최종 입찰 참여 결정과 별개"}
                 </span>
               </>
             )}
@@ -585,8 +592,8 @@ export function OrderPlanDetailPane({
         <div className="c2l-detail-empty">
           <EmptyState
             compact
-            title="조건에 맞는 계획이 없습니다"
-            description="검색어나 필터를 바꿔보세요. 선택한 회차의 원본은 그대로 남아 있습니다."
+            title="조건에 맞는 계획이 없어요"
+            description="검색어나 필터를 바꿔보세요. 선택한 회차의 원본은 그대로 남아 있어요."
             action={{ label: "필터 초기화", onClick: onResetFilters }}
           />
         </div>

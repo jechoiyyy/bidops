@@ -48,8 +48,8 @@ export function PipelineControlsDialog({
         <DialogHeader title="파이프라인 실행" onOpenChange={(next) => { if (!next) onClose(); }} />
         <div className="rs-dialog-scroll">
           <Caption>
-            원본 회차 <span className="rs-mono">{runId}</span>의 수집 스크립트를 실행합니다. 기존 회차 원본과
-            판정 기록은 덮어쓰지 않습니다.
+            원본 회차 <span className="rs-mono">{runId}</span>의 수집 스크립트를 실행해요. 기존 회차 원본과
+            판정 기록은 덮어쓰지 않아요.
           </Caption>
 
           {stages.map((stage) => {
@@ -73,7 +73,7 @@ export function PipelineControlsDialog({
                     onClick={() => onRun(runnable)}
                   />
                 ) : (
-                  <Caption as="span">이 단계는 판정 실행으로만 진행합니다</Caption>
+                  <Caption as="span">이 단계는 판정 실행으로만 진행해요</Caption>
                 )}
               </div>
             );
@@ -82,7 +82,7 @@ export function PipelineControlsDialog({
           <div className="rs-note">
             <div className="rs-note-copy">
               <strong>원문 재분류 <span className="rs-mono">--from-raw</span></strong>
-              <Caption>보관한 원문을 다시 분류합니다. 나라장터에 새로 요청하지 않습니다.</Caption>
+              <Caption>보관한 원문을 다시 분류해요. 나라장터에 새로 요청하지 않아요.</Caption>
             </div>
             <Button
               label="원문 재분류 실행"
@@ -92,8 +92,8 @@ export function PipelineControlsDialog({
             />
           </div>
 
-          <Note title="새 회차 수집은 새 원본을 만듭니다" tone="warning">
-            지금 고른 회차의 원본과 기존 판정은 그대로 남습니다. 실행 결과는 실행 기록 탭에서 확인합니다.
+          <Note title="새 회차 수집은 새 원본을 만들어요" tone="warning">
+            지금 고른 회차의 원본과 기존 판정은 그대로 남아요. 실행 결과는 실행 기록 탭에서 확인해요.
           </Note>
           {actionError ? <Text className="rs-dialog-error" as="p" role="alert">{actionError}</Text> : null}
         </div>

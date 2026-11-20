@@ -143,7 +143,7 @@ export function OpportunityRecordPage() {
         <EmptyState
           action={{ label: "사업기회 목록 열기", to: "/opportunities" }}
           compact
-          title="사업기회 식별자가 올바르지 않습니다"
+          title="사업기회 식별자가 올바르지 않아요"
         />
       </section>
     );
@@ -222,7 +222,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
   // 신호를 모르면(조회 실패) 켜져 있다고 가정하지 않고 기존 조회·오류 경로를 그대로 쓴다.
   const features = useFeatureFlags();
   const rlOff = features.state("rl_analysis") === "off";
-  const rlOffReason = `${FEATURE_OFF_LABEL} — 참여 판정(RL 분석)이 비활성입니다`;
+  const rlOffReason = `${FEATURE_OFF_LABEL} — 참여 판정(RL 분석)이 비활성이에요`;
 
   // 참여 판정(RL-03). 헤더 판정 pill·`판정 보기`와 판정 탭이 같은 응답을 읽는다. 분석 중이면 주기적으로 다시 읽는다.
   const verdictQuery = useQuery({
@@ -372,8 +372,8 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
   const dirty = composerDirty || Object.values(dirtySources).some(Boolean);
   useUnsavedGuard(dirty, {
     blockSpaNavigation: true,
-    title: "사업기회 레코드를 떠납니다",
-    message: "저장하지 않은 입력이 있습니다. 지금 이동하면 사라지며 이미 저장된 노트와 추적 상태는 바뀌지 않습니다.",
+    title: "사업기회 레코드를 떠나요",
+    message: "저장하지 않은 입력이 있어요. 지금 이동하면 사라지며 이미 저장된 노트와 추적 상태는 바뀌지 않아요.",
   });
 
   const refreshRecord = useCallback(async () => {
@@ -432,11 +432,11 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
       pendingRequest.current = null;
       setBody("");
       if (kind === "action") setOwner("");
-      showToast(kind === "action" ? "다음 행동을 남겼습니다." : "노트를 남겼습니다.");
+      showToast(kind === "action" ? "다음 행동을 남겼어요." : "노트를 남겼어요.");
       await refreshRecord();
     } catch (error) {
       // 실패한 입력은 그대로 두고, 같은 입력의 재시도는 같은 요청 식별자를 쓴다.
-      setNoteProblem(describeApiError(error, "노트를 저장하지 못했습니다."));
+      setNoteProblem(describeApiError(error, "노트를 저장하지 못했어요."));
     } finally {
       noteLock.current = false;
     }
@@ -451,7 +451,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
     if (noteLock.current || pendingNoteId !== null) return;
     if (!actorName.trim()) {
       setActorMissing(true);
-      showToast("완료로 표시하려면 담당자 이름을 먼저 입력하세요. 이름은 기록에 남는 표식이며 인증이 아닙니다.", "warning");
+      showToast("완료로 표시하려면 담당자 이름을 먼저 입력하세요. 이름은 기록에 남는 표식이며 인증이 아니에요.", "warning");
       document.getElementById(COMPOSER_ACTOR_ID)?.focus();
       return;
     }
@@ -459,10 +459,10 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
     setPendingNoteId(noteId);
     try {
       await completeAction.mutateAsync({ noteId, actor: actorName.trim() });
-      showToast("다음 행동을 완료로 표시했습니다.");
+      showToast("다음 행동을 완료로 표시했어요.");
       await refreshRecord();
     } catch (error) {
-      const problem = describeApiError(error, "완료로 표시하지 못했습니다.");
+      const problem = describeApiError(error, "완료로 표시하지 못했어요.");
       showToast(`${problem.title} ${problem.detail}`, "error");
     } finally {
       setPendingNoteId(null);
@@ -494,8 +494,8 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
         <EmptyState
           action={{ label: "사업기회 목록 열기", to: "/opportunities" }}
           compact
-          description="없거나 이미 지워진 사업기회입니다. 목록에서 다시 여십시오."
-          title="사업기회를 찾을 수 없습니다"
+          description="없거나 이미 지워진 사업기회예요. 목록에서 다시 열어 주세요."
+          title="사업기회를 찾을 수 없어요"
         />
       </section>
     );
@@ -504,7 +504,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
     if (detail.isPending) {
       return (
         <section aria-label="사업기회 레코드" className="rec-page">
-          <p className="rec-status" role="status">사업기회를 불러오는 중입니다.</p>
+          <p className="rec-status" role="status">사업기회를 불러오는 중이에요.</p>
         </section>
       );
     }
@@ -513,8 +513,8 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
         <EmptyState
           action={{ label: "다시 시도", onClick: () => { void detail.refetch(); } }}
           compact
-          problem={describeApiError(detail.error, "사업기회를 불러오지 못했습니다.")}
-          title="사업기회를 불러오지 못했습니다"
+          problem={describeApiError(detail.error, "사업기회를 불러오지 못했어요.")}
+          title="사업기회를 불러오지 못했어요"
           tone="error"
         />
       </section>
@@ -569,15 +569,15 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
   };
   // 제안서 탭 헤더 액션(RL-04). 초안을 읽는 동안·읽지 못했을 때는 서버 상태를 모르므로 열지 않는다.
   const proposalLoadReason = proposal.query.isPending
-    ? "초안을 불러오는 중입니다"
+    ? "초안을 불러오는 중이에요"
     : proposal.query.isError
-      ? "초안을 불러오지 못했습니다"
+      ? "초안을 불러오지 못했어요"
       : null;
   const proposalBusy = proposal.pending !== null;
   const verdictCompleted = hasVerdictResult(verdictView);
   const afterVerdictRequested = () => {
     setVerdictDialog(null);
-    showToast("판정을 요청했습니다. 분석이 끝나면 이 탭에 결과가 보입니다.");
+    showToast("판정을 요청했어요. 분석이 끝나면 이 탭에 결과가 보여요.");
     void queryClient.invalidateQueries({ queryKey: ["opportunity-verdict", opportunityId] });
     void queryClient.invalidateQueries({ queryKey: ["opportunity-activity", opportunityId] });
   };
@@ -585,7 +585,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
     ? links.find((link) => link.id === dialog.linkId) ?? null
     : null;
 
-  const feedProblem = feed.isError ? describeApiError(feed.error, "활동을 불러오지 못했습니다.") : null;
+  const feedProblem = feed.isError ? describeApiError(feed.error, "활동을 불러오지 못했어요.") : null;
   const sourceLink = noticeLink ?? latest?.link ?? null;
   const sourcePath = sourceLink ? recordRoute(sourceLink) : null;
   const externalUrl = notice.data?.url && /^https?:\/\//i.test(notice.data.url) ? notice.data.url : null;
@@ -595,9 +595,9 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
       <RecordHeader
         agency={attributes.find((attribute) => attribute.key === "agency")?.value ?? null}
         menu={{
-          resetBlockedReason: item.tracking_status === "미선택" ? "이미 미선택입니다" : null,
-          signalBlockedReason: item.recheck_signal ? null : "확인할 신호가 없습니다",
-          candidateBlockedReason: pendingCandidate ? null : "확인할 후보가 없습니다",
+          resetBlockedReason: item.tracking_status === "미선택" ? "이미 미선택이에요" : null,
+          signalBlockedReason: item.recheck_signal ? null : "확인할 신호가 없어요",
+          candidateBlockedReason: pendingCandidate ? null : "확인할 후보가 없어요",
           onSelect: onMenuSelect,
         }}
         pills={pills}
@@ -610,14 +610,14 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
           requestBlockedReason: rlOff
             ? rlOffReason
             : verdictView?.notice_id === null
-              ? "연결된 사전규격이 없습니다"
-              : verdictActive ? "분석이 진행 중입니다" : null,
+              ? "연결된 사전규격이 없어요"
+              : verdictActive ? "분석이 진행 중이에요" : null,
           requestLabel: verdictRequestLabel(verdictView),
           onRequestVerdict: () => setVerdictDialog({ kind: "request" }),
-          feedbackBlockedReason: hasFeedbackTarget ? null : "제보할 판정이 없습니다",
-          runInfoBlockedReason: verdictView?.identity ? null : "표시할 실행 정보가 없습니다",
+          feedbackBlockedReason: hasFeedbackTarget ? null : "제보할 판정이 없어요",
+          runInfoBlockedReason: verdictView?.identity ? null : "표시할 실행 정보가 없어요",
           onVerdictMenu,
-          proposalBlockedReason: rlOff ? rlOffReason : verdictCompleted ? null : "아직 판정이 없습니다",
+          proposalBlockedReason: rlOff ? rlOffReason : verdictCompleted ? null : "아직 판정이 없어요",
           onOpenProposal: () => goTab("proposal"),
         }}
         proposal={{
@@ -690,13 +690,13 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
                 <li>
                   {reps?.["입찰공고"]
                     ? <Link to={`/opportunities/${opportunityId}/bid-delta`}>변경 비교·Go/No-Go →</Link>
-                    : <span className="rec-side-note">변경 비교·Go/No-Go는 입찰공고가 연결되면 열 수 있습니다</span>}
+                    : <span className="rec-side-note">변경 비교·Go/No-Go는 입찰공고가 연결되면 열 수 있어요</span>}
                 </li>
               </ul>
             </section>
             <section aria-labelledby="rec-docs-title" className="rec-side-block">
               <h3 className="rec-side-title" id="rec-docs-title">제출 서류</h3>
-              <p aria-disabled="true" className="rec-side-note is-disabled">제출 서류 체크는 준비 중입니다</p>
+              <p aria-disabled="true" className="rec-side-note is-disabled">제출 서류 체크는 준비 중이에요</p>
             </section>
           </aside>
         )}
@@ -708,7 +708,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
               {firstPage ? (
                 <StageBar candidates={pendingCandidates} goNoGo={goNoGoAxis} links={links} stages={firstPage.stages} />
               ) : feed.isPending ? (
-                <p className="rec-status" role="status">활동을 불러오는 중입니다.</p>
+                <p className="rec-status" role="status">활동을 불러오는 중이에요.</p>
               ) : null}
               <h2 className="rec-section-title is-activity">활동</h2>
               <Composer
@@ -740,7 +740,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
           ) : null}
 
           {tab === "verdict" && rlOff ? (
-            <EmptyState compact description="이 환경의 운영 설정에서 참여 판정(RL 분석)이 꺼져 있어 판정을 요청하거나 볼 수 없습니다. 추적 결정과 최종 Go/No-Go는 판정 없이도 사람이 정합니다." title={`참여 판정 · ${FEATURE_OFF_LABEL}`} />
+            <EmptyState compact description="이 환경의 운영 설정에서 참여 판정(RL 분석)이 꺼져 있어 판정을 요청하거나 볼 수 없어요. 추적 결정과 최종 Go/No-Go는 판정 없이도 사람이 정해요." title={`참여 판정 · ${FEATURE_OFF_LABEL}`} />
           ) : tab === "verdict" ? (
             <OpportunityVerdictTab
               onFeedback={({ row, kind }) =>
@@ -752,7 +752,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
           ) : null}
 
           {tab === "proposal" && rlOff ? (
-            <EmptyState compact description="제안서 초안은 참여 판정(RL 분석)이 켜진 환경에서만 만들 수 있습니다. 이 환경에서는 꺼져 있습니다." title={`제안서 초안 · ${FEATURE_OFF_LABEL}`} />
+            <EmptyState compact description="제안서 초안은 참여 판정(RL 분석)이 켜진 환경에서만 만들 수 있어요. 이 환경에서는 꺼져 있어요." title={`제안서 초안 · ${FEATURE_OFF_LABEL}`} />
           ) : tab === "proposal" ? (
             <OpportunityProposalTab
               actorMissing={proposalActorMissing}
@@ -790,17 +790,17 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
             noticePk === null ? (
               <EmptyState compact title={SIMILAR_EMPTY_NO_NOTICE} />
             ) : related.isPending ? (
-              <p className="rec-status" role="status">비슷한 공고를 찾는 중입니다.</p>
+              <p className="rec-status" role="status">비슷한 공고를 찾는 중이에요.</p>
             ) : related.isError ? (
               <EmptyState
                 action={{ label: "다시 시도", onClick: () => { void related.refetch(); } }}
                 compact
-                problem={describeApiError(related.error, "비슷한 공고를 불러오지 못했습니다.")}
-                title="비슷한 공고를 불러오지 못했습니다"
+                problem={describeApiError(related.error, "비슷한 공고를 불러오지 못했어요.")}
+                title="비슷한 공고를 불러오지 못했어요"
                 tone="error"
               />
             ) : related.data.items.length === 0 ? (
-              <EmptyState compact description="비어 있는 식별자는 연결 기준으로 사용하지 않습니다." title="비슷한 공고가 없습니다" />
+              <EmptyState compact description="비어 있는 식별자는 연결 기준으로 사용하지 않아요." title="비슷한 공고가 없어요" />
             ) : (
               <ul aria-label="비슷한 공고" className="rec-similar-list">
                 {related.data.items.map((entry) => (
@@ -881,13 +881,13 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
                 <li>
                   {reps?.["입찰공고"]
                     ? <Link to={`/opportunities/${opportunityId}/bid-delta`}>변경 비교·Go/No-Go →</Link>
-                    : <span className="rec-side-note">변경 비교·Go/No-Go는 입찰공고가 연결되면 열 수 있습니다</span>}
+                    : <span className="rec-side-note">변경 비교·Go/No-Go는 입찰공고가 연결되면 열 수 있어요</span>}
                 </li>
               </ul>
             </section>
             <section aria-labelledby="rec-docs-title" className="rec-side-block">
               <h3 className="rec-side-title" id="rec-docs-title">제출 서류</h3>
-              <p aria-disabled="true" className="rec-side-note is-disabled">제출 서류 체크는 준비 중입니다</p>
+              <p aria-disabled="true" className="rec-side-note is-disabled">제출 서류 체크는 준비 중이에요</p>
             </section>
           </aside>
         ) : null}
@@ -915,7 +915,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
           <DialogHeader onOpenChange={(next) => { if (!next) setDialog(null); }} title="추적 되돌리기" />
           <TrackingResetControl
             currentStatus={item.tracking_status}
-            onReset={() => afterSaved("추적 결정을 미선택으로 되돌렸습니다.")}
+            onReset={() => afterSaved("추적 결정을 미선택으로 되돌렸어요.")}
             opportunityId={item.id}
           />
         </div>
@@ -934,8 +934,8 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
           {item.recheck_signal ? (
             <>
               <p>
-                {formatMoment(item.recheck_signal_at)}에 새 공식 레코드가 연결됐습니다. 최종 입찰 참여 판단은
-                별도의 Go/No-Go 화면에서 검토합니다.
+                {formatMoment(item.recheck_signal_at)}에 새 공식 레코드가 연결됐어요. 최종 입찰 참여 판단은
+                별도의 Go/No-Go 화면에서 검토해요.
               </p>
               <RecheckAcknowledgement
                 key={`${item.id}:${item.recheck_signal_link_id ?? "none"}`}
@@ -946,7 +946,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
               />
             </>
           ) : (
-            <p className="opportunity-caption">확인할 재검토 신호가 이미 없습니다.</p>
+            <p className="opportunity-caption">확인할 재검토 신호가 이미 없어요.</p>
           )}
           <div className="opportunity-dialog-actions">
             <Button label="닫기" onClick={() => setDialog(null)} size="sm" />
@@ -982,7 +982,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
           initialKind={verdictDialog.initialKind}
           noticeId={verdictView.notice_id}
           onClose={() => setVerdictDialog(null)}
-          onSaved={() => { setVerdictDialog(null); showToast("판정 오류 제보를 남겼습니다."); }}
+          onSaved={() => { setVerdictDialog(null); showToast("판정 오류 제보를 남겼어요."); }}
           unit={verdictDialog.unit}
         />
       ) : null}

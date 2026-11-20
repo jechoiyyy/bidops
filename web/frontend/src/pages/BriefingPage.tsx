@@ -51,9 +51,9 @@ import "../styles/briefing.css";
  * - 표시 금지: 정책·점수·초 단위 생성 시각·집계 분모·모델명.
  */
 
-const NOT_FOUND_TITLE = "이 환경에서 만들어진 브리핑이 없습니다";
-const EMPTY_TITLE = "오늘 추천할 공고가 없습니다 · 수집 정상";
-const COLLECTION_TITLE = "오늘 수집이 끝나지 않았습니다";
+const NOT_FOUND_TITLE = "이 환경에서 만들어진 브리핑이 없어요";
+const EMPTY_TITLE = "오늘 추천할 공고가 없어요 · 수집 정상";
+const COLLECTION_TITLE = "오늘 수집이 끝나지 않았어요";
 const PANEL_ID = "briefing-panel";
 
 /** 행 묶음 순서(최종 시안): 마감 전 → 마감일 없음 → 마감 지남. 추적 변화는 따로 맨 뒤다. */
@@ -95,8 +95,8 @@ function NotFound({ invalidDate, dated }: { invalidDate: boolean; dated: boolean
       action={{ label: "사전규격 목록 열기", to: "/pre-specs" }}
       description={
         invalidDate
-          ? "주소의 날짜 형식이 올바르지 않습니다(YYYY-MM-DD). 최신 브리핑을 열거나 날짜를 고쳐 다시 여십시오."
-          : "브리핑은 일일 브리핑 스크립트가 실행되어야 만들어집니다. 이 화면은 그 일정이 있는지 알 수 없으며, 지금까지 만들어진 브리핑이 없습니다. 사전규격·발주계획 목록에서 공고를 확인하세요."
+          ? "주소의 날짜 형식이 올바르지 않아요(YYYY-MM-DD). 최신 브리핑을 열거나 날짜를 고쳐 다시 열어 주세요."
+          : "브리핑은 일일 브리핑 스크립트가 실행되어야 만들어져요. 이 화면은 그 일정이 있는지 알 수 없으며, 지금까지 만들어진 브리핑이 없어요. 사전규격·발주계획 목록에서 공고를 확인하세요."
       }
       secondaryAction={dated || invalidDate ? { label: "최신 브리핑 열기", to: "/briefing" } : { label: "발주계획 열기", to: "/order-plans" }}
       title={NOT_FOUND_TITLE}
@@ -254,7 +254,7 @@ export function BriefingPage() {
           // 되돌린 행으로 선택을 돌려놓는다. 키보드로 되돌렸다면 초점도 따라간다.
           select(itemId);
           if (source === "key") pendingFocusRef.current = itemId;
-          showNotice(`되돌렸습니다 · ${saved.reaction ?? ""}`, "info");
+          showNotice(`되돌렸어요 · ${saved.reaction ?? ""}`, "info");
         } else {
           const stays = saved.reaction === BRIEFING_TAB_REACTION[state.activeTab];
           if (!stays) {
@@ -265,7 +265,7 @@ export function BriefingPage() {
             if (source === "key") pendingFocusRef.current = next ?? FOCUS_CONTAINER;
           }
           showNotice(
-            saved.reaction === "대기" ? "반응을 취소했습니다" : `반응을 저장했습니다 · ${saved.reaction ?? ""}`,
+            saved.reaction === "대기" ? "반응을 취소했어요" : `반응을 저장했어요 · ${saved.reaction ?? ""}`,
             "success",
             { itemId, previous },
           );
@@ -275,9 +275,9 @@ export function BriefingPage() {
         if (code === "version_conflict" || code === "idempotency_conflict") {
           // 조용히 덮어쓰지 않는다: 최신 상태를 다시 읽고 사람이 확인한 뒤 다시 누르게 한다.
           void queryClient.invalidateQueries({ queryKey: briefingKey });
-          showNotice("다른 담당자가 먼저 반응했습니다. 최신 상태를 불러왔으니 확인한 뒤 다시 눌러 주세요.", "warning");
+          showNotice("다른 담당자가 먼저 반응했어요. 최신 상태를 불러왔으니 확인한 뒤 다시 눌러 주세요.", "warning");
         } else {
-          const problem = describeApiError(error, "반응을 저장하지 못했습니다.");
+          const problem = describeApiError(error, "반응을 저장하지 못했어요.");
           showNotice(`${problem.title} ${problem.detail}`, "error");
         }
       } finally {
@@ -416,14 +416,14 @@ export function BriefingPage() {
   if (notFound) {
     body = <NotFound dated={validDate !== null} invalidDate={invalidDate} />;
   } else if (query.isPending) {
-    body = <p className="briefing-status" role="status">브리핑을 불러오는 중입니다.</p>;
+    body = <p className="briefing-status" role="status">브리핑을 불러오는 중이에요.</p>;
   } else if (query.isError || !briefing) {
-    const problem = describeApiError(query.error, "브리핑을 불러오지 못했습니다.");
+    const problem = describeApiError(query.error, "브리핑을 불러오지 못했어요.");
     body = (
       <EmptyState
         action={{ label: "다시 시도", onClick: () => { void query.refetch(); } }}
         problem={problem}
-        title="브리핑을 불러오지 못했습니다."
+        title="브리핑을 불러오지 못했어요"
         tone="error"
       />
     );
@@ -470,8 +470,8 @@ export function BriefingPage() {
             ) : tabEmpty ? (
               <EmptyState
                 compact
-                description={activeTab === "pending" ? "모든 추천에 반응했습니다." : "이 반응을 남긴 추천이 없습니다."}
-                title={`${BRIEFING_TAB_LABEL[activeTab]} 항목이 없습니다`}
+                description={activeTab === "pending" ? "모든 추천에 반응했어요." : "이 반응을 남긴 추천이 없어요."}
+                title={`${BRIEFING_TAB_LABEL[activeTab]} 항목이 없어요`}
               />
             ) : (
               GROUP_ORDER.map((group) => {

@@ -94,17 +94,17 @@ export function RunPickerField({
         value={selectedRunId ?? undefined}
         onChange={onSelect}
         placeholder={isPending ? "회차를 불러오는 중…" : isError ? "회차를 확인할 수 없음" : "회차 선택"}
-        emptyText="표시할 회차가 없습니다."
+        emptyText="표시할 회차가 없어요."
         hasSearch
       />
       {isError ? (
         <div className="rs-inline-error" role="alert">
-          <Text as="span">회차 목록을 불러오지 못했습니다.</Text>
+          <Text as="span">회차 목록을 불러오지 못했어요.</Text>
           <Button label="다시 시도" size="sm" onClick={onRetry} />
         </div>
       ) : null}
       {!isError && !isPending && runs.length === 0 ? (
-        <Caption>적재된 회차가 없습니다. 없음을 정상으로 해석하지 않습니다.</Caption>
+        <Caption>적재된 회차가 없어요. 없음을 정상으로 해석하지 않아요.</Caption>
       ) : null}
     </div>
   );

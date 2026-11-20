@@ -114,7 +114,7 @@ test("T8: 세 수치는 사실 건수와 같고 확인이 필요한 것은 추�
   await expect(page.getByRole("heading", { name: /지금 확인하면 판정이 바뀌는 것/ })).toBeVisible();
 
   // 읽기 전용: 상단 안내 한 줄, 맞음·수정·입력·저장 버튼과 영향 공고 열은 없다.
-  await expect(page.locator(".co-notice")).toHaveText("값 수정은 회사 파일을 고쳐 다시 등록합니다(운영 담당자가 등록 절차를 수행)");
+  await expect(page.locator(".co-notice")).toHaveText("값 수정은 회사 파일을 고쳐 다시 등록해요(운영 담당자가 등록 절차를 수행)");
   for (const name of ["맞음", "수정", "입력", "저장"]) {
     await expect(page.getByRole("button", { name: new RegExp(`^${name}`) })).toHaveCount(0);
   }
@@ -140,7 +140,7 @@ test("T8: 상단바는 회사 이름·마지막 저장 날짜와 이전 버전(�
   await trigger.click();
   const panel = page.getByRole("region", { name: "회사 근거 버전" });
   await expect(panel).toContainText("현재 버전 · 2026년 10월 16일 저장");
-  await expect(panel).toContainText("현재 버전만 볼 수 있습니다");
+  await expect(panel).toContainText("현재 버전만 볼 수 있어요");
   await expect(panel.getByRole("option")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(panel).toHaveCount(0);
@@ -201,7 +201,7 @@ test("T8: 제안서 자료는 비활성이고 직접 주소는 빈 상태, 모�
   await expect(nav.getByRole("link", { name: "제안서 자료" })).toHaveCount(0);
 
   await page.goto("/company?group=proposal-assets");
-  await expect(page.getByText("RL-04에서 채웁니다")).toBeVisible();
+  await expect(page.getByText("RL-04에서 채워요")).toBeVisible();
   await expect(rows(page)).toHaveCount(0);
 
   await page.goto("/company?group=nonexistent");
@@ -334,9 +334,9 @@ test("T8: 실회사가 없거나 활성 버전이 없으면 수치를 0으로 �
   await mockApi(second);
   await mockRealCompany(second, { noActiveVersion: true });
   await second.goto("/company");
-  await expect(second.getByText("회사 근거가 아직 활성화되지 않았습니다")).toBeVisible();
+  await expect(second.getByText("회사 근거가 아직 활성화되지 않았어요")).toBeVisible();
   await expect(second.getByTestId("company-count-confirmed")).toHaveCount(0);
-  await expect(second.getByTestId("company-topbar-meta")).toContainText("아직 저장된 버전이 없습니다");
+  await expect(second.getByTestId("company-topbar-meta")).toContainText("아직 저장된 버전이 없어요");
   await expect(second.locator("aside.sidebar").getByRole("link", { name: "회사 근거", exact: true }).locator(".sidebar-item-count")).toHaveCount(0);
 });
 

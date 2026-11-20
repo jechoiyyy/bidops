@@ -68,10 +68,10 @@ test("단건 제외 실패 후 입력·선택 유지, 명시적 재시도, 다�
   await page.getByRole("button", { name: "검토 제외", exact: true }).click();
   const dialog = await fillDialog(page);
   await expect(dialog).toContainText("제외 1건");
-  await expect(dialog).toContainText("팀 전체의 일상 목록에서 숨깁니다. 추적 상태와 자동 분석은 그대로입니다.");
+  await expect(dialog).toContainText("팀 전체의 일상 목록에서 숨겨요. 추적 상태와 자동 분석은 그대로예요.");
   await saveExclusion(dialog).click();
   // 서버 응답을 오류 종류로 옮겨 보인다(503 → 서버 오류). 입력과 선택은 그대로다.
-  await expect(dialog.getByRole("alert")).toContainText("서버 오류가 발생했습니다.");
+  await expect(dialog.getByRole("alert")).toContainText("서버 오류가 발생했어요.");
   await expect(dialog.getByRole("combobox", { name: "제외 사유 (필수)" })).toContainText("현재 검토 범위와 맞지 않음");
   await expect(dialog.getByRole("textbox", { name: /^담당자/ })).toHaveValue("검증 담당자");
   expect(requests).toHaveLength(1);
@@ -79,7 +79,8 @@ test("단건 제외 실패 후 입력·선택 유지, 명시적 재시도, 다�
   await expect(dialog).not.toBeVisible();
   await expect(row(page, 992)).toHaveCount(0);
   await expect(row(page, 993)).toBeFocused();
-  await expect(page.locator('.pre-specs-selection-count')).toContainText('0');
+  // 2026-11-20: 고른 것이 0건이면 일괄 바를 그리지 않는다(발주계획과 같은 규칙). 0건은 바가 없는 것으로 확인한다.
+  await expect(page.locator('.pre-specs-selection-toolbar')).toHaveCount(0);
   expect(requests).toHaveLength(2);
   await page.getByRole("button", { name: "검토 제외", exact: true }).click();
   const second = await fillDialog(page);
@@ -99,7 +100,7 @@ test("검토 제외 요청은 JSON 형식 헤더와 고른 사유 문장·기억
   const dialog = page.getByRole("dialog", { name: EXCLUDE_DIALOG, exact: true });
   await expect(dialog.getByRole("textbox", { name: /^담당자/ })).toHaveValue("기억된 담당자");
   await expect(saveExclusion(dialog)).toBeDisabled();
-  await expect(dialog).toContainText("제외 사유를 선택하십시오.");
+  await expect(dialog).toContainText("제외 사유를 선택해 주세요.");
   await dialog.getByRole("combobox", { name: "제외 사유 (필수)" }).click();
   await page.getByRole("option", { name: "기타 · 직접 입력", exact: true }).click();
   await dialog.getByRole("textbox", { name: "사유 직접 입력" }).fill("  타 부서 소관  ");
@@ -123,17 +124,19 @@ test("페이지를 넘는 선택 제외와 마지막 빈 페이지 보정", asyn
   await expect(page).not.toHaveURL(/offset=/);
   await expect(row(page, 1190)).toBeFocused();
   expect(requests[0].notice_ids).toEqual([991, 1191]);
-  await expect(page.locator('.pre-specs-selection-count')).toContainText('0');
+  // 2026-11-20: 고른 것이 0건이면 일괄 바를 그리지 않는다(발주계획과 같은 규칙). 0건은 바가 없는 것으로 확인한다.
+  await expect(page.locator('.pre-specs-selection-toolbar')).toHaveCount(0);
 });
 
 test("200건 초과 선택은 전송을 막고 선택 축소를 안내", async ({ page }) => {
   const { requests } = await setup(page, 201);
   await page.goto('/pre-specs');
-  await page.getByRole('button', { name: '현재 페이지 전체 선택' }).click();
+  // 선택이 0건일 때 `현재 페이지 전체 선택`은 목록 머리 체크박스다(2026-11-20).
+  await page.getByRole('checkbox', { name: '현재 페이지 전체 선택' }).click();
   await page.getByRole('navigation', { name: '사전규격 목록 페이지' }).getByRole('button', { name: '다음', exact: true }).click();
   await row(page, 1191).getByRole('checkbox').check();
   await expect(page.getByRole('button', { name: '선택 항목 제외' })).toBeDisabled();
-  await expect(page.getByText('한 번에 200건까지 제외할 수 있습니다. 선택을 줄여 주세요.')).toBeVisible();
+  await expect(page.getByText('한 번에 200건까지 제외할 수 있어요. 선택을 줄여 주세요.')).toBeVisible();
   expect(requests).toHaveLength(0);
 });
 
@@ -168,7 +171,7 @@ test("미저장 추적 입력의 취소는 제외 창과 요청을 열지 않는
   await page.getByRole('combobox', { name: '선택 사유' }).click();
   await page.getByRole('option', { name: '후속 입찰공고 확인' }).click();
   await page.getByRole('button', { name: '검토 제외', exact: true }).click();
-  const guard = page.getByRole('alertdialog', { name: '추적 결정 입력을 저장하지 않고 옮깁니다' });
+  const guard = page.getByRole('alertdialog', { name: '추적 결정 입력을 저장하지 않고 옮겨요' });
   await expect(guard).toBeVisible();
   await guard.getByRole('button', { name: '계속 편집' }).click();
   await expect(page.getByRole('combobox', { name: '선택 사유' })).toContainText('후속 입찰공고 확인');
@@ -200,7 +203,8 @@ test("전체 이력 포함 여부 필터는 URL과 선택 범위를 함께 갱�
   await expect(page).toHaveURL(/review_exclusion=excluded/);
   await expect(row(page, 991)).toBeVisible();
   await expect(row(page, 992)).toHaveCount(0);
-  await expect(page.locator('.pre-specs-selection-count')).toContainText('0');
+  // 2026-11-20: 고른 것이 0건이면 일괄 바를 그리지 않는다(발주계획과 같은 규칙). 0건은 바가 없는 것으로 확인한다.
+  await expect(page.locator('.pre-specs-selection-toolbar')).toHaveCount(0);
 });
 
 // F2 · spec §6.2 — 제외된 건은 **누가·언제·왜** 뺐는지 보여야 복원을 판단할 수

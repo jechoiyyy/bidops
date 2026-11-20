@@ -21,7 +21,7 @@ export default function App() {
     retry: false,
   });
   if (demoConfig.isPending) {
-    return <p className="app-boot-status" role="status">화면 구성을 확인하고 있습니다.</p>;
+    return <p className="app-boot-status" role="status">화면 구성을 확인하고 있어요.</p>;
   }
   return <AppRouter demoEnabled={demoConfig.data?.enabled === true} />;
 }

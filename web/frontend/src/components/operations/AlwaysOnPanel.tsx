@@ -128,14 +128,14 @@ export function computeActivation(
   if (!state.environment_enabled) {
     blockers.push({
       key: "environment",
-      message: "환경 안전 상한이 꺼져 있습니다.",
-      detail: "BIDOPS_SCHEDULER_ENABLED 설정을 확인하십시오.",
+      message: "환경 안전 상한이 꺼져 있어요.",
+      detail: "BIDOPS_SCHEDULER_ENABLED 설정을 확인해 주세요.",
     });
   }
   if (hasRejection) {
     blockers.push({
       key: "rejection",
-      message: "서버가 현재 승인 조합을 거부했습니다.",
+      message: "서버가 현재 승인 조합을 거부했어요.",
       detail: state.rejection_reason ?? undefined,
       href: "/quality-gates",
       linkLabel: "게이트 확인",
@@ -144,7 +144,7 @@ export function computeActivation(
   if (state.quality_gate_status !== "통과" || !gateId) {
     blockers.push({
       key: "quality-gate",
-      message: "운영 승인 quality gate가 통과 상태가 아니거나 결과 ID가 없습니다.",
+      message: "운영 승인 quality gate가 통과 상태가 아니거나 결과 ID가 없어요.",
       detail: `현재 상태 ${valueLabel(state.quality_gate_status)} · 결과 ID ${valueLabel(gateId)}`,
       href: "/quality-gates",
       linkLabel: "quality gate 열기",
@@ -153,15 +153,15 @@ export function computeActivation(
   if (policyLoading || policyRefreshing) {
     blockers.push({
       key: "policy-loading",
-      message: "현재 active 정책을 확인하는 중입니다.",
-      detail: "확인이 끝날 때까지 승인 조합을 변경할 수 없습니다.",
+      message: "현재 active 정책을 확인하는 중이에요.",
+      detail: "확인이 끝날 때까지 승인 조합을 변경할 수 없어요.",
       href: "/policies",
       linkLabel: "정책 확인",
     });
   } else if (!activePolicy) {
     blockers.push({
       key: "active-policy",
-      message: "현재 active 정책을 확인할 수 없습니다.",
+      message: "현재 active 정책을 확인할 수 없어요.",
       href: "/policies",
       linkLabel: "정책 확인",
     });
@@ -169,7 +169,7 @@ export function computeActivation(
     if (policyVersionStatus !== "match") {
       blockers.push({
         key: "policy-version",
-        message: "active 정책 버전과 승인 조합의 정책 버전이 다릅니다.",
+        message: "active 정책 버전과 승인 조합의 정책 버전이 달라요.",
         detail: `active ${valueLabel(activePolicyVersion)} · 승인 조합 ${valueLabel(state.policy_version)}`,
         href: "/policies",
         linkLabel: "정책 열기",
@@ -178,7 +178,7 @@ export function computeActivation(
     if (policyGateStatus !== "match") {
       blockers.push({
         key: "policy-gate",
-        message: "active 정책의 quality gate evaluation ID가 승인 조합과 다릅니다.",
+        message: "active 정책의 quality gate evaluation ID가 승인 조합과 달라요.",
         detail: `active ${valueLabel(activePolicy.quality_gate_result_id)} · 승인 조합 ${valueLabel(gateId)}`,
         href: "/quality-gates",
         linkLabel: "게이트 확인",
@@ -187,7 +187,7 @@ export function computeActivation(
     if (policyPromptStatus !== "match") {
       blockers.push({
         key: "policy-prompt",
-        message: "active 정책의 prompt version이 승인 조합과 다릅니다.",
+        message: "active 정책의 prompt version이 승인 조합과 달라요.",
         detail: `active ${valueLabel(activePolicy.prompt_version)} · 승인 조합 ${valueLabel(state.prompt_version)}`,
         href: "/policies",
         linkLabel: "정책 열기",
@@ -196,7 +196,7 @@ export function computeActivation(
     if (!isPresent(activePolicy.content_digest)) {
       blockers.push({
         key: "policy-digest",
-        message: "활성 정책 식별 해시가 없습니다.",
+        message: "활성 정책 식별 해시가 없어요.",
         href: "/policies",
         linkLabel: "정책 열기",
       });
@@ -204,7 +204,7 @@ export function computeActivation(
     if (!metadataComplete) {
       blockers.push({
         key: "metadata",
-        message: "승인 조합 메타데이터가 모두 확인되지 않았습니다.",
+        message: "승인 조합 메타데이터가 모두 확인되지 않았어요.",
         detail: `확인 필요: ${missingMetadata.join(" · ")}`,
         href: "/quality-gates",
         linkLabel: "승인 조합 확인",
@@ -218,7 +218,7 @@ export function computeActivation(
   if (!policyMatches && !hasPolicyBindingBlocker) {
     blockers.push({
       key: "policy-binding",
-      message: "active 정책과 승인 조합의 연결 상태를 확인할 수 없습니다.",
+      message: "active 정책과 승인 조합의 연결 상태를 확인할 수 없어요.",
       href: "/policies",
       linkLabel: "정책 확인",
     });
@@ -270,19 +270,19 @@ export function ActivationPaneBody({
         <div>
           <Caption as="span">서버 거절</Caption>
           <Text className="rs-stat-value" as="span">{view.hasRejection ? "있음" : "없음"}</Text>
-          <Caption as="span">서버가 남긴 사유만 표시합니다</Caption>
+          <Caption as="span">서버가 남긴 사유만 표시해요</Caption>
         </div>
       </div>
 
       {view.hasRejection ? (
-        <Note title="상시 운영이 거부되었습니다." tone="error">{state.rejection_reason}</Note>
+        <Note title="상시 운영이 거부되었어요" tone="error">{state.rejection_reason}</Note>
       ) : null}
 
       <Section title="활성화 전 확인">
         {view.blockers.length > 0 ? (
           <div className="rs-note is-warning" role="alert" aria-label="상시 운영 켜기 차단 사유">
             <div className="rs-note-copy">
-              <strong>켤 수 없는 상태입니다 · 조건 {view.blockers.length}건 미충족</strong>
+              <strong>켤 수 없는 상태예요 · 조건 {view.blockers.length}건 미충족</strong>
               <ul className="rs-blocker-list">
                 {view.blockers.map((blocker) => (
                   <li key={blocker.key}>
@@ -297,14 +297,14 @@ export function ActivationPaneBody({
             </div>
           </div>
         ) : (
-          <Note title="모든 구조 조건이 확인되었습니다">
-            켜기 전에 담당자와 quality gate evaluation ID를 확인 창에서 다시 확인합니다.
+          <Note title="모든 구조 조건이 확인되었어요">
+            켜기 전에 담당자와 quality gate evaluation ID를 확인 창에서 다시 확인해요.
           </Note>
         )}
         {policyError ? (
-          <Caption>활성 정책 digest를 조회할 수 없습니다. 상시 운영 응답의 정책 버전만 표시합니다.</Caption>
+          <Caption>활성 정책 digest를 조회할 수 없어요. 상시 운영 응답의 정책 버전만 표시해요.</Caption>
         ) : null}
-        {policyLoading ? <Caption>현재 active 정책을 확인하는 중입니다.</Caption> : null}
+        {policyLoading ? <Caption>현재 active 정책을 확인하는 중이에요.</Caption> : null}
       </Section>
 
       <Section title="현재 승인 조합" action={<Caption as="span">게이트 {valueLabel(state.quality_gate_status)}</Caption>}>
@@ -380,8 +380,8 @@ export function ActivationPaneBody({
         ]}
       />
       <Caption>
-        끄기는 기존 실행·회차·산출물을 삭제하지 않습니다. model_comparison 통과를 운영 승인 통과로 쓸 수
-        없습니다.
+        끄기는 기존 실행·회차·산출물을 삭제하지 않아요. model_comparison 통과를 운영 승인 통과로 쓸 수
+        없어요.
       </Caption>
     </>
   );
@@ -418,15 +418,15 @@ export function AlwaysOnActions({ state, view, busy, onUpdate, activePolicyVersi
   const update = async (enabled: boolean) => {
     if (enabled) {
       if (view.blockers.length > 0) {
-        setEnableDialogError("구조적 차단 조건을 먼저 해결해야 합니다.");
+        setEnableDialogError("구조적 차단 조건을 먼저 해결해야 해요.");
         return;
       }
       if (!enableActorReady) {
-        setEnableDialogError("상시 운영을 켜려면 담당자 이름을 입력하십시오.");
+        setEnableDialogError("상시 운영을 켜려면 담당자 이름을 입력해 주세요.");
         return;
       }
       if (!enableGateConfirmed) {
-        setEnableDialogError("최신 운영 승인 게이트의 결과 ID를 정확히 확인하십시오.");
+        setEnableDialogError("최신 운영 승인 게이트의 결과 ID를 정확히 확인해 주세요.");
         return;
       }
       setEnableDialogError(null);
@@ -438,10 +438,10 @@ export function AlwaysOnActions({ state, view, busy, onUpdate, activePolicyVersi
           setEnableConfirmedGateId("");
           setEnableDialogOpen(false);
         } else {
-          setEnableDialogError("상시 운영을 켜지 못했습니다. 화면 상단의 오류 내용을 확인하십시오.");
+          setEnableDialogError("상시 운영을 켜지 못했어요. 화면 상단의 오류 내용을 확인해 주세요.");
         }
       } catch {
-        setEnableDialogError("상시 운영을 켜지 못했습니다. 잠시 후 다시 시도하십시오.");
+        setEnableDialogError("상시 운영을 켜지 못했어요. 잠시 후 다시 시도해 주세요.");
       } finally {
         setEnableDialogBusy(false);
       }
@@ -449,7 +449,7 @@ export function AlwaysOnActions({ state, view, busy, onUpdate, activePolicyVersi
     }
 
     if (!disableActorReady) {
-      setValidationError("상시 운영을 끄려면 담당자 이름을 입력하십시오.");
+      setValidationError("상시 운영을 끄려면 담당자 이름을 입력해 주세요.");
       return;
     }
     setValidationError(null);
@@ -459,10 +459,10 @@ export function AlwaysOnActions({ state, view, busy, onUpdate, activePolicyVersi
         setDisableActor("");
         setDisableDialogOpen(false);
       } else {
-        setValidationError("상시 운영을 끄지 못했습니다. 화면 상단의 오류 내용을 확인하십시오.");
+        setValidationError("상시 운영을 끄지 못했어요. 화면 상단의 오류 내용을 확인해 주세요.");
       }
     } catch {
-      setValidationError("상시 운영을 끄지 못했습니다. 잠시 후 다시 시도하십시오.");
+      setValidationError("상시 운영을 끄지 못했어요. 잠시 후 다시 시도해 주세요.");
     }
   };
 
@@ -495,9 +495,9 @@ export function AlwaysOnActions({ state, view, busy, onUpdate, activePolicyVersi
           <AlertDialogContent className="operations-alert-dialog rs-enable-dialog" data-astryx-theme="bidops" aria-describedby="operations-enable-dialog-description">
             <AlertDialogHeader className="operations-alert-dialog-header">
               <span className="operations-dialog-kicker">승인 경계 · 최종 확인</span>
-              <AlertDialogTitle>상시 운영을 켭니다</AlertDialogTitle>
+              <AlertDialogTitle>상시 운영을 켜요</AlertDialogTitle>
               <AlertDialogDescription id="operations-enable-dialog-description">
-                기존 회차와 산출물은 바뀌지 않지만, 이후 새 회차가 담당자 확인 없이 자동으로 생성됩니다. 아래 승인 조합과 담당자 기록을 확인한 뒤 켜십시오.
+                기존 회차와 산출물은 바뀌지 않지만, 이후 새 회차가 담당자 확인 없이 자동으로 생성돼요. 아래 승인 조합과 담당자 기록을 확인한 뒤 켜 주세요.
               </AlertDialogDescription>
             </AlertDialogHeader>
 
@@ -532,12 +532,12 @@ export function AlwaysOnActions({ state, view, busy, onUpdate, activePolicyVersi
               <label className="operations-dialog-field" htmlFor="operations-enable-actor">
                 <span>변경 담당자</span>
                 <input id="operations-enable-actor" value={enableActor} onChange={(event) => setEnableActor(event.target.value)} placeholder="담당자 이름" autoComplete="name" disabled={enableDialogBusy || busy} aria-describedby="operations-enable-actor-help" />
-                <small id="operations-enable-actor-help">운영 변경 기록에 남는 담당자 이름입니다.</small>
+                <small id="operations-enable-actor-help">운영 변경 기록에 남는 담당자 이름이에요.</small>
               </label>
               <label className="operations-dialog-field" htmlFor="operations-enable-gate-id">
                 <span>게이트 결과 ID 확인</span>
                 <input id="operations-enable-gate-id" value={enableConfirmedGateId} onChange={(event) => setEnableConfirmedGateId(event.target.value)} placeholder={gateId ?? "gateeval-…"} disabled={enableDialogBusy || busy || !gateId} aria-describedby="operations-enable-gate-id-help" />
-                <small id="operations-enable-gate-id-help">위 요약의 ID와 정확히 일치해야 합니다.</small>
+                <small id="operations-enable-gate-id-help">위 요약의 ID와 정확히 일치해야 해요.</small>
               </label>
             </div>
             {enableDialogError ? <p className="operations-dialog-error" role="alert">{enableDialogError}</p> : null}
@@ -568,8 +568,8 @@ export function AlwaysOnActions({ state, view, busy, onUpdate, activePolicyVersi
         <div className="rs-dialog-body" data-astryx-theme="bidops">
           <DialogHeader title="상시 운영 끄기" onOpenChange={(next) => { if (!next && !busy) setDisableDialogOpen(false); }} />
           <div className="rs-dialog-scroll">
-            <Note title="기존 실행·회차·산출물은 삭제하지 않습니다">
-              이후 새 예약 실행만 멈춥니다. 이미 끝난 회차와 판정 기록은 그대로 남습니다.
+            <Note title="기존 실행·회차·산출물은 삭제하지 않아요">
+              이후 새 예약 실행만 멈춰요. 이미 끝난 회차와 판정 기록은 그대로 남아요.
             </Note>
             <label className="rs-field" htmlFor="rs-disable-actor">
               <span>끄기 담당자 <em>필수</em></span>

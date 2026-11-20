@@ -216,7 +216,7 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
   if (detail.isError || !item) {
     return (
       <div className="opportunity-empty">
-        <EmptyState compact title="사업기회를 불러오지 못했습니다." tone="error" />
+        <EmptyState compact title="사업기회를 불러오지 못했어요" tone="error" />
         <Button label="다시 불러오기" onClick={() => void detail.refetch()} />
       </div>
     );
@@ -365,9 +365,9 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
               })}
             </ol>
             <p className="opportunity-caption">
-              체크 = <strong>연결 확정</strong> · 분석 완료·입찰 참여 승인은 별도입니다.
+              체크 = <strong>연결 확정</strong> · 분석 완료·입찰 참여 승인은 별도예요.
               {unstagedLinks.length > 0
-                ? ` 단계를 알 수 없는 연결 ${unstagedLinks.length}건은 아래 목록에 있습니다.`
+                ? ` 단계를 알 수 없는 연결 ${unstagedLinks.length}건은 아래 목록에 있어요.`
                 : ""}
             </p>
             {searchTarget ? (
@@ -397,7 +397,7 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
               <p className="opportunity-caption">후보·검색 기록 포함 {visibleLinks.length}건</p>
             </div>
             {visibleLinks.length === 0 ? (
-              <p className="opportunity-caption">저장된 연결이 없습니다. 연결이 없다는 뜻이며 레코드가 없다는 뜻은 아닙니다.</p>
+              <p className="opportunity-caption">저장된 연결이 없어요. 연결이 없다는 뜻이며 레코드가 없다는 뜻은 아니에요.</p>
             ) : (
               <ul className="opportunity-linked-rows">
                 {visibleLinks.map((link) => (
@@ -420,7 +420,7 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
             ) : null}
             {noticesFailed > 0 ? (
               <MutationFeedback tone="warning">
-                연결된 공고 {noticesFailed}건을 읽지 못해 그 공고의 확인 항목은 이 목록에 없습니다. 예외가 없다는 뜻이 아닙니다.
+                연결된 공고 {noticesFailed}건을 읽지 못해 그 공고의 확인 항목은 이 목록에 없어요. 예외가 없다는 뜻이 아니에요.
               </MutationFeedback>
             ) : null}
             {recheckNotice ? (
@@ -436,9 +436,9 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
                     <p><strong>{merge ? "병합 확인" : "연결 후보 확인"} · {stageOfLink(link) ?? linkRecordLabel(link)}</strong></p>
                     <p>
                       {merge
-                        ? "공식 번호로 이어진 레코드가 사람이 고른 추적 상태를 가진 다른 사업기회에 있어 자동으로 병합하지 않았습니다. 원천 정보를 비교한 뒤 수용하면 두 사업기회가 병합됩니다."
-                        : "공식 통합번호 없이 이름 검색으로 발견한 후보입니다. 원천의 사업명과 기관을 비교한 뒤 수용·기각을 선택합니다."}
-                      {" "}화면이 대신 확정하지 않습니다.
+                        ? "공식 번호로 이어진 레코드가 사람이 고른 추적 상태를 가진 다른 사업기회에 있어 자동으로 병합하지 않았어요. 원천 정보를 비교한 뒤 수용하면 두 사업기회가 병합돼요."
+                        : "공식 통합번호 없이 이름 검색으로 발견한 후보예요. 원천의 사업명과 기관을 비교한 뒤 수용·기각을 선택해요."}
+                      {" "}화면이 대신 확정하지 않아요.
                     </p>
                     <p className="opportunity-caption">검색 방식 · {searchStrategyLabel(link.search_strategy)}</p>
                     <div className="opportunity-check-actions">
@@ -455,13 +455,13 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
                 <div>
                   <p><strong>새 공고 재검토</strong></p>
                   <p>
-                    {formatMoment(item.recheck_signal_at)}에 새 공식 레코드가 연결됐습니다. 최종 입찰 참여 판단은 별도의
-                    Go/No-Go 화면에서 검토합니다.
+                    {formatMoment(item.recheck_signal_at)}에 새 공식 레코드가 연결됐어요. 최종 입찰 참여 판단은 별도의
+                    Go/No-Go 화면에서 검토해요.
                   </p>
                   <p className="opportunity-caption">
                     근거 · {signalLink
                       ? `${stageOfLink(signalLink) ?? linkRecordLabel(signalLink)} · ${signalLink.title?.trim() || "제목 미확인"} · ${externalIdOf(signalLink)}`
-                      : "근거 링크를 찾지 못했습니다"}
+                      : "근거 링크를 찾지 못했어요"}
                   </p>
                   <p className="opportunity-caption">신호 시각 · {formatMoment(item.recheck_signal_at)}</p>
                   {signalLink && recordRoute(signalLink) ? (
@@ -472,7 +472,7 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
                     </div>
                   ) : null}
                   <p className="opportunity-caption">
-                    변경 비교 결과 · 계산 대기. 아직 비교 결과가 없습니다.
+                    변경 비교 결과 · 계산 대기. 아직 비교 결과가 없어요.
                   </p>
                   <RecheckAcknowledgement
                     key={`${item.id}:${item.recheck_signal_link_id ?? "none"}`}
@@ -494,8 +494,8 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
                 <div>
                   <p><strong>보류 재검토 · {holdText ?? "보류 기한 지남"}</strong></p>
                   <p>
-                    보류로 저장한 뒤 재검토 기한({formatMoment(item.hold_review_due_at)})이 지났습니다. 보류는 자동으로
-                    풀리지 않으며, 추적 상태를 다시 저장하면 기한이 새로 시작합니다.
+                    보류로 저장한 뒤 재검토 기한({formatMoment(item.hold_review_due_at)})이 지났어요. 보류는 자동으로
+                    풀리지 않으며, 추적 상태를 다시 저장하면 기한이 새로 시작해요.
                   </p>
                   <div className="opportunity-check-actions">
                     <Button label="재검토" onClick={openTracking} size="sm" />
@@ -544,8 +544,8 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
                 <div className="opportunity-search-log" key={`search-${link.id}`}>
                   <p><strong>연결 근거 확인 · {target ? searchTargetLabel(target) : linkRecordLabel(link)}</strong></p>
                   <p>
-                    이름 검색에서 레코드를 찾지 못했습니다. 레코드가 없다는 뜻이 아니며, 이 화면이 만들어 낼 수 있는
-                    연결도 아닙니다.
+                    이름 검색에서 레코드를 찾지 못했어요. 레코드가 없다는 뜻이 아니며, 이 화면이 만들어 낼 수 있는
+                    연결도 아니에요.
                   </p>
                   <p className="opportunity-caption">
                     검색 방식 · {searchStrategyLabel(link.search_strategy)}
@@ -561,9 +561,9 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
             {openIssueCount === 0 && !noticesLoading ? (
               <div className="opportunity-quiet-state">
                 <Check aria-hidden="true" />
-                <p>현재 등록된 재검토 신호와 연결 예외가 없습니다.</p>
+                <p>현재 등록된 재검토 신호와 연결 예외가 없어요.</p>
                 <p className="opportunity-caption">
-                  참여 자격이나 최종 입찰 가능 여부가 확인됐다는 뜻은 아닙니다.
+                  참여 자격이나 최종 입찰 가능 여부가 확인됐다는 뜻은 아니에요.
                 </p>
               </div>
             ) : null}
@@ -579,12 +579,12 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
                     변경 비교 열기 →
                   </Link>
                   <p className="opportunity-caption">
-                    비교 계산은 이 화면이 하지 않습니다. 계산 결과가 없으면 대기로 표시되며 최종 Go/No-Go는 별도 화면입니다.
+                    비교 계산은 이 화면이 하지 않아요. 계산 결과가 없으면 대기로 표시되며 최종 Go/No-Go는 별도 화면이에요.
                   </p>
                 </>
               ) : (
                 <p className="opportunity-caption">
-                  확정된 입찰공고 연결이 없어 변경 비교를 시작할 수 없습니다. 입찰공고가 확정 연결이 된 뒤에 열립니다.
+                  확정된 입찰공고 연결이 없어 변경 비교를 시작할 수 없어요. 입찰공고가 확정 연결이 된 뒤에 열려요.
                 </p>
               )}
             </div>
@@ -601,22 +601,22 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
             {decisions.isPending ? <p className="opportunity-detail-status" role="status">불러오는 중…</p> : null}
             {decisions.isError ? (
               <MutationFeedback tone="warning">
-                추적 이력을 불러오지 못했습니다. 아래는 사업기회에 저장된 현재 추적 값이며 결정 기록 자체가
-                없다는 뜻이 아닙니다.
+                추적 이력을 불러오지 못했어요. 아래는 사업기회에 저장된 현재 추적 값이며 결정 기록 자체가
+                없다는 뜻이 아니에요.
               </MutationFeedback>
             ) : null}
             {decisions.isSuccess && latestDecision === null ? (
               <p className="opportunity-caption">
-                기록된 추적 결정이 없습니다.
+                기록된 추적 결정이 없어요.
                 {item.tracking_status === "미선택"
-                  ? " 아직 아무도 고르지 않았습니다."
-                  : " 저장된 추적 상태는 있지만 이 화면이 읽는 결정 기록에는 남아 있지 않습니다."}
+                  ? " 아직 아무도 고르지 않았어요."
+                  : " 저장된 추적 상태는 있지만 이 화면이 읽는 결정 기록에는 남아 있지 않아요."}
               </p>
             ) : null}
             <dl className="opportunity-decision-facts">
               <div>
                 <dt>선택 사유</dt>
-                <dd>{latestDecision?.reason?.trim() || item.tracking_reason?.trim() || (item.tracking_status === "미선택" ? "아직 선택하지 않았습니다" : "선택 사유 미확인")}</dd>
+                <dd>{latestDecision?.reason?.trim() || item.tracking_reason?.trim() || (item.tracking_status === "미선택" ? "아직 선택하지 않았어요" : "선택 사유 미확인")}</dd>
               </div>
               <div>
                 <dt>결정 기록자</dt>
@@ -634,11 +634,11 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
             <div className="opportunity-decision-actions">
               <TrackingResetControl
                 currentStatus={item.tracking_status}
-                onReset={() => onSaved("추적 결정을 미선택으로 되돌렸습니다.")}
+                onReset={() => onSaved("추적 결정을 미선택으로 되돌렸어요.")}
                 opportunityId={item.id}
               />
             </div>
-            <p className="opportunity-caption">결정 기록자는 감사 표식이며 담당자 지정이나 신원 인증이 아닙니다.</p>
+            <p className="opportunity-caption">결정 기록자는 감사 표식이며 담당자 지정이나 신원 인증이 아니에요.</p>
           </section>
 
           {decisions.isSuccess ? (
@@ -649,9 +649,9 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
                   결정 {decisions.data.items.length}건 · 재검토 신호 {decisions.data.recheck_events?.length ?? 0}건
                 </p>
               </div>
-              <p className="opportunity-caption">결정 기록과 재검토 신호 기록을 시간순(최신이 위)으로 함께 보여줍니다.</p>
+              <p className="opportunity-caption">결정 기록과 재검토 신호 기록을 시간순(최신이 위)으로 함께 보여줘요.</p>
               {decisions.data.items.length + (decisions.data.recheck_events?.length ?? 0) === 0 ? (
-                <p className="opportunity-caption">기록된 이력이 없습니다.</p>
+                <p className="opportunity-caption">기록된 이력이 없어요.</p>
               ) : (
                 <TrackingHistory
                   decisions={decisions.data.items}
@@ -682,7 +682,7 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
             <Button icon={<ChevronRight />} label={action.label} onClick={action.run} size="sm" variant="primary" />
           </div>
         </div>
-        <p className="opportunity-caption">추적 선택과 최종 입찰 Go/No-Go는 별도의 결정입니다.</p>
+        <p className="opportunity-caption">추적 선택과 최종 입찰 Go/No-Go는 별도의 결정이에요.</p>
       </footer>
 
       <TrackingStatusDialog

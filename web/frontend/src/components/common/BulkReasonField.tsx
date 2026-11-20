@@ -58,8 +58,8 @@ export function bulkReasonError(draft: BulkReasonDraft, requiredMessage: string)
   if (draft.choice === null) return requiredMessage;
   if (draft.choice !== OTHER_CHOICE) return null;
   const text = draft.other.trim();
-  if (!text) return "사유를 직접 입력하십시오.";
-  if ([...text].length > BULK_REASON_MAX_LENGTH) return "사유는 2,000자 이하여야 합니다.";
+  if (!text) return "사유를 직접 입력해 주세요.";
+  if ([...text].length > BULK_REASON_MAX_LENGTH) return "사유는 2,000자 이하여야 해요.";
   return null;
 }
 

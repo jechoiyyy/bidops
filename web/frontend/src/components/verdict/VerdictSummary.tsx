@@ -67,7 +67,7 @@ export function VerdictSummary({ result }: { result: VerdictResult }) {
       <section aria-labelledby="vd-actions-title" className="rec-side-block" data-testid="verdict-next-actions">
         <h3 className="rec-side-title" id="vd-actions-title">{TERM_SENSE.verdictNextAction}</h3>
         {result.next_actions.length === 0 ? (
-          <p className="rec-side-note">{TERM_SENSE.verdictNextAction}이 없습니다.</p>
+          <p className="rec-side-note">{TERM_SENSE.verdictNextAction}이 없어요.</p>
         ) : (
           <ul className="rec-next-list">
             {result.next_actions.map((action, index) => {

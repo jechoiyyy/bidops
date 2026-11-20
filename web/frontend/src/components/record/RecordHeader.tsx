@@ -79,7 +79,7 @@ interface RecordHeaderProps {
   proposal: RecordProposalActions;
 }
 
-const FOLLOW_UP_REASON = "후속 기능입니다";
+const FOLLOW_UP_REASON = "후속 기능이에요";
 
 export function RecordHeader({ title, menu, verdict, proposal }: RecordHeaderProps) {
   const trackingItems = [
@@ -205,7 +205,7 @@ export function RecordHeader({ title, menu, verdict, proposal }: RecordHeaderPro
         ) : (
           <>
             {/* 판정 결과가 없으면 열 수 없다. 이유는 title(마우스)과 숨은 설명(낭독기) 둘 다로 준다. */}
-            <span className="rec-action-hint" title={verdict.hasResult ? undefined : "아직 판정이 없습니다"}>
+            <span className="rec-action-hint" title={verdict.hasResult ? undefined : "아직 판정이 없어요"}>
               <Button
                 aria-describedby={verdict.hasResult ? undefined : "rec-verdict-hint"}
                 isDisabled={!verdict.hasResult}
@@ -214,7 +214,7 @@ export function RecordHeader({ title, menu, verdict, proposal }: RecordHeaderPro
                 size="sm"
                 variant="primary"
               />
-              {verdict.hasResult ? null : <span className="visually-hidden" id="rec-verdict-hint">아직 판정이 없습니다</span>}
+              {verdict.hasResult ? null : <span className="visually-hidden" id="rec-verdict-hint">아직 판정이 없어요</span>}
             </span>
             <span className="rec-action-hint" title={verdict.proposalBlockedReason ?? undefined}>
               <Button

@@ -160,26 +160,26 @@ export function validateListSelection<Id extends ListSelectionId = ListSelection
   options: ListSelectionValidationOptions<Id, Metadata> = {},
 ): ListSelectionValidationResult<Id, Metadata> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return invalidState("저장된 목록 선택 상태가 객체가 아닙니다.");
+    return invalidState("저장된 목록 선택 상태가 객체가 아니에요.");
   }
   const record = value as Record<string, unknown>;
   if (record.version !== LIST_SELECTION_VERSION) {
-    return invalidState("저장된 목록 선택 상태의 버전이 현재 화면과 다릅니다.");
+    return invalidState("저장된 목록 선택 상태의 버전이 현재 화면과 달라요.");
   }
   if (typeof record.filterFingerprint !== "string") {
-    return invalidState("저장된 목록 선택 상태에 필터 지문이 없습니다.");
+    return invalidState("저장된 목록 선택 상태에 필터 지문이 없어요.");
   }
   if (!Number.isSafeInteger(record.selectionGeneration) || (record.selectionGeneration as number) < 0) {
-    return invalidState("저장된 목록 선택 상태의 세대 값이 올바르지 않습니다.");
+    return invalidState("저장된 목록 선택 상태의 세대 값이 올바르지 않아요.");
   }
   if (!Array.isArray(record.selectedIds)) {
-    return invalidState("저장된 목록 선택 상태의 ID 목록이 올바르지 않습니다.");
+    return invalidState("저장된 목록 선택 상태의 ID 목록이 올바르지 않아요.");
   }
   if (typeof record.selectedSortMetadata !== "object" || record.selectedSortMetadata === null || Array.isArray(record.selectedSortMetadata)) {
-    return invalidState("저장된 목록 선택 상태의 정렬 메타데이터가 올바르지 않습니다.");
+    return invalidState("저장된 목록 선택 상태의 정렬 메타데이터가 올바르지 않아요.");
   }
   if (typeof record.listSearch !== "string") {
-    return invalidState("저장된 목록 선택 상태의 목록 검색어가 올바르지 않습니다.");
+    return invalidState("저장된 목록 선택 상태의 목록 검색어가 올바르지 않아요.");
   }
   const activeId: Id | null = record.activeId === null
     ? null
@@ -187,16 +187,16 @@ export function validateListSelection<Id extends ListSelectionId = ListSelection
       ? record.activeId
       : null;
   if (record.activeId !== null && activeId === null) {
-    return invalidState("저장된 목록 선택 상태의 활성 ID가 올바르지 않습니다.");
+    return invalidState("저장된 목록 선택 상태의 활성 ID가 올바르지 않아요.");
   }
   if (typeof record.listScrollTop !== "number" || !Number.isFinite(record.listScrollTop) || record.listScrollTop < 0) {
-    return invalidState("저장된 목록 선택 상태의 목록 스크롤 위치가 올바르지 않습니다.");
+    return invalidState("저장된 목록 선택 상태의 목록 스크롤 위치가 올바르지 않아요.");
   }
 
   const selectedIds: Id[] = [];
   const seen = new Set<Id>();
   for (const id of record.selectedIds) {
-    if (!isSelectionIdOf<Id>(id)) return invalidState("저장된 목록 선택 상태에 올바르지 않은 ID가 있습니다.");
+    if (!isSelectionIdOf<Id>(id)) return invalidState("저장된 목록 선택 상태에 올바르지 않은 ID가 있어요.");
     if (!seen.has(id)) {
       seen.add(id);
       selectedIds.push(id);
@@ -210,13 +210,13 @@ export function validateListSelection<Id extends ListSelectionId = ListSelection
     if (!(key in metadata)) continue;
     const entry = metadata[key];
     if (isTimestampMetadata(entry) && !isPreSpecSelectionSortMetadata(entry)) {
-      return invalidState("저장된 목록 선택 상태의 사전규격 정렬 시각이 올바르지 않습니다.");
+      return invalidState("저장된 목록 선택 상태의 사전규격 정렬 시각이 올바르지 않아요.");
     }
     if (isPreSpecSelectionSortMetadata(entry) && entry.id !== id) {
-      return invalidState("저장된 목록 선택 상태의 정렬 메타데이터 ID가 선택 ID와 다릅니다.");
+      return invalidState("저장된 목록 선택 상태의 정렬 메타데이터 ID가 선택 ID와 달라요.");
     }
     if (options.isValidMetadata && !options.isValidMetadata(entry, id)) {
-      return invalidState("저장된 목록 선택 상태의 정렬 메타데이터가 올바르지 않습니다.");
+      return invalidState("저장된 목록 선택 상태의 정렬 메타데이터가 올바르지 않아요.");
     }
     selectedSortMetadata[key] = entry as Metadata;
   }
@@ -254,7 +254,7 @@ export function readListSelection<Id extends ListSelectionId = ListSelectionId, 
     return {
       state: null,
       status: "unavailable",
-      error: { code: "storage_unavailable", message: "이 탭의 목록 선택 저장소를 사용할 수 없습니다." },
+      error: { code: "storage_unavailable", message: "이 탭의 목록 선택 저장소를 사용할 수 없어요." },
     };
   }
   let raw: string | null;
@@ -264,7 +264,7 @@ export function readListSelection<Id extends ListSelectionId = ListSelectionId, 
     return {
       state: null,
       status: "error",
-      error: { code: "storage_read_failed", message: "이 탭의 목록 선택 상태를 읽지 못했습니다." },
+      error: { code: "storage_read_failed", message: "이 탭의 목록 선택 상태를 읽지 못했어요." },
     };
   }
   if (raw === null) return { state: null, status: "missing", error: null };
@@ -275,7 +275,7 @@ export function readListSelection<Id extends ListSelectionId = ListSelectionId, 
     return {
       state: null,
       status: "invalid",
-      error: { code: "invalid_state", message: "저장된 목록 선택 상태의 JSON이 손상되었습니다." },
+      error: { code: "invalid_state", message: "저장된 목록 선택 상태의 JSON이 손상되었어요." },
     };
   }
   const result = validateListSelection(decoded, options);
@@ -292,12 +292,12 @@ export function writeListSelection<Id extends ListSelectionId, Metadata>(
   if (!storage) {
     return {
       ok: false,
-      error: { code: "storage_unavailable", message: "이 탭의 목록 선택 저장소를 사용할 수 없어 복원 상태를 저장하지 못했습니다." },
+      error: { code: "storage_unavailable", message: "이 탭의 목록 선택 저장소를 사용할 수 없어 복원 상태를 저장하지 못했어요." },
     };
   }
   const validation = validateListSelection<Id, Metadata>(state);
   if (validation.error || !validation.state) {
-    return { ok: false, error: validation.error ?? { code: "invalid_state", message: "목록 선택 상태를 저장할 수 없습니다." } };
+    return { ok: false, error: validation.error ?? { code: "invalid_state", message: "목록 선택 상태를 저장할 수 없어요." } };
   }
   try {
     storage.setItem(key, JSON.stringify(validation.state));
@@ -305,7 +305,7 @@ export function writeListSelection<Id extends ListSelectionId, Metadata>(
   } catch {
     return {
       ok: false,
-      error: { code: "storage_write_failed", message: "이 탭의 목록 선택 상태를 저장하지 못했습니다. 새로고침 복원을 제공할 수 없습니다." },
+      error: { code: "storage_write_failed", message: "이 탭의 목록 선택 상태를 저장하지 못했어요. 새로고침 복원을 제공할 수 없어요." },
     };
   }
 }
@@ -654,21 +654,21 @@ export function normalizeTimestamp(value: string | null | undefined): bigint | n
 
 function compareNullableTimestamp(left: string | null | undefined, right: string | null | undefined, direction: 1 | -1): number {
   if (left === undefined || right === undefined) {
-    throw new Error("사전규격 정렬 메타데이터에 timestamp 필드가 없습니다.");
+    throw new Error("사전규격 정렬 메타데이터에 timestamp 필드가 없어요.");
   }
   const leftValue = normalizeTimestamp(left);
   const rightValue = normalizeTimestamp(right);
   if (left !== null && leftValue === null) {
-    throw new Error(`사전규격 정렬 메타데이터의 timestamp가 올바르지 않습니다: ${left}`);
+    throw new Error(`사전규격 정렬 메타데이터의 timestamp가 올바르지 않아요: ${left}`);
   }
   if (right !== null && rightValue === null) {
-    throw new Error(`사전규격 정렬 메타데이터의 timestamp가 올바르지 않습니다: ${right}`);
+    throw new Error(`사전규격 정렬 메타데이터의 timestamp가 올바르지 않아요: ${right}`);
   }
   if (left === null && right === null) return 0;
   if (left === null) return 1;
   if (right === null) return -1;
   if (leftValue === null || rightValue === null) {
-    throw new Error("사전규격 정렬 메타데이터의 timestamp를 확인할 수 없습니다.");
+    throw new Error("사전규격 정렬 메타데이터의 timestamp를 확인할 수 없어요.");
   }
   if (leftValue === rightValue) return 0;
   return leftValue < rightValue ? -direction : direction;
@@ -679,7 +679,7 @@ function compareDeadlineTimestamp(left: string | null, right: string | null): nu
   const leftValue = normalizeTimestamp(left);
   const rightValue = normalizeTimestamp(right);
   if (leftValue === null || rightValue === null) {
-    throw new Error("사전규격 정렬 메타데이터의 마감 timestamp를 확인할 수 없습니다.");
+    throw new Error("사전규격 정렬 메타데이터의 마감 timestamp를 확인할 수 없어요.");
   }
   const now = BigInt(Date.now()) * 1_000n;
   const leftPassed = leftValue < now;
@@ -698,7 +698,7 @@ export function comparePreSpecMetadata(
   sort: "published" | "deadline" | "observed",
 ): number {
   if (!isPreSpecSelectionSortMetadata(left) || !isPreSpecSelectionSortMetadata(right)) {
-    throw new Error("사전규격 정렬 메타데이터가 올바르지 않습니다.");
+    throw new Error("사전규격 정렬 메타데이터가 올바르지 않아요.");
   }
   const timestampResult = sort === "published"
     ? compareNullableTimestamp(left.published_at, right.published_at, -1)
@@ -722,7 +722,7 @@ export function sortPreSpecMetadata(
 ): PreSpecSelectionSortMetadata[] {
   for (const item of items) {
     if (!isPreSpecSelectionSortMetadata(item)) {
-      throw new Error("사전규격 정렬 메타데이터가 올바르지 않습니다.");
+      throw new Error("사전규격 정렬 메타데이터가 올바르지 않아요.");
     }
   }
   return items

@@ -25,7 +25,7 @@ export function CompanyHeader({ companyId, screen }: { companyId: Uuid; screen: 
   if (companyQuery.isPending) {
     return (
       <header className="cw-company-header" aria-busy="true" aria-label="선택한 회사" data-company-id={companyId} data-testid="company-header">
-        <p role="status">회사 정보를 불러오는 중입니다.</p>
+        <p role="status">회사 정보를 불러오는 중이에요.</p>
       </header>
     );
   }
@@ -33,8 +33,8 @@ export function CompanyHeader({ companyId, screen }: { companyId: Uuid; screen: 
     return (
       <EmptyState
         tone="error"
-        title="회사 정보를 확인할 수 없습니다."
-        problem={describeCompanyApiError(companyQuery.error, "회사 정보를 불러오지 못했습니다.")}
+        title="회사 정보를 확인할 수 없어요"
+        problem={describeCompanyApiError(companyQuery.error, "회사 정보를 불러오지 못했어요.")}
         action={{ label: "회사 다시 고르기", to: "/companies" }}
       />
     );

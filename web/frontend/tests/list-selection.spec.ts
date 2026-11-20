@@ -474,7 +474,7 @@ test("PN-S5 selection review keeps storage denial separate from ID generation", 
 
   expect(outcome.ok).toBe(false);
   if (outcome.ok) throw new Error("storage denial unexpectedly succeeded");
-  expect(outcome.error).toContain("저장하지 못했습니다");
+  expect(outcome.error).toContain("저장하지 못했어요");
   expect(outcome.error).not.toContain("보안 난수");
   expect(storage.setCalls).toBe(1);
 });

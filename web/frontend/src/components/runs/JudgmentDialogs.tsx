@@ -111,7 +111,7 @@ export function JudgmentStartDialog({
         />
         {discardOpen ? (
           <>
-            <Text as="p">아직 요청하지 않은 담당자 입력이 있습니다. 닫으면 입력한 이름이 사라집니다.</Text>
+            <Text as="p">아직 요청하지 않은 담당자 입력이 있어요. 닫으면 입력한 이름이 사라져요.</Text>
             <div className="rs-dialog-actions">
               <Button label="계속 작성" onClick={() => setDiscardOpen(false)} />
               <Button label="입력 버리고 닫기" onClick={() => { setDiscardOpen(false); onActorChange(""); onClose(); }} />
@@ -122,7 +122,7 @@ export function JudgmentStartDialog({
             <div className="rs-dialog-scroll">
               <Caption>
                 원본 회차 <span className="rs-mono">{runId}</span>의 후보를 고정된 정책·프로필 조합으로 판정하고
-                새 파생 회차로 게시합니다. 원본 회차의 수집·기존 판정은 덮어쓰지 않습니다.
+                새 파생 회차로 게시해요. 원본 회차의 수집·기존 판정은 덮어쓰지 않아요.
               </Caption>
 
               <div className="rs-form-grid">
@@ -168,23 +168,23 @@ export function JudgmentStartDialog({
                   disabled={startBusy}
                   required
                 />
-                <small>실행·중지 감사 기록에 사용됩니다. 인증이나 권한을 대신하지 않습니다.</small>
+                <small>실행·중지 감사 기록에 사용돼요. 인증이나 권한을 대신하지 않아요.</small>
               </label>
 
               {policiesLoading || profilesLoading ? (
-                <Caption>정책과 프로필 사본을 불러오는 중입니다.</Caption>
+                <Caption>정책과 프로필 사본을 불러오는 중이에요.</Caption>
               ) : null}
               {configurationBroken ? (
                 <div className="rs-inline-error" role="alert">
-                  <Text as="span">판정 실행 설정을 불러오지 못했습니다.</Text>
+                  <Text as="span">판정 실행 설정을 불러오지 못했어요.</Text>
                   <Button label="다시 시도" size="sm" onClick={onRetryConfiguration} />
                 </div>
               ) : null}
               {!configurationBroken && !policiesLoading && !profilesLoading && (policies.length === 0 || profileSnapshots.length === 0) ? (
-                <Note title="실행 가능한 설정이 없습니다" tone="warning">
+                <Note title="실행 가능한 설정이 없어요" tone="warning">
                   {policies.length === 0
-                    ? "activation candidate 또는 active 정책이 필요합니다."
-                    : "사용할 수 있는 프로필 사본이 필요합니다."}
+                    ? "activation candidate 또는 active 정책이 필요해요."
+                    : "사용할 수 있는 프로필 사본이 필요해요."}
                 </Note>
               ) : null}
 
@@ -202,17 +202,17 @@ export function JudgmentStartDialog({
                 />
               ) : null}
 
-              <Note title="이 실행의 입력은 요청 시점에 고정됩니다">
-                이후 판정 기준이 바뀌어도 이미 시작한 실행에 소급 적용하지 않습니다.
+              <Note title="이 실행의 입력은 요청 시점에 고정돼요">
+                이후 판정 기준이 바뀌어도 이미 시작한 실행에 소급 적용하지 않아요.
               </Note>
               {executionBusy ? (
-                <Note title="이미 진행 중인 전량 판정 실행이 있습니다" tone="warning">
-                  진행 중인 실행이 종결된 뒤에 새 실행을 요청할 수 있습니다.
+                <Note title="이미 진행 중인 전량 판정 실행이 있어요" tone="warning">
+                  진행 중인 실행이 종결된 뒤에 새 실행을 요청할 수 있어요.
                 </Note>
               ) : null}
               {!listReady ? (
-                <Note title="현재 회차의 판정 실행 목록을 확인하는 중입니다" tone="warning">
-                  목록을 확인하기 전에는 중복 실행을 막을 수 없어 요청하지 않습니다.
+                <Note title="현재 회차의 판정 실행 목록을 확인하는 중이에요" tone="warning">
+                  목록을 확인하기 전에는 중복 실행을 막을 수 없어 요청하지 않아요.
                 </Note>
               ) : null}
               {actionError ? <Text className="rs-dialog-error" as="p" role="alert">{actionError}</Text> : null}
@@ -285,13 +285,13 @@ export function JudgmentStopDialog({
               ]}
             />
           ) : (
-            <Note title="중지할 실행을 확인할 수 없습니다" tone="warning">
+            <Note title="중지할 실행을 확인할 수 없어요" tone="warning">
               실행 목록을 다시 확인한 뒤 요청해 주세요.
             </Note>
           )}
-          <Note title="협력적으로 중지합니다" tone="warning">
-            현재 모델 호출이 끝나면 다음 공고를 시작하지 않고 <strong>중단됨</strong>으로 남습니다. 이미 완료된
-            결과와 실패 기록은 삭제되지 않으며 자동으로 다시 시작하지 않습니다.
+          <Note title="협력적으로 중지해요" tone="warning">
+            현재 모델 호출이 끝나면 다음 공고를 시작하지 않고 <strong>중단됨</strong>으로 남아요. 이미 완료된
+            결과와 실패 기록은 삭제되지 않으며 자동으로 다시 시작하지 않아요.
           </Note>
           <label className="rs-field">
             <span>중지 담당자 <em>필수</em></span>
@@ -303,11 +303,11 @@ export function JudgmentStopDialog({
               disabled={stopBusy}
               required
             />
-            <small>중지 요청 감사 기록에 남는 이름입니다.</small>
+            <small>중지 요청 감사 기록에 남는 이름이에요.</small>
           </label>
           {terminalOrStopping && target ? (
-            <Note title="이 실행은 더 이상 중지할 수 없습니다">
-              이미 종결됐거나 중지 요청이 기록된 실행입니다. 상태를 되돌리지 않습니다.
+            <Note title="이 실행은 더 이상 중지할 수 없어요">
+              이미 종결됐거나 중지 요청이 기록된 실행이에요. 상태를 되돌리지 않아요.
             </Note>
           ) : null}
           {actionError ? <Text className="rs-dialog-error" as="p" role="alert">{actionError}</Text> : null}

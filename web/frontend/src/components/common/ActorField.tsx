@@ -9,18 +9,24 @@ import { useEffect, useId, useRef, useSyncExternalStore, type InputHTMLAttribute
  * localStorage 하나이며 서버로 따로 보내지 않는다.
  */
 const ACTOR_STORAGE_KEY = "bidops.actorName";
-const REMEMBER_NOTE = "이 브라우저에 기억됩니다 · 로그인이나 신원 인증이 아닙니다.";
+const REMEMBER_NOTE = "이 브라우저에 기억돼요 · 로그인이나 신원 인증이 아니에요.";
 
 /** private mode나 storage 차단에서 접근 자체가 throw한다. 실패는 조용히 무시한다. */
 export function readRememberedActorName(): string {
   return readRememberedActor();
 }
 
+/**
+ * 저장소에 닿을 수 없을 때(private mode·차단) 이 탭에서만 쓰는 이름. 화면을 새로 열면 사라진다.
+ * 이름을 지어내지 않는다 — 사람이 사이드바 담당자 칸에 적은 값만 들어간다.
+ */
+let tabOnlyActor = "";
+
 function readRememberedActor(): string {
   try {
     return window.localStorage.getItem(ACTOR_STORAGE_KEY) ?? "";
   } catch {
-    return "";
+    return tabOnlyActor;
   }
 }
 
@@ -28,6 +34,7 @@ function readRememberedActor(): string {
 const ACTOR_CHANGE_EVENT = "bidops:actor-name";
 
 function rememberActor(value: string): void {
+  tabOnlyActor = value;
   try {
     if (value.trim()) window.localStorage.setItem(ACTOR_STORAGE_KEY, value);
     else window.localStorage.removeItem(ACTOR_STORAGE_KEY);
@@ -35,6 +42,16 @@ function rememberActor(value: string): void {
     // 기억하지 못해도 입력 자체는 계속 동작해야 한다.
   }
   window.dispatchEvent(new Event(ACTOR_CHANGE_EVENT));
+}
+
+/**
+ * 사이드바 담당자 칸을 열어 달라는 요청(2026-11-20). 이름이 필요한 화면은 본문에 입력 칸을 두지 않고
+ * 이 요청으로 사이드바 칸을 열어 초점을 옮긴다. 사이드바(`SidebarActor`)만 듣는다.
+ */
+export const OPEN_ACTOR_EVENT = "bidops:open-actor";
+
+export function requestActorInput(): void {
+  window.dispatchEvent(new Event(OPEN_ACTOR_EVENT));
 }
 
 /** 이 브라우저에 기억된 담당자 이름을 바꾼다(사이드바 담당자 칸). 빈 값이면 지운다. */
@@ -75,7 +92,7 @@ interface ActorFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "o
 
 /** 담당자가 스스로 적는 이름이며 감사 표식일 뿐 로그인·신원 인증·권한이 아니다. */
 export function ActorField({
-  description = "감사 귀속용 이름이며 로그인·신원 인증·권한 부여가 아닙니다.",
+  description = "감사 귀속용 이름이며 로그인·신원 인증·권한 부여가 아니에요.",
   id,
   label = "담당자 이름",
   maxLength = 128,

@@ -23,16 +23,16 @@ export function OrderPlanScopeDialogBody({
     <div className="c2l-dialog-body">
       <Text type="body" color="secondary" as="p">
         {isCumulative
-          ? "1차 선별 신호와 모델 판단 신호를 분리해, 운영 실행 결과를 발주계획마다 최신 1건씩 누적해 검토합니다."
-          : "1차 선별 신호와 모델 판단 신호를 분리해 선택한 회차의 완료된 실행을 검토합니다."} 모델 판단은 추적 선택·적합성 등급·참여 준비·최종 Go/No-Go가 아닙니다.
+          ? "1차 선별 신호와 모델 판단 신호를 분리해, 운영 실행 결과를 발주계획마다 최신 1건씩 누적해 검토해요."
+          : "1차 선별 신호와 모델 판단 신호를 분리해 선택한 회차의 완료된 실행을 검토해요."} 모델 판단은 추적 선택·적합성 등급·참여 준비·최종 Go/No-Go가 아니에요.
       </Text>
       <Text type="supporting" color="secondary" as="p">
         <b>모델 미판정(순위 밖)</b>은 1차 선별 순위가 모델 판정 범위 밖이라 판정하지 않은 것, <b>비관련</b>은 모델 판단, <b>모델 상태 미확인</b>은 정보 부족,
-        {" "}<b>값 없음</b>은 판정이 없거나 적용되지 않은 것이며 서로 바꾸지 않습니다.
+        {" "}<b>값 없음</b>은 판정이 없거나 적용되지 않은 것이며 서로 바꾸지 않아요.
       </Text>
       {/* 기본 화면의 결정 줄에서 뺀 문장. 뜻은 그대로 남기고 자리만 옮겼다. */}
       <Text type="supporting" color="secondary" as="p">
-        미선택은 추적 종료가 아닙니다. 추적 선택은 추적 상태만 기록하며 모델 판단·적합성 등급·참여 준비 상태·최종 Go/No-Go를 바꾸지 않습니다.
+        미선택은 추적 종료가 아니에요. 추적 선택은 추적 상태만 기록하며 모델 판단·적합성 등급·참여 준비 상태·최종 Go/No-Go를 바꾸지 않아요.
       </Text>
       {listScope !== undefined ? (
         <Text type="supporting" color="secondary" as="p">목록 범위 · {scopeLabel(listScope, runLabel)}</Text>

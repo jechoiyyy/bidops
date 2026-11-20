@@ -102,45 +102,45 @@ interface BulkDialogCopy {
 const COPY: Record<OrderPlanBulkTrackingMode, BulkDialogCopy> = {
   start: {
     dialogTitle: "선택한 발주계획 추적 시작",
-    rule: "미선택 상태인 계획만 계속 추적으로 저장합니다. 이미 결정된 상태와 소유권을 확인할 수 없는 항목은 바꾸지 않습니다.",
+    rule: "미선택 상태인 계획만 계속 추적으로 저장해요. 이미 결정된 상태와 소유권을 확인할 수 없는 항목은 바꾸지 않아요.",
     summaryVerb: "추적 시작",
     saveVerb: "추적 시작",
     reasonLabel: "추적 사유 (필수)",
     reasonOptions: TRACKING_REASONS,
-    reasonRequiredError: "추적 사유를 선택하십시오.",
+    reasonRequiredError: "추적 사유를 선택해 주세요.",
     eligibleLabel: "미선택 · 실행 가능",
-    cannotStartMessage: "일괄 추적을 시작할 수 없습니다. 선택 저장소를 사용할 수 없어 단건 추적 경로를 사용하십시오.",
-    storageUnavailableTitle: "일괄 추적을 사용할 수 없습니다.",
-    writeErrorSuffix: "일괄 추적을 보내지 않았습니다. 단건 추적 경로를 사용하십시오.",
+    cannotStartMessage: "일괄 추적을 시작할 수 없어요. 선택 저장소를 사용할 수 없어 단건 추적 경로를 사용해 주세요.",
+    storageUnavailableTitle: "일괄 추적을 사용할 수 없어요.",
+    writeErrorSuffix: "일괄 추적을 보내지 않았어요. 단건 추적 경로를 사용해 주세요.",
     pendingHeading: "일괄 추적 저장 중",
-    unknownFallbackTitle: "일괄 추적 결과를 확인할 수 없습니다.",
-    resultHeading: "일괄 추적 결과를 확인했습니다.",
+    unknownFallbackTitle: "일괄 추적 결과를 확인할 수 없어요.",
+    resultHeading: "일괄 추적 결과를 확인했어요.",
     resultExtraNote: null,
     failuresAriaLabel: "일괄 추적 실패 항목",
-    errorFallbackDescription: "일괄 추적 작업을 완료하지 못했습니다.",
+    errorFallbackDescription: "일괄 추적 작업을 완료하지 못했어요.",
     endWarning: null,
     overSelectionMessage: "",
   },
   end: {
     dialogTitle: "선택한 발주계획 추적 종료",
-    rule: "추적을 아직 정하지 않은 계획만 추적 종료로 저장합니다. 이미 결정된 상태와 소유권을 확인할 수 없는 항목은 바꾸지 않습니다.",
+    rule: "추적을 아직 정하지 않은 계획만 추적 종료로 저장해요. 이미 결정된 상태와 소유권을 확인할 수 없는 항목은 바꾸지 않아요.",
     summaryVerb: "종료",
     saveVerb: "추적 종료",
     reasonLabel: "종료 사유 (필수)",
     reasonOptions: BULK_EXCLUSION_REASONS,
-    reasonRequiredError: "종료 사유를 선택하십시오.",
+    reasonRequiredError: "종료 사유를 선택해 주세요.",
     eligibleLabel: "미선택 · 종료 가능",
-    cannotStartMessage: "일괄 추적 종료를 시작할 수 없습니다. 선택 저장소를 사용할 수 없어 단건 추적 경로를 사용하십시오.",
-    storageUnavailableTitle: "일괄 추적 종료를 사용할 수 없습니다.",
-    writeErrorSuffix: "일괄 추적 종료를 보내지 않았습니다. 단건 추적 경로를 사용하십시오.",
+    cannotStartMessage: "일괄 추적 종료를 시작할 수 없어요. 선택 저장소를 사용할 수 없어 단건 추적 경로를 사용해 주세요.",
+    storageUnavailableTitle: "일괄 추적 종료를 사용할 수 없어요.",
+    writeErrorSuffix: "일괄 추적 종료를 보내지 않았어요. 단건 추적 경로를 사용해 주세요.",
     pendingHeading: "일괄 추적 종료 저장 중",
-    unknownFallbackTitle: "일괄 추적 종료 결과를 확인할 수 없습니다.",
-    resultHeading: "일괄 추적 종료 결과를 확인했습니다.",
-    resultExtraNote: "종료한 건은 추적 필터 '종료'와 사업 추적의 '추적 종료' 구역에서 볼 수 있습니다.",
+    unknownFallbackTitle: "일괄 추적 종료 결과를 확인할 수 없어요.",
+    resultHeading: "일괄 추적 종료 결과를 확인했어요.",
+    resultExtraNote: "종료한 건은 추적 필터 '종료'와 사업 추적의 '추적 종료' 구역에서 볼 수 있어요.",
     failuresAriaLabel: "일괄 추적 종료 실패 항목",
-    errorFallbackDescription: "일괄 추적 종료 작업을 완료하지 못했습니다.",
-    endWarning: "종료한 계획은 관련·불확실 보기에서 사라집니다. 추적 필터 '종료'에서 한 건씩 되돌릴 수 있습니다.",
-    overSelectionMessage: `한 번에 ${ORDER_PLAN_BULK_END_MAX_SELECTION}건까지 종료할 수 있습니다. 선택을 줄이십시오.`,
+    errorFallbackDescription: "일괄 추적 종료 작업을 완료하지 못했어요.",
+    endWarning: "종료한 계획은 관련·불확실 보기에서 사라져요. 추적 필터 '종료'에서 한 건씩 되돌릴 수 있어요.",
+    overSelectionMessage: `한 번에 ${ORDER_PLAN_BULK_END_MAX_SELECTION}건까지 종료할 수 있어요. 선택을 줄여 주세요.`,
   },
 };
 
@@ -152,11 +152,11 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 /** Backend human-name validation mirrored only for preflight UX. */
 function validateActor(value: string): string | null {
   const clean = value.trim();
-  if (!clean) return "담당자 이름을 입력하십시오.";
-  if ([...clean].length > 128) return "담당자 이름은 128자 이하여야 합니다.";
+  if (!clean) return "담당자 이름을 입력해 주세요.";
+  if ([...clean].length > 128) return "담당자 이름은 128자 이하여야 해요.";
   // C0, DEL, and C1 controls are rejected by the tracking service.
-  if (/[\u0000-\u001f\u007f-\u009f]/u.test(clean)) return "담당자 이름에 제어 문자를 넣을 수 없습니다.";
-  if (/^system$/iu.test(clean)) return "담당자 이름으로 system을 사용할 수 없습니다.";
+  if (/[\u0000-\u001f\u007f-\u009f]/u.test(clean)) return "담당자 이름에 제어 문자를 넣을 수 없어요.";
+  if (/^system$/iu.test(clean)) return "담당자 이름으로 system을 사용할 수 없어요.";
   return null;
 }
 
@@ -215,17 +215,17 @@ function readLegacyPendingV1(storage: StorageLike): { value: PendingBulkRequest 
   try {
     legacyRaw = storage.getItem(LEGACY_PENDING_STORAGE_KEY_V1);
   } catch {
-    return { value: null, error: "이 탭의 일괄 요청 저장소를 읽지 못했습니다." };
+    return { value: null, error: "이 탭의 일괄 요청 저장소를 읽지 못했어요." };
   }
   if (legacyRaw === null) return { value: null, error: null };
   let legacyValue: unknown;
   try {
     legacyValue = JSON.parse(legacyRaw);
   } catch {
-    return { value: null, error: "저장된 일괄 요청을 읽지 못했습니다." };
+    return { value: null, error: "저장된 일괄 요청을 읽지 못했어요." };
   }
   if (!validLegacyPendingV1(legacyValue)) {
-    return { value: null, error: "저장된 일괄 요청 형식이 올바르지 않습니다." };
+    return { value: null, error: "저장된 일괄 요청 형식이 올바르지 않아요." };
   }
   const migrated: PendingBulkRequest = { ...legacyValue, action: "start" };
   const writeError = savePending(migrated);
@@ -240,56 +240,56 @@ function readLegacyPendingV1(storage: StorageLike): { value: PendingBulkRequest 
 
 function readPending(): { value: PendingBulkRequest | null; error: string | null } {
   const storage = getStorage();
-  if (!storage) return { value: null, error: "이 탭의 일괄 요청 저장소를 사용할 수 없습니다." };
+  if (!storage) return { value: null, error: "이 탭의 일괄 요청 저장소를 사용할 수 없어요." };
   let raw: string | null;
   try {
     raw = storage.getItem(PENDING_STORAGE_KEY);
   } catch {
-    return { value: null, error: "이 탭의 일괄 요청 저장소를 읽지 못했습니다." };
+    return { value: null, error: "이 탭의 일괄 요청 저장소를 읽지 못했어요." };
   }
   if (raw === null) return readLegacyPendingV1(storage);
   try {
     const value: unknown = JSON.parse(raw);
     return validPending(value)
       ? { value, error: null }
-      : { value: null, error: "저장된 일괄 요청 형식이 올바르지 않습니다." };
+      : { value: null, error: "저장된 일괄 요청 형식이 올바르지 않아요." };
   } catch {
-    return { value: null, error: "저장된 일괄 요청을 읽지 못했습니다." };
+    return { value: null, error: "저장된 일괄 요청을 읽지 못했어요." };
   }
 }
 
 function savePending(value: PendingBulkRequest): string | null {
   const storage = getStorage();
-  if (!storage) return "이 탭의 일괄 요청 저장소를 사용할 수 없습니다.";
+  if (!storage) return "이 탭의 일괄 요청 저장소를 사용할 수 없어요.";
   try {
     const serialized = JSON.stringify(value);
     storage.setItem(PENDING_STORAGE_KEY, serialized);
     const roundTrip = storage.getItem(PENDING_STORAGE_KEY);
-    if (roundTrip === null) return "일괄 요청 저장 결과를 확인하지 못했습니다.";
+    if (roundTrip === null) return "일괄 요청 저장 결과를 확인하지 못했어요.";
     let decoded: unknown;
     try {
       decoded = JSON.parse(roundTrip);
     } catch {
-      return "일괄 요청 저장 결과가 올바른 JSON이 아닙니다.";
+      return "일괄 요청 저장 결과가 올바른 JSON이 아니에요.";
     }
     if (!validPending(decoded) || JSON.stringify(decoded) !== serialized) {
-      return "일괄 요청 저장 결과가 원래 입력과 일치하지 않습니다.";
+      return "일괄 요청 저장 결과가 원래 입력과 일치하지 않아요.";
     }
     return null;
   } catch {
-    return "일괄 요청을 저장하지 못했습니다. 저장소 용량·보안 설정을 확인하십시오.";
+    return "일괄 요청을 저장하지 못했어요. 저장소 용량·보안 설정을 확인해 주세요.";
   }
 }
 
 function removePending(): string | null {
   const storage = getStorage();
-  if (!storage) return "일괄 요청 저장소를 사용할 수 없습니다.";
+  if (!storage) return "일괄 요청 저장소를 사용할 수 없어요.";
   try {
     storage.removeItem(PENDING_STORAGE_KEY);
-    if (storage.getItem(PENDING_STORAGE_KEY) !== null) return "일괄 요청 정리를 확인하지 못했습니다.";
+    if (storage.getItem(PENDING_STORAGE_KEY) !== null) return "일괄 요청 정리를 확인하지 못했어요.";
     return null;
   } catch {
-    return "완료된 일괄 요청을 정리하지 못했습니다.";
+    return "완료된 일괄 요청을 정리하지 못했어요.";
   }
 }
 
@@ -388,8 +388,8 @@ function unchangedParts(preview: OrderPlanBulkPreviewResponse): string[] {
   return parts;
 }
 
-const ACTOR_DESCRIPTION = "감사 표식이며 로그인·신원 인증이 아닙니다.";
-const SERVER_RECHECK_NOTE = "저장 순간 서버가 최신 상태를 다시 확인하므로 건수가 달라질 수 있습니다.";
+const ACTOR_DESCRIPTION = "감사 표식이며 로그인·신원 인증이 아니에요.";
+const SERVER_RECHECK_NOTE = "저장 순간 서버가 최신 상태를 다시 확인하므로 건수가 달라질 수 있어요.";
 
 export function OrderPlanBulkTrackingDialog({
   open,
@@ -466,15 +466,15 @@ export function OrderPlanBulkTrackingDialog({
   const formPhase = phase === "idle" || phase === "previewing" || phase === "ready";
   /** 저장을 막는 이유. 막히지 않았으면 `null`이고 그 줄을 그리지 않는다. */
   const saveBlocker = phase === "previewing"
-    ? "대상을 확인한 뒤 저장할 수 있습니다."
+    ? "대상을 확인한 뒤 저장할 수 있어요."
     : phase !== "ready" || !preview
-      ? (currentIds.length ? "대상을 확인해야 저장할 수 있습니다." : "선택한 발주계획이 없습니다.")
+      ? (currentIds.length ? "대상을 확인해야 저장할 수 있어요." : "선택한 발주계획이 없어요.")
       : previewContextChanged
-        ? "현재 선택으로 다시 확인한 뒤 저장하십시오."
+        ? "현재 선택으로 다시 확인한 뒤 저장해 주세요."
         : overSelectionLimit
           ? copy.overSelectionMessage
           : reasonError ?? actorError
-            ?? (storageBlocked ? "일괄 요청 저장소를 확인할 수 없어 새 요청을 만들 수 없습니다." : null);
+            ?? (storageBlocked ? "일괄 요청 저장소를 확인할 수 없어 새 요청을 만들 수 없어요." : null);
   const retryContextMatches = request === null
     || (request.selection_generation === selectionGeneration && request.filter_fingerprint === filterFingerprint);
   const canConfirm = phase === "ready" && saveBlocker === null && Boolean(actor) && Boolean(trimmedReason)
@@ -598,7 +598,7 @@ export function OrderPlanBulkTrackingDialog({
           setPreview(null);
           setPreviewBinding(null);
           setPreviewIds(context.ids);
-          setPreviewContextError("목록 조건·선택이 바뀌어 확인한 대상을 버렸습니다. 현재 선택으로 다시 확인하십시오.");
+          setPreviewContextError("목록 조건·선택이 바뀌어 확인한 대상을 버렸어요. 현재 선택으로 다시 확인해 주세요.");
           setPhase("idle");
         }
         return;
@@ -616,7 +616,7 @@ export function OrderPlanBulkTrackingDialog({
         setPreview(null);
         setPreviewBinding(null);
         setPreviewIds(context.ids);
-        setPreviewContextError("목록 조건·선택이 바뀌어 이전 대상 확인 오류를 버렸습니다. 현재 선택으로 다시 확인하십시오.");
+        setPreviewContextError("목록 조건·선택이 바뀌어 이전 대상 확인 오류를 버렸어요. 현재 선택으로 다시 확인해 주세요.");
         setPhase("idle");
         return;
       }
@@ -665,7 +665,7 @@ export function OrderPlanBulkTrackingDialog({
       try {
         onApplied(resolved, savedRequest.selection_generation, response.summary);
       } catch {
-        if (mountedRef.current) setPostResultError("선택 상태를 최신 결과와 동기화하지 못했습니다. 결과는 확정되어 있습니다.");
+        if (mountedRef.current) setPostResultError("선택 상태를 최신 결과와 동기화하지 못했어요. 결과는 확정되어 있어요.");
       }
       if (!mountedRef.current || !persistedRequestMatches(savedRequest)) return;
       const removeError = removePending();
@@ -675,7 +675,7 @@ export function OrderPlanBulkTrackingDialog({
       try {
         await onInvalidate();
       } catch {
-        if (mountedRef.current) setPostResultError("최신 목록을 다시 불러오지 못했습니다. 결과는 확정되어 있으며 새 목록 조회를 다시 시도하십시오.");
+        if (mountedRef.current) setPostResultError("최신 목록을 다시 불러오지 못했어요. 결과는 확정되어 있으며 새 목록 조회를 다시 시도해 주세요.");
       }
     } catch (caught) {
       if (!mountedRef.current) return;
@@ -693,7 +693,7 @@ export function OrderPlanBulkTrackingDialog({
     if (inFlightRef.current) return;
     if (!canConfirm || !preview) return;
     if (!previewContextMatches) {
-      setPreviewContextError("목록 조건·선택이 바뀌어 확인한 대상과 현재 선택이 다릅니다. 현재 선택으로 다시 확인하십시오.");
+      setPreviewContextError("목록 조건·선택이 바뀌어 확인한 대상과 현재 선택이 달라요. 현재 선택으로 다시 확인해 주세요.");
       return;
     }
     const ids = normalizeIds(previewIds);
@@ -709,7 +709,7 @@ export function OrderPlanBulkTrackingDialog({
     };
     const selectionWrite = onPersistSelection?.();
     if (selectionWrite && !selectionWrite.ok) {
-      setStorageMessage(`${selectionWrite.error?.message ?? "선택 상태를 저장하지 못했습니다."} 단건 추적 경로를 사용하십시오.`);
+      setStorageMessage(`${selectionWrite.error?.message ?? "선택 상태를 저장하지 못했어요."} 단건 추적 경로를 사용해 주세요.`);
       return;
     }
     const writeError = savePending(savedRequest);
@@ -729,7 +729,7 @@ export function OrderPlanBulkTrackingDialog({
   function retryFailed() {
     if (!failedIds.length) return;
     if (!retryContextMatches) {
-      setPreviewContextError("목록 조건·선택 세대가 바뀌어 이전 실패 건을 바로 재시도할 수 없습니다. 현재 선택으로 다시 확인하십시오.");
+      setPreviewContextError("목록 조건·선택 세대가 바뀌어 이전 실패 건을 바로 재시도할 수 없어요. 현재 선택으로 다시 확인해 주세요.");
       return;
     }
     setRequest(null);
@@ -787,18 +787,18 @@ export function OrderPlanBulkTrackingDialog({
             {!storageAvailable || storageError || storageMessage ? (
               <div className="c2l-bulk-error" role="alert">
                 <strong>{copy.storageUnavailableTitle}</strong>
-                <span>{storageMessage ?? storageError ?? "선택 저장소를 사용할 수 없습니다."} 단건 추적 경로를 사용하십시오.</span>
+                <span>{storageMessage ?? storageError ?? "선택 저장소를 사용할 수 없어요."} 단건 추적 경로를 사용해 주세요.</span>
               </div>
             ) : null}
             {recovery && phase === "unknown" && !error ? (
               <div className="c2l-bulk-recovery" role="status">
-                저장된 요청 결과를 아직 확인하지 않았습니다. 새 요청을 만들지 않고 같은 요청으로 확인하십시오.
+                저장된 요청 결과를 아직 확인하지 않았어요. 새 요청을 만들지 않고 같은 요청으로 확인해 주세요.
                 <Button label="저장된 요청 결과 확인" variant="primary" isDisabled={retryBlocked || !request || inFlightRef.current} onClick={retrySameRequest} />
               </div>
             ) : null}
             {previewContextError && phase !== "ready" ? (
               <div className="c2l-bulk-error" role="alert">
-                <strong>대상을 다시 확인하십시오.</strong>
+                <strong>대상을 다시 확인해 주세요.</strong>
                 <span>{previewContextError}</span>
               </div>
             ) : null}
@@ -813,7 +813,7 @@ export function OrderPlanBulkTrackingDialog({
                         {copy.summaryVerb} {preview.selected_plan_count.toLocaleString("ko-KR")}건 중 {preview.eligible_plan_count.toLocaleString("ko-KR")}건
                       </strong>
                       {unchanged.length ? (
-                        <span className="bulk-dialog-summary-detail">{unchanged.join(" · ")}은 바꾸지 않습니다.</span>
+                        <span className="bulk-dialog-summary-detail">{unchanged.join(" · ")}은 바꾸지 않아요.</span>
                       ) : null}
                       <span className="bulk-dialog-summary-toggle">
                         <Button
@@ -829,7 +829,7 @@ export function OrderPlanBulkTrackingDialog({
                   ) : currentIds.length ? (
                     <>
                       <strong role="status">선택 {currentIds.length.toLocaleString("ko-KR")}건</strong>
-                      <span className="bulk-dialog-summary-detail">대상을 아직 확인하지 않았습니다.</span>
+                      <span className="bulk-dialog-summary-detail">대상을 아직 확인하지 않았어요.</span>
                       <span className="bulk-dialog-summary-toggle">
                         <Button
                           label="현재 선택으로 다시 확인"
@@ -841,7 +841,7 @@ export function OrderPlanBulkTrackingDialog({
                       </span>
                     </>
                   ) : (
-                    <strong role="status">선택한 발주계획이 없습니다.</strong>
+                    <strong role="status">선택한 발주계획이 없어요.</strong>
                   )}
                 </div>
                 {showPreview ? (
@@ -852,8 +852,8 @@ export function OrderPlanBulkTrackingDialog({
                 ) : null}
                 {previewContextChanged ? (
                   <div className="c2l-bulk-error" role="alert">
-                    <strong>현재 선택과 확인한 대상의 기준이 다릅니다.</strong>
-                    <span>{previewContextError ?? "브라우저 뒤로·앞으로 또는 필터 변경으로 선택 세대가 바뀌었습니다. 새 요청을 만들기 전에 현재 선택으로 다시 확인하십시오."}</span>
+                    <strong>현재 선택과 확인한 대상의 기준이 달라요.</strong>
+                    <span>{previewContextError ?? "브라우저 뒤로·앞으로 또는 필터 변경으로 선택 세대가 바뀌었어요. 새 요청을 만들기 전에 현재 선택으로 다시 확인해 주세요."}</span>
                     <Button label="현재 선택으로 다시 확인" variant="secondary" isDisabled={!canRecheck} onClick={() => void previewSelection(currentIds)} />
                   </div>
                 ) : null}
@@ -861,9 +861,9 @@ export function OrderPlanBulkTrackingDialog({
             ) : null}
             {error && phase !== "unknown" ? (
               <div className="c2l-bulk-error" role="alert">
-                <strong>{description?.title ?? "일괄 추적 대상을 확인할 수 없습니다."}</strong>
-                <span>{description?.detail ?? "선택을 바꾸지 않고 다시 시도하십시오."}</span>
-                {phase === "error" ? <span>서버가 요청을 거부했습니다. 같은 요청을 자동으로 다시 보내지 않았습니다.</span> : null}
+                <strong>{description?.title ?? "일괄 추적 대상을 확인할 수 없어요."}</strong>
+                <span>{description?.detail ?? "선택을 바꾸지 않고 다시 시도해 주세요."}</span>
+                {phase === "error" ? <span>서버가 요청을 거부했어요. 같은 요청을 자동으로 다시 보내지 않았어요.</span> : null}
               </div>
             ) : null}
             {formPhase ? (
@@ -893,14 +893,14 @@ export function OrderPlanBulkTrackingDialog({
             {phase === "pending" ? (
               <div className="c2l-bulk-pending" role="status" aria-live="polite">
                 <strong>{copy.pendingHeading}</strong>
-                <span>{pendingIds.length}건 · 입력과 선택은 잠겨 있습니다. 응답을 기다리는 동안 이탈할 수 없습니다.</span>
+                <span>{pendingIds.length}건 · 입력과 선택은 잠겨 있어요. 응답을 기다리는 동안 이탈할 수 없어요.</span>
               </div>
             ) : null}
             {phase === "unknown" && error ? (
               <div className="c2l-bulk-error" role="alert">
                 <strong>{description?.title ?? copy.unknownFallbackTitle}</strong>
-                <span>{description?.detail ?? "같은 요청 결과 확인을 눌러 저장된 결과를 확인하십시오."}</span>
-                {request ? <span>요청 식별자 <code>{request.request_id}</code> · 새 요청을 자동으로 만들지 않았습니다.</span> : null}
+                <span>{description?.detail ?? "같은 요청 결과 확인을 눌러 저장된 결과를 확인해 주세요."}</span>
+                {request ? <span>요청 식별자 <code>{request.request_id}</code> · 새 요청을 자동으로 만들지 않았어요.</span> : null}
                 <div className="c2l-bulk-actions">
                   <Button label="같은 요청 결과 확인" variant="primary" isDisabled={retryBlocked || !request || inFlightRef.current} onClick={retrySameRequest} />
                 </div>
@@ -910,7 +910,7 @@ export function OrderPlanBulkTrackingDialog({
               <div className="c2l-bulk-result" role="status" data-testid="order-plan-bulk-result">
                 <strong>{copy.resultHeading}</strong>
                 {postResultError ? <span role="alert">{postResultError}</span> : null}
-                {cleanupError ? <span role="alert">{cleanupError} 새 요청은 저장소 확인 후에만 만들 수 있습니다.</span> : null}
+                {cleanupError ? <span role="alert">{cleanupError} 새 요청은 저장소 확인 후에만 만들 수 있어요.</span> : null}
                 <Text type="body" color="secondary" as="p">
                   성공 {result.summary.succeeded_plan_count}건 · 상태 제외 {result.summary.excluded_plan_count}건 · 실패 {result.summary.failed_plan_count}건
                 </Text>
@@ -919,7 +919,7 @@ export function OrderPlanBulkTrackingDialog({
                 ) : null}
                 {failedIds.length ? (
                   <>
-                    <Text type="supporting" color="secondary" as="p">실패 항목은 선택에 남아 있습니다. 원인을 확인한 뒤 실패 건만 새 요청으로 재시도할 수 있습니다.</Text>
+                    <Text type="supporting" color="secondary" as="p">실패 항목은 선택에 남아 있어요. 원인을 확인한 뒤 실패 건만 새 요청으로 재시도할 수 있어요.</Text>
                     <ul className="c2l-bulk-failures" aria-label={copy.failuresAriaLabel}>
                       {result.items.filter((item) => item.outcome === "failed").map((item) => (
                         <li key={item.order_plan_id}>계획 ID {item.order_plan_id} · {failureLabel(item.code)}</li>

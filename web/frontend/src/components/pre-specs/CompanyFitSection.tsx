@@ -30,8 +30,8 @@ export function CompanyFitVerdict({ attempt }: { attempt: CompanyFitAttempt }) {
       <strong>{result ? decisions[result.decision] : statuses[attempt.status]}</strong>
       <Token label={qualityStatusLabel(attempt.quality_status)} size="sm" />
     </div>
-    {!attempt.is_current && <p role="status" className="company-fit-notice">이전 입력 기준의 판정입니다. 현재 개요·회사 프로필·정책과 일치하는지 확인이 필요합니다.</p>}
-    {result ? <p className="company-fit-summary">{result.summary}</p> : <p>{attempt.status === "failed" ? "판정 결과가 생성되지 않았습니다. 불일치로 처리하지 않습니다." : attempt.status === "needs_human_review" ? "검증을 통과한 판정 근거가 없어 결과를 사용할 수 없습니다." : "검증된 판정이 생성되면 과업과 회사 정보의 대조 근거를 표시합니다."}</p>}
+    {!attempt.is_current && <p role="status" className="company-fit-notice">이전 입력 기준의 판정이에요. 현재 개요·회사 프로필·정책과 일치하는지 확인이 필요해요.</p>}
+    {result ? <p className="company-fit-summary">{result.summary}</p> : <p>{attempt.status === "failed" ? "판정 결과가 생성되지 않았어요. 불일치로 처리하지 않아요." : attempt.status === "needs_human_review" ? "검증을 통과한 판정 근거가 없어 결과를 사용할 수 없어요." : "검증된 판정이 생성되면 과업과 회사 정보의 대조 근거를 표시해요."}</p>}
   </>;
 }
 
@@ -39,27 +39,27 @@ export function CompanyFitReasons({ attempt }: { attempt: CompanyFitAttempt }) {
   const result = attempt.result;
   if (!result) return null;
   return <ol className="company-fit-reasons">
-        {result.reasons.length === 0 && <li>상세 사유가 저장되지 않았습니다.</li>}
+        {result.reasons.length === 0 && <li>상세 사유가 저장되지 않았어요.</li>}
         {result.reasons.map((reason, index) => <li key={index}>
           <p><strong>판단 사유 {index + 1} · 모델 의견</strong></p>
           <p>{reason.explanation}</p>
           <dl className="company-fit-evidence">
             <dt>공고 과업 근거</dt><dd>{reason.notice_refs.map(ref => {
               const fact = attempt.notice_facts.find(item => item.ref === ref);
-              if (!fact) return <p key={ref}>근거를 확인할 수 없습니다.</p>;
+              if (!fact) return <p key={ref}>근거를 확인할 수 없어요.</p>;
               return <div key={ref}><p>{fact.text}</p>
                 {/* 새 개요 run은 자기 스냅샷 PDF를 열 수 있다. 이전 세대의 개요
                     입력(`page`·`extractive`)은 살아있는 열람 경로가 없으므로 깨진
                     링크 대신 위치만 문장으로 남긴다. */}
                 {attempt.overview_kind === "overview_run"
                   ? <p>{fact.pages.map((pageNumber, pageIndex) => <span key={pageNumber}>{pageIndex > 0 ? " " : null}<a href={`${api.preSpecOverviewRunPdfUrl(attempt.notice_id, attempt.overview_id)}#page=${pageNumber}`} rel="noreferrer" target="_blank">PDF {pageNumber}페이지 ↗</a></span>)}</p>
-                  : attempt.overview_kind === "page" ? <p>PDF {fact.pages.join(", ")}페이지 (개요 원문 열람 화면은 아직 없습니다)</p> : <p>개요 원문 블록 · {fact.block_key ?? "위치 미확인"} (문서 구조 기준)</p>}
+                  : attempt.overview_kind === "page" ? <p>PDF {fact.pages.join(", ")}페이지 (개요 원문 열람 화면은 아직 없어요)</p> : <p>개요 원문 블록 · {fact.block_key ?? "위치 미확인"} (문서 구조 기준)</p>}
               </div>;
             })}</dd>
             <dt>회사 정보 근거</dt><dd>{reason.company_refs.length ? reason.company_refs.map(ref => {
               const fact = attempt.company_facts.find(item => item.ref === ref);
-              return fact ? <p key={ref}>{fact.fact_key} · {fact.status === "confirmed" ? "확인됨" : "확인 필요"} — {valueText(fact.value)}</p> : <p key={ref}>근거를 확인할 수 없습니다.</p>;
-            }) : <p>인용된 회사 정보가 없습니다. 역량이 없다는 뜻이 아닙니다.</p>}
+              return fact ? <p key={ref}>{fact.fact_key} · {fact.status === "confirmed" ? "확인됨" : "확인 필요"} — {valueText(fact.value)}</p> : <p key={ref}>근거를 확인할 수 없어요.</p>;
+            }) : <p>인용된 회사 정보가 없어요. 역량이 없다는 뜻이 아니에요.</p>}
             <p>판정 시점에 고정한 승인 프로필 기준</p></dd>
           </dl>
         </li>)}
@@ -121,11 +121,11 @@ export function CompanyFitExecutionSection({
   return <section className="company-fit-execution-section" aria-label="회사 적합성 실행 정보">
     <h3>회사 적합성 실행 정보</h3>
     {state === "pending"
-      ? <p role="status">회사 적합성 판정을 불러오는 중입니다.</p>
+      ? <p role="status">회사 적합성 판정을 불러오는 중이에요.</p>
       : state === "unavailable"
-        ? <p>회사 적합성 판정을 확인할 수 없어 실행 정보를 표시하지 않습니다.</p>
+        ? <p>회사 적합성 판정을 확인할 수 없어 실행 정보를 표시하지 않아요.</p>
         : current === null && previous.length === 0
-          ? <p>회사 적합성 판정 실행 기록이 없습니다.</p>
+          ? <p>회사 적합성 판정 실행 기록이 없어요.</p>
           : null}
     {current ? <CompanyFitExecutionInfo attempt={current} label="현재 판정" /> : null}
     {previous.map((attempt, index) => (
@@ -176,7 +176,7 @@ export function useCompanyFit(noticeId: number | null): CompanyFitState {
  */
 export function CompanyFitAutomationNotice({ data }: { data: CompanyFitResponse }) {
   if (data.automation_enabled) return null;
-  return <div className="company-fit-notice"><p>회사 적합성 자동 판정은 비활성입니다.</p></div>;
+  return <div className="company-fit-notice"><p>회사 적합성 자동 판정은 비활성이에요.</p></div>;
 }
 
 export function CompanyFitSection({ noticeId, compact = false }: { noticeId: number; compact?: boolean }) {
@@ -191,12 +191,12 @@ export function CompanyFitSection({ noticeId, compact = false }: { noticeId: num
     {/* 경계 문장("추적 승인과 최종 입찰 결정은 사람이 진행합니다")은 ② 추적 결정
         카드 한 곳만 갖는다(M4 승인 2026-09-21). 여기 남는 것은 이 구역이 무엇을
         대조한 결과인지 말하는 범위 문장이다. */}
-    <p className="company-fit-note">개요의 과업과 회사 정보를 대조한 분석입니다.</p>
-    {query.isPending ? <p role="status">회사 적합성 판정을 불러오는 중입니다.</p> : query.isError ? <div role="alert">
-      <p>회사 적합성 판정을 불러오지 못했습니다.</p>
+    <p className="company-fit-note">개요의 과업과 회사 정보를 대조한 분석이에요.</p>
+    {query.isPending ? <p role="status">회사 적합성 판정을 불러오는 중이에요.</p> : query.isError ? <div role="alert">
+      <p>회사 적합성 판정을 불러오지 못했어요.</p>
       <Button label="회사 적합성 다시 불러오기" size="sm" onClick={() => { void query.refetch(); }} />
     </div> : !isValid || data === null ?
-      <p role="alert">판정 응답의 공고 또는 구조가 일치하지 않아 표시하지 않습니다.</p> : <>
+      <p role="alert">판정 응답의 공고 또는 구조가 일치하지 않아 표시하지 않아요.</p> : <>
         {currentAttempt ? <Assessment attempt={currentAttempt} /> : <p>{NO_CURRENT_ATTEMPT_NOTICE}</p>}
         <CompanyFitAutomationNotice data={data} />
         {previousAttempts.length > 0 && <details><summary>이전 판정 {previousAttempts.length}건</summary>

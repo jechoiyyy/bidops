@@ -25,8 +25,8 @@ export function ReviewRecord({ review, correctionSearch }: { review: ReviewRespo
       {review === undefined ? (
         <EmptyState
           compact
-          title="이 회차에 저장된 담당자 리뷰가 없습니다."
-          description="아무도 아직 이 공고를 리뷰하지 않았다는 뜻입니다. 리뷰를 못 읽었다는 뜻이 아닙니다."
+          title="이 회차에 저장된 담당자 리뷰가 없어요"
+          description="아무도 아직 이 공고를 리뷰하지 않았다는 뜻이에요. 리뷰를 못 읽었다는 뜻이 아니에요."
         />
       ) : (
         <>
@@ -78,8 +78,8 @@ export function ReviewRecord({ review, correctionSearch }: { review: ReviewRespo
       )}
 
       <p className="review-record-note">
-        이 화면은 회차별 판정 이력입니다. 사람의 수정은 <strong>사업 추적</strong>의 상세에서 <strong>시스템 신호</strong> 탭을 열어
-        예외 작업으로 합니다. 거기서 저장한 확인 항목 답변은 이 공고가 속한 회차에 그대로 기록됩니다.
+        이 화면은 회차별 판정 이력이에요. 사람의 수정은 <strong>사업 추적</strong>의 상세에서 <strong>시스템 신호</strong> 탭을 열어
+        예외 작업으로 해요. 거기서 저장한 확인 항목 답변은 이 공고가 속한 회차에 그대로 기록돼요.
       </p>
       <Link className="review-record-link" to={{ pathname: "/opportunities", search: correctionSearch }}>
         사업 추적에서 이 사업기회 찾기 →

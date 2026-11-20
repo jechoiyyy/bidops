@@ -5,7 +5,7 @@ import { api } from "../../lib/api";
 import { companyContextQueryKey, getCompanyContext } from "../../lib/companyApi";
 import { orderPlanViewTotalQuery, preSpecDefaultViewTotalQuery } from "../../lib/defaultViewCounts";
 import type { WorkloadKey } from "../../lib/types";
-import { ActorField, useRememberedActorName } from "../common/ActorField";
+import { ActorField, OPEN_ACTOR_EVENT, useRememberedActorName } from "../common/ActorField";
 import { runSearchFor } from "./route-meta";
 
 /**
@@ -320,6 +320,16 @@ function SidebarActor() {
   useEffect(() => {
     if (!open) setDraft(remembered);
   }, [open, remembered]);
+  // 본문 화면이 이름을 요구할 때 이 칸을 연다(`requestActorInput`). 열리면 입력 칸이 초점을 받는다.
+  useEffect(() => {
+    const onOpen = () => {
+      setOpen(true);
+      // 이미 열려 있으면 autoFocus가 다시 돌지 않으므로 다음 프레임에 초점을 직접 옮긴다.
+      window.requestAnimationFrame(() => document.getElementById("sidebar-actor-input")?.focus());
+    };
+    window.addEventListener(OPEN_ACTOR_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_ACTOR_EVENT, onOpen);
+  }, []);
   const close = () => {
     setOpen(false);
     triggerRef.current?.focus();

@@ -33,7 +33,7 @@ const comparisonId = "77777777-7777-4777-8777-777777777777";
 const bidOpportunity = {
   id: 501,
   tracking_status: "계속 추적",
-  tracking_reason: "입찰공고를 확인하고 변경을 비교합니다.",
+  tracking_reason: "입찰공고를 확인하고 변경을 비교해요.",
   tracking_selected_by: "기존 담당자",
   tracking_selected_at: "2026-08-30T01:00:00Z",
   recheck_signal: true,
@@ -120,9 +120,9 @@ test.describe("bid-delta calculation status", () => {
             : calculationStatus === "completed" ? "계산 완료" : "계산 실패",
       );
       if (calculationStatus === "pending" || calculationStatus === "running") {
-        await expect(page.getByText("계산을 실행하는 프로그램이 아직 운영에 없습니다.", { exact: false })).toBeVisible();
+        await expect(page.getByText("계산을 실행하는 프로그램이 아직 운영에 없어요.", { exact: false })).toBeVisible();
       } else {
-        await expect(page.getByText("계산을 실행하는 프로그램이 아직 운영에 없습니다.", { exact: false })).toHaveCount(0);
+        await expect(page.getByText("계산을 실행하는 프로그램이 아직 운영에 없어요.", { exact: false })).toHaveCount(0);
       }
       await expect(page.getByRole("button", { name: "결정 확인", exact: true })).toBeDisabled();
       if (calculationStatus === "failed") {
@@ -139,7 +139,7 @@ test.describe("bid-delta calculation status", () => {
 test("계산 대기 비교는 자동으로 다시 조회하지 않고 사람이 누를 때만 다시 읽는다", async ({ page }) => {
   const trace = await mockBidDelta(page, { calculationStatus: "pending" });
   await page.goto(`/opportunities/501/bid-delta?comparison=${comparisonId}`);
-  await expect(page.getByText("계산 대기 상태입니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("계산 대기 상태예요.", { exact: true })).toBeVisible();
   const loadedGets = trace.comparisonGets;
   // 예전 주기(1초)를 넘는 짧은 창에서 조회 수가 그대로인지 본다.
   await page.waitForTimeout(1_500);
@@ -154,7 +154,7 @@ test("후보가 없으면 변경 없음이 아니라 이유가 있는 EmptyState
   await page.goto("/opportunities/501/bid-delta");
   await expect(page.getByText("기준 후보 없음", { exact: true })).toBeVisible();
   await expect(page.getByText("비교 후보 없음", { exact: true })).toBeVisible();
-  await expect(page.getByText("이를 변경 없음으로 해석하지 않습니다.", { exact: false })).toHaveCount(2);
+  await expect(page.getByText("이를 변경 없음으로 해석하지 않아요.", { exact: false })).toHaveCount(2);
   await expect(page.getByRole("button", { name: "비교 시작", exact: true })).toBeDisabled();
 });
 
@@ -208,7 +208,7 @@ test("사람 결정은 자동 선택되지 않고 저장 전에는 form 초안�
   await expect(decisionGroup(page).getByRole("radio", { name: "Go", exact: true })).not.toBeChecked();
   await expect(decisionGroup(page).getByRole("radio", { name: "No-Go", exact: true })).not.toBeChecked();
   await expect(page.getByRole("button", { name: "결정 확인", exact: true })).toBeDisabled();
-  await fillDecision(page, "Go", "양쪽 원문을 확인하고 참여를 결정했습니다.");
+  await fillDecision(page, "Go", "양쪽 원문을 확인하고 참여를 결정했어요.");
   await expect(page.getByRole("button", { name: "결정 확인", exact: true })).toBeEnabled();
 });
 
@@ -216,10 +216,10 @@ test("최종 결정 payload는 actor header와 모든 comparison fence를 포함
   const trace = await mockBidDelta(page, { calculationStatus: "completed", resultStatus: "unchanged" });
   await page.goto(`/opportunities/501/bid-delta?comparison=${comparisonId}`);
   await expect(page.getByRole("heading", { name: "공고 조건과 변경 비교", exact: true })).toBeVisible();
-  await fillDecision(page, "No-Go", "확인된 범위에서 참여하지 않기로 결정했습니다.");
+  await fillDecision(page, "No-Go", "확인된 범위에서 참여하지 않기로 결정했어요.");
   await page.getByRole("button", { name: "결정 확인", exact: true }).click();
   await confirmFinalDecision(page, "No-Go로 최종 결정 저장");
-  await expect(page.getByText("No-Go 최종 결정을 저장했습니다. 이전 결정은 그대로 남습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("No-Go 최종 결정을 저장했어요. 이전 결정은 그대로 남아요.", { exact: true })).toBeVisible();
   expect(trace.finalDecisionPosts).toHaveLength(1);
   expect(trace.finalDecisionPosts[0].headers["x-bidops-actor-name"]).toBe("UTF-8''%ED%99%8D%EA%B8%B8%EB%8F%99");
   expect(trace.finalDecisionPosts[0].headers["x-bidops-actor-name-format"]).toBe("utf-8-percent-v1");
@@ -231,7 +231,7 @@ test("최종 결정 payload는 actor header와 모든 comparison fence를 포함
     comparison_document_version_id: "55555555-5555-4555-8555-555555555555",
     supersedes_final_decision_id: null,
     decision: "no_go",
-    reason: "확인된 범위에서 참여하지 않기로 결정했습니다.",
+    reason: "확인된 범위에서 참여하지 않기로 결정했어요.",
   });
   expect(typeof trace.finalDecisionPosts[0].body.request_id).toBe("string");
   expect(String(trace.finalDecisionPosts[0].body.request_id)).toMatch(/^[0-9a-f-]{36}$/);
@@ -244,7 +244,7 @@ test("실패 비교 재시도는 expected version을 보내고 이전 attempt를
   await expect(page.getByRole("button", { name: "재시도", exact: true })).toBeVisible();
   await page.getByLabel("재시도 담당자 이름").fill("재시도 담당자");
   await page.getByRole("button", { name: "재시도", exact: true }).click();
-  await expect(page.getByText("새 계산 회차를 시작했습니다. 이전 회차는 그대로 남습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("새 계산 회차를 시작했어요. 이전 회차는 그대로 남아요.", { exact: true })).toBeVisible();
   expect(retryTrace.retryPosts[0].body).toMatchObject({ schema_version: "bidops.bid-delta-attempt-create.v1", expected_comparison_version: 2 });
   expect(String(retryTrace.retryPosts[0].body.request_id)).toMatch(/^[0-9a-f-]{36}$/);
   // 회차 이력은 접힌 상세 안에 그대로 남는다.
@@ -309,7 +309,7 @@ test("요청 conflict는 typed code를 표시하고 최신 상태를 다시 불�
   await expectErrorCode(page, "bid_delta_comparison_stale");
   await expect(page.getByRole("button", { name: "최신 상태 다시 불러오기", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "최신 상태 다시 불러오기", exact: true }).click();
-  await expect(page.getByText("최신 비교·공고 조건과 최신 여부를 다시 불러왔습니다. 입력한 초안은 그대로 두었습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("최신 비교·공고 조건과 최신 여부를 다시 불러왔어요. 입력한 초안은 그대로 두었어요.", { exact: true })).toBeVisible();
   await expect(page.getByLabel("최종 결정 담당자 이름")).toHaveValue("홍길동");
   await expect(decisionGroup(page).getByRole("radio", { name: "Go", exact: true })).toBeChecked();
   await expect(page.getByLabel("결정 이유", { exact: true })).toHaveValue("최신 상태에서도 검토할 이유");
@@ -323,13 +323,13 @@ test("폼 오류의 안전 코드는 접힌 기술 정보에 있고 보조기술
   await mockBidDelta(page, { calculationStatus: "completed", resultStatus: "changed", finalDecisionErrorCode: "bid_delta_comparison_stale" });
   await page.goto(`/opportunities/501/bid-delta?comparison=${comparisonId}`);
   await expect(page.getByRole("heading", { name: "공고 조건과 변경 비교", exact: true })).toBeVisible();
-  await fillDecision(page, "Go", "접힌 기술 정보를 확인합니다.");
+  await fillDecision(page, "Go", "접힌 기술 정보를 확인해요.");
   await page.getByRole("button", { name: "결정 확인", exact: true }).click();
   await confirmFinalDecision(page, "Go로 최종 결정 저장");
 
   const feedback = page.locator(".mutation-feedback");
   // 사람 말이 먼저다. 제목·다음 행동은 접히지 않는다.
-  await expect(feedback).toContainText("새 비교 입력이 생겨 이 결정은 최신이 아닙니다.");
+  await expect(feedback).toContainText("새 비교 입력이 생겨 이 결정은 최신이 아니에요.");
   await expect(feedback).toContainText("최신 상태를 다시 불러온 뒤");
   // 코드 줄은 접혀 있어 눈에 보이지 않는다.
   const codeLine = feedback.locator(".mutation-feedback-code");
@@ -350,10 +350,10 @@ test("비교 목록 → 결정 저장 → 사업기회 레코드 이동 흐름�
   await mockOpportunity(page);
   await page.goto("/opportunities/501/bid-delta");
   await page.getByRole("link", { name: /비교 #1/ }).click();
-  await fillDecision(page, "Go", "원문 확인 후 참여합니다.");
+  await fillDecision(page, "Go", "원문 확인 후 참여해요.");
   await page.getByRole("button", { name: "결정 확인", exact: true }).click();
   await confirmFinalDecision(page, "Go로 최종 결정 저장");
-  await expect(page.getByText("Go 최종 결정을 저장했습니다. 이전 결정은 그대로 남습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Go 최종 결정을 저장했어요. 이전 결정은 그대로 남아요.", { exact: true })).toBeVisible();
   // `#501` 칸은 사업기회 레코드로 돌아간다(`/opportunities/501` → `/activity`, RL-02). 레코드 본문은
   // opportunity-record.spec.ts가 보므로 여기서는 활동 응답 하나만 두고 레코드가 열리는지만 본다.
   await page.route("**/api/opportunities/501/activity**", (route) => route.fulfill({
@@ -387,7 +387,7 @@ test("미저장 최종 결정 초안은 beforeunload와 SPA 이동을 보호한�
   await routeCrumbLink(page, "#501").click();
   const unsavedDialog = page.getByRole("alertdialog");
   await expect(unsavedDialog).toBeVisible();
-  await expect(unsavedDialog).toContainText("저장되지 않은 입찰 최종 결정 초안이 있습니다.");
+  await expect(unsavedDialog).toContainText("저장되지 않은 입찰 최종 결정 초안이 있어요.");
   await unsavedDialog.getByRole("button", { name: "계속 편집", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/opportunities/501/bid-delta\\?comparison=${comparisonId}`));
   await expect(page.getByLabel("결정 이유", { exact: true })).toHaveValue("아직 저장하지 않은 검토 초안");
@@ -442,7 +442,7 @@ test("계산 대기 중인 비교를 보면 공고 조건 근거 폼과 비활�
   await expect(conditions.nth(1)).toContainText("필요");
   await expect(conditions.nth(1)).toContainText("사유 입력");
   await expect(conditions.nth(2)).toContainText("담당자 이름");
-  await expect(page.locator(".bid-delta-form-note")).toContainText("최종 결정 값은 Go·No-Go 둘뿐이며, 결정을 미루려면 저장하지 않습니다");
+  await expect(page.locator(".bid-delta-form-note")).toContainText("최종 결정 값은 Go·No-Go 둘뿐이며, 결정을 미루려면 저장하지 않아요");
 });
 
 // 오른쪽 결정 칸은 결정 입력과 결정 이력만 담는다. 계산 회차·고정 입력 같은
@@ -468,7 +468,7 @@ test("최종 결정 선택지는 Go·No-Go 둘뿐이다(보류 값 없음)", asy
 test("계산 실패는 재시도 입력으로 데려가고 실패를 변경 없음으로 읽지 않는다", async ({ page }) => {
   await openComparison(page, { calculationStatus: "failed", resultStatus: "failed" });
   await expect(page.locator("#bid-delta-calculation-title")).toContainText("계산 실패");
-  await expect(page.getByText("계산 전체가 실패하여 결과를 확정할 수 없습니다.")).toBeVisible();
+  await expect(page.getByText("계산 전체가 실패하여 결과를 확정할 수 없어요.")).toBeVisible();
   await expect(page.getByLabel("재시도 담당자 이름")).toBeVisible();
   // 실패한 비교는 결정 근거가 될 수 없다. 근거는 공고 조건으로 넘어가고 비교 근거 선택지는 없다.
   await expect(page.locator(".bid-delta-decision-conditions")).toContainText("결정 근거 · 공고 조건 기준");
@@ -481,17 +481,17 @@ test("최종 결정은 확인 없이는 요청이 나가지 않고 취소하면 
   const trace = await mockBidDelta(page, { calculationStatus: "completed", resultStatus: "changed" });
   await page.goto(`/opportunities/501/bid-delta?comparison=${comparisonId}`);
   await expect(page.getByRole("heading", { name: "공고 조건과 변경 비교", exact: true })).toBeVisible();
-  await fillDecision(page, "Go", "양쪽 원문을 확인하고 참여를 결정했습니다.");
+  await fillDecision(page, "Go", "양쪽 원문을 확인하고 참여를 결정했어요.");
 
   await page.getByRole("button", { name: "결정 확인", exact: true }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
   // 무엇을 저장하는지 다시 보여 준다.
-  await expect(dialog).toContainText("되돌릴 수 없습니다");
+  await expect(dialog).toContainText("되돌릴 수 없어요");
   await expect(dialog).toContainText("비교 결과 기준");
   await expect(dialog).toContainText("Go · 참여");
   await expect(dialog).toContainText("홍길동");
-  await expect(dialog).toContainText("양쪽 원문을 확인하고 참여를 결정했습니다.");
+  await expect(dialog).toContainText("양쪽 원문을 확인하고 참여를 결정했어요.");
   // 확인 전에는 요청이 없다.
   expect(trace.finalDecisionPosts).toHaveLength(0);
 
@@ -500,11 +500,11 @@ test("최종 결정은 확인 없이는 요청이 나가지 않고 취소하면 
   expect(trace.finalDecisionPosts).toHaveLength(0);
   // 취소는 초안을 지우지 않는다.
   await expect(decisionGroup(page).getByRole("radio", { name: "Go", exact: true })).toBeChecked();
-  await expect(page.getByLabel("결정 이유", { exact: true })).toHaveValue("양쪽 원문을 확인하고 참여를 결정했습니다.");
+  await expect(page.getByLabel("결정 이유", { exact: true })).toHaveValue("양쪽 원문을 확인하고 참여를 결정했어요.");
 
   await page.getByRole("button", { name: "결정 확인", exact: true }).click();
   await confirmFinalDecision(page, "Go로 최종 결정 저장");
-  await expect(page.getByText("Go 최종 결정을 저장했습니다. 이전 결정은 그대로 남습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Go 최종 결정을 저장했어요. 이전 결정은 그대로 남아요.", { exact: true })).toBeVisible();
   expect(trace.finalDecisionPosts).toHaveLength(1);
 });
 
@@ -519,7 +519,7 @@ test("확인 창이 열린 사이 비교가 갱신돼도 사람이 확인한 스
   await page.goto(`/opportunities/901/bid-delta?comparison=${RACE_COMPARISON.id}`);
   await expect(page.getByRole("heading", { name: "공고 조건과 변경 비교", exact: true })).toBeVisible();
 
-  await fillDecision(page, "No-Go", "축소된 일정과 늘어난 연계 범위를 검토해 불참합니다.", "검토 담당자");
+  await fillDecision(page, "No-Go", "축소된 일정과 늘어난 연계 범위를 검토해 불참해요.", "검토 담당자");
   await page.getByRole("button", { name: "결정 확인", exact: true }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
@@ -546,7 +546,7 @@ test("확인 창이 열린 사이 비교가 갱신돼도 사람이 확인한 스
     expected_result_sha256: RACE_COMPARISON.oldSha,
     supersedes_final_decision_id: null,
     decision: "no_go",
-    reason: "축소된 일정과 늘어난 연계 범위를 검토해 불참합니다.",
+    reason: "축소된 일정과 늘어난 연계 범위를 검토해 불참해요.",
   });
   // 갱신된 스냅숏의 값이 몰래 실려 나가지 않았다.
   expect(post.body.expected_result_sha256).not.toBe(RACE_COMPARISON.newSha);
@@ -554,7 +554,7 @@ test("확인 창이 열린 사이 비교가 갱신돼도 사람이 확인한 스
 
   // 서버가 오래된 fence를 거절한 사실이 그대로 보인다. 화면이 성공을 흉내내지 않는다.
   await expectErrorCode(page, "bid_delta_comparison_stale");
-  await expect(page.getByLabel("결정 이유", { exact: true })).toHaveValue("축소된 일정과 늘어난 연계 범위를 검토해 불참합니다.");
+  await expect(page.getByLabel("결정 이유", { exact: true })).toHaveValue("축소된 일정과 늘어난 연계 범위를 검토해 불참해요.");
   await expect(page.getByLabel("최종 결정 담당자 이름")).toHaveValue("검토 담당자");
 });
 
@@ -563,7 +563,7 @@ test("같은 내용을 다시 확인하면 같은 request_id로, 내용을 고�
   await page.goto(`/opportunities/901/bid-delta?comparison=${RACE_COMPARISON.id}`);
   await expect(page.getByRole("heading", { name: "공고 조건과 변경 비교", exact: true })).toBeVisible();
 
-  await fillDecision(page, "No-Go", "같은 내용을 다시 확인합니다.", "검토 담당자");
+  await fillDecision(page, "No-Go", "같은 내용을 다시 확인해요.", "검토 담당자");
   await page.getByRole("button", { name: "결정 확인", exact: true }).click();
   await confirmFinalDecision(page, "No-Go로 최종 결정 저장");
   await expect.poll(() => trace.posts.length).toBe(1);
@@ -576,7 +576,7 @@ test("같은 내용을 다시 확인하면 같은 request_id로, 내용을 고�
   expect(trace.posts[1].body.request_id).toBe(trace.posts[0].body.request_id);
 
   // 이유를 고치면 다른 요청이다.
-  await page.getByLabel("결정 이유", { exact: true }).fill("이유를 고쳐 다시 저장합니다.");
+  await page.getByLabel("결정 이유", { exact: true }).fill("이유를 고쳐 다시 저장해요.");
   await page.getByRole("button", { name: "결정 확인", exact: true }).click();
   await confirmFinalDecision(page, "No-Go로 최종 결정 저장");
   await expect.poll(() => trace.posts.length).toBe(3);
@@ -643,7 +643,7 @@ test("공고 조건 기준 결정은 최신 공고 fence·대체 대상·사유�
   await expect(checklist.nth(0)).toContainText("최신 차수 확인 · R26BK00267196 · 차수 002");
   await expect(page.getByRole("button", { name: "결정 확인", exact: true })).toBeDisabled();
 
-  await fillDecision(page, "Go", "공고 조건과 차수 간 변경을 확인하고 참여합니다.");
+  await fillDecision(page, "Go", "공고 조건과 차수 간 변경을 확인하고 참여해요.");
   await expect(page.locator('.bid-delta-save-conditions > li[data-met="true"]')).toHaveCount(3);
   await page.getByRole("button", { name: "결정 확인", exact: true }).click();
   const dialog = page.getByRole("alertdialog");
@@ -655,7 +655,7 @@ test("공고 조건 기준 결정은 최신 공고 fence·대체 대상·사유�
     && new URL(request.url()).pathname === "/api/opportunities/501/final-decisions");
   await confirmFinalDecision(page, "Go로 최종 결정 저장");
   await posted;
-  await expect(page.getByText("Go 최종 결정을 저장했습니다. 이전 결정은 그대로 남습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Go 최종 결정을 저장했어요. 이전 결정은 그대로 남아요.", { exact: true })).toBeVisible();
   expect(trace.finalDecisionPosts).toHaveLength(1);
   const post = trace.finalDecisionPosts[0];
   // 서버 계약은 모르는 필드를 거부한다. 비교 근거의 필드를 섞어 보내지 않는다.
@@ -667,7 +667,7 @@ test("공고 조건 기준 결정은 최신 공고 fence·대체 대상·사유�
     expected_observation_sha256: "e".repeat(64),
     supersedes_final_decision_id: "aaaaaaaa-1111-4111-8111-aaaaaaaaaaa2",
     decision: "go",
-    reason: "공고 조건과 차수 간 변경을 확인하고 참여합니다.",
+    reason: "공고 조건과 차수 간 변경을 확인하고 참여해요.",
   });
   expect(String(post.body.request_id)).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   expect(post.headers["x-bidops-actor-name"]).toBe("UTF-8''%ED%99%8D%EA%B8%B8%EB%8F%99");
@@ -685,10 +685,10 @@ for (const [label, options] of [
     await expect(page.locator(".bid-delta-conditions").getByRole("heading", { name: "공고 조건", exact: true })).toBeVisible();
     if (options.latestNoticeId === null) {
       // 목록 끝을 최신으로 대신하지 않는다.
-      await expect(page.locator(".bid-delta-conditions")).toContainText("최신 차수를 확정할 수 없습니다.");
+      await expect(page.locator(".bid-delta-conditions")).toContainText("최신 차수를 확정할 수 없어요.");
       await expect(page.locator(".bid-delta-conditions-table")).toHaveCount(0);
     }
-    await expect(page.locator("#bid-delta-final-disabled")).toHaveText("최신 입찰공고를 확정할 수 없어 저장할 수 없습니다");
+    await expect(page.locator("#bid-delta-final-disabled")).toHaveText("최신 입찰공고를 확정할 수 없어 저장할 수 없어요");
     await expect(page.getByRole("button", { name: "결정 확인", exact: true })).toBeDisabled();
     await expect(page.getByRole("button", { name: "결정 입력으로 이동", exact: true })).toBeDisabled();
     await expect(page.getByRole("radiogroup", { name: "최종 결정" })).toHaveCount(0);
@@ -725,19 +725,19 @@ for (const code of ["final_decision_notice_not_latest", "final_decision_observat
     });
     await page.goto("/opportunities/501/bid-delta");
     await expect(page.locator(".bid-delta-save-conditions > li").nth(0)).toContainText("확인됨");
-    await fillDecision(page, "No-Go", "차수 002 조건을 검토해 불참합니다.");
+    await fillDecision(page, "No-Go", "차수 002 조건을 검토해 불참해요.");
     await page.getByRole("button", { name: "결정 확인", exact: true }).click();
     await confirmFinalDecision(page, "No-Go로 최종 결정 저장");
 
     const feedback = page.locator(".mutation-feedback");
-    await expect(feedback).toContainText("입찰공고가 바뀌었습니다. 공고 조건을 다시 읽은 뒤 결정하세요.");
+    await expect(feedback).toContainText("입찰공고가 바뀌었어요. 공고 조건을 다시 읽은 뒤 결정하세요.");
     await expect(feedback).toContainText(`오류 코드 ${code}`);
     // 화면이 곧바로 공고 조건을 다시 읽는다. 초안은 지우지 않는다.
     await expect.poll(() => conditionsTrace.gets).toBeGreaterThanOrEqual(2);
     await expect(page.locator(".bid-delta-conditions")).toContainText(
       code === "final_decision_notice_not_latest" ? "공고 ID 1103" : "관측 해시 ffffffffffff",
     );
-    await expect(page.getByLabel("결정 이유", { exact: true })).toHaveValue("차수 002 조건을 검토해 불참합니다.");
+    await expect(page.getByLabel("결정 이유", { exact: true })).toHaveValue("차수 002 조건을 검토해 불참해요.");
     await expect(page.getByLabel("최종 결정 담당자 이름")).toHaveValue("홍길동");
 
     await page.getByRole("button", { name: "결정 확인", exact: true }).click();
@@ -750,13 +750,13 @@ for (const code of ["final_decision_notice_not_latest", "final_decision_observat
     });
     // 확인한 fence가 달라졌으므로 같은 요청이 아니다.
     expect(posts[1].request_id).not.toBe(posts[0].request_id);
-    await expect(page.getByText("No-Go 최종 결정을 저장했습니다. 이전 결정은 그대로 남습니다.", { exact: true })).toBeVisible();
+    await expect(page.getByText("No-Go 최종 결정을 저장했어요. 이전 결정은 그대로 남아요.", { exact: true })).toBeVisible();
   });
 }
 
 for (const [code, status, title] of [
-  ["bid_delta_currentness_unavailable", 503, "최신 입찰공고를 확정할 수 없습니다."],
-  ["final_decision_bid_notice_missing", 409, "최종 결정할 입찰공고가 없습니다."],
+  ["bid_delta_currentness_unavailable", 503, "최신 입찰공고를 확정할 수 없어요."],
+  ["final_decision_bid_notice_missing", 409, "최종 결정할 입찰공고가 없어요."],
 ] as const) {
   test(`공고 조건 결정의 ${status} ${code}는 코드별 문장으로 알리고 저장을 흉내내지 않는다`, async ({ page }) => {
     await mockBidDelta(page, { calculationStatus: "completed" });
@@ -768,14 +768,14 @@ for (const [code, status, title] of [
       }) });
     });
     await page.goto("/opportunities/501/bid-delta");
-    await fillDecision(page, "Go", "조건을 확인했습니다.");
+    await fillDecision(page, "Go", "조건을 확인했어요.");
     await page.getByRole("button", { name: "결정 확인", exact: true }).click();
     await confirmFinalDecision(page, "Go로 최종 결정 저장");
     const feedback = page.locator(".mutation-feedback");
     await expect(feedback).toContainText(title);
     await expect(feedback).toContainText(`오류 코드 ${code}`);
-    await expect(page.getByText("최종 결정을 저장했습니다.", { exact: false })).toHaveCount(0);
-    await expect(page.getByLabel("결정 이유", { exact: true })).toHaveValue("조건을 확인했습니다.");
+    await expect(page.getByText("최종 결정을 저장했어요.", { exact: false })).toHaveCount(0);
+    await expect(page.getByLabel("결정 이유", { exact: true })).toHaveValue("조건을 확인했어요.");
   });
 }
 
@@ -786,7 +786,7 @@ test("완료된 비교를 보면 결정 근거를 고를 수 있고 공고 조�
   await expect(basis.getByRole("radio", { name: "비교 결과 기준", exact: true })).toBeChecked();
   await basis.getByRole("radio", { name: "공고 조건 기준", exact: true }).check();
   await expect(page.locator(".bid-delta-decision-conditions")).toContainText("결정 근거 · 공고 조건 기준");
-  await fillDecision(page, "No-Go", "비교 결과가 아니라 공고 조건을 근거로 불참합니다.");
+  await fillDecision(page, "No-Go", "비교 결과가 아니라 공고 조건을 근거로 불참해요.");
   const posted = page.waitForRequest((request) => request.method() === "POST"
     && new URL(request.url()).pathname === "/api/opportunities/501/final-decisions");
   await page.getByRole("button", { name: "결정 확인", exact: true }).click();

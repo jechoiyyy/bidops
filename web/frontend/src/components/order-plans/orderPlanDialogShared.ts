@@ -12,11 +12,11 @@ import type { OrderPlanListScope } from "../../lib/types";
  * - `null`: 회차에 완료 실행이 없다 — 판정 없음이며 비관련이 아니다.
  */
 export function scopeLabel(scope: OrderPlanListScope | null, runLabel?: string | null): string {
-  if (scope === null) return "판정 없음 · 이 회차에 완료된 선별 실행이 없습니다";
+  if (scope === null) return "판정 없음 · 이 회차에 완료된 선별 실행이 없어요";
   if (scope.mode === "cumulative") {
     return scope.policy_versions.length
       ? "누적 · 모든 수집 회차"
-      : "누적 · 판정 없음 (운영 선별 판정이 아직 없습니다)";
+      : "누적 · 판정 없음 (운영 선별 판정이 아직 없어요)";
   }
   const purpose = scope.purpose === "gate_measurement" ? " · 측정 전용 실행" : "";
   return `회차 보기 · ${runLabel ?? "선택한 수집 회차"}${purpose}`;

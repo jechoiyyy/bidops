@@ -110,7 +110,7 @@ test("LS-PN 선택 도구와 상세 오류 순회가 지원 폭 안에 보인다
     });
   });
   await page.reload();
-  await expect(page.getByText(/상세를 불러오지 못했습니다/)).toBeVisible();
+  await expect(page.getByText(/상세를 불러오지 못했어요/)).toBeVisible();
   await expect(navigation).toContainText("1 / 1");
   await expectNoHorizontalOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("prespec-review-error.png") });
@@ -126,7 +126,7 @@ test("pre-specs 제외 확인 창과 전체 이력 필터가 지원 폭 안에 �
   await dialog.getByRole('textbox', { name: '담당자 이름 · 감사 표식 (필수)' }).fill('화면 검증 담당자');
   await dialog.getByRole('combobox', { name: '제외 사유 (필수)' }).click();
   await page.getByRole('option', { name: '기타 · 직접 입력', exact: true }).click();
-  await dialog.getByRole('textbox', { name: '사유 직접 입력' }).fill('긴 사전규격 제목과 검토 범위를 확인하고 목록에서 제외합니다.');
+  await dialog.getByRole('textbox', { name: '사유 직접 입력' }).fill('긴 사전규격 제목과 검토 범위를 확인하고 목록에서 제외해요.');
   await expect(dialog.getByRole('button', { name: '1건 검토 제외', exact: true })).toBeEnabled();
   await expectNoHorizontalOverflow(page);
   const bounds = await dialog.boundingBox();

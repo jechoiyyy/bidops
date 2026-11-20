@@ -96,25 +96,25 @@ export function SegmentInventoryPanel({ documentVersionId = null, structureId, s
 
       {structureId === null ? (
         <p className="deep-review-segment-empty" role="status">
-          구조 ID를 확인할 수 없어 inventory를 불러오지 않았습니다. 다른 문서의 값으로 대신하지 않습니다.
+          구조 ID를 확인할 수 없어 inventory를 불러오지 않았어요. 다른 문서의 값으로 대신하지 않아요.
         </p>
       ) : null}
       {structureId !== null && segmentsQuery.isPending ? (
-        <p className="deep-review-segment-empty" role="status" aria-live="polite">문서 구간 목록을 불러오는 중입니다.</p>
+        <p className="deep-review-segment-empty" role="status" aria-live="polite">문서 구간 목록을 불러오는 중이에요.</p>
       ) : null}
       {isNotFound(segmentsQuery.error) ? (
         <p className="deep-review-segment-empty" role="status">
-          이 문서에는 구간 목록이 없습니다. 목록이 생기기 전에 만들어진 구조는 정상적으로 값이 없으며, 없음을 0건으로 바꾸지 않습니다.
+          이 문서에는 구간 목록이 없어요. 목록이 생기기 전에 만들어진 구조는 정상적으로 값이 없으며, 없음을 0건으로 바꾸지 않아요.
         </p>
       ) : null}
       {isUnsafeDocument(segmentsQuery.error) ? (
         <p className="deep-review-segment-empty" role="status">
-          안전 검사를 통과하지 못한 문서라 구간 목록을 열지 않았습니다.
+          안전 검사를 통과하지 못한 문서라 구간 목록을 열지 않았어요.
         </p>
       ) : null}
       {segmentsQuery.error && !isNotFound(segmentsQuery.error) && !isUnsafeDocument(segmentsQuery.error) ? (
         <p className="deep-review-segment-empty" role="status">
-          문서 구간 목록을 확인할 수 없습니다.
+          문서 구간 목록을 확인할 수 없어요.
         </p>
       ) : null}
 
@@ -173,11 +173,11 @@ export function SegmentInventoryPanel({ documentVersionId = null, structureId, s
           </div>
 
           <p className="deep-review-segment-note">
-            이 목록은 segment 제목을 제공하지 않습니다. segment 계약에 원문 text가 없어 제목을 만들 근거가 없으므로, 순번·분류·요구사항 ID·페이지만 보여 줍니다.
+            이 목록은 segment 제목을 제공하지 않아요. segment 계약에 원문 text가 없어 제목을 만들 근거가 없으므로, 순번·분류·요구사항 ID·페이지만 보여 줘요.
           </p>
 
           {needsReview.length === 0 ? (
-            <p className="deep-review-segment-empty">사람 확인이 필요한 segment가 없습니다.</p>
+            <p className="deep-review-segment-empty">사람 확인이 필요한 segment가 없어요.</p>
           ) : (
             <ul className="deep-review-segment-list" aria-label="사람 확인 필요 segment">
               {needsReview.map((segment) => (
@@ -236,8 +236,8 @@ export function SegmentInventoryPanel({ documentVersionId = null, structureId, s
                 <strong>페이지 {openPage} 원문</strong>
                 <button type="button" className="interaction-control" onClick={() => setOpenPage(null)}>원문 닫기</button>
               </header>
-              {pageQuery.isPending ? <p role="status" aria-live="polite">페이지 {openPage}의 원문을 불러오는 중입니다.</p> : null}
-              {pageQuery.error ? <p role="status">선택한 문서 페이지를 확인할 수 없습니다.</p> : null}
+              {pageQuery.isPending ? <p role="status" aria-live="polite">페이지 {openPage}의 원문을 불러오는 중이에요.</p> : null}
+              {pageQuery.error ? <p role="status">선택한 문서 페이지를 확인할 수 없어요.</p> : null}
               {pageQuery.data ? (
                 <ol className="deep-review-segment-source-blocks">
                   {pageQuery.data.blocks.map((block) => (

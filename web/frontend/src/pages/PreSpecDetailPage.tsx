@@ -261,7 +261,7 @@ function AutoPreparationStep({ index, name, done, value, variant, detail }: Auto
 
 /** 시안의 점 목록 한 줄. 문장과 PDF 근거 링크는 `PageOverviewFactLine`이 그린다. */
 function FactBullets({ items, review }: { items: PageOverviewFact[]; review: PageOverviewView }) {
-  if (items.length === 0) return <p className="ps-cap ps-muted">이번 입력에서는 확인되지 않았습니다.</p>;
+  if (items.length === 0) return <p className="ps-cap ps-muted">이번 입력에서는 확인되지 않았어요.</p>;
   return (
     <ul className="ps-bul">
       {items.map((fact, index) => (
@@ -293,9 +293,9 @@ function PageOverviewBriefing({ review }: { review: PageOverviewView }) {
       {/* 경계 문장("추적 승인과 최종 입찰 결정은 사람이 진행하며")은 ② 추적 결정
           카드 한 곳만 갖는다(M4 승인 2026-09-21). 함께 붙어 있던 자동 시작 조건은
           경계가 아니라 이 화면의 사실이므로 이 카드에 남긴다. */}
-      <p>사업 설명을 위한 요약입니다. 판정이 아니며, 이 요약을 읽고 추적을 정합니다.</p>
+      <p>사업 설명을 위한 요약이에요. 판정이 아니며, 이 요약을 읽고 추적을 정해요.</p>
       {review.validation_status === "failed" && review.evidence_check_status === "passed" ? (
-        <p>새 페이지 근거 검사는 통과했으나, 원실행의 검증 실패 기록은 유지합니다.</p>
+        <p>새 페이지 근거 검사는 통과했으나, 원실행의 검증 실패 기록은 유지해요.</p>
       ) : null}
     </div>
     {remainingOverview.length > 0 ? <>
@@ -370,8 +370,8 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
     return (
       <EmptyState
         tone="error"
-        title="사전규격 식별자를 확인할 수 없습니다."
-        description="주소의 사전규격 번호가 올바르지 않습니다."
+        title="사전규격 식별자를 확인할 수 없어요"
+        description="주소의 사전규격 번호가 올바르지 않아요."
         action={{ label: "사전규격 목록", to: listUrl }}
       />
     );
@@ -382,11 +382,11 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
   }
 
   if (noticeQuery.isError) {
-    const problem = describeApiError(noticeQuery.error, "선택한 사전규격의 상세 정보를 확인할 수 없습니다.");
+    const problem = describeApiError(noticeQuery.error, "선택한 사전규격의 상세 정보를 확인할 수 없어요.");
     return (
       <EmptyState
         tone="error"
-        title={`사전규격 ${noticeId} 상세를 불러오지 못했습니다.`}
+        title={`사전규격 ${noticeId} 상세를 불러오지 못했어요.`}
         problem={problem}
         action={apiErrorRecoveryAction(problem, () => { void noticeQuery.refetch(); })}
         secondaryAction={{ label: "사전규격 목록", to: listUrl }}
@@ -399,8 +399,8 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
     return (
       <EmptyState
         tone="error"
-        title="사전규격을 확인할 수 없습니다."
-        description="요청한 번호와 같은 사전규격이 아닙니다. 다른 공고로 이동하지 않았습니다."
+        title="사전규격을 확인할 수 없어요"
+        description="요청한 번호와 같은 사전규격이 아니에요. 다른 공고로 이동하지 않았어요."
         action={{ label: "사전규격 목록", to: listUrl }}
       />
     );
@@ -590,7 +590,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
                   )).join(" / ")
                   : preSpecItem.display_assessment.reason_codes.length > 0
                     ? `판단 보류 · ${preSpecItem.display_assessment.reason_codes.join(", ")}`
-                    : "판단 근거가 게시되지 않았습니다."}
+                    : "판단 근거가 게시되지 않았어요."}
                 {preSpecItem.display_assessment.verification_items.length > 0
                   ? ` 확인 항목 · ${preSpecItem.display_assessment.verification_items.join(", ")}`
                   : ""}
@@ -657,10 +657,10 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
             />
           </InternationalizationProvider>
           <footer className="ps-record-tracking-footer">
-            <p className="ps-record-tracking-help">추적을 시작하면 새 문서·입찰공고·정정공고를 계속 확인합니다.</p>
+            <p className="ps-record-tracking-help">추적을 시작하면 새 문서·입찰공고·정정공고를 계속 확인해요.</p>
             {/* 같은 취지의 경계 문장이 ②·③·④·⑥에 흩어져 있던 것을 결정을 실제로
                 내리는 이 카드 한 곳으로 모았다(M4 승인 2026-09-21). */}
-            <p className="ps-record-decision-note">적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않습니다. 입찰 참여 여부는 최종 Go/No-Go에서 정합니다.</p>
+            <p className="ps-record-decision-note">적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않아요. 입찰 참여 여부는 최종 Go/No-Go에서 정해요.</p>
           </footer>
         </div>
       </aside>
@@ -683,14 +683,14 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
           verificationReasonCount={verificationReasonCount}
         />
         {pageOverviewQuery.isPending ? (
-          <p role="status">PDF 기반 개요를 불러오는 중입니다.</p>
+          <p role="status">PDF 기반 개요를 불러오는 중이에요.</p>
         ) : pageOverviewQuery.isError ? (
           <div role="alert" className="page-overview-validation">
-            <p>PDF 기반 개요를 불러오지 못했습니다. 아래 기존 개요 기록과는 별도 조회입니다.</p>
+            <p>PDF 기반 개요를 불러오지 못했어요. 아래 기존 개요 기록과는 별도 조회예요.</p>
             <Button label="개요 다시 불러오기" size="sm" onClick={() => { void pageOverviewQuery.refetch(); }} />
           </div>
         ) : !pageOverviewValid ? (
-          <p role="alert">개요 응답의 공고 또는 구조가 일치하지 않아 표시하지 않습니다.</p>
+          <p role="alert">개요 응답의 공고 또는 구조가 일치하지 않아 표시하지 않아요.</p>
         ) : shown ? (
           <section className="page-overview" aria-label="PDF 기반 개요 검토">
             <PageOverviewBriefing review={shown} />
@@ -703,8 +703,8 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
             <p>{preSpecItem?.overview_review_status
               ? PRE_SPEC_OVERVIEW_WAITING_DESCRIPTION[preSpecItem.overview_review_status]
               : overviewOff
-                ? `개요 검토 · ${FEATURE_OFF_LABEL}. 이 환경의 운영 설정에서 개요 자동 검토가 꺼져 있어 실행 기록이 없고 주요 과업을 표시할 수 없습니다.`
-                : "개요 검토 실행 기록이 없어 주요 과업을 표시할 수 없습니다."}</p>
+                ? `개요 검토 · ${FEATURE_OFF_LABEL}. 이 환경의 운영 설정에서 개요 자동 검토가 꺼져 있어 실행 기록이 없고 주요 과업을 표시할 수 없어요.`
+                : "개요 검토 실행 기록이 없어 주요 과업을 표시할 수 없어요."}</p>
           </div>
         )}
       </section>
@@ -722,7 +722,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
               <span className="ps-cap ps-dim">문서 근거 · 개요 검토 결과의 주장별 원문 위치</span>
               <OverviewPdfReference review={shown} />
             </div>
-            {evidenceClaims.length === 0 ? <p className="ps-cap ps-muted">이번 입력에서는 확인되지 않았습니다.</p> : (
+            {evidenceClaims.length === 0 ? <p className="ps-cap ps-muted">이번 입력에서는 확인되지 않았어요.</p> : (
               <ul className="ps-ev">
                 {/* 주장 ID는 ⑥ 접힌 `기술 정보`가 갖는다(spec §3.2) — 주장별 검증
                     진단과 결과 식별 정보에서 전문으로 읽힌다. */}
@@ -735,7 +735,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
             )}
           </div>
         ) : null}
-        <p className="ps-cap ps-dim">첨부 원문 열기는 검증된 절대 HTTP(S) 주소만 사용하며 나라장터 원문 URL을 대신하지 않습니다.</p>
+        <p className="ps-cap ps-dim">첨부 원문 열기는 검증된 절대 HTTP(S) 주소만 사용하며 나라장터 원문 URL을 대신하지 않아요.</p>
       </section>
 
       {/* ⑥ 처리 이력 · 문서 준비 · 검토 실행 (spec §4 ⑥) */}
@@ -765,7 +765,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
               variant={documentCounts && (documentCounts["차단"] > 0 || documentCounts["실패"] > 0) ? "alert" : "neutral"}
               detail={documentCounts
                 ? `완료 ${documentCounts["완료"]} · 대기 ${documentCounts["대기"]} · 진행 ${documentCounts["진행"]} · 차단 ${documentCounts["차단"]} · 실패 ${documentCounts["실패"]}`
-                : "사전규격 요약 정보가 없어 첨부 집계를 표시하지 않습니다."}
+                : "사전규격 요약 정보가 없어 첨부 집계를 표시하지 않아요."}
             />
             <AutoPreparationStep
               index={2}
@@ -795,7 +795,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
           {/* 경계 문장("추적 선택과 최종 입찰 Go/No-Go는 사람이 결정합니다")은 ②
               추적 결정 카드로 모았다. 자동 시작 조건은 이 네 단계의 사실이라 남는다. */}
           <p className="pre-spec-auto-preparation-note">
-            첨부 취득·문서 준비·개요 검토는 의견 마감 전이거나 추적 중인 사전규격에서 자동으로 진행합니다. 마감이 지난 건은 추적을 시작하면 진행합니다.
+            첨부 취득·문서 준비·개요 검토는 의견 마감 전이거나 추적 중인 사전규격에서 자동으로 진행해요. 마감이 지난 건은 추적을 시작하면 진행해요.
           </p>
         </div>
 
@@ -836,8 +836,8 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
             <PreSpecQueryError
               onRetry={() => { void preSpecProjectionQuery.refetch(); }}
               error={preSpecProjectionQuery.error}
-              fallback="사전규격 요약 정보를 불러오지 못해 첨부 취득 집계를 표시하지 않습니다."
-              title="첨부 원문 취득 집계를 불러오지 못했습니다."
+              fallback="사전규격 요약 정보를 불러오지 못해 첨부 취득 집계를 표시하지 않아요."
+              title="첨부 원문 취득 집계를 불러오지 못했어요"
             />
           ) : null}
           {preSpecItem ? (
@@ -865,7 +865,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
             className="detail-skeleton-rail"
             historySections={[{
               className: "detail-skeleton-rail-panel",
-              content: <p className="detail-skeleton-rail-note">개요 입력 범위와 현재 실행은 이 카드의 `개요 입력 범위 확정` 자리와 아래 실행 정보에서 봅니다.</p>,
+              content: <p className="detail-skeleton-rail-note">개요 입력 범위와 현재 실행은 이 카드의 `개요 입력 범위 확정` 자리와 아래 실행 정보에서 봐요.</p>,
               entries: [],
               label: "입력 범위와 실행",
               showHeading: false,
@@ -915,7 +915,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
               {currentPageOverviewForView ? <PageOverviewCurrentFacts current={currentPageOverviewForView} /> : null}
               {shown ? <PageOverviewResultFacts review={shown} claimIds={evidenceClaims.map((fact) => fact.claim_id)} /> : null}
               {shown ? <PageOverviewExecutionInfo review={shown} /> : null}
-              {!currentPageOverviewForView && !shown ? <p>{overviewOff ? `개요 검토 실행 기록이 없습니다 · ${FEATURE_OFF_LABEL}.` : "개요 검토 실행 기록이 없습니다."}</p> : null}
+              {!currentPageOverviewForView && !shown ? <p>{overviewOff ? `개요 검토 실행 기록이 없어요 · ${FEATURE_OFF_LABEL}.` : "개요 검토 실행 기록이 없어요."}</p> : null}
               <PageOverviewHistoryFacts reviews={pageOverviewValid ? pageOverviewHistory : []} />
             </section>
             <CompanyFitExecutionSection
@@ -947,7 +947,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
               <span className="ps-cap ps-dim">주의 {cautionCounts?.count ?? 0}</span>
             </div>
             {companyFitVerificationItems.length === 0 ? (
-              <p className="pre-spec-overview-empty">회사 적합성 확인 항목 없음 · 차단 조건과 주의는 참여 판정에서 확인합니다.</p>
+              <p className="pre-spec-overview-empty">회사 적합성 확인 항목 없음 · 차단 조건과 주의는 참여 판정에서 확인해요.</p>
             ) : (
               <ul className="ps-risks">
                 {companyFitVerificationItems.map((item, index) => (

@@ -61,216 +61,216 @@ type CodeDescription = Omit<ApiErrorDescription, "code">;
  */
 const KNOWN_CODE_DESCRIPTION: Record<string, CodeDescription> = {
   review_not_ready: {
-    title: "보고서가 아직 준비되지 않았습니다.",
-    detail: "분석이 끝나야 보고서를 조회할 수 있습니다. 잠시 뒤 다시 조회하십시오.",
+    title: "보고서가 아직 준비되지 않았어요.",
+    detail: "분석이 끝나야 보고서를 조회할 수 있어요. 잠시 뒤 다시 조회해 주세요.",
     action: "retry",
   },
   active_attempt_exists: {
-    title: "이미 실행 중인 분석 회차가 있습니다.",
-    detail: "지금 실행이 끝난 뒤에 새 회차를 시작할 수 있습니다. 최신 상태를 다시 불러와 확인하십시오.",
+    title: "이미 실행 중인 분석 회차가 있어요.",
+    detail: "지금 실행이 끝난 뒤에 새 회차를 시작할 수 있어요. 최신 상태를 다시 불러와 확인해 주세요.",
     action: "reload",
   },
   version_conflict: {
-    title: "대상이 그사이 바뀌었습니다.",
-    detail: "다른 사람이 먼저 바꿨을 수 있습니다. 최신 상태를 다시 불러온 뒤 입력을 확인하십시오.",
+    title: "대상이 그사이 바뀌었어요.",
+    detail: "다른 사람이 먼저 바꿨을 수 있어요. 최신 상태를 다시 불러온 뒤 입력을 확인해 주세요.",
     action: "reload",
   },
   idempotency_conflict: {
-    title: "같은 요청 식별자가 다른 요청에 이미 쓰였습니다.",
-    detail: "같은 저장을 두 번 보내지 않도록 화면을 다시 불러온 뒤 처음부터 입력하십시오.",
+    title: "같은 요청 식별자가 다른 요청에 이미 쓰였어요.",
+    detail: "같은 저장을 두 번 보내지 않도록 화면을 다시 불러온 뒤 처음부터 입력해 주세요.",
     action: "reload",
   },
   company_identity_conflict: {
-    title: "같은 회사 식별자에 다른 정보가 등록되어 있습니다.",
-    detail: "등록된 회사 이름과 가상회사 표식을 확인한 뒤 다시 시도하십시오.",
+    title: "같은 회사 식별자에 다른 정보가 등록되어 있어요.",
+    detail: "등록된 회사 이름과 가상회사 표식을 확인한 뒤 다시 시도해 주세요.",
     action: null,
   },
   company_profile_not_ready: {
-    title: "회사 프로필이 아직 준비되지 않았습니다.",
-    detail: "회사 지식 버전을 활성화한 뒤 다시 여십시오.",
+    title: "회사 프로필이 아직 준비되지 않았어요.",
+    detail: "회사 지식 버전을 활성화한 뒤 다시 열어 주세요.",
     action: null,
   },
   // RL-00 `GET /api/company`(deep_review `routers/company_knowledge.py` `_ERRORS`).
   company_not_registered: {
-    title: "등록된 회사가 없습니다.",
-    detail: "회사 파일을 등록하고 활성화한 뒤 다시 여십시오.",
+    title: "등록된 회사가 없어요.",
+    detail: "회사 파일을 등록하고 활성화한 뒤 다시 열어 주세요.",
     action: null,
   },
   // RL-01 브리핑(lifecycle `routers/briefings.py` 로컬 오류 map).
   briefing_not_found: {
-    title: "브리핑이 아직 없습니다.",
-    detail: "해당 날짜의 브리핑이 만들어지지 않았습니다. 평일 브리핑이 만들어진 뒤에 다시 여십시오.",
+    title: "브리핑이 아직 없어요.",
+    detail: "해당 날짜의 브리핑이 만들어지지 않았어요. 평일 브리핑이 만들어진 뒤에 다시 열어 주세요.",
     action: null,
   },
   briefing_item_not_found: {
-    title: "브리핑 항목을 찾을 수 없습니다.",
-    detail: "항목이 없거나 다른 날짜의 브리핑에 속합니다. 최신 상태를 다시 불러온 뒤 확인하십시오.",
+    title: "브리핑 항목을 찾을 수 없어요.",
+    detail: "항목이 없거나 다른 날짜의 브리핑에 속해요. 최신 상태를 다시 불러온 뒤 확인해 주세요.",
     action: "reload",
   },
   reaction_not_allowed: {
-    title: "이 항목에는 반응을 남길 수 없습니다.",
-    detail: "추적 중인 사업의 변화는 확인용 항목이며 반응 대상이 아닙니다.",
+    title: "이 항목에는 반응을 남길 수 없어요.",
+    detail: "추적 중인 사업의 변화는 확인용 항목이며 반응 대상이 아니에요.",
     action: null,
   },
   // RL-02 사업기회 레코드(lifecycle `routers/opportunities.py` 로컬 오류 map).
   note_not_action: {
-    title: "다음 행동만 완료로 표시할 수 있습니다.",
-    detail: "노트는 완료 대상이 아닙니다. 최신 상태를 다시 불러온 뒤 확인하십시오.",
+    title: "다음 행동만 완료로 표시할 수 있어요.",
+    detail: "노트는 완료 대상이 아니에요. 최신 상태를 다시 불러온 뒤 확인해 주세요.",
     action: "reload",
   },
   opportunity_not_found: {
-    title: "사업기회를 찾을 수 없습니다.",
-    detail: "없거나 이미 지워진 사업기회입니다. 사업기회 목록에서 다시 여십시오.",
+    title: "사업기회를 찾을 수 없어요.",
+    detail: "없거나 이미 지워진 사업기회예요. 사업기회 목록에서 다시 열어 주세요.",
     action: null,
   },
   opportunity_merged: {
-    title: "다른 사업기회로 병합된 사업기회입니다.",
-    detail: "병합된 사업기회에는 노트를 남길 수 없습니다. 병합된 쪽 레코드를 여십시오.",
+    title: "다른 사업기회로 병합된 사업기회예요.",
+    detail: "병합된 사업기회에는 노트를 남길 수 없어요. 병합된 쪽 레코드를 열어 주세요.",
     action: "reload",
   },
   bundle_not_ready: {
-    title: "확정된 문서 묶음이 필요합니다.",
-    detail: "문서 준비에서 문서 묶음을 확정한 뒤 다시 시도하십시오.",
+    title: "확정된 문서 묶음이 필요해요.",
+    detail: "문서 준비에서 문서 묶음을 확정한 뒤 다시 시도해 주세요.",
     action: null,
   },
   bundle_has_blocking_issues: {
-    title: "문서 묶음에 해결되지 않은 차단 항목이 있습니다.",
-    detail: "문서 준비에서 차단 항목을 먼저 해결해야 합니다. 화면이 차단을 건너뛰지 않습니다.",
+    title: "문서 묶음에 해결되지 않은 차단 항목이 있어요.",
+    detail: "문서 준비에서 차단 항목을 먼저 해결해야 해요. 화면이 차단을 건너뛰지 않아요.",
     action: null,
   },
   unsafe_document: {
-    title: "문서가 안전 검사를 통과하지 못했습니다.",
-    detail: "검사에 걸린 문서는 사용할 수 없습니다. 문서 준비에서 상태를 확인하십시오.",
+    title: "문서가 안전 검사를 통과하지 못했어요.",
+    detail: "검사에 걸린 문서는 사용할 수 없어요. 문서 준비에서 상태를 확인해 주세요.",
     action: null,
   },
   structure_unavailable: {
-    title: "문서 구조를 확인할 수 없습니다.",
-    detail: "구조화가 끝나지 않았거나 실패했습니다. 잠시 뒤 다시 시도하십시오.",
+    title: "문서 구조를 확인할 수 없어요.",
+    detail: "구조화가 끝나지 않았거나 실패했어요. 잠시 뒤 다시 시도해 주세요.",
     action: "retry",
   },
   evidence_out_of_scope: {
-    title: "심층 검토 범위 밖의 근거입니다.",
-    detail: "이 보고서 범위 안의 근거만 쓸 수 있습니다. 입력한 근거 식별자를 확인하십시오.",
+    title: "심층 검토 범위 밖의 근거예요.",
+    detail: "이 보고서 범위 안의 근거만 쓸 수 있어요. 입력한 근거 식별자를 확인해 주세요.",
     action: null,
   },
   factual_change_evidence_required: {
-    title: "사실을 바꾸려면 범위 안의 근거가 필요합니다.",
-    detail: "바뀐 사실이 가리키는 근거 식별자를 입력한 뒤 다시 저장하십시오.",
+    title: "사실을 바꾸려면 범위 안의 근거가 필요해요.",
+    detail: "바뀐 사실이 가리키는 근거 식별자를 입력한 뒤 다시 저장해 주세요.",
     action: null,
   },
   final_opinion_reason_required: {
-    title: "의견 사유가 필요합니다.",
-    detail: "사유를 입력한 뒤 다시 저장하십시오.",
+    title: "의견 사유가 필요해요.",
+    detail: "사유를 입력한 뒤 다시 저장해 주세요.",
     action: null,
   },
   validation_failed: {
-    title: "결정적 검증을 통과하지 못했습니다.",
-    detail: "실패한 검증은 자동으로 보정되지 않습니다. 근거를 사람이 확인해야 합니다.",
+    title: "결정적 검증을 통과하지 못했어요.",
+    detail: "실패한 검증은 자동으로 보정되지 않아요. 근거를 사람이 확인해야 해요.",
     action: null,
   },
   effective_grade_ineligible: {
-    title: "현재 공고는 이 작업의 대상이 아닙니다.",
-    detail: "서버가 등급 조건으로 막았습니다. 등급과 대상 조건을 확인하십시오.",
+    title: "현재 공고는 이 작업의 대상이 아니에요.",
+    detail: "서버가 등급 조건으로 막았어요. 등급과 대상 조건을 확인해 주세요.",
     action: null,
   },
   run_active: {
-    title: "이미 진행 중인 개요 검토가 있습니다.",
-    detail: "지금 실행이 끝난 뒤에 새 범위로 다시 검토할 수 있습니다. 최신 상태를 다시 불러와 확인하십시오.",
+    title: "이미 진행 중인 개요 검토가 있어요.",
+    detail: "지금 실행이 끝난 뒤에 새 범위로 다시 검토할 수 있어요. 최신 상태를 다시 불러와 확인해 주세요.",
     action: "reload",
   },
   document_not_current_safe: {
-    title: "개요를 읽을 문서가 현재 버전이 아니거나 안전 검사를 통과하지 않았습니다.",
-    detail: "문서 준비에서 묶음의 제안요청서 상태를 확인한 뒤 다시 시도하십시오.",
+    title: "개요를 읽을 문서가 현재 버전이 아니거나 안전 검사를 통과하지 않았어요.",
+    detail: "문서 준비에서 묶음의 제안요청서 상태를 확인한 뒤 다시 시도해 주세요.",
     action: null,
   },
   range_invalid: {
-    title: "쪽 범위가 올바르지 않습니다.",
-    detail: "시작 쪽은 1 이상이고 끝 쪽보다 클 수 없으며 문서의 쪽 수와 정책 상한을 넘을 수 없습니다. 범위를 고쳐 다시 보내십시오.",
+    title: "쪽 범위가 올바르지 않아요.",
+    detail: "시작 쪽은 1 이상이고 끝 쪽보다 클 수 없으며 문서의 쪽 수와 정책 상한을 넘을 수 없어요. 범위를 고쳐 다시 보내 주세요.",
     action: null,
   },
   actor_name_required: {
-    title: "담당자 이름이 필요합니다.",
-    detail: "담당자 이름을 입력한 뒤 다시 저장하십시오. 이름은 감사 표식이며 인증이 아닙니다.",
+    title: "담당자 이름이 필요해요.",
+    detail: "담당자 이름을 입력한 뒤 다시 저장해 주세요. 이름은 감사 표식이며 인증이 아니에요.",
     action: null,
   },
   actor_name_invalid: {
-    title: "담당자 이름이 올바르지 않습니다.",
-    detail: "이름을 다시 입력한 뒤 저장하십시오.",
+    title: "담당자 이름이 올바르지 않아요.",
+    detail: "이름을 다시 입력한 뒤 저장해 주세요.",
     action: null,
   },
   bid_delta_comparison_stale: {
-    title: "새 비교 입력이 생겨 이 결정은 최신이 아닙니다.",
-    detail: "최신 상태를 다시 불러온 뒤 어떤 비교를 결정할지 확인하십시오.",
+    title: "새 비교 입력이 생겨 이 결정은 최신이 아니에요.",
+    detail: "최신 상태를 다시 불러온 뒤 어떤 비교를 결정할지 확인해 주세요.",
     action: "reload",
   },
   bid_delta_version_conflict: {
-    title: "비교 버전이 그사이 바뀌었습니다.",
-    detail: "다른 사람이 먼저 바꿨을 수 있습니다. 최신 상태를 다시 불러온 뒤 확인하십시오.",
+    title: "비교 버전이 그사이 바뀌었어요.",
+    detail: "다른 사람이 먼저 바꿨을 수 있어요. 최신 상태를 다시 불러온 뒤 확인해 주세요.",
     action: "reload",
   },
   bid_delta_result_digest_conflict: {
-    title: "비교 결과가 그사이 바뀌었습니다.",
-    detail: "저장하려던 결과와 지금 결과가 다릅니다. 최신 상태를 다시 불러온 뒤 확인하십시오.",
+    title: "비교 결과가 그사이 바뀌었어요.",
+    detail: "저장하려던 결과와 지금 결과가 달라요. 최신 상태를 다시 불러온 뒤 확인해 주세요.",
     action: "reload",
   },
   final_decision_supersession_conflict: {
-    title: "직전 최종 결정이 그사이 바뀌었습니다.",
-    detail: "다른 사람이 먼저 결정했을 수 있습니다. 최신 상태를 다시 불러온 뒤 확인하십시오.",
+    title: "직전 최종 결정이 그사이 바뀌었어요.",
+    detail: "다른 사람이 먼저 결정했을 수 있어요. 최신 상태를 다시 불러온 뒤 확인해 주세요.",
     action: "reload",
   },
   bid_delta_currentness_unavailable: {
-    title: "비교의 최신 여부를 확인할 수 없습니다.",
-    detail: "최신 여부를 모르는 채로 결정을 저장하지 않았습니다. 최신 상태를 다시 불러오십시오.",
+    title: "비교의 최신 여부를 확인할 수 없어요.",
+    detail: "최신 여부를 모르는 채로 결정을 저장하지 않았어요. 최신 상태를 다시 불러와 주세요.",
     action: "reload",
   },
   bid_delta_comparison_not_completed: {
-    title: "계산이 끝난 비교만 최종 결정할 수 있습니다.",
-    detail: "계산이 완료될 때까지 기다린 뒤 다시 저장하십시오.",
+    title: "계산이 끝난 비교만 최종 결정할 수 있어요.",
+    detail: "계산이 완료될 때까지 기다린 뒤 다시 저장해 주세요.",
     action: null,
   },
   bid_delta_comparison_not_retryable: {
-    title: "계산에 실패한 비교만 다시 실행할 수 있습니다.",
-    detail: "현재 상태를 확인한 뒤 필요한 작업을 고르십시오.",
+    title: "계산에 실패한 비교만 다시 실행할 수 있어요.",
+    detail: "현재 상태를 확인한 뒤 필요한 작업을 골라 주세요.",
     action: null,
   },
   bid_delta_input_not_ready: {
-    title: "비교 입력이 아직 준비되지 않았습니다.",
-    detail: "문서 준비에서 문서 묶음을 확정한 뒤 다시 시도하십시오.",
+    title: "비교 입력이 아직 준비되지 않았어요.",
+    detail: "문서 준비에서 문서 묶음을 확정한 뒤 다시 시도해 주세요.",
     action: null,
   },
   bid_delta_input_not_authoritative: {
-    title: "확정된 연결이 아닌 문서로는 비교할 수 없습니다.",
-    detail: "사업 추적에서 연결이 확정된 뒤에 비교를 시작할 수 있습니다.",
+    title: "확정된 연결이 아닌 문서로는 비교할 수 없어요.",
+    detail: "사업 추적에서 연결이 확정된 뒤에 비교를 시작할 수 있어요.",
     action: null,
   },
   bid_delta_category_policy_invalid: {
-    title: "지원하지 않는 범주 정책입니다.",
-    detail: "화면을 다시 불러온 뒤에도 같으면 담당자에게 알리십시오.",
+    title: "지원하지 않는 범주 정책이에요.",
+    detail: "화면을 다시 불러온 뒤에도 같으면 담당자에게 알려 주세요.",
     action: "reload",
   },
   bid_delta_service_unavailable: {
-    title: "입찰 변경 비교 기능을 일시적으로 사용할 수 없습니다.",
-    detail: "잠시 뒤 다시 시도하고, 계속되면 담당자에게 알리십시오.",
+    title: "입찰 변경 비교 기능을 일시적으로 사용할 수 없어요.",
+    detail: "잠시 뒤 다시 시도하고, 계속되면 담당자에게 알려 주세요.",
     action: "retry",
   },
   bid_delta_projection_unavailable: {
-    title: "입찰 변경 비교 정보를 조회할 수 없습니다.",
-    detail: "잠시 뒤 다시 시도하고, 계속되면 담당자에게 알리십시오.",
+    title: "입찰 변경 비교 정보를 조회할 수 없어요.",
+    detail: "잠시 뒤 다시 시도하고, 계속되면 담당자에게 알려 주세요.",
     action: "retry",
   },
   not_found: {
-    title: "대상을 찾을 수 없습니다.",
-    detail: "요청한 대상이 없거나 이미 지워졌습니다. 목록에서 다시 여십시오.",
+    title: "대상을 찾을 수 없어요.",
+    detail: "요청한 대상이 없거나 이미 지워졌어요. 목록에서 다시 열어 주세요.",
     action: null,
   },
   service_unavailable: {
-    title: "서비스를 일시적으로 사용할 수 없습니다.",
-    detail: "잠시 뒤 다시 시도하고, 계속되면 담당자에게 알리십시오.",
+    title: "서비스를 일시적으로 사용할 수 없어요.",
+    detail: "잠시 뒤 다시 시도하고, 계속되면 담당자에게 알려 주세요.",
     action: "retry",
   },
   processing_failed: {
-    title: "작업을 완료하지 못했습니다.",
-    detail: "실패는 자동으로 보정되지 않습니다. 잠시 뒤 다시 시도하고, 계속되면 담당자에게 알리십시오.",
+    title: "작업을 완료하지 못했어요.",
+    detail: "실패는 자동으로 보정되지 않아요. 잠시 뒤 다시 시도하고, 계속되면 담당자에게 알려 주세요.",
     action: "retry",
   },
 };
@@ -320,8 +320,8 @@ export function parseOrderPlanBulkTrackingError(error: unknown): OrderPlanBulkTr
 }
 
 const BULK_RESULT_UNCONFIRMED_DESCRIPTION: ApiErrorDescription = {
-  title: "일괄 추적 결과를 확인할 수 없습니다.",
-  detail: "같은 요청 식별자와 입력을 그대로 사용해 저장된 요청 결과를 확인하십시오. 새 요청을 만들지 않습니다.",
+  title: "일괄 추적 결과를 확인할 수 없어요.",
+  detail: "같은 요청 식별자와 입력을 그대로 사용해 저장된 요청 결과를 확인해 주세요. 새 요청을 만들지 않아요.",
   action: "retry",
   code: "result_unconfirmed",
 };
@@ -337,7 +337,7 @@ const BULK_RESULT_UNCONFIRMED_DESCRIPTION: ApiErrorDescription = {
  */
 export function describeOrderPlanBulkTrackingError(
   error: unknown,
-  fallback = "일괄 추적 작업을 완료하지 못했습니다.",
+  fallback = "일괄 추적 작업을 완료하지 못했어요.",
   unconfirmedTitle: string = BULK_RESULT_UNCONFIRMED_DESCRIPTION.title,
 ): ApiErrorDescription {
   const parsed = parseOrderPlanBulkTrackingError(error);
@@ -345,16 +345,16 @@ export function describeOrderPlanBulkTrackingError(
   if (parsed.kind === "result_unconfirmed") return { ...BULK_RESULT_UNCONFIRMED_DESCRIPTION, title: unconfirmedTitle };
   if (parsed.code === "idempotency_conflict") {
     return {
-      title: "같은 요청 식별자가 다른 요청에 이미 쓰였습니다.",
-      detail: "요청 식별자와 입력을 바꾸지 말고 저장된 요청 결과를 확인하십시오.",
+      title: "같은 요청 식별자가 다른 요청에 이미 쓰였어요.",
+      detail: "요청 식별자와 입력을 바꾸지 말고 저장된 요청 결과를 확인해 주세요.",
       action: "reload",
       code: parsed.code,
     };
   }
   if (parsed.kind === "validation") {
     return {
-      title: "일괄 추적 요청 형식이 올바르지 않습니다.",
-      detail: "선택한 발주계획과 요청 입력을 확인한 뒤 다시 시도하십시오.",
+      title: "일괄 추적 요청 형식이 올바르지 않아요.",
+      detail: "선택한 발주계획과 요청 입력을 확인한 뒤 다시 시도해 주세요.",
       action: null,
       code: parsed.code,
     };
@@ -391,8 +391,8 @@ export function describeApiError(error: unknown, fallback: string): ApiErrorDesc
 
   if (status === 0) {
     return {
-      title: "서버에 연결할 수 없습니다.",
-      detail: "네트워크와 서버 상태를 확인한 뒤 다시 시도하십시오.",
+      title: "서버에 연결할 수 없어요.",
+      detail: "네트워크와 서버 상태를 확인한 뒤 다시 시도해 주세요.",
       action: "retry",
       code: null,
     };
@@ -408,8 +408,8 @@ export function describeApiError(error: unknown, fallback: string): ApiErrorDesc
 
   if (status === 401 || status === 403) {
     return {
-      title: "이 작업을 수행할 권한이 없습니다.",
-      detail: "서버가 요청을 거부했습니다. 사내망 접근 경계와 대상 조건을 담당자에게 확인하십시오.",
+      title: "이 작업을 수행할 권한이 없어요.",
+      detail: "서버가 요청을 거부했어요. 사내망 접근 경계와 대상 조건을 담당자에게 확인해 주세요.",
       action: "contact",
       code,
     };
@@ -421,8 +421,8 @@ export function describeApiError(error: unknown, fallback: string): ApiErrorDesc
 
   if (status === 409) {
     return {
-      title: "다른 변경과 충돌했습니다.",
-      detail: "다른 사람이 먼저 바꿨을 수 있습니다. 최신 상태를 다시 불러온 뒤 확인하십시오.",
+      title: "다른 변경과 충돌했어요.",
+      detail: "다른 사람이 먼저 바꿨을 수 있어요. 최신 상태를 다시 불러온 뒤 확인해 주세요.",
       action: "reload",
       code,
     };
@@ -430,8 +430,8 @@ export function describeApiError(error: unknown, fallback: string): ApiErrorDesc
 
   if (status !== null && status >= 500) {
     return {
-      title: "서버 오류가 발생했습니다.",
-      detail: "서버가 요청을 처리하지 못했습니다. 잠시 뒤 다시 시도하고, 계속되면 담당자에게 알리십시오.",
+      title: "서버 오류가 발생했어요.",
+      detail: "서버가 요청을 처리하지 못했어요. 잠시 뒤 다시 시도하고, 계속되면 담당자에게 알려 주세요.",
       action: "retry",
       code,
     };
@@ -439,8 +439,8 @@ export function describeApiError(error: unknown, fallback: string): ApiErrorDesc
 
   if (status !== null && status >= 400) {
     return {
-      title: "요청을 처리할 수 없습니다.",
-      detail: "입력한 값을 확인한 뒤 다시 시도하십시오.",
+      title: "요청을 처리할 수 없어요.",
+      detail: "입력한 값을 확인한 뒤 다시 시도해 주세요.",
       action: null,
       code,
     };
@@ -448,7 +448,7 @@ export function describeApiError(error: unknown, fallback: string): ApiErrorDesc
 
   return {
     title: fallback,
-    detail: "원인을 확인할 수 없습니다. 다시 시도하고, 계속되면 담당자에게 알리십시오.",
+    detail: "원인을 확인할 수 없어요. 다시 시도하고, 계속되면 담당자에게 알려 주세요.",
     action: "retry",
     code,
   };
@@ -472,88 +472,88 @@ export function describeApiError(error: unknown, fallback: string): ApiErrorDesc
  */
 const COMPANY_CODE_DESCRIPTION: Record<string, CodeDescription> = {
   not_found: {
-    title: "이 회사에서 대상을 찾을 수 없습니다.",
-    detail: "없는 대상이거나 다른 회사 소속입니다. 다른 회사의 결과로 대신 보여 주지 않습니다. 회사 목록에서 다시 여십시오.",
+    title: "이 회사에서 대상을 찾을 수 없어요.",
+    detail: "없는 대상이거나 다른 회사 소속이에요. 다른 회사의 결과로 대신 보여 주지 않아요. 회사 목록에서 다시 열어 주세요.",
     action: null,
   },
   effective_grade_ineligible: {
-    title: "SW사업대상 사전규격이 아닙니다.",
-    detail: "회사 경로의 심층 분석은 SW사업대상=Y 공고만 받습니다. C-1 등급은 이 조건에 쓰지 않습니다.",
+    title: "SW사업대상 사전규격이 아니에요.",
+    detail: "회사 경로의 심층 분석은 SW사업대상=Y 공고만 받아요. C-1 등급은 이 조건에 쓰지 않아요.",
     action: null,
   },
   invalid_request: {
-    title: "요청 형식이 올바르지 않습니다.",
-    detail: "입력한 값을 확인한 뒤 다시 시도하십시오.",
+    title: "요청 형식이 올바르지 않아요.",
+    detail: "입력한 값을 확인한 뒤 다시 시도해 주세요.",
     action: null,
   },
   tracking_status_invalid: {
-    title: "지원하지 않는 추적 상태입니다.",
-    detail: "계속 추적·보류·종료 중 하나를 고른 뒤 다시 저장하십시오.",
+    title: "지원하지 않는 추적 상태예요.",
+    detail: "계속 추적·보류·종료 중 하나를 고른 뒤 다시 저장해 주세요.",
     action: null,
   },
   tracking_reason_required: {
-    title: "추적 상태를 고른 이유가 필요합니다.",
-    detail: "사유를 입력한 뒤 다시 저장하십시오.",
+    title: "추적 상태를 고른 이유가 필요해요.",
+    detail: "사유를 입력한 뒤 다시 저장해 주세요.",
     action: null,
   },
   version_conflict: {
-    title: "이 회사의 대상이 그사이 바뀌었습니다.",
-    detail: "입력은 지우지 않았습니다. 최신 상태를 다시 불러온 뒤 입력을 확인하고 다시 저장하십시오. 자동으로 덮어쓰지 않습니다.",
+    title: "이 회사의 대상이 그사이 바뀌었어요.",
+    detail: "입력은 지우지 않았어요. 최신 상태를 다시 불러온 뒤 입력을 확인하고 다시 저장해 주세요. 자동으로 덮어쓰지 않아요.",
     action: "reload",
   },
   idempotency_conflict: {
-    title: "같은 요청 식별자가 다른 요청에 이미 쓰였습니다.",
-    detail: "재전송이 앞선 요청과 충돌했습니다. 최신 상태를 다시 불러와 저장 여부를 확인하십시오.",
+    title: "같은 요청 식별자가 다른 요청에 이미 쓰였어요.",
+    detail: "재전송이 앞선 요청과 충돌했어요. 최신 상태를 다시 불러와 저장 여부를 확인해 주세요.",
     action: "reload",
   },
   company_input_invalid: {
-    title: "회사 분석 입력을 만들 수 없습니다.",
-    detail: "회사·문서·그래프 버전이 서로 맞지 않습니다. 자동으로 보정하지 않으므로 회사 지식과 문서 준비 상태를 확인하십시오.",
+    title: "회사 분석 입력을 만들 수 없어요.",
+    detail: "회사·문서·그래프 버전이 서로 맞지 않아요. 자동으로 보정하지 않으므로 회사 지식과 문서 준비 상태를 확인해 주세요.",
     action: null,
   },
   overview_not_completed: {
-    title: "개요 검토가 아직 완료되지 않았습니다.",
-    detail: "개요 검토가 완료된 뒤에 회사별 심층 분석을 요청할 수 있습니다.",
+    title: "개요 검토가 아직 완료되지 않았어요.",
+    detail: "개요 검토가 완료된 뒤에 회사별 심층 분석을 요청할 수 있어요.",
     action: null,
   },
   review_exists: {
-    title: "같은 입력의 심층 검토가 이미 있습니다.",
-    detail: "새 검토를 만들지 않습니다. 기존 검토에서 새 분석 회차를 요청하십시오.",
+    title: "같은 입력의 심층 검토가 이미 있어요.",
+    detail: "새 검토를 만들지 않아요. 기존 검토에서 새 분석 회차를 요청해 주세요.",
     action: null,
   },
   preview_required: {
-    title: "전송 미리보기 확인이 필요합니다.",
-    detail: "전송 내용 미리보기를 다시 열어 확인한 뒤 승인하십시오.",
+    title: "전송 미리보기 확인이 필요해요.",
+    detail: "전송 내용 미리보기를 다시 열어 확인한 뒤 승인해 주세요.",
     action: null,
   },
   preview_changed: {
-    title: "미리보기 뒤에 전송 입력이 바뀌었습니다.",
-    detail: "이전 승인은 쓰지 않습니다. 전송 내용 미리보기를 다시 확인한 뒤 승인하십시오.",
+    title: "미리보기 뒤에 전송 입력이 바뀌었어요.",
+    detail: "이전 승인은 쓰지 않아요. 전송 내용 미리보기를 다시 확인한 뒤 승인해 주세요.",
     action: null,
   },
   preview_used: {
-    title: "이미 승인에 쓰인 미리보기입니다.",
-    detail: "같은 미리보기로 다시 요청하지 않습니다. 새 미리보기를 만들어 확인하십시오.",
+    title: "이미 승인에 쓰인 미리보기예요.",
+    detail: "같은 미리보기로 다시 요청하지 않아요. 새 미리보기를 만들어 확인해 주세요.",
     action: null,
   },
   reference_mode_required: {
-    title: "참조 실행 모드가 꺼져 있습니다.",
-    detail: "새 심층 분석 요청은 참조 실행 모드에서만 받습니다. 과거 결과 조회는 계속 할 수 있습니다.",
+    title: "참조 실행 모드가 꺼져 있어요.",
+    detail: "새 심층 분석 요청은 참조 실행 모드에서만 받아요. 과거 결과 조회는 계속 할 수 있어요.",
     action: null,
   },
   luna_disabled: {
-    title: "Luna 심층 검토가 비활성입니다.",
-    detail: "심층 분석 요청을 보낼 수 없습니다. 운영 설정은 담당자에게 확인하십시오.",
+    title: "Luna 심층 검토가 비활성이에요.",
+    detail: "심층 분석 요청을 보낼 수 없어요. 운영 설정은 담당자에게 확인해 주세요.",
     action: "contact",
   },
   analysis_policy_unavailable: {
-    title: "분석 정책을 사용할 수 없습니다.",
-    detail: "데모 정책이 설정·등록되지 않았습니다. 다른 정책으로 대신 실행하지 않습니다. 담당자에게 확인하십시오.",
+    title: "분석 정책을 사용할 수 없어요.",
+    detail: "데모 정책이 설정·등록되지 않았어요. 다른 정책으로 대신 실행하지 않아요. 담당자에게 확인해 주세요.",
     action: "contact",
   },
   model_binding_invalid: {
-    title: "분석 모델 설정이 유효하지 않습니다.",
-    detail: "설정이 맞지 않아 호출 전에 막았습니다. 다른 모델로 대신 보내지 않습니다. 담당자에게 확인하십시오.",
+    title: "분석 모델 설정이 유효하지 않아요.",
+    detail: "설정이 맞지 않아 호출 전에 막았어요. 다른 모델로 대신 보내지 않아요. 담당자에게 확인해 주세요.",
     action: "contact",
   },
 };
@@ -585,103 +585,103 @@ export function describeCompanyApiError(error: unknown, fallback: string): ApiEr
  */
 const VERDICT_CODE_DESCRIPTION: Record<string, CodeDescription> = {
   not_found: {
-    title: "판정할 사전규격을 찾을 수 없습니다.",
-    detail: "이 사업기회에 연결된 사전규격이 없거나 실회사 판정 경로가 꺼져 있습니다. 다른 공고의 판정으로 대신 보여 주지 않습니다.",
+    title: "판정할 사전규격을 찾을 수 없어요.",
+    detail: "이 사업기회에 연결된 사전규격이 없거나 실회사 판정 경로가 꺼져 있어요. 다른 공고의 판정으로 대신 보여 주지 않아요.",
     action: null,
   },
   company_input_invalid: {
-    title: "판정 입력을 만들 수 없습니다.",
-    detail: "회사 사실·문서·그래프 버전이 서로 맞지 않거나 보내면 안 되는 값이 섞였습니다. 자동으로 보정하지 않으므로 회사 정보와 문서 준비 상태를 확인하십시오.",
+    title: "판정 입력을 만들 수 없어요.",
+    detail: "회사 사실·문서·그래프 버전이 서로 맞지 않거나 보내면 안 되는 값이 섞였어요. 자동으로 보정하지 않으므로 회사 정보와 문서 준비 상태를 확인해 주세요.",
     action: null,
   },
   reference_mode_required: {
-    title: "참조 실행 모드가 꺼져 있습니다.",
-    detail: "새 판정 요청은 참조 실행 모드에서만 받습니다. 이미 있는 판정 조회는 계속 할 수 있습니다.",
+    title: "참조 실행 모드가 꺼져 있어요.",
+    detail: "새 판정 요청은 참조 실행 모드에서만 받아요. 이미 있는 판정 조회는 계속 할 수 있어요.",
     action: null,
   },
   luna_disabled: {
-    title: "Luna 분석이 꺼져 있습니다.",
-    detail: "판정 요청을 보낼 수 없습니다. 운영 설정은 담당자에게 확인하십시오.",
+    title: "Luna 분석이 꺼져 있어요.",
+    detail: "판정 요청을 보낼 수 없어요. 운영 설정은 담당자에게 확인해 주세요.",
     action: "contact",
   },
   analysis_policy_unavailable: {
-    title: "판정 분석 정책을 사용할 수 없습니다.",
-    detail: "실회사 판정 정책이 설정·등록되지 않았습니다. 다른 정책으로 대신 실행하지 않습니다. 담당자에게 확인하십시오.",
+    title: "판정 분석 정책을 사용할 수 없어요.",
+    detail: "실회사 판정 정책이 설정·등록되지 않았어요. 다른 정책으로 대신 실행하지 않아요. 담당자에게 확인해 주세요.",
     action: "contact",
   },
   model_binding_invalid: {
-    title: "분석 모델 설정이 유효하지 않습니다.",
-    detail: "설정이 맞지 않아 호출 전에 막았습니다. 다른 모델로 대신 보내지 않습니다. 담당자에게 확인하십시오.",
+    title: "분석 모델 설정이 유효하지 않아요.",
+    detail: "설정이 맞지 않아 호출 전에 막았어요. 다른 모델로 대신 보내지 않아요. 담당자에게 확인해 주세요.",
     action: "contact",
   },
   idempotency_conflict: {
-    title: "같은 요청 식별자가 다른 요청에 이미 쓰였습니다.",
-    detail: "재전송이 앞선 요청과 충돌했습니다. 최신 상태를 다시 불러와 요청·제보가 이미 저장됐는지 확인하십시오.",
+    title: "같은 요청 식별자가 다른 요청에 이미 쓰였어요.",
+    detail: "재전송이 앞선 요청과 충돌했어요. 최신 상태를 다시 불러와 요청·제보가 이미 저장됐는지 확인해 주세요.",
     action: "reload",
   },
   policy_not_approved: {
-    title: "분석 정책 전송 승인이 없습니다.",
-    detail: "판정은 운영 담당자가 분석 정책을 승인한 뒤에만 시작합니다. 화면이 대신 승인하지 않습니다. 담당자에게 확인하십시오.",
+    title: "분석 정책 전송 승인이 없어요.",
+    detail: "판정은 운영 담당자가 분석 정책을 승인한 뒤에만 시작해요. 화면이 대신 승인하지 않아요. 담당자에게 확인해 주세요.",
     action: "contact",
   },
   daily_cap_reached: {
-    title: "오늘 판정 한도에 도달했습니다.",
-    detail: "하루에 시작할 수 있는 판정 수를 모두 썼습니다. 내일 다시 요청하거나 담당자에게 한도를 확인하십시오.",
+    title: "오늘 판정 한도에 도달했어요.",
+    detail: "하루에 시작할 수 있는 판정 수를 모두 썼어요. 내일 다시 요청하거나 담당자에게 한도를 확인해 주세요.",
     action: null,
   },
   active_attempt_exists: {
-    title: "이미 분석 중인 판정이 있습니다.",
-    detail: "지금 분석이 끝난 뒤에 다시 판정을 요청할 수 있습니다. 최신 상태를 다시 불러와 확인하십시오.",
+    title: "이미 분석 중인 판정이 있어요.",
+    detail: "지금 분석이 끝난 뒤에 다시 판정을 요청할 수 있어요. 최신 상태를 다시 불러와 확인해 주세요.",
     action: "reload",
   },
   bundle_not_ready: {
-    title: "문서 준비가 끝나지 않았습니다.",
-    detail: "공고 문서 묶음이 확정된 뒤에 판정을 요청할 수 있습니다. 문서 준비 상태를 확인하십시오.",
+    title: "문서 준비가 끝나지 않았어요.",
+    detail: "공고 문서 묶음이 확정된 뒤에 판정을 요청할 수 있어요. 문서 준비 상태를 확인해 주세요.",
     action: null,
   },
   effective_grade_ineligible: {
-    title: "SW사업 공고가 아니라 판정 대상이 아닙니다.",
-    detail: "공고 메타의 SW사업 대상 표시가 Y인 사전규격만 판정합니다. 서버가 조건으로 막았습니다.",
+    title: "SW사업 공고가 아니라 판정 대상이 아니에요.",
+    detail: "공고 메타의 SW사업 대상 표시가 Y인 사전규격만 판정해요. 서버가 조건으로 막았어요.",
     action: null,
   },
   opportunity_not_found: {
-    title: "사업기회를 찾을 수 없습니다.",
-    detail: "없거나 이미 지워진 사업기회입니다. 사업기회 목록에서 다시 여십시오.",
+    title: "사업기회를 찾을 수 없어요.",
+    detail: "없거나 이미 지워진 사업기회예요. 사업기회 목록에서 다시 열어 주세요.",
     action: null,
   },
   input_budget_exceeded: {
-    title: "문서 한 단위가 분석 입력 한도를 넘었습니다.",
-    detail: "원문을 자르지 않으므로 이 문서는 판정하지 못했습니다. 사람이 원문을 직접 확인해야 합니다.",
+    title: "문서 한 단위가 분석 입력 한도를 넘었어요.",
+    detail: "원문을 자르지 않으므로 이 문서는 판정하지 못했어요. 사람이 원문을 직접 확인해야 해요.",
     action: null,
   },
   card_source_selection_incomplete: {
-    title: "공고 원문에서 판정에 필요한 영역을 모두 찾지 못했습니다.",
-    detail: "찾지 못한 영역이 원문에 없다는 뜻은 아닙니다. 아래 표는 검증을 통과한 부분만 보여 줍니다. 사람이 원문을 확인하십시오.",
+    title: "공고 원문에서 판정에 필요한 영역을 모두 찾지 못했어요.",
+    detail: "찾지 못한 영역이 원문에 없다는 뜻은 아니에요. 아래 표는 검증을 통과한 부분만 보여 줘요. 사람이 원문을 확인해 주세요.",
     action: null,
   },
   card_extract_invalid: {
-    title: "요구사항 추출 결과가 원문 검증을 통과하지 못했습니다.",
-    detail: "검증에 실패한 결과는 자동으로 고치지 않습니다. 아래 표는 검증을 통과한 부분만 보여 줍니다.",
+    title: "요구사항 추출 결과가 원문 검증을 통과하지 못했어요.",
+    detail: "검증에 실패한 결과는 자동으로 고치지 않아요. 아래 표는 검증을 통과한 부분만 보여 줘요.",
     action: null,
   },
   card_compare_invalid: {
-    title: "회사 사실 대조 결과가 검증을 통과하지 못했습니다.",
-    detail: "검증에 실패한 결과는 자동으로 고치지 않습니다. 아래 표는 검증을 통과한 부분만 보여 줍니다.",
+    title: "회사 사실 대조 결과가 검증을 통과하지 못했어요.",
+    detail: "검증에 실패한 결과는 자동으로 고치지 않아요. 아래 표는 검증을 통과한 부분만 보여 줘요.",
     action: null,
   },
   card_role_invalid: {
-    title: "역할별 검토 결과가 검증을 통과하지 못했습니다.",
-    detail: "검증에 실패한 결과는 자동으로 고치지 않습니다. 아래 표는 검증을 통과한 부분만 보여 줍니다.",
+    title: "역할별 검토 결과가 검증을 통과하지 못했어요.",
+    detail: "검증에 실패한 결과는 자동으로 고치지 않아요. 아래 표는 검증을 통과한 부분만 보여 줘요.",
     action: null,
   },
   card_synthesis_invalid: {
-    title: "종합 판정이 검증을 통과하지 못했습니다.",
-    detail: "검증에 실패한 결과는 자동으로 고치지 않습니다. 아래 표는 검증을 통과한 부분만 보여 줍니다.",
+    title: "종합 판정이 검증을 통과하지 못했어요.",
+    detail: "검증에 실패한 결과는 자동으로 고치지 않아요. 아래 표는 검증을 통과한 부분만 보여 줘요.",
     action: null,
   },
   card_review_timeout: {
-    title: "정해진 시간 안에 분석이 끝나지 않았습니다.",
-    detail: "늦게 온 응답은 저장하지 않습니다. 아래 표는 검증을 통과한 부분만 보여 줍니다. 다시 판정으로 새 분석을 요청하십시오.",
+    title: "정해진 시간 안에 분석이 끝나지 않았어요.",
+    detail: "늦게 온 응답은 저장하지 않아요. 아래 표는 검증을 통과한 부분만 보여 줘요. 다시 판정으로 새 분석을 요청해 주세요.",
     action: null,
   },
 };
@@ -705,7 +705,7 @@ export function describeVerdictRunCode(code: string | null): { title: string; de
   if (code === null) return null;
   const known = VERDICT_CODE_DESCRIPTION[code];
   if (known) return { title: known.title, detail: known.detail, code };
-  return { title: "분석 중 안전 오류가 기록됐습니다.", detail: null, code };
+  return { title: "분석 중 안전 오류가 기록됐어요.", detail: null, code };
 }
 
 /**
@@ -714,98 +714,98 @@ export function describeVerdictRunCode(code: string | null): { title: string; de
  */
 const PROPOSAL_CODE_DESCRIPTION: Readonly<Record<string, CodeDescription>> = {
   verdict_required: {
-    title: "완료된 판정이 없어 초안을 만들 수 없습니다.",
-    detail: "제안서 초안은 판정이 끝난 뒤에 만들 수 있습니다. 판정 탭에서 판정 상태를 먼저 확인하십시오.",
+    title: "완료된 판정이 없어 초안을 만들 수 없어요.",
+    detail: "제안서 초안은 판정이 끝난 뒤에 만들 수 있어요. 판정 탭에서 판정 상태를 먼저 확인해 주세요.",
     action: null,
   },
   policy_not_approved: {
-    title: "제안서 초안 전송 승인이 없습니다.",
-    detail: "초안은 운영 담당자가 이 용도의 전송 정책을 승인한 뒤에만 만들 수 있습니다. 화면이 대신 승인하지 않습니다. 담당자에게 확인하십시오.",
+    title: "제안서 초안 전송 승인이 없어요.",
+    detail: "초안은 운영 담당자가 이 용도의 전송 정책을 승인한 뒤에만 만들 수 있어요. 화면이 대신 승인하지 않아요. 담당자에게 확인해 주세요.",
     action: "contact",
   },
   daily_cap_reached: {
-    title: "오늘 초안 생성 한도에 도달했습니다.",
-    detail: "하루에 만들 수 있는 초안과 절 다시 쓰기 수를 모두 썼습니다. 내일 다시 요청하거나 담당자에게 한도를 확인하십시오.",
+    title: "오늘 초안 생성 한도에 도달했어요.",
+    detail: "하루에 만들 수 있는 초안과 절 다시 쓰기 수를 모두 썼어요. 내일 다시 요청하거나 담당자에게 한도를 확인해 주세요.",
     action: null,
   },
   draft_in_progress: {
-    title: "이미 초안을 만드는 중입니다.",
-    detail: "지금 생성이 끝난 뒤에 다시 만들 수 있습니다. 최신 상태를 다시 불러와 확인하십시오.",
+    title: "이미 초안을 만드는 중이에요.",
+    detail: "지금 생성이 끝난 뒤에 다시 만들 수 있어요. 최신 상태를 다시 불러와 확인해 주세요.",
     action: "reload",
   },
   section_in_progress: {
-    title: "이 절을 이미 다시 쓰는 중입니다.",
-    detail: "생성이 끝난 뒤에 다시 요청할 수 있습니다. 최신 상태를 다시 불러와 확인하십시오.",
+    title: "이 절을 이미 다시 쓰는 중이에요.",
+    detail: "생성이 끝난 뒤에 다시 요청할 수 있어요. 최신 상태를 다시 불러와 확인해 주세요.",
     action: "reload",
   },
   section_not_completed: {
-    title: "생성이 끝나지 않았거나 실패한 절은 검토 완료로 표시할 수 없습니다.",
-    detail: "정상으로 생성된 절만 검토 완료로 표시합니다. 최신 상태를 다시 불러와 확인하십시오.",
+    title: "생성이 끝나지 않았거나 실패한 절은 검토 완료로 표시할 수 없어요.",
+    detail: "정상으로 생성된 절만 검토 완료로 표시해요. 최신 상태를 다시 불러와 확인해 주세요.",
     action: "reload",
   },
   sentence_not_found: {
-    title: "고칠 문장을 찾을 수 없습니다.",
-    detail: "절이 다시 만들어져 문장이 바뀌었을 수 있습니다. 최신 상태를 불러온 뒤 다시 고치십시오. 입력한 문장은 저장되지 않았습니다.",
+    title: "고칠 문장을 찾을 수 없어요.",
+    detail: "절이 다시 만들어져 문장이 바뀌었을 수 있어요. 최신 상태를 불러온 뒤 다시 고쳐 주세요. 입력한 문장은 저장되지 않았어요.",
     action: "reload",
   },
   draft_not_completed: {
-    title: "생성이 끝나지 않은 초안은 내보낼 수 없습니다.",
-    detail: "초안 생성이 끝난 뒤에 PDF를 내보낼 수 있습니다. 일부 절이 실패했어도 끝났다면 내보낼 수 있습니다. 최신 상태를 다시 불러와 확인하십시오.",
+    title: "생성이 끝나지 않은 초안은 내보낼 수 없어요.",
+    detail: "초안 생성이 끝난 뒤에 PDF를 내보낼 수 있어요. 일부 절이 실패했어도 끝났다면 내보낼 수 있어요. 최신 상태를 다시 불러와 확인해 주세요.",
     action: "reload",
   },
   stage_transition_invalid: {
-    title: "지금은 제출 준비로 표시할 수 없습니다.",
-    detail: "모든 절을 검토 완료로 표시한 초안만 제출 준비로 표시할 수 있습니다. 최신 상태를 다시 불러와 확인하십시오.",
+    title: "지금은 제출 준비로 표시할 수 없어요.",
+    detail: "모든 절을 검토 완료로 표시한 초안만 제출 준비로 표시할 수 있어요. 최신 상태를 다시 불러와 확인해 주세요.",
     action: "reload",
   },
   pdf_unavailable: {
-    title: "PDF를 만들 수 없습니다.",
-    detail: "서버에 PDF용 글꼴이 없어 내보내지 못했습니다. 초안은 그대로 남아 있습니다. 담당자에게 확인하십시오.",
+    title: "PDF를 만들 수 없어요.",
+    detail: "서버에 PDF용 글꼴이 없어 내보내지 못했어요. 초안은 그대로 남아 있어요. 담당자에게 확인해 주세요.",
     action: "contact",
   },
   not_found: {
-    title: "대상을 찾을 수 없습니다.",
-    detail: "초안·절·내보낸 PDF가 없거나 이 사업기회의 것이 아닙니다. 최신 상태를 다시 불러와 확인하십시오.",
+    title: "대상을 찾을 수 없어요.",
+    detail: "초안·절·내보낸 PDF가 없거나 이 사업기회의 것이 아니에요. 최신 상태를 다시 불러와 확인해 주세요.",
     action: "reload",
   },
   service_unavailable: {
-    title: "제안서 초안 생성이 꺼져 있습니다.",
-    detail: "이 환경에서는 초안 실행이 비활성입니다. 새 초안과 절 다시 쓰기를 요청할 수 없습니다. 운영 설정은 담당자에게 확인하십시오.",
+    title: "제안서 초안 생성이 꺼져 있어요.",
+    detail: "이 환경에서는 초안 실행이 비활성이에요. 새 초안과 절 다시 쓰기를 요청할 수 없어요. 운영 설정은 담당자에게 확인해 주세요.",
     action: "contact",
   },
   company_input_invalid: {
-    title: "회사 근거가 초안 입력 조건을 만족하지 않습니다.",
-    detail: "초안 입력을 만들지 못해 요청하지 않았습니다. 다른 정보로 대신하지 않습니다. 회사 근거 상태를 담당자에게 확인하십시오.",
+    title: "회사 근거가 초안 입력 조건을 만족하지 않아요.",
+    detail: "초안 입력을 만들지 못해 요청하지 않았어요. 다른 정보로 대신하지 않아요. 회사 근거 상태를 담당자에게 확인해 주세요.",
     action: "contact",
   },
   processing_failed: {
-    title: "서버가 제안서 초안 요청을 처리하지 못했습니다.",
-    detail: "잠시 뒤 다시 시도하십시오. 계속되면 담당자에게 문의하십시오. 요청이 저장됐는지는 최신 상태를 불러와 확인하십시오.",
+    title: "서버가 제안서 초안 요청을 처리하지 못했어요.",
+    detail: "잠시 뒤 다시 시도해 주세요. 계속되면 담당자에게 문의해 주세요. 요청이 저장됐는지는 최신 상태를 불러와 확인해 주세요.",
     action: "reload",
   },
   proposal_forbidden_content: {
-    title: "가격·인력·일정 약속 검증을 통과하지 못했습니다.",
-    detail: "근거 없는 금액·투입 인원·기간 약속이 들어 있어 이 절을 쓰지 않았습니다. 자동으로 고치지 않습니다. 다시 쓰거나 사람이 직접 작성하십시오.",
+    title: "가격·인력·일정 약속 검증을 통과하지 못했어요.",
+    detail: "근거 없는 금액·투입 인원·기간 약속이 들어 있어 이 절을 쓰지 않았어요. 자동으로 고치지 않아요. 다시 쓰거나 사람이 직접 작성해 주세요.",
     action: null,
   },
   proposal_section_invalid: {
-    title: "출처·구조 검증을 통과하지 못했습니다.",
-    detail: "출처가 없거나 원문과 맞지 않는 문장이 있어 이 절을 쓰지 않았습니다. 자동으로 고치지 않습니다. 다시 쓰거나 사람이 직접 작성하십시오.",
+    title: "출처·구조 검증을 통과하지 못했어요.",
+    detail: "출처가 없거나 원문과 맞지 않는 문장이 있어 이 절을 쓰지 않았어요. 자동으로 고치지 않아요. 다시 쓰거나 사람이 직접 작성해 주세요.",
     action: null,
   },
   proposal_coverage_incomplete: {
-    title: "요구사항을 빠짐없이 덮지 못했습니다.",
-    detail: "일부 요구사항에 대한 수행방안이 빠져 이 절을 쓰지 않았습니다. 자동으로 고치지 않습니다. 다시 쓰거나 사람이 직접 작성하십시오.",
+    title: "요구사항을 빠짐없이 덮지 못했어요.",
+    detail: "일부 요구사항에 대한 수행방안이 빠져 이 절을 쓰지 않았어요. 자동으로 고치지 않아요. 다시 쓰거나 사람이 직접 작성해 주세요.",
     action: null,
   },
   proposal_review_timeout: {
-    title: "정해진 시간 안에 초안 생성이 끝나지 않았습니다.",
-    detail: "늦게 온 응답은 저장하지 않습니다. 이 절은 다시 쓰기로 새로 요청하거나 사람이 직접 작성하십시오.",
+    title: "정해진 시간 안에 초안 생성이 끝나지 않았어요.",
+    detail: "늦게 온 응답은 저장하지 않아요. 이 절은 다시 쓰기로 새로 요청하거나 사람이 직접 작성해 주세요.",
     action: null,
   },
   input_budget_exceeded: {
-    title: "이 절의 입력이 분석 한도를 넘었습니다.",
-    detail: "입력을 나누거나 자르지 않으므로 이 절은 만들지 못했습니다. 다른 절은 그대로 검토할 수 있고 이 절은 사람이 직접 작성해야 합니다.",
+    title: "이 절의 입력이 분석 한도를 넘었어요.",
+    detail: "입력을 나누거나 자르지 않으므로 이 절은 만들지 못했어요. 다른 절은 그대로 검토할 수 있고 이 절은 사람이 직접 작성해야 해요.",
     action: null,
   },
 };
@@ -829,7 +829,7 @@ export function describeProposalRunCode(code: string | null): { title: string; d
   if (code === null) return null;
   const known = PROPOSAL_CODE_DESCRIPTION[code];
   if (known) return { title: known.title, detail: known.detail, code };
-  return { title: "초안 생성 중 안전 오류가 기록됐습니다.", detail: null, code };
+  return { title: "초안 생성 중 안전 오류가 기록됐어요.", detail: null, code };
 }
 
 /**

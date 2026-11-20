@@ -15,17 +15,17 @@ test("C-1 판정·정정 사유는 그리지 않고 본공고와 품명을 읽�
     judgment: {
       id: 1, schema_version: null, grade: "검토 권장", readiness: null,
       primary_focus: null, exclusion_category: null,
-      summary: "회차 판정은 데이터 연계 역량과의 부합을 확인했습니다.",
-      next_action: "연계 대상 기관을 확인하십시오.",
+      summary: "회차 판정은 데이터 연계 역량과의 부합을 확인했어요.",
+      next_action: "연계 대상 기관을 확인해 주세요.",
       perspectives: [],
-      counterarguments: [{ id: 1, position: 0, text: "연계 범위는 추가 확인이 필요합니다." }],
+      counterarguments: [{ id: 1, position: 0, text: "연계 범위는 추가 확인이 필요해요." }],
       verification_items: [], matched_performances: [],
     },
     reviews: [{
       id: 1, run_id: "human-review", notice_pk: 991,
       disposition: null, system_judgment_review: null,
       corrected_grade: "우선 검토", corrected_readiness: null,
-      weakest_perspective: null, reason: "사람이 기존 수행 범위를 대조했습니다.",
+      weakest_perspective: null, reason: "사람이 기존 수행 범위를 대조했어요.",
       reviewer: "검토 담당자", created_at: "2026-09-01T01:00:00Z",
       updated_at: null, answers: [],
     }],
@@ -35,9 +35,9 @@ test("C-1 판정·정정 사유는 그리지 않고 본공고와 품명을 읽�
   // 2026-11-19(사전규격 단계 수정안 §3 B): C-1 공고 판정을 다시 돌리지 않으므로 등급 사유·사람 정정
   // 사유·판정의 반론은 사전규격 화면에서 내려갔다. 응답에 값이 있어도 그리지 않는다.
   await expect(page.getByRole("heading", { name: "등급 사유", exact: true })).toHaveCount(0);
-  await expect(page.getByText("회차 판정은 데이터 연계 역량과의 부합을 확인했습니다.", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("사람이 기존 수행 범위를 대조했습니다.", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("연계 범위는 추가 확인이 필요합니다.", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("회차 판정은 데이터 연계 역량과의 부합을 확인했어요.", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("사람이 기존 수행 범위를 대조했어요.", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("연계 범위는 추가 확인이 필요해요.", { exact: true })).toHaveCount(0);
   await expect(page.locator(".pre-spec-detail-header")).toContainText("본공고 R26BD000001,R26BD000002");
   await expect(page.locator(".pre-spec-detail-header")).toContainText("정보시스템개발서비스");
 });
@@ -157,6 +157,6 @@ test("개요 검토가 켜진 환경은 꺼짐을 말하지 않는다", async ({
   await mockPreSpecOverviewAbsent(page);
   await mockFeatureFlags(page, { rl_analysis: true, prespec_overview: true });
   await page.goto("/pre-specs/991");
-  await expect(page.locator(".pre-spec-overview-waiting")).toContainText("개요 검토 실행 기록이 없어 주요 과업을 표시할 수 없습니다.");
+  await expect(page.locator(".pre-spec-overview-waiting")).toContainText("개요 검토 실행 기록이 없어 주요 과업을 표시할 수 없어요.");
   await expect(page.locator(".pre-spec-overview-waiting")).not.toContainText("이 환경에서 꺼져 있음");
 });

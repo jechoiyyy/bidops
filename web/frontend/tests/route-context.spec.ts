@@ -355,7 +355,7 @@ test("PN-03 상세 새로고침과 오류 branch도 위치·목록 context를 �
 
   await navigation.getByRole("button", { name: "다음 선택 사전규격" }).click();
   await expect(navigation.locator("strong")).toHaveText("2 / 2");
-  await expect(page.getByText("사전규격 992 상세를 불러오지 못했습니다.")).toBeVisible();
+  await expect(page.getByText("사전규격 992 상세를 불러오지 못했어요.")).toBeVisible();
   await expect(page.getByRole("link", { name: "사전규격 목록", exact: true })).toHaveAttribute(
     "href",
     "/pre-specs?sw_only=false&q=%EC%95%88%EC%A0%84&offset=200",
@@ -393,7 +393,7 @@ test("PN-05 notice mismatch에서도 navigation shell은 위치를 잃지 않는
 
   const navigation = page.getByRole("navigation", { name: "사전규격 선택 순회" });
   await expect(navigation.locator("strong")).toHaveText("1 / 2");
-  await expect(page.getByText("사전규격을 확인할 수 없습니다.")).toBeVisible();
+  await expect(page.getByText("사전규격을 확인할 수 없어요")).toBeVisible();
   await expect(navigation.getByRole("button", { name: "이전 선택 사전규격" })).toBeDisabled();
   await expect(navigation.getByRole("button", { name: "다음 선택 사전규격" })).toBeEnabled();
 });
@@ -412,7 +412,7 @@ test("PN-05 projection 부분 오류에서도 notice 본문과 navigation을 유
   const navigation = page.getByRole("navigation", { name: "사전규격 선택 순회" });
   await expect(navigation.locator("strong")).toHaveText("1 / 2");
   await expect(page.getByRole("heading", { name: "안전한 문서 준비 사전규격" })).toBeVisible();
-  await expect(page.getByText("첨부 원문 취득 집계를 불러오지 못했습니다.")).toBeVisible();
+  await expect(page.getByText("첨부 원문 취득 집계를 불러오지 못했어요")).toBeVisible();
   await expect(navigation.getByRole("button", { name: "다음 선택 사전규격" })).toBeEnabled();
 });
 
@@ -478,7 +478,7 @@ test("PN-06 record key가 문서 패널 상태를 초기화하고 guard 취소�
 
   const guard = page.getByRole("alertdialog");
   await expect(guard).toBeVisible();
-  await expect(guard).toContainText("저장하지 않은 추적 결정 사유와 담당자 이름이 있습니다.");
+  await expect(guard).toContainText("저장하지 않은 추적 결정 사유와 담당자 이름이 있어요.");
   await guard.getByRole("button", { name: "계속 편집", exact: true }).click();
   await expect(guard).toHaveCount(0);
   await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs/992");
@@ -506,8 +506,8 @@ test("run 없이 연 공고 상세는 자기 회차를 쓰고 목록에 없어�
 });
 
 test("없는 공고 번호는 다른 공고를 보이지 않고 찾을 수 없다고 말한다", async ({ page }) => {
-  await page.route("**/api/notices/888", (route) => route.fulfill({ status: 404, json: { detail: "공고를 찾을 수 없습니다" } }));
+  await page.route("**/api/notices/888", (route) => route.fulfill({ status: 404, json: { detail: "공고를 찾을 수 없어요" } }));
   await page.goto("/judgments/888");
-  await expect(page.getByText("공고 888을(를) 찾을 수 없습니다.")).toBeVisible();
+  await expect(page.getByText("공고 888을(를) 찾을 수 없어요.")).toBeVisible();
   await expect.poll(() => new URL(page.url()).pathname).toBe("/judgments/888");
 });

@@ -71,57 +71,57 @@ const QUALITY_GATE_STATUS_LABELS: Record<string, string> = {
   failed: "미달 기록",
 };
 
-const SWITCH_GUIDE = "policy를 교체하면 자동 실행이 멈춥니다. 새 버전에서 다시 켜야 합니다.";
+const SWITCH_GUIDE = "policy를 교체하면 자동 실행이 멈춰요. 새 버전에서 다시 켜야 해요.";
 
 /** 런타임 blocker를 사람 말로. 모르는 code는 지어내지 않고 그대로 보여 준다. */
 function blockerText(blocker: C2PolicyBlocker): string {
   const { code, detail } = blocker;
   switch (code) {
     case "quality_gate_missing":
-      return "이 버전에 쓸 수 있는 제품 재실행 품질 게이트가 없습니다. 측정 스크립트가 게이트를 만들어야 합니다.";
+      return "이 버전에 쓸 수 있는 제품 재실행 품질 게이트가 없어요. 측정 스크립트가 게이트를 만들어야 해요.";
     case "quality_gate_thresholds_undecided":
-      return "품질 게이트 임계값 4개 중 정해지지 않은 값이 있습니다(사람 결정 D-b).";
+      return "품질 게이트 임계값 4개 중 정해지지 않은 값이 있어요(사람 결정 D-b).";
     case "quality_gate_not_passed":
-      if (detail === "미측정") return "최신 게이트 평가가 미측정입니다 — 임계값이 정해지지 않아 판정하지 않았습니다.";
-      if (detail === "보류") return "최신 게이트 평가가 측정 미완입니다 — 측정이 아직 끝나지 않았습니다.";
-      if (detail === "미달") return "최신 게이트 평가가 미달입니다 — 임계값을 채우지 못한 지표가 있습니다.";
-      if (detail === "none") return "게이트 평가가 아직 기록되지 않았습니다.";
-      return `최신 게이트 평가가 통과가 아닙니다 (${detail ?? "상세 없음"}).`;
+      if (detail === "미측정") return "최신 게이트 평가가 미측정이에요 — 임계값이 정해지지 않아 판정하지 않았어요.";
+      if (detail === "보류") return "최신 게이트 평가가 측정 미완이에요 — 측정이 아직 끝나지 않았어요.";
+      if (detail === "미달") return "최신 게이트 평가가 미달이에요 — 임계값을 채우지 못한 지표가 있어요.";
+      if (detail === "none") return "게이트 평가가 아직 기록되지 않았어요.";
+      return `최신 게이트 평가가 통과가 아니에요 (${detail ?? "상세 없음"}).`;
     case "audit_sample_policy_unapproved":
-      return "policy에 감사 표본 설정(사용 여부·실행당 상한·검토 주기)이 갖춰지지 않았습니다(사람 결정 D-c).";
+      return "policy에 감사 표본 설정(사용 여부·실행당 상한·검토 주기)이 갖춰지지 않았어요(사람 결정 D-c).";
     case "execution_transport_not_allowed":
-      return "binding의 외부 전송 승인(실행 허용·per_binding 범위·승인자·승인 시각)이 갖춰지지 않았습니다(사람 결정 D-d).";
+      return "binding의 외부 전송 승인(실행 허용·per_binding 범위·승인자·승인 시각)이 갖춰지지 않았어요(사람 결정 D-d).";
     case "binding_digest_mismatch":
-      return "binding이 이 policy의 digest·버전과 맞지 않거나 binding 상태가 허용값 밖입니다.";
+      return "binding이 이 policy의 digest·버전과 맞지 않거나 binding 상태가 허용값 밖이에요.";
     case "policy_file_missing":
-      if (detail === "policy") return "운영 컨테이너 경로에 digest가 일치하는 policy 파일이 없습니다.";
-      if (detail === "binding") return "운영 컨테이너 경로에 digest가 일치하는 binding 파일이 없습니다.";
-      return "운영 컨테이너 경로에 digest가 일치하는 policy·binding 파일이 없습니다.";
+      if (detail === "policy") return "운영 컨테이너 경로에 digest가 일치하는 policy 파일이 없어요.";
+      if (detail === "binding") return "운영 컨테이너 경로에 digest가 일치하는 binding 파일이 없어요.";
+      return "운영 컨테이너 경로에 digest가 일치하는 policy·binding 파일이 없어요.";
     case "policy_not_candidate":
-      return `활성화 후보 상태가 아닙니다${detail ? ` (현재 ${STATUS_LABELS[detail as C2PolicyStatus] ?? detail})` : ""}.`;
+      return `활성화 후보 상태가 아니에요${detail ? ` (현재 ${STATUS_LABELS[detail as C2PolicyStatus] ?? detail})` : ""}.`;
     case "quality_gate_artifact_unknown":
-      return "요청한 게이트 평가 artifact digest를 찾을 수 없습니다.";
+      return "요청한 게이트 평가 artifact digest를 찾을 수 없어요.";
     case "quality_gate_evaluation_not_latest":
-      return "요청한 게이트 평가가 그 게이트의 최신 revision이 아닙니다. 화면을 새로 고치십시오.";
+      return "요청한 게이트 평가가 그 게이트의 최신 revision이 아니에요. 화면을 새로 고쳐 주세요.";
     case "quality_gate_basis_not_product_rerun":
-      return "참조 산출물 재채점 게이트는 활성화 근거가 될 수 없습니다.";
+      return "참조 산출물 재채점 게이트는 활성화 근거가 될 수 없어요.";
     case "quality_gate_digest_mismatch":
-      return "게이트의 policy·binding digest가 이 policy 행과 다릅니다.";
+      return "게이트의 policy·binding digest가 이 policy 행과 달라요.";
     case "active_slot_conflict":
-      return "다른 활성화와 동시에 처리돼 운영 활성 자리를 얻지 못했습니다. 최신 상태를 확인하십시오.";
+      return "다른 활성화와 동시에 처리돼 운영 활성 자리를 얻지 못했어요. 최신 상태를 확인해 주세요.";
     default:
       return detail ? `${code} (${detail})` : code;
   }
 }
 
 const TRIGGER_REASON_TEXT: Record<C2DailyTriggerReason, string> = {
-  env_cap_off: "운영자가 환경 설정을 켜야 합니다 (BIDOPS_C2_DAILY_TRIGGER_ENABLED가 꺼져 있습니다).",
-  no_active_policy: "운영 활성 policy가 없습니다.",
-  switch_off: "이 버전의 자동 실행 스위치가 꺼져 있습니다.",
-  switch_bound_to_other_version: "예전 버전에 켜 둔 스위치만 있습니다. 이 버전에서 다시 켜야 합니다.",
-  quality_gate_not_passed: "운영 활성 policy의 품질 게이트 상태가 통과가 아닙니다.",
-  execution_transport_not_allowed: "실행 전송이 허용되지 않았습니다 (환경 BIDOPS_C2_EXECUTION_ALLOWED 또는 binding 승인).",
-  policy_file_missing: "운영 컨테이너에 digest가 일치하는 policy·binding 파일이 없습니다.",
+  env_cap_off: "운영자가 환경 설정을 켜야 해요 (BIDOPS_C2_DAILY_TRIGGER_ENABLED가 꺼져 있어요).",
+  no_active_policy: "운영 활성 policy가 없어요.",
+  switch_off: "이 버전의 자동 실행 스위치가 꺼져 있어요.",
+  switch_bound_to_other_version: "예전 버전에 켜 둔 스위치만 있어요. 이 버전에서 다시 켜야 해요.",
+  quality_gate_not_passed: "운영 활성 policy의 품질 게이트 상태가 통과가 아니에요.",
+  execution_transport_not_allowed: "실행 전송이 허용되지 않았어요 (환경 BIDOPS_C2_EXECUTION_ALLOWED 또는 binding 승인).",
+  policy_file_missing: "운영 컨테이너에 digest가 일치하는 policy·binding 파일이 없어요.",
 };
 
 function triggerReasonText(reason: string): string {
@@ -137,11 +137,11 @@ const METRIC_LABELS: Record<string, string> = {
 };
 
 function evaluationReasonText(reason: string): string {
-  if (reason === "thresholds_undecided") return "임계값이 정해지지 않았습니다.";
-  if (reason === "pass_count_below_required") return "측정 pass가 2회에 못 미칩니다.";
-  if (reason === "measurement_missing") return "측정값이 비어 있는 지표가 있습니다.";
-  if (reason === "pass_execution_not_success") return "측정 실행 중 성공이 아닌 것이 있습니다(부분 성공 포함).";
-  if (reason === "not_product_pipeline_result") return "제품 파이프라인이 낸 결과가 아닙니다.";
+  if (reason === "thresholds_undecided") return "임계값이 정해지지 않았어요.";
+  if (reason === "pass_count_below_required") return "측정 pass가 2회에 못 미쳐요.";
+  if (reason === "measurement_missing") return "측정값이 비어 있는 지표가 있어요.";
+  if (reason === "pass_execution_not_success") return "측정 실행 중 성공이 아닌 것이 있어요(부분 성공 포함).";
+  if (reason === "not_product_pipeline_result") return "제품 파이프라인이 낸 결과가 아니에요.";
   if (reason.startsWith("threshold_not_met:")) {
     const metric = reason.slice("threshold_not_met:".length);
     return `${METRIC_LABELS[metric] ?? metric} 미달`;
@@ -198,8 +198,8 @@ function DigestLine({ label, value, onCopied }: { label: string; value: string; 
         label={`${label} 복사`}
         onClick={() => {
           copyText(value)
-            .then(() => onCopied(`${label}를 복사했습니다.`))
-            .catch(() => onCopied("복사하지 못했습니다. 표시된 digest를 선택해 복사해 주세요."));
+            .then(() => onCopied(`${label}를 복사했어요.`))
+            .catch(() => onCopied("복사하지 못했어요. 표시된 digest를 선택해 복사해 주세요."));
         }}
         size="sm"
         variant="ghost"
@@ -218,12 +218,12 @@ function mutationErrorLines(error: unknown, fallback: string): string[] {
       && Array.isArray((details as { blockers: unknown }).blockers)
       ? (details as { blockers: C2PolicyBlocker[] }).blockers
       : [];
-    return ["활성화가 거부됐습니다.", ...blockers.map(blockerText)];
+    return ["활성화가 거부됐어요.", ...blockers.map(blockerText)];
   }
-  if (error instanceof ApiError && error.code === "actor_name_required") return ["담당자 이름을 입력하십시오."];
-  if (error instanceof ApiError && error.code === "actor_name_invalid") return ["담당자 이름 형식을 확인하십시오. `system`은 쓸 수 없습니다."];
+  if (error instanceof ApiError && error.code === "actor_name_required") return ["담당자 이름을 입력해 주세요."];
+  if (error instanceof ApiError && error.code === "actor_name_invalid") return ["담당자 이름 형식을 확인해 주세요. `system`은 쓸 수 없어요."];
   if (error instanceof ApiError && error.code === "immutable_conflict") {
-    return ["policy 상태나 digest가 그사이 바뀌었습니다. 입력은 그대로 두었습니다. 최신 상태를 확인한 뒤 다시 시도하십시오."];
+    return ["policy 상태나 digest가 그사이 바뀌었어요. 입력은 그대로 두었어요. 최신 상태를 확인한 뒤 다시 시도해 주세요."];
   }
   const description = describeApiError(error, fallback);
   return [description.title, description.detail];
@@ -284,7 +284,7 @@ function ConfirmDialog({ snapshot, busy, error, onClose, onConfirm }: {
             />
           ) : null}
           <TextInput isDisabled={busy} label="확인 담당자 · 필수" onChange={setActor} placeholder="담당자 이름" value={actor} />
-          <Small>담당자 이름은 감사 표식이며 로그인이나 신원 인증이 아닙니다.</Small>
+          <Small>담당자 이름은 감사 표식이며 로그인이나 신원 인증이 아니에요.</Small>
           <CheckboxInput isDisabled={busy} label={snapshot.confirmLabel} onChange={setConfirmed} value={confirmed} />
           {error ? (
             <div className="crit-error" role="alert">
@@ -315,8 +315,8 @@ function GateSurface({ gate }: { gate: C2QualityGateListItem }) {
   if (!evaluation) {
     return (
       <div className="opp-gate-surface" data-gate-result="none" data-tone="neutral">
-        <span className="opp-gate-surface-head"><StatusToken label="평가 없음" /><Text weight="semibold">아직 평가가 기록되지 않았습니다</Text></span>
-        <Small>측정 스크립트가 evaluation을 기록하면 여기에 나타납니다. 평가 없음은 미달이 아닙니다.</Small>
+        <span className="opp-gate-surface-head"><StatusToken label="평가 없음" /><Text weight="semibold">아직 평가가 기록되지 않았어요</Text></span>
+        <Small>측정 스크립트가 evaluation을 기록하면 여기에 나타나요. 평가 없음은 미달이 아니에요.</Small>
       </div>
     );
   }
@@ -326,19 +326,19 @@ function GateSurface({ gate }: { gate: C2QualityGateListItem }) {
   const headline = status === "미측정"
     ? "미측정 · 임계값 미정"
     : status === "보류"
-      ? "측정 미완 · 측정이 끝나지 않았습니다"
+      ? "측정 미완 · 측정이 끝나지 않았어요"
       : status === "미달"
-        ? "미달 · 임계값을 채우지 못한 지표가 있습니다"
-        : "통과 · 두 pass 모두 네 지표를 충족했습니다";
+        ? "미달 · 임계값을 채우지 못한 지표가 있어요"
+        : "통과 · 두 pass 모두 네 지표를 충족했어요";
   const body = status === "미측정"
-    ? "임계값 4개 중 정해지지 않은 값이 있어 판정하지 않았습니다. 미측정은 미달이 아닙니다."
+    ? "임계값 4개 중 정해지지 않은 값이 있어 판정하지 않았어요. 미측정은 미달이 아니에요."
     : status === "보류"
-      ? "측정이 끝나지 않아 판정하지 않았습니다. 측정 미완은 미달이 아닙니다. 빠진 항목:"
+      ? "측정이 끝나지 않아 판정하지 않았어요. 측정 미완은 미달이 아니에요. 빠진 항목:"
       : status === "미달"
         ? "미달 지표:"
         : reference
-          ? "수치는 통과지만 참조 산출물 재채점이라 활성화 근거가 아닙니다."
-          : "이 평가의 artifact digest로 활성화를 요청할 수 있습니다.";
+          ? "수치는 통과지만 참조 산출물 재채점이라 활성화 근거가 아니에요."
+          : "이 평가의 artifact digest로 활성화를 요청할 수 있어요.";
   return (
     <div className="opp-gate-surface" data-gate-result={status} data-tone={tone}>
       <span className="opp-gate-surface-head">
@@ -390,7 +390,7 @@ function GateResult({ gate, selectedGateId }: { gate: C2QualityGateListItem; sel
     <>
       {reference ? (
         <Note role="note" title="활성화 근거 아님 · 참조 산출물 재채점" tone="warning">
-          이 게이트는 제품 파이프라인을 다시 돌린 결과가 아닙니다. 수치가 통과여도 활성화를 열지 못합니다.
+          이 게이트는 제품 파이프라인을 다시 돌린 결과가 아니에요. 수치가 통과여도 활성화를 열지 못해요.
         </Note>
       ) : null}
       <GateSurface gate={gate} />
@@ -487,19 +487,19 @@ export function OrderPlanPolicyPage() {
   if (policiesQuery.isPending) {
     return (
       <div className="crit-workspace" id="criteria-panel-order-plan-policies" role="tabpanel">
-        <StateView description="발주계획 선별 policy 목록을 확인하는 중입니다." kind="loading" title="발주계획 선별 정책을 불러오는 중입니다" />
+        <StateView description="발주계획 선별 policy 목록을 확인하는 중이에요." kind="loading" title="발주계획 선별 정책을 불러오는 중이에요" />
       </div>
     );
   }
   if (policiesQuery.error) {
-    const description = describeApiError(policiesQuery.error, "policy 목록을 불러오지 못했습니다.");
+    const description = describeApiError(policiesQuery.error, "policy 목록을 불러오지 못했어요.");
     return (
       <div className="crit-workspace" id="criteria-panel-order-plan-policies" role="tabpanel">
         <StateView
           action={<Button label="다시 조회" onClick={() => { void policiesQuery.refetch(); }} />}
           description={`${description.title} ${description.detail}`}
           kind="error"
-          title="발주계획 선별 정책을 불러오지 못했습니다."
+          title="발주계획 선별 정책을 불러오지 못했어요"
         />
       </div>
     );
@@ -522,16 +522,16 @@ export function OrderPlanPolicyPage() {
     setPending({
       kind: "candidate",
       key: `candidate:${policy.policy_version}:${policy.policy_sha256}`,
-      title: "활성화 후보로 지정합니다",
+      title: "활성화 후보로 지정해요",
       facts: [
         ["대상 policy", policy.policy_version],
         ["policy digest", policy.policy_sha256],
         ["현재 운영 활성", activePolicy ? `${activePolicy.policy_version} · ${shortDigest(activePolicy.policy_sha256)}` : "없음"],
-        ["바뀌는 것", "draft → activation_candidate · 운영 활성화가 아닙니다"],
+        ["바뀌는 것", "draft → activation_candidate · 운영 활성화가 아니에요"],
       ],
-      notes: [{ title: "후보 지정은 운영 활성화가 아닙니다", body: "활성화는 게이트 통과와 blocker 0건을 확인한 뒤 따로 승인합니다.", tone: "neutral" }],
+      notes: [{ title: "후보 지정은 운영 활성화가 아니에요", body: "활성화는 게이트 통과와 blocker 0건을 확인한 뒤 따로 승인해요.", tone: "neutral" }],
       reason: { label: "후보 지정 사유 · 필수 (500자 이내)", maxLength: 500 },
-      confirmLabel: "대상 policy와 digest를 확인했습니다",
+      confirmLabel: "대상 policy와 digest를 확인했어요",
       submitLabel: "후보로 지정",
     });
   }
@@ -545,20 +545,20 @@ export function OrderPlanPolicyPage() {
     const notes: ConfirmSnapshot["notes"] = [];
     if (oldSwitchOn && trigger?.policy_version) {
       notes.push({
-        title: `현재 버전 ${trigger.policy_version}의 자동 실행이 꺼집니다. 활성화 뒤 이 화면에서 다시 켜세요.`,
+        title: `현재 버전 ${trigger.policy_version}의 자동 실행이 꺼져요. 활성화 뒤 이 화면에서 다시 켜세요.`,
         body: SWITCH_GUIDE,
         tone: "warning",
       });
     }
     notes.push({
-      title: "이후 시작하는 실행의 policy가 바뀝니다",
-      body: "기존 운영 활성 버전은 교체됨으로 내려가며 이미 기록된 판정과 사람의 결정은 바뀌지 않습니다.",
+      title: "이후 시작하는 실행의 policy가 바뀌어요",
+      body: "기존 운영 활성 버전은 교체됨으로 내려가며 이미 기록된 판정과 사람의 결정은 바뀌지 않아요.",
       tone: "neutral",
     });
     setPending({
       kind: "activate",
       key: `activate:${target.policy_version}:${target.policy_sha256}:${latestEvaluation.artifact_sha256}`,
-      title: "발주계획 선별 policy를 운영에 활성화합니다",
+      title: "발주계획 선별 policy를 운영에 활성화해요",
       facts: [
         ["대상 policy", target.policy_version],
         ["policy digest 앞자리", shortDigest(target.policy_sha256)],
@@ -569,7 +569,7 @@ export function OrderPlanPolicyPage() {
       ],
       notes,
       reason: null,
-      confirmLabel: "위 policy digest와 게이트 평가 digest를 확인했고 운영 활성화를 승인합니다",
+      confirmLabel: "위 policy digest와 게이트 평가 digest를 확인했고 운영 활성화를 승인해요",
       submitLabel: "활성화",
     });
   }
@@ -580,15 +580,15 @@ export function OrderPlanPolicyPage() {
     setPending({
       kind: "trigger",
       key: `trigger:${trigger.policy_version}:${next ? "on" : "off"}`,
-      title: next ? "일일 자동 실행을 켭니다" : "일일 자동 실행을 끕니다",
+      title: next ? "일일 자동 실행을 켜요" : "일일 자동 실행을 꺼요",
       facts: [
         ["대상 policy", trigger.policy_version],
         ["policy digest 앞자리", shortDigest(trigger.policy_sha256)],
         ["바뀌는 것", next ? "이 버전의 스위치 켬" : "이 버전의 스위치 끔"],
       ],
-      notes: [{ title: SWITCH_GUIDE, body: "스위치를 켜도 환경 설정·전송 승인·파일 조건이 모두 맞아야 실제로 실행됩니다.", tone: "neutral" }],
+      notes: [{ title: SWITCH_GUIDE, body: "스위치를 켜도 환경 설정·전송 승인·파일 조건이 모두 맞아야 실제로 실행돼요.", tone: "neutral" }],
       reason: { label: "사유 · 필수 (200자 이내)", maxLength: 200 },
-      confirmLabel: next ? "이 버전의 일일 자동 실행을 켭니다" : "이 버전의 일일 자동 실행을 끕니다",
+      confirmLabel: next ? "이 버전의 일일 자동 실행을 켜요" : "이 버전의 일일 자동 실행을 꺼요",
       submitLabel: next ? "자동 실행 켜기" : "자동 실행 끄기",
     });
   }
@@ -609,7 +609,7 @@ export function OrderPlanPolicyPage() {
     try {
       requestId = requestIdFor(bodyKey);
     } catch {
-      setConfirmError(["브라우저가 안전한 요청 식별자를 만들 수 없어 요청을 보내지 않았습니다."]);
+      setConfirmError(["브라우저가 안전한 요청 식별자를 만들 수 없어 요청을 보내지 않았어요."]);
       return;
     }
     let request: Promise<unknown>;
@@ -625,7 +625,7 @@ export function OrderPlanPolicyPage() {
         candidate_sha256: selected.policy_sha256,
         reason: input.reason,
       }, input.actor);
-      done = `${selected.policy_version}을(를) 활성화 후보로 지정했습니다.`;
+      done = `${selected.policy_version}을(를) 활성화 후보로 지정했어요.`;
     } else if (snapshot.kind === "activate" && inspect && latestEvaluation) {
       request = api.activateC2Policy(inspect.policy_version, {
         schema_version: "policy-activate-request.v1",
@@ -636,7 +636,7 @@ export function OrderPlanPolicyPage() {
         quality_gate_artifact_sha256: latestEvaluation.artifact_sha256,
         explicit_confirmation: input.confirmed,
       }, input.actor);
-      done = `${inspect.policy_version}을(를) 운영에 활성화했습니다. 일일 자동 실행은 이 버전에서 다시 켜야 합니다.`;
+      done = `${inspect.policy_version}을(를) 운영에 활성화했어요. 일일 자동 실행은 이 버전에서 다시 켜야 해요.`;
     } else if (snapshot.kind === "trigger" && trigger?.policy_version) {
       const enabled = snapshot.key.endsWith(":on");
       request = api.setC2DailyTrigger({
@@ -649,7 +649,7 @@ export function OrderPlanPolicyPage() {
         reason: input.reason,
         explicit_confirmation: input.confirmed,
       }, input.actor);
-      done = enabled ? "일일 자동 실행 스위치를 켰습니다." : "일일 자동 실행 스위치를 껐습니다.";
+      done = enabled ? "일일 자동 실행 스위치를 켰어요." : "일일 자동 실행 스위치를 껐어요.";
     } else {
       return;
     }
@@ -666,7 +666,7 @@ export function OrderPlanPolicyPage() {
       // 실패하면 창을 닫지 않는다. 담당자가 다시 입력하지 않도록 초안을 남긴다.
       .catch((reason: unknown) => {
         if (generation !== generationRef.current) return;
-        setConfirmError(mutationErrorLines(reason, "요청에 실패했습니다."));
+        setConfirmError(mutationErrorLines(reason, "요청에 실패했어요."));
         if (reason instanceof ApiError && reason.status > 0) refresh();
       })
       .finally(() => {
@@ -676,23 +676,23 @@ export function OrderPlanPolicyPage() {
 
   const footerNote = (() => {
     if (!selected) return "";
-    if (selected.policy_status === "draft") return "초안입니다. 후보로 지정해도 운영 활성화가 아닙니다.";
-    if (selected.policy_status === "retired") return "교체된 버전입니다. 다시 활성화하지 않습니다 — 새 버전을 적재합니다.";
-    if (selected.policy_status === "active") return "운영 활성 버전입니다. 교체하려면 새 버전을 후보로 지정해 활성화합니다.";
-    if (!inspect) return "활성화 조건을 확인하는 중입니다.";
+    if (selected.policy_status === "draft") return "초안이에요. 후보로 지정해도 운영 활성화가 아니에요.";
+    if (selected.policy_status === "retired") return "교체된 버전이에요. 다시 활성화하지 않아요 — 새 버전을 적재해요.";
+    if (selected.policy_status === "active") return "운영 활성 버전이에요. 교체하려면 새 버전을 후보로 지정해 활성화해요.";
+    if (!inspect) return "활성화 조건을 확인하는 중이에요.";
     if (blockers.length > 0) {
-      return `활성화할 수 없습니다 · ${blockerText(blockers[0])}${blockers.length > 1 ? ` 외 ${blockers.length - 1}건` : ""}`;
+      return `활성화할 수 없어요 · ${blockerText(blockers[0])}${blockers.length > 1 ? ` 외 ${blockers.length - 1}건` : ""}`;
     }
-    if (!latestEvaluation) return "활성화할 수 없습니다 · 근거가 될 게이트 평가가 없습니다.";
-    return "blocker 0건 · 확인 창에서 digest를 다시 확인한 뒤 활성화합니다.";
+    if (!latestEvaluation) return "활성화할 수 없어요 · 근거가 될 게이트 평가가 없어요.";
+    return "blocker 0건 · 확인 창에서 digest를 다시 확인한 뒤 활성화해요.";
   })();
 
   return (
     <div className="crit-workspace" id="criteria-panel-order-plan-policies" role="tabpanel">
       <Queue
         count={policies.length}
-        emptyText="적재된 발주계획 선별 policy가 없습니다."
-        footer="policy는 적재 CLI가 만듭니다 · 활성 여부의 정본은 DB 행"
+        emptyText="적재된 발주계획 선별 policy가 없어요."
+        footer="policy는 적재 CLI가 만들어요 · 활성 여부의 정본은 DB 행"
         items={policies.map((policy) => ({
           id: policy.policy_version,
           title: policy.policy_version,
@@ -709,9 +709,9 @@ export function OrderPlanPolicyPage() {
       <section aria-label="선택한 발주계획 선별 policy" className="crit-detail">
         {!selected ? (
           <StateView
-            description="policy는 적재 CLI(`python -m app.screening.c2_policy load`)가 draft로 만듭니다. 이 화면은 승인과 스위치만 다룹니다."
+            description="policy는 적재 CLI(`python -m app.screening.c2_policy load`)가 draft로 만들어요. 이 화면은 승인과 스위치만 다뤄요."
             kind="empty"
-            title="적재된 발주계획 선별 policy가 없습니다."
+            title="적재된 발주계획 선별 policy가 없어요"
           />
         ) : (
           <>
@@ -730,24 +730,24 @@ export function OrderPlanPolicyPage() {
 
               {selected.policy_status === "active" ? (
                 <Section title="일일 자동 실행">
-                  {triggerQuery.isPending ? <Small>자동 실행 상태를 확인하는 중입니다.</Small> : null}
+                  {triggerQuery.isPending ? <Small>자동 실행 상태를 확인하는 중이에요.</Small> : null}
                   {triggerQuery.error ? (
                     <Note
                       action={<Button label="다시 조회" onClick={() => { void triggerQuery.refetch(); }} size="sm" />}
                       role="alert"
-                      title="자동 실행 상태를 불러오지 못했습니다"
+                      title="자동 실행 상태를 불러오지 못했어요"
                       tone="error"
                     >
-                      상태를 확인하지 못한 것이며 꺼져 있다는 뜻이 아닙니다.
+                      상태를 확인하지 못한 것이며 꺼져 있다는 뜻이 아니에요.
                     </Note>
                   ) : null}
                   {trigger && !triggerForSelected ? (
-                    <Small>서버가 말하는 현재 운영 활성 버전이 이 버전과 다릅니다. 목록을 새로 고치십시오.</Small>
+                    <Small>서버가 말하는 현재 운영 활성 버전이 이 버전과 달라요. 목록을 새로 고쳐 주세요.</Small>
                   ) : null}
                   {trigger && triggerForSelected ? (
                     <div className="opp-switch-row" data-testid="daily-trigger-row">
                       <Switch
-                        description={trigger.switch ? `${trigger.switch.enabled ? "켬" : "끔"} · ${trigger.switch.set_by} · ${moment(trigger.switch.set_at)}` : "이 버전에는 아직 기록이 없습니다"}
+                        description={trigger.switch ? `${trigger.switch.enabled ? "켬" : "끔"} · ${trigger.switch.set_by} · ${moment(trigger.switch.set_at)}` : "이 버전에는 아직 기록이 없어요"}
                         isDisabled={busy}
                         label="이 버전의 일일 자동 실행 스위치"
                         onChange={(next) => openTrigger(next)}
@@ -760,8 +760,8 @@ export function OrderPlanPolicyPage() {
                         {/* 앞날을 약속하지 않는다(설계고도화안 A-5). 스위치는 예약된 일일 스크립트의
                             실행을 허용할 뿐이며 cron이 있는지는 이 화면이 알 수 없다. */}
                         <Text weight="semibold">{trigger.effective_enabled
-                          ? "스위치는 예약된 일일 스크립트가 이 버전으로 실행하는 것을 허용할 뿐입니다. 일정이 있는지는 이 화면이 확인하지 않습니다."
-                          : "일일 스크립트가 실행되어도 이 버전으로 판정하지 않습니다."}</Text>
+                          ? "스위치는 예약된 일일 스크립트가 이 버전으로 실행하는 것을 허용할 뿐이에요. 일정이 있는지는 이 화면이 확인하지 않아요."
+                          : "일일 스크립트가 실행되어도 이 버전으로 판정하지 않아요."}</Text>
                         {/* 마지막으로 실제로 돈 일일 실행의 사실(날짜·C-2 상태). */}
                         <DailyRunStatusLine showLink={false} />
                         {trigger.reasons.length > 0 ? (
@@ -777,14 +777,14 @@ export function OrderPlanPolicyPage() {
               ) : null}
 
               {inspectQuery.isPending ? (
-                <StateView description="blocker·파일·전송 승인을 확인하는 중입니다." kind="loading" title="policy 상세를 불러오는 중입니다" />
+                <StateView description="blocker·파일·전송 승인을 확인하는 중이에요." kind="loading" title="policy 상세를 불러오는 중이에요" />
               ) : null}
               {inspectQuery.error ? (
                 <StateView
                   action={<Button label="다시 조회" onClick={() => { void inspectQuery.refetch(); }} />}
-                  description={`${describeApiError(inspectQuery.error, "policy 상세를 불러오지 못했습니다.").detail} 활성화 조건을 확인하지 못했으므로 활성화 단추를 열지 않습니다.`}
+                  description={`${describeApiError(inspectQuery.error, "policy 상세를 불러오지 못했어요.").detail} 활성화 조건을 확인하지 못했으므로 활성화 단추를 열지 않아요.`}
                   kind="error"
-                  title="policy 상세를 불러오지 못했습니다."
+                  title="policy 상세를 불러오지 못했어요"
                 />
               ) : null}
 
@@ -794,30 +794,30 @@ export function OrderPlanPolicyPage() {
                     {blockers.length > 0 ? (
                       <>
                         <Note role="note" title={`활성화를 막는 조건 ${blockers.length}건`} tone="warning">
-                          하나라도 남아 있으면 활성화 단추가 열리지 않습니다. 조건은 서버가 매번 다시 계산합니다.
+                          하나라도 남아 있으면 활성화 단추가 열리지 않아요. 조건은 서버가 매번 다시 계산해요.
                         </Note>
                         <ul className="opp-list" aria-label="활성화를 막는 조건">
                           {blockers.map((blocker) => <li key={`${blocker.code}:${blocker.detail ?? ""}`}>{blockerText(blocker)}</li>)}
                         </ul>
                       </>
                     ) : (
-                      <Small>서버가 계산한 런타임 blocker가 없습니다.</Small>
+                      <Small>서버가 계산한 런타임 blocker가 없어요.</Small>
                     )}
                   </Section>
 
                   <Section title="게이트 결과">
-                    {gatesQuery.isPending ? <Small>게이트 목록을 확인하는 중입니다.</Small> : null}
+                    {gatesQuery.isPending ? <Small>게이트 목록을 확인하는 중이에요.</Small> : null}
                     {gatesQuery.error ? (
                       <Note
                         action={<Button label="다시 조회" onClick={() => { void gatesQuery.refetch(); }} size="sm" />}
                         role="alert"
-                        title="게이트 목록을 불러오지 못했습니다"
+                        title="게이트 목록을 불러오지 못했어요"
                         tone="error"
                       >
-                        게이트가 없는 것이 아니라 확인하지 못한 것입니다.
+                        게이트가 없는 것이 아니라 확인하지 못한 것이에요.
                       </Note>
                     ) : null}
-                    {gatesQuery.data && !shownGate ? <Small>이 버전의 품질 게이트가 없습니다. 측정 스크립트가 게이트를 만듭니다.</Small> : null}
+                    {gatesQuery.data && !shownGate ? <Small>이 버전의 품질 게이트가 없어요. 측정 스크립트가 게이트를 만들어요.</Small> : null}
                     {shownGate ? <GateResult gate={shownGate} selectedGateId={selectedGateId} /> : null}
                     {gates.length > 1 ? (
                       <DataTable
@@ -852,7 +852,7 @@ export function OrderPlanPolicyPage() {
                         ["승인자", inspect.external_transport.approved_by ?? "값 없음"],
                         ["승인 시각", inspect.external_transport.approved_at ? moment(inspect.external_transport.approved_at) : "값 없음"],
                       ]} />
-                    ) : <Small>binding에 전송 승인 항목이 없습니다.</Small>}
+                    ) : <Small>binding에 전송 승인 항목이 없어요.</Small>}
                   </Section>
                   <Section title="감사 표본 설정 (policy)">
                     {inspect.audit_sample ? (
@@ -861,7 +861,7 @@ export function OrderPlanPolicyPage() {
                         ["실행당 상한", count(inspect.audit_sample.max_per_execution)],
                         ["검토 주기", inspect.audit_sample.review_cadence ?? "값 없음"],
                       ]} />
-                    ) : <Small>policy에 감사 표본 설정이 없습니다.</Small>}
+                    ) : <Small>policy에 감사 표본 설정이 없어요.</Small>}
                   </Section>
                 </>
               ) : null}
@@ -881,8 +881,8 @@ export function OrderPlanPolicyPage() {
                       </span>,
                     ])}
                   />
-                ) : <Small>{gatesQuery.data ? "측정 실행이 없습니다." : "게이트를 확인한 뒤 표시합니다."}</Small>}
-                <Small>읽기 전용입니다. 게이트 생성·evaluation 기록·측정 실행은 측정 스크립트가 합니다.</Small>
+                ) : <Small>{gatesQuery.data ? "측정 실행이 없어요." : "게이트를 확인한 뒤 표시해요."}</Small>}
+                <Small>읽기 전용이에요. 게이트 생성·evaluation 기록·측정 실행은 측정 스크립트가 해요.</Small>
               </Section>
             </div>
             <DetailFooter note={footerNote}>
