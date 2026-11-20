@@ -24,7 +24,9 @@ import {
   type OpportunityDetailIntent,
 } from "../components/opportunities/trackingFlow";
 import { EmptyState } from "../components/common/EmptyState";
-import { PageHeaderActions } from "../components/common/PageHeaderActions";
+import { PageHeaderActions, PageHeaderTabs } from "../components/common/PageHeaderActions";
+import { usePageHeader } from "../components/shell/PageHeaderContext";
+
 import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
 import { ListPagerControls, SplitWorkspace } from "../components/common/ReviewPrimitives";
 import { SkeletonPanel } from "../components/common/Skeleton";
@@ -171,6 +173,12 @@ export function OpportunitiesPage() {
 
   const rows = useMemo(() => list.data?.items ?? [], [list.data]);
   const total = list.data?.total ?? 0;
+  // 패널 헤더(최종 시안 패턴). 숫자는 서버 total 그대로이며 읽기 전·실패면 올리지 않는다.
+  usePageHeader(list.isSuccess ? {
+    eyebrow: "사업기회",
+    title: total > 0 ? `사업기회 ${total.toLocaleString("ko-KR")}건을 보고 있어요` : "이 보기에 사업기회가 없어요",
+    description: "추적 결정과 확인할 일을 사업 단위로 모았어요. 추적 선택은 최종 Go/No-Go가 아니에요.",
+  } : null);
   const counts = list.data?.section_counts ?? null;
   const reasonCounts = list.data?.action_reason_counts ?? null;
   const undecided = counts?.["미결정"] ?? 0;
@@ -447,20 +455,14 @@ export function OpportunitiesPage() {
       {/* 화면 제목은 상단바가 제목 모드로 그린다(route-meta `opportunities.topbar`).
           페이지에는 `aria-labelledby`가 가리킬 숨긴 제목만 남고, 화면 액션은 상단바
           슬롯으로 간다 — 같은 이름을 세로로 두 번 쓰지 않기 위해서다. */}
-      <h2 className="visually-hidden" id="page-title">사업 추적</h2>
+      <span className="visually-hidden" id="page-title">사업 추적</span>
       <PageHeaderActions>
         <div className="opportunity-header-actions">
-          <Button
-            icon={<Activity />}
-            label="목록 기준"
-            onClick={() => setDataDialog(true)}
-            size="sm"
-            variant="ghost"
-          />
+          <button className="panel-header-link" onClick={() => setDataDialog(true)} type="button">목록 기준</button>
         </div>
       </PageHeaderActions>
 
-      <WorkspaceFrame>
+      <PageHeaderTabs>
         <WorkspaceFilterBar aria-label="사업 추적 필터">
           <WorkspaceFilterLine>
             {/* 건수는 서버가 센 전체 집합이다. 아직 못 받았으면 0으로 접지 않고
@@ -566,6 +568,8 @@ export function OpportunitiesPage() {
             </WorkspaceFilterContext>
           )}
         </WorkspaceFilterBar>
+      </PageHeaderTabs>
+      <WorkspaceFrame>
 
         {/* 조회 중이거나 실패해도 좌우 분할 골격은 그대로 두고 상태를 목록 pane 안에
             그린다(ADR-0062: 발주계획 방식). 틀·폭·머리 여백은 공용 `SplitWorkspace`가

@@ -1,3 +1,5 @@
+import { PageHeaderTabs } from "../components/common/PageHeaderActions";
+import { usePageHeader } from "../components/shell/PageHeaderContext";
 import { useCallback } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
@@ -41,6 +43,11 @@ export function criteriaTabFromPathname(pathname: string): CriteriaTab {
 }
 
 export function CriteriaPage() {
+  usePageHeader({
+    eyebrow: "판정 기준",
+    title: "판정에 쓰는 기준을 확인해요",
+    description: "기준을 바꾸면 이후 실행에만 적용돼요. 지난 판정은 바뀌지 않아요.",
+  });
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -66,14 +73,17 @@ export function CriteriaPage() {
 
   return (
     <section aria-labelledby="criteria-page-title" className="crit-page" data-astryx-theme="bidops">
-      <h2 className="visually-hidden" id="criteria-page-title">판정 기준</h2>
-      <div className="crit-tabs">
-        <TabList hasDivider onChange={goToTab} role="tablist" value={tab}>
-          {TABS.map((item) => (
-            <Tab key={item.value} label={item.label} panelId={`criteria-panel-${item.value}`} value={item.value} />
-          ))}
-        </TabList>
-      </div>
+      <span className="visually-hidden" id="criteria-page-title">판정 기준</span>
+      {/* 탭은 패널 헤더의 둥근 칸 탭 줄에 둔다(2026-11-19 최종 시안 패턴). */}
+      <PageHeaderTabs>
+        <div className="crit-tabs">
+          <TabList onChange={goToTab} role="tablist" value={tab}>
+            {TABS.map((item) => (
+              <Tab key={item.value} label={item.label} panelId={`criteria-panel-${item.value}`} value={item.value} />
+            ))}
+          </TabList>
+        </div>
+      </PageHeaderTabs>
       <CriteriaSummary onShowUnknowns={showUnknowns} />
       {/* 고른 탭만 렌더한다. 넷을 모두 마운트하면 네 화면의 조회가 한꺼번에
         * 나가고, 보이지 않는 화면의 실패까지 사용자에게 알려야 한다. */}

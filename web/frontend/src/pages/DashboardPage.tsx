@@ -1,3 +1,4 @@
+import { usePageHeader } from "../components/shell/PageHeaderContext";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@astryxdesign/core/Button";
@@ -47,6 +48,11 @@ const WORKLOAD_UNAVAILABLE_REASON: Record<string, string> = {
  * 길이로 덮지 않고 목록이 비었다고 건수를 0으로 고치지 않는다.**
  */
 export function DashboardPage() {
+  usePageHeader({
+    eyebrow: "대시보드",
+    title: "오늘 정하고 확인할 일을 모았어요",
+    description: "건수는 각 목록의 기본 보기와 같은 기준이에요. 화면은 읽기 전용이에요.",
+  });
   return <InternationalizationProvider locale="ko-KR" messages={{ "ko-KR": koKR }}><DashboardWorkspace /></InternationalizationProvider>;
 }
 

@@ -18,7 +18,9 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { EmptyState } from "../components/common/EmptyState";
-import { PageHeaderActions } from "../components/common/PageHeaderActions";
+import { PageHeaderActions, PageHeaderTabs } from "../components/common/PageHeaderActions";
+import { usePageHeader } from "../components/shell/PageHeaderContext";
+
 import {
   AgencyFeature,
   ListPagerControls,
@@ -256,6 +258,12 @@ export function GoNoGoPage() {
   });
   const queueItems = queueQuery.data?.items ?? [];
   const total = queueQuery.data?.total ?? queueItems.length;
+  // 패널 헤더(최종 시안 패턴). 숫자는 이미 받은 대기열 total 그대로다.
+  usePageHeader(queueQuery.isSuccess ? {
+    eyebrow: "최종 Go/No-Go",
+    title: total > 0 ? `최종 결정을 볼 사업이 ${total.toLocaleString("ko-KR")}건 있어요` : "최종 결정을 볼 사업이 없어요",
+    description: "입찰 참여는 사람이 정해요. 추적 선택이나 판정은 Go/No-Go를 대신하지 않아요.",
+  } : null);
   // 받은 범위가 전체인지. 넘치면 보기 건수와 검색은 받은 범위 기준이라고 밝힌다.
   const receivedAll = offset === 0 && queueItems.length >= total;
   const returnSearch = searchParams.toString();
@@ -499,18 +507,18 @@ export function GoNoGoPage() {
       {/* 제목은 상단바(`route-meta.ts`의 제목 모드)가 그린다. 화면은 landmark 이름과
           제목 위계(h1 → h2)를 위해 숨긴 제목만 남기고, 페이지 액션은 상단바 슬롯으로
           보낸다(계획서 §1). 대화상자를 여는 상태는 계속 이 화면이 소유한다. */}
-      <h2 className="visually-hidden" id="go-no-go-title">최종 Go/No-Go</h2>
+      <span className="visually-hidden" id="go-no-go-title">최종 Go/No-Go</span>
       <PageHeaderActions>
         <div className="gng-header-actions">
-          <Button label="목록 기준" variant="ghost" size="sm" icon={<Activity aria-hidden="true" />} onClick={() => setDialog("data")} />
+          <button className="panel-header-link" onClick={() => setDialog("data")} type="button">목록 기준</button>
         </div>
       </PageHeaderActions>
 
-      <WorkspaceFrame>
-        {/* 필터 골격은 4화면 공용(`components/common/WorkspaceFilters.tsx`)이다.
-            필터 집합·URL 파라미터·검색 적용 시점은 그대로 이 화면이 정한다:
-            대기열은 이미 받아 둔 목록이지만 검색은 Enter로 적용하고, 상세 필터로
-            접을 축이 없어 토글을 두지 않는다(계획서 §2). */}
+      {/* 필터 골격은 4화면 공용(`components/common/WorkspaceFilters.tsx`)이다.
+          필터 집합·URL 파라미터·검색 적용 시점은 그대로 이 화면이 정한다:
+          대기열은 이미 받아 둔 목록이지만 검색은 Enter로 적용하고, 상세 필터로
+          접을 축이 없어 토글을 두지 않는다(계획서 §2). 보기 탭·검색 줄은 패널 헤더에 있다. */}
+      <PageHeaderTabs>
         <WorkspaceFilterBar aria-label="결정 검토 목록 필터">
           <WorkspaceFilterLine>
             <WorkspaceViewTabs
@@ -547,6 +555,8 @@ export function GoNoGoPage() {
             </Text>
           </WorkspaceFilterContext>
         </WorkspaceFilterBar>
+      </PageHeaderTabs>
+      <WorkspaceFrame>
 
         {/* 목록을 불러오는 중이거나 실패해도 좌우 분할 골격은 그대로 둔다. 화면이
             통째로 접혔다 펴지면 사람이 보던 자리를 잃는다(발주계획·사업 추적과 같은
