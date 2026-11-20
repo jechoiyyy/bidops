@@ -396,8 +396,8 @@ test("새 관련 발주계획 바로가기는 발주계획을 같은 첫 수집 
   await expect.poll(() => new URL(page.url()).pathname).toBe("/order-plans");
   await expect(page.locator(".c2l-observed-context")).toContainText("09-01 이후 첫 수집");
   // 같은 세 조건(첫 수집 창 · 모델 판단 관련 · 추적 미선택)이 목록 화면에 걸린다.
-  // 축이 `관련` 탭과 같으므로 머리 설명은 역할(필수 검토)을 먼저 말한다(수정안 3B).
-  await expect(page.locator(".c2l-list-head")).toContainText("필수 검토 · 모델이 관련으로 판단 · 추적 미선택 AND 09-01 이후 첫 수집");
+  // 축이 `관련` 탭과 같으므로 머리 한 줄은 탭 이름과 짧은 뜻을 말하고, 더 걸린 첫 수집 창도 밝힌다(2026-11-19 시안).
+  await expect(page.locator(".c2l-list-head")).toContainText(/관련 \d+건 · 추적을 정하지 않은 건 · 09-01 이후 첫 수집/);
   await expect(page.locator(".c2l-row-title")).toHaveText(titles);
 });
 
@@ -417,15 +417,18 @@ for (const [width, height] of WIDTHS) {
       return {
         overflow: document.documentElement.scrollWidth - innerWidth,
         strip: { top: rect(".daily-collection").top, left: rect(".daily-collection").left },
+        headerBottom: rect('[data-shell-region="topbar"]').bottom,
+        panelLeft: rect('[data-shell-region="panel"]').left,
         gridWidth: rect(".dash-work-grid").width,
         panels,
       };
     });
     expect(measured.overflow).toBe(0);
-    // RL 셸(ui-spec §1.1): 상단바 44px + canvas 위 여백, 사이드바 240px + canvas 좌 여백.
+    // 최종 시안 셸(2026-11-19): 패널 헤더 아래 + canvas 위 여백 24, 흰 패널(사이드바 228 오른쪽, 1px 테두리) + canvas 좌 여백 32.
     // 맨 위는 일일 실행 한 줄(설계고도화안 A-5)이고 바로가기 띠가 그 아래다.
-    expect(measured.strip.top).toBeCloseTo(44 + physical(16), 0);
-    expect(measured.strip.left).toBeCloseTo(240 + physical(24), 0);
+    expect(measured.strip.top).toBeCloseTo(measured.headerBottom + physical(24), 0);
+    expect(measured.panelLeft).toBeCloseTo(228, 0);
+    expect(measured.strip.left).toBeCloseTo(measured.panelLeft + 1 + physical(32), 0);
     expect(measured.panels).toHaveLength(5);
     // 두 열: 1·3번째 패널이 같은 왼쪽 가장자리에서 시작하고 마지막은 전폭이다.
     expect(measured.panels[2].left).toBeCloseTo(measured.panels[0].left, 0);
@@ -469,7 +472,7 @@ for (const [width, height] of WIDTHS) {
     // 누적으로 열렸다는 것은 위의 URL(source_run_id 없음)이 말한다. 평상시 누적의
     // 범위 줄은 운영자용 감사 정보라 그리지 않는다(2026-09-21).
     await expect(page.getByTestId("order-plan-list-scope")).toHaveCount(0);
-    await expect(page.locator(".c2l-list-head")).toContainText("발주계획 목록 · 1건");
+    await expect(page.locator(".c2l-list-head")).toContainText("관련 1건 · 추적을 정하지 않은 건");
     await expect(page.locator(".c2l-row")).toHaveCount(1);
   });
 }

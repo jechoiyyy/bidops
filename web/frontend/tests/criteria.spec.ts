@@ -532,7 +532,7 @@ for (const width of [1280, 1440]) {
       const boundaryNode = document.querySelector(".crit-boundary") as HTMLElement | null;
       const boundaryStyle = boundaryNode ? window.getComputedStyle(boundaryNode) : null;
       return {
-        tabs: Math.round(box(".crit-tabs .astryx-tab-list")?.height ?? 0),
+        tabs: Math.round(box('.crit-tabs [role="tablist"]')?.height ?? 0),
         strip: Math.round(strip?.height ?? 0),
         footer: Math.round(box(".crit-detail-foot")?.height ?? 0),
         seam: Math.round((work?.top ?? 0) - (strip?.bottom ?? 0)),
@@ -551,8 +551,8 @@ for (const width of [1280, 1440]) {
     expect(geometry.seam).toBe(0);
     expect(geometry.strip).toBeCloseTo(physical(49), 0);
     expect(geometry.footer).toBeCloseTo(physical(57), 0);
-    // 탭 줄은 세 화면 묶음이 같은 36px다(2026-11-18 결정 3). 시안 실측은 37이었다.
-    expect(geometry.tabs).toBeCloseTo(36, 0);
+    // 탭 줄은 패널 헤더의 둥근 칸 탭 한 줄(40px)이다(2026-11-19 ADR-0076, 2026-11-18 결정 3의 36px를 대신한다).
+    expect(geometry.tabs).toBeCloseTo(40, 0);
     // 하단 단추는 Astryx size="sm"이고 sm 단추는 앱 전체에서 12px 한 벌이다(2026-11-18 결정 4).
     expect(geometry.buttonFont).toBe("12px");
     expect(geometry.listTitleFont).toBe("14px");
@@ -565,8 +565,8 @@ for (const width of [1280, 1440]) {
     // The shell fills the viewport and keeps the reference bottom inset (37px,
     // rendered 1:1 since the ×0.9 compact scale was removed on 2026-11-18).
     const viewportHeight = width === 1280 ? 800 : 900;
-    // 2026-11-18부터 캔버스 하단 여백 24px이 모든 화면에 같다(결정 3).
-    expect(geometry.workspaceBottom).toBeCloseTo(viewportHeight - physical(37) - 24, 0);
+    // 2026-11-19 최종 시안 셸: 흰 패널의 바깥 여백 8 + 테두리 1, 캔버스 하단 여백 32px이 모든 화면에 같다.
+    expect(geometry.workspaceBottom).toBeCloseTo(viewportHeight - physical(37) - 8 - 1 - 32, 0);
   });
 
   test(`하단 액션이 ${width}px에서 스크롤 없이 보이고 화면이 가로로 넘치지 않는다`, async ({ page }) => {

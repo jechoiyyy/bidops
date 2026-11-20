@@ -159,7 +159,7 @@ test("UC-01은 키보드만으로 추적 저장 직전까지 이동하고 비활
   await page.keyboard.press("Enter");
 
   // C-7: 결정 버튼이 곧 고르는 상태다. 아직 아무도 고르지 않은 건이라 `계속 추적`은 `추적 시작`이다.
-  const save = page.getByRole("dialog").getByRole("button", { name: "추적 시작", exact: true });
+  const save = page.getByRole("dialog").getByRole("button", { name: "추적 시작하기", exact: true });
   await expect(save).toBeDisabled();
   await expect(page.locator(`#${await save.getAttribute("aria-describedby")}`)).toContainText("선택 사유");
 
@@ -306,7 +306,13 @@ test("사이드바 항목 이름은 여는 화면의 제목과 같다", async ({
     await page.goto("/");
     await page.locator("aside.sidebar").getByRole("link", { name: item.label, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`^[^?]*${item.path.replace(/\//g, "\\/")}(\\?|$)`));
-    await expect(page.locator("header.topbar h1")).toHaveText(item.title);
+    // 2026-11-19 패널 헤더(ADR-0076): 화면 이름은 제목 위 작은 글자(eyebrow)이고 `<h1>`은 문장형 제목이다.
+    // 문장을 올리지 않는 화면(읽기 전·실패)은 `<h1>`이 화면 이름 그대로다. 어느 쪽이든 화면 이름은 사이드바와 같다.
+    await expect(page.locator("header.topbar h1")).toBeVisible();
+    await expect.poll(() => page.locator("header.topbar").evaluate((topbar) => {
+      const eyebrow = topbar.querySelector('[data-testid="page-header-eyebrow"]')?.textContent?.trim();
+      return eyebrow ? eyebrow.split(" · ")[0] : topbar.querySelector("h1")?.textContent?.trim() ?? "";
+    })).toBe(item.title);
     await expect(page.locator(".lazy-route-error")).toHaveCount(0);
   }
 });

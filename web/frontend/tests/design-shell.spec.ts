@@ -60,8 +60,10 @@ test("모든 시안 대상 route가 공통 bidops light 셸 안에서 렌더링�
       await expect(shell.locator("header.topbar nav[aria-label='현재 위치']")).toHaveCount(0);
       await expect(shell.locator('header.topbar[data-topbar-mode="title"] h1')).toHaveCount(1);
     } else {
-      await expect(shell.locator("header.topbar nav[aria-label='현재 위치']")).toBeAttached();
-      await expect(shell.locator('header.topbar[data-topbar-mode="breadcrumb"]')).toBeAttached();
+      // 2026-11-19(ADR-0076): 옛 경로(breadcrumb) 배치는 없다. 상세는 `‹ 목록` 돌아갈 링크 + 제목이고,
+      // 돌아갈 곳이 없는 운영 화면(대시보드·판정 기준·실행 상태 등)은 링크 없이 제목만 있다.
+      await expect(shell.locator('header.topbar[data-header-layout="page"]')).toBeAttached();
+      await expect(shell.locator("header.topbar .topbar-breadcrumb")).toHaveCount(0);
     }
     await expect(shell.locator("header.topbar h1")).toHaveCount(1);
   }
@@ -121,6 +123,7 @@ test("1440px 셸의 팔레트 색과 기준 치수를 고정한다", async ({ pa
       return found;
     };
     const sidebar = element('[data-shell-region="sidebar"]');
+    const panel = element('[data-shell-region="panel"]');
     const topbar = element('[data-shell-region="topbar"]');
     const canvas = element('[data-shell-region="canvas"]');
     const brand = element('.sidebar-brand');
@@ -129,7 +132,13 @@ test("1440px 셸의 팔레트 색과 기준 치수를 고정한다", async ({ pa
     const topbarStyle = getComputedStyle(topbar);
     const canvasStyle = getComputedStyle(canvas);
     const brandStyle = getComputedStyle(brand);
+    const panelStyle = getComputedStyle(panel);
+    const panelRect = panel.getBoundingClientRect();
     return {
+      panelBackground: panelStyle.backgroundColor,
+      panelRadius: panelStyle.borderTopLeftRadius,
+      panelBorder: panelStyle.borderTopColor,
+      panelInset: [panelRect.top, window.innerWidth - panelRect.right, window.innerHeight - panelRect.bottom],
       colorScheme: rootStyle.colorScheme,
       shellBackground: rootStyle.backgroundColor,
       sidebarBackground: sidebarStyle.backgroundColor,
@@ -156,13 +165,16 @@ test("1440px 셸의 팔레트 색과 기준 치수를 고정한다", async ({ pa
     };
   });
 
-  // 색은 docs/1016_rootlab-redefinition/ui-spec.md §1·§2(시안 v26)와 1:1로 대응한다.
-  // 회색 사이드바(#F8F8F9) + 흰 상단바·본문.
+  // 색·치수는 2026-11-19 최종 시안(docs/1119_kstyle-shell/mockups/, ADR 초안 승인 대기)과 1:1로 대응한다.
+  // 따뜻한 회색 바탕(#EEEDEB) 위에 면 없는 사이드바 + 흰 패널(1px #E4E3E0, radius 12, 바깥 8px).
   expect(metrics).toMatchObject({
     colorScheme: "light",
-    shellBackground: "rgb(255, 255, 255)",
-    sidebarBackground: "rgb(248, 248, 249)", // --bo-sidebar-bg
+    shellBackground: "rgb(238, 237, 235)", // --bo-frame
+    sidebarBackground: "rgba(0, 0, 0, 0)", // 사이드바는 바탕 위에 면 없이 놓인다
     brandBackground: "rgba(0, 0, 0, 0)", // 워크스페이스 줄은 면 없음
+    panelBackground: "rgb(255, 255, 255)",
+    panelRadius: "12px",
+    panelBorder: "rgb(228, 227, 224)",
     topbarBackground: "rgb(255, 255, 255)",
     canvasBackground: "rgb(255, 255, 255)",
     uiScale: "",
@@ -172,9 +184,9 @@ test("1440px 셸의 팔레트 색과 기준 치수를 고정한다", async ({ pa
     sizeElementMd: "32px",
     rootZoom: "1",
   });
-  // 사이드바 240px, 상단바 44px (ui-spec §1.1). Chromium can serialize fractional values differently.
-  expect(metrics.sidebarWidth).toBeCloseTo(240, 1);
-  expect(metrics.topbarHeight).toBeCloseTo(44, 1);
+  // 사이드바 228px, 패널 바깥 여백 8px(위·오른쪽·아래). 별도 상단바는 없고 패널 헤더 높이는 화면 글에 따른다.
+  expect(metrics.sidebarWidth).toBeCloseTo(228, 1);
+  for (const inset of metrics.panelInset) expect(inset).toBeCloseTo(8, 0);
   expect(Number.parseFloat(metrics.shellMinWidth)).toBeCloseTo(1280, 1);
   expect(Number.parseFloat(metrics.bodyMinWidth)).toBeCloseTo(1280, 1);
 
@@ -185,7 +197,7 @@ test("1440px 셸의 팔레트 색과 기준 치수를 고정한다", async ({ pa
 
   // legacy @theme 은 :root 로 방출되어 @layer astryx-theme 을 이긴다. 이름이 겹치는
   // 토큰을 theme.css 에 되살리면 테마 값이 조용히 무시되므로 여기서 막는다.
-  expect(metrics.borderToken.toUpperCase()).toContain("E6E7EB");
+  expect(metrics.borderToken.toUpperCase()).toContain("E4E3E0");
   expect(metrics.borderToken.toUpperCase()).not.toContain("D4CDCB");
   expect(metrics.borderToken.toUpperCase()).not.toContain("D7E1DB");
   // 성공은 시안의 초록(#1D7B4E)이다.
@@ -199,36 +211,41 @@ test("1440px 셸의 팔레트 색과 기준 치수를 고정한다", async ({ pa
     const style = getComputedStyle(canvas);
     return [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft];
   });
-  // 모든 화면 같은 캔버스 여백: 상16·좌우24·하24(2026-11-18, 설계고도화안 §4 B-4).
-  expect(canvasPadding).toEqual(["16px", "24px", "24px", "24px"]);
+  // 모든 화면 같은 캔버스 여백: 위24·좌우32·아래32(2026-11-19 최종 시안 — 패널 헤더와 같은 좌우 32px).
+  expect(canvasPadding).toEqual(["24px", "32px", "32px", "32px"]);
 });
 
-// 제목 모드는 상단바가 화면의 시각 제목을 맡는다(ui-spec §1.3: 색 점 + 제목). 2026-11-18
-// 결정으로 상단바 화면 제목은 모든 화면에서 16px/600이다(설계고도화안 §4 B-4).
-// 상단바 높이는 두 모드가 같은 44px이어야 한다 — 모드에 따라 셸이 흔들리면
-// 목록과 상세를 오갈 때마다 본문이 위아래로 튄다.
-test("제목 모드 상단바가 16px 제목을 쓰고 높이는 44px다", async ({ page }, testInfo) => {
+// 제목 모드는 패널 헤더가 화면의 시각 제목을 맡는다(2026-11-19 최종 시안): 작은 화면 이름(14px) +
+// 문장형 제목 `<h1>`(26px/700) + 한 줄 설명(15px) + 둥근 칸 탭(40px). 문장은 화면이 이미 받은 건수로만
+// 만든다(발주계획 fixture의 관련 미선택 1건).
+test("제목 모드 패널 헤더가 화면 이름·26px 문장형 제목·설명·탭을 쓴다", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "layout-desktop", "치수 기준은 시안 폭에서만 고정한다");
 
   await page.goto("/order-plans", { waitUntil: "domcontentloaded" });
   const topbar = page.locator("header.topbar");
   await expect(topbar).toHaveAttribute("data-topbar-mode", "title");
-  await expect(topbar.locator("h1")).toHaveText("발주계획");
+  await expect(topbar.locator("h1")).toHaveText("추적을 정할 발주계획이 1건 있어요");
+  await expect(topbar.getByTestId("page-header-eyebrow")).toHaveText("발주계획");
   await expect(topbar.locator(".topbar-breadcrumb")).toHaveCount(0);
   await expect(topbar.locator(".topbar-status")).toHaveCount(0);
 
   const metrics = await topbar.evaluate((element) => {
     const heading = element.querySelector<HTMLElement>("h1");
-    if (!heading) throw new Error("missing topbar h1");
-    const headingStyle = getComputedStyle(heading);
+    const eyebrow = element.querySelector<HTMLElement>(".topbar-eyebrow");
+    const description = element.querySelector<HTMLElement>(".topbar-description");
+    const tab = element.querySelector<HTMLElement>("#page-header-tabs .workspace-view-tabs .astryx-button");
+    if (!heading || !eyebrow || !description || !tab) throw new Error("missing panel header part");
     return {
-      fontSize: headingStyle.fontSize,
-      fontWeight: headingStyle.fontWeight,
-      topbarHeight: element.getBoundingClientRect().height,
+      fontSize: getComputedStyle(heading).fontSize,
+      fontWeight: getComputedStyle(heading).fontWeight,
+      eyebrowSize: getComputedStyle(eyebrow).fontSize,
+      descriptionSize: getComputedStyle(description).fontSize,
+      tabHeight: tab.getBoundingClientRect().height,
+      borderBottom: getComputedStyle(element).borderBottomColor,
     };
   });
-  expect(metrics).toMatchObject({ fontSize: "16px", fontWeight: "600" });
-  expect(metrics.topbarHeight).toBeCloseTo(44, 1);
+  expect(metrics).toMatchObject({ fontSize: "26px", fontWeight: "700", eyebrowSize: "14px", descriptionSize: "15px", borderBottom: "rgb(228, 227, 224)" });
+  expect(metrics.tabHeight).toBeCloseTo(40, 0);
 });
 
 test("native compact 셸이 드롭다운·대화상자를 viewport 안에 두고 키보드 초점을 되돌린다", async ({ page }) => {

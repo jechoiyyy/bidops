@@ -176,35 +176,38 @@ test("누적 화면은 회차 API 실패와 무관하게 열린다", async ({ pa
   expect(new URL(page.url()).searchParams.get("run")).toBe(RUN_ID);
 });
 
-// ── 상단 경로(현재 위치) ────────────────────────────────────────────────────
-// 경로 모드의 상단바는 화면 제목을 다시 쓰지 않는다. 각 화면의 `<h2>`가 시각
-// 제목이고 상단바는 `그룹 › 상위 화면 › 화면 이름 › 상세 식별자`만 보여 준다.
-// 화면 이름 칸이 `<h1>`이라 접근성 랜드마크는 그대로 남는다.
-// 탐색과 추적 목록 4화면은 제목 모드로 빠졌다(아래 `titleCases`).
+// ── 패널 헤더의 현재 위치 ─────────────────────────────────────────────────────
+// 2026-11-19 패널 헤더(ADR-0076): 옛 경로 줄(`그룹 › 상위 화면 › 화면 이름 › 상세 식별자`)은 없다.
+// 상세 화면은 맨 위 `‹ 상위 화면` 돌아가기 링크 하나, 그 아래 화면 이름·식별자(작은 글자)와 `<h1>` 제목이다.
+// 목록·대시보드처럼 돌아갈 곳이 없는 화면은 링크 없이 제목만 둔다. `<h1>`은 언제나 하나다.
 
-type BreadcrumbCase = { name: string; path: string; crumbs: string[] };
+type HeaderCase = { name: string; path: string; back: string | null; heading: string[] };
 
-const breadcrumbCases: BreadcrumbCase[] = [
-  { name: "dashboard", path: "/", crumbs: ["대시보드"] },
-  { name: "pre-spec detail", path: "/pre-specs/991", crumbs: ["사전규격", "notice 991"] },
-  { name: "opportunity detail", path: "/opportunities/501", crumbs: ["사업기회", "#501"] },
-  // 되돌릴 수 없는 결정 화면은 어느 사업기회의 결정인지 경로에 남긴다.
-  { name: "bid delta", path: "/opportunities/501/bid-delta", crumbs: ["사업기회", "#501", "입찰 변경 비교"] },
-  { name: "queue detail", path: "/queue/29", crumbs: ["사업기회", "공고 판정 이력", "공고 29"] },
-  { name: "judgments detail", path: "/judgments/29", crumbs: ["사업기회", "공고 판정 이력", "공고 29"] },
+const headerCases: HeaderCase[] = [
+  { name: "dashboard", path: "/", back: null, heading: ["대시보드"] },
+  { name: "pre-spec detail", path: "/pre-specs/991", back: "사전규격", heading: ["사전규격"] },
+  { name: "opportunity detail", path: "/opportunities/501", back: "사업기회", heading: ["#501"] },
+  // 되돌릴 수 없는 결정 화면은 어느 사업기회의 결정인지 돌아가기 링크와 화면 이름이 남긴다.
+  { name: "bid delta", path: "/opportunities/501/bid-delta", back: "#501", heading: ["입찰 변경 비교"] },
+  { name: "queue detail", path: "/queue/29", back: "공고 판정 이력", heading: ["공고 29"] },
+  { name: "judgments detail", path: "/judgments/29", back: "공고 판정 이력", heading: ["공고 29"] },
   // 심층 검토 보고서는 사전규격이 여는 화면이다(ADR-0049의 자동 시작 진입점도 거기다).
-  { name: "deep review", path: "/deep-reviews/fixture-review", crumbs: ["사전규격", "심층 검토 보고서", "fixture-…"] },
-  { name: "criteria", path: "/criteria", crumbs: ["판정 기준"] },
-  { name: "run-status", path: "/run-status", crumbs: ["실행 상태"] },
+  { name: "deep review", path: "/deep-reviews/fixture-review", back: "사전규격", heading: ["심층 검토 보고서", "fixture-…"] },
+  { name: "criteria", path: "/criteria", back: null, heading: ["판정 기준"] },
+  { name: "run-status", path: "/run-status", back: null, heading: ["실행 상태"] },
 ];
 
-for (const context of breadcrumbCases) {
-  test(`${context.name} 상단 경로`, async ({ page }) => {
+for (const context of headerCases) {
+  test(`${context.name} 패널 헤더 위치`, async ({ page }) => {
     await page.goto(context.path);
-    const crumbs = page.locator("header.topbar .topbar-breadcrumb .topbar-crumb");
-    await expect(crumbs).toHaveText(context.crumbs);
-    // 화면 이름 칸 하나만 `<h1>`이다. 제목을 두 번 쓰지 않는다.
-    await expect(page.locator("header.topbar h1")).toHaveCount(1);
+    const topbar = page.locator("header.topbar");
+    await expect(topbar.locator(".topbar-breadcrumb")).toHaveCount(0);
+    const back = topbar.getByRole("navigation", { name: "현재 위치" }).getByRole("link");
+    if (context.back === null) await expect(back).toHaveCount(0);
+    else await expect(back).toHaveText(context.back);
+    for (const text of context.heading) await expect(topbar.locator(".topbar-heading")).toContainText(text);
+    // 제목은 하나만 `<h1>`이다. 제목을 두 번 쓰지 않는다.
+    await expect(topbar.locator("h1")).toHaveCount(1);
   });
 }
 
@@ -231,13 +234,13 @@ for (const context of titleCases) {
   });
 }
 
-// 대시보드는 제목 모드가 아니다. 액션 portal은 두 모드가 함께 쓰므로, 경로 모드
-// 화면에서도 슬롯이 그대로 동작하는지 같은 자리에서 확인한다.
+// 대시보드는 제목 모드가 아니다(문장형 제목을 페이지가 올린다). 액션 portal은 두 배치가 함께 쓰므로
+// 이 배치에서도 슬롯이 그대로 동작하는지 같은 자리에서 확인한다.
 test("대시보드는 경로 모드이면서 상단바 액션 슬롯을 그대로 쓴다", async ({ page }) => {
   await page.goto("/");
   const topbar = page.locator("header.topbar");
   await expect(topbar).toHaveAttribute("data-topbar-mode", "breadcrumb");
-  await expect(topbar.locator(".topbar-breadcrumb")).toHaveCount(1);
+  await expect(topbar).toHaveAttribute("data-header-layout", "page");
   await expect(topbar.locator("#page-header-actions .dash-header-actions")).toBeVisible();
   await expect(topbar.getByRole("button", { name: "새로고침" })).toBeVisible();
 });
@@ -246,7 +249,8 @@ const DETAIL_BACK_LINKS: Array<{ name: string; path: string; back: string; keeps
   { name: "pre-spec detail", path: "/pre-specs/991", back: "/pre-specs", keepsRun: false },
   // 사업기회 레코드의 목록 링크는 이 사업기회를 고른 채 연다(설계고도화안 C-3).
   { name: "opportunity detail", path: "/opportunities/501", back: "/opportunities", keepsRun: false, href: "/opportunities?selected=501" },
-  { name: "bid delta", path: "/opportunities/501/bid-delta", back: "/opportunities", keepsRun: false },
+  // 입찰 변경 비교는 한 단계 위인 그 사업기회 레코드로 돌아간다(ADR-0076, 결정 목록은 화면 안 `결정 목록으로`).
+  { name: "bid delta", path: "/opportunities/501/bid-delta", back: "/opportunities/501", keepsRun: false },
   // 검토 대기열·공고 판정 이력은 목록·상세가 한 화면이라, 목록 주소로 가면
   // 화면이 첫 공고를 스스로 다시 고른다(QueuePage·NoticeDetailPage의 replace
   // navigate). 링크는 목록으로 가고 그 화면이 선택을 되살리므로 착지 주소는
@@ -259,8 +263,9 @@ const DETAIL_BACK_LINKS: Array<{ name: string; path: string; back: string; keeps
 for (const context of DETAIL_BACK_LINKS) {
   test(`${context.name} 상단 경로가 목록으로 돌아가는 링크를 가진다`, async ({ page }) => {
     await page.goto(`${context.path}?run=${RUN_ID}`);
-    const breadcrumb = page.locator("header.topbar .topbar-breadcrumb");
-    const back = breadcrumb.locator(`a[href^="${context.back}?"], a[href="${context.back}"]`);
+    // 돌아가기 링크는 패널 헤더 맨 위 `현재 위치` 링크 하나다(ADR-0076).
+    const nav = page.locator("header.topbar").getByRole("navigation", { name: "현재 위치" });
+    const back = nav.locator(`a[href^="${context.back}?"], a[href="${context.back}"]`);
     await expect(back).toHaveCount(1);
     // 회차 선택은 주소에만 있고, 목적지가 회차를 읽는 화면일 때만 경로 링크에
     // 그대로 남는다(route-meta.ts의 runSearchFor). `run`을 읽지 않는 화면으로
@@ -289,12 +294,11 @@ test("사업기회에서 연 심층 검토 보고서는 사업기회 아래로 �
   const active = page.locator("aside.sidebar .sidebar-item.is-active");
   await expect(active).toHaveCount(1);
   await expect(active.locator(".sidebar-item-label")).toHaveText("사업기회");
-  // 묶음 라벨 칸(role "group")은 상단바가 그리지 않는다.
-  await expect(page.locator("header.topbar .topbar-crumb")).toHaveText([
-    "사업기회",
-    "심층 검토 보고서",
-    "fixture-…",
-  ]);
+  // 묶음 라벨 칸(role "group")은 상단바가 그리지 않는다. 돌아가기 링크가 연 화면(사업기회)으로 간다.
+  const topbar = page.locator("header.topbar");
+  await expect(topbar.getByRole("navigation", { name: "현재 위치" }).getByRole("link")).toHaveText("사업기회");
+  await expect(topbar.locator(".topbar-heading")).toContainText("fixture-…");
+  await expect(topbar.locator("h1")).toHaveText("심층 검토 보고서");
 });
 
 // ── PN 상세 선택 순회 context --------------------------------------------

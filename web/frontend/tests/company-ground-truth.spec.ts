@@ -310,7 +310,8 @@ test("T8: 사이드바 회사 근거는 /company로 가고 건수와 워크스�
   await expect(link).toHaveAttribute("aria-current", "page");
   await expect(link.locator(".sidebar-item-count")).toHaveText(String(EXPECTED_COUNTS.attention));
   await expect(sidebar.locator(".sidebar-brand strong")).toHaveText("루트랩");
-  await expect(sidebar.locator(".sidebar-brand-mark")).toHaveText("루");
+  // 2026-11-19 최종 시안: 머리글자 아이콘 대신 제품 이름 + 회사 이름이다.
+  await expect(sidebar.locator(".sidebar-brand-product")).toHaveText("BidOps");
   // 같은 이름의 항목이 하나뿐이다(설정 아래 판정 기준 `/profile`은 사이드바 항목이 아니다).
   await expect(sidebar.getByRole("link", { name: "회사 근거", exact: true })).toHaveCount(1);
 
@@ -371,7 +372,8 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     expect(layout.h1Count).toBe(1);
     expect(layout.docOverflow).toBeLessThanOrEqual(0);
     expect(layout.canvasOverflow).toBeLessThanOrEqual(0);
-    expect(layout.topbar.bottom - layout.topbar.top).toBeCloseTo(44, 0);
+    // 2026-11-19 최종 시안: 별도 상단바가 없고 패널 헤더가 화면 글에 따라 높아진다. 본문은 헤더 아래에서 시작한다.
+    expect(layout.side.top).toBeGreaterThanOrEqual(layout.topbar.bottom);
     // 좌측 요약은 사이드바 오른쪽·본문 왼쪽에 있고 둘은 겹치지 않는다.
     expect(layout.side.left).toBeGreaterThanOrEqual(layout.sidebar.right);
     expect(layout.main.left).toBeGreaterThanOrEqual(layout.side.right);
