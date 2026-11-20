@@ -93,6 +93,7 @@ code와 테스트 조합은 상세 명세를 따른다.
 |---|---|---|---|
 | `GET /api/health` | 없음 | `{"status":"ok"}` | 프로세스 불가용 |
 | `GET /api/workload` | 없음 | `WorkloadResponse` — 집계 시각과 고정 순서 열 항목 | 제공자 부재는 200의 null·사유 |
+| `GET /api/daily-collection-status` | 없음 | `DailyCollectionStatusResponse` — 트랙별 판정 기준일·상태·적재 경고 수(아래 "일일 수집 기준일 상태") | 없음(읽기 전용, 기록이 없으면 200의 `missing`) |
 | `GET /api/runs` | 없음 | `{items: RunSummary[], total}` 전체 회차 | 없음 |
 | `POST /api/runs/ingest` | body 또는 query의 run ID | 적재·재적재 건수와 경고 | 404 run directory, 422 run ID 부재 |
 | `GET /api/runs/{run_id}` | path run ID | `RunDetailResponse` | 404 |
@@ -111,6 +112,46 @@ revision-history의 404·409·500은 공통 안전 envelope를 사용하며 `det
 `null`이다. 저장된 same-notice parent, runtime root execution, review의 exact judgment pin을
 해석할 수 없으면 내부 row·SQL·예외를 노출하지 않고 409 `revision_history_conflict`로 닫는다.
 그 밖의 예상하지 못한 조회 실패는 500 `processing_failed`다.
+
+#### 일일 수집 기준일 상태 (2026-11-20)
+
+화면 헤더의 "수집 완료 · N월 N일 기준"을 사실대로 그리기 위한 읽기 전용 응답이다. 판정은 서버가
+하고 화면은 옮겨 적기만 한다(다시 계산하지 않는다). 새 테이블·migration 없이 `run`·`ingest_warning`
+두 테이블만 읽는다. 구현은 `web/backend/app/lifecycle/services/daily_collection.py`, 스키마는
+`app/lifecycle/schemas/daily_collection.py`다.
+
+```json
+{
+  "schema_version": "bidops.daily-collection-status.v1",
+  "generated_at": "2026-11-20T04:00:00Z",
+  "timezone": "Asia/Seoul",
+  "today": "2026-11-20",
+  "tracks": [
+    {"track": "order-plans", "basis_date": "2026-11-19", "state": "complete", "reasons": [],
+     "run_id": "lifecycle-20261119-plans--20261119T213000Z", "collected_at": "2026-11-19T21:30:00Z",
+     "warning_count": 0, "latest_basis_date": "2026-11-19"},
+    {"track": "notices", "basis_date": "2026-11-19", "state": "missing", "reasons": ["no_run"],
+     "run_id": null, "collected_at": null, "warning_count": null, "latest_basis_date": "2026-11-18"}
+  ]
+}
+```
+
+- `tracks`는 언제나 `order-plans`·`notices` 두 항목이며 이 순서다(`scripts/run-daily-lifecycle.sh --track`).
+- **일일 회차만 센다.** 회차 id가 `lifecycle-<YYYYMMDD>-plans`·`lifecycle-<YYYYMMDD>-notices`
+  (재수집 `-retry<N>`)로 시작하는 `<디렉터리>--<generated_at>Z` 행뿐이다. 수동 워크플로·참조 실행
+  (`order-plans-…`, `*-vllm-reference-*`, `gate-gold-*` 등)은 운영 수집이 아니고, C-2 측정 전용 실행은
+  회차가 아니라 실행이므로 들어오지 않는다. 같은 디렉터리를 다시 적재해 `superseded`가 된 행도 세지
+  않는다.
+- **판정 기준일(`basis_date`)**은 한국 시간 전일이다(ADR-0061). 전일 회차가 아직 없고 한국 시간 정오
+  전이면 그저께를 판정한다 — 아침 수집 전 공백을 경고로 만들지 않는 2026-11-18 G2 규칙 그대로다.
+- **상태(닫힌 enum)**: 판정 기준일의 회차가 없으면 `missing`(`reasons=["no_run"]`). 수집 실패·중단은
+  일일 스크립트가 적재 전에 멈춰 회차 행을 남기지 않으므로 여기다. 회차가 있으면 늦게 적재한 하나를
+  보고, 적재 경고가 1건이라도 있으면 `incomplete`(`["ingest_warnings"]`, 부분 산출물), 0건이면
+  `complete`다. `complete`가 아닌 것을 완료로 접지 않는다.
+- `warning_count`는 판정에 쓴 회차의 적재 경고 수이며 회차가 없으면 `null`이다(0과 구분한다).
+  `latest_basis_date`는 그 트랙에서 기록이 있는 가장 늦은 기준일이고 없으면 `null`이다.
+- 이 응답은 수집(적재)만 말한다. 발주계획 C-2 판정 실행의 성공 여부는 `GET
+  /api/order-plan-screening/executions`가 정본이며 여기에 섞지 않는다.
 
 ### 사업기회와 추적
 
