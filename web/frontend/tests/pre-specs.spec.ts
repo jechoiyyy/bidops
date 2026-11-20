@@ -529,9 +529,10 @@ test("목록 행은 사업명·기관·예산·상태를 정해진 순서와 글
     .evaluate((element) => Number(getComputedStyle(element).fontWeight));
   expect(await fontWeight(title)).toBeGreaterThanOrEqual(600);
   expect(await fontWeight(agency)).toBeLessThan(600);
-  expect(await fontSize(row.locator(".pre-specs-row-meta"))).toBe(12);
-  expect(await fontSize(row.locator(".pre-specs-row-state"))).toBe(12);
-  expect(await fontSize(row.locator(".pre-specs-deadline"))).toBe(12);
+  // 2026-11-20 4차(ADR-0076 결정 11): 패널 본문은 k 단(본문 16·보조 14·구역 18·상세 22, 단추 44)이다.
+  expect(await fontSize(row.locator(".pre-specs-row-meta"))).toBe(14);
+  expect(await fontSize(row.locator(".pre-specs-row-state"))).toBe(14);
+  expect(await fontSize(row.locator(".pre-specs-deadline"))).toBe(14);
 
   // 사업명이 기관보다 위에 있고, 마감은 행의 오른쪽 절반에 있다.
   const positions = await row.evaluate((element) => {
@@ -749,12 +750,13 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     });
 
     // ×0.9 축척 때 본문·캡션보다 0.9px 크던 단(13.5·11.7px)은 정수 척도의 본문·캡션으로 접었다.
-    expect(styles.summary.fontSize).toBe(14);
-    expect(styles.task.fontSize).toBe(14);
-    expect(styles.fieldValue.fontSize).toBe(14);
-    expect(styles.caption.fontSize).toBe(12);
-    expect(styles.fieldLabel.fontSize).toBe(12);
-    expect(styles.scale.fontSize).toBe(12);
+    // 2026-11-20 4차(ADR-0076 결정 11): 패널 본문은 k 단(본문 16·보조 14·구역 18·상세 22, 단추 44)이다.
+    expect(styles.summary.fontSize).toBe(16);
+    expect(styles.task.fontSize).toBe(16);
+    expect(styles.fieldValue.fontSize).toBe(16);
+    expect(styles.caption.fontSize).toBe(14);
+    expect(styles.fieldLabel.fontSize).toBe(14);
+    expect(styles.scale.fontSize).toBe(14);
     // 굵기는 400·500·600만 쓴다(2026-11-18). 라벨 강조는 600이다.
     expect(styles.sectionLabel.fontWeight).toBeGreaterThanOrEqual(600);
     expect(styles.fieldLabel.fontWeight).toBeGreaterThanOrEqual(600);
@@ -762,7 +764,8 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     expect(styles.validation.fontWeight).toBeLessThan(600);
     expect(styles.taskText.fontWeight).toBeLessThan(600);
     expect(styles.scaleText.fontWeight).toBeLessThan(600);
-    expect(styles.rows).toEqual([36, 36]);
+    // 2026-11-20 4차(ADR-0076 결정 11): 결정 칸 줄은 48px 입력·44px 단추를 품는다.
+    expect(styles.rows).toEqual([48, 48]);
     expect(styles.footerDisplay).toBe("flex");
     expect(styles.detailFlexGrow).toBe("1");
     expect(styles.detailMinHeight).toBe("0px");
@@ -779,8 +782,9 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
         background: style.backgroundColor,
       };
     });
-    expect(linkStyle.minHeight).toBe(36);
-    expect(linkStyle.fontSize).toBe(14);
+    // 2026-11-20 4차(ADR-0076 결정 11): 행 안 보조 단추는 44px이다.
+    expect(linkStyle.minHeight).toBe(44);
+    expect(linkStyle.fontSize).toBe(16);
     expect(linkStyle.fontWeight).toBeGreaterThanOrEqual(600);
     expect(linkStyle.background).not.toBe("rgba(0, 0, 0, 0)");
 
@@ -1243,7 +1247,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     // spec §4: 오른쪽 400px 열이 없어지고 단일 열 최대 폭 1040px 가운데 정렬이다.
     expect(geometry.mainWidth).toBeLessThanOrEqual(1040 * effectiveScale + 1);
     expect(geometry.mainWidth).toBeGreaterThan(550 * effectiveScale);
-    expect(geometry.agency).toBe('14px');
+    expect(geometry.agency).toBe('16px');
     expect(geometry.overflow).toBe(0);
     const decision = page.getByRole('complementary', { name: '추적 결정', exact: true });
     await expect(decision.getByRole('combobox', { name: '선택 사유' })).toBeInViewport();

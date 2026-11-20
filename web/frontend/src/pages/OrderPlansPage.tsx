@@ -1597,31 +1597,29 @@ function OrderPlansWorkspace() {
       return {
         eyebrow: "발주계획",
         title: "관련 발주계획을 모두 정했어요",
-        description: (uncertainCount ?? 0) > 0 ? `불확실로 분류된 ${formatCount(uncertainCount ?? 0)}건이 남아 있어요.` : "모델이 관련으로 본 건의 추적을 모두 정했어요.",
+        // 그 순간의 데이터를 말하는 문장만 남긴다(2026-11-20 사용자 요청: 고정 설명 줄 제거).
+        description: (uncertainCount ?? 0) > 0 ? `불확실로 분류된 ${formatCount(uncertainCount ?? 0)}건이 남아 있어요.` : null,
       };
     }
     if (activePreset === "relevant" || isDefaultView) {
       return {
         eyebrow: "발주계획",
         title: `추적을 정할 발주계획이 ${formatCount(relevantCount ?? total)}건 있어요`,
-        description: "모델이 관련으로 본 건 가운데 아직 추적을 정하지 않은 건이에요.",
       };
     }
     if (activePreset === "uncertain") {
       return {
         eyebrow: "발주계획",
         title: `불확실로 분류된 발주계획이 ${formatCount(total)}건 있어요`,
-        description: "모델이 관련인지 정하지 못한 건 가운데 아직 추적을 정하지 않은 건이에요.",
       };
     }
     if (activePreset === "unjudged") {
       return {
         eyebrow: "발주계획",
         title: `모델이 판정하지 않은 발주계획이 ${formatCount(total)}건 있어요`,
-        description: "1차 순위 밖이거나 판정에 실패한 건이에요. 모델 판단이 없다고 비관련은 아니에요.",
       };
     }
-    return { eyebrow: "발주계획", title: `발주계획 ${formatCount(total)}건을 보고 있어요`, description: filterMeaning };
+    return { eyebrow: "발주계획", title: `발주계획 ${formatCount(total)}건을 보고 있어요` };
   })() : null;
   usePageHeader(headerContent);
 
