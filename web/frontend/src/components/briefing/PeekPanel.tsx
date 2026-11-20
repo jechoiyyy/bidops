@@ -10,14 +10,13 @@ import {
   safeRecordPath,
   stageLabel,
 } from "../../lib/briefing";
-import type { BriefingItemView, BriefingReaction } from "../../lib/types";
-import { ReactionButtons } from "./ReactionButtons";
+import type { BriefingItemView } from "../../lib/types";
 
 /*
  * 피크 패널(ui-spec §3·§4.1, RL-01 spec "화면 `/briefing`").
  *
- * 머리(단계 pill · D-day) · 제목 · 보조 · 반응 버튼 3개 · 반응 기록 한 줄 · 왜 추천(칩) ·
- * 자세히 보기만 그린다. **판정 블록(사유·확인할 것)·다음 행동 체크는 대응 필드가 없어 그리지
+ * 머리(단계 · D-day) · 제목 · 보조 · 판정 이름 · 반응 기록 한 줄 · 왜 추천(칩) · 자세히 보기만
+ * 그린다. 반응 버튼은 최종 시안대로 행 안에 있다(같은 조작을 두 곳에 두지 않는다). **판정 블록(사유·확인할 것)·다음 행동 체크는 대응 필드가 없어 그리지
  * 않는다**(RL-03·RL-02가 채운다, 빈 블록 금지). `blocking[]`도 화면에는 그리지 않는다 —
  * 차단 조건은 Slack 메시지의 판정 줄에만 쓰인다.
  *
@@ -27,33 +26,30 @@ import { ReactionButtons } from "./ReactionButtons";
 
 interface PeekPanelProps {
   item: BriefingItemView;
-  busy: boolean;
-  onReact: (item: BriefingItemView, reaction: BriefingReaction) => void;
   onClose: () => void;
 }
 
-export function PeekPanel({ item, busy, onReact, onClose }: PeekPanelProps) {
+export function PeekPanel({ item, onClose }: PeekPanelProps) {
   const deadline = deadlineCell(item);
   const recordPath = safeRecordPath(item.record_path);
   const isRecommendation = item.kind === "recommendation" && item.reaction !== null;
   return (
     <aside aria-label="선택한 공고" className="briefing-peek" data-peek-item={item.item_id}>
       <header className="briefing-peek-head">
-        <span className="briefing-pill is-stage">{stageLabel(item.stage)}</span>
+        <span className="briefing-peek-stage">{stageLabel(item.stage)}</span>
         {deadline.days !== null ? (
           <span className={`briefing-dday${deadline.urgent ? " is-urgent" : ""}`} data-urgent={deadline.urgent ? "true" : "false"}>
             {deadline.main}
           </span>
         ) : null}
-        <Button className="briefing-peek-close" label="닫기" onClick={onClose} size="sm" variant="ghost" />
+        <Button className="briefing-peek-close" label="닫기" onClick={onClose} size="md" variant="ghost" />
       </header>
       <h3 className="briefing-peek-title">{item.title}</h3>
       <p className="briefing-peek-sub">{itemSubline(item)} · {deadlineDetail(item)}</p>
+      {/* 판정 이름은 서버가 준 글자 그대로다(화면이 판정을 만들지 않는다). */}
+      <p className="briefing-peek-verdict" data-testid="briefing-peek-verdict">판정 · {item.verdict_display}</p>
       {isRecommendation ? (
-        <>
-          <ReactionButtons busy={busy} item={item} onReact={onReact} />
-          <p className="briefing-peek-record" data-testid="briefing-peek-record">{reactionRecord(item)}</p>
-        </>
+        <p className="briefing-peek-record" data-testid="briefing-peek-record">{reactionRecord(item)}</p>
       ) : null}
       {isRecommendation && item.reasons.length > 0 ? (
         <section aria-labelledby={`peek-why-${item.item_id}`} className="briefing-peek-block">

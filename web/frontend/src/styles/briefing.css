@@ -1,20 +1,22 @@
 /*
- * 오늘의 브리핑 `/briefing`(RL-01 STEP-007, ui-spec §4.1·§3).
+ * 오늘의 브리핑 `/briefing` — 2026-11-19 최종 시안
+ * (docs/1119_kstyle-shell/mockups/FinalBriefing.dc.html, ADR 초안 승인 대기).
  *
- * 레이아웃은 프로젝트가 소유한다(ADR-0040). 색·간격·모서리는 테마 토큰만 읽고
- * `--color-*`를 다시 정의하지 않는다(ADR-0048). 글자는 4단 스케일만 쓴다
- * (`styles/typography.css`) — 피크 제목은 시안의 16px 대신 section-title(14px) 단에
- * 700 굵기를 주어 같은 위계를 만든다. 지원 폭은 1280~1920px이다(ADR-0047).
+ * 패널 헤더(화면 이름·문장형 제목·설명·수집 상태·탭)는 셸이 그린다. 이 파일은 본문만 갖는다:
+ * 묶음(마감 전 · 마감일 없음 · 마감 지남 · 추적 변화) 제목 18px/700 + 건수, 행은 그리드
+ * `1fr · 88 · 170 · 250`(제목 16px, 보조 14px, 단계·마감은 글자, 반응 버튼 44px). 마감 전 묶음의
+ * 행은 채움 바탕(radius 10), 나머지는 옅은 선으로 나뉜다. 카드를 중첩하지 않는다.
  *
- * 상태 pill 색(ui-spec §3): 단계=teal, 채택=success, 재검토 중·마감 임박=warning,
- * 대기·무시·나중에·분석 대기·연차 추적·분석 중=muted. blue 계열은 쓰지 않는다
- * (`npm run test:contrast`가 막는다). 글자는 항상 상태 이름이다.
+ * 레이아웃은 프로젝트가 소유한다(ADR-0040). 색은 테마 토큰과 brand.css 프로젝트 토큰만 읽고
+ * `--color-*`를 다시 정의하지 않는다(ADR-0048). 지원 폭은 1280~1920px이다(ADR-0047).
+ * blue 계열은 쓰지 않는다(`npm run test:contrast`가 막는다).
  */
 
 .briefing-page {
   min-width: 0;
-  font-size: var(--bo-type-body);
-  line-height: var(--bo-type-body-leading);
+  color: var(--color-text-primary);
+  font-size: var(--bo-k-body);
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 
@@ -27,257 +29,299 @@
   color: var(--color-text-secondary);
 }
 
-/* 하위줄: 뷰 탭 + 담당자 이름 */
-.briefing-subbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-4);
-  min-height: 44px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.briefing-subbar .astryx-tab-list {
-  flex: 0 1 auto;
-  min-width: 0;
-}
-
+/* 탭 옆 건수: 탭 이름과 같은 글자(시안 `반응 대기 10`). 브랜드 색을 쓰지 않는다. */
 .briefing-tab-count {
   margin-left: var(--spacing-1);
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
+  color: inherit;
   font-variant-numeric: tabular-nums;
 }
 
+/* 담당자 이름이 기억돼 있지 않을 때만 보이는 입력 칸. */
 .briefing-actor {
-  flex: 0 1 auto;
-  min-width: 0;
+  margin-bottom: var(--spacing-5);
 }
 
 .briefing-actor .actor-field {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--spacing-2);
+  gap: var(--spacing-2) var(--spacing-3);
 }
 
-.briefing-actor .actor-field label,
-.briefing-actor .actor-field p {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  font-weight: 400;
-  line-height: var(--bo-type-caption-leading);
-  white-space: nowrap;
-}
-
-.briefing-actor .actor-field input {
-  width: 144px;
-  min-height: 28px;
-  padding: 0 var(--spacing-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-inner);
-  color: var(--color-text-primary);
-  background: var(--color-background-surface);
-  font-size: var(--bo-type-caption);
-}
-
-/* 수집이 끝나지 않았다는 경고 블록(수집 실패와 추천 0건을 구분한다) */
-.briefing-warning {
-  display: grid;
-  gap: var(--spacing-0-5);
-  margin: var(--spacing-3) 0 0;
-  padding: var(--spacing-3);
-  border: 1px solid var(--color-warning);
-  border-radius: var(--radius-element);
-  background: var(--bo-warning-subtle);
-}
-
-.briefing-warning strong {
-  color: var(--color-warning);
+.briefing-actor .actor-field label {
+  font-size: var(--bo-k-meta);
   font-weight: 600;
 }
 
-/* 본문: 표 + 우측 피크 패널(320~360px, 좌측 1px 경계) */
+.briefing-actor .actor-field input {
+  box-sizing: border-box;
+  width: 220px;
+  height: var(--bo-k-control-input);
+  padding: 0 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-element);
+  color: var(--color-text-primary);
+  background: var(--color-background-surface);
+  font-size: var(--bo-k-lead);
+}
+
+.briefing-actor .actor-field p {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+}
+
+/* 수집이 끝나지 않았다는 경고 블록(수집 실패와 추천 0건을 구분한다). */
+.briefing-warning {
+  display: grid;
+  gap: var(--spacing-1);
+  margin: 0 0 var(--spacing-5);
+  padding: var(--spacing-4) var(--spacing-5);
+  border-radius: 10px;
+  color: var(--color-warning);
+  background: var(--color-warning-muted);
+  font-size: var(--bo-k-meta);
+}
+
+.briefing-warning strong {
+  font-weight: 600;
+}
+
+/* 본문: 묶음 목록 + (행을 고르면) 오른쪽 피크. 목록|피크는 세로선 하나로 나뉜다. */
 .briefing-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
-  margin-top: var(--spacing-2);
 }
 
 .briefing-workspace.has-peek {
-  /* 피크 패널 폭은 시안의 물리 치수(320~360px)이며 spacing 토큰에서 파생하지 않는다. */
-  grid-template-columns: minmax(0, 1fr) 336px;
+  /* 피크 폭은 시안의 물리 치수이며 spacing 토큰에서 파생하지 않는다. */
+  grid-template-columns: minmax(0, 1fr) 364px;
 }
 
 .briefing-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-5);
   min-width: 0;
-  overflow-x: auto;
 }
 
 .briefing-list:focus-visible {
   outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
+  outline-offset: 2px;
+}
+
+.briefing-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.briefing-group.is-open {
+  gap: var(--spacing-2);
+}
+
+.briefing-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  padding-bottom: var(--spacing-1);
+}
+
+.briefing-group.is-open .briefing-group-head {
+  padding-bottom: 0;
 }
 
 .briefing-group-title {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  margin: var(--spacing-5) 0 var(--spacing-2);
-  font-size: var(--bo-type-section-title);
-  font-weight: var(--bo-type-section-title-weight);
-  line-height: var(--bo-type-section-title-leading);
+  margin: 0;
+  font-size: var(--bo-k-section);
+  font-weight: 700;
+  line-height: 1.4;
 }
 
 .briefing-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: calc(var(--spacing-4) + var(--spacing-0-5));
-  padding: 0 var(--spacing-2);
-  border-radius: var(--radius-full);
   color: var(--color-text-secondary);
-  background: var(--color-background-muted);
-  font-size: var(--bo-type-caption);
+  font-size: var(--bo-k-meta);
   font-weight: 600;
-  line-height: var(--bo-type-caption-leading);
+  font-variant-numeric: tabular-nums;
 }
 
-/* 표: 셀 10×12, 머리 12px/500 보조색, 줄 1px, 선택 행 accent-muted */
-.briefing-page .astryx-table-cell {
-  border-bottom-color: var(--color-border);
-  vertical-align: top;
+.briefing-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.briefing-page .astryx-table-header-cell {
-  border-bottom-color: var(--color-border);
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  font-weight: 500;
+.briefing-rows.is-emphasis {
+  gap: var(--spacing-2);
 }
 
+/* 행: 제목 · 단계(88) · 마감(170) · 반응(250). 피크가 열리면 반응 칸만 줄인다. */
+.briefing-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px 170px 250px;
+  align-items: center;
+  column-gap: var(--spacing-6);
+  min-height: 72px;
+  padding: var(--spacing-2) var(--spacing-5);
+  border-top: 1px solid var(--bo-line-soft);
+  cursor: pointer;
+}
+
+.briefing-workspace.has-peek .briefing-row {
+  grid-template-columns: minmax(0, 1fr) 72px 150px 236px;
+  column-gap: var(--spacing-4);
+}
+
+.briefing-rows.is-emphasis .briefing-row {
+  min-height: 76px;
+  border-top: 0;
+  border-radius: 10px;
+  background: var(--color-background-muted);
+}
+
+/* 고른 행: 채움 + 왼쪽 먹색 막대 한 줄(마감 전 행은 이미 채움이라 막대가 선택을 말한다). */
 .briefing-row.is-selected {
-  background: var(--color-accent-muted);
+  background: var(--color-background-muted);
+  box-shadow: inset 3px 0 0 var(--color-text-primary);
 }
 
-.briefing-row.is-tracked {
-  background: var(--bo-warning-subtle);
-}
-
-.briefing-row.is-tracked.is-selected {
-  background: var(--color-accent-muted);
+.briefing-rows.is-emphasis .briefing-row.is-selected {
+  background: var(--bo-sidebar-active);
 }
 
 .briefing-row-main {
-  display: grid;
-  gap: var(--spacing-0-5);
-  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
   padding: 0;
   border: 0;
+  color: inherit;
   background: transparent;
-  color: var(--color-text-primary);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
 
 .briefing-row-title {
+  color: var(--color-text-primary);
+  font-size: var(--bo-k-body);
   font-weight: 600;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.briefing-rows.is-emphasis .briefing-row-title {
+  font-weight: 700;
 }
 
 .briefing-row-main:hover .briefing-row-title {
   text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .briefing-row-main:focus-visible {
   outline: 2px solid var(--color-accent);
-  outline-offset: var(--spacing-0-5);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .briefing-row-sub {
-  display: block;
   color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  font-weight: 400;
-  line-height: var(--bo-type-caption-leading);
+  font-size: var(--bo-k-meta);
 }
 
+.briefing-row-verdict.is-verdict-success { color: var(--color-success); font-weight: 600; }
+.briefing-row-verdict.is-verdict-warning { color: var(--color-warning); font-weight: 600; }
+.briefing-row-verdict.is-verdict-error { color: var(--color-error); font-weight: 600; }
+
+.briefing-row-stage {
+  font-size: var(--bo-k-meta);
+}
+
+/* 마감은 글자다. 마감 전은 굵은 D-n(강조색), 지난 마감·날짜 없는 건은 보조 글자. */
 .briefing-deadline {
-  display: grid;
-  gap: var(--spacing-0-5);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
 }
 
-.briefing-deadline-main {
-  font-weight: 600;
-  white-space: nowrap;
+.briefing-deadline[data-urgent="true"] {
+  color: var(--color-text-primary);
 }
 
-.briefing-deadline-main.is-urgent {
-  color: var(--color-warning);
+.briefing-dday-text {
+  color: var(--color-text-accent);
+  font-weight: 700;
+}
+
+.briefing-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 .briefing-none {
   color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
 }
 
-/* 상태 pill: 높이 20, 패딩 1×8, 12px/500, 라운드 999 */
-.briefing-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: calc(var(--spacing-4) + var(--spacing-0-5));
-  padding: var(--spacing-0-5) var(--spacing-2);
-  border-radius: var(--radius-full);
-  color: var(--color-text-secondary);
-  background: var(--color-background-muted);
-  font-size: var(--bo-type-caption);
-  font-weight: 500;
-  line-height: var(--bo-type-caption-leading);
-  white-space: nowrap;
+/* 반응 버튼(44px): 채택 = 옅은 브랜드 채움(마감 전 묶음은 브랜드 채움 + 흰 글자), 나중에 = 테두리,
+   무시 = 보조 글자. 눌린 상태는 aria-pressed와 먹색 테두리로 함께 말한다. */
+.briefing-reactions {
+  display: flex;
+  gap: var(--spacing-2);
 }
 
-.briefing-pill.is-stage {
-  color: var(--color-text-teal);
-  background: var(--color-background-teal);
-}
-
-.briefing-pill.is-verdict-warning {
-  color: var(--color-warning);
-  background: var(--color-warning-muted);
-}
-
-.briefing-pill.is-verdict-success {
-  color: var(--color-success);
-  background: var(--color-success-muted);
-}
-
-.briefing-pill.is-verdict-error {
-  color: var(--color-error);
-  background: var(--color-error-muted);
-}
-
-.briefing-pill.is-reaction-accepted {
-  color: var(--color-success);
-  background: var(--color-success-muted);
-}
-
-/* 담당: 아바타 22px, 이름은 title·aria-label */
-.briefing-avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-full);
-  color: var(--color-text-primary);
-  background: var(--bo-avatar-bg);
-  font-size: var(--bo-type-caption);
+.briefing-reaction {
+  box-sizing: border-box;
+  height: var(--bo-k-control-row);
+  padding: 0 var(--spacing-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-element);
+  font: inherit;
+  font-size: var(--bo-k-lead);
   font-weight: 600;
-  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
-/* 피크 패널 */
+.briefing-reaction.is-accept {
+  padding: 0 18px;
+  color: var(--color-success);
+  background: var(--color-accent-muted);
+  font-weight: 700;
+}
+
+.briefing-reaction.is-accept.is-primary {
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+}
+
+.briefing-reaction.is-later {
+  border-color: var(--color-border);
+  color: var(--color-text-primary);
+  background: var(--color-background-surface);
+}
+
+.briefing-reaction.is-ignore {
+  padding: 0 var(--spacing-3);
+  color: var(--color-text-secondary);
+  background: transparent;
+}
+
+.briefing-reaction[aria-pressed="true"] {
+  border-color: var(--color-text-primary);
+  box-shadow: inset 0 0 0 1px var(--color-text-primary);
+}
+
+.briefing-reaction:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* 피크(행을 고르면 오른쪽). 목록과 세로선 하나로 나뉜다. */
 .briefing-peek {
   position: sticky;
   top: 0;
@@ -285,7 +329,8 @@
   align-content: start;
   gap: var(--spacing-3);
   min-width: 0;
-  padding: var(--spacing-4);
+  margin-left: var(--spacing-6);
+  padding: 0 0 0 var(--spacing-6);
   border-left: 1px solid var(--color-border);
   overflow-wrap: anywhere;
 }
@@ -294,6 +339,12 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
+  font-size: var(--bo-k-meta);
+}
+
+.briefing-peek-stage {
+  color: var(--color-text-secondary);
+  font-weight: 600;
 }
 
 .briefing-peek-close {
@@ -302,119 +353,69 @@
 
 .briefing-dday {
   color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  font-weight: 500;
-  line-height: var(--bo-type-caption-leading);
+  font-weight: 600;
 }
 
 .briefing-dday.is-urgent {
-  padding: var(--spacing-0-5) var(--spacing-2);
-  border-radius: var(--radius-full);
-  color: var(--color-warning);
-  background: var(--color-warning-muted);
-  font-weight: 600;
+  color: var(--color-text-accent);
+  font-weight: 700;
 }
 
 .briefing-peek-title {
   margin: 0;
-  font-size: var(--bo-type-section-title);
-  font-weight: 600;
-  line-height: var(--bo-type-section-title-leading);
+  font-size: var(--bo-k-section);
+  font-weight: 700;
+  line-height: 1.4;
 }
 
-.briefing-peek-sub {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
-}
-
-.briefing-reactions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-2);
-}
-
+.briefing-peek-sub,
+.briefing-peek-verdict,
 .briefing-peek-record {
   color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
+  font-size: var(--bo-k-meta);
 }
 
 .briefing-peek-block {
   display: grid;
   gap: var(--spacing-2);
+  padding: var(--spacing-4) var(--spacing-5);
+  border-radius: 10px;
+  background: var(--color-background-muted);
 }
 
 .briefing-peek-block h4 {
   margin: 0;
-  font-size: var(--bo-type-section-title);
-  font-weight: var(--bo-type-section-title-weight);
-  line-height: var(--bo-type-section-title-leading);
+  font-size: var(--bo-k-meta);
+  font-weight: 700;
 }
 
 .briefing-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--spacing-1);
+  gap: var(--spacing-1) var(--spacing-3);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .briefing-chip {
-  padding: var(--spacing-0-5) var(--spacing-2);
-  border-radius: var(--radius-inner);
   color: var(--color-text-primary);
-  background: var(--color-background-muted);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
+  font-size: var(--bo-k-meta);
 }
 
 .briefing-peek-link {
   justify-self: start;
-  color: var(--color-accent);
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  color: var(--color-text-primary);
+  font-size: var(--bo-k-lead);
   font-weight: 600;
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-underline-offset: 3px;
 }
 
 .briefing-peek-link:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
-}
-
-/* 상단바 슬롯(portal): 왼쪽 "n건 · 날짜", 오른쪽 날짜 이동 링크.
-   슬롯은 셸 DOM이라 화면 CSS가 닿지 않으므로 슬롯 안 요소만 고른다. */
-.topbar-page-actions:has(.briefing-topbar-meta) {
-  flex: 1 1 auto;
-}
-
-.briefing-topbar-meta {
-  margin-right: auto;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.briefing-topbar-link {
-  display: inline-flex;
-  align-items: center;
-  height: var(--size-element-lg);
-  padding: 0 var(--spacing-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-inner);
-  color: var(--color-text-primary);
-  background: var(--color-background-surface);
-  font-size: var(--bo-type-caption);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.briefing-topbar-link:hover {
-  border-color: var(--color-border-emphasized);
-  background: var(--color-background-muted);
 }

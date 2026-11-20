@@ -119,10 +119,13 @@ export interface CandidateLinkDialogProps {
   onOpenChange: (open: boolean) => void;
   onSaved: (message: string) => void;
   onDirtyChange: (dirty: boolean) => void;
+  /** 처음 고른 판정(레코드의 `같은 사업으로 연결하기`·`다른 사업이에요`). 저장은 여전히 사유·기록자를 받은 뒤다. */
+  initialDecision?: "수용" | "기각";
 }
 
 export function CandidateLinkDialog({
   candidate,
+  initialDecision = "수용",
   links,
   onDirtyChange,
   onOpenChange,
@@ -130,7 +133,7 @@ export function CandidateLinkDialog({
   open,
 }: CandidateLinkDialogProps) {
   const queryClient = useQueryClient();
-  const [decision, setDecision] = useState<"수용" | "기각">("수용");
+  const [decision, setDecision] = useState<"수용" | "기각">(initialDecision);
   const [reason, setReason] = useState("");
   const [custom, setCustom] = useState("");
   const [actorName, setActorName] = useState("");
@@ -155,7 +158,7 @@ export function CandidateLinkDialog({
   }, [dirty, onDirtyChange, open]);
 
   const reset = () => {
-    setDecision("수용");
+    setDecision(initialDecision);
     setReason("");
     setCustom("");
     setActorName("");
