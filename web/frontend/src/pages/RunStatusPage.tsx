@@ -195,7 +195,6 @@ export function RunStatusPage() {
   usePageHeader({
     eyebrow: "실행 상태",
     title: "수집·첨부·판정 실행을 확인해요",
-    description: "실패·부분 성공·중단은 성공과 따로 보여요. 참조 실행은 운영 완료가 아니에요.",
   });
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
@@ -236,7 +235,7 @@ export function RunStatusPage() {
 
       <div className="rs-boundary">
         <Caption>
-          진행 상태와 품질 표식은 별도예요. 미확인·미측정을 0이나 성공으로 표시하지 않아요.
+          진행 상태와 품질 표식은 별도예요. 미확인·미측정을 0이나 성공으로 표시하지 않아요. 참조 실행은 운영 완료가 아니에요.
           추적 승인과 최종 입찰 Go/No-Go는 이 화면에서 결정하지 않아요.
         </Caption>
       </div>

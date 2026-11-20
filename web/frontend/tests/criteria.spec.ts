@@ -548,25 +548,28 @@ for (const width of [1280, 1440]) {
         detailTitleFont: window.getComputedStyle(document.querySelector(".crit-detail-head h2") as Element).fontSize,
       };
     });
-    expect(geometry.seam).toBe(0);
-    expect(geometry.strip).toBeCloseTo(physical(49), 0);
-    expect(geometry.footer).toBeCloseTo(physical(57), 0);
+    // 2026-11-20 4차(ADR-0076 결정 11): 패널 본문은 k 단(본문 16·보조 14·구역 18·상세 22, 단추 44)이다. 요약 줄은 채움 블록이고 작업 영역과 8px 띄운다(옛 seam 0을 대신한다).
+    expect(geometry.seam).toBe(8);
+    // 2026-11-20 4차(ADR-0076 결정 11): 요약 줄은 44px 단추를 품는 채움 블록(60), 상세 바닥은 44px 단추 + 위아래 8(60)이다.
+    expect(geometry.strip).toBeCloseTo(60, 0);
+    expect(geometry.footer).toBeCloseTo(61, 0);
     // 탭 줄은 패널 헤더의 둥근 칸 탭 한 줄(40px)이다(2026-11-19 ADR-0076, 2026-11-18 결정 3의 36px를 대신한다).
     expect(geometry.tabs).toBeCloseTo(40, 0);
     // 하단 단추는 Astryx size="sm"이고 sm 단추는 앱 전체에서 12px 한 벌이다(2026-11-18 결정 4).
-    expect(geometry.buttonFont).toBe("12px");
-    expect(geometry.listTitleFont).toBe("14px");
+    expect(geometry.buttonFont).toBe("14px");
+    expect(geometry.listTitleFont).toBe("16px");
     expect(geometry.listTitleWeight).toBe("600");
     // 상세 머리 제목은 상세 단(20px)이다(2026-11-18 결정).
-    expect(geometry.detailTitleFont).toBe("20px");
+    expect(geometry.detailTitleFont).toBe("22px");
     // 각주는 두 폭 모두 한 줄이다. 두 줄이 되면 작업 영역이 그만큼 짧아진다.
     expect(geometry.boundaryLines).toBe(1);
-    expect(geometry.boundaryFont).toBe("12px");
+    expect(geometry.boundaryFont).toBe("14px");
     // The shell fills the viewport and keeps the reference bottom inset (37px,
     // rendered 1:1 since the ×0.9 compact scale was removed on 2026-11-18).
     const viewportHeight = width === 1280 ? 800 : 900;
     // 2026-11-19 최종 시안 셸: 흰 패널의 바깥 여백 8 + 테두리 1, 캔버스 하단 여백 32px이 모든 화면에 같다.
-    expect(geometry.workspaceBottom).toBeCloseTo(viewportHeight - physical(37) - 8 - 1 - 32, 0);
+    // 판정 기준·실행 상태는 캔버스 바닥 여백이 16px이다(작업 영역에 높이를 돌려준다).
+    expect(geometry.workspaceBottom).toBeCloseTo(viewportHeight - physical(37) - 8 - 1 - 16, 0);
   });
 
   test(`하단 액션이 ${width}px에서 스크롤 없이 보이고 화면이 가로로 넘치지 않는다`, async ({ page }) => {

@@ -77,18 +77,19 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
 
       expect(metrics.rootOverflow, path).toBeLessThanOrEqual(1);
       expect(metrics.ratio, `${path} 목록 비율`).toBeCloseTo(0.38, 2);
-      expect(metrics.titleFont, `${path} 목록 제목 크기`).toBe("14px");
+      // 2026-11-20 4차(ADR-0076 결정 11): 목록 첫 줄은 16px, 요약 줄은 채움 블록(60)이고 작업 영역과 8px 띄운다. 상세 바닥 60, 캔버스 바닥 여백 16.
+      expect(metrics.titleFont, `${path} 목록 제목 크기`).toBe("16px");
       expect(metrics.titleWeight, `${path} 목록 제목 굵기`).toBe("600");
       // 패널 헤더의 둥근 칸 탭 한 줄(40px, ADR-0076)이다.
       expect(metrics.tabsHeight, `${path} 패널 헤더 탭 줄`).toBeCloseTo(40, 0);
-      expect(metrics.summaryHeight, `${path} 요약 한 줄`).toBeCloseTo(physical(49), 0);
+      expect(metrics.summaryHeight, `${path} 요약 한 줄`).toBeCloseTo(60, 0);
       // 패널 헤더 아래 본문 위 여백 24px(ADR-0076) + 숨긴 화면 이름 자리(기존 골격의 8px)에서 요약 줄이 시작한다.
       // 여덟 탭이 같은 값이다.
       expect(metrics.summaryTopFromCanvas, `${path} 본문 위 여백`).toBeCloseTo(32, 0);
-      expect(Math.abs(metrics.y - metrics.summaryBottom), `${path} 요약과 본문 사이 틈`).toBeLessThanOrEqual(1);
-      expect(metrics.footerHeight, `${path} 하단 액션 높이`).toBeCloseTo(physical(57), 0);
+      expect(Math.abs(metrics.y - metrics.summaryBottom - 8), `${path} 요약과 본문 사이 틈`).toBeLessThanOrEqual(1);
+      expect(metrics.footerHeight, `${path} 하단 액션 높이`).toBeCloseTo(60, 0);
       // 흰 패널의 바깥 여백 8 + 테두리 1, 캔버스 하단 여백 32px(ADR-0076). 판정 기준 spec과 같은 바닥이다.
-      expect(metrics.footerBottom, `${path} 하단 버튼 위치`).toBeCloseTo(viewport.height - physical(37) - 8 - 1 - 32, 0);
+      expect(metrics.footerBottom, `${path} 하단 버튼 위치`).toBeCloseTo(viewport.height - physical(37) - 8 - 1 - 16, 0);
       if (metrics.buttonFont) expect(metrics.buttonFont, `${path} 하단 버튼 크기`).toBe("14px");
       if (metrics.bodyOverflow) expect(metrics.bodyOverflow, path).toBe("auto");
 
