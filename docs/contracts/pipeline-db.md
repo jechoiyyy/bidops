@@ -94,7 +94,10 @@ provenance v1 필드는 `schema_version`, `generated_at`, nullable `source_raw`,
 artifact의 `metadata`에는 endpoint 식별자와 적용한 업무구분 범위를 함께 남긴다. 현재
 생산자 범위는 `bsnsDivNm`의 `일반용역`·`기술용역` allowlist이며, 범위 밖으로 제외한 원문
 건수는 `counts.excluded_out_of_scope`와 `counts.excluded_business_divisions`에 기록한다.
-`metadata.order_month_scope`는 PPSSrch가 요구하는 `200412`~`999912` 보조 범위이고,
+`metadata.order_month_scope`는 수집 모집단의 발주월 범위(`200412`~`999912`, 전체)다. 2026-11-19
+수집분까지는 이 값을 `orderBgnYm`·`orderEndYm`으로 보냈고, 2026-11-20부터는 PPSSrch가 그 범위를
+거부해 두 값을 보내지 않는다(모집단은 같다 — 근거는 `skills/bidops-collect/AGENTS.md`). 실제로
+보낸 query는 raw page의 `query`에 남는다.
 `metadata.collection.complete=false`이면 페이지 안전 상한 등으로 부분 수집된 회차다.
 
 - `order_plan_unty_no` ← `orderPlanUntyNo`, `title` ← `bizNm`
