@@ -16,7 +16,7 @@
 | RL-05 | 평가·사람 결정 절차 완료, **인수 reject**(10월 20일) | [RL-05](../validation-runs/2026-10-19-rl/RL-05/README.md). 판정 일치 3/10, 차단 조건 recall 0/7, 카드 일치 84/100이나 모델 카드 447개 모두 unknown |
 | RL-06·07 | `review`, 각각 0/4·0/6 STEP | [로드맵](../work/constitution/roadmap.md). 최적화·판정 UX 구현 전, 대조 품질 개선과 별개 |
 | RL-10 | 대조 규칙 v2(상주 장소·제외 분야 차단)·정책 v12 구현, 브랜치 `feat/rl03-compare-blockers`(2026-11-19, 미병합·미배포·DB import 없음) | [spec](../work/groups/RL/features/RL-10-compare-blockers/spec.md), [탐침 재생](../validation-runs/20261119-rl10-compare-blockers/README.md). 회사 근거 v4 그대로는 놓친 차단 0/7 그대로 — 구조화 회사 값 확인과 gold 재측정(승인 대상) 전이며 품질 근거 아님 |
-| 관리 화면 UI 재구성 | ADR-0076(2026-11-19 사용자 승인, 2026-11-20 후속) 셸·패널 헤더·전 화면 정리·해요체 문구와 읽기 전용 수집 기준일 API(`GET /api/daily-collection-status`)가 브랜치 `worktree-agent-a72925add1c17cfca`에 커밋돼 있다(main `906c737` 병합 포함, main 미병합·미배포). pixel 기준선(linux)은 이 브랜치에서 갱신 | [ADR-0076](decisions/0076-kstyle-panel-shell.md), `docs/1119_kstyle-shell/`. 화면 변경이며 품질 합격·운영 활성화가 아님 |
+| 관리 화면 UI 재구성 | ADR-0076(2026-11-19 사용자 승인, 2026-11-20 후속) 셸·패널 헤더·전 화면 정리·해요체 문구와 읽기 전용 수집 기준일 API(`GET /api/daily-collection-status`)는 main `c5e4b6b`에 병합됐다(미배포). 2026-11-20 4차(패널 본문 k 단·테두리 상자 정리, 사용자 요청 헤더 압축·고정 설명 줄 제거, 결정 11·12)는 브랜치 `worktree-agent-a72925add1c17cfca`에 커밋돼 있다(main 미병합·미배포). pixel 기준선(linux)은 이 브랜치에서 갱신 | [ADR-0076](decisions/0076-kstyle-panel-shell.md), `docs/1119_kstyle-shell/`. 화면 변경이며 품질 합격·운영 활성화가 아님 |
 | 미구현 | 입찰 delta 계산 worker, 첨부 실패·묶음 failed 재시작 화면, 인증/SSO | 문서 준비·Slack 경로·최종 결정 저장/REST까지 미구현인 것으로 확대하지 않음 |
 
 ### 상태 파일과 큐의 해석
