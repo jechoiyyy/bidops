@@ -132,7 +132,7 @@ const screens: ScreenSpec[] = [
     unifiedFrame: true,
     // 목록은 Astryx `Table`을 유지하고(M1c A안) 묶음 선택이 없어 열 이름 줄·선택
     // 도구줄 부품이 없다. 행 글자 단은 아래 `rowType`이 따로 본다.
-    rowType: { title: ".opportunity-row-title", agency: ".opportunity-row-agency", size: "14px" },
+    rowType: { title: ".opportunity-row-title", agency: ".opportunity-row-agency", size: "16px" },
     mock: (page) => mockOpportunities(page),
   },
   {
@@ -148,7 +148,7 @@ const screens: ScreenSpec[] = [
     unifiedFrame: true,
     // 목록은 Astryx `Table`을 유지하고(M1c A안) 묶음 선택이 없어 열 이름 줄·선택
     // 도구줄 부품이 없다 — `unifiedListParts`는 켜지 않는다.
-    rowType: { title: ".gng-row-title", agency: ".gng-row-agency", size: "14px" },
+    rowType: { title: ".gng-row-title", agency: ".gng-row-agency", size: "16px" },
     // 조회가 느린 시나리오가 응답을 붙들고 있어도 목록·상세 골격은 그려진다.
     // `slowMs`는 **선택한 사업의 상세 조회**만 붙들고 대기열은 그대로 오므로
     // 행(`.gng-row-*`)과 상세 머리는 그려진다.
@@ -305,9 +305,9 @@ test("탐색과 추적 목록 4화면은 두 지원 폭에서 같은 상단바·
         rowType: screen.rowType ? { title: screen.rowType.title, agency: screen.rowType.agency } : null,
       });
 
-      // 패널 헤더 — `<h1>`은 26px/700 문장형 제목이고 경로·편집 범위 칩은 없다. 화면 액션은
+      // 패널 헤더 — `<h1>`은 24px/700 문장형 제목이고 경로·편집 범위 칩은 없다. 화면 액션은
       // 헤더 오른쪽 가장자리에 붙는다(떨어지는 것은 헤더 padding 만큼뿐이다). 2026-11-19 ADR-0076.
-      expect(metrics.titleFont, `${where} 제목 크기`).toBe("26px");
+      expect(metrics.titleFont, `${where} 제목 크기`).toBe("24px");
       expect(metrics.titleWeight, `${where} 제목 굵기`).toBe("700");
       expect(metrics.crumbCount, `${where} 제목 모드에는 경로 칸이 없다`).toBe(0);
       expect(metrics.statusCount, `${where} 제목 모드에는 편집 범위 칩이 없다`).toBe(0);

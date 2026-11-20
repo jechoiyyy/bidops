@@ -1385,11 +1385,13 @@ test("목록의 글자 크기가 정수 척도의 14px·12px 단을 지킨다", 
       detailAgency: size(".opportunity-agency-name"),
     };
   });
-  expect(sizes.title).toBe("14px");
-  expect(sizes.agency).toBe("14px");
-  expect(sizes.meta).toBe("12px");
-  expect(sizes.next).toBe("12px");
+  // 2026-11-20 4차(ADR-0076 결정 11): 패널 본문은 k 단(본문 16·보조 14·구역 18·상세 22, 단추 44)이다.
+  expect(sizes.title).toBe("16px");
+  expect(sizes.agency).toBe("16px");
+  expect(sizes.meta).toBe("14px");
+  expect(sizes.next).toBe("14px");
   // 상세 머리 제목은 발주계획과 같은 상세 단 22px이다(2026-11-20, ADR-0076 결정 10).
   expect(sizes.detailTitle).toBe("22px");
-  expect(sizes.detailAgency).toBe("16px");
+  // 상세 머리의 발주기관은 발주계획과 같은 보조 14px이다.
+  expect(sizes.detailAgency).toBe("14px");
 });

@@ -54,9 +54,10 @@
   /*
    * 셸·패널 헤더와 재구성한 네 화면(브리핑·발주계획·사업기회 레코드)의 글자 단.
    * 2026-11-19 최종 시안(docs/1119_kstyle-shell/mockups/) 값이며 ADR 초안(승인 대기)에 적었다.
-   * 다른 화면은 위의 네 단을 그대로 쓴다 — 이 단을 다른 화면에 퍼뜨리지 않는다.
+   * 2026-11-20 4차(ADR-0076 결정 11)부터 패널 본문에서는 `panel-density.css`가 위의 네 단을 이 단으로 잇는다.
+   * 대화상자는 위의 네 단을 그대로 쓴다.
    *
-   *   k-display   26px/700  패널 헤더 `<h1>` 문장형 제목
+   *   k-display   24px/700  패널 헤더 `<h1>` 문장형 제목(2026-11-20 사용자 요청으로 26→24, 헤더 압축)
    *   k-detail    22px/700  상세 제목(발주계획 상세 h2)
    *   k-figure    20px/700  상세의 큰 숫자(예산·발주 예정)
    *   k-section   18px/700  구역 제목
@@ -66,8 +67,8 @@
    *   k-tag       13px/700  상태 표식·dt
    *   k-small     12px      사이드바 묶음 이름·건수
    */
-  --bo-k-display: 26px;
-  --bo-k-display-leading: 1.36;
+  --bo-k-display: 24px;
+  --bo-k-display-leading: 1.34;
   --bo-k-detail: 22px;
   --bo-k-figure: 20px;
   --bo-k-section: 18px;

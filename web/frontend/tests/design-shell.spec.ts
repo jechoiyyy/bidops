@@ -214,10 +214,10 @@ test("1440px 셸의 팔레트 색과 기준 치수를 고정한다", async ({ pa
   expect(canvasPadding).toEqual(["24px", "32px", "32px", "32px"]);
 });
 
-// 제목 모드는 패널 헤더가 화면의 시각 제목을 맡는다(2026-11-19 최종 시안): 작은 화면 이름(14px) +
-// 문장형 제목 `<h1>`(26px/700) + 한 줄 설명(15px) + 둥근 칸 탭(40px). 문장은 화면이 이미 받은 건수로만
-// 만든다(발주계획 fixture의 관련 미선택 1건).
-test("제목 모드 패널 헤더가 화면 이름·26px 문장형 제목·설명·탭을 쓴다", async ({ page }, testInfo) => {
+// 제목 모드는 패널 헤더가 화면의 시각 제목을 맡는다(2026-11-19 최종 시안, 2026-11-20 사용자 요청으로 압축):
+// 작은 화면 이름(14px) + 문장형 제목 `<h1>`(24px/700) + 둥근 칸 탭(40px). 고정 설명 줄은 두지 않는다 — 그 순간의
+// 데이터를 말하는 문장(브리핑의 마감 요약 등)만 설명 줄에 남는다. 문장은 화면이 이미 받은 건수로만 만든다.
+test("제목 모드 패널 헤더가 화면 이름·24px 문장형 제목·탭을 쓰고 고정 설명 줄을 두지 않는다", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "layout-desktop", "치수 기준은 시안 폭에서만 고정한다");
 
   await page.goto("/order-plans", { waitUntil: "domcontentloaded" });
@@ -227,24 +227,40 @@ test("제목 모드 패널 헤더가 화면 이름·26px 문장형 제목·설�
   await expect(topbar.getByTestId("page-header-eyebrow")).toHaveText("발주계획");
   await expect(topbar.locator(".topbar-breadcrumb")).toHaveCount(0);
   await expect(topbar.locator(".topbar-status")).toHaveCount(0);
+  // 고정 설명 줄이 없다(빈 문단도 남기지 않는다).
+  await expect(topbar.getByTestId("page-header-description")).toHaveCount(0);
 
   const metrics = await topbar.evaluate((element) => {
     const heading = element.querySelector<HTMLElement>("h1");
     const eyebrow = element.querySelector<HTMLElement>(".topbar-eyebrow");
-    const description = element.querySelector<HTMLElement>(".topbar-description");
     const tab = element.querySelector<HTMLElement>("#page-header-tabs .workspace-view-tabs .astryx-button");
-    if (!heading || !eyebrow || !description || !tab) throw new Error("missing panel header part");
+    const main = element.querySelector<HTMLElement>(".topbar-main");
+    const tabs = element.querySelector<HTMLElement>("#page-header-tabs");
+    if (!heading || !eyebrow || !tab || !main || !tabs) throw new Error("missing panel header part");
     return {
       fontSize: getComputedStyle(heading).fontSize,
       fontWeight: getComputedStyle(heading).fontWeight,
       eyebrowSize: getComputedStyle(eyebrow).fontSize,
-      descriptionSize: getComputedStyle(description).fontSize,
       tabHeight: tab.getBoundingClientRect().height,
+      titleToTabs: tabs.getBoundingClientRect().top - main.getBoundingClientRect().bottom,
       borderBottom: getComputedStyle(element).borderBottomColor,
     };
   });
-  expect(metrics).toMatchObject({ fontSize: "26px", fontWeight: "700", eyebrowSize: "14px", descriptionSize: "15px", borderBottom: "rgb(228, 227, 224)" });
+  expect(metrics).toMatchObject({ fontSize: "24px", fontWeight: "700", eyebrowSize: "14px", borderBottom: "rgb(228, 227, 224)" });
   expect(metrics.tabHeight).toBeCloseTo(40, 0);
+  expect(metrics.titleToTabs).toBeCloseTo(12, 0);
+});
+
+// 탭 없는 화면의 패널 헤더는 88px 안팎(±8)이다(2026-11-20 사용자 요청). 고정 설명 줄도 없다.
+test("탭 없는 패널 헤더는 88px 안팎이고 고정 설명 줄이 없다", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "layout-desktop", "치수 기준은 시안 폭에서만 고정한다");
+
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  const topbar = page.locator("header.topbar");
+  await expect(topbar.getByTestId("page-header-eyebrow")).toHaveText("대시보드");
+  await expect(topbar.getByTestId("page-header-description")).toHaveCount(0);
+  const height = await topbar.evaluate((element) => element.getBoundingClientRect().height);
+  expect(Math.abs(height - 88)).toBeLessThanOrEqual(8);
 });
 
 test("native compact 셸이 드롭다운·대화상자를 viewport 안에 두고 키보드 초점을 되돌린다", async ({ page }) => {
