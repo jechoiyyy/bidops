@@ -7,7 +7,9 @@ import type { ISODateString } from "@astryxdesign/core/Calendar";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Selector } from "@astryxdesign/core/Selector";
 import { EmptyState } from "../components/common/EmptyState";
-import { PageHeaderActions } from "../components/common/PageHeaderActions";
+import { PageHeaderActions, PageHeaderTabs } from "../components/common/PageHeaderActions";
+import { usePageHeader } from "../components/shell/PageHeaderContext";
+import { withCopula } from "../lib/format";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
 import { DenseList, ListColumns, ListPagerControls, ReviewFilterSegmentedControl, SelectionToolbar, SplitWorkspace } from "../components/common/ReviewPrimitives";
@@ -661,6 +663,15 @@ export function PreSpecsPage() {
   }
 
   const activeWorkspace = workspaceOf(workspace);
+  // 패널 헤더(2026-11-19 최종 시안 패턴): 화면 이름 · 문장형 제목(목록 total) · 보기 설명. 읽기 전·실패면
+  // 올리지 않아 route 이름이 `<h1>`이다. 숫자는 서버 total 그대로다.
+  usePageHeader(result.isSuccess ? {
+    eyebrow: "사전규격",
+    title: activeWorkspace.key === "actionable"
+      ? (total > 0 ? `검토할 사전규격이 ${formatCount(total)}건 있어요` : "검토할 사전규격이 없어요")
+      : `${activeWorkspace.label} 사전규격 ${formatCount(total)}건을 보고 있어요`,
+    description: `${withCopula(activeWorkspace.description)}.`,
+  } : null);
   /**
    * 접힌 상세 필터에 걸려 있는 조건 수(명세 §2.1, U3). 상세 필터 안의 축 가운데
    * 기본값이 아닌 것을 센다 — `필터 초기화`(`기본값으로`)가 되돌리는 것과 같은
@@ -684,16 +695,16 @@ export function PreSpecsPage() {
       {/* 화면 제목은 셸 상단바가 그린다(제목 모드). 페이지는 같은 이름을 세로로 한 번
           더 쓰지 않고, `aria-labelledby`가 가리킬 숨긴 제목만 남긴다. 페이지 상태를
           쓰는 액션(`표시 범위`)은 상단바 슬롯으로 portal한다. */}
-      <h2 className="visually-hidden" id="page-title">사전규격</h2>
+      <span className="visually-hidden" id="page-title">사전규격</span>
       <PageHeaderActions>
         <div className="pre-specs-header-actions">
           {/* 목록 범위를 설명하는 단추는 네 화면이 같은 이름을 쓴다(시안 M1 승인 결정 3). */}
           {import.meta.env.BIDOPS_REVIEW_MOCK && <Button label="가상 사업 심층검토" size="sm" onClick={() => navigate("/pre-specs/mock-review")} />}
-          <Button label="목록 기준" size="sm" variant="ghost" onClick={() => setScopeDialogOpen(true)} />
+          <button className="panel-header-link" type="button" onClick={() => setScopeDialogOpen(true)}>목록 기준</button>
         </div>
       </PageHeaderActions>
 
-      <WorkspaceFrame>
+      <PageHeaderTabs>
         <WorkspaceFilterBar activeFilterCount={activeFilterCount} aria-label="사전규격 필터" className="pre-specs-filters">
           <WorkspaceFilterLine>
             <WorkspaceViewTabs
@@ -920,6 +931,8 @@ export function PreSpecsPage() {
             </WorkspaceFilterContext>
           ) : null}
         </WorkspaceFilterBar>
+      </PageHeaderTabs>
+      <WorkspaceFrame>
 
         {/* 조회 중이거나 실패해도 좌우 분할 골격은 그대로 두고 상태를 목록 pane 안에
             그린다(ADR-0062: 발주계획 방식). 화면이 통째로 접혔다 펴지면 사람이 보던

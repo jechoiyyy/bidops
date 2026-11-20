@@ -17,6 +17,8 @@ import {
 } from "../components/common/ConfirmDecisionDialog";
 import { DisabledReason } from "../components/common/DisabledReason";
 import { EmptyState } from "../components/common/EmptyState";
+import { PageHeaderActions } from "../components/common/PageHeaderActions";
+import { usePageHeader } from "../components/shell/PageHeaderContext";
 import { MutationFeedback } from "../components/common/MutationFeedback";
 import { TechnicalFacts, TechnicalInfo } from "../components/common/TechnicalInfo";
 import { Toast } from "../components/common/Toast";
@@ -55,7 +57,6 @@ import {
   locatorText,
   MATERIALITY_LABELS,
   RESULT_LABELS,
-  SHORT_CALCULATION_LABELS,
   shortHash,
 } from "../components/bid-delta/labels";
 import type {
@@ -699,6 +700,19 @@ export function BidDeltaDecisionPage() {
   });
 
   const comparisonView = comparisonQuery.data;
+  // 패널 헤더(2026-11-19, ADR-0076): 무엇에 대한 결정인지(사업명)가 제목이고, 화면 이름은 위 작은 글자,
+  // 현재 결정은 태그다. 값은 이미 받은 사업기회·작업 공간 응답 그대로이며 없으면 식별자만 쓴다.
+  const headerDecision = workspaceQuery.data?.latest_final_decision ?? null;
+  usePageHeader(workspaceQuery.isSuccess ? {
+    eyebrow: "입찰 변경 비교 · 최종 결정",
+    tag: headerDecision
+      ? { label: `현재 결정 ${headerDecision.decision === "go" ? "Go" : "No-Go"} · ${statusTokenLabel(workspaceQuery.data.decision_currentness)}`, tone: "brand" }
+      : { label: "현재 결정 없음", tone: "muted" },
+    title: businessTitle ?? `사업기회 ${opportunityId}`,
+    description: `${businessAgency ?? "발주기관 미확인"} · 사업기회 ${opportunityId}${comparisonView
+      ? ` · 기준 ${comparisonView.baseline.notice_external_id} ↔ 대상 ${comparisonView.comparison.notice_external_id}`
+      : " · 비교 미선택"}`,
+  } : null);
   const comparisonLoading = Boolean(selectedComparisonId) && comparisonQuery.isPending;
   const comparisonBasisAvailable = Boolean(
     comparisonView && comparisonView.calculation_status === "completed" && comparisonView.result_status !== "failed",
@@ -893,40 +907,27 @@ export function BidDeltaDecisionPage() {
 
   return (
     <section className="bid-delta-page" data-astryx-theme="bidops" aria-labelledby="bid-delta-title">
-      {/* 시안의 압축 헤더: 되돌아가는 길 · 화면 이름 · 결정 입력으로 이동.
+      {/* 압축 헤더: 되돌아가는 길 · 결정 입력으로 이동. 2026-11-19 패널 헤더(ADR-0076)부터 화면 이름은
+          패널 헤더의 `<h1>`이 그리고, 이 줄은 헤더 오른쪽 액션 칸으로 올라간다(본문에 제목 줄을 두지 않는다).
           되돌릴 수 없는 저장 액션은 오른쪽 결정 칸의 고정 바닥에만 있다. */}
-      <header className="bid-delta-page-header">
-        <div className="bid-delta-head-line">
-          <Link className="bid-delta-back-link" to={{ pathname: "/go-no-go", search: backSearch }}>
+      <span className="visually-hidden" id="bid-delta-title">입찰 변경 비교 · 최종 결정</span>
+      <PageHeaderActions>
+        <div className="bid-delta-page-header">
+          <Link className="bid-delta-back-link panel-header-link" to={{ pathname: "/go-no-go", search: backSearch }}>
             <ArrowLeft aria-hidden="true" />
             결정 목록으로
           </Link>
-          <h2 id="bid-delta-title">입찰 변경 비교 · 최종 결정</h2>
+          {/* 비교 계산 상태는 읽기 칸 머리에 한 번만 둔다(헤더에서 되풀이하지 않는다). */}
+          <div className="bid-delta-head-actions">
+            <button className="interaction-control" type="button" onClick={focusDecisionForm} disabled={!formAvailable}>
+              결정 입력으로 이동
+            </button>
+          </div>
         </div>
-        <div className="bid-delta-head-actions">
-          {comparisonView ? <Token size="sm" label={SHORT_CALCULATION_LABELS[comparisonView.calculation_status]} /> : null}
-          <button className="interaction-control" type="button" onClick={focusDecisionForm} disabled={!formAvailable}>
-            결정 입력으로 이동
-          </button>
-        </div>
-      </header>
+      </PageHeaderActions>
 
-      {/* 무엇에 대한 결정인지. 사업명 → 발주기관 → 양쪽 문서 식별자 순서다. */}
-      <section className="bid-delta-business" aria-label="결정 대상 사업">
-        <div className="bid-delta-business-line">
-          <h3>{businessTitle ?? `사업기회 ${opportunityId}`}</h3>
-          <Token size="sm" label={latestDecision
-            ? `현재 결정 ${latestDecision.decision === "go" ? "Go" : "No-Go"} · ${statusTokenLabel(workspace.decision_currentness)}`
-            : "현재 결정 없음"} />
-        </div>
-        <p className="bid-delta-business-meta">
-          {businessAgency ?? "발주기관 미확인"} · 사업기회 {opportunityId}
-          {comparisonView
-            ? ` · 기준 ${comparisonView.baseline.notice_external_id} ↔ 대상 ${comparisonView.comparison.notice_external_id}`
-            : " · 비교 미선택"}
-        </p>
-      </section>
-
+      {/* 무엇에 대한 결정인지(사업명 → 발주기관 → 양쪽 문서 식별자)와 현재 결정은 패널 헤더의 제목·설명·태그가
+          그린다(2026-11-19). 본문은 읽기 | 결정 두 칸만 둔다. */}
       <div className="bid-delta-workspace">
         <section className="bid-delta-reading" aria-labelledby="bid-delta-reading-title">
           <header className="bid-delta-pane-head">

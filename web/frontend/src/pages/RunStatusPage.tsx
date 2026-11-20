@@ -1,3 +1,5 @@
+import { PageHeaderTabs } from "../components/common/PageHeaderActions";
+import { usePageHeader } from "../components/shell/PageHeaderContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
@@ -190,6 +192,11 @@ function ConditionsDialog({ open, onClose }: { open: boolean; onClose: () => voi
 }
 
 export function RunStatusPage() {
+  usePageHeader({
+    eyebrow: "실행 상태",
+    title: "수집·첨부·판정 실행을 확인해요",
+    description: "실패·부분 성공·중단은 성공과 따로 보여요. 참조 실행은 운영 완료가 아니에요.",
+  });
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const tab = runStatusTabFromPathname(pathname);
@@ -198,7 +205,9 @@ export function RunStatusPage() {
 
   return (
     <section aria-labelledby="run-status-page-title" className="rs-page" data-astryx-theme="bidops">
-      <h2 className="visually-hidden" id="run-status-page-title">실행 상태</h2>
+      <span className="visually-hidden" id="run-status-page-title">실행 상태</span>
+      {/* 탭은 패널 헤더의 둥근 칸 탭 줄에 둔다(2026-11-19 최종 시안 패턴). */}
+      <PageHeaderTabs>
       <div className="rs-tabs">
         <TabList
           value={tab}
@@ -208,13 +217,13 @@ export function RunStatusPage() {
             if (next) navigate({ pathname: next.path, search });
           }}
           role="tablist"
-          hasDivider
         >
           {TABS.map((item) => (
             <Tab key={item.value} label={item.label} panelId={`run-status-panel-${item.value}`} value={item.value} />
           ))}
         </TabList>
       </div>
+      </PageHeaderTabs>
 
       <SummaryLine onOpenConditions={() => setConditionsOpen(true)} />
 

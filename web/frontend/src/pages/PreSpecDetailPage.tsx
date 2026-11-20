@@ -1,3 +1,4 @@
+import { usePageHeader } from "../components/shell/PageHeaderContext";
 import { FEATURE_OFF_LABEL, useFeatureFlags } from "../lib/featureFlags";
 import { CurrentCompanyEnginePanel } from "../components/engine/EngineAnalysisPanel";
 import { Button } from "@astryxdesign/core/Button";
@@ -339,6 +340,15 @@ function PageOverviewBriefing({ review }: { review: PageOverviewView }) {
   </div>;
 }
 
+/** 사전규격 상세의 패널 헤더 글자를 올린다. 응답이 온 뒤에만 그려지므로 로딩·오류에서는 route 이름이 남는다. */
+function PreSpecHeaderPublisher({ title, agency }: { title: string | null; agency: string | null }) {
+  usePageHeader({
+    eyebrow: agency?.trim() ? `사전규격 · ${agency.trim()}` : "사전규격",
+    title: title?.trim() || "사업명 미확인",
+  });
+  return null;
+}
+
 function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; listSearch: string }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -558,6 +568,8 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
       {/* 자체 브레드크럼은 두지 않는다. 상단 경로(`nav[aria-label="현재 위치"]`)가
           `탐색과 추적 › 사전규격 › notice ID`를 이미 그리고, 사전규격 칸이 목록
           링크다. 경로가 두 벌이면 현재 위치를 두 번 읽어야 한다. */}
+      {/* 패널 헤더(2026-11-19 최종 시안 패턴): `‹ 사전규격` · 화면 이름 줄 · 사업명 `<h1>`. */}
+      <PreSpecHeaderPublisher agency={preSpecItem?.demand_agency ?? notice.agency} title={notice.title} />
       {/* ① 사업명·기관·요약·예산·일정 (spec §4 ①) */}
       <header id="ps-summary" className="pre-spec-detail-header detail-skeleton-head ps-card" aria-label="사전규격 상세 정보">
         <div className="ps-record-header-body">
@@ -582,7 +594,9 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
                 <span className="ps-chip ps-chip-neutral">본공고 {lifecycle.bid_ntice_no_list ?? "미확인"}</span>
                 {preSpecItem?.business_division ? <span className="ps-chip ps-chip-accent">{preSpecItem.business_division}</span> : null}
               </div>
-              <h2 id="pre-spec-detail-title" className="ps-h-page">{present(notice.title, "사업명 미확인")}</h2>
+              {/* 사업명은 패널 헤더의 `<h1>`이 제목으로 그린다. 같은 이름의 제목을 하나 더 두면 제목 탐색이
+                  두 번 걸리므로, 여기는 `aria-labelledby`가 가리킬 구역 이름(제목 아님)만 낭독기에 남긴다. */}
+              <span id="pre-spec-detail-title" className="ps-h-page visually-hidden">{present(notice.title, "사업명 미확인")}</span>
               <div className="ps-record-meta">
                 <span className="ps-record-agency">{present(notice.agency, "발주기관 미확인")}</span>
                 <span aria-hidden="true">·</span>
