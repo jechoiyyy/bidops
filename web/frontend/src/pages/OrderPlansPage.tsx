@@ -14,6 +14,7 @@ import { ToggleButton, ToggleButtonGroup } from "@astryxdesign/core/ToggleButton
 import { Text } from "@astryxdesign/core/Text";
 import { ConfirmDecisionDialog, trackingEndConfirmContent } from "../components/common/ConfirmDecisionDialog";
 import { EmptyState } from "../components/common/EmptyState";
+import { CollectionStatus } from "../components/shell/CollectionStatus";
 import { PageHeaderActions, PageHeaderTabs } from "../components/common/PageHeaderActions";
 import { setRememberedActorName, useRememberedActorName } from "../components/common/ActorField";
 import { usePageHeader } from "../components/shell/PageHeaderContext";
@@ -1640,6 +1641,7 @@ function OrderPlansWorkspace() {
           칩이 그 실행을 특정해 연다(0921 명세 §3.1). */}
       <PageHeaderActions>
         <div className="c2l-header-actions">
+          <CollectionStatus track="order-plans" />
           {/* 평상시에는 아무것도 그리지 않는다. 문제가 있을 때만 상태와 운영 화면 링크를
               겸한 칩 하나가 선다(시안 M3 ② 승인). */}
           <ExecutionHealthChip

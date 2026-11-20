@@ -24,6 +24,7 @@ import {
   type OpportunityDetailIntent,
 } from "../components/opportunities/trackingFlow";
 import { EmptyState } from "../components/common/EmptyState";
+import { CollectionStatus } from "../components/shell/CollectionStatus";
 import { PageHeaderActions, PageHeaderTabs } from "../components/common/PageHeaderActions";
 import { usePageHeader } from "../components/shell/PageHeaderContext";
 
@@ -458,6 +459,8 @@ export function OpportunitiesPage() {
       <span className="visually-hidden" id="page-title">사업 추적</span>
       <PageHeaderActions>
         <div className="opportunity-header-actions">
+          {/* 사업기회의 공고(사전규격·입찰공고)는 공고 트랙 일일 수집이 채운다. 판정은 서버다. */}
+          <CollectionStatus track="notices" />
           <button className="panel-header-link" onClick={() => setDataDialog(true)} type="button">목록 기준</button>
         </div>
       </PageHeaderActions>

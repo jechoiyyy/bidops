@@ -2020,6 +2020,8 @@ export const inheritedPreSpecOpportunity = {
 
 export async function mockPreSpecs(page: Page): Promise<void> {
   let currentTrackingStatus = visualPreSpecItems[0].tracking_status;
+  // 헤더의 수집 상태(공고 트랙). spec이 `mockDailyCollectionStatus`로 덮을 수 있게 먼저 건다.
+  await page.route("**/api/daily-collection-status", (route) => fulfillJson(route, dailyCollectionStatusResponse()));
   await page.route("**/api/runs", async (route) => {
     const request = route.request();
     if (new URL(request.url()).pathname === "/api/runs" && request.method() === "GET") {
@@ -2491,6 +2493,47 @@ export async function mockDocumentPreparationVisual(page: Page, state: DocumentP
 }
 
 /**
+ * `GET /api/daily-collection-status`(`bidops.daily-collection-status.v1`)의 가짜 응답. 모양은 백엔드
+ * strict 테스트(`web/backend/tests/lifecycle/test_daily_collection_status.py`)의 실제 응답에서 옮겼다.
+ * 기본은 두 트랙 모두 `complete`다. spec이 상태를 바꿔야 하면 `mockDailyCollectionStatus`로 덮는다.
+ */
+export function dailyCollectionStatusResponse(
+  overrides: Partial<Record<"order-plans" | "notices", Record<string, unknown>>> = {},
+): Record<string, unknown> {
+  const track = (name: "order-plans" | "notices", directory: string) => ({
+    track: name,
+    basis_date: "2026-09-01",
+    state: "complete",
+    reasons: [],
+    run_id: `${directory}--20260901T213000Z`,
+    collected_at: "2026-09-01T21:30:00Z",
+    warning_count: 0,
+    latest_basis_date: "2026-09-01",
+    ...overrides[name],
+  });
+  return {
+    schema_version: "bidops.daily-collection-status.v1",
+    generated_at: "2026-09-02T03:00:00Z",
+    timezone: "Asia/Seoul",
+    today: "2026-09-02",
+    tracks: [track("order-plans", "lifecycle-20260901-plans"), track("notices", "lifecycle-20260901-notices")],
+  };
+}
+
+export async function mockDailyCollectionStatus(
+  page: Page,
+  overrides: Parameters<typeof dailyCollectionStatusResponse>[0] | { status: number } = {},
+): Promise<void> {
+  await page.route("**/api/daily-collection-status", async (route) => {
+    if ("status" in overrides && typeof overrides.status === "number") {
+      await route.fulfill({ status: overrides.status, contentType: "application/json", body: JSON.stringify({ error: { code: "processing_failed", message: "fixture", details: null }, request_id: null }) });
+      return;
+    }
+    await fulfillJson(route, dailyCollectionStatusResponse(overrides as Parameters<typeof dailyCollectionStatusResponse>[0]));
+  });
+}
+
+/**
  * 기존 시각 응답을 보존하고 v2 경로에는 필터·집계 가능한 합성 서버를 연결한다.
  */
 export async function mockApi(page: Page): Promise<void> {
@@ -2503,6 +2546,7 @@ export async function mockApi(page: Page): Promise<void> {
     if (overviewMatch) { await fulfillJson(route, overviewAbsentEnvelope(Number(overviewMatch[1]))); return; }
 
     if (pathname === "/api/workload") { await fulfillJson(route, workloadResponse(page)); return; }
+    if (pathname === "/api/daily-collection-status") { await fulfillJson(route, dailyCollectionStatusResponse()); return; }
     // 사업기회 참여 판정 조회(RL-03). 서버는 판정이 없으면 200 `availability=none`이다 — 사전규격
     // 상세 ④ 첫 열(2026-11-19)이 이 응답을 읽는다. 판정을 다루는 spec은 자기 가짜로 덮는다.
     const verdictMatch = pathname.match(/^\/api\/opportunities\/(\d+)\/verdict$/);
@@ -3045,6 +3089,8 @@ function c2ExecutionDetail(execution: OrderPlanScreeningExecutionSummary) {
 /** C-2 v3 mock server. Queries filter before counting and pagination. */
 export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario = "default", options: OrderPlanMockOptions = {}): Promise<OrderPlanMockTrace> {
   const trace: OrderPlanMockTrace = { feedbackPosts: [], trackingPatches: [], executionPosts: [], stopPosts: [] };
+  // 헤더의 수집 상태(발주계획 트랙). spec이 `mockDailyCollectionStatus`로 덮을 수 있게 먼저 건다.
+  await page.route("**/api/daily-collection-status", (route) => fulfillJson(route, dailyCollectionStatusResponse()));
   const trackingState = new Map<number, OrderPlanTracking>();
   const trackingDecisions = new Map<number, OpportunityTrackingDecisionItem[]>();
   const feedbackItems: OrderPlanFeedbackFixture[] = [{

@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { searchKey, searchMatches } from "../src/lib/search";
+import { dailyCollectionStatusResponse } from "./api-mock";
 
 /**
  * 사업 추적 화면 회귀.
@@ -529,6 +530,8 @@ export async function mockOpportunities(page: Page, options: MockOptions = {}): 
   const trace: Trace = {
     listQueries: [], detailGets: [], decisionGets: [], deepReviewGets: [], patches: [], linkDecisions: [], reviewPuts: [], acks: [], searches: [],
   };
+  // 헤더의 수집 상태(공고 트랙). spec이 `mockDailyCollectionStatus`로 덮을 수 있게 먼저 건다.
+  await page.route("**/api/daily-collection-status", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(dailyCollectionStatusResponse()) }));
   const details = new Map<number, Fixture>(FIXTURES.map((item) => [item.id, structuredClone(item)]));
   // 병합 막힘 안내가 말하는 상대편은 목록 fixture 밖에 있다. 그 결정을 되돌리는
   // PATCH가 실제 서버처럼 받아들여지도록 이 시나리오에서만 상세를 둔다.
