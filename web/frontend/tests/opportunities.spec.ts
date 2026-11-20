@@ -98,11 +98,14 @@ test("레코드 route는 목록으로 돌아갈 경로 표시를 그대로 갖�
 
   const topbar = page.locator("header.topbar");
   await expect(topbar).toHaveAttribute("data-topbar-mode", "breadcrumb");
-  // 시안 v26의 경로는 `상위 화면 / 레코드`다. 사이드바 1차 분류 칸은 그리지 않는다(ui-spec §1.3).
-  await expect(topbar.locator(".topbar-breadcrumb .topbar-crumb")).toHaveText([
-    "사업기회",
-    "#501",
-  ]);
+  // 2026-11-19 패널 헤더(ADR-0076): 경로 줄 대신 `‹ 사업기회` 돌아가기 링크 하나와 제목 위 작은 글자다.
+  // 사이드바 1차 분류 칸은 그리지 않는다(ui-spec §1.3).
+  await expect(topbar.locator(".topbar-breadcrumb")).toHaveCount(0);
+  const back = topbar.getByRole("navigation", { name: "현재 위치" }).getByRole("link");
+  await expect(back).toHaveText("사업기회");
+  // 목록 링크는 이 사업기회를 고른 채 연다(설계고도화안 C-3).
+  await expect(back).toHaveAttribute("href", "/opportunities?selected=501");
+  await expect(topbar.getByTestId("page-header-eyebrow")).toContainText("#501");
   await expect(topbar.getByRole("button", { name: "목록 기준" })).toHaveCount(0);
 });
 
@@ -812,8 +815,8 @@ test("미선택 건은 화면이 대신 상태를 고르지 않고 미선택으�
   await expect(dialog).toContainText("아직 아무도 고르지 않았습니다");
   // 결정 버튼에 `미선택`은 없고, 아직 아무도 고르지 않았으므로 `계속 추적`의 이름은 `추적 시작`이다.
   await expect(dialog.getByRole("button", { name: "미선택" })).toHaveCount(0);
-  await expect(dialog.getByRole("button", { name: "추적 시작", exact: true })).toBeVisible();
-  await expect(dialog.getByRole("button", { name: "추적 시작", exact: true })).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "추적 시작하기", exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "추적 시작하기", exact: true })).toBeDisabled();
 });
 
 test("입력을 남긴 채 닫으면 버릴지 확인하고 계속 작성하면 초안이 남는다", async ({ page }) => {

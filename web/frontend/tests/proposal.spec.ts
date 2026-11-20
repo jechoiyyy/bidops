@@ -860,10 +860,10 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       return reqRect.top >= bodyRect.bottom - 1;
     });
     expect(sideBySide || stacked).toBe(true);
-    // 헤더 액션은 헤더 안에 머문다.
+    // 헤더 액션은 헤더 안에 머문다. 레코드 액션은 패널 헤더 오른쪽 칸에 있다(ADR-0076).
     const actions = await page.evaluate(() => {
-      const headerBox = (document.querySelector(".rec-header") as HTMLElement).getBoundingClientRect();
-      const actionsBox = (document.querySelector(".rec-actions") as HTMLElement).getBoundingClientRect();
+      const headerBox = (document.querySelector("header.topbar") as HTMLElement).getBoundingClientRect();
+      const actionsBox = (document.querySelector("header.topbar .rec-actions") as HTMLElement).getBoundingClientRect();
       return { right: actionsBox.right <= headerBox.right + 1, inside: actionsBox.top >= headerBox.top && actionsBox.top < headerBox.bottom };
     });
     expect(actions).toEqual({ right: true, inside: true });

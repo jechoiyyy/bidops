@@ -342,7 +342,9 @@ test("화면 제목과 페이지 액션은 상단바에 있고 경로·편집 �
   const topbar = page.locator("header.topbar");
 
   await expect(topbar).toHaveAttribute("data-topbar-mode", "title");
-  await expect(topbar.locator("h1")).toHaveText("최종 Go/No-Go");
+  // 화면 이름은 패널 헤더의 작은 글자이고 `<h1>`은 받은 대기열 건수를 쓴 문장이다(ADR-0076).
+  await expect(topbar.getByTestId("page-header-eyebrow")).toHaveText("최종 Go/No-Go");
+  await expect(topbar.locator("h1")).toHaveText(/^최종 결정을 볼 사업이 (\d+건 있어요|없어요)$/);
   await expect(topbar.locator(".topbar-breadcrumb")).toHaveCount(0);
   await expect(topbar.locator(".topbar-status")).toHaveCount(0);
 

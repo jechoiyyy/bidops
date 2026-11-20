@@ -42,7 +42,9 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
         const root = element.closest(`.${pagePrefix}-page`)!;
         const list = root.querySelector(pagePrefix === "rs" ? ".rs-list-pane" : ".crit-queue")!;
         const heading = list.querySelector(`.${pagePrefix}-record-title`)!;
-        const tabBar = root.querySelector(`.${pagePrefix}-tabs`)!;
+        // 탭 줄은 패널 헤더(`#page-header-tabs`)로 올라갔다(ADR-0076). 페이지 root 밖이다.
+        const tabBar = document.querySelector(`header.topbar .${pagePrefix}-tabs [role="tablist"]`)!;
+        const canvas = document.querySelector(".page-canvas")!;
         const strip = root.querySelector(`.${pagePrefix}-summary`)!;
         const actions = root.querySelector(`.${pagePrefix}-detail-foot`)!;
         const body = root.querySelector(`.${pagePrefix}-detail-scroll`);
@@ -61,6 +63,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
           titleWeight: getComputedStyle(heading).fontWeight,
           tabsHeight: tabBar.getBoundingClientRect().height,
           summaryHeight: strip.getBoundingClientRect().height,
+          summaryTopFromCanvas: strip.getBoundingClientRect().top - canvas.getBoundingClientRect().top,
           summaryBottom: strip.getBoundingClientRect().bottom,
           footerHeight: actions.getBoundingClientRect().height,
           footerTop: actions.getBoundingClientRect().top,
@@ -76,14 +79,16 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       expect(metrics.ratio, `${path} 목록 비율`).toBeCloseTo(0.38, 2);
       expect(metrics.titleFont, `${path} 목록 제목 크기`).toBe("14px");
       expect(metrics.titleWeight, `${path} 목록 제목 굵기`).toBe("600");
-      expect(metrics.tabsHeight, `${path} 승인된 밑줄 탭`).toBeCloseTo(36, 0);
+      // 패널 헤더의 둥근 칸 탭 한 줄(40px, ADR-0076)이다.
+      expect(metrics.tabsHeight, `${path} 패널 헤더 탭 줄`).toBeCloseTo(40, 0);
       expect(metrics.summaryHeight, `${path} 요약 한 줄`).toBeCloseTo(physical(49), 0);
-      // canvas 위 여백 16→12(docs/0915_ui-redesign/spec.md §2.1)로 본문 시작이 4px 올라갔다.
-      expect(metrics.y, `${path} 시안 도구 모음 제외 본문 시작`).toBeCloseTo(physical(186), 0);
+      // 패널 헤더 아래 본문 위 여백 24px(ADR-0076) + 숨긴 화면 이름 자리(기존 골격의 8px)에서 요약 줄이 시작한다.
+      // 여덟 탭이 같은 값이다.
+      expect(metrics.summaryTopFromCanvas, `${path} 본문 위 여백`).toBeCloseTo(32, 0);
       expect(Math.abs(metrics.y - metrics.summaryBottom), `${path} 요약과 본문 사이 틈`).toBeLessThanOrEqual(1);
       expect(metrics.footerHeight, `${path} 하단 액션 높이`).toBeCloseTo(physical(57), 0);
-      // 작업 영역 카드의 1px 테두리가 그림자로 바뀌어(spec §2.3) 하단 단추가 1px 내려왔다.
-      expect(metrics.footerBottom, `${path} 하단 버튼 위치`).toBeCloseTo(viewport.height - physical(37) - 24, 0);
+      // 흰 패널의 바깥 여백 8 + 테두리 1, 캔버스 하단 여백 32px(ADR-0076). 판정 기준 spec과 같은 바닥이다.
+      expect(metrics.footerBottom, `${path} 하단 버튼 위치`).toBeCloseTo(viewport.height - physical(37) - 8 - 1 - 32, 0);
       if (metrics.buttonFont) expect(metrics.buttonFont, `${path} 하단 버튼 크기`).toBe("14px");
       if (metrics.bodyOverflow) expect(metrics.bodyOverflow, path).toBe("auto");
 
