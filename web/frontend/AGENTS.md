@@ -62,15 +62,21 @@
   `Ctrl/Cmd+Enter`로 상세 검토를 열며, 저장하지 않은 추적 입력이 있으면 이탈 확인이 먼저다.
   행 컴포넌트는 `useRowKeyboardNavigation`의 `rowProps`(`data-row-key`·roving `tabIndex`)를
   **그대로 행 요소까지 내려야** 한다. 내리지 않으면 선택만 움직이고 초점은 조용히 멈춰 있는다.
-- 문서 준비 구역은 상태 요약 한 줄과 `문서 준비 열기/닫기` 토글이며, 기본값은
-  `lib/documentPanelDefaultOpen.ts` 하나가 정한다. Astryx `Collapsible`을 쓰지 않는다 —
-  `display:none`으로 감추면 패널 조작과 폴링이 막힐다.
+- 사전규격 상세의 자동 준비 단계·문서 준비 패널·처리 이력·기술 정보는 맨 아래 접힌 `처리 상태·기술 정보` 한 구역
+  안에 있다(2026-11-21). 기본 열림은 `lib/preSpecProcessDefaultOpen.ts` 하나가 정하며 문제가 있으면 열린다. 문서 준비
+  패널은 상태 요약 한 줄과 `문서 준비 열기/닫기` 토글이고 기본값은 `lib/documentPanelDefaultOpen.ts`가 정한다.
+  Astryx `Collapsible`을 쓰지 않는다 — `display:none`으로 감추면 패널 조작과 폴링이 막힌다.
+- 사전규격 상세 본문 구역은 사실 줄 → 사업 개요와 주요 과업 → (값이 있을 때만) 회사 관련성 참고 → 원문·첨부 →
+  처리 상태·기술 정보 순이다. 발주계획 후보 구역은 후보가 1건 이상일 때만 보인다. 꺼진 기능 안내(RL 분석·회사
+  적합성)는 처리 상태·기술 정보 안에서 보인다. 주장마다 쪽 링크를 붙이고 주장별 원문 위치 목록은 두지 않는다.
+- 사전규격 상세 본문·패널 헤더 안쪽·하단 띠 안쪽은 읽기 폭 1040px로 패널 가운데에 둔다. route metadata
+  `detailReadingWidth`가 `.app-content[data-reading-width="detail"]`을 달며 다른 화면에는 쓰지 않는다(ADR-0076 결정 13).
 - 계약에 없는 값을 화면이 채우지 않는다. 보고서의 segment 패널은 묶음에서 문서들의 `structure_id`를 얻을 endpoint가 없어 **선택된 근거가 가리키는 문서 하나**만 보여 주며, 그 사실을 문장으로 적는다. segment에는 wire 상 제목이 없으므로(원문 text를 싣지 않기로 한 결정의 결과) ordinal·taxonomy label·요구사항 id·`block_key`·page 링크만 보이고 제목이 없는 이유를 적는다.
 - 자동 연결 실행과 단계별 수동 실행은 같은 execution 상태 컴포넌트를 사용한다. 별도 상태 의미를 복제하지 않는다.
 - 문서 준비 화면은 upload, scan, convert, structure, bundle confirm을 구분하고 실패 stage와 안전한 retry action을 보여야 한다.
 - 심층 검토 실패 재시작은 기존 attempt를 덮지 않으며 새 attempt가 생긴다는 점을 확인시킨다.
 - 향후 opportunity 화면은 plan, pre-spec, bid의 공식 연결과 사람 확인 대기 후보를 시각적으로 구분한다.
-- 사전규격 보고서 뒤 `계속 추적|보류|종료`와 입찰공고 뒤 최종 `Go/No-Go`를 같은 버튼 집합으로 재사용하지 않는다.
+- 사전규격 보고서 뒤 `계속 추적|보류|종료`와 입찰공고 뒤 최종 `Go/No-Go`를 같은 버튼 집합으로 재사용하지 않는다. 사전규격 상세의 하단 결정 띠는 분석 전에는 `추적 시작`만 두고, 분석 결과를 보여 주는 화면(mock 빌드 전용)에서만 세 상태를 고른다(`docs/business-rules.md`).
 - 사업 추적·최종 Go/No-Go 목록도 같은 `useRowKeyboardNavigation`으로 ↑↓ 행 이동을 갖는다
   (경계에서 페이지를 넘긴다). 두 화면은 Astryx `Table`을 그대로 쓰므로 `rowProps`는 표의
   **첫 열 버튼**(`.opportunity-row-business`·`.gng-row`)이 받고 키 리스너는 표의 스크롤
@@ -84,7 +90,7 @@
 - 색은 `bidops` 테마(무드보드 파생, ADR-0048 → ADR-0073·ADR-0076 개정)가 정본이다. 화면은 토큰만 읽고 `:root`나 화면 CSS에서 `--color-*`를 재정의하지 않는다. 유일한 예외는 `styles/shell-relaxed.css`의 이행용 token bridge이며 새 색 값을 만들지 않는다. 색을 바꾸려면 `src/themes/bidops/bidopsTheme.ts`를 고치고 `astryx theme build`를 다시 돌린다.
 - 셸(ADR-0076, 2026-11-19): 바탕 위 흰 패널 한 장이고 화면 제목은 패널 헤더가 그린다. 화면은 `usePageHeader`
   (`components/shell/PageHeaderContext.tsx`)로 화면 이름·문장형 제목·설명(·상태 표식·사실 줄)을 **문자열로만** 올리고,
-  액션은 `PageHeaderActions`, 보기 탭·검색 줄은 `PageHeaderTabs` portal로 보낸다. 페이지에 `<h1>`이나 제목 줄을 다시
+  액션은 `PageHeaderActions`, 보기 탭·검색 줄은 `PageHeaderTabs` portal로, 패널 아래 결정 입력은 `PageFooterBar` portal(셸의 고정 슬롯 `#page-footer`)로 보낸다. 슬롯이 비면 자리를 차지하지 않는다. **슬롯은 추적 결정 전용이며 개요 범위 확정 같은 다른 할 일을 넣지 않는다.** 페이지에 `<h1>`이나 제목 줄을 다시
   두지 않는다. 설명에는 고정 설명·주의 문구를 넣지 않고 그 순간의 데이터를 말하는 문장만 넣는다(2026-11-20 사용자
   요청, ADR-0076 결정 12 — 경계 문장은 본문 결정 영역의 보조 문구가 진다). 문장의 숫자는 이미 받은 값(목록 total·탭 건수)으로만 만들고, 없으면 숫자 없는 문장을 쓴다. 목록|상세
   화면은 route metadata `canvas: "flush"`로 패널 끝까지 채우고 목록은 38%다.
@@ -94,7 +100,7 @@
   높이는 `--bo-k-*` 단(typography.css)을 쓴다. 사용자 문구는 해요체이되 값 없음/미확인/계산 불가/0과 사람 결정 경계의 뜻은
   바꾸지 않는다.
 - 담당자 이름은 사이드바 담당자 칸과 같은 한 값(`bidops.actorName`, `useRememberedActorName`)을 쓴다. 화면별로 따로 기억하지
-  않는다. 감사 표식이며 인증이 아니다. 브리핑·발주계획 결정 영역은 본문에 입력 칸을 두지 않고, 이름이 비면 안내와 함께
+  않는다. 감사 표식이며 인증이 아니다. 브리핑·발주계획 결정 영역과 사전규격 상세 하단 결정 띠(2026-11-21)는 입력 칸을 두지 않고, 이름이 비면 안내와 함께
   `requestActorInput()`으로 사이드바 칸을 열어 초점을 옮긴다(저장 전 이름 요구는 그대로, 2026-11-20).
 - 패널 헤더의 수집 상태는 `CollectionStatus`(`GET /api/daily-collection-status`)만 쓴다. 기준일·상태를 화면에서 다시 계산하지
   않고, `complete`만 "수집 완료"다. 나머지는 사실대로 쓰고 실행 상태 링크를 단다. 조회 실패는 숨기지 않는다.
