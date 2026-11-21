@@ -81,6 +81,9 @@ function evidencePlace(analysis: EngineAnalysis, path: string, evidence: EngineE
   return null;
 }
 
+/** 요구사항 행의 키: 같은 번호가 여러 번 나오는 원문은 엔진이 `instance_key`로 구분한다. 없으면 `req_id`다. */
+const fitKey = (fit: EngineAnalysis["fits"][number]): string => fit.instance_key ?? fit.req_id;
+
 const AVAILABILITY_LABEL: Record<string, string> = { check_now: "지금 확인 가능", awaiting_input: "새 분석 입력 필요" };
 /** 옛 응답의 확인 요청 제목은 회사 필드 키(`company.founded`)다. 그런 값만 코드 글꼴로 보인다. */
 const FIELD_KEY = /^[a-z_][a-z0-9_]*([.[][^\s]*)?$/;
@@ -162,7 +165,9 @@ export function PreSpecAnalysisSections({ run }: { run: EngineRun }) {
   const decisionCompanyRequests = companyRequests.filter((request) => request.purpose === "decision");
   const otherCompanyRequests = companyRequests.filter((request) => request.purpose !== "decision");
   const todoCount = conditions.length + planRequests.length + decisionCompanyRequests.length;
-  const mandatoryKnown = fits.filter((fit) => fit.mandatory === true || fit.mandatory === false).length;
+  const namedFits = fits.filter((fit) => Boolean(fit.name?.trim())).length;
+  const requirementCounts = analysis.requirement_counts ?? null;
+  const languageWarnings = analysis.language_warnings?.length ?? 0;
   const coverage = provisional?.fit_coverage ?? null;
 
   const gateCount = (verdict: string) => gates.filter((gate) => gate.verdict === verdict).length;
@@ -200,7 +205,7 @@ export function PreSpecAnalysisSections({ run }: { run: EngineRun }) {
       .sort((left, right) => FIT_ORDER.indexOf(left.fit.fit) - FIT_ORDER.indexOf(right.fit.fit));
   }, [filter, fits]);
 
-  const selectedRow = selected === null ? null : fits.map((fit, index) => ({ fit, index })).find(({ fit }) => fit.req_id === selected) ?? null;
+  const selectedRow = selected === null ? null : fits.map((fit, index) => ({ fit, index })).find(({ fit }) => fitKey(fit) === selected) ?? null;
   const sideOpen = selectedRow !== null && wide;
   const drawerOpen = selectedRow !== null && !wide;
 
@@ -214,18 +219,20 @@ export function PreSpecAnalysisSections({ run }: { run: EngineRun }) {
     ["ps-evidence", "원문", null],
   ];
 
+  const { assessment, recommendation } = analysis;
+  const displayedDecision = assessment?.state === "abstain" ? provisional?.decision : assessment?.decision;
+  const differentRecommendation = displayedDecision && recommendation?.decision !== displayedDecision ? recommendation : null;
   const opinionLine = (() => {
-    const assessment = analysis.assessment;
     if (assessment === null) return <p className="pa-opinion-line">엔진 판단 표식 없음</p>;
     if (assessment.state === "abstain") {
       return (
         <p className="pa-opinion-line">
           <strong>판단 보류</strong>
-          {provisional ? <> · 잠정 의견 <strong>{label(DECISION_LABEL, provisional.decision)}</strong></> : null}
+          {displayedDecision ? <> · 잠정 의견 <strong>{label(DECISION_LABEL, displayedDecision)}</strong></> : null}
         </p>
       );
     }
-    return <p className="pa-opinion-line"><strong>{assessment.decision ? label(DECISION_LABEL, assessment.decision) : "판단 미확인"}</strong></p>;
+    return <p className="pa-opinion-line"><strong>{displayedDecision ? label(DECISION_LABEL, displayedDecision) : "판단 미확인"}</strong></p>;
   })();
 
   const evidencePanel = (mode: "side" | "drawer") => {
@@ -240,6 +247,7 @@ export function PreSpecAnalysisSections({ run }: { run: EngineRun }) {
           <strong>{fit.req_id}</strong>
           <button className="pa-btn" type="button" onClick={close} ref={closeRef}>닫기</button>
         </div>
+        {fit.name?.trim() ? <p className="pa-ev-name">{fit.name}</p> : null}
         <p><Tag label={fitText} tone={fitTone} /></p>
         <h4>원문 발췌</h4>
         {fit.evidence ? <blockquote>{fit.evidence.quote}</blockquote> : <p className="pa-muted">연결된 원문 근거가 없어요.</p>}
@@ -266,7 +274,7 @@ export function PreSpecAnalysisSections({ run }: { run: EngineRun }) {
       <thead>
         <tr>
           <th scope="col" className="pa-col-id">요구 ID</th>
-          <th scope="col">원문 발췌</th>
+          <th scope="col">{namedFits > 0 ? "요구사항" : "원문 발췌"}</th>
           <th scope="col" className="pa-col-tag">대응</th>
           {sideOpen ? null : <th scope="col" className="pa-col-company">회사 근거</th>}
           {sideOpen ? null : <th scope="col" className="pa-col-gap">부족을 메우려면</th>}
@@ -279,12 +287,14 @@ export function PreSpecAnalysisSections({ run }: { run: EngineRun }) {
           const page = evidencePage(analysis, `/fits/${index}/evidence`, fit.evidence);
           const portfolio = fit.evidence_portfolio_ids;
           return (
-            <tr key={`${index}:${fit.req_id}`} className={fit.req_id === selected ? "is-selected" : undefined}>
-              <td className="pa-col-id">
-                {fit.req_id}
-                {fit.mandatory === true ? <span className="pa-sub">필수</span> : fit.mandatory === false ? <span className="pa-sub">선택</span> : null}
-              </td>
-              <td className="pa-quote">{fit.evidence?.quote ?? <span className="pa-muted">원문 발췌 없음</span>}</td>
+            <tr key={`${index}:${fitKey(fit)}`} className={fitKey(fit) === selected ? "is-selected" : undefined}>
+              <td className="pa-col-id">{fit.req_id}</td>
+              {fit.name?.trim() ? (
+                // 엔진이 원문에서 옮긴 명칭·정의. 인용문은 근거 패널에서 본다.
+                <td><strong>{fit.name}</strong>{fit.definition?.trim() && fit.definition.trim() !== fit.name.trim() ? <span className="pa-sub">{fit.definition}</span> : null}</td>
+              ) : (
+                <td className="pa-quote">{fit.evidence?.quote ?? <span className="pa-muted">원문 발췌 없음</span>}</td>
+              )}
               <td><Tag label={fitText} tone={fitTone} /></td>
               {sideOpen ? null : <td>{portfolio === undefined ? <span className="pa-muted">미확인</span> : portfolio.length ? `회사 실적 ${portfolio.length}건` : <span className="pa-muted">근거 없음</span>}</td>}
               {sideOpen ? null : <td>{fit.gap_action ?? <span className="pa-muted">—</span>}</td>}
@@ -292,13 +302,13 @@ export function PreSpecAnalysisSections({ run }: { run: EngineRun }) {
                 <button
                   className="pa-link"
                   type="button"
-                  data-pa-ev={fit.req_id}
-                  aria-expanded={fit.req_id === selected}
-                  aria-controls={fit.req_id === selected ? "pa-ev" : undefined}
+                  data-pa-ev={fitKey(fit)}
+                  aria-expanded={fitKey(fit) === selected}
+                  aria-controls={fitKey(fit) === selected ? "pa-ev" : undefined}
                   onClick={() => {
-                    if (fit.req_id === selected) { close(); return; }
-                    openerRef.current = fit.req_id;
-                    setSelected(fit.req_id);
+                    if (fitKey(fit) === selected) { close(); return; }
+                    openerRef.current = fitKey(fit);
+                    setSelected(fitKey(fit));
                   }}
                 >
                   {page === null ? "근거 보기" : `${page}쪽`}
@@ -392,6 +402,11 @@ export function PreSpecAnalysisSections({ run }: { run: EngineRun }) {
             <a href="#pa-reqs">요구사항 보기</a>
           </p>
         ) : null}
+        {languageWarnings > 0 ? (
+          <p className="pa-notice" role="note" data-testid="pa-language-warning">
+            <span>엔진 결과 문장 {languageWarnings}곳에 원문에 없는 한자·외국어 표현이 섞여 있어요. 인용과 사유는 원문과 대조해 주세요.</span>
+          </p>
+        ) : null}
         <div className="pa-summary-grid">
           <dl className="pa-counts">
             <dt>자격 조건 {gates.length}</dt>
@@ -404,6 +419,12 @@ export function PreSpecAnalysisSections({ run }: { run: EngineRun }) {
           <div className="pa-opinion">
             <Tag label="엔진 참고 의견" tone="model" />
             {opinionLine}
+            {differentRecommendation && (
+              <p className="pa-cap">
+                엔진 종합 권고 · <strong>{label(DECISION_LABEL, differentRecommendation.decision)}</strong>
+                {differentRecommendation.why_not?.[0] && <> · 참여 우려 · {differentRecommendation.why_not[0]}</>}
+              </p>
+            )}
             {analysis.assessment?.reason_codes.length ? (
               <p className="pa-cap">판단 사유 · {analysis.assessment.reason_codes.map((code) => label(REASON_LABEL, code)).join(" · ")}</p>
             ) : null}
@@ -420,6 +441,7 @@ export function PreSpecAnalysisSections({ run }: { run: EngineRun }) {
             {joinFacts([
               "분석 기준",
               `문서 ${run.documents.length}건`,
+              requirementCounts ? `원문 요구사항 ${requirementCounts.source_found}건 중 ${requirementCounts.analysis_input}건 분석` : null,
               coverage ? `요구사항 ${coverage.total}건 중 ${coverage.judged}건 판정` : "판정 범위 미확인",
               run.engine_version,
             ])}
@@ -532,12 +554,13 @@ export function PreSpecAnalysisSections({ run }: { run: EngineRun }) {
           <div className="pa-req-table-wrap">{fitTable}</div>
           {sideOpen ? evidencePanel("side") : null}
         </div>
-        {/* 원본 Analysis의 요구사항 대응에는 요구사항 이름이 없다. 필수 여부는 원문에 표기된 건만 온다. 지어내지 않고 그 사실을 적는다. */}
-        <p className="pa-cap">
-          {mandatoryKnown > 0
-            ? `엔진 결과에 요구사항 이름이 없어 원문 발췌로 요구를 보여요. 필수·선택은 원문에 표기된 ${mandatoryKnown}건만 표시해요.`
-            : "엔진 결과에 요구사항 이름과 필수 여부가 없어 원문 발췌로 요구를 보여요."}
-        </p>
+        {/* 원본 Analysis의 요구사항 대응에는 요구사항 이름이 없다. 지어내지 않고 그 사실을 적는다.
+            필수 여부는 다루지 않는다(2026-11-21 결정: 화면과 엔진 결과에서 제거). */}
+        {namedFits === fits.length ? null : (
+          <p className="pa-cap">
+            {namedFits === 0 ? "엔진 결과에 요구사항 이름이 없어 원문 발췌로 요구를 보여요." : "이름이 없는 요구사항은 원문 발췌로 보여요."}
+          </p>
+        )}
         {drawerHost ? createPortal(
           <div className="pa-ev-drawer" style={{ bottom: footerHeight }}>{evidencePanel("drawer")}</div>,
           drawerHost,

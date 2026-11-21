@@ -216,6 +216,7 @@
 }
 .ps-record .pa-ev.is-side { position: sticky; top: 0; }
 .pa-ev p { margin: 0; }
+.pa-ev .pa-ev-name { font-weight: 700; margin-bottom: var(--spacing-1); }
 .pa-ev h4 { margin: var(--spacing-3) 0 var(--spacing-1); color: var(--color-text-secondary); font-size: var(--bo-k-meta); font-weight: 700; }
 .pa-ev blockquote {
   margin: 0;
