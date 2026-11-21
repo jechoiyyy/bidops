@@ -138,6 +138,7 @@ test("조치 필요 사유 칩은 서버 reason으로 좁히고 주소에 남으
   const trace = await mockOpportunities(page);
   await page.goto("/opportunities");
 
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
   const chips = page.getByRole("group", { name: "조치 사유" });
   // 건수는 서버의 `action_reason_counts`다.
   await expect(chips.getByRole("button")).toHaveText([
@@ -157,6 +158,7 @@ test("조치 필요 사유 칩은 서버 reason으로 좁히고 주소에 남으
   await expect(page.locator(".opportunity-row-title")).toHaveText(["스마트 민원 상담 플랫폼 구축"]);
   expect(trace.listQueries.at(-1)?.get("reason")).toBe("merge_confirmation");
 
+  await page.getByRole("button", { name: /상세 필터/ }).click();
   // 같은 칩을 다시 누르면 풀린다.
   await chips.getByRole("button", { name: /^병합 확인/ }).click();
   await expect.poll(() => new URL(page.url()).searchParams.has("reason")).toBe(false);
@@ -330,6 +332,7 @@ test("사유가 여럿이면 칩은 표기 순서로 모두 보이고 주 행동
   await expect(row.getByRole("list", { name: "조치 사유" }).getByRole("listitem")).toHaveText(["새 공고", "후보 확인", "확인 항목", "보류 기한 지남"]);
   await expect(row.locator(".opportunity-next-cell").getByRole("button")).toHaveText(["확인"]);
   await expect(row.locator(".opportunity-next-cell")).toContainText("새 공고 재검토");
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
   // 병합 확인 칩 건수 0은 값 없음이 아니라 실제 0이다.
   await expect(page.getByRole("group", { name: "조치 사유" }).getByRole("button", { name: /^병합 확인/ })).toHaveText(/^병합 확인\s*0$/);
 });
