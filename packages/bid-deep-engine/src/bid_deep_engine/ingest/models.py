@@ -131,6 +131,19 @@ class Requirement(BaseModel):
     section_id: str | None = None
     table_id: str | None = None
     source: RequirementSource
+    instance_key: str | None = None
+
+    @property
+    def key(self) -> str:
+        return self.instance_key or self.id
+
+    @property
+    def source_id(self) -> str:
+        return self.key.partition("@")[0]
+
+    @property
+    def source_name(self) -> str | None:
+        return self.name if self.name != self.source_id else None
 
 
 class Table(BaseModel):

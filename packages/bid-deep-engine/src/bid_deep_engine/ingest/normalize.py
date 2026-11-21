@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from bisect import bisect_right
+from collections import Counter
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
@@ -360,7 +361,7 @@ def render_table_markdown(rows: list[list[str]]) -> str:
 
 
 # --- 표 종류 태그(spec "표 종류 태그") ---
-REQ_ID = r"[A-Z]{3}-\d{3}"
+REQ_ID = r"[A-Z]{3}-\d{3}(?:-\d+)*"
 _REQ_ID_RE = re.compile(REQ_ID)
 _REQ_ID_FULL = re.compile(rf"^{REQ_ID}$")
 _WS = re.compile(r"\s+")
@@ -389,7 +390,7 @@ DETAIL_MAX_ID_CELLS = 1  # 고유번호 값 셀·단독 ID 셀이 이보다 많�
 # --- 요구사항 파서 A 라벨(공백 정규화한 셀 텍스트에 search). tunable ---
 REQUIREMENT_LABELS: dict[str, re.Pattern[str]] = {
     "id": _DETAIL_ID_LABEL,
-    "name": re.compile(r"요구사항\s*명칭"),
+    "name": re.compile(r"요구사항\s*명칭|^명칭$"),
     "definition": re.compile(r"^정의$"),
     "details": re.compile(r"세부\s*내용|상세\s*내용|상세설명|세부내용"),
     "mandatory": re.compile(r"^(?:응락\s*수준|필수\s*여부)\s*:?$"),
@@ -563,7 +564,8 @@ def _parse_detail_table(
     details = "\n".join(grid[r][c].raw for r, c in picked if grid[r][c].raw)
 
     req = Requirement(
-        id=req_id,
+        id=req_id[:7],
+        instance_key=req_id if len(req_id) > 7 else None,
         category=req_id[:3],
         name=name,
         definition=definition or None,
@@ -581,11 +583,8 @@ def parse_requirements_from_tables(
     kinds: dict[str, TableKind],
     block_section: Callable[[int], str | None],
 ) -> tuple[list[Requirement], list[str]]:
-    """요구사항 파서 A. `requirement_detail` 표만 읽는다. 결과는 ID 첫 등장 순.
-
-    같은 ID가 다시 나오면 첫 항목 details에 "\\n"으로 이어 붙이고 경고를 남긴다.
-    """
-    by_id: dict[str, Requirement] = {}
+    """상세표마다 하나의 요구사항을 원문 순서로 보존한다."""
+    requirements = []
     warnings: list[str] = []
     for table in tables:
         if kinds.get(table.id) != "requirement_detail":
@@ -594,16 +593,24 @@ def parse_requirements_from_tables(
         if parsed is None:
             continue
         req, req_warnings = parsed
-        first = by_id.get(req.id)
-        if first is None:
-            by_id[req.id] = req
-            warnings.extend(req_warnings)
-            continue
-        warnings.append(f"duplicate requirement id: {req.id}")
-        if req.details:
-            merged = f"{first.details}\n{req.details}" if first.details else req.details
-            by_id[req.id] = first.model_copy(update={"details": merged})
-    return list(by_id.values()), warnings
+        requirements.append(req)
+        warnings.extend(req_warnings)
+    return _identify_occurrences(requirements, warnings)
+
+
+def _identify_occurrences(
+    requirements: list[Requirement], warnings: list[str]
+) -> tuple[list[Requirement], list[str]]:
+    totals = Counter(req.source_id for req in requirements)
+    seen = Counter()
+    for req in requirements:
+        source_id = req.source_id
+        if totals[source_id] > 1:
+            seen[source_id] += 1
+            req.instance_key = f"{source_id}@{seen[source_id]}"
+            if seen[source_id] > 1:
+                warnings.append(f"duplicate requirement id: {source_id}")
+    return requirements, warnings
 
 
 # --- 요구사항 파서 B(spec "요구사항 파서 B"): paragraph Block을 줄 단위로 펼쳐 읽는다 ---
@@ -758,7 +765,7 @@ def _scan_items(lines: list[_Line], last: int | None) -> list[_TextItem]:
 def parse_requirements_from_text(
     blocks: list[Block], block_section: Callable[[int], str | None]
 ) -> tuple[list[Requirement], list[str]]:
-    """요구사항 파서 B(줄 기반). 결과는 ID 첫 등장 순, 중복 ID 병합·경고는 파서 A와 같다.
+    """요구사항 파서 B(줄 기반). 원문 순서와 중복 항목을 보존한다.
 
     paragraph Block의 텍스트를 줄 단위로 펼쳐(원 Block idx 유지) 읽는다. `요구사항 (고유) 번호
     <ID>` 또는 단독 ID 줄이 새 항목을 시작한다. 세부내용 라벨 이후 줄이 details이고
@@ -771,33 +778,29 @@ def parse_requirements_from_text(
         # 마지막 항목을 알아야 그 항목에만 꼬리 종료 규칙을 쓸 수 있으므로 한 번 더 읽는다.
         items = _scan_items(lines, last=len(items) - 1)
 
-    by_id: dict[str, Requirement] = {}
+    requirements = []
     warnings: list[str] = []
     for item in items:
         details = "\n".join(item.details or [])
-        first = by_id.get(item.req_id)
-        if first is not None:
-            warnings.append(f"duplicate requirement id: {item.req_id}")
-            if details:
-                merged = f"{first.details}\n{details}" if first.details else details
-                by_id[item.req_id] = first.model_copy(update={"details": merged})
-            continue
         name = item.name
         if not name:
             warnings.append(f"missing requirement name: {item.req_id}")
             name = item.req_id
-        by_id[item.req_id] = Requirement(
-            id=item.req_id,
-            category=item.req_id[:3],
-            name=name,
-            definition=item.definition or None,
-            details=details,
-            mandatory=item.mandatory,
-            section_id=block_section(item.block_idx),
-            table_id=None,
-            source="text",
+        requirements.append(
+            Requirement(
+                id=item.req_id[:7],
+                instance_key=item.req_id if len(item.req_id) > 7 else None,
+                category=item.req_id[:3],
+                name=name,
+                definition=item.definition or None,
+                details=details,
+                mandatory=item.mandatory,
+                section_id=block_section(item.block_idx),
+                table_id=None,
+                source="text",
+            )
         )
-    return list(by_id.values()), warnings
+    return _identify_occurrences(requirements, warnings)
 
 
 # --- 기대 수와 교차검증(spec "기대 수와 교차검증") ---
@@ -855,6 +858,34 @@ def expected_requirement_count(
     줄부터 그 뒤 EXPECTED_TEXT_WINDOW 줄 안에서 `합계 <n>` 첫 매치를 쓴다(pdf Block은 페이지
     덩어리라 Block 단위 창은 사실상 문서 전체가 되므로 줄 단위로 센다).
     """
+    summaries = [t for t in tables if kinds.get(t.id) == "requirement_summary"]
+    enumerated: list[list[str]] = []
+    for table in summaries:
+        if not table.rows or "ID" not in table.rows[0]:
+            break
+        col = table.rows[0].index("ID")
+        ids = [row[col].strip() for row in table.rows[1:] if len(row) > col and row[col].strip()]
+        reported = _summary_count(table.rows)
+        if (
+            not ids
+            or not all(_REQ_ID_FULL.fullmatch(i) for i in ids)
+            or reported not in (None, len(ids))
+        ):
+            break
+        enumerated.append(ids)
+    if summaries and len(enumerated) == len(summaries):
+        if len(summaries) > 1:
+            # Summaries can repeat the same list. Count across them only if each
+            # occurrence is independently corroborated by a detail table.
+            detail_ids = []
+            for table in tables:
+                if kinds.get(table.id) == "requirement_detail":
+                    parsed = _parse_detail_table(table, None)
+                    if parsed is not None:
+                        detail_ids.append(parsed[0].source_id)
+            if Counter(i for group in enumerated for i in group) != Counter(detail_ids):
+                return None
+        return sum(map(len, enumerated))
     for table in tables:
         if kinds.get(table.id) == "requirement_summary":
             n = _summary_count(table.rows)
@@ -873,7 +904,7 @@ class RequirementSelection:
 
     @property
     def found(self) -> int:
-        return len({r.id for r in self.requirements})
+        return len({r.source_id for r in self.requirements})
 
 
 def _listed_ids(tables: list[RawTable], kinds: dict[str, TableKind]) -> list[str]:
@@ -895,7 +926,7 @@ def select_requirements(
 ) -> RequirementSelection:
     """primary RawDoc의 요구사항을 고르고 기대 수와 교차검증한다.
 
-    표가 있으면 파서 A, 표가 없거나 A가 0건이면 파서 B. found(고유 ID 수)가 expected와 다르면
+    표가 있으면 파서 A, 표가 없거나 A가 0건이면 파서 B. 상세 항목 수가 expected와 다르면
     `"requirements found X != expected Y"`, 목록표 ID 중 found에 없는 것은
     `"listed but no detail: <ID>"`, 0건이면 `"no requirements parsed"`.
     """
@@ -907,9 +938,9 @@ def select_requirements(
         reqs, warnings = parse_requirements_from_text(raw.blocks, block_section)
 
     expected = expected_requirement_count(raw.tables, kinds, raw.blocks)
-    found_ids = {r.id for r in reqs}
-    if expected is not None and len(found_ids) != expected:
-        warnings.append(f"requirements found {len(found_ids)} != expected {expected}")
+    found_ids = {r.source_id for r in reqs}
+    if expected is not None and len(reqs) != expected:
+        warnings.append(f"requirements found {len(reqs)} != expected {expected}")
     warnings.extend(
         f"listed but no detail: {rid}"
         for rid in _listed_ids(raw.tables, kinds)
@@ -1166,7 +1197,7 @@ def render_rfp_md(doc: RfpDocument) -> str:
     ]
     mandatory_label = {True: "필수", False: "선택", None: "-"}
     for r in doc.requirements:
-        cells = [r.id, r.category, r.name, mandatory_label[r.mandatory], r.section_id or "-"]
+        cells = [r.source_id, r.category, r.name, mandatory_label[r.mandatory], r.section_id or "-"]
         lines.append("| " + " | ".join(_md_cell(c) for c in cells) + " |")
     lines += ["", "---"]
 

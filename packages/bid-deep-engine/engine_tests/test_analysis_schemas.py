@@ -225,6 +225,8 @@ def test_analysis_fields_and_round_trip():
         "knowledge",
         "company_input_hash",
         "effort",
+        "requirement_counts",
+        "language_warnings",
         "facts",
         "gates",
         "scores",
@@ -302,7 +304,9 @@ def test_t9_requirement_fit_evidence_pages_field_order():
         "evidence_pages",
         "gap_action",
         "evidence",
-        "mandatory",
+        "name",
+        "definition",
+        "instance_key",
     ]
     fit = RequirementFit(req_id="SFR-001", fit="FULL", rationale="r", evidence_pages=["alpha"])
     assert list(fit.model_dump(mode="json")) == list(RequirementFit.model_fields)

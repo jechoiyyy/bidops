@@ -14,7 +14,7 @@ phase는 클라이언트에 고정되어 있다(X2). 응답(`MatchOut`)은 `post
 import yaml
 
 from bid_deep_engine.analysis.document import build_document
-from bid_deep_engine.analysis.evidence import verify
+from bid_deep_engine.analysis.evidence import table_quote_spans, verify
 from bid_deep_engine.analysis.extractor import prompt_bytes
 from bid_deep_engine.analysis.llm import CallRecord, LlmClient, ParseResult
 from bid_deep_engine.analysis.schemas import (
@@ -96,7 +96,7 @@ def build_match_instruction(
     mapreduce는 묶음만 넘긴다. `knowledge_text`(KB-01 `render_knowledge` 결과 그대로)가 비어 있으면
     지식 절을 만들지 않아 KB 이전과 바이트 동일하다(X71).
     """
-    ids = ", ".join(r.id for r in requirements)
+    ids = ", ".join(r.key for r in requirements)
     knowledge = f"\n\n## 회사 지식(발췌)\n{knowledge_text}" if knowledge_text != "" else ""
     return (
         prompt_bytes("match.md").decode("utf-8")
@@ -116,7 +116,7 @@ def postprocess_fits(
     scope_ids: list[str],
 ) -> tuple[list[RequirementFit], list[str]]:
     """LLM 응답을 코드 규칙(spec 1~8단계, 이 순서)으로 정리한다. 입력 `out`은 바꾸지 않는다."""
-    requirements = {r.id: r for r in doc.requirements}
+    requirements = {r.key: r for r in doc.requirements}
     missing = [i for i in scope_ids if i not in requirements]
     if missing:
         raise ValueError(f"scope_ids not in document requirements: {', '.join(missing)}")
@@ -166,8 +166,28 @@ def postprocess_fits(
             item.evidence = Evidence(quote=req.name[:QUOTE_MAX_CHARS], section_id=req.section_id)
 
     # 6. 모든 인용 verify(실패해도 항목 유지, verified=false)
+    tables = {table.id: table for table in doc.tables}
     for item in items:
         assert item.evidence is not None  # 5단계에서 채움
+        if item.evidence.quote.lstrip().startswith("|"):
+            req = requirements[item.req_id]
+            table = tables.get(req.table_id)
+            matched = bool(
+                table
+                and item.evidence.section_id in (None, req.section_id)
+                and table_quote_spans(item.evidence.quote, table.rows)
+            )
+            item.evidence = item.evidence.model_copy(
+                update={
+                    "verified": matched,
+                    "repaired": False,
+                    "section_id": req.section_id if matched else item.evidence.section_id,
+                    "page": None,
+                }
+            )
+            if not matched:
+                warnings.append(f"match: {item.req_id}: unmatched table quote")
+            continue
         checked, ev_warnings = verify(
             item.evidence, doc.full_text, doc.sections, allow_repair=False
         )
@@ -177,12 +197,17 @@ def postprocess_fits(
     # 7. scope_ids 순서로 정렬, 8. 저장 모델로 변환(req_id pattern 검증)
     order = {req_id: k for k, req_id in enumerate(scope_ids)}
     items.sort(key=lambda it: order[it.req_id])
-    fits = [
-        RequirementFit.model_validate(
-            {**item.model_dump(), "mandatory": requirements[item.req_id].mandatory}
+    fits = []
+    for item in items:
+        req = requirements[item.req_id]
+        values = item.model_dump()
+        values.update(
+            req_id=req.id,
+            instance_key=req.instance_key,
+            definition=req.definition,
+            name=req.source_name,
         )
-        for item in items
-    ]
+        fits.append(RequirementFit.model_validate(values))
     return fits, warnings
 
 
@@ -210,7 +235,7 @@ def finish_match(
     parsed = result.parsed
     assert isinstance(parsed, MatchOut)  # output_model=MatchOut의 결과
     fits, warnings = postprocess_fits(
-        parsed, doc, profile, scope_ids=[r.id for r in doc.requirements]
+        parsed, doc, profile, scope_ids=[r.key for r in doc.requirements]
     )
     return fits, [result.record], warnings
 

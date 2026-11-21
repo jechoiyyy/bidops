@@ -256,14 +256,14 @@ def _fit_mapping_reasons(
     if not requirement_ids:
         reasons.append(_reason("empty_requirements", "fits", [stage_ref("fits")]))
     expected = Counter(requirement_ids)
-    actual = Counter(item.req_id for item in fits)
+    actual = Counter(item.key for item in fits)
     bad = sorted(
         key for key in expected.keys() | actual.keys() if expected[key] != 1 or actual[key] != 1
     )
     if bad:
         reasons.append(_reason("missing_fits", "fits", [fit_ref(key) for key in bad]))
     elif requirement_ids and fits and all(item.fit == "UNKNOWN" for item in fits):
-        reasons.append(_reason("missing_fits", "fits", [fit_ref(item.req_id) for item in fits]))
+        reasons.append(_reason("missing_fits", "fits", [fit_ref(item.key) for item in fits]))
     return reasons, not reasons
 
 
@@ -409,7 +409,7 @@ def _provisional_fits(
     ids = list(dict.fromkeys(requirement_ids or ()))
     by_id: dict[str, RequirementFit] = {}
     for item in fits:
-        by_id.setdefault(item.req_id, item)
+        by_id.setdefault(item.key, item)
     points = [
         _PROVISIONAL_FIT_POINTS[by_id[req_id].fit]
         for req_id in ids
@@ -673,7 +673,7 @@ def assess_analysis(
             _reason(
                 "uncertain_fit_decision",
                 "fits",
-                [fit_ref(item.req_id) for item in analysis.fits if item.fit == "UNKNOWN"],
+                [fit_ref(item.key) for item in analysis.fits if item.fit == "UNKNOWN"],
             )
         )
 
@@ -1351,7 +1351,7 @@ def build_review(
             score_interval=None,
         )
     else:
-        requirement_ids = None if document is None else [item.id for item in document.requirements]
+        requirement_ids = None if document is None else [item.key for item in document.requirements]
         outdated: list[str] = []
         resolver: GateResolver | None = None
         skip_provisional = False

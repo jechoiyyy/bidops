@@ -332,7 +332,7 @@ class MapReduceStrategy(_BaseStrategy):
     ) -> tuple[list[RequirementFit], list[CallRecord], list[str]]:
         if not doc.requirements:
             return [], [], [NO_REQUIREMENTS_WARNING]
-        doc_ids = {r.id for r in doc.requirements}
+        doc_ids = {r.key for r in doc.requirements}
         fits: list[RequirementFit] = []
         records: list[CallRecord] = []
         warnings: list[str] = []
@@ -344,7 +344,7 @@ class MapReduceStrategy(_BaseStrategy):
             records.append(result.record)
             parsed = result.parsed
             assert isinstance(parsed, MatchOut)  # output_model=MatchOut의 결과
-            scope_ids = [r.id for r in bundle]
+            scope_ids = [r.key for r in bundle]
             scope = set(scope_ids)
             kept: list[RequirementFitOut] = []
             for item in parsed.fits:
@@ -357,8 +357,8 @@ class MapReduceStrategy(_BaseStrategy):
             )
             fits.extend(bundle_fits)
             warnings.extend(bundle_warnings)
-        order = {r.id: k for k, r in enumerate(doc.requirements)}
-        fits.sort(key=lambda f: order[f.req_id])
+        order = {r.key: k for k, r in enumerate(doc.requirements)}
+        fits.sort(key=lambda f: order[f.key])
         return fits, records, warnings
 
 

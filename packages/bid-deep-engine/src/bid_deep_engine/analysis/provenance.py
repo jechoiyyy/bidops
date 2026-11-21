@@ -101,7 +101,9 @@ def _without_location_metadata(value: Any) -> Any:
                 {"locations", "location_status", "block_locations", "block_location_status"}
             )
         if "req_id" in value and "fit" in value:
-            ignored.add("mandatory")
+            ignored.update({"name", "definition"})
+            if value.get("instance_key") is None:
+                ignored.add("instance_key")
         if "blocking" in value and "affects" in value:
             ignored.update({"purpose", "availability"})
         return {
@@ -223,6 +225,13 @@ def analysis_stage_output(analysis: Analysis, stage: Stage) -> Any | None:
     }
 
 
+def _requirement_inputs(document: RfpDocument) -> list[dict[str, Any]]:
+    return [
+        req.model_dump(mode="json", exclude={"instance_key"} if req.instance_key is None else set())
+        for req in document.requirements
+    ]
+
+
 def rfp_input_payload(rfp_path: Path, document: RfpDocument | None = None) -> dict[str, Any]:
     """실제 rfp.json 옆 bundle의 파일 순서/해시로 facts 입력 payload를 만든다."""
     doc = document or RfpDocument.model_validate_json(rfp_path.read_text(encoding="utf-8"))
@@ -236,7 +245,7 @@ def rfp_input_payload(rfp_path: Path, document: RfpDocument | None = None) -> di
         "source_files": [{"path": source.path, "sha256": source.sha256} for source in bundle.files],
         "full_text": doc.full_text,
         "sections": [item.model_dump(mode="json") for item in doc.sections],
-        "requirements": [item.model_dump(mode="json") for item in doc.requirements],
+        "requirements": _requirement_inputs(doc),
         "primary_format": doc.primary_format,
     }
 
@@ -246,7 +255,7 @@ def rfp_input_hash(rfp_path: Path, document: RfpDocument | None = None) -> str:
 
 
 def requirements_hash(document: RfpDocument) -> str:
-    return canonical_hash([item.model_dump(mode="json") for item in document.requirements])
+    return canonical_hash(_requirement_inputs(document))
 
 
 def prompt_set_hash(stage: Literal["facts", "fits", "synth"], strategy: StrategyName) -> str:

@@ -70,7 +70,10 @@ def _llm_exclude(value: object) -> set[str] | dict[object, object] | None:
     if isinstance(value, BaseModel):
         fields: dict[object, object] = {}
         for name in type(value).model_fields:
-            if isinstance(value, RequirementFit) and name == "mandatory":
+            if isinstance(value, RequirementFit) and (
+                name in {"name", "definition"}
+                or (name == "instance_key" and value.instance_key is None)
+            ):
                 fields[name] = True
                 continue
             child = _llm_exclude(getattr(value, name))
@@ -170,6 +173,54 @@ class _Source:
         return self.text[self.index[start] : self.index[end - 1] + 1]
 
 
+def table_quote_spans(
+    quote: str, rows: list[list[str]], block: str | None = None
+) -> list[tuple[int, int]]:
+    """Match consecutive quoted rows in one table, keeping every literal cell character."""
+    if not rows or not quote.lstrip().startswith("|") or len(quote) > QUOTE_MAX_CHARS:
+        return []
+    width = max(map(len, rows))
+    lines = ["".join(line.split()) for line in quote.strip().splitlines()]
+    separator = "|" + "---|" * width
+    raw_rows = [" | ".join(cell.replace("\n", " ") for cell in row) for row in rows]
+    if block is not None and block != " / ".join(raw_rows):
+        return []
+    matches = []
+    offset = 0
+    for first, row_text in enumerate(raw_rows):
+        start = pos = offset
+        offset += len(row_text) + 3
+        index = first
+        for n, line in enumerate(lines):
+            if n == 1 and first == 0 and line == separator and n < len(lines) - 1:
+                continue
+            if index >= len(rows) or not line.startswith("|"):
+                break
+            raw = raw_rows[index]
+            # Render cells separately so escaped pipes and empty columns retain their boundaries.
+            padded = rows[index] + [""] * (width - len(rows[index]))
+            rendered = "|" + "|".join("".join(c.split()).replace("|", "\\|") for c in padded) + "|"
+            last = n == len(lines) - 1
+            if line != rendered and not (
+                last and not line.endswith("|") and rendered.startswith(line)
+            ):
+                break
+            if last:
+                if not any(c.isalnum() for c in quote):
+                    break
+                stop = len(raw)
+                if line != rendered:
+                    target = line[1:].replace("\\|", "|")
+                    offsets = [i for i, c in enumerate(raw) if not c.isspace()]
+                    if not target or len(target) > len(offsets):
+                        break
+                    stop = offsets[len(target) - 1] + 1
+                matches.append((start, pos + stop))
+            pos += len(raw) + 3
+            index += 1
+    return matches
+
+
 def verify(
     evidence: Evidence, source_text: str, sections: list[Section], *, allow_repair: bool = True
 ) -> tuple[Evidence, list[str]]:
@@ -177,9 +228,7 @@ def verify(
     return _verify(evidence, _Source.build(source_text, sections), allow_repair=allow_repair)
 
 
-def _verify(
-    evidence: Evidence, src: _Source, *, allow_repair: bool
-) -> tuple[Evidence, list[str]]:
+def _verify(evidence: Evidence, src: _Source, *, allow_repair: bool) -> tuple[Evidence, list[str]]:
     warnings: list[str] = []
     quote = evidence.quote
     if allow_repair and len(quote) > QUOTE_MAX_CHARS:

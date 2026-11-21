@@ -18,7 +18,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from bid_deep_engine.analysis.evidence import normalize
+from bid_deep_engine.analysis.evidence import normalize, table_quote_spans
 from bid_deep_engine.analysis.schemas import (
     Analysis,
     Evidence,
@@ -426,7 +426,7 @@ def locate_model_evidence[ModelT: BaseModel](
     """현재 raw 캐시에서 검증된 인용에 물리 쪽과 원문 블록 위치를 붙인다."""
     result = model.model_copy(deep=True)
     raw_list = _raw_documents(raws)
-    requirements = {} if document is None else {req.id: req for req in document.requirements}
+    requirements = {} if document is None else {req.key: req for req in document.requirements}
     primary = (
         None
         if document is None
@@ -434,16 +434,21 @@ def locate_model_evidence[ModelT: BaseModel](
     )
     sections = {} if document is None else {sec.id: sec for sec in document.sections}
     table_blocks = {} if primary is None else {t.id: t.block_idx for t in primary.tables}
+    table_rows = {} if primary is None else {t.block_idx: t.rows for t in primary.tables}
     fits: list[RequirementFit] = []
     if isinstance(result, Analysis):
         fits = result.fits
     elif isinstance(result, RequirementFit):
         fits = [result]
+    markup_quotes = {
+        id(f.evidence) for f in fits if f.evidence and f.evidence.quote.lstrip().startswith("|")
+    }
     fit_blocks: dict[int, int] = {}
     for fit in fits:
-        requirement = requirements.get(fit.req_id)
+        requirement = requirements.get(fit.key)
         if document is not None:
-            fit.mandatory = None if requirement is None else requirement.mandatory
+            fit.name = requirement.source_name if requirement else None
+            fit.definition = requirement.definition if requirement else None
         if fit.evidence is not None and requirement and requirement.table_id in table_blocks:
             fit_blocks[id(fit.evidence)] = table_blocks[requirement.table_id]
 
@@ -468,6 +473,10 @@ def locate_model_evidence[ModelT: BaseModel](
             continue
 
         evidence.page = None
+        if id(evidence) in markup_quotes and (
+            block_source is None or id(evidence) not in fit_blocks
+        ):
+            evidence.verified = False
         if evidence.repaired is True:
             evidence.verified = False
         if evidence.verified is not True:
@@ -489,7 +498,11 @@ def locate_model_evidence[ModelT: BaseModel](
                         start=start,
                         end=end,
                     )
-                    for start, end in _page_matches(evidence.quote, block.text)
+                    for start, end in (
+                        table_quote_spans(evidence.quote, table_rows[fit_block], block.text)
+                        if fit_block is not None and evidence.quote.lstrip().startswith("|")
+                        else _page_matches(evidence.quote, block.text)
+                    )
                 )
             evidence.block_location_status = location_status(len(evidence.block_locations))
             if primary.format != "pdf" and not evidence.block_locations:
