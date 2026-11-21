@@ -23,7 +23,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-# company.knowledge는 bidops.analysis를 import하지 않는다(순환 없음, KB-01 import 규칙)
+# company.knowledge는 bid_deep_engine.analysis를 import하지 않는다(순환 없음, KB-01 import 규칙)
 from bid_deep_engine.company.knowledge import KnowledgeSelection
 
 QUOTE_MAX_CHARS = 200  # 인용 최대 길이(제약 1). 모델이 아니라 M2-02 verify가 검사한다.
@@ -515,7 +515,13 @@ class RequirementFit(BaseModel):
     evidence_pages: list[str] = Field(default_factory=list)  # 발췌 포함 지식 페이지 slug(등장 순)
     gap_action: str | None = None
     evidence: Evidence | None = None
-    mandatory: bool | None = None  # 원문 응락수준에서 확인한 필수/선택 여부
+    name: str | None = None
+    definition: str | None = None
+    instance_key: str | None = None
+
+    @property
+    def key(self) -> str:
+        return self.instance_key or self.req_id
 
 
 class Risk(BaseModel):
@@ -762,6 +768,18 @@ class PolicyConflict(BaseModel):
     message: str
 
 
+class RequirementCounts(BaseModel):
+    source_found: int
+    analysis_input: int
+    source_expected: int | None = None
+
+
+class LanguageWarning(BaseModel):
+    path: str
+    terms: list[str]
+    retry_pass: Literal["extract", "match", "synth"] | None = None
+
+
 class Analysis(BaseModel):
     """analysis.json 최상위(공고 하나). `strategy`=요청, `strategy_effective`=실제.
 
@@ -781,6 +799,8 @@ class Analysis(BaseModel):
     knowledge: KnowledgeSelection | None = None  # None = 지식 비활성 또는 필드 도입 전 산출물
     company_input_hash: str | None = None  # None = REV-01 이전 또는 legacy 호출
     effort: str
+    requirement_counts: RequirementCounts | None = None
+    language_warnings: list[LanguageWarning] = Field(default_factory=list)
     facts: RfpFacts
     gates: list[GateResult] = Field(default_factory=list)
     scores: list[ScoreEstimate] = Field(default_factory=list)

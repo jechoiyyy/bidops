@@ -309,7 +309,7 @@ def _basis(
     """권고 근거 참조(제약 1). 인용(Evidence)이 하나도 없는 대상은 넣지 않는다."""
     refs = [f"gate:{g.code}#{i}" for i, g in enumerate(gates) if g.verdict != "PASS" and g.evidence]
     refs += [
-        f"fit:{f.req_id}" for f in fits if f.fit in ("GAP", "PARTIAL") and f.evidence is not None
+        f"fit:{f.key}" for f in fits if f.fit in ("GAP", "PARTIAL") and f.evidence is not None
     ]
     refs += [
         f"risk:{i}"

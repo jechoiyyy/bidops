@@ -63,7 +63,7 @@ def test_analysis_locates_hwp_requirement_in_its_own_block_without_guessing_page
         evidence=Evidence(quote=quote, section_id="S000", verified=True),
     )
     current = locate_model_evidence(fit, bundle, [raw], document=document)
-    assert current.mandatory is True
+    assert current.name == document.requirements[0].name
     assert current.evidence.page is None
     assert current.evidence.location_status == "unavailable"
     assert current.evidence.block_location_status == "exact"

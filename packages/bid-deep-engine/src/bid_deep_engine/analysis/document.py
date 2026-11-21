@@ -113,7 +113,8 @@ def render_requirements(doc: RfpDocument) -> str:
     blocks: list[str] = []
     for r in doc.requirements:
         lines = [
-            f"[{r.id}] {r.name} | 필수={_MANDATORY_LABEL[r.mandatory]} | 섹션={r.section_id or '-'}"
+            f"[{r.key}] {r.name} | 필수={_MANDATORY_LABEL[r.mandatory]} | "
+            f"섹션={r.section_id or '-'}"
         ]
         if r.definition is not None:
             lines.append(f"정의: {r.definition}")

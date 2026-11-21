@@ -128,6 +128,7 @@ def test_rfp_document_field_order():
         "section_id",
         "table_id",
         "source",
+        "instance_key",
     ]
 
 
@@ -633,17 +634,17 @@ def test_t4_parser_a_two_layouts():
     )
 
 
-def test_t5_duplicate_id_merged():
+def test_t5_duplicate_id_preserved():
     doc = load_mini_hwpx()
     by_id = {t.id: t for t in doc.tables}
     reqs, warnings = parse_tables([by_id["T005"], by_id["T006"]], section_lookup(doc))
-    assert len(reqs) == 1
+    assert [r.key for r in reqs] == ["QUR-003@1", "QUR-003@2"]
     qur = reqs[0]
     assert qur.id == "QUR-003"
     assert qur.table_id == "T005"
     assert qur.name == "웹 접근성 품질 확보"
     assert qur.definition == "웹 접근성 인증 기준 충족"
-    assert qur.details == "o 접근성 자체 점검 수행\no 점검 결과에 따른 개선 조치"
+    assert [r.details for r in reqs] == ["o 접근성 자체 점검 수행", "o 점검 결과에 따른 개선 조치"]
     assert qur.mandatory is False
     assert warnings == ["duplicate requirement id: QUR-003"]
 
@@ -651,8 +652,8 @@ def test_t5_duplicate_id_merged():
 def test_parser_a_full_fixture_order_and_kinds():
     doc = load_mini_hwpx()
     reqs, warnings = parse_tables(doc.tables, section_lookup(doc))
-    assert [r.id for r in reqs] == ["SFR-001", "MAR-001", "QUR-003"]
-    assert [r.table_id for r in reqs] == ["T003", "T004", "T005"]
+    assert [r.id for r in reqs] == ["SFR-001", "MAR-001", "QUR-003", "QUR-003"]
+    assert [r.table_id for r in reqs] == ["T003", "T004", "T005", "T006"]
     assert all(r.source == "table" and r.section_id == "S004" for r in reqs)
     assert warnings == ["duplicate requirement id: QUR-003"]
     # 결정적
@@ -880,14 +881,13 @@ def test_parser_b_split_label_line_is_consumed_once():
     assert [(r.id, r.name, r.details) for r in reqs] == [("SFR-001", "가", "본문")]
 
 
-def test_parser_b_duplicate_id_merged():
+def test_parser_b_duplicate_id_preserved():
     blocks = page_blocks(
         "요구사항 고유번호 QUR-003\n요구사항 명칭 품질\n세부내용\n앞 내용",
         "요구사항 고유번호 QUR-003\n요구사항 명칭 품질\n세부내용\n뒤 내용",
     )
     reqs, warnings = parse_requirements_from_text(blocks, lambda _i: None)
-    assert len(reqs) == 1
-    assert reqs[0].details == "앞 내용\n뒤 내용"
+    assert [r.details for r in reqs] == ["앞 내용", "뒤 내용"]
     assert warnings == ["duplicate requirement id: QUR-003"]
 
 
@@ -1132,7 +1132,6 @@ def test_t7c_source_quality_warning_order():
     assert doc.source_quality.warnings[:3] == ["a", "b", "r"]
     assert doc.source_quality.warnings[3:] == [
         "duplicate requirement id: QUR-003",
-        "requirements found 3 != expected 4",
         "listed but no detail: SFR-002",
     ]
 
@@ -1369,7 +1368,7 @@ def test_rfp_md_requirement_table_and_page_labels():
     doc.requirements[0].name = "이름|파이프"
     md = render_rfp_md(doc)
     lines = md.split("\n")
-    assert "## 요구사항 (3건)" in lines
+    assert "## 요구사항 (4건)" in lines
     assert "| ID | 분류 | 명칭 | 필수 | 섹션 |" in lines
     assert "| SFR-001 | SFR | 이름\\|파이프 | - | S004 |" in lines
     assert "| MAR-001 | MAR | 서버 정기 점검 | 필수 | S004 |" in lines

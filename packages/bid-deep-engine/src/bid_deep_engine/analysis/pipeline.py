@@ -60,6 +60,7 @@ from bid_deep_engine.analysis.llm import (
     LlmRefusal,
     LlmTruncated,
 )
+from bid_deep_engine.analysis.output_quality import annotate_output
 from bid_deep_engine.analysis.provenance import (
     artifact_stage_stamp,
     as_of_hash,
@@ -1199,13 +1200,24 @@ class _NoticeRun:
                 document=doc,
                 portfolio_texts=self.portfolio_texts,
             ),
-            [requirement.id for requirement in doc.requirements],
+            [requirement.key for requirement in doc.requirements],
             company=review_company,
             computed_at=computed_at,
             confirmation_outdated_refs=confirmation_outdated,
             preparation_facts_artifact="facts.json",
             resolve_gates=gate_resolver,
             portfolio_texts=self.portfolio_texts,
+        )
+        annotate_output(
+            analysis,
+            doc,
+            "\n".join(
+                [
+                    review_company.profile.model_dump_json(),
+                    knowledge_text,
+                    *(self.portfolio_texts or {}).values(),
+                ]
+            ),
         )
         self._summary = {
             "decision": None if analysis.assessment is None else analysis.assessment.decision,
