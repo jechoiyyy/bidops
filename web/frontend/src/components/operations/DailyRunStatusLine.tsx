@@ -176,11 +176,14 @@ export function DailyNoticeStatusLine() {
       role="status"
       title={BASIS_RULE_TEXT}
     >
-      <StatusBadge label={badge.label} tone={badge.tone} />
+      <StatusBadge label={status.state === "ok" ? "수집 완료" : badge.label} tone={badge.tone} />
       <span className="daily-run-facts">
         <span className="daily-run-title">공고(사전규격·입찰공고)</span>
         {noticeFactParts(status, warningsQuery.isError).map((part) => <span className="daily-run-fact" key={part}>{part}</span>)}
       </span>
+      {latestId && status.warningCount !== null && status.warningCount > 0 ? (
+        <Link className="daily-run-link" to={`/audit?run=${encodeURIComponent(latestId)}#run-warnings`}>적재 경고 보기 →</Link>
+      ) : null}
       {status.problems.includes("no_daily_run")
         ? <span className="daily-run-problem">일일 스크립트가 아직 공고를 수집한 적이 없어요.</span>
         : status.problems.includes("stale") ? <span className="daily-run-problem">{STALE_SENTENCE}</span> : null}

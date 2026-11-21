@@ -327,7 +327,7 @@
    글자 단(`--review-list-primary`)은 그대로 둔다. */
 .pre-specs-row-agency-proxy {
   color: var(--color-text-secondary);
-  font-size: var(--review-list-secondary);
+  font-size: var(--bo-k-small);
 }
 
 /* 제외 기록은 `검토 제외` token 바로 뒤의 작은 글자다. */

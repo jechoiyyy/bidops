@@ -1,5 +1,5 @@
 import type { OpportunityLinkView, OpportunityListItem } from "../../lib/types";
-import { shortDateLabel } from "../../lib/deadline";
+import { deadlineLabel, remainingDeadlineDays, shortDateLabel } from "../../lib/deadline";
 import { isConfirmedLink, stageOfLink } from "../opportunities/trackingFlow";
 
 export function snapshotTime(value: string | null | undefined, timezone: string | null | undefined): string {
@@ -71,7 +71,7 @@ export function imminentDeadline(item: { links: readonly OpportunityLinkView[] }
   if (!best || !best.link.deadline_at) return null;
   const stage = stageOfLink(best.link);
   const kind: DeadlineKind = stage === "입찰공고" ? "입찰 마감" : stage === "사전규격" ? "의견등록 마감" : "마감 종류 미확인";
-  const days = Math.ceil((best.at - now) / 86_400_000);
+  const days = remainingDeadlineDays(new Date(best.at), new Date(now));
   return { kind, deadlineAt: best.link.deadline_at, days, urgent: days <= DEADLINE_URGENT_DAYS };
 }
 
@@ -84,8 +84,8 @@ export function queueDeadlineLabel(value: string | null, now: number): { text: s
   const at = value === null ? Number.NaN : Date.parse(value);
   if (!Number.isFinite(at)) return { text: "마감 미제공", urgent: false };
   if (at < now) return { text: `마감 지남 · ${shortDateLabel(value) ?? ""}`.trim(), urgent: false };
-  const days = Math.ceil((at - now) / 86_400_000);
-  return { text: `D-${days}`, urgent: days <= DEADLINE_URGENT_DAYS };
+  const days = remainingDeadlineDays(new Date(at), new Date(now));
+  return { text: deadlineLabel(days, new Date(at)), urgent: days <= DEADLINE_URGENT_DAYS };
 }
 
 const KST_DAY = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit" });

@@ -580,6 +580,7 @@ test("같은 내용을 다시 확인하면 같은 request_id로, 내용을 고�
   await page.getByRole("button", { name: "결정 확인", exact: true }).click();
   await confirmFinalDecision(page, "No-Go로 최종 결정 저장");
   await expect.poll(() => trace.posts.length).toBe(3);
+  expect(trace.posts[2].body.reason).toBe("이유를 고쳐 다시 저장해요.");
   expect(trace.posts[2].body.request_id).not.toBe(trace.posts[0].body.request_id);
 });
 

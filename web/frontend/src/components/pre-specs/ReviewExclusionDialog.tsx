@@ -2,7 +2,8 @@ import { useId, useRef, useState } from "react";
 import { InternationalizationProvider } from "@astryxdesign/core/i18n";
 import koKR from "@astryxdesign/core/locales/ko-KR.json";
 import { Button } from "@astryxdesign/core/Button";
-import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { DialogHeader } from "@astryxdesign/core/Dialog";
+import { Dialog } from "../common/WorkspaceDialog";
 import { ActorField } from "../common/ActorField";
 import {
   BULK_EXCLUSION_REASONS,

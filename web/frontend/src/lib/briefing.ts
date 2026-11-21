@@ -1,4 +1,4 @@
-import { formatCompactPrice } from "./deadline";
+import { formatCompactPrice, deadlineLabel, remainingDeadlineDays } from "./deadline";
 import type {
   BriefingDeadlineKind,
   BriefingItemView,
@@ -172,26 +172,16 @@ function kst(value: Date): Date {
   return new Date(value.getTime() + KST_OFFSET_MS);
 }
 
-function kstDayNumber(value: Date): number {
-  const shifted = kst(value);
-  return Math.floor(Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) / DAY_MS);
-}
-
 /** 마감까지 남은 한국 달력 날수. 오늘이면 0, 지났으면 음수, 읽을 수 없으면 `null`. */
 export function daysUntil(deadlineAt: string | null, now: Date = new Date()): number | null {
   if (!deadlineAt) return null;
   const deadline = new Date(deadlineAt);
   if (Number.isNaN(deadline.getTime())) return null;
-  return kstDayNumber(deadline) - kstDayNumber(now);
+  return remainingDeadlineDays(deadline, now);
 }
 
 /** D-n 강조는 7일 이내만이다(spec "마감 D-n[7일 이내만 강조]"). */
 export const DEADLINE_EMPHASIS_DAYS = 7;
-
-export function deadlineDayLabel(days: number): string {
-  if (days < 0) return "마감 지남";
-  return days === 0 ? "D-day" : `D-${days}`;
-}
 
 function shortDate(value: Date): string {
   const shifted = kst(value);
@@ -244,7 +234,7 @@ export function deadlineCell(item: BriefingItemView, now: Date = new Date()): De
   const kind = item.deadline_kind === "opinion_close" ? "의견 마감" : null;
   const date = shortDate(new Date(item.deadline_at));
   return {
-    main: deadlineDayLabel(days),
+    main: deadlineLabel(days, new Date(item.deadline_at)),
     sub: kind ? `${date} · ${kind}` : date,
     urgent: days >= 0 && days <= DEADLINE_EMPHASIS_DAYS,
     days,

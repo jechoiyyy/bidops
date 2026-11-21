@@ -1,6 +1,4 @@
-import { lazy, type ReactNode } from "react";
-import { InternationalizationProvider } from "@astryxdesign/core/i18n";
-import koKR from "@astryxdesign/core/locales/ko-KR.json";
+import { lazy } from "react";
 import { Navigate, useParams, useSearchParams, type RouteObject } from "react-router-dom";
 import { LazyRouteBoundary } from "./components/common/LazyRouteBoundary";
 import { AppShell } from "./components/shell/AppShell";
@@ -20,12 +18,8 @@ const OrderPlansPage = lazy(() => import("./pages/OrderPlansPage").then(({ Order
 const CriteriaPage = lazy(() => import("./pages/CriteriaPage").then(({ CriteriaPage }) => ({ default: CriteriaPage })));
 const RunStatusPage = lazy(() => import("./pages/RunStatusPage").then(({ RunStatusPage }) => ({ default: RunStatusPage })));
 
-// 승인된 두 관리 화면과 그 대화상자에 시안의 한국어 카탈로그를 적용한다.
-function adminLocale(page: ReactNode) {
-  return <InternationalizationProvider locale="ko-KR" messages={{ "ko-KR": koKR }}>{page}</InternationalizationProvider>;
-}
-const criteriaView = adminLocale(<CriteriaPage />);
-const runStatusView = adminLocale(<RunStatusPage />);
+const criteriaView = <CriteriaPage />;
+const runStatusView = <RunStatusPage />;
 // 가상회사 데모 화면(`docs/work/demo-contract.md` §1·§6). demo-config가 enabled일 때만 등록한다.
 const CompanyPickerPage = lazy(() => import("./pages/CompanyPreSpecsPage").then(({ CompanyPickerPage }) => ({ default: CompanyPickerPage })));
 const CompanyPreSpecsPage = lazy(() => import("./pages/CompanyPreSpecsPage").then(({ CompanyPreSpecsPage }) => ({ default: CompanyPreSpecsPage })));

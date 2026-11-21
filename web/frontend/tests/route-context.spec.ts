@@ -358,10 +358,11 @@ test("PN-04 token 없는 직접 주소는 저장된 선택과 무관하게 단�
   await seedPreSpecReview(page);
   await page.goto(`/pre-specs/991?${PN_REVIEW.listSearch}`);
 
-  const navigation = page.getByRole("navigation", { name: "사전규격 선택 순회" });
-  await expect(navigation.locator("strong")).toHaveText("단건 상세");
-  await expect(navigation.getByRole("button", { name: "이전 선택 사전규격" })).toBeDisabled();
-  await expect(navigation.getByRole("button", { name: "다음 선택 사전규격" })).toBeDisabled();
+  const navigation = page.getByRole("navigation", { name: "사전규격 목록 이동" });
+  await expect(navigation.getByRole("link", { name: "사전규격 목록으로" })).toHaveAttribute(
+    "href", "/pre-specs?sw_only=false&q=%EC%95%88%EC%A0%84&offset=200",
+  );
+  await expect(navigation.getByRole("button")).toHaveCount(0);
   await expect(page.locator("header.topbar .topbar-crumb-link[href^='/pre-specs']")).toHaveAttribute(
     "href",
     "/pre-specs?sw_only=false&q=%EC%95%88%EC%A0%84&offset=200",

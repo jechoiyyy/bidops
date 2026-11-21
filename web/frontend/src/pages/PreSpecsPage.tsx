@@ -6,7 +6,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
 import { DateInput } from "@astryxdesign/core/DateInput";
 import type { ISODateString } from "@astryxdesign/core/Calendar";
-import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { DialogHeader } from "@astryxdesign/core/Dialog";
+import { Dialog } from "../components/common/WorkspaceDialog";
 import { Selector } from "@astryxdesign/core/Selector";
 import { EmptyState } from "../components/common/EmptyState";
 import { CollectionStatus } from "../components/shell/CollectionStatus";
@@ -746,6 +747,7 @@ export function PreSpecsPage() {
 
           <WorkspaceFilterTools className="pre-specs-filter-tools">
             <WorkspaceAdvancedToggle
+              visibleLabel="필터"
               activeCount={activeFilterCount}
               controlsId="pre-specs-advanced-filters"
               isOpen={advancedOpen}
@@ -1004,7 +1006,7 @@ export function PreSpecsPage() {
                     >
                       전체 해제
                     </button>
-                    <Button size="sm" variant="secondary" label="선택 항목 제외"
+                    <Button size="sm" variant="secondary" label="검토 목록에서 제외"
                       isDisabled={!selection.hydrationReady || !selection.storageAvailable || selection.selectedIds.length === 0 || selection.selectedIds.length > 200}
                       onClick={() => openExclusion(selection.selectedIds, "excluded")} />
                     <button

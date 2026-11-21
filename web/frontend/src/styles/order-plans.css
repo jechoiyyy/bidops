@@ -165,6 +165,18 @@
   grid-column: -2 / -1;
 }
 
+.c2l-filters .workspace-filter-advanced { align-items: start; }
+.c2l-secondary-filters { grid-column: 1 / -1; }
+.c2l-secondary-filters summary { cursor: pointer; width: fit-content; }
+.c2l-secondary-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-2);
+}
+.c2l-secondary-fields .c2l-saved-views { grid-column: auto; }
+
 .c2l-saved-views-row {
   display: flex;
   flex-wrap: wrap;

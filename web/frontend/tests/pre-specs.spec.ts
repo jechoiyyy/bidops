@@ -915,7 +915,9 @@ test("신규 사전규격은 사유 드롭다운과 담당자로 추적을 시�
   await expect(save).toBeDisabled();
 
   await fillRecordReason(page, "발주계획에 없던 신규 건");
-  await decision.getByRole("textbox", { name: "담당자 이름 (필수)" }).fill("홍길동");
+  await decision.getByRole("button", { name: "사이드바에서 이름 입력하기" }).click();
+  await page.locator("#sidebar-actor-input").fill("홍길동");
+  await page.locator(".sidebar-actor-done").click();
   await save.click();
 
   await expect.poll(() => trace.trackingPatches).toEqual([{
@@ -939,7 +941,9 @@ test("사유 예시를 고르면 그 문장이 그대로 저장 사유가 된다
   await page.getByRole("option", { name: "후속 입찰공고 확인" }).click();
   // 예시를 고른 뒤에는 자유 입력이 열리지 않는다.
   await expect(decision.locator("textarea")).toHaveCount(0);
-  await decision.getByRole("textbox", { name: "담당자 이름 (필수)" }).fill("홍길동");
+  await decision.getByRole("button", { name: "사이드바에서 이름 입력하기" }).click();
+  await page.locator("#sidebar-actor-input").fill("홍길동");
+  await page.locator(".sidebar-actor-done").click();
   await decision.getByRole("button", { name: "추적 시작하기", exact: true }).click();
 
   await expect.poll(() => trace.trackingPatches).toEqual([{
@@ -959,7 +963,9 @@ test("담당자 이름만 입력하고 행을 옮기면 확인 없이 이동한�
 
   await selectPreSpecRow(page, newPreSpec.title);
   const decision = page.locator(".pre-specs-detail-actions");
-  await decision.getByRole("textbox", { name: "담당자 이름 (필수)" }).fill("아직 저장하지 않은 담당자");
+  await decision.getByRole("button", { name: "사이드바에서 이름 입력하기" }).click();
+  await page.locator("#sidebar-actor-input").fill("아직 저장하지 않은 담당자");
+  await page.locator(".sidebar-actor-done").click();
 
   await selectPreSpecRow(page, trackingException.title);
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
@@ -1000,7 +1006,9 @@ test("사유를 고른 뒤 지우기 단추를 누르면 빈 상태로 돌아가
   const decision = page.locator(".pre-specs-detail-actions");
   await decision.getByRole("combobox", { name: "선택 사유" }).click();
   await page.getByRole("option", { name: "후속 입찰공고 확인" }).click();
-  await decision.getByRole("textbox", { name: "담당자 이름 (필수)" }).fill("홍길동");
+  await decision.getByRole("button", { name: "사이드바에서 이름 입력하기" }).click();
+  await page.locator("#sidebar-actor-input").fill("홍길동");
+  await page.locator(".sidebar-actor-done").click();
   const save = decision.getByRole("button", { name: "추적 시작하기", exact: true });
   await expect(save).toBeEnabled();
 

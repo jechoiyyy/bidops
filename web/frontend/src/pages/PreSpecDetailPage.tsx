@@ -8,7 +8,7 @@ import { Collapsible } from "@astryxdesign/core/Collapsible";
 import { Token } from "@astryxdesign/core/Token";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, lazy, Suspense, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Badge, type BadgeVariant } from "../components/common/Badge";
 import { BUNDLE_STATUS_LABELS, DocumentPreparationPanel } from "../components/deep-review/DocumentPreparationPanel";
 import { getDocumentBundles } from "../components/deep-review/api";
@@ -183,11 +183,18 @@ function PreSpecDetailNavigation({ noticeId, search }: { noticeId: number | null
     navigate(preSpecDetailUrl(nextNoticeId, review.listSearch, review.reviewId));
   };
 
+  if (!hasReview) {
+    return (
+      <nav className="ps-detail-navigation" aria-label="사전규격 목록 이동">
+        <Link to={preSpecReviewListUrl(search, noticeId)}>사전규격 목록으로</Link>
+      </nav>
+    );
+  }
   return (
     <nav className="ps-detail-navigation" aria-label="사전규격 선택 순회">
       <div className="ps-detail-navigation-position">
         <span className="ps-k">선택 항목</span>
-        <strong aria-live="polite">{hasReview ? `${index + 1} / ${review.orderedNoticeIds.length}` : "단건 상세"}</strong>
+        <strong aria-live="polite">{`${index + 1} / ${review.orderedNoticeIds.length}`}</strong>
       </div>
       <div className="ps-detail-navigation-actions">
         <button

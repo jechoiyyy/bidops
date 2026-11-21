@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Button } from "@astryxdesign/core/Button";
-import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { DialogHeader } from "@astryxdesign/core/Dialog";
+import { Dialog } from "../common/WorkspaceDialog";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Table, proportional, type TableColumn } from "@astryxdesign/core/Table";
 import { Tab, TabList } from "@astryxdesign/core/TabList";

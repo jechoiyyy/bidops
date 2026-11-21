@@ -1,3 +1,4 @@
+import { latestNoticeRun } from "../../lib/orderPlanDaily";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Outlet, useLocation, useMatches, useSearchParams } from "react-router-dom";
@@ -66,7 +67,8 @@ export function AppShell({ demoEnabled = false }: { demoEnabled?: boolean }) {
   const queryRunId = searchParams.get("run");
   // 수집·표본까지만 끝난 회차는 판정이 없어 대부분의 화면이 비어 보인다.
   // 명시적으로 고른 회차가 없으면 판정을 갖춘 최신 회차를 기본으로 삼는다.
-  const defaultSummary = runs.find((run) => run.counts.judgments > 0) ?? runs[0] ?? null;
+  const noticeDefault = ["/judgments", "/queue", "/reviews", "/deadlines", "/attachments"].includes(pathname) ? latestNoticeRun(runs) : null;
+  const defaultSummary = noticeDefault ?? runs.find((run) => run.counts.judgments > 0) ?? runs[0] ?? null;
   const selectedSummary = runs.find((run) => run.run_id === queryRunId) ?? defaultSummary;
   const selectedRunId = selectedSummary?.run_id ?? null;
   const detailQuery = useQuery({

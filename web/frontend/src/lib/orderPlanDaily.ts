@@ -55,6 +55,13 @@ export function latestDailyRun(runs: readonly RunSummary[], track: DailyTrack): 
   return latest;
 }
 
+/** Prefer the most recent notice collection, including installations with only manual runs. */
+export function latestNoticeRun(runs: readonly RunSummary[]): RunSummary | null {
+  return latestDailyRun(runs, "notices")?.run
+    ?? runs.find(run => run.kind === "notices" || run.kind === "mixed")
+    ?? null;
+}
+
 export function latestDailyPlanRun(runs: readonly RunSummary[]): DailyPlanRun | null {
   return latestDailyRun(runs, "plans");
 }

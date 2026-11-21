@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { Button as AstryxButton } from "@astryxdesign/core/Button";
-import { Dialog as AstryxDialog } from "@astryxdesign/core/Dialog";
+import { Dialog as AstryxDialog } from "./WorkspaceDialog";
 import "../../styles/confirm-decision-dialog.css";
 
 /**

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as R
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
-import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { DialogHeader } from "@astryxdesign/core/Dialog";
+import { Dialog } from "../components/common/WorkspaceDialog";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Table, pixel, proportional, type TableColumn } from "@astryxdesign/core/Table";
 import { Token } from "@astryxdesign/core/Token";
@@ -250,6 +251,9 @@ export function OpportunitiesPage() {
   // `searchError`가 현재 draft의 오류를 소유한다.
   const showSearchError = (invalidUrlSearch && searchKey(searchText) === searchKey(rawSearch)) || searchError;
 
+  const emptyActionQueue = view === ACTION_VIEW && !search && !stage && !reason && deadlineWithinDays === null && offset === 0 && list.data?.total === 0;
+  const newBidCount = counts?.["신규 입찰공고"] ?? 0;
+
   const resetFilters = () => {
     applyParams({ section: null, first_registered_stage: null, sort: null, q: null, reason: null, deadline_within_days: null }, {
       title: "필터를 초기화해요",
@@ -483,6 +487,7 @@ export function OpportunitiesPage() {
           </WorkspaceFilterLine>
           <WorkspaceFilterTools className="opportunity-filter-tools">
             <WorkspaceAdvancedToggle
+              visibleLabel="필터"
               controlsId="opportunity-filter-advanced"
               isOpen={advanced}
               onToggle={() => setAdvanced(!advanced)}
@@ -614,10 +619,13 @@ export function OpportunitiesPage() {
                 <div className="opportunity-empty">
                   <EmptyState
                     compact
-                    title="조건에 맞는 사업이 없어요"
-                    description={search ? `적용된 검색어 "${search}"와 다른 활성 필터에 맞는 사업이 없어요.`
+                    title={emptyActionQueue ? "오늘 필요한 조치가 없어요" : "조건에 맞는 사업이 없어요"}
+                    description={emptyActionQueue ? "신규 입찰공고와 전체 사업은 다른 구역에서 볼 수 있어요." : search ? `적용된 검색어 "${search}"와 다른 활성 필터에 맞는 사업이 없어요.`
                       : "다른 구역이나 다음 페이지에 있을 수 있으며, 사업이 없다는 뜻은 아니에요."}
-                    action={{
+                    action={emptyActionQueue ? (allCount > 0 ? {
+                      label: newBidCount ? `신규 입찰공고 ${formatCount(newBidCount)}건 보기` : "전체 사업 보기",
+                      onClick: () => changeFilters({ section: newBidCount ? "신규 입찰공고" : ALL_VIEW, reason: null }),
+                    } : undefined) : {
                       label: search ? "검색어만 지우기" : "필터 초기화",
                       onClick: search ? () => applySearch("") : resetFilters,
                     }}

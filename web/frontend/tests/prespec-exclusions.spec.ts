@@ -96,7 +96,7 @@ test("검토 제외 요청은 JSON 형식 헤더와 고른 사유 문장·기억
   // 창만의 기억값 채우기를 본다. 목록의 추적 결정 줄이 이미 그려진 뒤에 기억값을 넣어
   // 그 줄의 미저장 판정(다른 작업 범위)이 이 검사에 섞이지 않게 한다.
   await page.evaluate(() => window.localStorage.setItem("bidops.actorName", "기억된 담당자"));
-  await page.getByRole("button", { name: "선택 항목 제외", exact: true }).click();
+  await page.getByRole("button", { name: "검토 목록에서 제외", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: EXCLUDE_DIALOG, exact: true });
   await expect(dialog.getByRole("textbox", { name: /^담당자/ })).toHaveValue("기억된 담당자");
   await expect(saveExclusion(dialog)).toBeDisabled();
@@ -116,7 +116,7 @@ test("페이지를 넘는 선택 제외와 마지막 빈 페이지 보정", asyn
   await row(page, 991).getByRole('checkbox').check();
   await page.getByRole('navigation', { name: '사전규격 목록 페이지' }).getByRole('button', { name: '다음', exact: true }).click();
   await row(page, 1191).getByRole('checkbox').check();
-  await page.getByRole('button', { name: '선택 항목 제외', exact: true }).click();
+  await page.getByRole('button', { name: '검토 목록에서 제외', exact: true }).click();
   const dialog = await fillDialog(page);
   await expect(dialog).toContainText('제외 2건');
   await expect(saveExclusion(dialog)).toHaveText('2건 검토 제외');
@@ -135,7 +135,7 @@ test("200건 초과 선택은 전송을 막고 선택 축소를 안내", async (
   await page.getByRole('checkbox', { name: '현재 페이지 전체 선택' }).click();
   await page.getByRole('navigation', { name: '사전규격 목록 페이지' }).getByRole('button', { name: '다음', exact: true }).click();
   await row(page, 1191).getByRole('checkbox').check();
-  await expect(page.getByRole('button', { name: '선택 항목 제외' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '검토 목록에서 제외' })).toBeDisabled();
   await expect(page.getByText('한 번에 200건까지 제외할 수 있어요. 선택을 줄여 주세요.')).toBeVisible();
   expect(requests).toHaveLength(0);
 });

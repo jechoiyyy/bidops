@@ -12,7 +12,6 @@ import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import { ActorField } from "../components/common/ActorField";
 import {
   ConfirmDecisionDialog,
-  decisionSummaryExcerpt,
   type ConfirmDecisionSummaryItem,
 } from "../components/common/ConfirmDecisionDialog";
 import { DisabledReason } from "../components/common/DisabledReason";
@@ -827,7 +826,7 @@ export function BidDeltaDecisionPage() {
     const common = [
       { label: "최종 결정", value: decision === "go" ? "Go · 참여" : "No-Go · 불참" },
       { label: "담당자", value: decisionActor.trim() },
-      { label: "결정 이유", value: decisionSummaryExcerpt(reason) },
+      { label: "결정 이유", value: reason.trim() },
     ];
     const supersedes = { label: "대체하는 이전 결정", value: latestDecision ? `${latestDecision.sequence}번째 결정 · ${latestDecision.decision === "go" ? "Go" : "No-Go"}` : "없음" };
     let next: FrozenFinalDecision;
@@ -1169,6 +1168,7 @@ export function BidDeltaDecisionPage() {
                 </div>
                 <TextArea
                   label="결정 이유"
+                  isReadOnly={decisionConfirm !== null || finalDecisionMutation.isPending}
                   value={reason}
                   onChange={setReason}
                   rows={3}

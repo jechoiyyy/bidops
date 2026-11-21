@@ -1,3 +1,4 @@
+import { deadlineLabel } from "../../lib/deadline";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Text } from "@astryxdesign/core/Text";
@@ -99,7 +100,7 @@ export function DeadlineImminentPanel({ data, state, footBasis, footCount, now, 
     const due = imminentDeadline(item, now);
     return <WorkRow key={item.id} to={`/opportunities/${item.id}`} title={primaryTitle(item)}
       meta={`${due ? due.kind : "마감 종류 미확인"} · ${item.tracking_status}`}
-      end={<DueText text={due ? `D-${due.days}` : "마감 미확인"} urgent={due?.urgent ?? false} />} />;
+      end={<DueText text={due ? deadlineLabel(due.days, new Date(due.deadlineAt)) : "마감 미확인"} urgent={due?.urgent ?? false} />} />;
   });
   // 링크는 패널의 목록 호출과 **같은 조건**을 사업 추적 화면에 그대로 넘긴다(S1).
   // 구역은 `전체`로 연다 — 그 화면의 기본 구역(`조치 필요`)이 걸리면 다른 집합이 된다.

@@ -49,6 +49,8 @@ async function openAdvancedFilters(page: import("@playwright/test").Page) {
   const toggle = page.getByRole("button", { name: "상세 필터", exact: true });
   if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  const secondary = page.locator(".c2l-secondary-filters");
+  if (!(await secondary.evaluate(element => element.hasAttribute("open")))) await secondary.locator("summary").click();
 }
 
 /**
@@ -307,6 +309,8 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
   await expect(page.locator("header.topbar").getByRole("button", { name: "수집 회차" })).toHaveCount(0);
   await expect(page.locator(".c2l-filter-tools").getByRole("button", { name: "수집 회차" })).toHaveCount(0);
   await page.getByRole("button", { name: "상세 필터" }).click();
+  await expect(page.locator("#c2l-advanced-filters").getByRole("button", { name: "수집 회차" })).toBeHidden();
+  await page.locator(".c2l-secondary-filters summary").click();
   await expect(page.locator("#c2l-advanced-filters").getByRole("button", { name: "수집 회차" })).toBeVisible();
   await page.getByRole("button", { name: "상세 필터" }).click();
   // 페이지에 남는 것은 문서 구조와 `aria-labelledby`를 위한 숨긴 제목 하나뿐이다.
@@ -2135,7 +2139,7 @@ test("LS-select-current-page-only-adds-visible-rows-and-disables-once-page-is-fu
 });
 
 // M7 ②: 선택 도구는 사전규격과 같은 이름·순서 4개뿐이다 — 전체 선택 · 전체 해제 ·
-// 선택 항목 제외 · 선택 항목 추적 시작(primary). 아무것도 선택하지 않은 초기
+// 선택한 계획 추적 종료 · 선택 항목 추적 시작(primary). 아무것도 선택하지 않은 초기
 // 상태에서 해제·제외·시작은 비활성이고 전체 선택만 쓸 수 있다.
 test("LS-selection-toolbar-has-four-tools-in-the-pre-specs-order-and-names", async ({ page }) => {
   await mockOrderPlans(page);
@@ -2148,7 +2152,7 @@ test("LS-selection-toolbar-has-four-tools-in-the-pre-specs-order-and-names", asy
   await expect(buttons).toHaveCount(4);
   await expect(buttons.nth(0)).toHaveText("전체 선택");
   await expect(buttons.nth(1)).toHaveText("전체 해제");
-  await expect(buttons.nth(2)).toHaveText("선택 항목 제외");
+  await expect(buttons.nth(2)).toHaveText("선택한 계획 추적 종료");
   await expect(buttons.nth(3)).toHaveText("선택 항목 추적 시작");
   // 한 건이 고른 상태라 해제·제외·시작이 쓸 수 있다. 전체 선택은 페이지가 다 차기 전까지 켜져 있다.
   await expect(buttons.nth(1)).toBeEnabled();
@@ -2636,9 +2640,9 @@ test("BE-select-three-end-tracking-confirm-and-result-hides-ended-plans-from-def
   await rows.filter({ hasText: "청사 시설관리" }).locator('input[type="checkbox"]').check();
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 3건");
 
-  // M7 결정 1: 발주계획의 `선택 항목 제외`는 기존 일괄 `추적 종료`(ADR-0063)를 그
+  // M7 결정 1: 발주계획의 `선택한 계획 추적 종료`는 기존 일괄 `추적 종료`(ADR-0063)를 그
   // 이름으로 부른다. onClick·확인 창은 그대로다.
-  await page.getByRole("button", { name: "선택 항목 제외", exact: true }).click();
+  await page.getByRole("button", { name: "선택한 계획 추적 종료", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await expect(dialog.getByRole("heading", { name: "선택한 발주계획 추적 종료" })).toBeVisible();
   await waitBulkTargets(dialog);
@@ -2692,7 +2696,7 @@ test("BE-blank-reason-blocks-confirm-and-sends-no-request", async ({ page }) => 
   const trace = await mockOrderPlanBulkTracking(page, "all-eligible");
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 제외", exact: true }).click();
+  await page.getByRole("button", { name: "선택한 계획 추적 종료", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await waitBulkTargets(dialog);
   await bulkActorInput(dialog).fill("종료 담당자");
@@ -2712,7 +2716,7 @@ test("BE-mixed-selection-preview-shows-eligible-and-status-exclusions", async ({
   await rows.filter({ hasText: "인공지능 기반 공공데이터" }).locator('input[type="checkbox"]').check();
   await rows.filter({ hasText: "청사 시설관리" }).locator('input[type="checkbox"]').check();
   await rows.filter({ hasText: "복지서비스 운영" }).locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 제외", exact: true }).click();
+  await page.getByRole("button", { name: "선택한 계획 추적 종료", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await waitBulkTargets(dialog);
   await expect(dialog.getByTestId("order-plan-bulk-summary")).toContainText("종료 3건 중 1건");
@@ -2754,7 +2758,7 @@ test("BE-over-200-selection-disables-end-but-keeps-start-enabled", async ({ page
   }, fingerprint);
   await page.reload();
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 201건");
-  await expect(page.getByRole("button", { name: "선택 항목 제외", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "선택한 계획 추적 종료", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "선택 항목 추적 시작", exact: true })).toBeEnabled();
   await expect(page.locator("#c2l-selection-action-reason"))
     .toContainText("한 번에 200건까지 종료할 수 있어요. 선택을 줄여 주세요.");
@@ -2808,7 +2812,7 @@ test("BE-pending-end-request-recovers-through-end-endpoint-even-when-start-dialo
   });
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 제외", exact: true }).click();
+  await page.getByRole("button", { name: "선택한 계획 추적 종료", exact: true }).click();
   const endDialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await waitBulkTargets(endDialog);
   await bulkActorInput(endDialog).fill("종료 유실 담당자");
