@@ -483,10 +483,14 @@ function RangeReviewPending({
   noticeId,
   review,
   onConfirmed,
+  presentation = "section",
+  runHasReasonCodes = false,
 }: {
   noticeId: number;
   review: PageOverviewRangeReviewData;
   onConfirmed: () => void;
+  presentation?: RangeReviewPresentation;
+  runHasReasonCodes?: boolean;
 }) {
   const candidatesComplete = review.candidate_status === "complete" && review.candidates.length > 0;
   // 2026-11-21 시안 a3: 시작 쪽·끝 쪽 입력과 확정 단추를 먼저 보이고, 절 후보 표는 `절 제목에서 고르기`를
@@ -570,20 +574,30 @@ function RangeReviewPending({
     { key: "page", header: "쪽", width: pixel(72), renderCell: (row) => `${row.candidate.page}쪽` },
   ];
 
+  const inNotice = presentation === "notice";
+  // 실행 사유가 있는 건(개요 실패·보류)에 `사유 코드 없음 — 범위를 정하지 못했어요`를 적으면 실제 사유와 다른 말이 된다
+  // (docs/tracking/findings/model-review.md 2026-11-21). 범위 선택 사유가 없고 실행 사유가 있으면 그 문장을 빼고 예약 안내만 남긴다.
+  const hideSelectorReason = runHasReasonCodes && review.reason_code === null && review.selection_status !== "ready";
   return (
-    <section className="page-overview-section page-overview-range" aria-label="개요 범위 확인">
-      <RangeReviewHeading token={review.selection_status === "ready" ? "자동 선택됨 · 조정 가능" : "범위 확인 필요"} />
-      <p className="page-overview-range-state">
-        변환 완료 · {review.selection_status === "ready" ? "자동 선택" : "범위 미확정"} · 내용 검증 상태는 개요 상태에서 확인
-      </p>
+    <section className={`page-overview-section page-overview-range${inNotice ? " is-notice" : ""}`} aria-label="개요 범위 확인">
+      {inNotice ? null : <>
+        <RangeReviewHeading token={review.selection_status === "ready" ? "자동 선택됨 · 조정 가능" : "범위 확인 필요"} />
+        <p className="page-overview-range-state">
+          변환 완료 · {review.selection_status === "ready" ? "자동 선택" : "범위 미확정"} · 내용 검증 상태는 개요 상태에서 확인
+        </p>
+      </>}
       <a href={targetPdfUrl(noticeId)} target="_blank" rel="noreferrer">변환 PDF 열기 ↗</a>
-      <p className="page-overview-range-reason">
-        <strong>확인 사유 · {rangeReasonLabel(review.reason_code)}</strong>{" "}
-        {review.selection_status === "ready"
-          ? `자동 선택 범위 ${review.selected_pages.length ? `${review.selected_pages[0]}~${review.selected_pages.at(-1)}쪽` : "확인 불가"}이에요. 필요하면 사람이 새 범위를 확정할 수 있어요.`
-          : "결정적 선택기가 범위를 정하지 못했어요. 사람이 시작·끝을 확정해야 개요 검토 입력이 준비돼요."}{" "}
-        확정하면 그 범위로 개요 검토 실행 하나를 예약해요.
-      </p>
+      {inNotice ? null : (
+        <p className="page-overview-range-reason">
+          {hideSelectorReason ? null : <>
+            <strong>확인 사유 · {rangeReasonLabel(review.reason_code)}</strong>{" "}
+            {review.selection_status === "ready"
+              ? `자동 선택 범위 ${review.selected_pages.length ? `${review.selected_pages[0]}~${review.selected_pages.at(-1)}쪽` : "확인 불가"}이에요. 필요하면 사람이 새 범위를 확정할 수 있어요.`
+              : "결정적 선택기가 범위를 정하지 못했어요. 사람이 시작·끝을 확정해야 개요 검토 입력이 준비돼요."}{" "}
+          </>}
+          확정하면 그 범위로 개요 검토 실행 하나를 예약해요.
+        </p>
+      )}
 
       {review.warning_codes.length ? (
         <ul className="page-overview-range-warnings" aria-label="범위 준비 경고">
@@ -759,21 +773,39 @@ function RangeReviewConfirmed({
   );
 }
 
+/**
+ * `section`은 종전 자리(개요 구역 자리·처리 상태 안)이고, `notice`는 문제 상태 안내 안의 폼이다(2026-11-21 시안 c1·c2).
+ * `notice`는 제목·상태 줄·확인 사유 문장을 빼고 쪽 입력·담당자·확정·절 후보만 둔다 — 무엇이 일어났는지는 안내가 말한다.
+ * 저장·재조회 동작은 같다.
+ */
+export type RangeReviewPresentation = "section" | "notice";
+
 export function PageOverviewRangeReview({
   noticeId,
   review,
   onConfirmed,
+  presentation = "section",
+  runHasReasonCodes = false,
 }: {
   noticeId: number;
   review: PageOverviewRangeReviewData;
   onConfirmed: () => void;
+  presentation?: RangeReviewPresentation;
+  /** 현재 개요 run에 사유 코드가 있는가. 있으면 범위 선택기 탓으로 읽히는 문장을 뺀다. */
+  runHasReasonCodes?: boolean;
 }) {
-  if (review.selection_status === "ready") {
-    return review.confirmation
-      ? <RangeReviewConfirmed noticeId={noticeId} review={review} confirmation={review.confirmation} />
-      : <RangeReviewPending noticeId={noticeId} review={review} onConfirmed={onConfirmed} />;
+  if (review.selection_status === "ready" && review.confirmation) {
+    return <RangeReviewConfirmed noticeId={noticeId} review={review} confirmation={review.confirmation} />;
   }
-  return <RangeReviewPending noticeId={noticeId} review={review} onConfirmed={onConfirmed} />;
+  return (
+    <RangeReviewPending
+      noticeId={noticeId}
+      review={review}
+      onConfirmed={onConfirmed}
+      presentation={presentation}
+      runHasReasonCodes={runHasReasonCodes}
+    />
+  );
 }
 
 type CurrentPageOverviewState = {

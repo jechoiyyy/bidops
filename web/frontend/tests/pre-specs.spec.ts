@@ -1452,7 +1452,9 @@ for (const url of [null, 'javascript:alert(1)', '/guessed-detail/992', 'https://
     await mockPreSpecs(page);
     await page.route('**/api/notices/992', route => route.fulfill({ json: { ...notice991, id: 992, url } }));
     await page.goto('/pre-specs/992');
-    await expect(page.locator('.ps-record-source-unavailable')).toContainText(url ? '원문 URL 확인 불가' : '원문 URL 없음');
+    // 주소가 없는 것은 사전규격 API의 늘 그런 일이라 안내를 그리지 않는다. 주소가 왔는데 쓸 수 없을 때만 말한다.
+    if (url === null) await expect(page.locator('.ps-record-source-unavailable')).toHaveCount(0);
+    else await expect(page.locator('.ps-record-source-unavailable')).toContainText('원문 링크 확인 불가');
     await expect(page.getByRole('link', { name: '나라장터 원문', exact: true })).toHaveCount(0);
   });
 }

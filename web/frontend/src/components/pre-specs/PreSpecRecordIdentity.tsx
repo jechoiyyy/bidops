@@ -32,7 +32,11 @@ export function PreSpecRecordIdentity({ number, url }: { number: string | null; 
   }
   return <div className="ps-record-identity">
     <div className="ps-record-number-group"><span>사전규격번호</span><strong className="ps-record-number">{number ?? "미확인"}</strong><Button label="번호 복사" variant="ghost" size="sm" icon={<Copy />} isDisabled={!number} onClick={() => { void copy(); }} /></div>
-    {href ? <Button label="나라장터 원문" size="sm" icon={<ArrowUpRight />} href={href} target="_blank" rel="noopener noreferrer" tooltip="새 탭에서 원문 열기" /> : <span className="ps-record-source-unavailable">{url ? "원문 URL 확인 불가" : "원문 URL 없음"}</span>}
+    {/* 사전규격 API는 상세 페이지 주소를 주지 않는다(첨부 주소만 준다). 주소가 없는 것은 늘 그런 일이라
+        안내를 그리지 않는다. 주소가 왔는데 쓸 수 없을 때만 그 사실을 말하고, 추정 링크는 만들지 않는다. */}
+    {href
+      ? <Button label="나라장터 원문" size="sm" icon={<ArrowUpRight />} href={href} target="_blank" rel="noopener noreferrer" tooltip="새 탭에서 원문 열기" />
+      : url ? <span className="ps-record-source-unavailable">원문 링크 확인 불가</span> : null}
     {message ? <span className="ps-record-copy-feedback" role="status">{message}</span> : null}
   </div>;
 }
