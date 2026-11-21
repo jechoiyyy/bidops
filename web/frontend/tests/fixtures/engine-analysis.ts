@@ -133,6 +133,8 @@ function analysisFixture(variant: "completed" | "partial"): EngineAnalysis {
       evidence_portfolio_ids: unread ? [] : Array.from({ length: portfolio }, (_, n) => `P2026-${String(index + 1).padStart(2, "0")}-${n + 1}`),
       gap_action: unread ? null : gap || null,
       evidence: unread ? null : evidence(quote, partial ? 31 + index : null),
+      // 필수 여부는 원문에 표기된 건만 온다(엔진 f69f8cf부터). 부분 결과 예시는 옛 응답처럼 필드가 없다.
+      ...(partial ? {} : { mandatory: index < 5 ? true : index === 5 ? false : null }),
     };
   });
   const gates: EngineAnalysis["gates"] = [
@@ -226,15 +228,26 @@ function analysisFixture(variant: "completed" | "partial"): EngineAnalysis {
         ...EXECUTION_REQUESTS.map(([title, why], index) => ({
           id: `execution:${index + 1}`, kind: "execution" as const, fields: [], title, why,
           affects: ["risks"], blocking: false, completion: "수행계획서에 반영",
+          ...(partial ? {} : { purpose: "execution" as const, availability: null }),
         })),
         {
           id: "notice:consortium", kind: "notice" as const, fields: ["notice.consortium_clause"],
           title: "공동수급 구성원 자격 조항", why: "공동수급 시 구성원마다 참가자격을 모두 갖춰야 하는지 원문 조항을 확인해야 해요.",
           affects: ["gates.CONSORTIUM_CONDITION"], blocking: true, completion: "공고 원문 확인",
+          ...(partial ? {} : { purpose: "decision" as const, availability: "awaiting_input" as const }),
         },
+        // 추적 판단에 쓰이는 회사 확인(엔진 f69f8cf의 `purpose=decision`). 접지 않고 보인다.
+        ...(partial ? [] : [{
+          id: "company:decision:onsite", kind: "company" as const, fields: ["people.onsite_capacity"],
+          title: "상주 가능 지역·인원", why: "상주 조건을 충족하는지 회사 기록으로 확인해야 해요. (예시)",
+          affects: ["gates.ONSITE_LOCATION"], blocking: true, completion: "회사 근거 등록",
+          purpose: "decision" as const, availability: "check_now" as const,
+        }]),
         ...COMPANY_FIELDS.map((field) => ({
-          id: `company:${field}`, kind: "company" as const, fields: [field], title: field,
+          // 완료 예시는 엔진이 붙인 읽을 수 있는 제목, 부분 결과 예시는 옛 응답의 필드 키 그대로다.
+          id: `company:${field}`, kind: "company" as const, fields: [field], title: partial ? field : `회사 기록 확인 · ${field.split(".").at(-1)}`,
           why: "확인된 회사 근거가 없어요. (예시)", affects: ["scores"], blocking: false, completion: "회사 근거 등록",
+          ...(partial ? {} : { purpose: "scoring" as const, availability: "check_now" as const }),
         })),
       ],
     },
