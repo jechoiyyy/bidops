@@ -996,15 +996,13 @@ test("수요기관이 있으면 목록 행과 상세 머리가 수요기관을 �
   await expect(head.locator(".pre-spec-announcer-agency")).toHaveCount(0);
 });
 
-// M4 승인(2026-09-21) — 경계 문장은 상세 페이지 ② 추적 결정 카드와 같은 문안
-// 하나이고, 목록 우측 상세도 그것을 쓴다. 옛 문구는 남지 않는다.
-test("목록 우측 상세의 경계 문장은 M4 승인 문안 하나다", async ({ page }) => {
+test("목록 우측 상세의 고정 영역에서 입찰 참여 안내를 반복하지 않는다", async ({ page }) => {
   await mockPreSpecs(page);
   await page.goto("/pre-specs?workspace=all&sw_only=false");
   await expect(page.locator(".pre-specs-detail-header")).toBeVisible();
 
   await expect(page.getByText("적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않아요. 입찰 참여 여부는 최종 Go/No-Go에서 정해요."))
-    .toHaveCount(1);
+    .toHaveCount(0);
   await expect(page.getByText("입찰 참여 여부는 최종 Go/No-Go에서 결정", { exact: true })).toHaveCount(0);
 });
 

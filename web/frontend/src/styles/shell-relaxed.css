@@ -1345,7 +1345,7 @@ body {
 }
 
 .app-shell .pre-specs-page .pre-specs-detail-actions {
-  padding: var(--spacing-4) var(--spacing-8);
+  padding: var(--spacing-2) var(--spacing-8);
   border-top: 1px solid var(--color-border);
   background: var(--color-background-surface);
 }

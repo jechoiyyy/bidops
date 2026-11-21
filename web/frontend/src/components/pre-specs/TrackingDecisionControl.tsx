@@ -501,18 +501,25 @@ function PreSpecTrackingDecisionControl({
     <div className="ps-record-tracking-reference"><span>사전규격번호</span><strong>{noticeNumber ?? "미확인"}</strong></div>
   </>;
   const stateManagement = <p className="pre-spec-tracking-elsewhere"><strong>보류·추적 종료</strong>는 사업 추적에서 변경해요.{hasOpportunity ? <Link to={`/opportunities/${item.opportunity_id}`}>사업 추적으로 이동 ↗</Link> : null}</p>;
+  if (inline && !hasOpportunity) {
+    return <p className="pre-specs-tracking-status">사업기회 연결 후 추적을 시작할 수 있어요.</p>;
+  }
   if (recorded) {
-    return <section className={`pre-spec-tracking-decision is-compact is-record is-recorded${inlineClass}`} aria-labelledby="pre-spec-tracking-decision-title">
+    return <section className={`pre-spec-tracking-decision is-compact is-record is-recorded${inlineClass}`} aria-label={showRecordHeading ? undefined : "추적 결정"} aria-labelledby={showRecordHeading ? "pre-spec-tracking-decision-title" : undefined}>
       {showRecordHeading ? recordHeading : null}
       <div className="ps-record-saved-decision">
-        {/* 방금 저장한 결과도 추적 결정 입력 한 벌(C-7)의 저장 문장으로 알린다. */}
         <Heading>{savedDecision ? trackingSavedMessage(currentStatus === null || currentStatus === "미선택" ? "계속 추적" : currentStatus) : isInheritedTracking(item) ? "발주계획에서 추적 결정을 이어받았어요" : "추적 결정이 기록된 사업이에요"}</Heading>
         <p>현재 추적 상태 · {currentStatusLabel}</p>
-        {inheritedContext}
+        {inline && inheritedContext ? (
+          <details className="pre-specs-tracking-history">
+            <summary>승계 사유</summary>
+            {inheritedContext}
+          </details>
+        ) : inheritedContext}
         {savedDecision ? <dl><div><dt>선택 사유</dt><dd>{savedDecision.reason}</dd></div><div><dt>담당자</dt><dd>{savedDecision.actor}</dd></div></dl> : null}
         <Link to={`/opportunities/${item.opportunity_id}`}>사업 추적에서 상태 관리 ↗</Link>
       </div>
-      {stateManagement}
+      {inline ? null : stateManagement}
     </section>;
   }
 
@@ -551,7 +558,8 @@ function PreSpecTrackingDecisionControl({
   return (
     <section
       className={`pre-spec-tracking-decision${compact ? " is-compact" : ""}${record ? " is-record" : ""}${inlineClass}`}
-      aria-labelledby="pre-spec-tracking-decision-title"
+      aria-label={inline && !showRecordHeading ? "추적 결정" : undefined}
+      aria-labelledby={inline && !showRecordHeading ? undefined : "pre-spec-tracking-decision-title"}
     >
       {record ? (showRecordHeading ? recordHeading : null) : (
       <div className="pre-spec-tracking-decision-header">
@@ -631,9 +639,6 @@ function PreSpecTrackingDecisionControl({
             {disabledReason ? <DisabledReason id="pre-spec-tracking-save-disabled">{disabledReason}</DisabledReason> : null}
           </div>
         )}
-        {/* spec §3.3에서 `보류·추적 종료는 사업 추적에서 변경` 캡션은 줄 1이 소유하므로
-            inline 폼은 같은 문장을 한 번 더 적지 않는다. 승계·기록된 사업의 상태 블록은
-            record와 똑같이 이 문장을 그대로 그린다. */}
         {record ? (inline ? null : stateManagement) : (        <p className="pre-spec-tracking-elsewhere">
           <strong>보류</strong>와 <strong>추적 종료</strong>는 이 화면에 없어요. 사업 추적에서만 사람이 골라요.
         </p>)}
