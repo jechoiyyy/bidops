@@ -1,3 +1,4 @@
+import { SkeletonBlock } from "../components/common/Skeleton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -97,6 +98,7 @@ import type {
   C2DailyTriggerStateResponse,
   OrderPlanFeedbackPriority,
   OrderPlanListItem,
+  OrderPlanListQuery,
   OrderPlanListResponse,
   OrderPlanListScope,
   OrderPlanRelevance,
@@ -476,14 +478,9 @@ async function fetchAllExecutions(signal: AbortSignal): Promise<OrderPlanScreeni
  * 받은 페이지를 브라우저에서 다시 좁히지 않으므로 보기 탭 건수도 같은 창 안에서 센다.
  */
 async function fetchAllOrderPlans(
-  sourceRunId: string | null,
-  firstObservedFrom: string | null,
+  scope: OrderPlanListQuery,
   signal: AbortSignal,
 ): Promise<OrderPlanListResponse> {
-  const scope = {
-    ...(sourceRunId ? { source_run_id: sourceRunId } : {}),
-    ...(firstObservedFrom ? { first_observed_from: firstObservedFrom } : {}),
-  };
   const first = await api.getOrderPlans({ ...scope, limit: PAGE_SIZE, offset: 0 }, { signal });
   const items = [...first.items];
   const pageSize = first.limit > 0 ? first.limit : PAGE_SIZE;
@@ -807,9 +804,36 @@ function OrderPlansWorkspace() {
     });
   }
 
+  const scope = { source_run_id: sourceRunId, first_observed_from: firstObservedFrom };
+  // 관련 판정 전체를 먼저 받아 기존 예정월 정렬과 저장 직후 행 유지를 보장한다.
+  const defaultEntry = !isExplicitDeepLink && !AXIS_KEYS.some(key => searchParams.has(key));
   const listQuery = useQuery({
-    queryKey: ["order-plan-c2", "list", sourceRunId ?? "cumulative", firstObservedFrom ?? "all"],
-    queryFn: ({ signal }) => fetchAllOrderPlans(sourceRunId, firstObservedFrom, signal),
+    queryKey: ["order-plan-c2", "list", sourceRunId, firstObservedFrom, defaultEntry],
+    queryFn: async ({ signal }) => {
+      if (defaultEntry) {
+        const relevant = await fetchAllOrderPlans({ ...scope, qwen_relevance: "relevant" }, signal);
+        if (relevant.scope?.mode === "run" || relevant.scope?.policy_versions.length) {
+          return { ...relevant, narrowed: true };
+        }
+      }
+      return { ...await fetchAllOrderPlans(scope, signal), narrowed: false };
+    },
+    staleTime: 15_000,
+  });
+  const tabTotals = useQuery({
+    queryKey: ["order-plan-c2", "list", "tab-totals", sourceRunId, firstObservedFrom],
+    enabled: listQuery.data?.narrowed === true,
+    queryFn: async ({ signal }) => {
+      const count = async (filters: OrderPlanListQuery) =>
+        (await api.getOrderPlans({ ...scope, ...filters, limit: 1 }, { signal })).total;
+      // 순위 밖과 그 외 행의 판정 실패를 분리해 중복 집계를 피한다.
+      const [all, uncertain, outsideRank, otherFailures] = await Promise.all([
+        count({}), count({ qwen_relevance: "uncertain", tracking_status: "미선택" }),
+        count({ stage1_status: "filtered_out" }),
+        count({ stage1_status: ["selected", "failed", "rejected", "missing"], issue: true }),
+      ]);
+      return { all, uncertain, unjudged: outsideRank + otherFailures };
+    },
     staleTime: 15_000,
   });
   /** 목록 응답의 범위. 불러오기 전에는 `undefined`, 회차에 완료 실행이 없으면 `null`이다. */
@@ -1062,8 +1086,13 @@ function OrderPlansWorkspace() {
     for (const preset of PRESETS) {
       counts.set(preset.key, items ? items.filter((item) => matchesAxes(item, presetSelection(preset))).length : null);
     }
+    if (listQuery.data?.narrowed) {
+      for (const key of ["all", "uncertain", "unjudged"] as const) {
+        counts.set(key, tabTotals.data?.[key] ?? null);
+      }
+    }
     return counts;
-  }, [listQuery.data]);
+  }, [listQuery.data, tabTotals.data]);
   // 필터 결과 전체를 먼저 relevance 우선순위로 정렬한 뒤 잘라야 페이지와 ↑↓ 이동이
   // 같은 검토 순서를 공유한다. null은 값 없음으로만 다루고 다른 상태로 보정하지 않는다.
   // `관련`·`불확실` 보기는 검토 순서(예정월이 가까운 건 → 최근 첫 수집, 예정월 지남·공고 게시됨은 뒤)로
@@ -2080,6 +2109,7 @@ function OrderPlansWorkspace() {
               {listQuery.isPending ? (
                 <div className="c2l-list-empty" role="status">
                   <Text type="body" color="secondary" as="p">발주계획을 불러오는 중…</Text>
+                  <SkeletonBlock label={null} lines={3} />
                 </div>
               ) : listQuery.isError ? (
                 <div className="c2l-list-empty">

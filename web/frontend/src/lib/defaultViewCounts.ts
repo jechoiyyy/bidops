@@ -38,11 +38,21 @@ export const PRE_SPEC_DEFAULT_VIEW_QUERY: PreSpecListQuery = {
  * 캐시에는 목록 응답 그대로를 둔다. 사전규격 화면은 추적 저장 뒤 `["pre-specs"]` 아래 모든 캐시를
  * 목록 응답으로 보고 고쳐 쓰므로(`setQueriesData`), 숫자만 두면 그 갱신이 깨진다. 건수는 `select`로 읽는다.
  */
+export const PRE_SPEC_PAGE_SIZE = 200;
+
+export function preSpecPageOptions(params: PreSpecListQuery, normalizedSearch: string) {
+  const key = Object.fromEntries(Object.entries({ ...params, q: normalizedSearch }).filter(
+    ([, value]) => value !== null && value !== undefined && value !== "",
+  ));
+  return {
+    queryKey: ["pre-specs", key] as const,
+    queryFn: ({ signal }: { signal: AbortSignal }) => api.getPreSpecs(params, { signal }),
+  };
+}
+
 export function preSpecDefaultViewTotalQuery() {
   return {
-    queryKey: ["pre-specs", "default-view-total"] as const,
-    queryFn: ({ signal }: { signal: AbortSignal }) =>
-      api.getPreSpecs({ ...PRE_SPEC_DEFAULT_VIEW_QUERY, limit: 1, offset: 0 }, { signal }),
+    ...preSpecPageOptions({ ...PRE_SPEC_DEFAULT_VIEW_QUERY, limit: PRE_SPEC_PAGE_SIZE, offset: 0 }, ""),
     select: (response: PreSpecListResponse) => response.total,
     staleTime: 60_000,
   };
