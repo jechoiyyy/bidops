@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Link, useLocation, useMatches } from "react-router-dom";
 import type { RunSummary } from "../../lib/types";
 import { BasisPopover } from "./BasisPopover";
@@ -104,6 +104,14 @@ export function TopBar({
   const headingTitle = pageHeader?.title?.trim() || title;
   // 화면이 화면 이름 줄을 올리지 않은 상세는 식별자 칸을 그 줄로 쓴다(값을 지어내지 않는다).
   const eyebrow = pageHeader?.eyebrow ?? (layout === "page" && !pageHeader?.title ? recordCrumb?.label ?? null : null);
+
+  // 브라우저 탭 제목. 상세는 레코드 제목, 목록(제목 배치)은 문장형 제목 대신 화면 이름을 쓴다 —
+  // 여러 건을 탭으로 열어도 구분되게 한다. 화면에 이미 있는 값만 쓰고 새로 짓지 않는다.
+  const screenName = visibleCrumbs[visibleCrumbs.length - 1]?.label ?? null;
+  const tabName = pageHeader?.title?.trim() || (layout === "title" ? screenName : null) || title;
+  useEffect(() => {
+    document.title = tabName && tabName !== "BidOps Admin" ? `${tabName} · BidOps` : "BidOps Admin";
+  }, [tabName]);
 
   return (
     <header

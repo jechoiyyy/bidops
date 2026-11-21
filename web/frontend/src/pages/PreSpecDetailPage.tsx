@@ -23,6 +23,8 @@ import type { EngineRun } from "../lib/engineApi";
 import { PreSpecBriefingSection } from "../components/pre-specs/PreSpecBriefingSection";
 import { PreSpecVerdictColumn, usePreSpecVerdict } from "../components/pre-specs/PreSpecVerdictColumn";
 import { PreSpecAttachmentList } from "../components/pre-specs/PreSpecAttachmentList";
+import { PreSpecProblemNotice } from "../components/pre-specs/PreSpecProblemNotice";
+import { preSpecProblemNotice, type PreSpecProcessBlock } from "../lib/preSpecProblemNotice";
 import { OrderPlanCandidatesSection } from "../components/pre-specs/OrderPlanCandidatesSection";
 import { documentPanelDefaultOpen } from "../lib/documentPanelDefaultOpen";
 import { preSpecProcessDefaultOpen, preSpecTechnicalInfoDefaultOpen } from "../lib/preSpecProcessDefaultOpen";
@@ -478,7 +480,11 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
   // 분석 완료 화면에서 `사업 개요와 주요 과업`은 접혀 들어온다.
   const [overviewOpen, setOverviewOpen] = useState(false);
   // 개요 자동 검토가 이 환경에서 꺼져 있으면 실행 기록이 없는 이유를 먼저 말한다(설계고도화안 C-4).
-  const overviewOff = useFeatureFlags().state("prespec_overview") === "off";
+  const overviewFeature = useFeatureFlags().state("prespec_overview");
+  const overviewOff = overviewFeature === "off";
+  // 문제 상태에서 열린 `처리 상태·기술 정보`는 관련 블록만 먼저 보이고 나머지는 이 토글 뒤에 둔다(시안 c `?open=1`).
+  // 조건부 렌더링이다 — 안의 문서 준비 패널은 닫힌 동안 그리지 않는다(Astryx `Collapsible`을 쓰지 않는 이유와 같다).
+  const [processRestOpen, setProcessRestOpen] = useState(false);
 
   useEffect(() => {
     const target = pendingScrollRef.current;
@@ -605,6 +611,25 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
     ?? documentPanelDefaultOpen(latestBundle, autoStatus);
   // `처리 상태·기술 정보` 구역의 기본 열림. 응답이 모두 온 뒤에만 판단하고, 한 번 열리면 사람이 닫기 전까지 연다.
   const processInputsSettled = !bundleQuery.isPending && !pageOverviewQuery.isPending && !preSpecProjectionQuery.isPending;
+  // 문제 상태 안내(시안 c1~c5). 세 응답이 모두 성공하고 개요 응답이 정본일 때만 고른다 — 조회 실패·불일치는 종전 문구가
+  // 그대로 말한다. 문장·조작은 `lib/preSpecProblemNotice.ts`가 정한다.
+  const problem = processInputsSettled
+    && bundleQuery.isSuccess && preSpecProjectionQuery.isSuccess && pageOverviewQuery.isSuccess && pageOverviewValid
+    ? preSpecProblemNotice({
+      overview: currentPageOverview,
+      rangeReview: rangeReviewForView,
+      bundle: latestBundle,
+      item: preSpecItem ?? null,
+      attachments: notice.attachments,
+      overviewFeature,
+      deadlinePassed: deadlineCountdown ? deadlineCountdown.urgency === "passed" : null,
+    })
+    : null;
+  // 범위 확정 폼이 어디에 있는가: 안내 안(문제 상태) · 개요 구역 자리(시안 a3) · 처리 상태 안(그 밖).
+  const rangeInNotice = problem !== null && rangeNeedsDecision
+    && problem.actions.some((action) => action.kind === "range_form" || action.kind === "range_form_toggle");
+  const rangeAtTop = problem === null && rangeNeedsDecision;
+  const runHasReasonCodes = (currentPageOverviewForView?.reason_codes.length ?? 0) > 0;
   if (processInputsSettled && preSpecProcessDefaultOpen({
     bundle: latestBundle,
     autoStatus,
@@ -612,6 +637,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
     companyFitAttempt: currentCompanyFitAttempt,
     verification: pageOverviewVerification,
     rangeReview: rangeReviewForView,
+    problemNotice: problem !== null,
   })) {
     processLatchRef.current = true;
   }
@@ -674,8 +700,9 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
     : preSpecItem.opportunity_id == null ? "사업기회 미연결" : preSpecItem.tracking_status ?? "미확인";
 
   // `처리 상태·기술 정보` 제목 줄 오른쪽 요약 한 줄. 서버 상태 이름을 그대로 잇고 새 판단을 만들지 않는다.
+  // 문제 상태에서는 멈춘 단계를 말로 적는다(안내와 같은 표). 꺼진 기능 표시는 그대로 붙는다.
   const processSummary = [
-    bundleQuery.isPending
+    ...(problem ? [problem.foldSummary] : [bundleQuery.isPending
       ? "원문 묶음 확인 중"
       : bundleQuery.isError
         ? "원문 묶음 확인 실패"
@@ -684,7 +711,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
       ? preSpecItem.overview_review_status === null
         ? PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL
         : `개요 ${overviewStatusForStep}`
-      : "개요 상태 미확인",
+      : "개요 상태 미확인"]),
     ...(overviewOff ? ["개요 자동 검토 꺼짐"] : []),
     ...(verdict.rlOff ? ["참여 판정(RL 분석) 꺼짐"] : []),
     ...(companyFitData !== null && !companyFitData.automation_enabled ? ["회사 적합성 자동 판정 비활성"] : []),
@@ -693,9 +720,17 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
   const openProcessTarget = (event: MouseEvent<HTMLElement>) => {
     // 개요 알림의 `→ 보기`는 `처리 상태·기술 정보` 안의 처리 이력을 가리킨다. 구역이 닫혀 있으면 열고 그 자리로 옮긴다.
     const anchor = (event.target as HTMLElement).closest?.("a[href='#ps-record-history']");
-    if (!anchor || processOpen) return;
+    if (!anchor || (processOpen && (problem === null || processRestOpen))) return;
     event.preventDefault();
     pendingScrollRef.current = "ps-record-history";
+    setProcessOverride(true);
+    setProcessRestOpen(true);
+  };
+
+  // 안내의 `문서 준비 열기`: 구역을 열고 문서 준비 패널을 펼친 뒤 그 자리로 초점을 옮긴다.
+  const openDocumentPreparation = () => {
+    pendingScrollRef.current = "ps-record-documents";
+    setDocumentPanelOverride(true);
     setProcessOverride(true);
   };
 
@@ -727,6 +762,249 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
       </section>
     </div>
   );
+
+  /* ── `처리 상태·기술 정보` 안의 블록들 ───────────────────────────────────
+     정상 상태는 종전 순서 그대로 모두 그린다(`processAllBlocks`). 문제 상태에서는 안내가 가리키는 블록을 먼저 두고
+     (`problem.firstBlock`) 나머지를 같은 순서로 `나머지 기술 정보 보기` 뒤에 둔다. 블록 내용과 조작·폴링은 같다. */
+  const documentToggleBlock = (
+    <div key="actions" className="ps-process-actions">
+      <Button
+        label={documentPanelOpen ? "문서 준비 닫기" : "문서 준비 열기"}
+        size="sm"
+        variant="ghost"
+        aria-expanded={documentPanelOpen}
+        onClick={() => setDocumentPanelOverride(!documentPanelOpen)}
+      />
+      {/* 개요 재실행 단추는 그리지 않는다(intent 결정 3). 재실행은 문서 준비 패널 안에서만 연다.
+          기존 심층 검토 보고서 단추는 2026-11-19에 내려갔다(사전규격 단계 수정안 §3 B). */}
+    </div>
+  );
+
+  const stepsBlock = (
+    <div key="steps" className="pre-spec-auto-preparation" aria-label="자동 준비 진행">
+      <ol className="pre-spec-auto-steps ps-steps">
+        <AutoPreparationStep
+          index={1}
+          name="첨부 취득"
+          done={stepDone.attachments}
+          value={documentCounts ? `${documentCounts.attachments}건` : "집계 없음"}
+          variant={documentCounts && (documentCounts["차단"] > 0 || documentCounts["실패"] > 0) ? "alert" : "neutral"}
+          detail={documentCounts
+            ? `완료 ${documentCounts["완료"]} · 대기 ${documentCounts["대기"]} · 진행 ${documentCounts["진행"]} · 차단 ${documentCounts["차단"]} · 실패 ${documentCounts["실패"]}`
+            : "사전규격 요약 정보가 없어 첨부 집계를 표시하지 않아요."}
+        />
+        <AutoPreparationStep
+          index={2}
+          name="문서 묶음"
+          done={stepDone.bundle}
+          value={bundleQuery.isPending
+            ? "확인 중"
+            : bundleQuery.isError ? "확인 실패" : latestBundle ? BUNDLE_STATUS_LABELS[latestBundle.status] : "묶음 없음"}
+          variant={latestBundle?.status === "ready"
+            ? "evidence-confirmed"
+            : latestBundle?.status === "failed" || latestBundle?.status === "quarantined" || latestBundle?.status === "needs_review"
+              ? "alert"
+              : "neutral"}
+          detail={[latestBundle ? `수정본 ${latestBundle.revision}` : null, autoReasonLabel]
+            .filter((part): part is string => Boolean(part)).join(" · ") || undefined}
+        />
+        <AutoPreparationStep
+          index={3}
+          name="개요 검토"
+          done={stepDone.overview}
+          value={overviewStatusForStep ?? (preSpecProjectionQuery.isPending ? "확인 중" : "미확인")}
+          variant={preSpecItem && preSpecItem.overview_review_status !== null
+            ? preSpecOverviewStatusVariant(preSpecItem.overview_review_status)
+            : "neutral"}
+        />
+      </ol>
+      {/* 경계 문장은 하단 추적 결정 띠가 한 번만 갖는다. 자동 시작 조건은 이 단계들의 사실이라 남는다. */}
+      <p className="pre-spec-auto-preparation-note">
+        첨부 취득·문서 준비·개요 검토는 의견 마감 전이거나 추적 중인 사전규격에서 자동으로 진행해요. 마감이 지난 건은 추적을 시작하면 진행해요.
+      </p>
+    </div>
+  );
+
+  const documentSummaryLineBlock = (
+    <p key="summary-line" className="ps-document-panel-summary-line">
+      {bundleQuery.isPending
+        ? "묶음 확인 중"
+        : bundleQuery.isError
+          ? "묶음 확인 실패"
+          : latestBundle
+            ? `묶음 ${BUNDLE_STATUS_LABELS[latestBundle.status]}`
+            : "묶음 없음"}
+      {" · 문서 "}{latestBundle ? latestBundle.documents.length : 0}건
+      {" · 차단 issue "}{latestBundle ? latestBundle.issues.filter((issue) => issue.blocking).length : 0}건
+      {autoStatus ? ` · ${PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL[autoStatus]}` : ""}
+    </p>
+  );
+
+  /* 범위가 이미 정해진 건(자동 선택·확정됨)의 범위 확인은 눌렀을 때만 연다 — 절 후보 표가 본문을 길게 늘이지 않게
+     한다. 사람이 확정해야 하는 상태면 폼은 위 개요 구역 자리(시안 a3)나 문제 상태 안내 안에 있다. */
+  const rangeBlock = rangeReviewForView && !rangeAtTop && !rangeInNotice ? (
+    <section key="range" id="ps-record-range" className="ps-record-section ps-record-range" tabIndex={-1} aria-label="개요 입력 범위 확정">
+      <Button
+        label={rangeOpen ? "개요 입력 범위 닫기" : "개요 입력 범위 보기"}
+        size="sm"
+        variant="ghost"
+        aria-expanded={rangeOpen}
+        onClick={() => setRangeOpen(!rangeOpen)}
+      />
+      {rangeOpen ? (
+        <PageOverviewRangeReview
+          noticeId={noticeId}
+          review={rangeReviewForView}
+          runHasReasonCodes={runHasReasonCodes}
+          onConfirmed={() => { void pageOverviewQuery.refetch(); }}
+        />
+      ) : null}
+    </section>
+  ) : null;
+
+  const documentPanelBlock = (
+    <div key="documents" id="ps-record-documents" className="ps-record-section ps-record-documents" tabIndex={-1}>
+      {/* Astryx `Collapsible`은 `display:none`으로 감춰 조작을 막는다.
+          여기는 조건부 렌더링이므로 열린 동안은 패널이 온전히 살아 있다. */}
+      {documentPanelOpen ? (
+        <DocumentPreparationPanel key={noticeId} noticeId={notice.id} />
+      ) : null}
+    </div>
+  );
+
+  const fetchSummaryBlock = (
+    <div key="fetch" id="ps-record-fetch" className="ps-record-section ps-record-fetch" tabIndex={-1}>
+      {preSpecProjectionQuery.isPending ? (
+        <SkeletonPanel label="첨부 원문 취득 집계를 불러오는 중" lines={3} />
+      ) : null}
+      {preSpecProjectionQuery.isError ? (
+        <PreSpecQueryError
+          onRetry={() => { void preSpecProjectionQuery.refetch(); }}
+          error={preSpecProjectionQuery.error}
+          fallback="사전규격 요약 정보를 불러오지 못해 첨부 취득 집계를 표시하지 않아요."
+          title="첨부 원문 취득 집계를 불러오지 못했어요"
+        />
+      ) : null}
+      {preSpecItem ? (
+        // PreSpecDocumentSummary가 자체 heading("첨부 원문 취득 집계")을
+        // 이미 렌더링하므로 Panel에 title을 다시 주지 않는다 — 같은
+        // 문구의 heading이 둘이면 strict mode 선택자가 깨진다.
+        <Panel>
+          <PreSpecDocumentSummary item={preSpecItem} />
+        </Panel>
+      ) : null}
+    </div>
+  );
+
+  /* 분석 엔진 mock 참조 패널은 실험 경로라 개발·mock 서버에서만 그린다(설계고도화안 C-9).
+     운영 번들에는 들어가지 않으며 live 전송은 원래부터 fail closed다. */
+  const engineBlock = import.meta.env.BIDOPS_REVIEW_MOCK
+    ? <CurrentCompanyEnginePanel key="engine" noticeId={noticeId} bundleId={latestBundle?.status === "ready" ? latestBundle.id : null} hideScore />
+    : null;
+
+  /* 회사 관련성 참고 구역을 그리지 않은 건(값 없음)의 열 상태 문구 — `이 환경에서 꺼져 있음`·`판정 없음`·
+     `자동 판정 비활성` — 는 여기 남는다. 지우지 않고 옮긴다. */
+  const relevanceBlock = showRelevanceSection ? null : (
+    <section key="relevance" className="ps-record-section ps-process-relevance" aria-label="회사 관련성 참고 상태">
+      <h3 className="ps-sub">회사 관련성 참고</h3>
+      {relevanceColumns}
+    </section>
+  );
+
+  // 개요 run이 멈춘 문제 상태에서는 `현재 개요 검토`(마지막 실행)가 처리 이력에서 나와 먼저 보이는 블록이 된다.
+  const runFirst = problem?.firstBlock === "run";
+  const currentRunNode = currentPageOverviewForView ? (
+    <PageOverviewCurrent current={currentPageOverviewForView} currentResult={currentResult} />
+  ) : null;
+  const runBlock = runFirst && currentRunNode ? (
+    <div key="run" id="ps-record-run" className="ps-record-section ps-record-run" tabIndex={-1}>{currentRunNode}</div>
+  ) : null;
+
+  const historyBlock = (
+    <div key="history" id="ps-record-history" className="ps-record-section ps-record-history" tabIndex={-1}>
+      <ReviewHistoryLinkRail
+        className="detail-skeleton-rail"
+        historySections={[{
+          className: "detail-skeleton-rail-panel",
+          content: <p className="detail-skeleton-rail-note">개요 입력 범위와 현재 실행은 이 카드의 `개요 입력 범위 확정` 자리와 아래 실행 정보에서 봐요.</p>,
+          entries: [],
+          label: "입력 범위와 실행",
+          showHeading: false,
+        }]}
+        links={[
+          { href: listUrl, label: "사전규격 목록 →" },
+          ...(preSpecItem?.opportunity_id ? [{ href: `/opportunities/${preSpecItem.opportunity_id}`, label: "사업기회 보기 →" }] : []),
+        ]}
+        linksClassName="detail-skeleton-rail-links"
+        title="처리 이력과 연결"
+      />
+      {runFirst ? null : currentRunNode}
+      {lifecycle.changed_at || lifecycle.change_reason ? (
+        <section className="ps-record-lifecycle-change" aria-label="사전규격 변경">
+          <h3 className="ps-sub">변경</h3>
+          <p>
+            {lifecycle.changed_at ? `변경 일시 · ${recordDateTime(lifecycle.changed_at)}` : "변경 일시 · 미확인"}
+            {" · "}
+            {lifecycle.change_reason ? `변경 사유 · ${lifecycle.change_reason}` : "변경 사유 · 미확인"}
+          </p>
+        </section>
+      ) : null}
+      <PageOverviewHistory reviews={pageOverviewValid ? pageOverviewHistory : []} />
+    </div>
+  );
+
+  /* 접힌 `기술 정보` 하나(0915 spec §4 ⑥ · ADR-0066 결정 1 `이동`). 주장 검증 진단 · 고정 입력과 식별 해시 · 회사
+     적합성 실행 정보 세 덩어리를 소제목으로 나눠 담는다. 기본 열림 규칙은 바꾸지 않는다 — 실패·사람 확인 상태(묶음·
+     개요·검증·회사 적합성)면 열린 채로 들어온다. */
+  const technicalBlock = (
+    <div key="technical" className="ps-record-section ps-collapsed">
+      <Collapsible
+        key={`${noticeId}-${technicalIsOpen ? "technical-open" : "technical-closed"}`}
+        trigger="기술 정보 · 주장 검증 진단, 고정 입력과 식별 해시, 회사 적합성 실행 정보"
+        defaultIsOpen={technicalIsOpen}
+      >
+        {/* 첨부 표 아래에 있던 고정 문장. 그 순간의 데이터가 아니라 이 화면의 규칙이라 여기로 왔다. */}
+        <p className="ps-cap ps-muted">첨부 원문 열기는 검증된 절대 HTTP(S) 주소만 사용하며 나라장터 원문 URL을 대신하지 않아요.</p>
+        {currentPageOverviewForView?.attempt_id && pageOverviewVerification ? (
+          <PageOverviewVerificationDetails
+            noticeId={noticeId}
+            attemptId={currentPageOverviewForView.attempt_id}
+            verification={pageOverviewVerification}
+          />
+        ) : null}
+        <section className="page-overview-section" aria-label="고정 입력과 식별 해시">
+          <h3>고정 입력과 식별 해시</h3>
+          {currentPageOverviewForView ? <PageOverviewCurrentFacts current={currentPageOverviewForView} /> : null}
+          {shown ? <PageOverviewResultFacts review={shown} claimIds={evidenceClaimIds} /> : null}
+          {shown ? <PageOverviewExecutionInfo review={shown} /> : null}
+          {!currentPageOverviewForView && !shown ? <p>{overviewOff ? `개요 검토 실행 기록이 없어요 · ${FEATURE_OFF_LABEL}.` : "개요 검토 실행 기록이 없어요."}</p> : null}
+          <PageOverviewHistoryFacts reviews={pageOverviewValid ? pageOverviewHistory : []} />
+        </section>
+        <CompanyFitExecutionSection
+          current={currentCompanyFitAttempt}
+          previous={previousCompanyFitAttempts}
+          state={companyFitQuery.isPending ? "pending" : companyFitData === null ? "unavailable" : "ready"}
+        />
+      </Collapsible>
+    </div>
+  );
+
+  // 정상 상태: 종전 순서 그대로. (문서 준비 패널과 첨부 취득 집계는 종전처럼 바로 이어진다.)
+  const processAllBlocks = [
+    documentToggleBlock, stepsBlock, documentSummaryLineBlock, rangeBlock, documentPanelBlock, fetchSummaryBlock,
+    engineBlock, relevanceBlock, historyBlock, technicalBlock,
+  ];
+  // 문제 상태: 먼저 보일 블록. 문서 준비는 토글·요약 줄·패널·취득 집계를 함께 둔다.
+  const firstBlockGroups: Record<PreSpecProcessBlock, ReactNode[]> = {
+    run: [runBlock],
+    documents: [documentToggleBlock, documentSummaryLineBlock, documentPanelBlock, fetchSummaryBlock],
+    fetch: [stepsBlock, fetchSummaryBlock],
+    steps: [stepsBlock],
+  };
+  const processFirstBlocks = problem ? firstBlockGroups[problem.firstBlock] : [];
+  const processRestBlocks = problem
+    ? processAllBlocks.filter((block) => !processFirstBlocks.includes(block))
+    : [];
 
   return (
     <Fragment>
@@ -781,7 +1059,8 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
         <div className="ps-ident">
           <PreSpecRecordIdentity key={noticeId} number={preSpecNumber} url={notice.url} />
           <span className="ps-ident-item">{bidNoticeNumber ? `본공고 ${bidNoticeNumber}` : "본공고 미확인"}</span>
-          {preSpecItem ? <span className="ps-ident-item">{originLabel(preSpecItem.origin)}</span> : null}
+          {/* `독립 발견`·`발주계획 연계`는 발견 경로의 값이다(business-rules). 값만 있으면 뜻이 안 읽혀 이름을 붙인다. */}
+          {preSpecItem ? <span className="ps-ident-item">발견 경로 {originLabel(preSpecItem.origin)}</span> : null}
           {showAnnouncer ? <span className="ps-ident-item ps-record-agency">공고기관 {announcerAgency}</span> : null}
           {showClassification ? <span className="ps-ident-item ps-record-classification">품명 분류 · {classification}</span> : null}
         </div>
@@ -830,23 +1109,43 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
           </div>
         )}
         {analysisView && !overviewOpen ? null : <>
-        {/* 알림 두 줄(개요 입력 범위 확정 필요 · 사람 확인 필요)은 그대로다. */}
-        <PageOverviewNotices
-          rangeReview={rangeReviewForView}
-          current={currentPageOverviewForView}
-          verification={pageOverviewVerification}
-          verificationReasonCount={verificationReasonCount}
-        />
-        {rangeNeedsDecision && rangeReviewForView ? (
-          /* 시안 a3: 범위 확정이 필요하면 범위 폼이 개요 자리에 온다. 알림의 `확정하기 →`가 가리키는 자리다. */
-          <section id="ps-record-range" className="ps-record-section ps-record-range" tabIndex={-1} aria-label="개요 입력 범위 확정">
-            <PageOverviewRangeReview
-              noticeId={noticeId}
-              review={rangeReviewForView}
-              onConfirmed={() => { void pageOverviewQuery.refetch(); }}
-            />
-          </section>
-        ) : null}
+        {problem ? (
+          /* 문제 상태 안내 한 블록(시안 c1~c5). 실제 사유·할 일을 말하고, 범위 확정이 다시 실행하는 길이면 폼을 품는다.
+             종전 알림 두 줄과 개요 자리 범위 폼은 이때 그리지 않는다(같은 일을 두 번 말하지 않는다). */
+          <PreSpecProblemNotice
+            notice={problem}
+            noticeId={noticeId}
+            rangeForm={rangeInNotice && rangeReviewForView ? (
+              <PageOverviewRangeReview
+                noticeId={noticeId}
+                review={rangeReviewForView}
+                presentation="notice"
+                runHasReasonCodes={runHasReasonCodes}
+                onConfirmed={() => { void pageOverviewQuery.refetch(); }}
+              />
+            ) : null}
+            onOpenDocuments={openDocumentPreparation}
+          />
+        ) : <>
+          {/* 알림 두 줄(개요 입력 범위 확정 필요 · 사람 확인 필요)은 그대로다. */}
+          <PageOverviewNotices
+            rangeReview={rangeReviewForView}
+            current={currentPageOverviewForView}
+            verification={pageOverviewVerification}
+            verificationReasonCount={verificationReasonCount}
+          />
+          {rangeAtTop && rangeReviewForView ? (
+            /* 시안 a3: 범위 확정이 필요하면 범위 폼이 개요 자리에 온다. 알림의 `확정하기 →`가 가리키는 자리다. */
+            <section id="ps-record-range" className="ps-record-section ps-record-range" tabIndex={-1} aria-label="개요 입력 범위 확정">
+              <PageOverviewRangeReview
+                noticeId={noticeId}
+                review={rangeReviewForView}
+                runHasReasonCodes={runHasReasonCodes}
+                onConfirmed={() => { void pageOverviewQuery.refetch(); }}
+              />
+            </section>
+          ) : null}
+        </>}
         {pageOverviewQuery.isPending ? (
           <p role="status">PDF 기반 개요를 불러오는 중이에요.</p>
         ) : pageOverviewQuery.isError ? (
@@ -858,7 +1157,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
           <p role="alert">개요 응답의 공고 또는 구조가 일치하지 않아 표시하지 않아요.</p>
         ) : shown ? (
           <OverviewBody review={shown} validationLabel={overviewValidationLabel} />
-        ) : rangeNeedsDecision ? null : (
+        ) : rangeAtTop || problem ? null : (
           /* 검증된 결과가 없으면 그 상태가 무엇을 기다리는지 한 줄로 남긴다. 문장은
              `preSpecOverviewStatus`가 소유하며 화면이 다시 적지 않는다. */
           <div className="pre-spec-overview-waiting">
@@ -939,204 +1238,25 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
 
         {processOpen ? (
           <div id="ps-process-body" className="ps-fold-body">
-            <div className="ps-process-actions">
-              <Button
-                label={documentPanelOpen ? "문서 준비 닫기" : "문서 준비 열기"}
-                size="sm"
-                variant="ghost"
-                aria-expanded={documentPanelOpen}
-                onClick={() => setDocumentPanelOverride(!documentPanelOpen)}
-              />
-              {/* 개요 재실행 단추는 그리지 않는다(intent 결정 3). 재실행은 문서 준비 패널 안에서만 연다.
-                  기존 심층 검토 보고서 단추는 2026-11-19에 내려갔다(사전규격 단계 수정안 §3 B). */}
-            </div>
-
-            <div className="pre-spec-auto-preparation" aria-label="자동 준비 진행">
-              <ol className="pre-spec-auto-steps ps-steps">
-                <AutoPreparationStep
-                  index={1}
-                  name="첨부 취득"
-                  done={stepDone.attachments}
-                  value={documentCounts ? `${documentCounts.attachments}건` : "집계 없음"}
-                  variant={documentCounts && (documentCounts["차단"] > 0 || documentCounts["실패"] > 0) ? "alert" : "neutral"}
-                  detail={documentCounts
-                    ? `완료 ${documentCounts["완료"]} · 대기 ${documentCounts["대기"]} · 진행 ${documentCounts["진행"]} · 차단 ${documentCounts["차단"]} · 실패 ${documentCounts["실패"]}`
-                    : "사전규격 요약 정보가 없어 첨부 집계를 표시하지 않아요."}
-                />
-                <AutoPreparationStep
-                  index={2}
-                  name="문서 묶음"
-                  done={stepDone.bundle}
-                  value={bundleQuery.isPending
-                    ? "확인 중"
-                    : bundleQuery.isError ? "확인 실패" : latestBundle ? BUNDLE_STATUS_LABELS[latestBundle.status] : "묶음 없음"}
-                  variant={latestBundle?.status === "ready"
-                    ? "evidence-confirmed"
-                    : latestBundle?.status === "failed" || latestBundle?.status === "quarantined" || latestBundle?.status === "needs_review"
-                      ? "alert"
-                      : "neutral"}
-                  detail={[latestBundle ? `수정본 ${latestBundle.revision}` : null, autoReasonLabel]
-                    .filter((part): part is string => Boolean(part)).join(" · ") || undefined}
-                />
-                <AutoPreparationStep
-                  index={3}
-                  name="개요 검토"
-                  done={stepDone.overview}
-                  value={overviewStatusForStep ?? (preSpecProjectionQuery.isPending ? "확인 중" : "미확인")}
-                  variant={preSpecItem && preSpecItem.overview_review_status !== null
-                    ? preSpecOverviewStatusVariant(preSpecItem.overview_review_status)
-                    : "neutral"}
-                />
-              </ol>
-              {/* 경계 문장은 하단 추적 결정 띠가 한 번만 갖는다. 자동 시작 조건은 이 단계들의 사실이라 남는다. */}
-              <p className="pre-spec-auto-preparation-note">
-                첨부 취득·문서 준비·개요 검토는 의견 마감 전이거나 추적 중인 사전규격에서 자동으로 진행해요. 마감이 지난 건은 추적을 시작하면 진행해요.
-              </p>
-            </div>
-
-            <p className="ps-document-panel-summary-line">
-              {bundleQuery.isPending
-                ? "묶음 확인 중"
-                : bundleQuery.isError
-                  ? "묶음 확인 실패"
-                  : latestBundle
-                    ? `묶음 ${BUNDLE_STATUS_LABELS[latestBundle.status]}`
-                    : "묶음 없음"}
-              {" · 문서 "}{latestBundle ? latestBundle.documents.length : 0}건
-              {" · 차단 issue "}{latestBundle ? latestBundle.issues.filter((issue) => issue.blocking).length : 0}건
-              {autoStatus ? ` · ${PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL[autoStatus]}` : ""}
-            </p>
-
-            {/* 범위가 이미 정해진 건(자동 선택·확정됨)의 범위 확인은 눌렀을 때만 연다 — 절 후보 표가 본문을 길게
-                늘이지 않게 한다. 사람이 확정해야 하는 상태면 폼은 위 개요 구역 자리에 있다. */}
-            {rangeReviewForView && !rangeNeedsDecision ? (
-              <section id="ps-record-range" className="ps-record-section ps-record-range" tabIndex={-1} aria-label="개요 입력 범위 확정">
-                <Button
-                  label={rangeOpen ? "개요 입력 범위 닫기" : "개요 입력 범위 보기"}
-                  size="sm"
-                  variant="ghost"
-                  aria-expanded={rangeOpen}
-                  onClick={() => setRangeOpen(!rangeOpen)}
-                />
-                {rangeOpen ? (
-                  <PageOverviewRangeReview
-                    noticeId={noticeId}
-                    review={rangeReviewForView}
-                    onConfirmed={() => { void pageOverviewQuery.refetch(); }}
-                  />
+            {problem ? <>
+              {/* 문제 상태(시안 c `?open=1`): 멈춘 단계의 블록이 먼저이고, 나머지는 지우지 않고 한 번 더 접는다(ADR-0066 이동). */}
+              {processFirstBlocks}
+              <div className="ps-process-rest">
+                <button
+                  className="ps-fold-toggle ps-process-rest-toggle"
+                  type="button"
+                  aria-expanded={processRestOpen}
+                  aria-controls={processRestOpen ? "ps-process-rest-body" : undefined}
+                  onClick={() => setProcessRestOpen(!processRestOpen)}
+                >
+                  <svg aria-hidden="true" className="ps-fold-chevron" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" /></svg>
+                  {processRestOpen ? "나머지 기술 정보 접기" : "나머지 기술 정보 보기"}
+                </button>
+                {processRestOpen ? (
+                  <div id="ps-process-rest-body" className="ps-process-rest-body">{processRestBlocks}</div>
                 ) : null}
-              </section>
-            ) : null}
-
-            <div id="ps-record-documents" className="ps-record-section ps-record-documents" tabIndex={-1}>
-              {/* Astryx `Collapsible`은 `display:none`으로 감춰 조작을 막는다.
-                  여기는 조건부 렌더링이므로 열린 동안은 패널이 온전히 살아 있다. */}
-              {documentPanelOpen ? (
-                <DocumentPreparationPanel key={noticeId} noticeId={notice.id} />
-              ) : null}
-              {preSpecProjectionQuery.isPending ? (
-                <SkeletonPanel label="첨부 원문 취득 집계를 불러오는 중" lines={3} />
-              ) : null}
-              {preSpecProjectionQuery.isError ? (
-                <PreSpecQueryError
-                  onRetry={() => { void preSpecProjectionQuery.refetch(); }}
-                  error={preSpecProjectionQuery.error}
-                  fallback="사전규격 요약 정보를 불러오지 못해 첨부 취득 집계를 표시하지 않아요."
-                  title="첨부 원문 취득 집계를 불러오지 못했어요"
-                />
-              ) : null}
-              {preSpecItem ? (
-                // PreSpecDocumentSummary가 자체 heading("첨부 원문 취득 집계")을
-                // 이미 렌더링하므로 Panel에 title을 다시 주지 않는다 — 같은
-                // 문구의 heading이 둘이면 strict mode 선택자가 깨진다.
-                <Panel>
-                  <PreSpecDocumentSummary item={preSpecItem} />
-                </Panel>
-              ) : null}
-            </div>
-
-            {/* 분석 엔진 mock 참조 패널은 실험 경로라 개발·mock 서버에서만 그린다(설계고도화안 C-9).
-                운영 번들에는 들어가지 않으며 live 전송은 원래부터 fail closed다. */}
-            {import.meta.env.BIDOPS_REVIEW_MOCK
-              ? <CurrentCompanyEnginePanel noticeId={noticeId} bundleId={latestBundle?.status === "ready" ? latestBundle.id : null} hideScore />
-              : null}
-
-            {/* 회사 관련성 참고 구역을 그리지 않은 건(값 없음)의 열 상태 문구 — `이 환경에서 꺼져 있음`·`판정 없음`·
-                `자동 판정 비활성` — 는 여기 남는다. 지우지 않고 옮긴다. */}
-            {showRelevanceSection ? null : (
-              <section className="ps-record-section ps-process-relevance" aria-label="회사 관련성 참고 상태">
-                <h3 className="ps-sub">회사 관련성 참고</h3>
-                {relevanceColumns}
-              </section>
-            )}
-
-            <div id="ps-record-history" className="ps-record-section ps-record-history" tabIndex={-1}>
-              <ReviewHistoryLinkRail
-                className="detail-skeleton-rail"
-                historySections={[{
-                  className: "detail-skeleton-rail-panel",
-                  content: <p className="detail-skeleton-rail-note">개요 입력 범위와 현재 실행은 이 카드의 `개요 입력 범위 확정` 자리와 아래 실행 정보에서 봐요.</p>,
-                  entries: [],
-                  label: "입력 범위와 실행",
-                  showHeading: false,
-                }]}
-                links={[
-                  { href: listUrl, label: "사전규격 목록 →" },
-                  ...(preSpecItem?.opportunity_id ? [{ href: `/opportunities/${preSpecItem.opportunity_id}`, label: "사업기회 보기 →" }] : []),
-                ]}
-                linksClassName="detail-skeleton-rail-links"
-                title="처리 이력과 연결"
-              />
-              {currentPageOverviewForView ? (
-                <PageOverviewCurrent current={currentPageOverviewForView} currentResult={currentResult} />
-              ) : null}
-              {lifecycle.changed_at || lifecycle.change_reason ? (
-                <section className="ps-record-lifecycle-change" aria-label="사전규격 변경">
-                  <h3 className="ps-sub">변경</h3>
-                  <p>
-                    {lifecycle.changed_at ? `변경 일시 · ${recordDateTime(lifecycle.changed_at)}` : "변경 일시 · 미확인"}
-                    {" · "}
-                    {lifecycle.change_reason ? `변경 사유 · ${lifecycle.change_reason}` : "변경 사유 · 미확인"}
-                  </p>
-                </section>
-              ) : null}
-              <PageOverviewHistory reviews={pageOverviewValid ? pageOverviewHistory : []} />
-            </div>
-
-            {/* 접힌 `기술 정보` 하나(0915 spec §4 ⑥ · ADR-0066 결정 1 `이동`).
-                주장 검증 진단 · 고정 입력과 식별 해시 · 회사 적합성 실행 정보 세
-                덩어리를 소제목으로 나눠 담는다. 기본 열림 규칙은 바꾸지 않는다 —
-                실패·사람 확인 상태(묶음·개요·검증·회사 적합성)면 열린 채로 들어온다. */}
-            <div className="ps-record-section ps-collapsed">
-              <Collapsible
-                key={`${noticeId}-${technicalIsOpen ? "technical-open" : "technical-closed"}`}
-                trigger="기술 정보 · 주장 검증 진단, 고정 입력과 식별 해시, 회사 적합성 실행 정보"
-                defaultIsOpen={technicalIsOpen}
-              >
-                {/* 첨부 표 아래에 있던 고정 문장. 그 순간의 데이터가 아니라 이 화면의 규칙이라 여기로 왔다. */}
-                <p className="ps-cap ps-muted">첨부 원문 열기는 검증된 절대 HTTP(S) 주소만 사용하며 나라장터 원문 URL을 대신하지 않아요.</p>
-                {currentPageOverviewForView?.attempt_id && pageOverviewVerification ? (
-                  <PageOverviewVerificationDetails
-                    noticeId={noticeId}
-                    attemptId={currentPageOverviewForView.attempt_id}
-                    verification={pageOverviewVerification}
-                  />
-                ) : null}
-                <section className="page-overview-section" aria-label="고정 입력과 식별 해시">
-                  <h3>고정 입력과 식별 해시</h3>
-                  {currentPageOverviewForView ? <PageOverviewCurrentFacts current={currentPageOverviewForView} /> : null}
-                  {shown ? <PageOverviewResultFacts review={shown} claimIds={evidenceClaimIds} /> : null}
-                  {shown ? <PageOverviewExecutionInfo review={shown} /> : null}
-                  {!currentPageOverviewForView && !shown ? <p>{overviewOff ? `개요 검토 실행 기록이 없어요 · ${FEATURE_OFF_LABEL}.` : "개요 검토 실행 기록이 없어요."}</p> : null}
-                  <PageOverviewHistoryFacts reviews={pageOverviewValid ? pageOverviewHistory : []} />
-                </section>
-                <CompanyFitExecutionSection
-                  current={currentCompanyFitAttempt}
-                  previous={previousCompanyFitAttempts}
-                  state={companyFitQuery.isPending ? "pending" : companyFitData === null ? "unavailable" : "ready"}
-                />
-              </Collapsible>
-            </div>
+              </div>
+            </> : processAllBlocks}
           </div>
         ) : null}
       </section>

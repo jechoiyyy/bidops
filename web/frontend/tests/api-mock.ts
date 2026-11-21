@@ -1319,7 +1319,7 @@ export const visualPreSpecNotice = {
   reviews: [],
 };
 
-const visualPreSpecItems: PreSpecListItem[] = [
+export const visualPreSpecItems: PreSpecListItem[] = [
   {
     review_exclusion_status: "included",
     review_exclusion_actor_name: null,
@@ -1554,7 +1554,7 @@ function backendNextAction(item: PreSpecListItem): PreSpecListItem["next_action"
 }
 
 /** 목록 응답 본문. 서버와 같은 집계 셋과 `next_action`을 한곳에서 만든다. */
-function preSpecListBody(args: {
+export function preSpecListBody(args: {
   items: readonly PreSpecListItem[];
   total: number;
   limit: number;
@@ -5092,7 +5092,8 @@ export async function setSidebarActor(page: Page, name = "최담당") {
 export async function settleProcessSection(page: Page) {
   await expect(page.getByTestId("pre-spec-process-summary")).not.toContainText("확인 중");
   await page.waitForLoadState("networkidle");
-  const toggle = page.locator("#ps-process .ps-fold-toggle");
+  // 구역 제목의 토글만 고른다. 문제 상태에서 열린 구역 안의 `나머지 기술 정보 보기`도 같은 모양(.ps-fold-toggle)이다.
+  const toggle = page.locator("#ps-process > .ps-fold-head .ps-fold-toggle");
   await expect(toggle).toBeVisible();
   return toggle;
 }
@@ -5103,4 +5104,15 @@ export async function openProcessSection(page: Page) {
   if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator("#ps-process-body")).toBeVisible();
+}
+
+/**
+ * 구역을 열고, 문제 상태 안내가 있는 건이면 `나머지 기술 정보 보기`까지 연다(2026-11-21 문제 상태 안내). 문제 상태에서는
+ * 멈춘 단계의 블록만 먼저 보이고 처리 이력·기술 정보·범위 확인 등은 그 뒤에 접혀 있다. 안내가 없는 건은 그 토글이 없다.
+ */
+export async function openProcessSectionFully(page: Page) {
+  await openProcessSection(page);
+  const rest = page.locator("#ps-process-body .ps-process-rest-toggle");
+  if ((await rest.count()) > 0 && (await rest.getAttribute("aria-expanded")) === "false") await rest.click();
+  if ((await rest.count()) > 0) await expect(page.locator("#ps-process-rest-body")).toBeVisible();
 }

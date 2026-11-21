@@ -811,6 +811,14 @@ function pageOverviewCurrent(run: OverviewRun): PageOverviewCurrent {
     prompt_version: run.prompt_version,
     created_at: run.created_at,
     verification_status: run.verification_status,
+    // 문제 상태 안내가 읽는 원값. 자리만 옮기고 바꾸거나 채우지 않는다.
+    reason_codes: Array.isArray(run.reason_codes) ? run.reason_codes : [],
+    range_source: run.range_source,
+    page_start: run.page_start,
+    page_end: run.page_end,
+    pdf_page_count: run.pdf_page_count,
+    call_count: run.call_count,
+    failed_claims: Array.isArray(run.failed_claims) ? run.failed_claims : [],
   };
 }
 

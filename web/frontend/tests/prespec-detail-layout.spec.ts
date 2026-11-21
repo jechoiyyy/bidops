@@ -25,6 +25,12 @@ test("처리 상태·기술 정보는 정상 건에서 닫혀 있고 토글로 �
   const toggle = await settleProcessSection(page);
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator("#ps-process-body")).toHaveCount(0);
+  // 브라우저 탭 제목은 레코드 제목이다(여러 건을 탭으로 열어도 구분된다). 목록은 화면 이름이다.
+  const heading = (await page.locator(".topbar-title").textContent())?.trim() ?? "";
+  expect(heading.length).toBeGreaterThan(0);
+  await expect(page).toHaveTitle(`${heading} · BidOps`);
+  // 발견 경로는 값만 두지 않고 이름을 붙인다.
+  await expect(page.locator(".ps-ident")).toContainText(/발견 경로 (독립 발견|발주계획 연계|구분 미확인)/);
   // 접혀 있어도 요약 한 줄이 상태와 꺼짐을 말한다(안내를 지우지 않았다).
   const summary = page.getByTestId("pre-spec-process-summary");
   await expect(summary).toContainText("원문 묶음 확정 완료");
