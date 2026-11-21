@@ -32,3 +32,11 @@
 - 이미지 ID `sha256:b387b514b04a9bae8be896fe2bdb7686c43db2281df622fe6b13f910da97b633`.
 - 전체 백업 `backups/postgres/full/bidops-20261121T114034Z.dump`(0600, 114530953바이트, SHA-256 `968956a81c6859b2b05d46927e0b95548fa71f8717667300e8be59824fa7995f`, TABLE DATA 111개).
 - 롤백 태그 `before-prespec-footer-689f41a`. 직전 이미지 `bidops:engine-sync-20261121-2d47d42`와 설정 사본 `backups/env-prod-before-prespec-footer-689f41a`를 보존했다. 롤백은 BIDOPS_IMAGE를 직전 값으로 복구한 뒤 web만 교체한다.
+
+## 네 레코드 화면 밀도 변경 배포
+
+승인된 main 커밋 `a8a2f75`의 Git 아카이브로 linux/amd64 이미지를 빌드하고 운영 web만 교체했다. 이미지 `bidops:main-20261121-a8a2f75`, ID `sha256:d58c1cb8d61d421f3f550554efb639f6bc0db18848751ecebd311644fd5f1621`. web healthy, 내부와 tailnet의 GET /api/health ok. 분석·첨부 워커의 컨테이너 ID는 교체 전후 동일하다. DB revision은 `0042_engine_run`이고 migration은 없었다.
+
+운영 tailnet 주소에서 발주계획·사전규격 전체 이력·사업기회·최종 Go/No-Go를 1920×1080, 1440×900, 1280×800으로 열었다. 12개 조합 모두 문서 가로 넘침 0px. 두 선택 목록 모두 초기 선택 0건에서 전체 선택·해제가 보이고 해제는 비활성이었다. 각 해상도의 선택 버튼은 32px, 도구줄은 40px, 사전규격 하단은 68px였다. 기본 데스크톱에서 두 목록의 전체 선택·해제를 직접 실행했다. 검증 브라우저는 GET 이외의 API 요청을 차단했다.
+
+전체 DB 백업 `backups/postgres/full/bidops-20261121T120325Z.dump`(0600, 114530953바이트, SHA-256 `8f8a79393492eab71c663642be4e32e8facb66ab2cebc3588fd5c734a3e1c3ba`, TABLE DATA 111개). 직전 코드 태그 `before-record-compact-a8a2f75`, 설정 사본 `backups/env-prod-before-record-compact-a8a2f75`. 롤백 시 BIDOPS_IMAGE를 `bidops:main-20261121-689f41a`로 복구하고 web만 교체한다.
