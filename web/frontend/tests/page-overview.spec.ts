@@ -8,6 +8,7 @@ import {
   overviewRunFixture,
   overviewVerificationFixture,
   openProcessSection,
+  openProcessSectionFully,
 } from './api-mock';
 import type { OverviewEnvelope, OverviewRun } from '../src/lib/types';
 import type { Page } from '@playwright/test';
@@ -17,7 +18,8 @@ import type { Page } from '@playwright/test';
  * `처리 상태·기술 정보` 안에서 `개요 입력 범위 보기`를 눌렀을 때만 열린다(2026-11-21 시안 a3).
  */
 async function openRangeReview(page: Page) {
-  await openProcessSection(page);
+  // 개요 실패·보류(문제 상태 안내)인 건은 범위 확인 블록이 `나머지 기술 정보 보기` 뒤에 있다.
+  await openProcessSectionFully(page);
   const toggle = page.locator('#ps-process').getByRole('button', { name: '개요 입력 범위 보기' });
   await toggle.click();
   const region = page.getByRole('region', { name: '개요 범위 확인' });
@@ -212,11 +214,15 @@ test('current claim verification remains visible when a previous successful resu
     },
   }));
   await page.goto('/pre-specs/991');
+  // 사람 확인 필요 run은 문제 상태 안내(모르는 사유 코드 → 코드 그대로)가 위에서 말하고 처리 상태 구역은 닫혀 들어온다
+  // (2026-11-21 시안 c). 현재 실행·기술 정보는 구역을 열어 읽는다.
+  await expect(page.getByTestId('pre-spec-problem-notice')).toContainText('사유 코드 claim_verification_required.');
+  await openProcessSectionFully(page);
 
   const currentRegion = page.getByRole('region', { name: '현재 개요 검토' });
   await expect(currentRegion).toContainText('주장과 검증된 근거를 사람이 확인해야 해요. 입력 범위 확인 대기와는 별도 상태예요.');
   // 시도 ID·처리 사유 코드는 ⑥ 접힌 `기술 정보`가 갖는다. 사람 확인 필요 상태라
-  // 접힌 곳은 기본으로 열린 채 들어온다(0915 spec §4 ⑥).
+  // 구역 안의 접힌 기술 정보는 기본으로 열린 채 들어온다(0915 spec §4 ⑥).
   await expect(currentRegion).not.toContainText('claim_verification_required');
   const technical = page.locator('.ps-collapsed');
   await expect(technical.locator('.astryx-collapsible-content')).toBeVisible();
@@ -266,6 +272,9 @@ for (const state of [
       json: envelope(terminalRun, [terminalRun, historicalRun]),
     }));
     await page.goto('/pre-specs/991');
+    // 실패는 문제 상태 안내가 말하고 구역은 닫혀 들어온다. 취소는 안내 대상이 아니라 종전대로 열려 들어온다.
+    await expect(page.getByTestId('pre-spec-problem-notice')).toHaveCount(state.status === 'failed' ? 1 : 0);
+    await openProcessSectionFully(page);
     await expect(page.getByRole('region', { name: '현재 개요 검토' })).toContainText(state.label);
     await expect(page.getByRole('region', { name: 'PDF 기반 개요 검토' })).toHaveCount(0);
     await expect(page.getByText('이전 개요 결과 1건', { exact: true })).toBeVisible();
@@ -285,7 +294,14 @@ for (const width of [1280, 1440]) {
     await page.route(OVERVIEW_PATH, route => route.fulfill({ json: envelope(failedRun, [failedRun]) }));
 
     await page.goto('/pre-specs/991');
-    const current = page.getByRole('region', { name: '현재 개요 검토' });
+    // 맨 위 안내가 범위 과대를 말한다. 범위 확인 자리가 없는 응답이라 폼은 없고 그 사실을 할 일로 적는다.
+    const notice = page.getByTestId('pre-spec-problem-notice');
+    await expect(notice).toHaveAttribute('data-kind', 'overview_range_too_wide');
+    await expect(notice.getByRole('region', { name: '개요 범위 확인' })).toHaveCount(0);
+    await expect(page.getByTestId('pre-spec-problem-todo')).toContainText('이 화면에서는 지금 범위를 다시 정할 수 없어요.');
+    // 구역은 닫혀 들어오고, 열면 마지막 실행 블록이 먼저 보인다.
+    await openProcessSection(page);
+    const current = page.locator('#ps-record-run').getByRole('region', { name: '현재 개요 검토' });
     await expect(current).toContainText('입력 용량 초과로 미실행');
     await expect(current).toContainText('선택 범위와 요청 예산을 확인해 주세요.');
     await expect(current).toContainText('안전 한도를 확인할 수 없어');

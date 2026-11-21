@@ -748,6 +748,17 @@ export interface PageOverviewCurrent {
   prompt_version: string | null;
   created_at: string;
   verification_status: "passed" | "needs_human_review" | null;
+  /**
+   * 아래는 run 원값을 자리만 옮긴 것이다(2026-11-21 문제 상태 안내, `lib/preSpecProblemNotice.ts`).
+   * `reason_code`는 첫 사유만 갖지만 안내는 사유 전체·읽으려던 쪽 범위·맞지 않는 문장을 서버 값 그대로 쓴다.
+   */
+  reason_codes: string[];
+  range_source: OverviewRangeSource;
+  page_start: number | null;
+  page_end: number | null;
+  pdf_page_count: number | null;
+  call_count: number;
+  failed_claims: OverviewFailedClaim[];
 }
 export interface PageOverviewRangeCandidate {
   index: number;
