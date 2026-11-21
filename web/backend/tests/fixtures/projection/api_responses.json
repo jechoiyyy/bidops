@@ -209,6 +209,7 @@
    "attachment_status": "g2b",
    "attachments": [
     {
+     "acquired_file": null,
      "created_at": "2026-08-24T00:00:00Z",
      "extract_status": null,
      "file_ext": "pdf",
@@ -412,6 +413,7 @@
    "attachment_status": "manual",
    "attachments": [
     {
+     "acquired_file": null,
      "created_at": "2026-08-24T00:00:00Z",
      "extract_status": null,
      "file_ext": "pdf",
@@ -571,6 +573,7 @@
    "attachment_status": "manual",
    "attachments": [
     {
+     "acquired_file": null,
      "created_at": "2026-08-24T00:00:00Z",
      "extract_status": null,
      "file_ext": "pdf",
@@ -581,6 +584,7 @@
      "url": null
     },
     {
+     "acquired_file": null,
      "created_at": "2026-08-24T00:00:00Z",
      "extract_status": null,
      "file_ext": "pdf",
@@ -818,6 +822,7 @@
    "attachment_status": "g2b",
    "attachments": [
     {
+     "acquired_file": null,
      "created_at": "2026-08-24T00:00:00Z",
      "extract_status": null,
      "file_ext": "pdf",

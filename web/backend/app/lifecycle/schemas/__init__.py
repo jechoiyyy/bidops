@@ -36,6 +36,14 @@ class PageFilters(APIModel):
     offset: int
 
 
+class AcquiredFileResponse(APIModel):
+    """첨부를 실제로 내려받아 알게 된 파일 정보. 목록의 `name`은 자리표시자일 수 있다."""
+
+    filename: str
+    file_ext: str | None = None
+    size_bytes: int | None = None
+
+
 class AttachmentResponse(APIModel):
     id: int
     name: str | None = None
@@ -45,6 +53,8 @@ class AttachmentResponse(APIModel):
     size_bytes: int | None = None
     extract_status: str | None = None
     created_at: datetime | None = None
+    # 취득한 원문이 있을 때만 값이 있다. 없으면 `null`(미확인)이고 `name`을 바꿔 채우지 않는다.
+    acquired_file: AcquiredFileResponse | None = None
 
 
 class AgencyPortalResponse(APIModel):

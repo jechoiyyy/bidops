@@ -10,12 +10,13 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Mapping, Sequence
+from pathlib import PurePosixPath
 from typing import Any
 
 from sqlalchemy import func, select
 
-from ...lifecycle import PreSpecDocumentCounts, WorkloadCount
-from ..models import AttachmentFetch
+from ...lifecycle import AcquiredAttachmentFile, PreSpecDocumentCounts, WorkloadCount
+from ..models import AttachmentFetch, ContentObject, DocumentVersion
 from ...lifecycle.models import Attachment, Notice
 from .auto_preparation import auto_preparation_fields
 from .display_assessment import display_assessments
@@ -34,6 +35,44 @@ _FETCH_STATUS_FIELDS: Mapping[str, str] = {
 
 def _distinct_ids(notice_ids: Sequence[int]) -> tuple[int, ...]:
     return tuple(dict.fromkeys(int(value) for value in notice_ids))
+
+
+class AcquiredAttachmentFiles:
+    """`AcquiredAttachmentFilesProvider` 제공자.
+
+    첨부의 **현재 문서 version**에서 실제 파일명과 크기를 읽는다. 짝은
+    `document_version.attachment_id`이고(첨부당 current는 unique index로 하나다) 순번·주소·
+    이름으로 맞추지 않는다. 안전 검사 상태는 가리지 않는다 — 파일명은 취득 응답의 metadata일
+    뿐이고 원문을 열 수 있는지는 묶음·검사 상태가 따로 말한다.
+    """
+
+    def acquired_attachment_files(
+        self, session: Any, attachment_ids: Sequence[int]
+    ) -> Mapping[int, AcquiredAttachmentFile]:
+        ids = _distinct_ids(attachment_ids)
+        if not ids:
+            return {}
+        rows = session.execute(
+            select(
+                DocumentVersion.attachment_id,
+                DocumentVersion.original_filename,
+                ContentObject.size_bytes,
+            )
+            .join(ContentObject, ContentObject.id == DocumentVersion.content_object_id)
+            .where(DocumentVersion.attachment_id.in_(ids), DocumentVersion.is_current.is_(True))
+        ).all()
+        files: dict[int, AcquiredAttachmentFile] = {}
+        for attachment_id, filename, size_bytes in rows:
+            if not filename:
+                continue
+            # 확장자 표기는 첨부 등록(`file_ext`)과 같은 규칙이다: 접미사를 대문자로, 없으면 미확인.
+            suffix = PurePosixPath(filename).suffix.upper().lstrip(".")
+            files[int(attachment_id)] = AcquiredAttachmentFile(
+                filename=filename,
+                file_ext=suffix or None,
+                size_bytes=int(size_bytes) if size_bytes is not None else None,
+            )
+        return files
 
 
 class PreSpecOverviewDocumentProjection:

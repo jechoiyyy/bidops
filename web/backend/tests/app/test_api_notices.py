@@ -8,6 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.db import Base, get_db, init_db
 from app.main import app
+from app.deep_review.models import ContentObject, DocumentVersion
 from app.lifecycle.models import Attachment, Notice, Run
 from app.screening.models import Evidence, Judgment, Perspective
 
@@ -200,6 +201,58 @@ def test_notice_detail_includes_judgment_evidence_and_attachments(api_client):
     assert payload["judgment"]["perspectives"][0]["evidence"][0]["status"] == "confirmed"
     assert payload["attachments"][0]["origin"] == "g2b"
     assert payload["timezone"] == "Asia/Seoul"
+
+
+def test_attachment_responses_carry_the_acquired_filename_only_when_the_server_knows_it():
+    """사전규격 목록 이름은 자리표시자다. 내려받은 첨부만 실제 파일명을 함께 싣는다."""
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    init_db(engine)
+    with Session(engine) as session:
+        notice = Notice(notice_key="pre:ACQUIRED", source_type="pre_spec", title="사전규격", agency="테스트 기관")
+        acquired = Attachment(name="첨부 1", url="https://example.invalid/1", origin="g2b")
+        pending = Attachment(name="첨부 2", url="https://example.invalid/2", origin="g2b")
+        notice.attachments.extend([acquired, pending])
+        session.add(notice)
+        session.flush()
+        content = ContentObject(
+            sha256="a" * 64, size_bytes=2048, detected_mime="application/octet-stream", retention_class="source"
+        )
+        session.add(content)
+        session.flush()
+        session.add(
+            DocumentVersion(
+                notice_id=notice.id, attachment_id=acquired.id, content_object_id=content.id, version=1,
+                source_kind="provider", source_system="g2b", source_attachment_key="key-1",
+                source_url="https://example.invalid/1", original_filename="제안요청서(고도화).hwpx",
+                role="제안요청서", is_current=True, safety_status="safe",
+            )
+        )
+        session.commit()
+        notice_id = notice.id
+
+        def override_db():
+            yield session
+
+        app.dependency_overrides[get_db] = override_db
+        try:
+            with TestClient(app) as client:
+                detail = client.get(f"/api/notices/{notice_id}")
+                procedure = client.get(f"/api/notices/{notice_id}/attachments")
+        finally:
+            app.dependency_overrides.pop(get_db, None)
+
+    assert detail.status_code == 200 and procedure.status_code == 200
+    for payload in (detail.json(), procedure.json()):
+        first, second = payload["attachments"]
+        # 목록 이름은 그대로 두고 실제 파일명을 따로 싣는다.
+        assert first["name"] == "첨부 1"
+        assert first["acquired_file"] == {
+            "filename": "제안요청서(고도화).hwpx", "file_ext": "HWPX", "size_bytes": 2048,
+        }
+        # 아직 내려받지 않은 첨부는 미확인(null)이다. 이름을 추정해 채우지 않는다.
+        assert second["name"] == "첨부 2"
+        assert second["acquired_file"] is None
 
 
 def test_notice_history_and_missing_notice(api_client):

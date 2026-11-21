@@ -13,9 +13,7 @@ from sqlalchemy.orm import Session, selectinload
 from ...core.db import get_db
 from .. import extension_registry
 from ..models import Attachment, Notice, NoticeObservation
-from ..api import attachment_download_url
 from ..schemas import (
-    AttachmentResponse,
     HistoryItemResponse,
     NoticeDetailResponse,
     NoticeHistoryResponse,
@@ -24,7 +22,7 @@ from ..schemas import (
     RelatedNoticeResponse,
     PageFilters,
 )
-from .common import decimal_float, get_run, latest_notice_observation, notice_list_item
+from .common import attachment_responses, decimal_float, get_run, latest_notice_observation, notice_list_item
 
 
 router = APIRouter(prefix="/api/notices", tags=["notices"])
@@ -186,7 +184,7 @@ def _json_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
-def _detail_response(notice: Notice, detail: Mapping[str, Any]) -> NoticeDetailResponse:
+def _detail_response(session: Session, notice: Notice, detail: Mapping[str, Any]) -> NoticeDetailResponse:
     observation = latest_notice_observation(notice)
     run = observation.run if observation is not None else None
     judgment = detail.get("judgment")
@@ -217,19 +215,7 @@ def _detail_response(notice: Notice, detail: Mapping[str, Any]) -> NoticeDetailR
         performance_top_score=notice.performance_top_score,
         candidate_sources=_json_list(notice.candidate_sources_json),
         judgment=judgment,
-        attachments=[
-            AttachmentResponse(
-                id=attachment.id,
-                name=attachment.name,
-                url=attachment_download_url(attachment),
-                origin=attachment.origin,
-                file_ext=attachment.file_ext,
-                size_bytes=attachment.size_bytes,
-                extract_status=attachment.extract_status,
-                created_at=attachment.created_at,
-            )
-            for attachment in notice.attachments
-        ],
+        attachments=attachment_responses(session, notice.attachments),
         reviews=list(detail.get("reviews", [])),
     )
 
@@ -246,7 +232,7 @@ def notice_detail(notice_pk: int, session: Session = Depends(get_db)) -> NoticeD
     if notice is None:
         raise HTTPException(status_code=404, detail=f"공고를 찾을 수 없습니다: {notice_pk}")
     detail = extension_registry().judgment_projection.notice_detail(session, notice.id)
-    return _detail_response(notice, detail)
+    return _detail_response(session, notice, detail)
 
 
 def _lifecycle_value(notice: Notice, key: str) -> Any:

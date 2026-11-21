@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -15,8 +15,9 @@ from sqlalchemy.orm import Session
 from ...core.config import get_settings
 from ..ingest.loader import parse_run_id
 from .. import extension_registry
-from ..models import Notice, NoticeObservation, Run
-from ..schemas import NoticeListItem, RunCounts, RunKind, RunSummary
+from ..api import attachment_download_url
+from ..models import Attachment, Notice, NoticeObservation, Run
+from ..schemas import AcquiredFileResponse, AttachmentResponse, NoticeListItem, RunCounts, RunKind, RunSummary
 
 
 def get_run(session: Session, run_id: str) -> Run:
@@ -158,3 +159,41 @@ def load_json_file(path: Path) -> dict[str, Any] | None:
 
 def warning_counts(rows: list[Any]) -> dict[str, int]:
     return dict(Counter(row.level for row in rows))
+
+
+def attachment_responses(session: Session, attachments: Sequence[Attachment]) -> list[AttachmentResponse]:
+    """첨부 행을 wire 응답으로 바꾼다. 공고 상세와 첨부 처리 화면이 같은 한 벌을 쓴다.
+
+    `name`·`file_ext`·`size_bytes`는 첨부 행 값 그대로다. 나라장터 사전규격은 목록에
+    파일명이 없어 `name`이 자리표시자("첨부 1")인데, 원문을 내려받은 뒤에는 실제 파일명을
+    `acquired_file`로 함께 싣는다(확장점 제공자가 첨부 id로 정확히 짝지은 값). 제공자가
+    없거나 아직 내려받지 않았으면 `acquired_file`은 `null`이다 — 순번이나 주소로 이름을
+    추정하지 않는다. 조회는 첨부 수와 무관하게 한 번이다.
+    """
+
+    acquired = extension_registry().acquired_attachment_files(
+        session, [attachment.id for attachment in attachments]
+    )
+    responses: list[AttachmentResponse] = []
+    for attachment in attachments:
+        file = acquired.get(attachment.id)
+        responses.append(
+            AttachmentResponse(
+                id=attachment.id,
+                name=attachment.name,
+                url=attachment_download_url(attachment),
+                origin=attachment.origin,
+                file_ext=attachment.file_ext,
+                size_bytes=attachment.size_bytes,
+                extract_status=attachment.extract_status,
+                created_at=attachment.created_at,
+                acquired_file=(
+                    AcquiredFileResponse(
+                        filename=file.filename, file_ext=file.file_ext, size_bytes=file.size_bytes
+                    )
+                    if file is not None
+                    else None
+                ),
+            )
+        )
+    return responses
