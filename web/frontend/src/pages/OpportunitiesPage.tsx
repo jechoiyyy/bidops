@@ -477,6 +477,7 @@ export function OpportunitiesPage() {
           <WorkspaceFilterTools className="opportunity-filter-tools">
             <WorkspaceAdvancedToggle
               visibleLabel="필터"
+              activeCount={Number(Boolean(reason)) + Number(Boolean(stage)) + Number(sort !== "created_at")}
               controlsId="opportunity-filter-advanced"
               isOpen={advanced}
               onToggle={() => setAdvanced(!advanced)}
@@ -495,34 +496,34 @@ export function OpportunitiesPage() {
               value={searchText}
             />
           </WorkspaceFilterTools>
-          {view === ACTION_VIEW ? (
-            <WorkspaceFilterContext className="opportunity-reason-filters">
-              {/* 건수는 서버가 사유 필터만 빼고 센 값이다(`action_reason_counts`). 한 사업은
-                  여러 사유에 들어가므로 합이 구역 건수와 같지 않다. */}
-              <div aria-label="조치 사유" className="opportunity-reason-chips" role="group">
-                {ACTION_REASON_ORDER.map((code) => {
-                  const count = reasonCounts ? reasonCounts[code] ?? null : undefined;
-                  const countText = count === undefined ? null : count === null ? "–" : formatCount(count);
-                  return (
-                    <Button
-                      aria-pressed={reason === code}
-                      data-reason={code}
-                      key={code}
-                      label={countText === null ? actionReasonLabel(code) : `${actionReasonLabel(code)}  ${countText}`}
-                      onClick={() => changeFilter("reason", reason === code ? null : code)}
-                      size="sm"
-                    >
-                      <span className="opportunity-reason-chip-label">{actionReasonLabel(code)}</span>
-                      {countText === null ? null : <span className="opportunity-reason-chip-count">{countText}</span>}
-                    </Button>
-                  );
-                })}
-              </div>
-
-            </WorkspaceFilterContext>
-          ) : null}
           {advanced ? (
             <WorkspaceFilterAdvanced columns={2} id="opportunity-filter-advanced" onReset={resetFilters}>
+              {view === ACTION_VIEW ? (
+                <div className="opportunity-reason-filters">
+                  {/* 건수는 서버가 사유 필터만 빼고 센 값이다(`action_reason_counts`). 한 사업은
+                      여러 사유에 들어가므로 합이 구역 건수와 같지 않다. */}
+                  <div aria-label="조치 사유" className="opportunity-reason-chips" role="group">
+                    {ACTION_REASON_ORDER.map((code) => {
+                      const count = reasonCounts ? reasonCounts[code] ?? null : undefined;
+                      const countText = count === undefined ? null : count === null ? "–" : formatCount(count);
+                      return (
+                        <Button
+                          aria-pressed={reason === code}
+                          data-reason={code}
+                          key={code}
+                          label={countText === null ? actionReasonLabel(code) : `${actionReasonLabel(code)}  ${countText}`}
+                          onClick={() => changeFilter("reason", reason === code ? null : code)}
+                          size="sm"
+                        >
+                          <span className="opportunity-reason-chip-label">{actionReasonLabel(code)}</span>
+                          {countText === null ? null : <span className="opportunity-reason-chip-count">{countText}</span>}
+                        </Button>
+                      );
+                    })}
+                  </div>
+
+                </div>
+              ) : null}
               <Selector
                 hasClear
                 label="최초 발견 단계"
