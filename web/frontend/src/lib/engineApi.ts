@@ -106,7 +106,16 @@ export interface EngineAnalysis {
     action: string | null;
     unknown_fields: string[];
   }[];
-  fits: { req_id: string; fit: "FULL" | "PARTIAL" | "GAP" | "UNKNOWN"; rationale: string; gap_action: string | null; evidence: EngineEvidence | null; evidence_portfolio_ids?: string[]; /** 원문에 표기된 필수(true)·선택(false). 표기가 없으면 `null`, 옛 응답에는 없다. */ mandatory?: boolean | null }[];
+  fits: { req_id: string; fit: "FULL" | "PARTIAL" | "GAP" | "UNKNOWN"; rationale: string; gap_action: string | null; evidence: EngineEvidence | null; evidence_portfolio_ids?: string[];
+    /** 원문에서 추출한 요구사항 명칭·정의(엔진 14756a0부터). 추출되지 않았으면 `null`, 옛 응답에는 없다. */
+    name?: string | null; definition?: string | null;
+    /** 같은 번호가 여러 번 나오는 원문에서 행을 구분하는 키(예: `SFR-002-01@2`). 없으면 `req_id`가 키다. */
+    instance_key?: string | null;
+  }[];
+  /** 원문에서 확인한 요구사항 수와 분석에 넣은 수(엔진 14756a0부터). 옛 응답에는 없다. */
+  requirement_counts?: { source_found: number; analysis_input: number; source_expected: number | null } | null;
+  /** 결과 문자열에 원문·회사 자료에 없는 한자·외국어 표현이 섞인 곳. 화면은 건수만 알린다. */
+  language_warnings?: { path: string; terms: string[]; retry_pass: "extract" | "match" | "synth" | null }[];
   data_to_confirm: { field: string; why: string }[];
   /** 아래는 원본 Analysis에 있고 사전규격 상세 분석 완료 화면(mock 빌드 전용)이 읽는다. 옛 응답·fixture에는 없을 수 있다. */
   risks?: EngineRisk[];

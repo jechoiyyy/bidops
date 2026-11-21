@@ -9,7 +9,7 @@
  *
  * **예시다.** 회사 근거 문구·판단은 실제 회사 역량이 아니며 운영 데이터도 품질 근거도 아니다
  * (`quality_status=mock_reference`). 원본 Analysis에는 요구사항 이름이 없으므로(`RequirementFit`은
- * `req_id`만 갖는다) 여기에도 넣지 않는다.
+ * `req_id`만 갖는다) 여기에도 넣지 않는다. 엔진 14756a0부터는 `fits[].name`으로 명칭이 오므로 완료 예시에만 싣는다.
  */
 import type { EngineAnalysis, EngineEvidence, EngineRun } from "../../src/lib/engineApi";
 
@@ -124,7 +124,7 @@ const COMPANY_FIELDS = [
 
 function analysisFixture(variant: "completed" | "partial"): EngineAnalysis {
   const partial = variant === "partial";
-  const fits = FITS.map(([reqId, , fit, portfolio, gap, quote], index) => {
+  const fits = FITS.map(([reqId, name, fit, portfolio, gap, quote], index) => {
     const unread = partial && PARTIAL_UNREAD.test(reqId);
     return {
       req_id: reqId,
@@ -133,8 +133,8 @@ function analysisFixture(variant: "completed" | "partial"): EngineAnalysis {
       evidence_portfolio_ids: unread ? [] : Array.from({ length: portfolio }, (_, n) => `P2026-${String(index + 1).padStart(2, "0")}-${n + 1}`),
       gap_action: unread ? null : gap || null,
       evidence: unread ? null : evidence(quote, partial ? 31 + index : null),
-      // 필수 여부는 원문에 표기된 건만 온다(엔진 f69f8cf부터). 부분 결과 예시는 옛 응답처럼 필드가 없다.
-      ...(partial ? {} : { mandatory: index < 5 ? true : index === 5 ? false : null }),
+      // 원문에서 옮긴 요구사항 명칭(엔진 14756a0부터). 부분 결과 예시는 옛 응답처럼 필드가 없다.
+      ...(partial ? {} : { name, definition: null, instance_key: null }),
     };
   });
   const gates: EngineAnalysis["gates"] = [
@@ -269,6 +269,11 @@ function analysisFixture(variant: "completed" | "partial"): EngineAnalysis {
         evidence: [evidence("하도급은 사업금액의 50%를 초과할 수 없으며", partial ? 60 : null, "S032")],
       },
     },
+    // 원문 요구사항 수와 한자·외국어 혼입 경고(엔진 14756a0부터). 부분 결과 예시는 옛 응답처럼 없다.
+    ...(partial ? {} : {
+      requirement_counts: { source_found: fits.length, analysis_input: fits.length, source_expected: null },
+      language_warnings: [{ path: "risks[0].description", terms: ["納期"], retry_pass: "synth" as const }],
+    }),
     // 검증된 인용의 원문 블록 위치(adapter.source_evidence). HWPX 블록에는 쪽이 없을 수 있다(`page: null`).
     source_evidence: fits.flatMap((fit, index) => fit.evidence ? [{
       evidence_path: `/fits/${index}/evidence`,

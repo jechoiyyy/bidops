@@ -45,6 +45,31 @@ async function mockTrackingPatches(page: Page) {
   return patches;
 }
 
+for (const state of ["abstain", "ready"] as const) {
+  test(`엔진 종합 권고는 화면에 표시한 의견과 다를 때만 보인다 · ${state}`, async ({ page }) => {
+    await mockApi(page);
+    const run = await mockEngineAnalysis(page, "completed", NOTICE_ID);
+    const analysis = run.analysis!;
+    const assessment = analysis.assessment!;
+    assessment.state = state;
+    assessment.decision = state === "ready" ? "NO_GO" : null;
+    assessment.provisional!.decision = "CONDITIONAL_GO";
+    analysis.recommendation.decision = "NO_GO";
+    analysis.recommendation.why_not = ["상주 장소를 협의해야 합니다.", "두 번째 우려입니다."];
+    await page.goto(`/pre-specs/${NOTICE_ID}`);
+    const opinion = page.locator("#pa-summary .pa-opinion");
+    await expect(opinion).toBeVisible();
+    if (state === "abstain") {
+      await expect(opinion.getByText(/엔진 종합 권고/)).toHaveText(
+        "엔진 종합 권고 · 참여 비권장 · 참여 우려 · 상주 장소를 협의해야 합니다.",
+      );
+      await expect(opinion).not.toContainText("두 번째 우려입니다.");
+    } else {
+      await expect(opinion).not.toContainText("엔진 종합 권고");
+    }
+  });
+}
+
 test("분석 완료 화면: 구역 순서·건수 줄·충족 접힘·점수 없음", async ({ page }) => {
   await openAnalysis(page);
   const analysis = completed.analysis!;
@@ -101,7 +126,7 @@ test("분석 완료 화면: 구역 순서·건수 줄·충족 접힘·점수 없
   await expect(overviewToggle).toHaveAttribute("aria-expanded", "false");
 });
 
-test("분석 완료 화면: 엔진이 붙인 목적·확인 시점·필수 여부·원문 블록 위치를 그대로 보인다", async ({ page }) => {
+test("분석 완료 화면: 엔진이 붙인 목적·확인 시점·요구사항 이름·분석 건수·원문 블록 위치를 그대로 보인다", async ({ page }) => {
   await openAnalysis(page);
   const analysis = completed.analysis!;
   const requests = analysis.review_actions?.requests ?? [];
@@ -126,17 +151,20 @@ test("분석 완료 화면: 엔진이 붙인 목적·확인 시점·필수 여�
   await expect(fold.locator("li")).toHaveCount(otherCompany);
   await expect(fold.locator("li code")).toHaveCount(0);
 
-  // 필수·선택은 원문에 표기된 건만 표시한다. 표기가 없는 건에는 아무것도 붙이지 않는다.
-  const fits = analysis.fits;
-  const known = count(fits, (fit) => fit.mandatory === true || fit.mandatory === false);
+  // 필수 여부는 다루지 않는다(2026-11-21 결정). 요구 ID 칸에 표시를 붙이지 않고 화면 어디에도 적지 않는다.
   await page.locator("#pa-reqs .pa-pills").getByRole("button", { name: /^전체/ }).click();
-  const marks = page.locator("#pa-reqs .pa-req-table td.pa-col-id .pa-sub");
-  await expect(marks).toHaveCount(known);
-  await expect(marks.filter({ hasText: "필수" })).toHaveCount(count(fits, (fit) => fit.mandatory === true));
-  await expect(marks.filter({ hasText: "선택" })).toHaveCount(count(fits, (fit) => fit.mandatory === false));
-  await expect(page.locator("#pa-reqs > .pa-cap")).toHaveText(
-    `엔진 결과에 요구사항 이름이 없어 원문 발췌로 요구를 보여요. 필수·선택은 원문에 표기된 ${known}건만 표시해요.`,
-  );
+  await expect(page.locator("#pa-reqs .pa-req-table td.pa-col-id .pa-sub")).toHaveCount(0);
+  await expect(page.locator("#pa-reqs")).not.toContainText("필수");
+  // 요구사항 칸은 엔진이 원문에서 옮긴 이름이다. 모든 행에 이름이 있으면 "원문 발췌로 보여요" 안내가 없다.
+  const fits = analysis.fits;
+  await expect(page.locator("#pa-reqs .pa-req-table thead th").nth(1)).toHaveText("요구사항");
+  await expect(page.locator("#pa-reqs .pa-req-table tbody tr")).toHaveCount(fits.length);
+  await expect(page.locator("#pa-reqs .pa-req-table tbody tr", { hasText: fits[0].req_id }).first()).toContainText(fits[0].name as string);
+  await expect(page.locator("#pa-reqs > .pa-cap")).toHaveCount(0);
+  // 분석 기준 줄은 원문 요구사항 수와 분석에 넣은 수를, 요약은 한자·외국어 혼입 경고 건수를 그대로 알린다.
+  const counts = analysis.requirement_counts!;
+  await expect(page.locator("#pa-summary .pa-basis")).toContainText(`원문 요구사항 ${counts.source_found}건 중 ${counts.analysis_input}건 분석`);
+  await expect(page.getByTestId("pa-language-warning")).toContainText(`${analysis.language_warnings!.length}곳`);
 
   // 쪽 번호가 없어도 원문 블록 위치가 하나로 확인된 인용은 그 사실을 알린다(쪽 번호로 바꿔 적지 않는다).
   await page.locator("#pa-reqs [data-pa-ev]").first().click();
@@ -144,7 +172,7 @@ test("분석 완료 화면: 엔진이 붙인 목적·확인 시점·필수 여�
   await expect(page.locator("#pa-ev .pa-cap").first()).not.toContainText("쪽");
 });
 
-test("부분 결과 화면: 새 필드가 없는 옛 응답은 회사 확인을 모두 접고 필수 표시를 하지 않는다", async ({ page }) => {
+test("부분 결과 화면: 새 필드가 없는 옛 응답은 회사 확인을 모두 접는다", async ({ page }) => {
   await openAnalysis(page, "partial");
   const analysis = partial.analysis!;
   const requests = analysis.review_actions?.requests ?? [];
@@ -155,9 +183,10 @@ test("부분 결과 화면: 새 필드가 없는 옛 응답은 회사 확인을 
   await expect(fold.locator("summary")).toHaveText(`회사 자료 확인 ${company}건 보기`);
   await fold.locator("summary").click();
   await expect(fold.locator("li code")).toHaveCount(company);
-  await page.locator("#pa-reqs .pa-pills").getByRole("button", { name: /^전체/ }).click();
-  await expect(page.locator("#pa-reqs .pa-req-table td.pa-col-id .pa-sub")).toHaveCount(0);
-  await expect(page.locator("#pa-reqs > .pa-cap")).toHaveText("엔진 결과에 요구사항 이름과 필수 여부가 없어 원문 발췌로 요구를 보여요.");
+  await expect(page.locator("#pa-reqs > .pa-cap")).toHaveText("엔진 결과에 요구사항 이름이 없어 원문 발췌로 요구를 보여요.");
+  await expect(page.locator("#pa-reqs .pa-req-table thead th").nth(1)).toHaveText("원문 발췌");
+  await expect(page.locator("#pa-summary .pa-basis")).not.toContainText("원문 요구사항");
+  await expect(page.getByTestId("pa-language-warning")).toHaveCount(0);
 });
 
 test("분석 완료 화면: 요구사항 필터와 근거 패널(1440 옆 패널)이 열리고 Esc로 닫히며 초점이 돌아온다", async ({ page }) => {
