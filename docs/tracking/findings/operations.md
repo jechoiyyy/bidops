@@ -2,6 +2,14 @@
 
 [전체 색인](../findings.md). 미해결 또는 일부 조치 뒤 검증이 남은 항목이다. 제목의 날짜는 마지막 관측·기록 시점이며 2026-10-21에 다시 재현했다는 뜻이 아니다. 과거 기능명·정책·환경을 현재에 적용하기 전에 소스와 마지막 실행 증거를 확인한다.
 
+## 백업 실행이 DB 컨테이너를 다시 만들고, DB가 끊기면 web의 선별 큐 스레드가 죽은 채 남는다 (2026-11-21, 미해결)
+
+- **관측.** 2026-11-21 15:46 KST 배포 전 백업 `BIDOPS_ENV=prod scripts/compose.sh run --rm ro-backup`이 의존 서비스인 `bidops-postgres-1`을 다시 만들었다(Created 06:46:09Z, 정상 종료 뒤 약 1초 만에 접속 가능, 데이터 volume `bidops_postgres-data` 그대로). 그 전까지 postgres는 3일째 떠 있었다. 다시 만든 원인은 확인하지 못했다. 실행 중이던 컨테이너의 설정과 현재 compose 설정이 달라 compose가 의존 서비스를 재생성한 것으로 추정한다.
+- **영향.** 같은 순간 web에서 `screening.queue_error`와 `Exception in thread bidops-screening-worker`(`app/screening/worker.py` `run_forever` → `queue.claim`의 `QueueDatabaseError`)가 났다. 이 스레드는 앱 시작 때 한 번만 띄우고(`app/screening/runtime.py` `start`) 다시 띄우는 경로가 없어, web을 재시작하기 전까지 선별 큐를 처리하지 못하는 상태가 된다. `/api/health`는 계속 `ok`였다. analysis-worker와 첨부 worker는 `job_failed`를 한 줄씩 남기고 계속 돌았다. 이번에는 약 3분 뒤 배포로 web을 교체해 스레드가 다시 떴다.
+- **재현 조건.** web이 떠 있는 동안 postgres가 재시작·재생성된다.
+- **지금 해결하지 않은 이유.** 배포 작업 범위 밖의 백엔드 변경이다.
+- **후속 방향.** ① 백업 전에 `scripts/compose.sh ps`와 `docker inspect`로 postgres 재생성 여부를 확인하거나 `run --no-deps`로 의존 서비스를 건드리지 않게 한다(절차 문서 반영 필요). ② 선별 큐 스레드가 DB 오류에서 죽지 않고 재시도하게 하고, 스레드 생존을 health에 반영한다. ③ postgres가 재시작된 날은 web 로그에서 `Exception in thread`를 확인한다.
+
 ## 공고 날의 수집은 끝났는데 적재가 실패하면 그날이 조용히 빠졌다 (2026-11-18 독립 검증 B2, 코드 수정·운영 반영)
 
 - 재현: 공고 트랙에서 수집이 완결된 뒤 적재가 실패하거나 둘 사이에서 `timeout`(124)에 끊기면 완결 디렉터리만 남고
