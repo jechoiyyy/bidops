@@ -103,6 +103,20 @@ export function formatNumber(value: number | null | undefined): string {
   return new Intl.NumberFormat("ko-KR").format(value);
 }
 
+/**
+ * 파일 크기를 사람이 읽는 단위로 적는다(1024 단위, 소수 한 자리). 0바이트는 `0 B`로 남긴다 —
+ * 빈 파일과 크기 미확인(null)은 다른 사실이고 null 처리는 호출부가 한다.
+ */
+export function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return "크기 미확인";
+  if (bytes < 1024) return `${formatNumber(bytes)} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit += 1; }
+  return `${new Intl.NumberFormat("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value)} ${units[unit]}`;
+}
+
 /** 추정가격은 나라장터가 준 원문 수집값이다. 서버 null은 사람 확인 대기가 아니라
  * 원천이 값을 주지 않았다는 뜻이라 `미제공`으로 적는다(U3, spec §1.1). */
 export function formatPrice(value: number | null | undefined): string {

@@ -81,7 +81,15 @@ test("첨부 이름은 서버가 실제 파일명을 알 때만 그 이름으로
   const rows = page.getByRole("table", { name: "첨부 파일 목록" }).locator("tbody").getByRole("row");
   await expect(rows).toHaveCount(3);
   await expect(rows.nth(0).getByRole("cell").nth(0)).toHaveText("제안요청서(온시스템 고도화).hwpx");
-  await expect(rows.nth(0).getByRole("cell").nth(1)).toHaveText("HWPX · 204,800 B");
+  // 크기는 읽기 쉬운 단위로, 정확한 바이트 수는 title로 남긴다.
+  await expect(rows.nth(0).getByRole("cell").nth(1)).toHaveText("HWPX · 200.0 KB");
+  await expect(rows.nth(0).getByRole("cell").nth(1).locator("span[title]")).toHaveAttribute("title", "204,800 B");
+  // 처리 상태 값이 하나도 없으면 그 칸을 그리지 않는다(`미확인` 칩이 줄지어 서지 않게).
+  const table = page.getByRole("table", { name: "첨부 파일 목록" });
+  await expect(table.getByRole("columnheader")).toHaveText(["파일", "형식 · 크기", "열기"]);
+  // 나라장터에서 받은 원문은 내부 다운로드 경로가 없다. 열리지 않는 `다운로드`를 그리지 않는다.
+  await expect(table.getByRole("link", { name: "다운로드" })).toHaveCount(0);
+  await expect(table.getByRole("link", { name: "원본 열기" })).toHaveCount(3);
   // 아직 내려받지 않은 첨부는 자리표시자와 미확인 그대로다.
   await expect(rows.nth(1).getByRole("cell").nth(0)).toHaveText("첨부 2");
   await expect(rows.nth(1).getByRole("cell").nth(1)).toHaveText("확장자 미확인 · 크기 미확인");
@@ -90,7 +98,7 @@ test("첨부 이름은 서버가 실제 파일명을 알 때만 그 이름으로
   await expect(rows.nth(2).getByRole("cell").nth(1)).toHaveText("확장자 미확인 · 크기 미확인");
 });
 
-test("첨부는 안전한 원본 URL과 실제 다운로드 경로만 제공하며 0바이트를 보존한다", async ({ page }) => {
+test("첨부는 안전한 원본 URL과 실제로 열리는 다운로드 경로만 제공하며 0바이트를 보존한다", async ({ page }) => {
   await mockApi(page);
   await page.route("**/api/notices/991", route => route.fulfill({ json: {
     ...visualPreSpecNotice,
@@ -99,16 +107,28 @@ test("첨부는 안전한 원본 URL과 실제 다운로드 경로만 제공하�
         origin: "g2b", file_ext: "pdf", size_bytes: 0, extract_status: "completed", created_at: null },
       { id: 72, name: "확인 대기.hwp", url: "javascript:alert(1)",
         origin: "g2b", file_ext: "hwp", size_bytes: null, extract_status: "pending", created_at: null },
+      // 서버가 보관한 파일(수동 등록)은 `url`이 내부 다운로드 경로로 온다.
+      { id: 73, name: "수동 등록.pdf", url: "/api/attachments/73/download",
+        origin: "manual", file_ext: "PDF", size_bytes: 1536, extract_status: null, created_at: null },
     ],
   } }));
   await page.goto("/pre-specs/991");
   const attachments = page.getByRole("table", { name: "첨부 파일 목록" });
   const rows = attachments.locator("tbody").getByRole("row");
-  await expect(rows).toHaveCount(2);
-  await expect(attachments.getByRole("link", { name: "다운로드" }).first()).toHaveAttribute("href", "/api/attachments/71/download");
-  await expect(attachments.getByRole("link", { name: "다운로드" }).nth(1)).toHaveAttribute("href", "/api/attachments/72/download");
-  await expect(attachments.getByRole("link", { name: "원본 열기" })).toHaveCount(1);
-  await expect(attachments.getByRole("link", { name: "원본 열기" })).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(rows).toHaveCount(3);
+  // 열기 칸은 실제로 열리는 것만 그린다: 외부 주소는 `원본 열기`, 보관 파일은 `다운로드`, 둘 다 아니면 없다고 말한다.
+  await expect(rows.nth(0).getByRole("link")).toHaveCount(1);
+  await expect(rows.nth(0).getByRole("link", { name: "원본 열기" })).toHaveAttribute("href", "https://example.invalid/rfp.pdf");
+  await expect(rows.nth(0).getByRole("link", { name: "원본 열기" })).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(rows.nth(1).getByRole("link")).toHaveCount(0);
+  await expect(rows.nth(1)).toContainText("열 수 있는 주소 없음");
+  await expect(rows.nth(2).getByRole("link")).toHaveCount(1);
+  await expect(rows.nth(2).getByRole("link", { name: "다운로드" })).toHaveAttribute("href", "/api/attachments/73/download");
+  // 처리 상태 값이 있는 표는 그 칸을 그리고, 값이 없는 행은 `미확인`이다.
+  await expect(attachments.getByRole("columnheader")).toHaveText(["파일", "형식 · 크기", "처리 상태", "열기"]);
+  await expect(rows.nth(0)).toContainText("본문 추출 완료");
+  await expect(rows.nth(2).getByRole("cell").nth(2)).toHaveText("미확인");
+  await expect(rows.nth(2).getByRole("cell").nth(1)).toHaveText("PDF · 1.5 KB");
   await expect(rows.first()).toContainText("0 B");
   await expect(rows.nth(1)).toContainText("크기 미확인");
   // `acquired_file`이 없는 응답은 목록 값을 그대로 보인다.

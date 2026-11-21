@@ -1076,6 +1076,79 @@
 }
 .ps-record .ps-record-tasks > .ps-record-range .page-overview-section { padding-block: 0; border-bottom: 0; }
 
+/* 문제 상태 안내(시안 c1~c5): 회색 채움 한 블록. 무슨 일(굵게) → 이유 → 할 일 → 조작 → 사유 코드(작게).
+   네 변 테두리·왼쪽 굵은 선·그림자는 두지 않는다. 상태는 글자 표식(칩)으로 말하고 색은 거들 뿐이다. */
+.ps-record .ps-problem-notice {
+  --ps-problem-key-width: calc(var(--spacing-10) + var(--spacing-1));
+  --ps-problem-indent: calc(var(--ps-problem-key-width) + var(--spacing-3));
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--spacing-5);
+  border-radius: var(--radius-element);
+  background: var(--color-background-muted);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+.ps-record .ps-problem-notice p { margin: 0; }
+.ps-record .ps-problem-lead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-2) var(--spacing-3);
+}
+.ps-record .ps-problem-lead .ps-chip { font-size: var(--bo-k-tag); font-weight: 600; }
+/* 회색 채움 위의 중립 표식은 흰 바탕으로 띄운다(시안 `.tag.neutral`). */
+.ps-record .ps-problem-notice.is-neutral .ps-problem-lead .ps-chip { background: var(--color-background-surface); }
+.ps-record .ps-problem-lead strong { font-size: var(--bo-k-section); font-weight: 700; line-height: 1.4; }
+.ps-record .ps-problem-line {
+  display: flex;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-2);
+  font-size: var(--bo-k-lead);
+  line-height: 1.55;
+}
+.ps-record .ps-problem-key { flex: 0 0 var(--ps-problem-key-width); font-weight: 600; }
+.ps-record .ps-problem-text { min-width: 0; }
+.ps-record .ps-problem-claims {
+  display: grid;
+  gap: var(--spacing-2);
+  margin: var(--spacing-2) 0 0 var(--ps-problem-indent);
+  padding: 0;
+  list-style: none;
+}
+.ps-record .ps-problem-claims > li {
+  padding: var(--spacing-3) var(--spacing-4);
+  border-radius: var(--radius-inner);
+  background: var(--color-background-surface);
+}
+.ps-record .ps-problem-claims blockquote { margin: 0; font-size: var(--bo-k-lead); line-height: 1.55; }
+.ps-record .ps-problem-cap {
+  margin-top: var(--spacing-1);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+  line-height: 1.5;
+}
+.ps-record .ps-problem-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-3) var(--spacing-4);
+  margin: var(--spacing-4) 0 0 var(--ps-problem-indent);
+}
+.ps-record .ps-problem-actions .ps-btn { font-size: var(--bo-k-meta); text-decoration: none; }
+.ps-record .ps-problem-actions .ps-ref { font-size: var(--bo-k-meta); }
+.ps-record .ps-problem-range { margin: var(--spacing-4) 0 0 var(--ps-problem-indent); min-width: 0; }
+.ps-record .ps-problem-range .page-overview-section { padding-block: 0; border-bottom: 0; }
+.ps-record .ps-problem-range > .ps-problem-cap { margin-top: var(--spacing-2); }
+.ps-record .ps-problem-codes {
+  margin-top: var(--spacing-4);
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-code, ui-monospace, monospace);
+  font-size: var(--bo-k-tag);
+  line-height: 1.5;
+}
+
 /* ---- 3. 원문·첨부 ------------------------------------------------------ */
 .ps-record .ps-record-evidence .ps-table { width: 100%; }
 .ps-record .ps-record-evidence .ps-plan-candidates { margin-top: var(--spacing-3); }
@@ -1129,6 +1202,11 @@
 .ps-record .ps-record-range > .astryx-button { align-self: flex-start; }
 .ps-record .ps-fold-body > .ps-record-range { display: flex; flex-direction: column; gap: var(--spacing-3); }
 .ps-record .ps-process-relevance { display: grid; gap: var(--spacing-3); min-width: 0; }
+/* 문제 상태에서 열린 구역: 관련 블록 뒤의 `나머지 기술 정보 보기`. 구역 제목보다 한 단 작은 토글이다. */
+.ps-record .ps-process-rest { display: flex; flex-direction: column; gap: var(--spacing-4); min-width: 0; padding-top: var(--spacing-2); border-top: 1px solid var(--bo-line-soft); }
+.ps-record .ps-process-rest-toggle { align-self: flex-start; font-size: var(--bo-k-lead); font-weight: 600; }
+.ps-record .ps-process-rest-body { display: flex; flex-direction: column; gap: var(--spacing-4); min-width: 0; }
+.ps-record .ps-process-rest-body .ps-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .ps-record .ps-process-relevance .ps-sub { margin: 0; font-size: var(--bo-k-lead); font-weight: 700; }
 
 /* ---- 하단 결정 띠 (패널 아래 고정, `#page-footer` portal) ------------------
