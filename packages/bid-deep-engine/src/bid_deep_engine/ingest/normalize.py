@@ -392,7 +392,7 @@ REQUIREMENT_LABELS: dict[str, re.Pattern[str]] = {
     "name": re.compile(r"요구사항\s*명칭"),
     "definition": re.compile(r"^정의$"),
     "details": re.compile(r"세부\s*내용|상세\s*내용|상세설명|세부내용"),
-    "mandatory": re.compile(r"응락\s*수준"),
+    "mandatory": re.compile(r"^(?:응락\s*수준|필수\s*여부)\s*:?$"),
 }
 LABEL_MAX_LEN = 20  # tunable: 이보다 긴 셀(본문 문장)은 라벨 단어가 있어도 라벨로 보지 않는다
 
@@ -503,9 +503,10 @@ def classify_table(rows: list[list[str]]) -> TableKind:
 def _mandatory(value: str | None) -> bool | None:
     if value is None:
         return None
-    if "필수" in value:
+    level = _squash(value)
+    if level in {"필수", "필수사항"}:
         return True
-    if "선택" in value:
+    if level in {"선택", "선택사항"}:
         return False
     return None
 
@@ -620,7 +621,7 @@ _TEXT_SUBTITLE = re.compile(r"사항\s*\d{1,2}\s*[\)）]$")
 _TEXT_LIST_ROW = re.compile(rf"(?:^|\s)(?:요구\s*사항|제약\s*사항|사항)\s+{REQ_ID}(?:\s|$)")
 # 마지막 항목 전용: 상세표 영역 뒤 다음 부분의 시작(공백 제거 후 앞부분 비교)
 _TEXT_TAIL_START = re.compile(r"^(?:요구사항총괄표|평가|붙임|서식|별지|별표|첨부)")
-_TEXT_MANDATORY = re.compile(r"응락\s*수준")
+_TEXT_MANDATORY = re.compile(r"^(?:응락\s*수준|필수\s*여부)\s*:?\s*(.*)$")
 
 
 @dataclass(frozen=True)
@@ -701,16 +702,17 @@ def _details_end(text: str, is_last: bool) -> bool:
 def _feed_line(item: _TextItem, lines: list[_Line], i: int) -> int:
     """항목 하나에 i번째 줄을 반영하고 소비한 줄 수를 돌려준다."""
     text = lines[i].text
+    mandatory = _TEXT_MANDATORY.match(text)
     if item.details is not None:
         if _details_end(text, item.is_last):
             item.closed = True
             return 1
-        if item.mandatory is None and _TEXT_MANDATORY.search(text):
-            item.mandatory = _mandatory(text)
+        if item.mandatory is None and mandatory:
+            item.mandatory = _mandatory(mandatory[1])
         item.details.append(text)
         return 1
-    if item.mandatory is None and _TEXT_MANDATORY.search(text):
-        item.mandatory = _mandatory(text)
+    if item.mandatory is None and mandatory:
+        item.mandatory = _mandatory(mandatory[1])
         return 1
     hit = _match_lines(_TEXT_DETAILS, lines, i)
     if hit is not None:

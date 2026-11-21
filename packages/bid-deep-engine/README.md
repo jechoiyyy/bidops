@@ -1,7 +1,7 @@
 # bid-deep-engine.v1
 
 Extracted offline engine from `bid-deep-agent` commit
-`7ad9283d8e8a405074374d12c5f0a13ccb8e5b1f`. `UPSTREAM.json` lists every file in
+`f69f8cfc08a9059747ec8278c65b77c6194dc8d1`. `UPSTREAM.json` lists every file in
 `src/` and `engine_tests/` exactly once, in one of three groups (`hash_semantics`):
 `files` are upstream files with the SHA-256 of the upstream bytes at that commit and
 the adaptation applied here (`import rename`, or a declared excerpt); `replaced_files`

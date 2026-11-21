@@ -752,7 +752,7 @@ class _NoticeRun:
             except (OSError, ValueError):
                 self._location_cache = (None, [])
         bundle, raws = self._location_cache
-        return locate_model_evidence(model, bundle, raws)
+        return locate_model_evidence(model, bundle, raws, document=doc)
 
     def warn(self, name: PassName, lines: list[str]) -> None:
         """pass 경고를 호출자(stderr)와 usage.json 둘 다에 남긴다."""

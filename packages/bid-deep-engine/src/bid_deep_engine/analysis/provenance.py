@@ -95,7 +95,15 @@ def _without_location_metadata(value: Any) -> Any:
     if isinstance(value, BaseModel):
         value = value.model_dump(mode="json")
     if isinstance(value, dict):
-        ignored = {"locations", "location_status"} if "quote" in value else set()
+        ignored = set()
+        if "quote" in value:
+            ignored.update(
+                {"locations", "location_status", "block_locations", "block_location_status"}
+            )
+        if "req_id" in value and "fit" in value:
+            ignored.add("mandatory")
+        if "blocking" in value and "affects" in value:
+            ignored.update({"purpose", "availability"})
         return {
             key: _without_location_metadata(item)
             for key, item in value.items()

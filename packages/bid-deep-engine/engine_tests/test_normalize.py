@@ -691,7 +691,14 @@ def test_parser_a_missing_name_uses_id_with_warning():
 
 @pytest.mark.parametrize(
     ("level", "expected"),
-    [("필수", True), ("선택", False), ("협의", None), ("", None)],
+    [
+        ("필수", True),
+        ("선택", False),
+        ("필수 아님", None),
+        ("필수 또는 선택", None),
+        ("협의", None),
+        ("", None),
+    ],
 )
 def test_parser_a_mandatory_values(level, expected):
     t = raw_table(

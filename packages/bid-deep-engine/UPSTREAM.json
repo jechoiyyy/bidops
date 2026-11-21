@@ -1,6 +1,6 @@
 {
   "repository": "bid-deep-agent",
-  "commit": "7ad9283d8e8a405074374d12c5f0a13ccb8e5b1f",
+  "commit": "f69f8cfc08a9059747ec8278c65b77c6194dc8d1",
   "engine_version": "bid-deep-engine.v1",
   "hash_semantics": {
     "files": "upstream file at `commit`: `path` is the upstream path and `sha256` hashes the upstream bytes. The vendored file is those bytes after `adaptation`: 'none', 'import rename' (bidops -> bid_deep_engine, tests. -> engine_tests.; `local_replacements` lists any further [vendored, upstream] line pairs), or 'excerpt: ...' (declared partial copy).",
@@ -10,7 +10,7 @@
   "files": [
     {
       "path": "src/bidops/analysis/actions.py",
-      "sha256": "18687e803413cf7b07c5976e495bc4268fb15cf7a7619465658fdf25aaa8945f",
+      "sha256": "ed6854d2b3c39061fdb0186d857a06927d30e52731515e694cfb0ad4d2c7b88b",
       "adaptation": "import rename"
     },
     {
@@ -20,17 +20,17 @@
     },
     {
       "path": "src/bidops/analysis/evidence.py",
-      "sha256": "729e5eff4e179bc78b4e72591ecd03749a1229cf2d21456f39e101dd72aebf0e",
+      "sha256": "a1792b68f35f0457fef6b68723db7c3966310af51a27508638bb08c837603492",
       "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/evidence_locations.py",
-      "sha256": "4c46153337ad6518b084ace274516e098b4274c234cc045938baf9544940544e",
+      "sha256": "828bde5fbf09ed6a1716a319ebfef39c77e70a94925bfd328dea7e0600dabd93",
       "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/extractor.py",
-      "sha256": "e4abb710a2320970c3f7f3b8b6b26980400e6fe775bfa72c55290b7030b6caca",
+      "sha256": "2df0f32a3fb83681a3316129000ef342c4935c13e988378a2078a9b0e73609ae",
       "adaptation": "import rename"
     },
     {
@@ -45,17 +45,17 @@
     },
     {
       "path": "src/bidops/analysis/matcher.py",
-      "sha256": "6cec0a83b3df280892ec77084c2c1dc41496ee91fdb0e91139859df24f8da0c8",
+      "sha256": "0f0c938811df95ed25b8afd4d7d7fed3606acf5851d6c1193aebf5ce28f36aef",
       "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/merge.py",
-      "sha256": "156f2a13762a5e6a58fb2f05dd5c60ae54ddab2e973b116d4f928458ea20f57c",
+      "sha256": "761e940a9db1e6e8b53b0a7ad3f9fa991217c843916a5a0a32e685035077f9c8",
       "adaptation": "import rename"
     },
     {
       "path": "src/bidops/analysis/pipeline.py",
-      "sha256": "13af254dbefc5c650bdd7d4f8da213069fd4917725b51bcb439a55226998753a",
+      "sha256": "bed14956ac443373cb3c7cb72155543a29ecc56ed91939bdb4c3f85207b37525",
       "adaptation": "import rename"
     },
     {
@@ -65,7 +65,7 @@
     },
     {
       "path": "src/bidops/analysis/provenance.py",
-      "sha256": "0e5c9e4e15d7fe8741a81aa6571a4894426a12d6bc9510275ab1d976bed8d1eb",
+      "sha256": "53e252a9f6f68f1b1ff574c8ed8e285ff0e04226bd1013070ba8ba47a6d20c4b",
       "adaptation": "import rename"
     },
     {
@@ -80,7 +80,7 @@
     },
     {
       "path": "src/bidops/analysis/schemas.py",
-      "sha256": "d251e907907de70bf2927b5dab1d612930c2ff398ff94ce35fb5afce1aeadcd7",
+      "sha256": "b0f9e857f3b76c311e6db9ed65d1122940ca456c268ef4d1eba33d0526821a4d",
       "adaptation": "import rename"
     },
     {
@@ -100,7 +100,7 @@
     },
     {
       "path": "src/bidops/analysis/synthesizer.py",
-      "sha256": "0da280cb14f45683625229b2e259db4d1864aac4f3e82fa9717c7a17e6d184e2",
+      "sha256": "077ba1a0189826d41820b2fcd96fe5e9e5cb22ca463f5319d3884a75ad502a80",
       "adaptation": "import rename"
     },
     {
@@ -150,7 +150,7 @@
     },
     {
       "path": "src/bidops/ingest/normalize.py",
-      "sha256": "9d9766a7266abeb2530993605ab3715ed10b381cbd4adeb69f6c269851340d31",
+      "sha256": "7f11fdf1a1a50917d90f2dc86139f2440780ffc0743da87c1fbd51b904d97ab2",
       "adaptation": "import rename"
     },
     {
@@ -190,7 +190,7 @@
     },
     {
       "path": "tests/test_analysis_schemas.py",
-      "sha256": "848d1f484248db0e2fea4cae930bd8466e6fe0c1b5874705cc10583dc8559ac8",
+      "sha256": "2d2f827535e9a6a939bfd3f7f7245696804b2018aea9d31a3a7039779d38a2da",
       "adaptation": "import rename"
     },
     {
@@ -245,7 +245,7 @@
     },
     {
       "path": "tests/test_evidence_locations.py",
-      "sha256": "59dd7de045bcea0607bc3fdaa2952beb42030784db524c9f7bfce4fcf98ebc07",
+      "sha256": "f6a495198a9554643b6960e31379136a11af653b55872dc8815ae1c980d9cb8f",
       "adaptation": "import rename"
     },
     {
@@ -265,7 +265,7 @@
     },
     {
       "path": "tests/test_merge.py",
-      "sha256": "05b0cbcec3e96448310c82667a7a2c06f3be98587ccc4fcb7369ec0c8a967321",
+      "sha256": "54d63e24fa8cea6e4c22b593a9f51d0e209b8acd5e73addc8c211e488e2502cb",
       "adaptation": "import rename"
     },
     {
@@ -285,7 +285,7 @@
     },
     {
       "path": "tests/test_normalize.py",
-      "sha256": "81e82e6ca0d90a3ea1427ae097d6f080561ac2344d0d8fd34ee6b0410e64a469",
+      "sha256": "4186cd783e625e4827a96221c8724a18e8529b649a5909884963393ec4c838f8",
       "adaptation": "import rename",
       "local_replacements": [
         [

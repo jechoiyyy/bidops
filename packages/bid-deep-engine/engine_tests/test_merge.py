@@ -546,7 +546,13 @@ def _walk_list_paths(model: type[BaseModel], prefix: str = "") -> set[str]:
 
 
 def test_t9_merge_rules_cover_all_list_paths():
-    assert _walk_list_paths(RfpFacts) == set(MERGE_RULES) == EXPECTED_LIST_PATHS
+    expected_block_paths = {
+        path.removesuffix("locations") + "block_locations"
+        for path in EXPECTED_LIST_PATHS
+        if path.endswith(".locations")
+    }
+    assert _walk_list_paths(RfpFacts) == set(MERGE_RULES)
+    assert set(MERGE_RULES) == EXPECTED_LIST_PATHS | expected_block_paths
     assert all(isinstance(v, str) and v for v in MERGE_RULES.values())
 
 

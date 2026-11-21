@@ -1,7 +1,7 @@
 # Extracted engine reference run contract
 
 `bid-deep-engine.v1` is the subprocess extraction of `bid-deep-agent`
-`7ad9283d8e8a405074374d12c5f0a13ccb8e5b1f`. `packages/bid-deep-engine/UPSTREAM.json`
+`f69f8cfc08a9059747ec8278c65b77c6194dc8d1`. `packages/bid-deep-engine/UPSTREAM.json`
 lists every vendored file once: upstream files with the upstream-bytes hash and the
 adaptation, replaced and BidOps-authored files with the vendored-bytes hash
 (`engine_tests/test_manifest.py` checks it offline), plus exclusions. Runtime computes

@@ -302,6 +302,7 @@ def test_t9_requirement_fit_evidence_pages_field_order():
         "evidence_pages",
         "gap_action",
         "evidence",
+        "mandatory",
     ]
     fit = RequirementFit(req_id="SFR-001", fit="FULL", rationale="r", evidence_pages=["alpha"])
     assert list(fit.model_dump(mode="json")) == list(RequirementFit.model_fields)

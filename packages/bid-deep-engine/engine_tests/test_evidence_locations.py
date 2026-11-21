@@ -14,21 +14,97 @@ from bid_deep_engine.analysis.evidence_locations import (
     canonical_source_payload,
     evidence_id,
     locate_evidence,
+    locate_model_evidence,
     project_evidence,
     resolve_locations,
     source_hash,
 )
-from bid_deep_engine.analysis.schemas import Evidence, SourceLocation
+from bid_deep_engine.analysis.schemas import Evidence, RequirementFit, SourceLocation
 from bid_deep_engine.ingest.models import (
+    Block,
     NoticeBundle,
     PageBound,
     RawDoc,
     RawMeta,
+    RawTable,
     RfpDocument,
     Section,
     SourceFile,
     SourceQuality,
 )
+from bid_deep_engine.ingest.normalize import build
+
+
+def test_analysis_locates_hwp_requirement_in_its_own_block_without_guessing_page():
+    path = "proposal.hwpx"
+    bundle = _bundle(_source(path, format="hwpx"))
+    quote = "시스템 운영을 지원한다."
+    raw = _raw("hwpx", [path])
+    raw.blocks = [
+        Block(idx=0, kind="paragraph", text=quote),
+        Block(idx=1, kind="table", text=f"SFR-001 | {quote}", table_id="T001"),
+    ]
+    raw.tables = [
+        RawTable(
+            id="T001",
+            block_idx=1,
+            rows=[
+                ["요구사항 고유번호", "SFR-001"],
+                ["요구사항 명칭", "운영 지원", "응락수준", "필수"],
+                ["세부내용", quote],
+            ],
+        )
+    ]
+    document = build(bundle, raw, None)
+    fit = RequirementFit(
+        req_id="SFR-001",
+        fit="UNKNOWN",
+        rationale="미확인",
+        evidence=Evidence(quote=quote, section_id="S000", verified=True),
+    )
+    current = locate_model_evidence(fit, bundle, [raw], document=document)
+    assert current.mandatory is True
+    assert current.evidence.page is None
+    assert current.evidence.location_status == "unavailable"
+    assert current.evidence.block_location_status == "exact"
+    [location] = current.evidence.block_locations
+    assert location.block_idx == 1
+    assert raw.blocks[location.block_idx].text[location.start:location.end] == quote
+
+    failed = fit.model_copy(update={"evidence": Evidence(quote=quote, verified=False)})
+    checked = locate_model_evidence(failed, bundle, [raw], document=document)
+    assert checked.evidence.verified is False
+    assert checked.evidence.block_locations == []
+
+    wrong_scope = fit.model_copy(
+        update={"evidence": Evidence(quote="다른 블록 인용", section_id="S000", verified=True)}
+    )
+    raw.blocks[0].text = "다른 블록 인용"
+    checked = locate_model_evidence(wrong_scope, bundle, [raw], document=document)
+    assert checked.evidence.verified is False
+    assert checked.evidence.block_locations == []
+
+
+def test_analysis_exposes_only_a_unique_physical_page():
+    path = "proposal.pdf"
+    bundle = _bundle(_source(path))
+    quote = "원문 인용"
+    raw = _raw(
+        "pdf",
+        [path],
+        page_texts=["첫 쪽", quote],
+        page_bounds=[PageBound(file=path, first_page=1, last_page=2)],
+    )
+    document = _document(quote, [path]).model_copy(update={"primary_format": "pdf"})
+    evidence = Evidence(quote=quote, page=1, verified=True)
+    checked = locate_model_evidence(evidence, bundle, [raw], document=document)
+    assert checked.page == 2
+    assert checked.location_status == "exact"
+
+    raw.page_texts[0] = quote
+    checked = locate_model_evidence(evidence, bundle, [raw], document=document)
+    assert checked.page is None
+    assert checked.location_status == "ambiguous"
 
 
 def _sha(label: str) -> str:

@@ -29,6 +29,7 @@ from typing import Any, Union, get_args, get_origin
 
 from pydantic import BaseModel
 
+from bid_deep_engine.analysis.evidence import EVIDENCE_LOCATION_FIELDS
 from bid_deep_engine.analysis.schemas import Conflict, Evidence, RfpFacts, RfpFactsPartial, iter_evidence
 
 
@@ -74,6 +75,13 @@ MERGE_RULES: dict[str, str] = {
     "conflicts[].evidence": _OUTPUT,
     "conflicts[].evidence[].locations": _LOCATION_METADATA,
 }
+MERGE_RULES.update(
+    {
+        path.removesuffix("locations") + "block_locations": rule
+        for path, rule in MERGE_RULES.items()
+        if path.endswith(".locations")
+    }
+)
 
 _OUTPUT_FIELDS = ("conflicts",)  # RfpFacts 최상위 출력 전용 필드
 _DEFAULT_FIELDS = ("schema_version",)  # RfpFacts 기본값을 쓰는 최상위 필드
@@ -91,7 +99,7 @@ def _evidence_key(e: Evidence) -> Hashable:
 def _submission_doc_key(doc: Any) -> Hashable:
     """Preserve every submission condition and every non-location Evidence field.
 
-    ``locations`` and ``location_status`` are resolver-owned metadata.  They are deliberately
+    Location fields are resolver-owned metadata. They are deliberately
     absent from the key because merge clears and recomputes them from the current source cache.
     Page/verification/repair values are not resolver locations and must not be lost by dedup.
     """
@@ -100,7 +108,7 @@ def _submission_doc_key(doc: Any) -> Hashable:
         for value in (doc.name, doc.due, doc.copies, doc.stage, doc.condition)
     )
     evidence = json.dumps(
-        doc.evidence.model_dump(mode="json", exclude={"locations", "location_status"}),
+        doc.evidence.model_dump(mode="json", exclude=EVIDENCE_LOCATION_FIELDS),
         sort_keys=True,
         ensure_ascii=False,
         separators=(",", ":"),
@@ -155,6 +163,8 @@ def merge_partials(partials: list[RfpFactsPartial]) -> RfpFacts:
     for evidence in iter_evidence(result, include_conflicts=True):
         evidence.locations = []
         evidence.location_status = "unavailable"
+        evidence.block_locations = []
+        evidence.block_location_status = "unavailable"
     return result
 
 
