@@ -359,7 +359,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
   }, []);
   const proposal = useProposalController({
     opportunityId,
-    enabled: tab === "proposal" && !rlOff,
+    enabled: tab === "proposal" && features.settled && !rlOff,
     draftId: draftIdParam,
     actorName,
     onActorMissing: onProposalActorMissing,
@@ -622,6 +622,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
         }}
         proposal={{
           onProposalTab: tab === "proposal",
+          showActions: !rlOff && proposal.query.isSuccess && proposal.draft !== null,
           exportBlockedReason: proposalLoadReason ?? exportBlockedReason(proposal.draft, proposalBusy),
           exportPending: proposal.pending === "export",
           onExport: () => { void proposal.exportPdf(); },

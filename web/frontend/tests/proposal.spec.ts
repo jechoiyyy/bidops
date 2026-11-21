@@ -94,10 +94,10 @@ test("초안이 없고 판정도 없으면 안내 문장과 비활성 초안 만
   const create = empty.getByRole("button", { name: "초안 만들기", exact: true });
   await expect(create).toBeDisabled();
   await expect(page.locator('.rec-action-hint[title="아직 완료된 판정이 없어요"]')).toHaveCount(1);
-  // 헤더: 초안이 없으면 내보내기·다시 만들기는 비활성이고 이유를 말한다.
-  await expect(header(page).getByRole("button", { name: "PDF로 내보내기", exact: true })).toBeDisabled();
-  await expect(header(page).getByRole("button", { name: "다시 만들기", exact: true })).toBeDisabled();
-  await expect(page.locator('.rec-action-hint[title="아직 만든 초안이 없어요"]')).toHaveCount(1);
+  // 초안이 없으면 본문의 생성 동작만 제공한다.
+  await expect(header(page).getByRole("button", { name: "PDF로 내보내기", exact: true })).toHaveCount(0);
+  await expect(header(page).getByRole("button", { name: "다시 만들기", exact: true })).toHaveCount(0);
+  await expect(page.locator('.rec-action-hint[title="아직 만든 초안이 없어요"]')).toHaveCount(0);
   await expect(page.locator(".rec-attribute")).toHaveCount(8);
   await expect(page.getByTestId("proposal-status")).toHaveCount(0);
   expect(trace.proposalGets.length).toBeGreaterThan(0);
@@ -782,8 +782,8 @@ test("제안서를 읽지 못하면 오류 상태와 다시 시도를 보이고 
   await page.reload();
   const alert = page.getByRole("alert").filter({ hasText: "제안서 초안을 불러오지 못했어요" });
   await expect(alert).toBeVisible();
-  await expect(header(page).getByRole("button", { name: "PDF로 내보내기", exact: true })).toBeDisabled();
-  await expect(page.locator('.rec-action-hint[title="초안을 불러오지 못했어요"]')).toHaveCount(2);
+  await expect(header(page).getByRole("button", { name: "PDF로 내보내기", exact: true })).toHaveCount(0);
+  await expect(page.locator('.rec-action-hint[title="초안을 불러오지 못했어요"]')).toHaveCount(0);
   trace.failProposal("get", null);
   await alert.getByRole("button", { name: "다시 시도" }).click();
   await expect(page.getByTestId("proposal-empty")).toBeVisible();
@@ -800,9 +800,9 @@ test("판정 탭의 제안서 초안은 완료된 판정이 있을 때 제안서
   await page.goto("/opportunities/7101/activity");
   await expect(header(page).getByRole("button", { name: "제안서 초안", exact: true })).toBeEnabled();
   await page.getByRole("tab", { name: "제안서", exact: true }).click();
-  // 제안서 탭에서는 헤더 액션이 PDF·다시 만들기로 바뀐다.
+  // 초안이 없는 제안서 탭에서는 본문에서 생성을 시작한다.
   await expect(header(page).getByRole("button", { name: "제안서 초안", exact: true })).toHaveCount(0);
-  await expect(header(page).getByRole("button", { name: "PDF로 내보내기", exact: true })).toBeVisible();
+  await expect(header(page).getByRole("button", { name: "PDF로 내보내기", exact: true })).toHaveCount(0);
 });
 
 test("제안서 탭은 최종 입찰 결정·가격·투입 인력 입력을 두지 않고 운영 정보를 그리지 않는다", async ({ page }) => {

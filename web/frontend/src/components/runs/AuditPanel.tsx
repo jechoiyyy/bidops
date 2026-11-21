@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Text } from "@astryxdesign/core/Text";
@@ -47,6 +47,8 @@ function schemaLabel(artifact: ArtifactValidationResponse): string {
 export function AuditPanel({ panelId }: { panelId: string }) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { hash } = useLocation();
+  const warningDisclosure = useRef<HTMLDetailsElement>(null);
   const { runs, selectedRunId, selectRun, isPending, isError, refetch } = useSelectedRun();
   const [selectedArtifact, setSelectedArtifact] = useState<string | null>(null);
   const [logsOpen, setLogsOpen] = useState(false);
@@ -70,6 +72,14 @@ export function AuditPanel({ panelId }: { panelId: string }) {
   const artifact = artifacts.find((item) => item.name === selectedArtifact) ?? artifacts[0] ?? null;
   const warningCounts = detail?.warning_counts ?? {};
   const warningTotal = Object.values(warningCounts).reduce((sum, value) => sum + value, 0);
+
+  useEffect(() => {
+    const disclosure = warningDisclosure.current;
+    if (hash !== "#run-warnings" || !disclosure) return;
+    disclosure.open = true;
+    disclosure.scrollIntoView({ block: "nearest" });
+    disclosure.querySelector("summary")?.focus({ preventScroll: true });
+  }, [hash, detail?.run_id]);
 
   // 이 회차에 연결된 실행이 아직 진행 중이면 산출물은 부분 결과일 수 있다.
   // 조회 범위 밖이면 진행 여부 자체가 미확인이다.
@@ -210,7 +220,7 @@ export function AuditPanel({ panelId }: { panelId: string }) {
 
               <Caption>내부 경로와 원문·모델 응답 본문은 이 화면에 노출하지 않아요.</Caption>
 
-              <details className="rs-disclosure">
+              <details className="rs-disclosure" id="run-warnings" ref={warningDisclosure}>
                 <summary>회차 전체 경고 집계</summary>
                 {Object.keys(warningCounts).length > 0 ? (
                   <DataTable

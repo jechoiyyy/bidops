@@ -689,9 +689,11 @@ test("LS-06 필터·상세 이탈 guard 취소는 URL·active·check·입력을 
   await rows.nth(1).getByRole("checkbox").check();
   // 대화상자는 없다(spec §3.3). 추적 폼은 상세 pane 바닥에 늘 열려 있다.
   const decision = page.locator(".pre-specs-detail-actions");
-  const actor = decision.getByRole("textbox", { name: "담당자 이름 (필수)" });
-  await actor.fill("guard 취소 담당자");
-  await actor.focus();
+  await decision.getByRole("combobox", { name: "선택 사유" }).click();
+  await page.getByRole("option", { name: "기타 · 직접 입력" }).click();
+  const reason = page.getByRole("textbox", { name: "선택 사유 직접 입력 (필수)" });
+  await reason.fill("guard 취소 사유");
+  await reason.focus();
   const beforeUrl = page.url();
   const swToggle = page.locator(".pre-specs-switch input");
   await expect(swToggle).not.toBeChecked();
@@ -713,8 +715,8 @@ test("LS-06 필터·상세 이탈 guard 취소는 URL·active·check·입력을 
   await expect(swToggle).not.toBeChecked();
   await expect(rows.nth(1)).toHaveAttribute("aria-current", "true");
   await expect(rows.nth(1).getByRole("checkbox")).toBeChecked();
-  await expect(actor).toHaveValue("guard 취소 담당자");
-  await expect(actor).toBeFocused();
+  await expect(reason).toHaveValue("guard 취소 사유");
+  await expect(reason).toBeFocused();
 
   await page.evaluate(() => {
     const link = [...document.querySelectorAll("a")]
@@ -725,8 +727,8 @@ test("LS-06 필터·상세 이탈 guard 취소는 URL·active·check·입력을 
   await expect(detailGuard).toBeVisible();
   await detailGuard.getByRole("button", { name: "계속 편집", exact: true }).click();
   await expect(page).toHaveURL(beforeUrl);
-  await expect(actor).toHaveValue("guard 취소 담당자");
-  await expect(actor).toBeFocused();
+  await expect(reason).toHaveValue("guard 취소 사유");
+  await expect(reason).toBeFocused();
 
   // 행 전환도 같은 guard를 거친다 — 저장하지 않은 입력을 확인 없이 버리지 않는다.
   await rows.nth(2).click();
@@ -734,7 +736,7 @@ test("LS-06 필터·상세 이탈 guard 취소는 URL·active·check·입력을 
   await expect(rowGuard).toBeVisible();
   await rowGuard.getByRole("button", { name: "계속 편집", exact: true }).click();
   await expect(rows.nth(1)).toHaveAttribute("aria-current", "true");
-  await expect(actor).toHaveValue("guard 취소 담당자");
+  await expect(reason).toHaveValue("guard 취소 사유");
 });
 
 test("LS-06 pager guard 취소는 경계 URL·active·check·입력을 보존한다", async ({ page }) => {
@@ -744,9 +746,11 @@ test("LS-06 pager guard 취소는 경계 URL·active·check·입력을 보존한
   const rows = page.locator(".pre-specs-row");
   await rows.first().click();
   await rows.first().getByRole("checkbox").check();
-  const actor = page.locator(".pre-specs-detail-actions").getByRole("textbox", { name: "담당자 이름 (필수)" });
-  await actor.fill("pager guard 취소 담당자");
-  await actor.focus();
+  await page.locator(".pre-specs-detail-actions").getByRole("combobox", { name: "선택 사유" }).click();
+  await page.getByRole("option", { name: "기타 · 직접 입력" }).click();
+  const reason = page.getByRole("textbox", { name: "선택 사유 직접 입력 (필수)" });
+  await reason.fill("pager guard 취소 사유");
+  await reason.focus();
   const beforeUrl = page.url();
   await page.evaluate(() => {
     const button = [...document.querySelectorAll("button")]
@@ -759,8 +763,8 @@ test("LS-06 pager guard 취소는 경계 URL·active·check·입력을 보존한
   await expect(page).toHaveURL(beforeUrl);
   await expect(rows.first()).toHaveAttribute("aria-current", "true");
   await expect(rows.first().getByRole("checkbox")).toBeChecked();
-  await expect(actor).toHaveValue("pager guard 취소 담당자");
-  await expect(actor).toBeFocused();
+  await expect(reason).toHaveValue("pager guard 취소 사유");
+  await expect(reason).toBeFocused();
 });
 
 test("개요 결과 본문과 첫 주장은 한 번만 렌더된다", async ({ page }) => {
@@ -969,10 +973,11 @@ test("수요기관이 있으면 목록 행과 상세 머리가 수요기관을 �
   await expect(proxyAgency).toHaveText("한국예술인복지재단 · 테스트 조달기관 대행");
   // 기관 줄 자체의 글자 단은 그대로이고 대행 부분만 작다.
   const sizes = await proxyAgency.evaluate((element) => ({
+    expected: Number.parseFloat(getComputedStyle(element).getPropertyValue("--bo-k-meta")),
     agency: Number.parseFloat(getComputedStyle(element).fontSize),
     proxy: Number.parseFloat(getComputedStyle(element.querySelector(".pre-specs-row-agency-proxy")!).fontSize),
   }));
-  expect(sizes.agency).toBe(14.4);
+  expect(sizes.agency).toBe(sizes.expected);
   expect(sizes.proxy).toBeLessThan(sizes.agency);
 
   const head = page.locator(".pre-specs-detail-header");

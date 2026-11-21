@@ -1,3 +1,4 @@
+import { latestNoticeRun } from "../../lib/orderPlanDaily";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
@@ -19,7 +20,7 @@ import { Caption } from "./RunStatusPrimitives";
  * 시안은 한 회차 예시만 보여 주지만 실제 화면은 조회 중·조회 실패·회차 없음을
  * 각각 구분해야 한다.
  */
-export function useSelectedRun(): {
+export function useSelectedRun(preferNotices = false): {
   runs: RunSummary[];
   selectedRunId: string | null;
   selectRun: (runId: string) => void;
@@ -31,7 +32,8 @@ export function useSelectedRun(): {
   const runsQuery = useQuery({ queryKey: ["runs"], queryFn: api.getRuns, staleTime: 30_000 });
   const runs = runsQuery.data?.items ?? [];
   const queryRunId = searchParams.get("run");
-  const selectedRunId = runs.some((run) => run.run_id === queryRunId) ? queryRunId : runs[0]?.run_id ?? null;
+  const defaultRun = (preferNotices ? latestNoticeRun(runs) : null) ?? runs[0];
+  const selectedRunId = runs.some((run) => run.run_id === queryRunId) ? queryRunId : defaultRun?.run_id ?? null;
 
   const selectRun = (runId: string) => {
     setSearchParams((current) => {

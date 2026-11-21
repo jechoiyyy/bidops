@@ -1,3 +1,4 @@
+import { deadlineLabel, remainingDeadlineDays } from "./deadline";
 export function present(value: unknown, fallback = "값 없음"): string {
   if (value === null || value === undefined) return fallback;
   if (typeof value === "string" && value.trim() === "") return fallback;
@@ -137,8 +138,8 @@ export function formatDeadline(value: string | null | undefined): string {
   if (Number.isNaN(date.getTime())) return "마감 미확인";
   const remaining = date.getTime() - Date.now();
   if (remaining < 0) return `마감 지남 · ${formatDate(value)}`;
-  const days = Math.ceil(remaining / 86_400_000);
-  if (days <= 7) return `D-${days}`;
+  const days = remainingDeadlineDays(date, new Date());
+  if (days <= 7) return deadlineLabel(days, date);
   return formatDate(value);
 }
 

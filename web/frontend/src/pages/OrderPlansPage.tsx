@@ -7,7 +7,8 @@ import { searchKey, searchMatches } from "../lib/search";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
-import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { DialogHeader } from "@astryxdesign/core/Dialog";
+import { Dialog } from "../components/common/WorkspaceDialog";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
@@ -1832,69 +1833,74 @@ function OrderPlansWorkspace() {
                 </ToggleButtonGroup>
               </div>
 
-              {/* 이 축은 1차 선별과 모델 판정 **둘 다**의 실패·거부를 건다. 그래서 한쪽
-                  단계 이름(`모델`)을 붙이지 않고 두 단계를 아우르는 이름을 쓴다. */}
-              <div className="c2l-filter-axis">
-                <Text type="label" color="secondary" as="p">선별 처리 상태</Text>
-                <ToggleButton
-                  value="issue"
-                  label="실패·거부만"
-                  isPressed={issueOn}
-                  onPressedChange={(pressed) => changeAxes({ issue: pressed })}
-                />
-              </div>
+              <details className="c2l-secondary-filters">
+                <summary>처리 상태·회차·저장된 보기</summary>
+                <div className="c2l-secondary-fields">
+                  {/* 이 축은 1차 선별과 모델 판정 **둘 다**의 실패·거부를 건다. 그래서 한쪽
+                      단계 이름(`모델`)을 붙이지 않고 두 단계를 아우르는 이름을 쓴다. */}
+                  <div className="c2l-filter-axis">
+                    <Text type="label" color="secondary" as="p">선별 처리 상태</Text>
+                    <ToggleButton
+                      value="issue"
+                      label="실패·거부만"
+                      isPressed={issueOn}
+                      onPressedChange={(pressed) => changeAxes({ issue: pressed })}
+                    />
+                  </div>
 
-              {/* 회차는 감사용 범위 선택이며 상세 필터의 한 축이다(ADR-0062 2026-09-21
-                  재개정). 기본은 누적이다. */}
-              <SourceRunFilter
-                allRunsDescription="활성화된 적 있는 policy의 운영 판정 누적"
-                className="c2l-filter-axis"
-                extraRunIds={runOptionSourceIds}
-                isDisabled={bulkPending}
-                isError={runsQuery.isError}
-                isPending={runsQuery.isPending}
-                onChange={changeSourceRun}
-                onRetry={() => { void runsQuery.refetch(); }}
-                runs={collectionRuns}
-                value={sourceRunId}
-              />
-
-              <div className="c2l-filter-axis c2l-saved-views">
-                <Text type="label" color="secondary" as="p">저장된 뷰</Text>
-                <div className="c2l-saved-views-row">
-                  <ReviewFilterSelector
-                    clearable={false}
-                    label="저장된 뷰"
-                    options={savedViews.map((view) => ({ value: view.id, label: view.name }))}
-                    value=""
-                    onChange={(id) => {
-                      const view = savedViews.find((item) => item.id === id);
-                      if (view) applySavedViewSearch(view.search);
-                    }}
-                    placeholder={savedViews.length ? "저장된 뷰 선택" : "저장된 뷰 없음"}
-                    isDisabled={savedViews.length === 0}
+                  {/* 회차는 감사용 범위 선택이며 상세 필터의 한 축이다(ADR-0062 2026-09-21
+                      재개정). 기본은 누적이다. */}
+                  <SourceRunFilter
+                    allRunsDescription="활성화된 적 있는 policy의 운영 판정 누적"
+                    className="c2l-filter-axis"
+                    extraRunIds={runOptionSourceIds}
+                    isDisabled={bulkPending}
+                    isError={runsQuery.isError}
+                    isPending={runsQuery.isPending}
+                    onChange={changeSourceRun}
+                    onRetry={() => { void runsQuery.refetch(); }}
+                    runs={collectionRuns}
+                    value={sourceRunId}
                   />
-                  {isNamingView ? (
-                    <>
-                      <ReviewFilterTextInput label="뷰 이름" value={newViewName} onChange={setNewViewName} placeholder="뷰 이름" onEnter={saveCurrentAsView} />
-                      <Button label="뷰 저장" size="sm" onClick={saveCurrentAsView} isDisabled={!newViewName.trim()} />
-                      <Button label="취소" size="sm" variant="ghost" onClick={() => { setIsNamingView(false); setNewViewName(""); }} />
-                    </>
-                  ) : (
-                    <Button label="현재 필터를 뷰로 저장" size="sm" variant="ghost" onClick={() => setIsNamingView(true)} />
-                  )}
+
+                  <div className="c2l-filter-axis c2l-saved-views">
+                    <Text type="label" color="secondary" as="p">저장된 뷰</Text>
+                    <div className="c2l-saved-views-row">
+                      <ReviewFilterSelector
+                        clearable={false}
+                        label="저장된 뷰"
+                        options={savedViews.map((view) => ({ value: view.id, label: view.name }))}
+                        value=""
+                        onChange={(id) => {
+                          const view = savedViews.find((item) => item.id === id);
+                          if (view) applySavedViewSearch(view.search);
+                        }}
+                        placeholder={savedViews.length ? "저장된 뷰 선택" : "저장된 뷰 없음"}
+                        isDisabled={savedViews.length === 0}
+                      />
+                      {isNamingView ? (
+                        <>
+                          <ReviewFilterTextInput label="뷰 이름" value={newViewName} onChange={setNewViewName} placeholder="뷰 이름" onEnter={saveCurrentAsView} />
+                          <Button label="뷰 저장" size="sm" onClick={saveCurrentAsView} isDisabled={!newViewName.trim()} />
+                          <Button label="취소" size="sm" variant="ghost" onClick={() => { setIsNamingView(false); setNewViewName(""); }} />
+                        </>
+                      ) : (
+                        <Button label="현재 필터를 뷰로 저장" size="sm" variant="ghost" onClick={() => setIsNamingView(true)} />
+                      )}
+                    </div>
+                    {savedViews.length ? (
+                      <ul className="c2l-saved-view-list">
+                        {savedViews.map((view) => (
+                          <li key={view.id}>
+                            <Text type="supporting" color="secondary" as="span">{view.name}</Text>
+                            <Button className="c2l-view-delete" label={`${view.name} 삭제`} isIconOnly icon={<span aria-hidden="true">×</span>} size="sm" variant="ghost" onClick={() => deleteSavedView(view.id)} />
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
                 </div>
-                {savedViews.length ? (
-                  <ul className="c2l-saved-view-list">
-                    {savedViews.map((view) => (
-                      <li key={view.id}>
-                        <Text type="supporting" color="secondary" as="span">{view.name}</Text>
-                        <Button className="c2l-view-delete" label={`${view.name} 삭제`} isIconOnly icon={<span aria-hidden="true">×</span>} size="sm" variant="ghost" onClick={() => deleteSavedView(view.id)} />
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
+              </details>
             </WorkspaceFilterAdvanced>
           ) : null}
 
@@ -2071,15 +2077,10 @@ function OrderPlansWorkspace() {
                     >
                       전체 해제
                     </button>
-                    {/* 결정 1(M7) — 발주계획의 `선택 항목 제외`는 기존 일괄 `추적 종료`
-                        (ADR-0063, A3)를 그 이름으로 부른다. onClick·비활성 조건·확인
-                        창(`OrderPlanBulkTrackingDialog` mode="end")은 그대로다. 확인
-                        창 제목·본문은 계속 `추적 종료`라고 말하므로(그대로 둔다), 단추
-                        옆에는 제외 = 추적 종료라는 사실을 알리는 숨은 설명을 붙인다. */}
                     <Button
-                      aria-describedby="c2l-selection-action-reason c2l-selection-exclude-note"
+                      aria-describedby="c2l-selection-action-reason"
                       isDisabled={bulkPending || mutation.isPending || trackingMutation.isPending || !orderPlanSelection.hydrated || !orderPlanSelection.storageAvailable || Boolean(orderPlanSelection.storageError) || orderPlanSelection.selectedIds.length === 0 || orderPlanSelection.selectedIds.length > ORDER_PLAN_BULK_END_MAX_SELECTION}
-                      label="선택 항목 제외"
+                      label="선택한 계획 추적 종료"
                       onClick={() => setBulkDialogMode("end")}
                       size="sm"
                       variant="secondary"
@@ -2093,7 +2094,6 @@ function OrderPlansWorkspace() {
                     >
                       선택 항목 추적 시작
                     </button>
-                    <span className="visually-hidden" id="c2l-selection-exclude-note">선택한 계획의 추적을 종료해요</span>
                   </>
                 )}
               /> : null}

@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
-import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { DialogHeader } from "@astryxdesign/core/Dialog";
+import { Dialog } from "../components/common/WorkspaceDialog";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Table, pixel, proportional } from "@astryxdesign/core/Table";
@@ -60,7 +61,7 @@ import type {
   BidDeltaWorkspaceView,
 } from "../components/bid-delta/types";
 import { api } from "../lib/api";
-import { describeDeadline, shortDateLabel, type DeadlineUrgency } from "../lib/deadline";
+import { describeDeadlineCountdown, shortDateLabel, type DeadlineUrgency } from "../lib/deadline";
 import { formatPrice } from "../lib/format";
 import { searchKey, searchMatches } from "../lib/search";
 import { apiErrorRecoveryAction, describeApiError } from "../lib/apiErrors";
@@ -144,12 +145,11 @@ function estimatedPriceText(item: BidDeltaDecisionQueueItem): string {
  * `마감 미확인`이 아니라 `마감 미제공`으로 적는다.
  */
 function deadlineCellLabel(value: string | null): { text: string; urgency: DeadlineUrgency } {
-  const deadline = describeDeadline(value);
-  if (!value || deadline.urgency === "none") return { text: "마감 미제공", urgency: "none" };
-  if (deadline.urgency === "passed") return { text: deadline.label, urgency: "passed" };
-  const days = Math.ceil((new Date(value).getTime() - Date.now()) / 86_400_000);
+  const deadline = describeDeadlineCountdown(value);
+  if (!value || !deadline) return { text: "마감 미제공", urgency: "none" };
+  if (deadline.urgency === "passed") return { text: `마감 지남 · ${shortDateLabel(value)}`, urgency: "passed" };
   const shortDate = shortDateLabel(value);
-  return { text: shortDate ? `D-${days} · ${shortDate}` : `D-${days}`, urgency: deadline.urgency };
+  return { text: shortDate ? `${deadline.label} · ${shortDate}` : deadline.label, urgency: deadline.urgency };
 }
 
 interface DecisionRow extends Record<string, unknown> {
@@ -609,15 +609,15 @@ export function GoNoGoPage() {
                 <div className="gng-list-empty">
                   <EmptyState
                     compact
-                    title="조건에 맞는 사업이 없어요"
-                    description={trimmedQuery
+                    title={total === 0 ? "결정할 사업이 아직 없어요" : "조건에 맞는 사업이 없어요"}
+                    description={total === 0 ? "사업기회에서 계속 추적 중인 사업에 입찰공고가 연결되면 검토할 수 있어요." : trimmedQuery
                       ? receivedAll
                         ? `적용된 검색어 "${query}"와 다른 활성 보기 조건에 맞는 사업이 없어요. 계속 추적 중인 사업 전체에서 찾았어요.`
                         : `적용된 검색어 "${query}"와 다른 활성 보기 조건에 맞는 사업이 받은 범위에 없어요. 전체에 없다는 뜻은 아니에요.`
                       : receivedAll
                         ? "계속 추적 중인 사업 전체에서 찾았어요. 보기를 바꿔 보세요."
                         : "받은 범위 안에 없을 뿐, 전체에 없다는 뜻은 아니에요."}
-                    action={{
+                    action={total === 0 ? { label: "사업기회 보기", onClick: () => navigate("/opportunities") } : {
                       label: trimmedQuery ? "검색어만 지우기" : "필터 초기화",
                       onClick: trimmedQuery ? () => applySearch("") : resetFilters,
                     }}
@@ -991,7 +991,7 @@ export function GoNoGoPage() {
       </WorkspaceFrame>
 
       <Dialog isOpen={dialog === "data"} onOpenChange={(open) => { if (!open) setDialog(null); }} purpose="info" width={640}>
-        <DialogHeader title="이 목록의 기준" onOpenChange={() => setDialog(null)} />
+        <DialogHeader title="이 목록의 기준" />
         <div className="gng-dialog-body" data-astryx-theme="bidops">
           <Text as="p">
             추적 상태가 ‘계속 추적’인 사업기회만 최종 Go/No-Go 대상이에요. 보류·종료·미선택은 이 목록에 올리지 않아요.
@@ -1018,7 +1018,7 @@ export function GoNoGoPage() {
       </Dialog>
 
       <Dialog isOpen={dialog === "evidence" && evidenceItem !== null} onOpenChange={(open) => { if (!open) setDialog(null); }} purpose="info" width={880}>
-        <DialogHeader title="양쪽 원문 근거" onOpenChange={() => setDialog(null)} />
+        <DialogHeader title="양쪽 원문 근거" />
         <div className="gng-dialog-body" data-astryx-theme="bidops">
           {evidenceItem ? (
             <>

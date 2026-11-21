@@ -6,43 +6,38 @@ export interface DeadlineDisplay {
 }
 
 const DAY_MS = 86_400_000;
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+const clock = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
-/**
- * 마감까지 남은 기간을 등급으로 나눈다.
- * 목록의 우측 칩과 상세 헤더가 같은 기준을 쓰도록 한곳에서 계산한다.
- * 3일 이내는 채운 칩, 7일 이내는 테두리 칩, 그보다 멀면 날짜만 보여 준다.
- */
+/** Count Korean calendar boundaries. A negative value always means the instant has passed. */
+export function remainingDeadlineDays(date: Date, now: Date): number {
+  const day = (time: Date) => Math.floor((time.getTime() + KST_OFFSET_MS) / DAY_MS);
+  const difference = day(date) - day(now);
+  return date < now ? Math.min(-1, difference) : difference;
+}
+
+export function deadlineLabel(days: number, date: Date): string {
+  if (days < 0) return "마감 지남";
+  if (days === 0) return `오늘 ${clock.format(date)} 마감`;
+  return days === 1 ? "내일 마감" : `D-${days}`;
+}
+
+/** 목록은 먼 마감을 날짜로 줄이고 상세는 남은 일수를 모두 보여 준다. */
 export function describeDeadline(value: string | null | undefined): DeadlineDisplay {
-  const parsed = deadlineDays(value);
-  if (parsed === null) return { label: "마감 미확인", urgency: "none" };
-  const { date, days } = parsed;
-  if (days === null) {
-    return { label: `마감 지남 · ${formatShortDate(date)}`, urgency: "passed" };
-  }
-  if (days <= 3) return { label: `D-${days}`, urgency: "critical" };
-  if (days <= 7) return { label: `D-${days}`, urgency: "soon" };
-  return { label: formatShortDate(date), urgency: "later" };
+  const countdown = describeDeadlineCountdown(value);
+  if (!countdown || !value) return { label: "마감 미확인", urgency: "none" };
+  if (countdown.urgency === "later") return { ...countdown, label: formatShortDate(new Date(value)) };
+  if (countdown.urgency === "passed") return { ...countdown, label: `마감 지남 · ${formatShortDate(new Date(value))}` };
+  return countdown;
 }
 
-/**
- * 날짜를 이미 함께 보이는 자리(사전규격 상세 사실 줄의 `의견 마감`)에서 쓰는 남은 날 글자. 등급(`urgency`)은
- * `describeDeadline`과 같은 기준이고, 글자만 날짜 대신 늘 `D-n`(지났으면 `마감 지남`)이다. 마감이 없거나 읽을 수
- * 없으면 `null`이다 — 날짜 칸이 이미 `미확인`을 말한다.
- */
 export function describeDeadlineCountdown(value: string | null | undefined): DeadlineDisplay | null {
-  const parsed = deadlineDays(value);
-  if (parsed === null) return null;
-  const { urgency } = describeDeadline(value);
-  return { label: parsed.days === null ? "마감 지남" : `D-${parsed.days}`, urgency };
-}
-
-/** 마감까지 남은 날(올림). 지났으면 `days: null`, 값이 없거나 읽을 수 없으면 `null`이다. */
-function deadlineDays(value: string | null | undefined): { date: Date; days: number | null } | null {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  const remaining = date.getTime() - Date.now();
-  return { date, days: remaining < 0 ? null : Math.ceil(remaining / DAY_MS) };
+  const days = remainingDeadlineDays(date, new Date());
+  const urgency = days < 0 ? "passed" : days <= 3 ? "critical" : days <= 7 ? "soon" : "later";
+  return { label: deadlineLabel(days, date), urgency };
 }
 
 /** `09.08` 꼴의 짧은 날짜. 목록의 마감 열이 D-day 아래에 같은 형식으로 쓴다. */
@@ -53,7 +48,7 @@ export function shortDateLabel(value: string | null | undefined): string | null 
 }
 
 function formatShortDate(date: Date): string {
-  return new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-digit" })
+  return new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit" })
     .format(date)
     .replace(/\.\s?$/, "")
     .replace(/\.\s/, ".");

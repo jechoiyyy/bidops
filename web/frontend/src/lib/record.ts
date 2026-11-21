@@ -1,4 +1,5 @@
-import { daysUntil, deadlineDayLabel, DEADLINE_EMPHASIS_DAYS } from "./briefing";
+import { deadlineLabel } from "./deadline";
+import { daysUntil, DEADLINE_EMPHASIS_DAYS } from "./briefing";
 import { DECISION_AXIS_LABEL, TERM_SENSE } from "./glossary";
 import type {
   NoticeDetailResponse,
@@ -136,11 +137,11 @@ function deadlinePill(reps: RepresentativeLinks, now: Date): RecordPill | null {
   if (!link) return null;
   const prefix = bid ? "" : "의견 마감 ";
   const days = daysUntil(link.deadline_at, now);
-  if (days === null) return { key: "deadline", label: bid ? "마감 미확인" : "의견 마감 미확인", tone: "muted" };
+  if (days === null || !link.deadline_at) return { key: "deadline", label: bid ? "마감 미확인" : "의견 마감 미확인", tone: "muted" };
   if (days < 0) return { key: "deadline", label: bid ? "마감 지남" : "의견 마감 지남", tone: "muted" };
   return {
     key: "deadline",
-    label: `${prefix}${deadlineDayLabel(days)}`,
+    label: `${prefix}${deadlineLabel(days, new Date(link.deadline_at))}`,
     tone: days <= DEADLINE_EMPHASIS_DAYS ? "warning" : "muted",
   };
 }

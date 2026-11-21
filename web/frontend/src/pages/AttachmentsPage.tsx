@@ -6,6 +6,7 @@ import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { Paperclip, Search } from "lucide-react";
+import { latestNoticeRun } from "../lib/orderPlanDaily";
 import { RunPickerField, useSelectedRun } from "../components/runs/RunPicker";
 import {
   Caption,
@@ -237,7 +238,9 @@ function PortalManagerDialog({
 export function AttachmentsPage({ panelId = "run-status-panel-attachments" }: { panelId?: string }) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { runs, selectedRunId, selectRun, isPending, isError, refetch } = useSelectedRun();
+  const { runs, selectedRunId, selectRun, isPending, isError, refetch } = useSelectedRun(true);
+  const selectedRun = runs.find(run => run.run_id === selectedRunId);
+  const recentNotices = latestNoticeRun(runs);
   const [selectedNoticeId, setSelectedNoticeId] = useState<number | null>(null);
   const [listQuery, setListQuery] = useState("");
   const [portalDialogOpen, setPortalDialogOpen] = useState(false);
@@ -307,7 +310,10 @@ export function AttachmentsPage({ panelId = "run-status-panel-attachments" }: { 
             <div className="rs-list-empty">
               <Paperclip aria-hidden="true" />
               <Text as="p">첨부 미확보 공고가 0건이에요.</Text>
-              <Caption>선택한 회차의 모든 공고에 첨부가 등록되어 있어요.</Caption>
+              <Caption>{selectedRun?.kind === "order_plans" ? "이 회차는 발주계획 수집 회차예요." : "선택한 회차에서 첨부 확보가 필요한 공고를 찾지 못했어요."}</Caption>
+              {selectedRun?.kind === "order_plans" && recentNotices ? (
+                <Button label="최근 공고 회차 보기" onClick={() => selectRun(recentNotices.run_id)} size="sm" />
+              ) : null}
             </div>
           ) : null}
           {!queueQuery.isPending && items.length > 0 && visible.length === 0 ? (

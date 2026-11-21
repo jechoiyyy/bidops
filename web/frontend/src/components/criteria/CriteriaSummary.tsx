@@ -92,7 +92,7 @@ export function CriteriaSummary({ onShowUnknowns }: { onShowUnknowns: () => void
         <StatusToken label="읽기 전용" />
       </span>
       <span className="crit-summary-item">
-        <Small>판정 정책</Small>
+        <Small>공고 판정 정책</Small>
         <Text as="span" className="crit-summary-value crit-mono">{activePolicy}</Text>
         {policiesQuery.isError ? <Small>정책 목록 조회 실패 · 활성 정책 없음을 뜻하지 않아요</Small> : null}
       </span>

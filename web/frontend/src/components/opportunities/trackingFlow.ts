@@ -7,7 +7,7 @@ import type {
   OpportunitySearchStrategy,
   OpportunitySearchTarget,
 } from "../../lib/types";
-import { describeDeadline, shortDateLabel } from "../../lib/deadline";
+import { describeDeadlineCountdown, shortDateLabel } from "../../lib/deadline";
 import { formatNumber } from "../../lib/format";
 
 /**
@@ -504,11 +504,10 @@ function orderPlanSegment(year: string | null, month: string | null): string | n
  *  주지만, 이 한 줄 표기는 항상 종류(`의견 마감`|`입찰 마감`)와 D-n을 함께
  *  적는다. `null`은 서버가 값을 안 준 것이므로(spec §1.1) `마감 미제공`이다. */
 function deadlineSegment(kind: "의견 마감" | "입찰 마감", value: string | null): string {
-  const deadline = describeDeadline(value);
-  if (!value || deadline.urgency === "none") return "마감 미제공";
+  const deadline = describeDeadlineCountdown(value);
+  if (!value || !deadline) return "마감 미제공";
   if (deadline.urgency === "passed") return `${kind} 지남 · ${shortDateLabel(value)}`;
-  const days = Math.ceil((new Date(value).getTime() - Date.now()) / 86_400_000);
-  return `${kind} D-${days}`;
+  return `${kind} ${deadline.label}`;
 }
 
 /**

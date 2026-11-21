@@ -48,7 +48,7 @@ export function PreSpecAgencyFeature({
       name={demand}
       fallback="수요기관 미확인"
       /* 공고기관은 부제다. 이름을 지어내지 않고 없으면 `미확인`으로 남긴다. */
-      sub={`공고기관 ${trimmed(agency) ?? "미확인"}`}
+      sub={trimmed(agency) === demand ? undefined : `공고기관 ${trimmed(agency) ?? "미확인"}`}
       subClassName="pre-spec-announcer-agency"
     />
   );
@@ -65,7 +65,7 @@ export function PreSpecRowAgency({ item }: { item: PreSpecListItem }) {
   return (
     <>
       {demand}
-      {announcer ? <span className="pre-specs-row-agency-proxy"> · {announcer} 대행</span> : null}
+      {announcer && announcer !== demand ? <span className="pre-specs-row-agency-proxy"> · {announcer} 대행</span> : null}
     </>
   );
 }

@@ -1,6 +1,8 @@
+import { latestNoticeRun } from "../lib/orderPlanDaily";
 import { useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { usePageHeader } from "../components/shell/PageHeaderContext";
 import { Badge } from "../components/common/Badge";
 import { EmptyState } from "../components/common/EmptyState";
 import { AttachmentPanel } from "../components/notice/AttachmentPanel";
@@ -69,8 +71,10 @@ export function NoticeDetailPage() {
    * 바꾸지 않는다(설계고도화안 C-5). 공고를 고르지 않았을 때만 최신 회차를 기본으로 둔다.
    */
   const detailRunId = detailQuery.data?.id === selectedId ? detailQuery.data?.run_id ?? null : null;
+  const runs = runsQuery.data?.items ?? [];
+  const recentNotices = latestNoticeRun(runs);
   const runId = searchParams.get("run")
-    ?? (selectedId !== null ? detailRunId : runsQuery.data?.items[0]?.run_id ?? null);
+    ?? (selectedId !== null ? detailRunId : recentNotices?.run_id ?? runs[0]?.run_id ?? null);
 
   useEffect(() => {
     if (searchParams.get("run") || !runId) return;
@@ -89,6 +93,8 @@ export function NoticeDetailPage() {
   const notices = noticesQuery.data?.items ?? [];
   const selectedNotice = useMemo(() => notices.find((notice) => notice.id === selectedId), [notices, selectedId]);
   const detail = detailQuery.data?.id === selectedId ? detailQuery.data : undefined;
+  const noticeType = detail?.source_type === "pre_spec" ? "사전규격 상세" : detail?.source_type === "bid_notice" ? "입찰공고 상세" : "공고 상세";
+  usePageHeader({ title: noticeType });
   const selectedIndex = notices.findIndex((notice) => notice.id === selectedId);
   const detailDeadline = detail ? describeDeadline(detail.deadline_at) : null;
 
@@ -129,11 +135,11 @@ export function NoticeDetailPage() {
       <header className="judgment-page-header">
         <div>
           <div className="judgment-breadcrumb">
-            <span>입찰공고 상세</span>
+            <span>{noticeType}</span>
             <span aria-hidden="true">›</span>
             <span className="mono tabular-nums">{detail ? present(detail.notice_key, "식별자 미확인") : "공고 선택"}</span>
           </div>
-          <h2>{detail ? present(detail.title, "공고명 미확인") : "입찰공고 상세"}</h2>
+          <h2>{detail ? present(detail.title, "공고명 미확인") : noticeType}</h2>
           {detail ? (
             <>
               <div className="judgment-page-heading-meta">
@@ -168,13 +174,19 @@ export function NoticeDetailPage() {
           </div>
           <div className="judgment-list-scroll">
             {noticesQuery.isLoading ? <div className="inline-loading" role="status" aria-live="polite">공고 목록을 불러오는 중이에요.</div> : null}
-            {!noticesQuery.isLoading && notices.length === 0 ? <EmptyState compact title="회차 공고가 없어요" /> : null}
+            {!noticesQuery.isLoading && notices.length === 0 ? <EmptyState compact title="회차 공고가 없어요"
+              description={runs.find(run => run.run_id === runId)?.kind === "order_plans" ? "이 회차는 발주계획 수집 회차예요." : undefined}
+              action={recentNotices && recentNotices.run_id !== runId ? {
+                label: "최근 공고 회차 보기",
+                to: `/judgments?run=${encodeURIComponent(recentNotices.run_id)}`,
+              } : undefined}
+            /> : null}
             {notices.map((notice) => (
               <NoticePickerItem key={notice.id} notice={notice} selected={notice.id === selectedId} onSelect={() => selectNotice(notice.id)} />
             ))}
           </div>
         </aside>
-        <section className="judgment-detail-pane" aria-label="입찰공고 상세">
+        <section className="judgment-detail-pane" aria-label={noticeType}>
           {!selectedId ? (
             <EmptyState title="공고를 선택해 주세요" description="왼쪽 회차 목록에서 공고를 선택하면 생애주기와 판정 이력이 표시돼요." />
           ) : detailQuery.isLoading ? (

@@ -260,7 +260,7 @@ function PreSpecTrackingDecisionControl({
   const [actorName, setActorName] = useState("");
   // 하단 띠는 담당자 입력 칸을 두지 않고 사이드바 담당자 칸 하나의 값을 쓴다(ADR-0076 결정 2·10).
   const rememberedActor = useRememberedActorName();
-  const effectiveActor = bar ? rememberedActor : actorName;
+  const effectiveActor = bar || inline ? rememberedActor : actorName;
   const [problem, setProblem] = useState<ApiErrorDescription | null>(null);
   // `종료`만 되돌릴 수 없다. 이 화면은 `계속 추적`만 저장하므로(ADR-0046 결정 6) 확인 단계가 열릴
   // 일은 없지만, 같은 규칙을 다른 경로와 함께 둔다. 요약은 열 때의 값을 얼려 둔다.
@@ -601,8 +601,13 @@ function PreSpecTrackingDecisionControl({
             onChoiceChange={setChoice}
             custom={custom}
             onCustomChange={setCustom}
-            actorName={actorName}
+            actorName={effectiveActor}
             onActorNameChange={setActorName}
+            actorSlot={inline ? (
+              <button className="ps-decision-bar-actor" type="button" onClick={requestActorInput}>
+                {effectiveActor ? `${effectiveActor} · 이름 바꾸기` : "사이드바에서 이름 입력하기"}
+              </button>
+            ) : undefined}
             isDisabled={mutation.isPending}
             size={record && !inline ? "md" : "sm"}
             reasonClassName="pre-spec-tracking-reason-preset"

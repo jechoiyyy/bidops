@@ -47,6 +47,7 @@ export interface RecordVerdictActions {
 export interface RecordProposalActions {
   /** 지금 제안서 탭인가. */
   onProposalTab: boolean;
+  showActions: boolean;
   /** `PDF로 내보내기`를 막는 이유(없으면 `null`). */
   exportBlockedReason: string | null;
   exportPending: boolean;
@@ -103,7 +104,7 @@ export function RecordHeader({ title, menu, verdict, proposal }: RecordHeaderPro
       onClick: () => menu.onSelect("candidate"),
     },
   ];
-  const items = proposal.onProposalTab
+  const items = proposal.onProposalTab && proposal.showActions
     ? [
         ...trackingItems,
         { type: "divider" as const },
@@ -142,7 +143,7 @@ export function RecordHeader({ title, menu, verdict, proposal }: RecordHeaderPro
       <h2 className="rec-title visually-hidden" data-testid="record-title">{title}</h2>
       <PageHeaderActions>
       <div className="rec-actions" data-testid="record-header">
-        {proposal.onProposalTab ? (
+        {proposal.onProposalTab && proposal.showActions ? (
           <>
             {/* 초안이 없거나 생성 중이면 내보낼 수 없다. 이유는 title(마우스)과 숨은 설명(낭독기) 둘 다로 준다. */}
             <span className="rec-action-hint" title={proposal.exportBlockedReason ?? undefined}>
@@ -172,7 +173,7 @@ export function RecordHeader({ title, menu, verdict, proposal }: RecordHeaderPro
               ) : null}
             </span>
           </>
-        ) : verdict.onVerdictTab ? (
+        ) : proposal.onProposalTab ? null : verdict.onVerdictTab ? (
           <>
             {/* 제안서 초안은 완료된 판정이 있을 때만 열린다. 이유는 title(마우스)과 숨은 설명(낭독기) 둘 다로 준다. */}
             <span className="rec-action-hint" title={verdict.proposalBlockedReason ?? undefined}>

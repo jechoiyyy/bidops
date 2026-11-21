@@ -84,7 +84,7 @@ function SummaryLine({ onOpenConditions }: { onOpenConditions: () => void }) {
   return (
     <div className="rs-summary" aria-label="실행 상태 요약">
       <div className="rs-summary-item">
-        <Caption as="span">상시 운영</Caption>
+        <Caption as="span">공고 판정 스케줄러</Caption>
         <Text className="rs-summary-value" as="span">{alwaysOnValue}</Text>
         <Caption as="span">{alwaysOnDetail}</Caption>
       </div>

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { deadlineLabel, remainingDeadlineDays } from "../src/lib/deadline";
 import type { Page } from "@playwright/test";
 import {
   DASH_NOW, blockingList, dashboardWorkload, deadlineItems, deadlineList, holdReviewItems, holdReviewList,
@@ -217,7 +218,7 @@ test("마감 임박 행은 마감 종류와 D-day를 적고 3일 이내를 강�
   await expect(rows.nth(1)).toContainText("D-4");
   // 후보 확인 대기 연결의 더 이른 마감은 고르지 않는다(권위 있는 연결만).
   await expect(rows.nth(2)).toContainText("입찰 마감 · 계속 추적");
-  await expect(rows.nth(2)).toContainText("D-7");
+  await expect(rows.nth(2)).toContainText("D-6");
   await expect(rows.nth(0).getByRole("link")).toHaveAttribute("href", "/opportunities/501");
   const styles = await page.evaluate(() => {
     const cells = [...document.querySelectorAll(".dash-work-panel .dash-work-due")].slice(0, 3);
@@ -679,4 +680,15 @@ test.describe("일일 수집 묶음 · 공고 트랙", () => {
     await expect(page.getByTestId("daily-run-status")).toHaveAttribute("data-state", "ok");
     await expect(page.getByTestId("daily-notice-status")).toHaveAttribute("data-state", "ok");
   });
+});
+
+test("한국 자정과 마감 시각을 기준으로 오늘·내일·마감 지남을 구분한다", () => {
+  const deadline = new Date("2026-11-21T15:05:00Z");
+  for (const [instant, expected] of [
+    ["2026-11-21T14:59:59Z", "내일 마감"],
+    ["2026-11-21T15:00:00Z", "오늘 00:05 마감"],
+    ["2026-11-21T15:05:01Z", "마감 지남"],
+  ]) {
+    expect(deadlineLabel(remainingDeadlineDays(deadline, new Date(instant)), deadline)).toBe(expected);
+  }
 });
