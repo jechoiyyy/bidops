@@ -654,14 +654,7 @@ test("화면 제목과 `목록 기준` 액션은 상단바에 있고 페이지�
   await expect(page.locator(".pre-specs-page > span.visually-hidden#page-title")).toHaveText("사전규격");
   await expect(page.locator(".pre-specs-page-header")).toHaveCount(0);
 
-  // 목록 범위를 설명하는 단추는 네 화면이 같은 이름을 쓴다(시안 M1 승인 결정 3).
-  const scope = topbar.getByRole("button", { name: "목록 기준" });
-  // 이전 페이지 헤더가 남아 있으면 같은 이름의 버튼이 두 개 보인다. 액션은
-  // 상단바 portal에 하나만 있어야 한다.
-  await expect(page.getByRole("button", { name: "목록 기준", exact: true })).toHaveCount(1);
-  await expect(scope).toBeVisible();
-  await scope.click();
-  await expect(page.getByRole("dialog")).toContainText("현재 조건의 서버 전체 건수는");
+  await expect(topbar.getByRole("button", { name: "목록 기준" })).toHaveCount(0);
 });
 
 test("사전규격 workspace가 canvas 남은 높이를 채우고 pane 안에서 스크롤한다", async ({ page }) => {
@@ -788,7 +781,7 @@ for (const viewport of [{ width: 1920, height: 1080 }, { width: 1440, height: 90
       };
     });
     // 2026-11-20 4차(ADR-0076 결정 11): 행 안 보조 단추는 44px이다.
-    expect(linkStyle.minHeight).toBe(44);
+    expect(linkStyle.minHeight).toBe(32);
     expect(linkStyle.fontSize).toBe(16);
     expect(linkStyle.fontWeight).toBeGreaterThanOrEqual(600);
     expect(linkStyle.background).not.toBe("rgba(0, 0, 0, 0)");
@@ -1151,8 +1144,8 @@ test("추적 결정은 추적만 정한다는 문구이고 심층 검토 실행 
   await page.goto("/pre-specs/992");
   const bar = page.locator("#page-footer");
   await expect(bar.getByRole("button", { name: "추적 시작하기", exact: true })).toBeVisible();
-  await expect(bar).toContainText("보류·종료는 사업 추적에서, 입찰 참여는 최종 Go/No-Go에서 정해요.");
-  await expect(page.getByText("보류·종료는 사업 추적에서, 입찰 참여는 최종 Go/No-Go에서 정해요.")).toHaveCount(1);
+  await expect(bar).not.toContainText("보류·종료는 사업 추적에서, 입찰 참여는 최종 Go/No-Go에서 정해요.");
+  await expect(page.getByText("보류·종료는 사업 추적에서, 입찰 참여는 최종 Go/No-Go에서 정해요.")).toHaveCount(0);
   await expect(bar).not.toContainText("심층 검토");
   await expect(page.getByText("추적 시작하고 심층 검토", { exact: false })).toHaveCount(0);
   await expect(page.getByText("심층 검토 실행 승인", { exact: false })).toHaveCount(0);

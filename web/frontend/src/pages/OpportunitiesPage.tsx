@@ -2,8 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as R
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
-import { DialogHeader } from "@astryxdesign/core/Dialog";
-import { Dialog } from "../components/common/WorkspaceDialog";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Table, pixel, proportional, type TableColumn } from "@astryxdesign/core/Table";
 import { Token } from "@astryxdesign/core/Token";
@@ -25,8 +23,7 @@ import {
   type OpportunityDetailIntent,
 } from "../components/opportunities/trackingFlow";
 import { EmptyState } from "../components/common/EmptyState";
-import { CollectionStatus } from "../components/shell/CollectionStatus";
-import { PageHeaderActions, PageHeaderTabs } from "../components/common/PageHeaderActions";
+import { PageHeaderTabs } from "../components/common/PageHeaderActions";
 import { usePageHeader } from "../components/shell/PageHeaderContext";
 
 import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
@@ -109,7 +106,6 @@ export function OpportunitiesPage() {
   const { toast, showToast, dismissToast } = useToast();
   const [dirty, setDirty] = useState(false);
   const [advanced, setAdvanced] = useState(false);
-  const [dataDialog, setDataDialog] = useState(false);
   const handleDirtyChange = useCallback((next: boolean) => setDirty(next), []);
   /** ↑↓ 키 리스너와 행 탐색의 범위. 표의 스크롤 영역이 모든 행을 담는다. */
   const listRef = useRef<HTMLDivElement>(null);
@@ -460,13 +456,6 @@ export function OpportunitiesPage() {
           페이지에는 `aria-labelledby`가 가리킬 숨긴 제목만 남고, 화면 액션은 상단바
           슬롯으로 간다 — 같은 이름을 세로로 두 번 쓰지 않기 위해서다. */}
       <span className="visually-hidden" id="page-title">사업 추적</span>
-      <PageHeaderActions>
-        <div className="opportunity-header-actions">
-          {/* 사업기회의 공고(사전규격·입찰공고)는 공고 트랙 일일 수집이 채운다. 판정은 서버다. */}
-          <CollectionStatus track="notices" />
-          <button className="panel-header-link" onClick={() => setDataDialog(true)} type="button">목록 기준</button>
-        </div>
-      </PageHeaderActions>
 
       <PageHeaderTabs>
         <WorkspaceFilterBar aria-label="사업 추적 필터">
@@ -529,11 +518,7 @@ export function OpportunitiesPage() {
                   );
                 })}
               </div>
-              <p className="opportunity-caption">
-                {reason
-                  ? `${actionReasonLabel(reason)} 사유만 봐요. 구역 건수도 이 사유 기준이며 같은 칩을 다시 누르면 풀려요.`
-                  : "사유 칩을 누르면 그 사유가 있는 사업만 봐요. 한 사업이 여러 사유에 들어갈 수 있어요."}
-              </p>
+
             </WorkspaceFilterContext>
           ) : null}
           {advanced ? (
@@ -699,43 +684,6 @@ export function OpportunitiesPage() {
           </section>
         </SplitWorkspace>
       </WorkspaceFrame>
-
-      <Dialog
-        isOpen={dataDialog}
-        maxHeight="90dvh"
-        onOpenChange={(next) => setDataDialog(next)}
-        padding={6}
-        purpose="info"
-        width="624px"
-      >
-        <div className="opportunity-dialog-body">
-          <DialogHeader title="이 목록의 기준" onOpenChange={(next) => setDataDialog(next)} />
-          <p>
-            구역 건수는 서버가 센 수이며 <strong>구역 조건만 빼고</strong> 검색어·최초 발견 단계·사유 필터를 반영해요.
-            사유 칩 건수는 사유 필터만 빼고 센 수이고, 한 사업이 여러 사유에 들어갈 수 있어 합이 구역 건수와 같지
-            않아요. 목록은 한 번에 최대 {formatCount(PAGE_SIZE)}건을 받으며, 검색어는 서버가 페이지를 나누기 전에
-            적용해요.
-          </p>
-          <p>
-            구역은 서버가 정해요. 사람이 고른 추적 상태와 구역은 서로 다른 축이며, 한 사업기회는 어느 구역에서도 한
-            행으로만 나타나요. 구역이 정해지지 않은 건은 <strong>미결정</strong>으로 세고 전체에서만 보여요.
-          </p>
-          <p>
-            연결 현황의 체크는 <strong>연결 확정</strong>을 뜻하며 분석 완료나 입찰 참여 승인이 아니에요.
-            <strong> 검색 미확인</strong>은 이름 검색으로 찾지 못했다는 뜻이고 레코드가 없다는 뜻이 아니에요. 입찰 변경
-            비교 결과가 없으면 계산 대기이며, 화면이 결과를 만들어 내지 않아요.
-          </p>
-          <p className="opportunity-caption">
-            현재 구역 {view} · 서버 {formatCount(total)}건 중 {formatCount(rows.length)}건을 받았어요.
-            {counts
-              ? ` 구역 건수 — ${SECTIONS.map((key) => `${key} ${formatCount(counts[key])}`).join(" · ")} · 미결정 ${formatCount(undecided)}`
-              : " 구역 건수를 아직 받지 못했어요."}
-          </p>
-          <div className="opportunity-dialog-actions">
-            <Button label="닫기" onClick={() => setDataDialog(false)} variant="primary" />
-          </div>
-        </div>
-      </Dialog>
 
       {toast ? <Toast message={toast.message} onDismiss={dismissToast} variant={toast.variant} /> : null}
     </section>

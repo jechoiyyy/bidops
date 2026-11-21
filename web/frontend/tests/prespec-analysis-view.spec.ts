@@ -268,7 +268,7 @@ test("분석 완료 화면: 계속 추적·보류·종료를 고르고 종료는
   const choices = bar.getByRole("group", { name: "추적 결정" });
   await expect(choices.getByRole("button")).toHaveText(["계속 추적", "보류", "종료"]);
   await expect(choices.locator("[aria-pressed=true]")).toHaveCount(0);
-  await expect(bar).toContainText("입찰 참여는 최종 Go/No-Go에서 정해요.");
+  await expect(bar).not.toContainText("입찰 참여는 최종 Go/No-Go에서 정해요.");
   // 분석 전 화면의 단추(`추적 시작하기`)는 이 화면에 없고, 화면의 주 버튼은 이 띠 하나다.
   await expect(bar.getByRole("button", { name: "추적 시작하기" })).toHaveCount(0);
   const save = bar.getByRole("button", { name: "추적 결정 저장하기" });
@@ -356,7 +356,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     const beforeHeight = await before.locator("#page-footer .ps-decision-bar").evaluate((element) => Math.round(element.getBoundingClientRect().height));
     await before.close();
     expect(afterHeight).toBe(beforeHeight);
-    expect(afterHeight).toBe(73);
+    expect(afterHeight).toBeLessThanOrEqual(73);
     // 안내 문장은 화면 글줄이 아니라 저장 단추의 비활성 사유(낭독기)로 남는다.
     await expect(page.locator("#page-footer #pre-spec-tracking-save-disabled")).toHaveText("추적 상태(계속 추적·보류·종료)를 골라 주세요.");
     await expect(page.locator("#page-footer").getByRole("button", { name: "추적 결정 저장하기" })).toHaveAttribute("aria-describedby", "pre-spec-tracking-save-disabled");

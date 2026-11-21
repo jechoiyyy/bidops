@@ -177,7 +177,6 @@ function TrackingDecisionFields({
             </p>
           ) : (
             <p className="c2l-actor-line is-missing" data-testid="order-plan-actor-missing">
-              <span>담당자 이름이 필요해요. 결정 이력에 남는 이름이며 인증이 아니에요.</span>
               <button className="c2l-actor-change" disabled={isDisabled} onClick={requestActorInput} type="button">사이드바에서 이름 입력하기</button>
             </p>
           )}
@@ -543,8 +542,8 @@ export function OrderPlanDetailPane({
                 {trackingMessage?.pk === selectedItem.order_plan_pk
                   ? <span className="c2l-decision-message" role="status">{trackingMessage.text}</span>
                   : null}
-                <span className="c2l-decision-hint" id="c2l-tracking-decision-reason">
-                  {trackingDisabledReason ?? "선택 후 다음 후보로 이동해요 · 목록에서 ↑↓ 이동, Ctrl+Enter로 추적 시작하기 · 최종 입찰 참여 결정과 별개"}
+                <span className="visually-hidden" id="c2l-tracking-decision-reason">
+                  {trackingDisabledReason}
                 </span>
               </>
             )}

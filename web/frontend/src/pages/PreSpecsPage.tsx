@@ -6,12 +6,9 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
 import { DateInput } from "@astryxdesign/core/DateInput";
 import type { ISODateString } from "@astryxdesign/core/Calendar";
-import { DialogHeader } from "@astryxdesign/core/Dialog";
-import { Dialog } from "../components/common/WorkspaceDialog";
 import { Selector } from "@astryxdesign/core/Selector";
 import { EmptyState } from "../components/common/EmptyState";
-import { CollectionStatus } from "../components/shell/CollectionStatus";
-import { PageHeaderActions, PageHeaderTabs } from "../components/common/PageHeaderActions";
+import { PageHeaderTabs } from "../components/common/PageHeaderActions";
 import { usePageHeader } from "../components/shell/PageHeaderContext";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
@@ -218,7 +215,6 @@ export function PreSpecsPage() {
   const exclusionLanding = useRef<{ active: number | null; index: number; order: number[]; offset: number } | null>(null);
   const [searchText, setSearchText] = useState(queryText);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [scopeDialogOpen, setScopeDialogOpen] = useState(false);
   const [selectionMessage, setSelectionMessage] = useState<string | null>(null);
   const [selectedPk, setSelectedPk] = useState<number | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -702,15 +698,6 @@ export function PreSpecsPage() {
           더 쓰지 않고, `aria-labelledby`가 가리킬 숨긴 제목만 남긴다. 페이지 상태를
           쓰는 액션(`표시 범위`)은 상단바 슬롯으로 portal한다. */}
       <span className="visually-hidden" id="page-title">사전규격</span>
-      <PageHeaderActions>
-        <div className="pre-specs-header-actions">
-          {/* 목록 범위를 설명하는 단추는 네 화면이 같은 이름을 쓴다(시안 M1 승인 결정 3). */}
-          {import.meta.env.BIDOPS_REVIEW_MOCK && <Button label="가상 사업 심층검토" size="sm" onClick={() => navigate("/pre-specs/mock-review")} />}
-          {/* 사전규격은 공고 트랙 일일 수집이 채운다. 판정은 서버다. */}
-          <CollectionStatus track="notices" />
-          <button className="panel-header-link" type="button" onClick={() => setScopeDialogOpen(true)}>목록 기준</button>
-        </div>
-      </PageHeaderActions>
 
       <PageHeaderTabs>
         <WorkspaceFilterBar activeFilterCount={activeFilterCount} aria-label="사전규격 필터" className="pre-specs-filters">
@@ -938,20 +925,7 @@ export function PreSpecsPage() {
             자리를 잃는다. */}
         <SplitWorkspace className="pre-specs-split-workspace">
             <section className="review-split-list pre-specs-list-pane" aria-label="사전규격 목록">
-              {/* 머리는 한 줄이다(발주계획과 같은 규칙, 2026-11-20): 보기 이름과 건수 · 정렬. 보기의 긴 뜻은
-                  title(마우스)과 `목록 기준` 대화상자가 진다. 선택이 없을 때 `현재 페이지 전체 선택`은
-                  머리 체크박스가 맡고, 선택이 생기면 아래 일괄 바가 같은 조작을 갖는다. */}
               <header className="review-list-head pre-specs-list-head">
-                {selection.selectedIds.length === 0 ? (
-                  <input
-                    aria-label="현재 페이지 전체 선택"
-                    checked={false}
-                    className="c2l-list-select-all"
-                    disabled={!selection.hydrationReady || !selection.storageAvailable || items.length === 0}
-                    onChange={selectCurrentPage}
-                    type="checkbox"
-                  />
-                ) : null}
                 <p className="pre-specs-list-heading" title={activeWorkspace.description}>
                   <span className="pre-specs-list-count">
                     {activeWorkspace.label} {result.isError
@@ -963,8 +937,7 @@ export function PreSpecsPage() {
                   <span className="pre-specs-list-scope"> · {SORT_OPTIONS.find((option) => option.value === sort)?.label}</span>
                 </p>
               </header>
-              {/* 일괄 바는 고른 것이 있을 때만 선다. 이 탭의 선택 저장소를 쓸 수 없으면 그 사실을 알리려고 남긴다. */}
-              {selection.selectedIds.length > 0 || (selection.hydrationReady && !selection.storageAvailable) ? <SelectionToolbar
+              <SelectionToolbar
                 className="pre-specs-selection-toolbar"
                 count={selection.selectedIds.length}
                 countClassName="pre-specs-selection-count"
@@ -975,24 +948,18 @@ export function PreSpecsPage() {
                   ? "선택 저장소를 준비하는 중이에요."
                   : !selection.storageAvailable
                     ? "이 탭의 선택 저장소를 사용할 수 없어 검토 순서를 저장할 수 없어요."
-                  : selection.selectedIds.length === 0
-                    ? "선택한 항목이 없어요."
-                    : !selectedReviewIds
+                  : selection.selectedIds.length > 0 && !selectedReviewIds
                       ? "선택 항목의 정렬 시각을 확인할 수 없어요."
                       : ""}
-                end={(
-                  /* `전체 선택`의 범위를 글자로 밝힌다 — 이 단추는 검색 결과 전체가
-                     아니라 지금 보이는 페이지만 더한다(spec §3.4). */
-                  <span className="pre-specs-selection-page-note">이 페이지만 추가</span>
-                )}
                 actions={(
                   <>
                     <button
                       className="interaction-control"
                       type="button"
                       onClick={selectCurrentPage}
-                      disabled={items.length === 0 || pageFullySelected}
+                      disabled={!selection.hydrationReady || !selection.storageAvailable || items.length === 0 || pageFullySelected}
                       aria-label="현재 페이지 전체 선택"
+                      title="현재 페이지 전체 선택"
                     >
                       전체 선택
                     </button>
@@ -1006,7 +973,7 @@ export function PreSpecsPage() {
                     >
                       전체 해제
                     </button>
-                    <Button size="sm" variant="secondary" label="검토 목록에서 제외"
+                    <Button size="sm" variant="secondary" aria-label="검토 목록에서 제외" label="검토 제외"
                       isDisabled={!selection.hydrationReady || !selection.storageAvailable || selection.selectedIds.length === 0 || selection.selectedIds.length > 200}
                       onClick={() => openExclusion(selection.selectedIds, "excluded")} />
                     <button
@@ -1017,11 +984,11 @@ export function PreSpecsPage() {
                       aria-label="선택 항목 검토"
                       aria-describedby="pre-specs-selection-disabled"
                     >
-                      선택 항목 검토
+                      선택 검토
                     </button>
                   </>
                 )}
-              /> : null}
+              />
               {selection.selectedIds.length > 200 ? <p role="alert">한 번에 200건까지 제외할 수 있어요. 선택을 줄여 주세요.</p> : null}
               {selectionMessage ? <p className="pre-specs-selection-message" role="alert">{selectionMessage}</p> : null}
               <ListColumns className="pre-specs-list-columns">
@@ -1148,26 +1115,6 @@ export function PreSpecsPage() {
 
       {exclusionTarget ? <ReviewExclusionDialog ids={exclusionTarget.ids} status={exclusionTarget.status}
         onClose={() => setExclusionTarget(null)} onSaved={exclusionSaved} /> : null}
-      <Dialog isOpen={scopeDialogOpen} onOpenChange={(open) => { if (!open) setScopeDialogOpen(false); }} purpose="info" width={620}>
-        <DialogHeader title="이 목록의 기준" onOpenChange={() => setScopeDialogOpen(false)} />
-        <div className="pre-specs-dialog-body">
-          <p>
-            현재 조건의 서버 전체 건수는 <strong>{formatCount(total)}건</strong>이고, 한 번에 최대 {formatCount(PAGE_SIZE)}건을 불러와요.
-            {loadedItems.length > 0 ? ` 지금 화면에는 ${formatCount(loadedItems.length)}건이 보여요.` : ""}
-          </p>
-          <ul>
-            {/* 응답 필드 이름(`workspace_counts`·`projection`)은 실무 화면의 말이
-                아니다(ADR-0066 결정 1 `한글화`). 뜻은 그대로 두고 표기만 바꾼다 —
-                `projection`은 용어 사전이 정한 `요약 정보`를 쓴다(`lib/glossary.ts`). */}
-            <li>상단 업무 화면 건수는 현재 조건에서 업무 화면만 바꿔 서버가 센 값이며 페이지 범위와 무관해요.</li>
-            <li>개요 상태·등급·추적 결정·추적 상태·관측일·마감 상태·자동 준비 상태는 모두 서버가 페이지 전에 적용해요.</li>
-            <li>최근 수집의 날짜 범위와 수집 회차는 관측 기록에만 적용하고, 응답 행은 해당 회차의 과거 값이 아닌 현재 요약 정보예요.</li>
-            <li>SW 중심 기본 보기는 SW사업대상=Y와 추적 중인 발주계획에 연결된 예외를 함께 남겨요. 목록의 <strong>추적 예외</strong>는 SW사업대상이 Y가 아니지만 추적 중인 발주계획에 연결된 건이고, 값이 없는 SW사업대상은 <strong>SW 미확인</strong>으로 적어요.</li>
-            <li>추적 상태는 사업기회 연결이 없으면 <strong>사업기회 미연결</strong>, 연결은 있는데 서버 값이 없으면 <strong>미확인</strong>이에요. 사람이 고른 <strong>미선택</strong>과 달라요.</li>
-            <li>품질 표식 · 참조 실행과 mock 참조는 운영 완료가 아니고, 표식 없음을 미측정으로 바꾸지 않아요. 선택한 건의 현재 표식은 개요 검토 결과 머리줄에 있어요.</li>
-          </ul>
-        </div>
-      </Dialog>
     </section>
   );
 }

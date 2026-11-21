@@ -406,7 +406,7 @@ test("발주계획의 기존 머리글 액션은 상단바 슬롯에 한 번씩�
   // 사이드바가 갖는다. 목록 범위를 설명하는 단추는 네 화면 공용 이름(`목록 기준`)이다.
   await expect(actions.getByRole("button", { name: "수집 회차" })).toHaveCount(0);
   await expect(page.locator(".c2l-filter-tools").getByRole("button", { name: "수집 회차" })).toHaveCount(0);
-  await expect(actions.getByRole("button", { name: "목록 기준", exact: true })).toHaveCount(1);
+  await expect(actions.getByRole("button", { name: "목록 기준", exact: true })).toHaveCount(0);
   await expect(actions.getByRole("button", { name: "실행 상태", exact: true })).toHaveCount(0);
   await expect(actions.getByRole("link", { name: "실행 상세 →", exact: true })).toHaveCount(0);
   // 공용 mock의 최근 실행은 `실행 중`이라 문제가 아니다 — 실행 표시가 아예 없다.
@@ -1489,31 +1489,6 @@ test("목록의 마지막 건을 저장하면 사유를 비우고 이동하지 �
 });
 
 // 결정 줄에서 뺀 상태 설명은 사라지지 않고 `목록 기준` 대화상자가 진다.
-test("`목록 기준` 대화상자가 미선택·모델 미판정(순위 밖)·비관련의 뜻을 그대로 보존한다", async ({ page }) => {
-  await mockOrderPlans(page);
-  await page.goto("/order-plans");
-
-  // 기본 화면의 결정 줄에는 긴 설명 문단이 없다.
-  await expect(page.locator(".c2l-tracking")).not.toContainText("미선택은 추적 종료가 아니에요");
-
-  await page.getByRole("button", { name: "목록 기준", exact: true }).click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText("미선택은 추적 종료가 아니에요.");
-  await expect(dialog).toContainText("모델 판단·적합성 등급·참여 준비 상태·최종 Go/No-Go를 바꾸지 않아요.");
-  // 강제 게이트 문장은 뜻을 바꾸지 않고 한글 라벨로만 적는다.
-  await expect(dialog).toContainText("모델 판단은 추적 선택·적합성 등급·참여 준비·최종 Go/No-Go가 아니에요.");
-  // 네 값의 구분은 한글 라벨로 남는다(서로 바꾸지 않는다).
-  await expect(dialog).toContainText("모델 미판정(순위 밖)");
-  await expect(dialog).not.toContainText("1차 선별 제외");
-  await expect(dialog).toContainText("비관련");
-  await expect(dialog).toContainText("모델 상태 미확인");
-  await expect(dialog).toContainText("값 없음");
-  // 실행 요약 줄·회차 식별자 전문·policy 표기는 운영 화면으로 갔다.
-  await expect(dialog).not.toContainText("부분 성공");
-  await expect(dialog).not.toContainText("policy");
-  await expect(dialog).not.toContainText(TEST_ORDER_PLAN_SOURCE_RUN_ID);
-  await expect(dialog).toContainText("목록 범위 · 누적 · 모든 수집 회차");
-});
 
 // 결정 줄은 시안처럼 한 가로 줄이다. 버튼마다 다른 높이를 갖거나 줄이 갈라지면
 // 어느 버튼이 주 결정인지 화면이 말해 주지 못한다.
@@ -1524,7 +1499,7 @@ test("결정 버튼은 같은 높이의 한 줄이고 비활성 사유는 그 �
 
   const layout = await page.locator(".c2l-detail-actions").evaluate((bar) => {
     const buttons = Array.from(bar.querySelectorAll<HTMLElement>(".review-decision-bar-actions button"));
-    const hint = bar.querySelector<HTMLElement>(".c2l-decision-hint");
+    const hint = bar.querySelector<HTMLElement>("#c2l-tracking-decision-reason");
     if (!hint) throw new Error("결정 안내 문장을 찾을 수 없어요.");
     const rects = buttons.map((button) => button.getBoundingClientRect());
     return {
@@ -1533,8 +1508,7 @@ test("결정 버튼은 같은 높이의 한 줄이고 비활성 사유는 그 �
       heights: rects.map((rect) => Math.round(rect.height)),
       primaryWidth: Math.round(rects[0].width),
       secondaryWidth: Math.round(rects[1].width),
-      hintTop: Math.round(hint.getBoundingClientRect().top),
-      buttonsBottom: Math.round(Math.max(...rects.map((rect) => rect.bottom))),
+      hintHeight: hint.getBoundingClientRect().height,
     };
   });
   expect(layout.count).toBe(4);
@@ -1542,8 +1516,7 @@ test("결정 버튼은 같은 높이의 한 줄이고 비활성 사유는 그 �
   expect(new Set(layout.heights).size).toBe(1);
   // 주 결정은 남는 폭을 차지하고 나머지는 최소 폭이다.
   expect(layout.primaryWidth).toBeGreaterThan(layout.secondaryWidth);
-  // 공통 비활성 사유는 버튼 줄 아래 한 줄이다.
-  expect(layout.hintTop).toBeGreaterThanOrEqual(layout.buttonsBottom);
+  expect(layout.hintHeight).toBeLessThanOrEqual(1);
   await expect(page.getByText("선택 사유와 담당자 이름을 입력하면 추적 결정을 기록할 수 있어요.", { exact: true })).toHaveCount(1);
 });
 
@@ -1751,7 +1724,7 @@ test("담당자 이름은 사이드바와 같은 한 값이고 새로고침 뒤�
 
   // 이름이 비면 결정 영역에는 입력 칸이 없고, 사이드바 담당자 칸을 여는 안내만 있다(2026-11-20).
   const missing = page.getByTestId("order-plan-actor-missing");
-  await expect(missing).toContainText("담당자 이름이 필요해요");
+  await expect(missing.getByRole("button", { name: "사이드바에서 이름 입력하기" })).toBeVisible();
   await expect(page.locator(".c2l-tracking").getByRole("textbox")).toHaveCount(0);
   await missing.getByRole("button", { name: "사이드바에서 이름 입력하기" }).click();
   await expect(page.locator("#sidebar-actor-input")).toBeFocused();
@@ -2101,8 +2074,7 @@ test("LS-cross-page-selection-survives-refresh-and-clears-on-applied-filter-chan
   await expect(page.locator('.c2l-row input[type="checkbox"][data-checked="true"]')).toHaveCount(1);
 
   await clickPreset(page, "전체");
-  // 최종 시안: 선택이 0건이면 일괄 바를 그리지 않고 목록 머리의 `현재 페이지 전체 선택` 체크박스만 남는다.
-  await expect(page.getByTestId("order-plan-selection-toolbar")).toHaveCount(0);
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 0건");
   await expect(page.locator('.c2l-row input[type="checkbox"][data-checked="true"]')).toHaveCount(0);
 });
 
@@ -2115,10 +2087,7 @@ test("LS-select-current-page-only-adds-visible-rows-and-disables-once-page-is-fu
   await page.goto("/order-plans");
   await expect(page.locator(".c2l-row")).toHaveCount(500);
 
-  // 선택이 0건일 때는 목록 머리 체크박스가 `현재 페이지 전체 선택`이다(최종 시안). 선택이 생기면 일괄 바의
-  // 같은 이름 단추가 이어받는다.
-  // 누르면 페이지가 선택되고 머리 체크박스는 일괄 바의 단추로 바뀌므로 check()가 아니라 click()이다.
-  await page.getByRole("checkbox", { name: "현재 페이지 전체 선택", exact: true }).click();
+  await page.getByRole("button", { name: "현재 페이지 전체 선택", exact: true }).click();
   const selectPage = page.getByRole("button", { name: "현재 페이지 전체 선택", exact: true });
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 500건");
   await expect(page.locator('.c2l-row input[type="checkbox"][data-checked="true"]')).toHaveCount(500);
@@ -2145,15 +2114,15 @@ test("LS-selection-toolbar-has-four-tools-in-the-pre-specs-order-and-names", asy
   await mockOrderPlans(page);
   await page.goto("/order-plans");
   // 최종 시안: 선택이 0건이면 바가 없다. 한 건을 고르면 네 도구가 같은 이름·순서로 선다.
-  await expect(page.getByTestId("order-plan-selection-toolbar")).toHaveCount(0);
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 0건");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
   const toolbar = page.getByTestId("order-plan-selection-toolbar");
   const buttons = toolbar.getByRole("button");
   await expect(buttons).toHaveCount(4);
   await expect(buttons.nth(0)).toHaveText("전체 선택");
   await expect(buttons.nth(1)).toHaveText("전체 해제");
-  await expect(buttons.nth(2)).toHaveText("선택한 계획 추적 종료");
-  await expect(buttons.nth(3)).toHaveText("선택 항목 추적 시작");
+  await expect(buttons.nth(2)).toHaveText("추적 종료");
+  await expect(buttons.nth(3)).toHaveText("추적 시작");
   // 한 건이 고른 상태라 해제·제외·시작이 쓸 수 있다. 전체 선택은 페이지가 다 차기 전까지 켜져 있다.
   await expect(buttons.nth(1)).toBeEnabled();
   await expect(buttons.nth(2)).toBeEnabled();
@@ -2272,8 +2241,7 @@ test("BT-confirmation-shows-owner-and-status-exclusions-and-does-not-run-single-
   expect(singleTrace.trackingPatches).toHaveLength(0);
   expect(await page.locator(".c2l-detail-head .c2l-detail-title").textContent()).toContain("인공지능 기반");
   await expect(page.getByRole("combobox", { name: "선택 사유" })).toContainText("후속 사전규격·공고 확인");
-  // 최종 시안: 선택이 0건이면 일괄 바를 그리지 않고 목록 머리의 `현재 페이지 전체 선택` 체크박스만 남는다.
-  await expect(page.getByTestId("order-plan-selection-toolbar")).toHaveCount(0);
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 0건");
 });
 
 test("BT-lost-response-keeps-identical-request-through-reload-and-manual-recovery", async ({ page }) => {
@@ -2516,8 +2484,7 @@ test("BT-unknown-request-recovery-remains-reachable-after-filter-generation-clea
   await expect(dialog).toContainText("결과를 확인할 수 없어요");
   await bulkFooterClose(dialog).click();
   await clickPreset(page, "전체");
-  // 최종 시안: 선택이 0건이면 일괄 바를 그리지 않고 목록 머리의 `현재 페이지 전체 선택` 체크박스만 남는다.
-  await expect(page.getByTestId("order-plan-selection-toolbar")).toHaveCount(0);
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 0건");
   await expect(page.getByRole("button", { name: "저장된 일괄 요청 확인", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "저장된 일괄 요청 확인", exact: true }).click();
   const recovery = page.getByTestId("order-plan-bulk-tracking-dialog");
@@ -2735,9 +2702,7 @@ test("BE-over-200-selection-disables-end-but-keeps-start-enabled", async ({ page
   await page.goto("/order-plans");
   // 목록 선택 hook이 수화(hydrate)해 빈 상태를 쓸 때까지 기다린다 — 그 전에 읽으면
   // sessionStorage 키가 아직 없다.
-  // 목록 선택 hook이 수화(hydrate)해 빈 상태를 쓸 때까지 기다린다(최종 시안: 선택 0건이면 일괄 바가 없어
-  // 바의 `선택 0건` 글자로 기다릴 수 없다). 그 전에 읽으면 sessionStorage 키가 아직 없다.
-  await expect(page.getByTestId("order-plan-selection-toolbar")).toHaveCount(0);
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 0건");
   await expect.poll(() => page.evaluate(() => window.sessionStorage.getItem("bidops.order-plans.selection.v1"))).not.toBeNull();
   const fingerprint = await page.evaluate(() => {
     const raw = window.sessionStorage.getItem("bidops.order-plans.selection.v1");
@@ -3116,8 +3081,7 @@ test("회차를 고르면 기존 검색·필터를 지우지 않고 더하며 �
   // 달라도 같은 집합을 준다). 회차가 다른 필터를 지웠다면 행 수가 늘었을 것이다.
   await expect(page.locator(".c2l-row")).toHaveCount(rowsBefore);
   // 범위가 바뀌었으므로 선택 집합은 새로 시작한다.
-  // 최종 시안: 선택이 0건이면 일괄 바를 그리지 않고 목록 머리의 `현재 페이지 전체 선택` 체크박스만 남는다.
-  await expect(page.getByTestId("order-plan-selection-toolbar")).toHaveCount(0);
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 0건");
 });
 
 test("필터 초기화는 회차도 지우고, 새로고침·뒤로가기는 회차 URL을 그대로 복원한다", async ({ page }) => {

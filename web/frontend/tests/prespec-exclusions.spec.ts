@@ -80,7 +80,7 @@ test("단건 제외 실패 후 입력·선택 유지, 명시적 재시도, 다�
   await expect(row(page, 992)).toHaveCount(0);
   await expect(row(page, 993)).toBeFocused();
   // 2026-11-20: 고른 것이 0건이면 일괄 바를 그리지 않는다(발주계획과 같은 규칙). 0건은 바가 없는 것으로 확인한다.
-  await expect(page.locator('.pre-specs-selection-toolbar')).toHaveCount(0);
+  await expect(page.locator('.pre-specs-selection-toolbar')).toContainText("선택 0건");
   expect(requests).toHaveLength(2);
   await page.getByRole("button", { name: "검토 제외", exact: true }).click();
   const second = await fillDialog(page);
@@ -125,14 +125,13 @@ test("페이지를 넘는 선택 제외와 마지막 빈 페이지 보정", asyn
   await expect(row(page, 1190)).toBeFocused();
   expect(requests[0].notice_ids).toEqual([991, 1191]);
   // 2026-11-20: 고른 것이 0건이면 일괄 바를 그리지 않는다(발주계획과 같은 규칙). 0건은 바가 없는 것으로 확인한다.
-  await expect(page.locator('.pre-specs-selection-toolbar')).toHaveCount(0);
+  await expect(page.locator('.pre-specs-selection-toolbar')).toContainText("선택 0건");
 });
 
 test("200건 초과 선택은 전송을 막고 선택 축소를 안내", async ({ page }) => {
   const { requests } = await setup(page, 201);
   await page.goto('/pre-specs');
-  // 선택이 0건일 때 `현재 페이지 전체 선택`은 목록 머리 체크박스다(2026-11-20).
-  await page.getByRole('checkbox', { name: '현재 페이지 전체 선택' }).click();
+  await page.getByRole('button', { name: '현재 페이지 전체 선택' }).click();
   await page.getByRole('navigation', { name: '사전규격 목록 페이지' }).getByRole('button', { name: '다음', exact: true }).click();
   await row(page, 1191).getByRole('checkbox').check();
   await expect(page.getByRole('button', { name: '검토 목록에서 제외' })).toBeDisabled();
@@ -205,7 +204,7 @@ test("전체 이력 포함 여부 필터는 URL과 선택 범위를 함께 갱�
   await expect(row(page, 991)).toBeVisible();
   await expect(row(page, 992)).toHaveCount(0);
   // 2026-11-20: 고른 것이 0건이면 일괄 바를 그리지 않는다(발주계획과 같은 규칙). 0건은 바가 없는 것으로 확인한다.
-  await expect(page.locator('.pre-specs-selection-toolbar')).toHaveCount(0);
+  await expect(page.locator('.pre-specs-selection-toolbar')).toContainText("선택 0건");
 });
 
 // F2 · spec §6.2 — 제외된 건은 **누가·언제·왜** 뺐는지 보여야 복원을 판단할 수

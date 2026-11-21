@@ -19,7 +19,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { EmptyState } from "../components/common/EmptyState";
-import { PageHeaderActions, PageHeaderTabs } from "../components/common/PageHeaderActions";
+import { PageHeaderTabs } from "../components/common/PageHeaderActions";
 import { usePageHeader } from "../components/shell/PageHeaderContext";
 
 import {
@@ -243,7 +243,7 @@ export function GoNoGoPage() {
   useEffect(() => setDraft(query), [query]);
   const selectedParam = Number(searchParams.get("selected"));
   const [tab, setTab] = useState<DetailTab>("summary");
-  const [dialog, setDialog] = useState<"data" | "evidence" | null>(null);
+  const [dialog, setDialog] = useState<"evidence" | null>(null);
   const [evidenceItem, setEvidenceItem] = useState<BidDeltaItemView | null>(null);
   /** ↑↓ 키 리스너와 행 탐색의 범위. 표의 스크롤 영역이 모든 행을 담는다. */
   const listRef = useRef<HTMLDivElement>(null);
@@ -496,9 +496,9 @@ export function GoNoGoPage() {
   const footerAction = !selectedItem
     ? null
     : comparisonBasisReady
-      ? { label: "변경 검토·결정 열기", note: "검토 결과를 확인한 뒤 사람이 Go 또는 No-Go를 선택해요. 추적 선택이나 판정은 Go/No-Go를 대신하지 않아요. 이 목록에서는 저장하지 않아요." }
+      ? { label: "변경 검토·결정 열기", note: null }
       : selectedItem.bid_notice_external_id
-        ? { label: "공고 조건 검토·결정 열기", note: "완료된 변경 비교가 없어 결정 화면에서 최신 입찰공고 조건을 근거로 기록해요. 추적 선택이나 판정은 Go/No-Go를 대신하지 않아요. 이 목록에서는 저장하지 않아요." }
+        ? { label: "공고 조건 검토·결정 열기", note: null }
         : { label: "결정 화면 열기", note: "연결된 입찰공고가 없어 최종 결정을 기록할 수 없어요. 결정 화면에서 공고 연결 상태를 확인해요." };
 
   return (
@@ -507,11 +507,6 @@ export function GoNoGoPage() {
           제목 위계(h1 → h2)를 위해 숨긴 제목만 남기고, 페이지 액션은 상단바 슬롯으로
           보낸다(계획서 §1). 대화상자를 여는 상태는 계속 이 화면이 소유한다. */}
       <span className="visually-hidden" id="go-no-go-title">최종 Go/No-Go</span>
-      <PageHeaderActions>
-        <div className="gng-header-actions">
-          <button className="panel-header-link" onClick={() => setDialog("data")} type="button">목록 기준</button>
-        </div>
-      </PageHeaderActions>
 
       {/* 필터 골격은 4화면 공용(`components/common/WorkspaceFilters.tsx`)이다.
           필터 집합·URL 파라미터·검색 적용 시점은 그대로 이 화면이 정한다:
@@ -542,17 +537,12 @@ export function GoNoGoPage() {
               value={draft}
             />
           </WorkspaceFilterTools>
-          <WorkspaceFilterContext className="gng-filter-context">
-            <Text className="gng-caption" type="supporting" color="secondary" as="p">
-              계속 추적 중인 사업 · 미결정·재검토 포함 · 입찰공고 미연결은 전체 보기에만
-              {trimmedQuery && !receivedAll ? " · 검색은 받은 범위 안에서만 좁혀요" : ""}
-            </Text>
-            <Text className="gng-caption" type="supporting" color="secondary" as="p">
-              {receivedAll
-                ? `전체 ${formatCount(total)}건 기준`
-                : `받은 ${formatCount(rows.length)}건 기준 · 전체 ${formatCount(total)}건`}
-            </Text>
-          </WorkspaceFilterContext>
+          {queueQuery.isSuccess && !receivedAll ? (
+            <WorkspaceFilterContext className="gng-filter-context">
+              받은 {formatCount(rows.length)}건 기준 · 전체 {formatCount(total)}건
+              {trimmedQuery ? " · 검색은 받은 범위 안에서만 좁혀요" : ""}
+            </WorkspaceFilterContext>
+          ) : null}
         </WorkspaceFilterBar>
       </PageHeaderTabs>
       <WorkspaceFrame>
@@ -974,7 +964,7 @@ export function GoNoGoPage() {
                       />
                     ) : null}
                   </div>
-                  {footerAction ? (
+                  {footerAction?.note ? (
                     <Text className="gng-caption" type="supporting" color="secondary" as="p">
                       {footerAction.note}
                     </Text>
@@ -989,33 +979,6 @@ export function GoNoGoPage() {
           </section>
         </SplitWorkspace>
       </WorkspaceFrame>
-
-      <Dialog isOpen={dialog === "data"} onOpenChange={(open) => { if (!open) setDialog(null); }} purpose="info" width={640}>
-        <DialogHeader title="이 목록의 기준" />
-        <div className="gng-dialog-body" data-astryx-theme="bidops">
-          <Text as="p">
-            추적 상태가 ‘계속 추적’인 사업기회만 최종 Go/No-Go 대상이에요. 보류·종료·미선택은 이 목록에 올리지 않아요.
-          </Text>
-          <Text as="p">
-            목록은 서버의 최종 결정 대기열을 한 번 받아 그려요(한 번에 최대 {PAGE_SIZE}건). 사람 결정·현재성·재확인 신호는
-            대기열이 준 값이며 행마다 따로 조회하지 않아요. 대기열이 {PAGE_SIZE}건을 넘으면 보기 건수와 검색은 받은 범위 기준이에요.
-          </Text>
-          <Text as="p">
-            검토 대상은 입찰공고가 연결된 미결정 사업과, 결정이 있어도 현재성이 ‘현재’가 아닌 사업이에요. 입찰공고가 연결되지 않은
-            사업은 결정할 공고가 없어 전체 보기에만 둬요.
-          </Text>
-          <Text as="p">
-            변경 비교를 계산하는 프로그램은 아직 운영에 없어요. 최종 결정은 결정 화면에서 최신 입찰공고의 공고 조건을 근거로
-            기록할 수 있어요. 계산 대기·계산 실패·비교 없음·조회 실패는 모두 ‘변경 없음’이나 ‘확인 완료’와 다른 상태이며 그대로 표시해요.
-          </Text>
-          <Text as="p">
-            이 화면은 적합성 등급·참여 준비 상태·심층 추적 승인을 대신하지 않아요. 최종 결정 저장은 결정 화면에서만 해요.
-          </Text>
-          <div className="gng-dialog-actions">
-            <Button label="닫기" onClick={() => setDialog(null)} />
-          </div>
-        </div>
-      </Dialog>
 
       <Dialog isOpen={dialog === "evidence" && evidenceItem !== null} onOpenChange={(open) => { if (!open) setDialog(null); }} purpose="info" width={880}>
         <DialogHeader title="양쪽 원문 근거" />

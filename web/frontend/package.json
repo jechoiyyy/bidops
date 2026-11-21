@@ -9,8 +9,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test:contrast": "node --test scripts/check-contrast.test.mjs",
-    "test:design": "playwright test --project=layout-laptop --project=layout-desktop design-shell.spec.ts",
-    "test:screens": "playwright test --project=app --project=layout-laptop --project=layout-desktop",
+    "test:design": "playwright test --project=layout-desktop --project=layout-small-desktop --project=layout-laptop design-shell.spec.ts",
+    "test:screens": "playwright test --project=app --project=layout-desktop --project=layout-small-desktop --project=layout-laptop",
     "test:pixel": "playwright test --project=pixel",
     "test:pixel:update": "playwright test --project=pixel --update-snapshots"
   },

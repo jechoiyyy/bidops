@@ -53,10 +53,7 @@ test("목록은 상단바 제목 모드로 열리고 목록 기준이 상단바 
   await expect(page.locator(".topbar-crumb")).toHaveCount(0);
   await expect(page.locator(".topbar-status")).toHaveCount(0);
 
-  const dataStatus = topbar.getByRole("button", { name: "목록 기준" });
-  await expect(dataStatus).toBeVisible();
-  await dataStatus.click();
-  await expect(page.getByRole("dialog")).toContainText("구역 건수는 서버가 센");
+  await expect(topbar.getByRole("button", { name: "목록 기준" })).toHaveCount(0);
 });
 
 test("목록 workspace는 page canvas의 남은 높이를 채운다", async ({ page }) => {

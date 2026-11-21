@@ -43,7 +43,7 @@ test("실패한 개요는 검토할 항목이 아니라 확인 필요 보기에 
   await expect(scope).toContainText("마감 전·미확인 1");
   await expect(scope).toContainText("마감 경과 0");
   // 실패한 개요에는 다음 행동 안내가 없다 — 옛 "심층 검토 열기"로 올라오지 않는다.
-  await expect(page.locator(".pre-specs-next-action strong")).toHaveText("없음");
+  await expect(page.locator(".pre-specs-next-action")).toHaveCount(0);
   await expect(page.getByText("심층 검토 열기", { exact: true })).toHaveCount(0);
 });
 
@@ -53,12 +53,11 @@ test("다음 행동 안내는 개요 확인과 개요 확인 필요 두 값이�
 
   await page.locator(".pre-specs-row").filter({ hasText: "독립 수집된 심층 검토 클릭 대기 사전규격" }).click();
   // 개요 `completed` ∧ 추적 결정 없음 → 개요를 읽고 추적을 정한다.
-  await expect(pane.locator(".pre-specs-next-action")).toContainText("개요 확인");
-  await expect(pane.locator(".pre-specs-next-action")).not.toContainText("개요 확인 필요");
+  await expect(page.locator(".pre-specs-next-action")).toHaveCount(0);
 
   await page.locator(".pre-specs-row").filter({ hasText: "안전한 문서 준비 사전규격" }).click();
   // 개요 `needs_human_review`는 추적 결정(`종료`)과 무관하게 범위 확정이 남는다.
-  await expect(pane.locator(".pre-specs-next-action")).toContainText("개요 확인 필요");
+  await expect(page.locator(".pre-specs-next-action")).toHaveCount(0);
 });
 
 test("참여 판정 열은 RL이 꺼진 환경에서 꺼져 있다고 먼저 말하고 판정을 조회하지 않는다", async ({ page }) => {
