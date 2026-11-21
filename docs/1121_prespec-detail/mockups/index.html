@@ -9,7 +9,9 @@
   - 분석 전(a1~a4)은 운영 3753의 공개 공고 정보와 개요 결과를 옮겼다.
   - 분석 완료(b1~b3)는 다른 공고의 실제 엔진 결과 구조와 건수(자격 조건 7·요구사항 41·리스크 11·확인 요청 63)를
     따른 예시다. 회사 근거 문구는 전부 예시이며 실제 회사 역량이 아니다.
-  - ?s=a1|a2|a3|a4|b1|b2|b3 로 상태를 바꾸고 ?bar=0 으로 위쪽 시안 안내 줄을 숨긴다.
+  - 문제 상태(c1~c5)는 운영 최근 200건의 실패·막힘 유형에서 고른 예시다. 공고 정보는 3753을 그대로 쓴다.
+    c 상태에서 ?open=1 이면 처리 상태·기술 정보가 펼쳐지고 해당 블록만 먼저 보인다.
+  - ?s=a1|a2|a3|a4|b1|b2|b3|c1..c5 로 상태를 바꾸고 ?bar=0 으로 위쪽 시안 안내 줄을 숨긴다.
 -->
 <style>
 @font-face{font-family:"Pretendard";src:local("Pretendard Variable"),local("Pretendard"),url("../../../web/frontend/public/fonts/PretendardVariable.woff2") format("woff2");font-weight:100 900;font-display:swap}
@@ -231,6 +233,23 @@ tr.is-selected td:last-child{box-shadow:12px 0 0 var(--color-background-muted)}
 /* 추적 외의 할 일(분석 승인 대기)은 본문 맨 위 한 블록 */
 .sec.task{padding:16px 0}
 .task-row{display:flex;align-items:center;justify-content:space-between;gap:16px}
+
+/* 문제 상태 안내(c1~c5): 회색 채움 한 블록. 무엇이 일어났나(굵게) → 이유 → 할 일 → 사유 코드(작게). */
+.status-notice{padding:20px;border-radius:8px;background:var(--color-background-muted)}
+.status-notice .lead{display:flex;align-items:center;gap:10px}
+.sn-line{display:flex;gap:12px;margin-top:10px;font-size:15px;line-height:23px}
+.sn-line>.k{flex:none;width:44px;font-weight:600}
+.sn-quote{margin:10px 0 0 56px;padding:12px 14px;border-radius:6px;background:#fff;font-size:15px;line-height:23px}
+.sn-quote .cap{margin-top:4px}
+.status-notice .actions{margin:14px 0 0 56px}
+.status-notice .form-row{margin:14px 0 0 56px}
+.status-notice details{margin:6px 0 0 56px}
+.status-notice details .form-row{margin-left:0}
+.status-notice .tag.neutral{background:#fff}
+.mockbar b{flex:none;white-space:nowrap}
+.sn-code{margin-top:14px;font:400 13px/20px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:0;color:var(--color-text-secondary)}
+.tech-block .sub-title:first-child{margin-top:0}
+.tech-block .actions{margin-top:12px}
 </style>
 
 <body>
@@ -248,16 +267,20 @@ const q = new URLSearchParams(location.search);
 const STATES = [
   ['a1', '분석 전 · 개요 완료'], ['a2', '분석 전 · 원문 준비 중'], ['a3', '분석 전 · 범위 확정 필요'], ['a4', '분석 전 · 승인 대기'],
   ['b1', '분석 완료'], ['b2', '분석 완료 · 부분 결과'], ['b3', '분석 완료 · 근거 열림'],
+  ['c1', '개요 실패 · 범위가 너무 큼'], ['c2', '개요 보류 · 원문과 맞지 않는 문장'], ['c3', '문서 준비 막힘 · 문서 확인 필요'],
+  ['c4', '문서 준비 막힘 · 첨부를 받지 못함'], ['c5', '개요 대기'],
 ];
 const S = STATES.some(([k]) => k === q.get('s')) ? q.get('s') : 'a1';
 if (q.get('bar') === '0') document.body.classList.add('nobar');
+const OPEN = S[0] === 'c' && q.get('open') === '1';
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const tag = (t, tone = '') => `<span class="tag ${tone}">${t}</span>`;
 const dot = '<span class="dot">·</span>';
 
 document.getElementById('mockbar').innerHTML = '<b>사전규격 상세 시안</b>' + STATES.map(([k, n], i) =>
-  (i === 4 ? '<span class="sep"></span>' : '') + `<a href="?s=${k}" ${k === S ? 'aria-current="page"' : ''}>${n}</a>`).join('') +
-  `<span class="note">${S[0] === 'a' ? '운영 3753 조회값 (2026-11-21)' : '예시 데이터 · 회사 근거는 실제가 아님'}</span>`;
+  (i === 4 || i === 7 ? '<span class="sep"></span>' : '') + `<a href="?s=${k}" ${k === S && !OPEN ? 'aria-current="page"' : ''}>${n}</a>`).join('') +
+  (S[0] === 'c' ? `<span class="sep"></span><a href="?s=${S}&open=1" ${OPEN ? 'aria-current="page"' : ''}>기술 정보 펼침</a>` : '') +
+  `<span class="note">${S[0] === 'a' ? '운영 3753 조회값 (2026-11-21)' : S[0] === 'c' ? '예시 · 운영 최근 200건의 문제 유형 (2026-11-21)' : '예시 데이터 · 회사 근거는 실제가 아님'}</span>`;
 
 /* ───────── 분석 전 (운영 3753) ───────── */
 const A = {
@@ -288,7 +311,7 @@ const factsA = (extra = '') => `
     <div><dt>구분</dt><dd>일반용역<small>SW사업대상 Y</small></dd></div>
     <div><dt>게시</dt><dd>2026.11.19 17:08</dd></div>${extra}
   </dl>
-  <p class="ident">사전규격번호 <b>R26BD00303361</b> <button class="link" type="button">번호 복사</button>${dot}나라장터 원문 URL 없음${dot}본공고 아직 없음${dot}신규 등록</p>
+  <p class="ident">사전규격번호 <b>R26BD00303361</b> <button class="link" type="button">번호 복사</button>${dot}본공고 미확인${dot}발견 경로 독립 발견</p>
 </section>`;
 
 const reasonOptions = '<option>주력 분야와 맞음</option><option>기존 고객·유사 실적</option><option>더 살펴볼 가치 있음</option><option>기타 · 직접 입력</option>';
@@ -345,6 +368,150 @@ function pageA() {
 <section class="sec" id="files"><div class="sec-head"><h2 class="sec-title">원문·첨부<span class="n">1건</span></h2></div>${S === 'a2' ? filesA.converting : filesA.ready}</section>
 ${processA(S === 'a3', meta)}
 <p class="foot">시안 · 운영 3753의 2026-11-21 조회값을 옮겼어요.</p>`;
+}
+
+/* ───────── 문제 상태 (c1~c5, 운영 최근 200건 분포에서 고른 예시) ─────────
+   화면은 사유 코드를 고정 문장으로 바꾸고, 쪽 번호·건수·실패 문장은 서버 값을 그대로 넣는다.
+   모델이 쓴 문장은 바꿔 쓰지 않고 따옴표 블록에 원문 그대로 둔다. */
+const REASON = {
+  input_capacity_exceeded: '한 번에 읽을 수 있는 분량보다 많았어요',
+  range_fallback: '사업 개요 위치를 자동으로 찾지 못해 범위를 넓게 잡았어요',
+  semantic_review_failed: '초안 문장을 원문과 대조했더니 맞지 않는 문장이 있었어요',
+  insufficient_evidence: '근거 부족 · 그 쪽에서 이 내용을 찾지 못했어요',
+  ocr_issue: '첨부 문서의 글자 인식(OCR)이나 쪽 구조를 자동으로 확정하지 못했어요',
+  attachments_failed: '받은 첨부가 없어 문서를 준비하지 못했어요',
+};
+const SRV = { // 서버 값(예시)
+  c1: { pages: 161, from: 1, to: 60, source: 'fallback', candidates: 38 },
+  c2: { pages: 117, from: 3, to: 5, failed: [{ text: '2026년 10월부터 2027년 12월까지 유지관리 용역 수행', reason: 'insufficient_evidence', pages: [5] }] },
+  c3: { file: '제안요청서.pdf', message: 'OCR 또는 page 구조화 확인이 필요합니다' },
+  c4: { total: 1, done: 0, blocked: 1 },
+};
+const qOpen = (s, hash = '') => `?s=${s}&open=1${q.get('bar') === '0' ? '&bar=0' : ''}${hash}`;
+const rangeFields = (c, btn) => `<form class="form-row" style="grid-template-columns:140px 140px auto 1fr" onsubmit="return false">
+    <div class="field"><label for="ps">시작 쪽</label><input id="ps" inputmode="numeric" placeholder="쪽 번호"></div>
+    <div class="field"><label for="pe">끝 쪽</label><input id="pe" inputmode="numeric" placeholder="쪽 번호"></div>
+    <button class="btn" type="submit" style="height:48px">${btn}</button>
+    <button class="link" type="button" style="justify-self:start;align-self:center">절 제목에서 고르기 (후보 ${c}개)</button>
+  </form>`;
+const notice = ({ tg, lead, why, extra = '', what, act = '', code }) => `<div class="status-notice" role="status">
+  <p class="lead">${tg}<span>${lead}</span></p>
+  <p class="sn-line"><span class="k">이유</span><span>${why}</span></p>${extra}
+  <p class="sn-line"><span class="k">할 일</span><span>${what}</span></p>${act}
+  <p class="sn-code">${code}</p>
+</div>`;
+
+function noticeC() {
+  if (S === 'c1') {
+    const v = SRV.c1;
+    return notice({
+      tg: tag('개요 실패', 'err'), lead: '개요를 만들지 못했어요. 읽을 범위가 너무 넓어요',
+      why: `자동으로 고른 범위 ${v.from}~${v.to}쪽(전체 ${v.pages}쪽)이 ${REASON.input_capacity_exceeded}. ${REASON.range_fallback}.`,
+      what: '사업 개요가 있는 쪽으로 범위를 좁혀 확정해 주세요. 확정하면 그 범위로 개요를 한 번 새로 실행해요.',
+      act: rangeFields(v.candidates, '범위 확정') + `<p class="cap" style="margin:8px 0 0 56px">이전 범위 ${v.from}~${v.to}쪽${dot}전체 ${v.pages}쪽</p>`,
+      code: `input_capacity_exceeded${dot}range_source ${v.source}`,
+    });
+  }
+  if (S === 'c2') {
+    const v = SRV.c2;
+    return notice({
+      tg: tag('개요 보류', 'warn'), lead: '개요 초안을 보류했어요. 원문과 맞지 않는 문장이 있어요',
+      why: `${v.from}~${v.to}쪽을 읽고 초안을 만들었어요. ${REASON.semantic_review_failed}. 맞지 않는 문장은 ${v.failed.length}개예요.`,
+      extra: v.failed.map((f) => `<blockquote class="sn-quote">${esc(f.text)}<p class="cap">근거로 든 쪽 ${f.pages.join('·')}쪽${dot}${REASON[f.reason]}</p></blockquote>`).join(''),
+      what: `원문 ${v.failed[0].pages[0]}쪽을 열어 직접 확인하거나, 다른 범위를 확정해 개요를 다시 실행해 주세요.`,
+      act: `<div class="actions"><button class="btn" type="button">PDF ${v.failed[0].pages[0]}페이지 열기 ↗</button><button class="link" type="button" aria-expanded="false" aria-controls="rerun" onclick="const r=document.getElementById('rerun');r.hidden=!r.hidden;this.setAttribute('aria-expanded',String(!r.hidden))">다른 범위로 다시 실행하기</button></div>
+        <div id="rerun" hidden>${rangeFields(38, '범위 확정')}<p class="cap" style="margin:8px 0 0 56px">이전 범위 ${v.from}~${v.to}쪽${dot}전체 ${v.pages}쪽</p></div>`,
+      code: `semantic_review_failed${dot}needs_human_review${dot}${v.failed[0].reason}`,
+    });
+  }
+  if (S === 'c3') {
+    const v = SRV.c3;
+    return notice({
+      tg: tag('문서 준비 막힘', 'warn'), lead: '문서 준비가 멈췄어요. 첨부 문서를 사람이 확인해야 해요',
+      why: `${esc(v.file)}에서 ${REASON.ocr_issue}.`,
+      what: '문서 준비에서 문서를 확인하고 확정해 주세요. 확정해야 개요를 실행할 수 있어요.',
+      act: `<div class="actions"><a class="link" href="${qOpen('c3', '#prep')}">문서 준비 열기</a></div>`,
+      code: 'ocr_issue',
+    });
+  }
+  if (S === 'c4') {
+    const v = SRV.c4;
+    return notice({
+      tg: tag('첨부 받기 실패', 'err'), lead: '첨부를 받지 못해 개요를 만들 수 없어요',
+      why: `나라장터에서 첨부 ${v.total}건을 받으려 했지만 ${v.blocked}건이 차단됐어요. ${REASON.attachments_failed}.`,
+      what: '원본 열기로 나라장터에서 첨부를 직접 확인해 주세요. 이 화면에서는 아직 첨부를 다시 받을 수 없어요.',
+      act: '<div class="actions"><button class="btn" type="button">원본 열기 ↗</button></div>',
+      code: `attachments_failed${dot}첨부 ${v.total}건${dot}차단 ${v.blocked}`,
+    });
+  }
+  return notice({
+    tg: tag('개요 대기', 'neutral'),lead: '개요 실행을 기다리고 있어요',
+    why: '원문 준비는 끝났고 개요는 아직 시작하지 않았어요.',
+    what: '따로 할 일은 없어요. 개요는 의견 마감 전이거나 추적 중인 사전규격에서 자동으로 진행해요. 마감이 지난 건은 추적을 시작하면 진행해요.',
+    code: `bundle_ready${dot}개요 실행 기록 없음`,
+  });
+}
+
+const filesC = {
+  c1: filesTable('<tr><td>제안요청서.hwpx</td><td>HWPX · 변환 PDF 161쪽</td><td>준비 완료</td><td class="act"><a class="link" href="#">원본 열기</a>　<a class="link" href="#">변환 PDF</a>　<a class="link" href="#">다운로드</a></td></tr>'),
+  c2: filesA.ready, c5: filesA.ready,
+  c3: filesTable(`<tr><td>제안요청서.pdf</td><td>PDF</td><td>${tag('문서 확인 필요', 'warn')}</td><td class="act"><a class="link" href="#">원본 열기</a>　<a class="link" href="#">다운로드</a></td></tr>`),
+  c4: filesTable(`<tr><td>첨부 1 · 확장자 미확인 · 크기 미확인</td><td class="k">미확인</td><td>${tag('받지 못함', 'err')}</td><td class="act"><a class="link" href="#">원본 열기 ↗</a></td></tr>`),
+};
+
+/* 처리 상태·기술 정보: 문제 상태에서도 기본은 접힘. ?open=1 이면 해당 블록만 먼저 보이고 나머지는 한 번 더 접는다. */
+function processC() {
+  const step = {
+    c1: ['1건 완료', '확정 완료 · 수정본 1', tag('실패', 'err')],
+    c2: ['1건 완료', '확정 완료 · 수정본 1', tag('보류 · 사람 확인', 'warn')],
+    c3: ['1건 완료', tag('확인 필요 · 작성 중', 'warn'), '시작 전'],
+    c4: [tag('차단 1', 'err'), '없음', '시작 전'],
+    c5: ['1건 완료', '확정 완료 · 수정본 1', '대기'],
+  }[S];
+  const blocks = {
+    steps: `<h3 class="sub-title">자동 준비 단계</h3><ol class="steps">
+      <li><span class="no">1</span><b>첨부 취득</b><span>${step[0]}</span></li>
+      <li><span class="no">2</span><b>문서 묶음</b><span>${step[1]}</span></li>
+      <li><span class="no">3</span><b>개요 검토</b><span>${step[2]}</span></li></ol>
+      <p class="cap" style="margin-top:8px">첨부 취득·문서 준비·개요 검토는 의견 마감 전이거나 추적 중인 사전규격에서 자동으로 진행해요.</p>`,
+    run: S === 'c1'
+      ? `<h3 class="sub-title">마지막 개요 실행</h3><dl class="dl-inline">
+          <dt>상태</dt><dd>${tag('실패', 'err')} failed</dd><dt>사유 코드</dt><dd>input_capacity_exceeded</dd>
+          <dt>읽을 범위</dt><dd>1~60쪽 · 전체 161쪽 · range_source fallback</dd><dt>실행 시각</dt><dd>2026.11.20 13:48</dd></dl>`
+      : `<h3 class="sub-title">마지막 개요 실행</h3><dl class="dl-inline">
+          <dt>상태</dt><dd>${tag('보류', 'warn')} needs_human_review</dd><dt>사유 코드</dt><dd>semantic_review_failed</dd>
+          <dt>읽은 범위</dt><dd>3~5쪽 · 전체 117쪽</dd><dt>실행 시각</dt><dd>2026.11.20 13:48</dd></dl>
+        <table style="margin-top:12px"><thead><tr><th>failed_claims</th><th>사유</th><th class="act">근거 쪽</th></tr></thead><tbody>
+          <tr><td>2026년 10월부터 2027년 12월까지 유지관리 용역 수행</td><td>insufficient_evidence</td><td class="act"><a class="link" href="#">5쪽</a></td></tr></tbody></table>`,
+    prep: `<h3 class="sub-title" id="prep">문서 준비</h3><dl class="dl-inline">
+        <dt>문서 묶음</dt><dd>${tag('작성 중', 'warn')} draft</dd><dt>막힌 이유</dt><dd>ocr_issue · OCR 또는 page 구조화 확인이 필요합니다</dd>
+        <dt>대상 문서</dt><dd>제안요청서.pdf</dd></dl>
+      <div class="actions"><button class="btn btn-sm" type="button">문서 확인하기</button><button class="btn btn-sm" type="button">문서 묶음 확정하기</button></div>
+      <p class="cap" style="margin-top:8px">문서 묶음 편집, 업로드, 확정 (현재 문서 준비 패널을 그대로 둡니다)</p>`,
+    fetch: `<h3 class="sub-title">첨부 취득</h3><dl class="dl-inline">
+        <dt>결과</dt><dd>첨부 1건 · 완료 0 · 차단 1</dd><dt>차단 사유</dt><dd class="k">미확인</dd></dl>
+      <table style="margin-top:12px"><thead><tr><th>첨부</th><th>취득 결과</th><th class="act">열기</th></tr></thead><tbody>
+        <tr><td>첨부 1 · 확장자 미확인 · 크기 미확인</td><td>${tag('차단', 'err')}</td><td class="act"><a class="link" href="#">원본 열기 ↗</a></td></tr></tbody></table>
+      <p class="cap" style="margin-top:8px">첨부 다시 받기 화면은 아직 없어요.</p>`,
+    history: '<details><summary>처리 이력과 이전 개요 결과</summary><p class="cap">사전규격 목록 · 사업기회 · 변경 일시와 사유</p></details>',
+    tech: '<details><summary>기술 정보</summary><p class="cap">주장 검증 진단, 고정 입력과 식별 해시, 실행 식별 정보</p></details>',
+  };
+  const first = { c1: 'run', c2: 'run', c3: 'prep', c4: 'fetch', c5: 'steps' }[S];
+  const rest = ['steps', 'fetch', 'prep', 'run'].filter((k) => k !== first && !(k === 'run' && !['c1', 'c2'].includes(S)) && !(k === 'fetch' && S !== 'c4') && !(k === 'prep' && S === 'c4'))
+    .map((k) => `<div class="tech-block" style="margin-top:16px">${k === 'prep' && S !== 'c3' ? '<details><summary>문서 준비 열기</summary><p class="cap">문서 묶음 편집, 업로드, 확정 (현재 문서 준비 패널을 그대로 둡니다)</p></details>' : blocks[k]}</div>`).join('');
+  const meta = { c1: '개요 실패 · 범위 확정 필요', c2: '개요 보류 · 원문 대조 확인 필요', c3: '문서 준비 막힘 · 문서 확인 필요', c4: '첨부 받기 실패 · 1건 중 1건 차단', c5: '원문 준비 완료 · 개요 대기' }[S];
+  const body = OPEN
+    ? `<div class="tech-block">${blocks[first]}</div><details style="margin-top:16px"><summary>나머지 기술 정보 보기</summary>${rest}<div class="tech-block" style="margin-top:8px">${blocks.history}${blocks.tech}</div></details>`
+    : '<p class="cap">자동 준비 단계, 문서 준비, 처리 이력, 기술 정보</p>';
+  return `<details class="sec sec-fold" id="process" ${OPEN ? 'open' : ''}><summary>처리 상태·기술 정보<span class="sec-meta">${meta}</span></summary>${body}</details>`;
+}
+
+function pageC() {
+  return factsA() + `
+<section class="sec" id="overview"><div class="sec-head"><h2 class="sec-title">사업 개요와 주요 과업</h2></div>${noticeC()}</section>
+<section class="sec" id="files"><div class="sec-head"><h2 class="sec-title">원문·첨부<span class="n">1건</span></h2></div>${filesC[S]}</section>
+${processC()}
+<p class="foot">시안 · 공고 정보는 운영 3753, 문제 상태 값은 운영 최근 200건에서 고른 예시예요.</p>`;
 }
 
 /* ───────── 분석 완료 (예시: 다른 공고의 실제 엔진 결과 구조·건수) ───────── */
@@ -556,7 +723,7 @@ function pageB() {
     <div><dt>게시</dt><dd>2026.11.20 10:30</dd></div>
     <div><dt>추적 상태</dt><dd>${partial ? '계속 추적' : '미선택'}</dd></div>
   </dl>
-  <p class="ident">사전규격번호 <b>R26BD00309999</b> <button class="link" type="button">번호 복사</button>${dot}<a class="link" href="#">나라장터 원문 ↗</a>${dot}본공고 아직 없음</p>
+  <p class="ident">사전규격번호 <b>R26BD00309999</b> <button class="link" type="button">번호 복사</button>${dot}<a class="link" href="#">나라장터 원문 ↗</a>${dot}본공고 미확인</p>
 </section>
 ${summaryB()}${gatesB()}${todosB()}${reqsB()}${risksB()}${termsB}
 <details class="sec sec-fold" id="overview"><summary>사업 개요와 주요 과업<span class="sec-meta">개요 완료 · 과업 5건</span></summary><p class="cap">분석 전 화면의 개요 구역과 같은 내용이에요.</p></details>
@@ -580,8 +747,9 @@ function topbar() {
 
 /* 하단 결정 띠. 분석 전은 추적 시작 하나, 분석 완료는 계속 추적·보류·종료. */
 function decisionBar() {
-  if (S[0] === 'a') {
-    const lead = { a1: '개요를 읽고 추적할지 정해요', a2: '개요가 나오기 전에도 추적을 시작할 수 있어요', a3: '개요 없이도 추적을 시작할 수 있어요', a4: '추적할지 정해요' }[S];
+  if (S[0] !== 'b') {
+    const lead = { a1: '개요를 읽고 추적할지 정해요', a2: '개요가 나오기 전에도 추적을 시작할 수 있어요', a3: '개요 없이도 추적을 시작할 수 있어요', a4: '추적할지 정해요',
+      c1: '개요 없이도 추적을 시작할 수 있어요', c2: '개요 없이도 추적을 시작할 수 있어요', c3: '개요 없이도 추적을 시작할 수 있어요', c4: '개요 없이도 추적을 시작할 수 있어요', c5: '개요가 나오기 전에도 추적을 시작할 수 있어요' }[S];
     return `<div class="decision-bar" id="decision-bar"><form class="decision-bar-inner" onsubmit="return false">
       <p class="txt"><b>추적 상태 미선택 · ${lead}</b>${boundaryText}</p>
       <div class="field"><select aria-label="선택 사유"><option>선택 사유</option>${reasonOptions}</select></div>
@@ -598,7 +766,7 @@ function decisionBar() {
 let lastTrigger = null;
 function draw() {
   topbar();
-  document.getElementById('record').innerHTML = S[0] === 'a' ? pageA() : pageB();
+  document.getElementById('record').innerHTML = S[0] === 'a' ? pageA() : S[0] === 'c' ? pageC() : pageB();
   document.getElementById('ev-drawer')?.remove();
   document.getElementById('decision-bar')?.remove();
   const panel = document.getElementById('panel');
@@ -626,6 +794,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && selected
 window.addEventListener('resize', () => { if (selected) draw(); });
 draw();
 if (S === 'b3') document.getElementById('reqs').scrollIntoView();
+if (OPEN) (document.getElementById(location.hash.slice(1)) || document.getElementById('process')).scrollIntoView();
 </script>
 </body>
 </html>
