@@ -16,3 +16,19 @@
 운영 브라우저에서 1280×800으로 대시보드의 적재 경고 링크가 해당 회차의 펼쳐진 경고 표로 이동하는지, 발주계획 상세 필터를 펼쳐 회차를 고를 수 있는지, 최종 결정의 빈 목록에서 사업기회로 이동하는지 확인했다. 이 확인에서는 API 쓰기 요청을 차단했다.
 
 롤백할 때는 운영 설정의 BIDOPS_IMAGE를 이전 웹 이미지로 돌리고 `BIDOPS_ENV=prod scripts/compose.sh up -d --no-deps --no-build --force-recreate --wait web`으로 웹을 교체한다.
+
+## 사전규격 목록 하단 후속 배포
+
+운영 웹만 main `689f41a` 이미지 `bidops:main-20261121-689f41a`로 교체했다. 신규 미선택 건의 고정 영역에서 추적 상태와 입찰 참여 안내 반복을 제거하고, 다음 행동은 왼쪽, 검토 제외와 상세 진입은 오른쪽에 모았다. 승계 기록은 사유를 펼쳐 확인할 수 있다. 두 워커의 컨테이너 ID는 배포 전후 동일했다.
+
+| 브라우저 뷰포트 | 운영 교체 전 하단 높이 | 교체 후 | 가로 넘침 |
+|---|---:|---:|---:|
+| 1920×1080 | 278px | 144px | 0px |
+| 1440×900 | 278px | 144px | 0px |
+| 1280×800 | 298px | 144px | 0px |
+
+전체 이력에서 처음 선택된 동일 상태의 항목을 운영 GET으로 열어 footer의 offsetHeight와 scrollWidth − clientWidth를 측정했다. 관련 Playwright 검사 10건 통과, 운영 web healthy, /api/health ok, DB revision `0042_engine_run`(SELECT), tailnet 목록 URL 200을 확인했다.
+
+- 이미지 ID `sha256:b387b514b04a9bae8be896fe2bdb7686c43db2281df622fe6b13f910da97b633`.
+- 전체 백업 `backups/postgres/full/bidops-20261121T114034Z.dump`(0600, 114530953바이트, SHA-256 `968956a81c6859b2b05d46927e0b95548fa71f8717667300e8be59824fa7995f`, TABLE DATA 111개).
+- 롤백 태그 `before-prespec-footer-689f41a`. 직전 이미지 `bidops:engine-sync-20261121-2d47d42`와 설정 사본 `backups/env-prod-before-prespec-footer-689f41a`를 보존했다. 롤백은 BIDOPS_IMAGE를 직전 값으로 복구한 뒤 web만 교체한다.
