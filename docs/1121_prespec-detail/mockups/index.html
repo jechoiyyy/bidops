@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=1280">
+<title>사전규격 상세 시안 · 분석 전 / 분석 완료</title>
+<!--
+  사전규격 상세(/pre-specs/:id) 재기획 시안. 2026-11-21.
+  - 셸(왼쪽 레일·패널 헤더)의 수치와 토큰 값은 2026-11-21 운영 화면(1440×900, 1280×800)에서 읽은 계산값이다.
+  - 분석 전(a1~a4)은 운영 3753의 공개 공고 정보와 개요 결과를 옮겼다.
+  - 분석 완료(b1~b3)는 다른 공고의 실제 엔진 결과 구조와 건수(자격 조건 7·요구사항 41·리스크 11·확인 요청 63)를
+    따른 예시다. 회사 근거 문구는 전부 예시이며 실제 회사 역량이 아니다.
+  - ?s=a1|a2|a3|a4|b1|b2|b3 로 상태를 바꾸고 ?bar=0 으로 위쪽 시안 안내 줄을 숨긴다.
+-->
+<style>
+@font-face{font-family:"Pretendard";src:local("Pretendard Variable"),local("Pretendard"),url("../../../web/frontend/public/fonts/PretendardVariable.woff2") format("woff2");font-weight:100 900;font-display:swap}
+/* bidops 테마의 라이트 값(제품 CSS에서 읽은 값). 시안은 독립 파일이라 값을 직접 적는다. */
+:root{
+  --color-background-surface:#FFFFFF;--color-background-muted:#F6F5F3;--color-border:#E4E3E0;--color-border-emphasized:#C9C7C2;
+  --color-text-primary:#1B1B1A;--color-text-secondary:#5E5D5A;--color-text-disabled:#8C8A86;
+  --color-accent:#1D7B4E;--color-accent-muted:#E7F3EB;
+  --color-warning:#8A5200;--color-warning-muted:#FFF4E5;--color-error:#8F2F1D;--color-error-muted:#FFF1ED;
+  --color-text-purple:#5A3EE6;--color-background-purple:#F2EFFF;
+  --bo-frame:#eeedeb;--bo-sidebar-active:#e0dfdc;--bo-line-soft:#efeeec;
+  --shadow-high:0 4px 6px rgb(0 0 0 / 10%),0 12px 24px rgb(0 0 0 / 15%);
+  --bo-k-display:24px;--bo-k-detail:22px;--bo-k-figure:20px;--bo-k-section:18px;--bo-k-body:16px;--bo-k-lead:15px;--bo-k-meta:14px;--bo-k-tag:13px;
+  --read-width:1040px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bo-frame);color:var(--color-text-primary);font:400 14px/1.6 Pretendard,system-ui,sans-serif;letter-spacing:-0.28px;min-width:1280px;overflow:hidden}
+a{color:inherit}
+button,input,select{font:inherit;letter-spacing:inherit;color:inherit}
+h1,h2,h3,h4,p,dl,dd,ul,ol,blockquote{margin:0;padding:0}
+ul,ol{list-style:none}
+:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
+
+/* 시안 안내 줄 (제품 화면이 아님) */
+.mockbar{height:40px;display:flex;align-items:center;gap:6px;padding:0 12px;background:#1B1B1A;color:#fff;font-size:13px}
+.mockbar b{margin-right:8px}
+.mockbar a{color:#fff;text-decoration:none;padding:4px 10px;border-radius:6px;white-space:nowrap}
+.mockbar a[aria-current="page"]{background:#fff;color:#1B1B1A;font-weight:700}
+.mockbar .sep{width:1px;height:16px;background:#ffffff55;margin:0 6px}
+.mockbar .note{margin-left:auto;color:#ffffffb3}
+body.nobar .mockbar{display:none}
+
+/* 셸 */
+.app-shell{display:flex;height:calc(100% - 40px);padding:8px 8px 8px 0}
+body.nobar .app-shell{height:100%}
+.sidebar{width:228px;flex:none;display:flex;flex-direction:column;gap:18px;padding:12px 10px 8px;color:var(--color-text-secondary)}
+.sidebar-brand{display:flex;align-items:baseline;height:28px;padding:4px 10px 0;color:var(--color-text-primary);text-decoration:none}
+.sidebar-brand strong{font-size:16px;font-weight:800;line-height:24px;letter-spacing:-0.48px}
+.sidebar-nav{display:flex;flex-direction:column;gap:18px;flex:1;min-height:0}
+.sidebar-group,.sidebar-items,.sidebar-footer{display:flex;flex-direction:column;gap:1px}
+.sidebar-group-label{font-size:12px;font-weight:600;line-height:19.2px;padding:0 10px 4px}
+.sidebar-item{display:flex;align-items:center;gap:10px;min-height:36px;padding:0 10px;border-radius:6px;font-size:14px;font-weight:500;line-height:20px;color:var(--color-text-secondary);text-decoration:none}
+.sidebar-item svg{width:16px;height:16px;flex:none}
+.sidebar-item.is-active{background:var(--bo-sidebar-active);color:var(--color-text-primary);font-weight:700}
+.sidebar-item-count{margin-left:auto;font-size:12px;font-weight:600;line-height:20px}
+.sidebar-item-count.is-active{background:var(--color-text-primary);color:#fff;border-radius:9999px;padding:0 6px;font-weight:700}
+.sidebar-item.is-list{padding-left:36px}
+.sidebar-external-link{margin-top:auto}
+.sidebar-actor-trigger{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:4px 10px;border:0;background:none;border-radius:6px;font-size:13px;color:var(--color-text-secondary);text-align:left}
+.sidebar-actor-trigger strong{font-weight:700;color:var(--color-text-primary)}
+.sidebar-actor-trigger svg{width:16px;height:16px;margin-left:auto}
+
+.app-content{position:relative;flex:1;min-width:0;display:flex;flex-direction:column;background:var(--color-background-surface);border:1px solid var(--color-border);border-radius:12px;overflow:hidden}
+.topbar{flex:none;padding:12px 32px 16px;border-bottom:1px solid var(--color-border)}
+.topbar.has-tabs{padding-bottom:10px}
+/* 제안: 헤더 안쪽도 본문과 같은 읽기 폭에 맞춰 왼쪽 선을 일치시킨다 */
+.topbar-inner{width:100%;max-width:var(--read-width);margin:0 auto;display:flex;flex-direction:column;gap:4px}
+.topbar-back-link{display:inline-flex;align-items:center;gap:4px;height:28px;font-size:14px;font-weight:600;color:var(--color-text-secondary);text-decoration:none;align-self:flex-start}
+.topbar-back-link svg{width:16px;height:16px}
+.topbar-main{display:flex;align-items:flex-end;gap:16px}
+.topbar-heading{display:flex;flex-direction:column;gap:2px;min-width:0}
+.topbar-eyebrow{font-size:14px;font-weight:600;line-height:21px;color:var(--color-text-secondary)}
+.topbar-title{font-size:var(--bo-k-display);font-weight:700;line-height:1.34;letter-spacing:-0.72px}
+.topbar-page-actions{margin-left:auto;flex:none;display:flex;align-items:center;gap:16px;min-height:44px}
+.nav-pos{display:flex;align-items:baseline;gap:4px;font-size:13px;color:var(--color-text-secondary)}
+.nav-pos strong{color:var(--color-text-primary);font-weight:600}
+.nav-btns{display:flex;gap:8px}
+.nav-btns button{height:28px;padding:0 12px;border:0;border-radius:8px;background:var(--color-background-muted);font-size:13px;font-weight:500}
+.nav-btns button:disabled{color:var(--color-text-disabled)}
+.topbar-tabs{display:flex;gap:4px;margin-top:8px}
+.topbar-tabs a{display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 14px;border-radius:8px;font-size:15px;font-weight:500;color:var(--color-text-secondary);text-decoration:none}
+.topbar-tabs a[aria-current="true"]{background:var(--bo-sidebar-active);color:var(--color-text-primary);font-weight:700}
+.topbar-tabs a .n{font-size:13px}
+
+.page-canvas{flex:1;min-height:0;overflow:auto;padding:24px 32px 32px}
+/* 제안: 읽기 폭 1040px, 가운데 배치 */
+.ps-record{width:100%;max-width:var(--read-width);margin:0 auto;font-size:var(--bo-k-body);line-height:24px}
+
+/* 구역: 제목 줄 + 구역 사이 옅은 선 한 줄. 네 변 테두리 상자를 쓰지 않는다. */
+.sec{padding-bottom:24px;border-bottom:1px solid var(--color-border)}
+.sec:last-child{border-bottom:0}
+.sec-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:24px 0 12px}
+.sec-title{font-size:var(--bo-k-section);font-weight:700;line-height:1.4}
+.sec-title .n{margin-left:6px;font-size:14px;font-weight:500;color:var(--color-text-secondary)}
+.sec-meta{font-size:14px;color:var(--color-text-secondary)}
+.sub-title{margin:16px 0 6px;font-size:15px;font-weight:700;color:var(--color-text-secondary)}
+.cap{font-size:14px;line-height:21px;color:var(--color-text-secondary)}
+.link{padding:0;border:0;background:none;font-size:14px;color:var(--color-accent);text-decoration:underline;cursor:pointer}
+.k{color:var(--color-text-secondary)}
+
+/* 사실 줄 */
+.sec-facts{padding-top:0}
+.facts{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
+.facts>div{padding:0 20px;border-left:1px solid var(--bo-line-soft)}
+.facts>div:first-child{padding-left:0;border-left:0}
+.facts.five>div{padding:0 14px}
+.facts.five>div:first-child{padding-left:0}
+.facts dd{white-space:nowrap}
+.facts dd small{white-space:normal}
+.facts dt{font-size:14px;line-height:20px;color:var(--color-text-secondary)}
+.facts dd{margin-top:4px;font-size:var(--bo-k-figure);font-weight:700;line-height:28px;letter-spacing:-0.4px}
+.facts dd small{display:block;font-size:14px;font-weight:400;line-height:20px;letter-spacing:-0.28px;color:var(--color-text-secondary)}
+.facts dd small.due{font-weight:600;color:var(--color-warning)}
+.ident{margin-top:16px;font-size:14px;color:var(--color-text-secondary)}
+.ident b{font-weight:600;color:var(--color-text-primary)}
+.dot{margin:0 6px}
+
+/* 채움 블록 (회색 채움, 테두리 없음) */
+.fill{padding:20px;border-radius:8px;background:var(--color-background-muted)}
+.lead{font-size:var(--bo-k-section);font-weight:700;line-height:1.4}
+.fill .cap{margin-top:12px}
+.form-row{display:grid;grid-template-columns:1.5fr 1fr auto;gap:16px;align-items:end;margin-top:16px}
+.field label{display:block;padding-bottom:8px;font-size:14px;font-weight:600;line-height:21px}
+.field input,.field select{width:100%;height:48px;padding:0 12px;border:1px solid var(--color-border-emphasized);border-radius:8px;background:#fff;font-size:16px}
+.field select{appearance:none;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235E5D5A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center/16px;color:var(--color-text-secondary)}
+.field input::placeholder{color:var(--color-text-disabled)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 16px;border:1px solid var(--color-border-emphasized);border-radius:8px;background:#fff;font-size:15px;font-weight:600;white-space:nowrap;cursor:pointer}
+.btn-primary{height:48px;min-width:180px;border-color:var(--color-accent);background:var(--color-accent);color:#fff;font-size:16px}
+.btn-sm{height:32px;padding:0 12px;font-size:13px}
+.status-line{display:flex;gap:12px;margin-top:14px;font-size:14px;color:var(--color-text-secondary)}
+.status-line .k{flex:none;width:72px;font-weight:600}
+.dl-inline{display:grid;grid-template-columns:96px 1fr;gap:6px 16px;margin-top:14px;font-size:15px}
+.dl-inline dt{color:var(--color-text-secondary)}
+.actions{display:flex;align-items:center;gap:12px;margin-top:16px}
+.split-row{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:14px;padding-top:14px;border-top:1px solid var(--color-border);font-size:15px}
+
+/* 표식: 글자가 상태 이름이고 색은 보조 */
+.tag{display:inline-flex;align-items:center;height:24px;padding:0 8px;border-radius:4px;font-size:var(--bo-k-tag);font-weight:600;white-space:nowrap;background:var(--color-background-muted);color:var(--color-text-secondary)}
+.tag.warn{background:var(--color-warning-muted);color:var(--color-warning)}
+.tag.err{background:var(--color-error-muted);color:var(--color-error)}
+.tag.model{background:var(--color-background-purple);color:var(--color-text-purple)}
+.fill .tag.neutral{background:#fff}
+
+/* 개요 */
+.basis{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:14px;color:var(--color-text-secondary)}
+.claims li{display:flex;gap:10px;padding:6px 0}
+.claims li .no{flex:none;width:20px;font-weight:700;color:var(--color-text-secondary)}
+.claims li .tx{flex:1}
+.claims li .pg{flex:none;font-size:14px;color:var(--color-accent);text-decoration:underline;white-space:nowrap}
+.wait{padding:20px;border-radius:8px;background:var(--color-background-muted);font-size:15px}
+.wait b{display:block;font-size:16px}
+.notice{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px;padding:12px 16px;border-radius:8px;background:var(--color-warning-muted);color:var(--color-warning);font-size:15px;font-weight:500}
+
+/* 접힘 */
+details>summary{display:flex;align-items:center;gap:8px;min-height:44px;font-size:15px;font-weight:600;color:var(--color-text-secondary);cursor:pointer;list-style:none}
+details>summary::-webkit-details-marker{display:none}
+details>summary::before{content:"";width:16px;height:16px;flex:none;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235E5D5A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 6 6 6-6 6'/%3E%3C/svg%3E") center/16px no-repeat}
+details[open]>summary::before{transform:rotate(90deg)}
+details.sec-fold>summary{min-height:68px;font-size:var(--bo-k-section);font-weight:700;color:var(--color-text-primary)}
+details.sec-fold>summary .sec-meta{margin-left:auto;font-weight:400}
+details.sec-fold{padding-bottom:0}
+details.sec-fold[open]{padding-bottom:24px}
+
+/* 표 */
+table{width:100%;border-collapse:collapse;font-size:15px;line-height:22px}
+th{padding:8px 12px 8px 0;border-bottom:1px solid var(--color-border);font-size:14px;font-weight:500;color:var(--color-text-secondary);text-align:left;white-space:nowrap}
+td{padding:11px 12px 11px 0;border-bottom:1px solid var(--color-background-muted);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.id{font-size:14px;font-weight:600;color:var(--color-text-secondary);white-space:nowrap}
+td.act,th.act{padding-right:0;text-align:right;white-space:nowrap}
+td .sub{display:block;font-size:14px;color:var(--color-text-secondary)}
+tr.is-selected td{background:var(--color-background-muted)}
+tr.is-selected td:first-child{box-shadow:-12px 0 0 var(--color-background-muted)}
+tr.is-selected td:last-child{box-shadow:12px 0 0 var(--color-background-muted)}
+
+/* 분석 결과 요약 */
+.sum-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:32px;align-items:start}
+.counts{display:grid;grid-template-columns:104px 1fr;gap:8px 16px;font-size:16px}
+.counts dt{color:var(--color-text-secondary)}
+.counts dd a{text-decoration:none}
+.counts dd b{font-weight:700}
+.counts dd .z{color:var(--color-text-disabled)}
+.counts dd .dot{margin:0 8px;color:var(--color-text-disabled)}
+.opinion{margin-top:0}
+.opinion .line{margin-top:8px;font-size:16px}
+.opinion ul{margin-top:10px;font-size:15px}
+.opinion li{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;padding:6px 0}
+.opinion li b{grid-column:1/-1}
+.opinion li .k{font-size:14px}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:12px;padding:4px;border-radius:8px;background:#fff}
+.seg button{height:40px;border:0;border-radius:6px;background:none;font-size:15px;font-weight:500;color:var(--color-text-secondary);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--bo-sidebar-active);color:var(--color-text-primary);font-weight:700}
+
+/* 필터(둥근 칸) */
+.pills{display:flex;gap:4px}
+.pills button{height:40px;padding:0 14px;border:0;border-radius:8px;background:none;font-size:15px;font-weight:500;color:var(--color-text-secondary);cursor:pointer}
+.pills button[aria-pressed="true"]{background:var(--bo-sidebar-active);color:var(--color-text-primary);font-weight:700}
+
+/* 근거 패널: 넓은 화면은 표 옆, 좁은 화면은 오른쪽 서랍 */
+.req-layout.is-open{display:grid;grid-template-columns:minmax(0,1fr) 392px;gap:24px;align-items:start}
+.ev{padding:20px;border-radius:8px;background:var(--color-background-muted);font-size:15px;line-height:22px}
+.ev.side{position:sticky;top:0}
+.ev.drawer{position:absolute;z-index:5;top:0;right:0;bottom:0;width:440px;overflow:auto;border-radius:0;background:#fff;box-shadow:var(--shadow-high)}
+.ev-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.ev-head b{font-size:16px;line-height:24px}
+.ev h4{margin:16px 0 6px;font-size:14px;font-weight:700;color:var(--color-text-secondary)}
+.ev blockquote{padding:12px 14px;border-radius:6px;background:#fff;line-height:24px}
+.ev.drawer blockquote{background:var(--color-background-muted)}
+.ev .cap{margin-top:8px}
+
+.two-col{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:32px;align-items:start}
+.terms{display:grid;grid-template-columns:96px 1fr;gap:10px 16px;font-size:15px;line-height:22px}
+.terms dt{color:var(--color-text-secondary)}
+.steps li{display:grid;grid-template-columns:24px 120px 1fr;gap:12px;padding:8px 0;font-size:15px}
+.steps .no{font-weight:700;color:var(--color-text-secondary)}
+.foot{padding-top:20px;font-size:13px;color:var(--color-text-disabled)}
+
+/* 하단 결정 띠: 추적 결정 전용. 모든 상태에서 같은 자리, 화면의 주 버튼은 여기 하나다. */
+.mockbar{overflow-x:auto}
+.decision-bar{flex:none;padding:12px 32px;border-top:1px solid var(--color-border);background:#fff}
+.decision-bar-inner{max-width:var(--read-width);margin:0 auto;display:flex;align-items:center;gap:16px}
+.decision-bar .txt{flex:1;min-width:0;font-size:14px;line-height:21px;color:var(--color-text-secondary)}
+.decision-bar .txt b{display:block;font-size:16px;line-height:24px;color:var(--color-text-primary)}
+.decision-bar .field{flex:none;width:280px}
+.decision-bar.is-result .field{width:200px}
+.decision-bar.is-result .btn-primary{min-width:0;padding:0 20px}
+.decision-bar .seg{flex:none;width:240px;margin-top:0;background:var(--color-background-muted)}
+/* 추적 외의 할 일(분석 승인 대기)은 본문 맨 위 한 블록 */
+.sec.task{padding:16px 0}
+.task-row{display:flex;align-items:center;justify-content:space-between;gap:16px}
+</style>
+
+<body>
+<div class="mockbar" id="mockbar"></div>
+<div class="app-shell">
+<aside aria-label="주 메뉴" class="sidebar"><a class="sidebar-brand" href="#"><strong>BidOps</strong></a><nav aria-label="주 메뉴" class="sidebar-nav"><div class="sidebar-group"><div class="sidebar-items"><a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 12 4l9 7"></path><path d="M5 10v10h14V10"></path></svg><span>대시보드</span></a></div></div><div class="sidebar-group"><div class="sidebar-group-label">레코드</div><div class="sidebar-items"><a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg><span>발주계획</span><span aria-hidden="true" class="sidebar-item-count">830</span></a><a aria-current="page" class="sidebar-item is-active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h12l4 4v12H4z"></path><path d="M8 12h8M8 16h8"></path></svg><span>사전규격</span><span aria-hidden="true" class="sidebar-item-count is-active">95</span></a><a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"></path></svg><span>사업기회</span></a><a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="m8 12 3 3 5-6"></path></svg><span>최종 Go/No-Go</span></a><a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 7v5c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V7z"></path><path d="m9 12 2 2 4-4"></path></svg><span>회사 근거</span></a></div></div><div class="sidebar-group"><div class="sidebar-group-label">리스트</div><div class="sidebar-items"><a class="sidebar-item is-list" href="#"><span>오늘의 브리핑</span></a><a class="sidebar-item is-list" href="#"><span>추적 중</span></a><a class="sidebar-item is-list" href="#"><span>마감 임박</span></a></div></div><a class="sidebar-item sidebar-external-link" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"></path></svg><span>나라장터 바로가기</span></a></nav><div class="sidebar-footer"><a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg><span>실행 상태</span></a><a class="sidebar-item" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"></path></svg><span>판정 기준</span></a><div><button class="sidebar-actor-trigger" type="button"><span>담당자</span><strong>jechoi</strong><svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></svg></button></div></div></aside>
+<div class="app-content" id="panel">
+  <header class="topbar" id="topbar"></header>
+  <main class="page-canvas" id="canvas"><div class="ps-record" id="record"></div></main>
+</div>
+</div>
+
+<script>
+const q = new URLSearchParams(location.search);
+const STATES = [
+  ['a1', '분석 전 · 개요 완료'], ['a2', '분석 전 · 원문 준비 중'], ['a3', '분석 전 · 범위 확정 필요'], ['a4', '분석 전 · 승인 대기'],
+  ['b1', '분석 완료'], ['b2', '분석 완료 · 부분 결과'], ['b3', '분석 완료 · 근거 열림'],
+];
+const S = STATES.some(([k]) => k === q.get('s')) ? q.get('s') : 'a1';
+if (q.get('bar') === '0') document.body.classList.add('nobar');
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const tag = (t, tone = '') => `<span class="tag ${tone}">${t}</span>`;
+const dot = '<span class="dot">·</span>';
+
+document.getElementById('mockbar').innerHTML = '<b>사전규격 상세 시안</b>' + STATES.map(([k, n], i) =>
+  (i === 4 ? '<span class="sep"></span>' : '') + `<a href="?s=${k}" ${k === S ? 'aria-current="page"' : ''}>${n}</a>`).join('') +
+  `<span class="note">${S[0] === 'a' ? '운영 3753 조회값 (2026-11-21)' : '예시 데이터 · 회사 근거는 실제가 아님'}</span>`;
+
+/* ───────── 분석 전 (운영 3753) ───────── */
+const A = {
+  eyebrow: '사전규격 · 충청남도', title: '2027년 충남관광 홈페이지 기능고도화 및 유지관리사업',
+  overview: [
+    '생성형 AI 기반 대화형 관광안내 서비스 도입으로 관광정보 접근성을 제고하는 것이 사업 목적이다.',
+    '충남관광 보유 관광DB를 기반으로 RAG 방식의 AI 관광비서 챗봇을 구축하여 24시간 대화형 관광안내를 제공한다.',
+    '야간관광 콘텐츠 보강 및 충남관광 홈페이지의 안정적 운영을 통해 체류형 관광 활성화를 지원한다.',
+  ],
+  tasks: [
+    '외부 상용 LLM API를 연계한 RAG 방식의 AI 관광비서 챗봇을 구축하며, 국문 및 영·중·일 응답을 지원한다.',
+    'AI 답변용 관광DB 4종 약 2,906건을 정제하고 지식베이스를 구축한다.',
+    '야경명소, 야간축제, 야간코스 등 야간관광 콘텐츠를 구축하고 테마 페이지를 구현한다.',
+    '충남관광 홈페이지(국문·외국어)에 대해 12개월간 유지관리 및 CMS·웹에디터 유지를 수행한다.',
+  ],
+  scale: [
+    '사업명은 2027년 충남관광 홈페이지 기능고도화 및 유지관리이다.',
+    '사업기간은 2027년 1월부터 2027년 12월까지이며, 계약일로부터 12개월이다.',
+    '소요예산은 부가세 포함 금 115,000,000원이다.',
+  ],
+};
+
+const factsA = (extra = '') => `
+<section class="sec sec-facts" aria-label="사전규격 사실">
+  <dl class="facts">
+    <div><dt>의견 마감</dt><dd>2026.11.22 23:59<small class="due">D-2</small></dd></div>
+    <div><dt>사업 예산</dt><dd>115,000,000원</dd></div>
+    <div><dt>구분</dt><dd>일반용역<small>SW사업대상 Y</small></dd></div>
+    <div><dt>게시</dt><dd>2026.11.19 17:08</dd></div>${extra}
+  </dl>
+  <p class="ident">사전규격번호 <b>R26BD00303361</b> <button class="link" type="button">번호 복사</button>${dot}나라장터 원문 URL 없음${dot}본공고 아직 없음${dot}신규 등록</p>
+</section>`;
+
+const reasonOptions = '<option>주력 분야와 맞음</option><option>기존 고객·유사 실적</option><option>더 살펴볼 가치 있음</option><option>기타 · 직접 입력</option>';
+const boundaryText = '보류·종료는 사업 추적에서, 입찰 참여는 최종 Go/No-Go에서 정해요.';
+// 분석 승인 대기(RL-11 구현 뒤): 추적 외의 할 일은 본문 맨 위 한 블록으로 둔다.
+const approvalTask = `<section class="sec task" id="task"><div class="fill">
+  <div class="task-row"><p class="lead">원문 분석을 시작할 수 있어요. 보낼 자료를 확인하고 승인해 주세요</p><div class="actions" style="margin:0;flex:none"><button class="btn" type="button">전송 자료 확인하기</button><button class="btn" type="button">이번 입력 건너뛰기</button></div></div>
+  <p class="cap">제안요청서.hwpx 전체 117쪽${dot}회사 근거 17건 <span class="k">(예시)</span>${dot}받는 곳 Luna (gpt-6-luna), 최대 8회 호출${dot}승인 유효 2026.11.22 10:40까지</p>
+</div></section>`;
+const rangeForm = `<div class="fill"><p class="lead">개요가 읽을 범위를 정해 주세요</p>
+  <p class="cap" style="margin-top:6px">제안요청서 117쪽에서 사업 개요가 있는 범위를 자동으로 찾지 못했어요. 범위를 정하면 그 범위로 개요를 한 번 실행해요.</p>
+  <form class="form-row" style="grid-template-columns:160px 160px auto 1fr" onsubmit="return false">
+    <div class="field"><label for="ps">시작 쪽</label><input id="ps" value="5"></div>
+    <div class="field"><label for="pe">끝 쪽</label><input id="pe" value="6"></div>
+    <button class="btn" type="submit" style="height:48px">이 범위로 개요 실행하기</button>
+    <button class="link" type="button" style="justify-self:start;align-self:center">절 제목에서 고르기 (후보 38개)</button>
+  </form></div>`;
+
+const claim = (t, no = '') => `<li>${no ? `<span class="no">${no}</span>` : ''}<span class="tx">${esc(t)}</span><a class="pg" href="#">5쪽</a></li>`;
+const overviewBody = `
+  <p class="basis">제안요청서 117쪽 중 5~6쪽을 읽은 요약이에요. 판정이 아니에요. ${tag('근거 검사 통과')} ${tag('참조 실행 · 품질 미측정')}</p>
+  <h3 class="sub-title">사업 개요</h3><ul class="claims">${A.overview.map((t) => claim(t)).join('')}</ul>
+  <h3 class="sub-title">주요 과업</h3><ol class="claims">${A.tasks.map((t, i) => claim(t, i + 1)).join('')}</ol>
+  <h3 class="sub-title">사업 규모와 일정</h3><ul class="claims">${A.scale.map((t) => claim(t)).join('')}</ul>
+  <details><summary>수량 표기 경고 4건 보기</summary><p class="cap">quantity_metadata_mismatch${dot}quantity_mismatch${dot}quantity_relation_ambiguous${dot}quantity_unit_missing — 표의 배치와 생략된 단위·열 관계는 추정하지 않았어요. 수량은 원문에서 확인해 주세요.</p></details>`;
+const overviewA = {
+  a1: overviewBody, a4: overviewBody,
+  a2: '<div class="wait"><b>개요 검토 대기</b>첨부 1건을 받았고 문서를 변환하는 중이에요. 변환이 끝나면 개요를 자동으로 실행해요.</div>',
+  a3: rangeForm,
+};
+
+const filesTable = (rows) => `<table><thead><tr><th>파일</th><th>형식</th><th>상태</th><th class="act">열기</th></tr></thead><tbody>${rows}</tbody></table>`;
+const filesA = {
+  ready: filesTable('<tr><td>제안요청서.hwpx</td><td>HWPX · 변환 PDF 117쪽</td><td>준비 완료</td><td class="act"><a class="link" href="#">원본 열기</a>　<a class="link" href="#">변환 PDF</a>　<a class="link" href="#">다운로드</a></td></tr>'),
+  converting: filesTable(`<tr><td>제안요청서.hwpx</td><td>HWPX</td><td>${tag('변환 중', 'warn')}</td><td class="act"><a class="link" href="#">원본 열기</a>　<a class="link" href="#">다운로드</a></td></tr>`),
+};
+
+const processOpen = `
+  <ol class="steps">
+    <li><span class="no">1</span><b>첨부 취득</b><span>1건 완료</span></li>
+    <li><span class="no">2</span><b>문서 묶음</b><span>확정 완료 · 수정본 1</span></li>
+    <li><span class="no">3</span><b>개요 검토</b><span>${tag('입력 범위 확인 필요', 'warn')}</span></li>
+  </ol>
+  <p class="cap" style="margin-top:8px">첨부 취득·문서 준비·개요 검토는 의견 마감 전이거나 추적 중인 사전규격에서 자동으로 진행해요.</p>
+  <details><summary>문서 준비 열기</summary><p class="cap">문서 묶음 편집, 업로드, 확정 (현재 문서 준비 패널을 그대로 둡니다)</p></details>
+  <details><summary>처리 이력과 이전 개요 결과 0건</summary><p class="cap">사전규격 목록 · 사업기회 11128 · 변경 일시와 사유</p></details>
+  <details><summary>기술 정보</summary><p class="cap">주장 검증 진단, 고정 입력과 식별 해시, 실행 식별 정보</p></details>`;
+const processA = (open, meta) => `<details class="sec sec-fold" ${open ? 'open' : ''}><summary>처리 상태·기술 정보<span class="sec-meta">${meta}</span></summary>${open ? processOpen : '<p class="cap">자동 준비 단계, 문서 준비, 처리 이력, 기술 정보</p>'}</details>`;
+
+function pageA() {
+  const meta = { a1: '원문 준비 완료 · 개요 완료 11.20 13:48 · 원문 분석 꺼짐', a2: '첨부 1건 취득 · 문서 변환 중', a3: '개요 입력 범위 확인 필요', a4: '원문 준비 완료 · 개요 완료 · 분석 승인 대기' }[S];
+  return factsA() + (S === 'a4' ? approvalTask : '') + `
+<section class="sec" id="overview"><div class="sec-head"><h2 class="sec-title">사업 개요와 주요 과업</h2>${S === 'a1' || S === 'a4' ? '<a class="link" href="#">전체 근거 PDF 열기 ↗</a>' : ''}</div>${overviewA[S]}</section>
+<section class="sec" id="files"><div class="sec-head"><h2 class="sec-title">원문·첨부<span class="n">1건</span></h2></div>${S === 'a2' ? filesA.converting : filesA.ready}</section>
+${processA(S === 'a3', meta)}
+<p class="foot">시안 · 운영 3753의 2026-11-21 조회값을 옮겼어요.</p>`;
+}
+
+/* ───────── 분석 완료 (예시: 다른 공고의 실제 엔진 결과 구조·건수) ───────── */
+const FIT = { GAP: ['부족', 'err'], UNKNOWN: ['미확인', 'warn'], PARTIAL: ['부분', 'warn'], FULL: ['충족', ''], NOREAD: ['읽기 실패', 'err'] };
+const GATE = { FAIL: ['차단', 'err'], RISK: ['위험', 'warn'], UNKNOWN: ['미확인', 'warn'], PASS: ['충족', ''] };
+const SEV = { H: ['상', 'err'], M: ['중', 'warn'], L: ['하', ''] };
+const FITS = [
+  {"id": "MPR-001", "name": "홈페이지 프로그램 기능 개선 및 보완", "fit": "FULL", "n": 2, "gap": "", "quote": "◦ 부서별 홈페이지 요청사항과 홈페이지 운영상 필요한 사항을 반영하여 프로그램 기능 개선 및 보완을 수행하여야 함."},
+  {"id": "MPR-002", "name": "홈페이지 유지관리", "fit": "FULL", "n": 2, "gap": "", "quote": "SSL 인증서 발급·갱신 및 교체 적용 3회"},
+  {"id": "MPR-003", "name": "장애처리 및 지연", "fit": "PARTIAL", "n": 1, "gap": "성남 인근 현장 대응 인력 또는 협력사를 확보해 2시간 내 현장 도착 체계를 마련한다.", "quote": "최초 장애 통보 후 2시간 이내 전문요원 현장 도착"},
+  {"id": "MPR-004", "name": "전면 개편 홈페이지 안정화 및 하자보수 연계 지원", "fit": "PARTIAL", "n": 1, "gap": "개편사업자 하자조치 요청·확인 절차를 수행계획서에 구체화한다.", "quote": "원인분석에 필요한 자료를 확인하여 개편사업자에게 하자조치를 요청"},
+  {"id": "MPR-005", "name": "홈페이지 사용자 만족도 조사 및 참여 활성화", "fit": "UNKNOWN", "n": 0, "gap": "", "quote": "홈페이지 사용자 만족도 조사는 최소 1회 이상 실시하여야 하며"},
+  {"id": "MPR-006", "name": "콘텐츠 현행화 및 시민 생활밀착형 콘텐츠 발굴·구축 지원", "fit": "UNKNOWN", "n": 0, "gap": "", "quote": "시민 이용빈도가 높거나 생활과 밀접한 정책·사업을 대상으로 콘텐츠 구축 후보 제시"},
+  {"id": "MHR-001", "name": "사업수행 참여인력", "fit": "PARTIAL", "n": 0, "gap": "성남 상주 가능한 웹개발·시스템관리 인력을 확보하거나 상주 방식을 협의한다.", "quote": "참여인력 중 상주 기술인력은 웹개발&시스템관리자로 1명 이상을 제시하여야 하며, 이 과업 수행을 위한 기술을 보유하여야 함"},
+  {"id": "MHR-002", "name": "사업수행 참여인력의 복무기준", "fit": "GAP", "n": 0, "gap": "성남 현지 상주 협력사 인력 확보 또는 원격 근무 조건을 발주처와 협의한다.", "quote": "참여인력은 성남시에서 제공하는 장소에서 상주하는 것을 원칙으로 하되"},
+  {"id": "SER-001", "name": "개발 시 보안 준수사항 제시", "fit": "FULL", "n": 2, "gap": "", "quote": "중요정보 및 개인정보가 전송되는 구간에 암호화 통신 적용"},
+  {"id": "SER-002", "name": "정보시스템 이용 시 보안 준수사항", "fit": "FULL", "n": 1, "gap": "", "quote": "정보시스템 기본 계정 및 불필요한 계정 삭제"},
+  {"id": "SER-003", "name": "소프트웨어 개발보안(시큐어코딩) 관련 가이드 준수", "fit": "FULL", "n": 1, "gap": "", "quote": "투입되는 인력에 대해 개발투입 전 소프트웨어 개발보안 관련 교육을 실시하고 교육 증빙을 제출하여야 함"},
+  {"id": "SER-004", "name": "보안취약점 점검", "fit": "FULL", "n": 2, "gap": "", "quote": "보안 취약점 점검(소스코드 보안약점 진단, 모의해킹 등)을 1회 이상 자체적으로 실시해야 함"},
+  {"id": "SER-005", "name": "개인정보 보호", "fit": "FULL", "n": 1, "gap": "", "quote": "개인정보보호를 위한 「개인정보보호법」등 관련 법규 준수"},
+  {"id": "COR-001", "name": "하도급 인력관리 강화", "fit": "UNKNOWN", "n": 0, "gap": "", "quote": "하도급 사전승인 절차를 이행해야 함"},
+  {"id": "COR-002", "name": "작업장소 상호협의 결정 및 원격지 개발 활성화", "fit": "PARTIAL", "n": 0, "gap": "대구 등 자사 작업장소를 제시하고 원격작업 보안대책을 관리·물리·기술적으로 수립한다.", "quote": "정보화 사업 수행을 위하여 필요한 작업장소는 성남시에서 제공하며, 설비 및 기타 작업환경은 계약상대자가 구비하여야 함"},
+  {"id": "COR-003", "name": "지식재산권 및 SW산출물 활용 촉진", "fit": "FULL", "n": 1, "gap": "", "quote": "사업수행 과정에서 취득 또는 작성하는 성과품 및 산출물 일체에 대한 지식재산권은 발주기관과 제안사(계약상대자)가 공동으로 소유함을 원칙으로 하되"},
+  {"id": "COR-004", "name": "정보화 관련 법규 및 표준 지침 준수", "fit": "FULL", "n": 2, "gap": "", "quote": "본 사업 추진과 관련하여 다음의 관련 법규 및 표준 지침을 준수하여야 함"},
+  {"id": "PER-001", "name": "웹사이트 최적화", "fit": "FULL", "n": 1, "gap": "", "quote": "웹페이지 용량은 3M 이하로 최소화하고 응답속도는 3초 이하여야 함"},
+  {"id": "QUR-001", "name": "품질관리 및 표준절차 준수", "fit": "FULL", "n": 1, "gap": "", "quote": "시스템에 대한 변경사항 발생 시 응용S/W 버전 관리 및 산출물 관리 등 유지보수 표준절차를 준수하여야 함"},
+  {"id": "SIR-001", "name": "웹표준, 웹접근성, 웹호환성 준수", "fit": "FULL", "n": 2, "gap": "", "quote": "웹접근성 품질마크 인증기준 준수 및 품질마크 갱신(비용은 사업자 부담)"},
+  {"id": "SIR-002", "name": "표준 프레임 워크 적용", "fit": "FULL", "n": 2, "gap": "", "quote": "기능 추가・개선 시 전자정부 표준프레임워크 기반(기획, 설계, 테스트, 운영 전 분야)으로 개발하여야 함"},
+  {"id": "SIR-003", "name": "기술적용계획표 및 결과표 작성", "fit": "PARTIAL", "n": 1, "gap": "제안자 관점 기술적용계획표와 준공 결과표 작성 담당과 절차를 확정한다.", "quote": "사업 준공 시 기술적용결과표를 제출하여야 함"},
+  {"id": "SIR-004", "name": "내·외부 시스템과의 연계 관리", "fit": "FULL", "n": 2, "gap": "", "quote": "타 시스템과 연계된 기능을 파악하여 원활하게 서비스 되도록 유지"},
+  {"id": "PMR-001", "name": "보안관리 일반", "fit": "FULL", "n": 1, "gap": "", "quote": "제안사는 사업 전체 단계별 보안관리 방안을 수립해야 함"},
+  {"id": "PMR-002", "name": "누출금지 대상정보 및 보안 위규 처리", "fit": "FULL", "n": 1, "gap": "", "quote": "제안사는 사업자 보안위규 처리기준을 숙지하며"},
+  {"id": "PMR-003", "name": "참여인원 보안관리", "fit": "FULL", "n": 2, "gap": "", "quote": "계약업체는 사업 투입 시 대표자 및 참여인원 대상으로 보안서약서를 제출해야 함"},
+  {"id": "PMR-004", "name": "문서 및 자료 보안관리", "fit": "FULL", "n": 1, "gap": "", "quote": "제안사는 발주기관으로부터 제공받은 제반 자료는 본 사업 이외의 목적에 사용할 수 없음"},
+  {"id": "PMR-005", "name": "사무실 보안관리", "fit": "FULL", "n": 1, "gap": "", "quote": "CCTV, 시건장치 등 비인가자 출입통제 대책이 마련된 공간을 확보하여 업무를 수행해야 하며"},
+  {"id": "PMR-006", "name": "장비 및 매체 보안관리", "fit": "FULL", "n": 1, "gap": "", "quote": "제안사는 PC, 노트북, 및 USB 등 관련 장비를 사업공간에 반출입할 수 없으며"},
+  {"id": "PMR-007", "name": "네트워크 보안관리", "fit": "FULL", "n": 1, "gap": "", "quote": "업무 수행 시 참여인력이 사용하는 PC(또는 노트북) 대상으로 인터넷 연결을 원칙적으로 금지하며"},
+  {"id": "PMR-008", "name": "사업수행 협력체계 구축", "fit": "PARTIAL", "n": 1, "gap": "LENA·Jennifer 등 제조사·공급사 및 MariaDB 기술지원업체와 확약 체계를 확보한다.", "quote": "주요 상용SW는 제조사 또는 공급사와 기술지원체계를 구축하고 기술지원확약서를 계약 후 10일 이내 제출"},
+  {"id": "PMR-009", "name": "보고계획 및 제출서류", "fit": "FULL", "n": 2, "gap": "", "quote": "예상 일정보다 과업 지연 시 계약상대자는 대처방안 등을 포함한 보고서를 성남시에 제출해야 함"},
+  {"id": "PMR-010", "name": "비상연락망", "fit": "FULL", "n": 1, "gap": "", "quote": "야간 및 공휴일 장애에 대비하여 24시간 무중단 비상대응체계가 수립되어야 함"},
+  {"id": "PMR-011", "name": "산출물 현행화 및 제출", "fit": "FULL", "n": 2, "gap": "", "quote": "유지관리 시 프로그램 변경에 따른 DB구조 및 기능 변경사항을 기존 산출물 및 관련 자료 등을 반영하여 현행화 실시"},
+  {"id": "PMR-012", "name": "요구사항관리", "fit": "UNKNOWN", "n": 0, "gap": "", "quote": "사업자는 요구사항을 빠짐없이 관리하고, 각각의 요구사항이 시스템에 반영 여부를 확인할 수 있도록 처리 결과를 제출하여야 함"},
+  {"id": "PMR-013", "name": "인수인계", "fit": "FULL", "n": 2, "gap": "", "quote": "계약상대자는 기존 사업자와의 원활한 업무 인수인계를 위하여 계약체결 후 즉시 관련 인원을 투입하여 완료 산출물을 확인하고 업무 인수를 받아야 함"},
+  {"id": "PMR-014", "name": "안전관리", "fit": "PARTIAL", "n": 0, "gap": "산업재해율 확인서 발급 여부를 확인하고 안전보건관리 계획서·위험성평가를 준비한다.", "quote": "산업재해율 확인서의 제출이 불가한 경우 그 사유를 제출"},
+  {"id": "PMR-015", "name": "SW사업정보 저장소 데이터 작성 및 제출", "fit": "PARTIAL", "n": 1, "gap": "기능점수 측정 전문가를 지정하거나 외부 측정 방안을 제안서에 명시한다.", "quote": "해당 사업 수주자는 SW사업정보 (SW사업 수행 및 실적 정보) 데이터를 작성하여 제출하여야 함"},
+  {"id": "PSR-001", "name": "기술지원", "fit": "FULL", "n": 2, "gap": "", "quote": "내·외부 시스템 연계를 위한 기술지원"},
+  {"id": "PSR-002", "name": "교육지원", "fit": "FULL", "n": 1, "gap": "", "quote": "사업 기간 중 정보기술에 대한 신기술 및 자료제공, 기술 자문 지원을 하여야 함"},
+  {"id": "PSR-003", "name": "하자보수", "fit": "PARTIAL", "n": 1, "gap": "성남 인근 대응 인력·협력사를 확보해 2시간 현장 도착과 365일 대응 체계를 갖춘다.", "quote": "장애접수 후 2시간 이내에 현장 도착, 4시간 이내 장애 조치를 하여야 하며, 365일 유지보수 요원의 신속한 대응이 이루어져야 함"}
+];
+const partial = S === 'b2';
+const NOREAD_IDS = /^(SER-00[1-5]|PMR-00[1-7])$/;
+const fits = FITS.map((f, i) => ({ ...f, fit: partial && NOREAD_IDS.test(f.id) ? 'NOREAD' : f.fit, page: partial ? 31 + i : null }));
+const cnt = (k) => fits.filter((f) => f.fit === k).length;
+
+const gates = [
+  ...(partial ? [{ v: 'FAIL', kind: '공고 자격', rule: '최근 3년 이내 단일 계약 2억 원 이상의 공공 홈페이지 유지관리 실적을 보유한 자', company: '해당 규모의 실적이 확인되지 않았어요 (예시)', todo: '실적증명서로 금액·기간 확인', loc: '12쪽' }] : []),
+  { v: 'RISK', kind: '회사 수행 제한', rule: '웹개발&시스템관리자(상주 기술인력) 1명 상주: 성남시에서 제공하는 장소(상주 원칙, 협의 후 결정)', company: '성남 상주 가능 인원이 확인되지 않았어요 (예시)', todo: '기타 상주 가능 인원 확인', loc: partial ? '44쪽' : '요구사항 표' },
+  { v: 'UNKNOWN', kind: '공고 자격', rule: '공동수급 시 각 구성원은 입찰 참가자격 조건에 모두 해당', company: '원문 확인이 필요해요', todo: '공고 원문 조항 확인', loc: partial ? '9쪽' : '참가자격 절' },
+];
+const gatesPass = ['부정당업자 입찰참가자격 제한에 해당되지 않는 업체', '나라장터(G2B)에 소프트웨어 사업자로 입찰 참가자격 등록', '컴퓨터관련서비스사업(업종코드 1468) 등록', '직접생산확인증명서(정보시스템유지관리서비스) 소지', '중·소기업·소상공인 확인서(공공기관 입찰용) 소지'];
+
+const todosJudge = [
+  { t: '상주 근무', check: '기타 상주 가능 인원 확인', ifnot: '해결하지 못하면 포기 검토', src: '자격 조건 · 위험' },
+  { t: '원문 확인이 필요한 참가자격', check: '공고 원문 조항 확인', ifnot: '충족하지 못하면 참가 불가', src: '자격 조건 · 미확인' },
+];
+const todosExec = [
+  ['성남 상주 인력 확보 방안', '성남 상주 요건을 충족할 협력사 인력 또는 원격·협의 방식이 필요해요.'],
+  ['협력사 활용 시 하도급·공동수급 구조', '하도급 50% 한도와 사전승인, 공동이행 지분(5% 이상) 조건 안에서 상주·현장 대응을 구성할 수 있는지 판단해야 해요.'],
+  ['성남 현장 2시간 도착 대응 체계', '지연 시 배상책임과 해지 사유가 되므로 성남 인근 대응 수단의 현실성을 확인해야 해요.'],
+  ['비용 부담 항목의 원가 반영', '만족도 조사 보상, SSL 갱신, 웹접근성 인증 갱신 비용이 사업금액에 포함되어 수익성에 영향을 줘요.'],
+  ['개편사업자 하자 연계 업무 수행 방안', '하자보수 기간이 2027.4에 종료되어 연계 업무와 종료 전 점검 책임이 수행 초기에 집중돼요.'],
+];
+
+const risks = [
+  ['H', '지역', '성남시 제공 장소 상주가 원칙이고 응용SW 개발자 1인 이상 상주가 요구된다. 회사의 상주 가능 지역 밖이어서 현 프로필로는 해소되지 않는다. (회사 기준은 예시)', '성남 현지 상주 가능한 협력사 인력을 확보하거나 상주 방식·장소를 발주처와 협의한다.'],
+  ['M', '인력', '상주 기술인력은 사업시작 시점에 100% 투입해야 하고, 변경 시 사전 승인이 필요하다. 평가에 반영된 상주인력을 승인 없이 교체하면 계약 해지 사유가 된다.', '2027-01-01 착수 시점에 투입 가능한 인력과 대체인력 계획을 사전에 확정한다.'],
+  ['M', '계약', '장애 통보 후 2시간 내 현장 도착, 4시간 내 복구가 요구되며 미이행 시 배상책임과 지연배상금 공제가 따른다.', '성남 인근 현장 대응 협력사 또는 인력 확보 방안을 마련한다.'],
+  ['M', '계약', '장애처리 지연 시 지연배상금이 월 유지관리비에서 공제된다. 월 3회 이상 복구 지연은 해지 사유가 될 수 있다.', 'SLA 이행 체계(비상연락망, 24시간 대응)를 수행계획서에 구체화한다.'],
+  ['M', '기술', '유지관리 대상에 상용SW 10종이 포함되고, 제조사·공급사와의 기술지원확약서를 계약 후 10일 내 제출해야 한다.', '주요 상용SW 제조사·공급사와 확약 체계를 사전에 협의한다.'],
+  ['M', '기술', '개편 홈페이지 하자보수 기간(2026.5~2027.4) 중 개편사업자와의 하자 연계·조치 확인과 종료 전 종합점검이 요구된다.', '하자 접수·요청·확인 절차와 이력 관리 방안을 수행계획서에 구체화한다.'],
+  ['M', '계약', '하도급은 사업금액의 50%를 초과할 수 없고 사전승인이 필요하며 재하도급은 원칙적 불허다. 공동수급은 공동이행방식만 가능하고 최소 지분율은 5%다.', '협력사 활용 시 공동이행 구성 또는 하도급 사전승인 계획을 확정한다.'],
+  ['M', '재무', '만족도 조사 참여 보상 비용 전액과 웹접근성 품질마크 갱신 비용을 계약상대자가 부담한다.', '보상 지급 규모를 발주처와 협의해 가격 산정에 반영한다.'],
+  ['M', '인력', '참여 인력은 정규직으로 구성해야 하고 보안서약서·건강보험납입증명서 제출이 필요하다.', '투입 인력의 정규직 여부와 재직 기간을 사전에 확인한다.'],
+  ['L', '계약', '지식재산권은 발주기관과 공동 소유가 원칙이나 세부사항은 협의로 정한다. 제안서 보상도 없다.', '기존 자산의 귀속 범위를 계약 단계에서 구분해 협의한다.'],
+  ['L', '일정', '1월 1일까지 계약이 체결되지 않으면 실제 개시일부터 일할 정산한다. 계약 후 10일 이내 제출물이 다수 겹친다.', '계약 후 10일 이내 제출 서류 목록을 착수 전에 준비한다.'],
+];
+
+let filter = 'open';
+let selected = S === 'b3' ? 'MHR-002' : null;
+const wide = () => window.innerWidth >= 1400;
+
+const zero = (label, n) => (n ? `<a href="#"><b>${label} ${n}</b></a>` : `<span class="z">${label} 0</span>`);
+const sep = '<span class="dot">·</span>';
+
+function summaryB() {
+  const g = (v) => gates.filter((x) => x.v === v).length;
+  const opinion = partial
+    ? `<p class="line"><b>비권장</b> — 충족하지 못한 참가자격이 있어요. 부분 결과 기준이에요.</p>
+       <p class="line"><a class="link" href="#gates">차단 조건 1건 보기</a></p>`
+    : `<p class="line"><b>판단 보류</b> — 미확인 자격 조건이 있어요. 잠정 의견은 <b>조건부 참여 검토</b>예요.</p>
+       <p class="line"><a class="link" href="#todos">추적 판단을 바꾸는 확인 ${todosJudge.length}건 보기</a></p>`;
+  return `
+<section class="sec" id="summary"><div class="sec-head"><h2 class="sec-title">분석 결과 요약</h2><span class="sec-meta">${partial ? '부분 결과' : '분석 완료'} 2026.11.21 10:12${dot}아직 확인하지 않은 결과</span></div>
+  ${partial ? '<div class="notice"><span>제안요청서 Ⅳ장(보안·사업관리 요구사항 일부)을 읽지 못했어요. 요구사항 41건 중 29건만 대조했어요.</span><a class="link" href="#reqs" style="color:inherit">읽지 못한 범위 보기</a></div>' : ''}
+  <div class="sum-grid">
+      <dl class="counts">
+        <dt>자격 조건 ${gates.length + gatesPass.length}</dt><dd>${zero('차단', g('FAIL'))}${sep}${zero('위험', g('RISK'))}${sep}${zero('미확인', g('UNKNOWN'))}${sep}충족 ${gatesPass.length}</dd>
+        <dt>요구사항 ${fits.length}</dt><dd>${partial ? zero('읽기 실패', cnt('NOREAD')) + sep : ''}${zero('부족', cnt('GAP'))}${sep}${zero('미확인', cnt('UNKNOWN'))}${sep}${zero('부분', cnt('PARTIAL'))}${sep}충족 ${cnt('FULL')}</dd>
+        <dt>리스크 ${risks.length}</dt><dd>${zero('상', 1)}${sep}중 8${sep}하 2</dd>
+      </dl>
+      <div class="fill opinion">${tag('엔진 참고 의견', 'model')}${opinion}<p class="cap">참고 의견이에요. 입찰 참여는 최종 Go/No-Go에서 정해요.</p></div>
+  </div>
+  <p class="basis" style="margin-top:16px">분석 기준${dot}제안요청서.hwpx ${partial ? '정정 1차 · 일부 범위' : '· 전체 범위'}${dot}요구사항 41건 중 ${partial ? 29 : 37}건 판정${dot}회사 근거 2026.11.18 확인본 ${tag('참조 실행 · 품질 미측정')}</p>
+</section>`;
+}
+
+function gatesB() {
+  return `
+<section class="sec" id="gates"><div class="sec-head"><h2 class="sec-title">차단·자격 조건<span class="n">${gates.length + gatesPass.length}건</span></h2><span class="sec-meta">차단 → 위험 → 미확인 순</span></div>
+  <table><thead><tr><th style="width:84px">판정</th><th>공고 조건</th><th style="width:300px">회사 확인 · 할 일</th><th class="act" style="width:112px">원문</th></tr></thead><tbody>
+  ${gates.map((x) => `<tr><td>${tag(...GATE[x.v])}</td><td>${esc(x.rule)}<span class="sub">${x.kind}</span></td><td>${x.company}<span class="sub">할 일 · ${x.todo}</span></td><td class="act"><a class="link" href="#">${x.loc}</a></td></tr>`).join('')}
+  </tbody></table>
+  <details><summary>충족 ${gatesPass.length}건 보기</summary><table><tbody>${gatesPass.map((t) => `<tr><td style="width:84px">${tag('충족')}</td><td>${t}</td><td class="act" style="width:112px"><a class="link" href="#">${partial ? '8쪽' : '참가자격 절'}</a></td></tr>`).join('')}</tbody></table></details>
+</section>`;
+}
+
+function todosB() {
+  return `
+<section class="sec" id="todos"><div class="sec-head"><h2 class="sec-title">확인할 일<span class="n">${todosJudge.length + todosExec.length}건</span></h2><span class="sec-meta">추적 판단에 영향을 주는 것부터</span></div>
+  <h3 class="sub-title" style="margin-top:0">추적 판단을 바꾸는 확인 ${todosJudge.length}건</h3>
+  <table><tbody>${todosJudge.map((c) => `<tr><td style="width:260px"><b>${c.t}</b><span class="sub">${c.src}</span></td><td>${c.check}<span class="sub">안 되면 · ${c.ifnot}</span></td><td class="act" style="width:112px"><a class="link" href="#gates">조건 보기</a></td></tr>`).join('')}</tbody></table>
+  <h3 class="sub-title">수행 방안 확인 ${todosExec.length}건</h3>
+  <table><tbody>${todosExec.map(([t, w]) => `<tr><td style="width:260px"><b>${t}</b></td><td>${w}</td><td class="act" style="width:112px"></td></tr>`).join('')}</tbody></table>
+  <details><summary>평가 배점 추정에 쓰이는 회사 자료 58건 보기</summary><p class="cap">실적 준공일, 인력 경력, 신용평가등급처럼 배점 추정에만 쓰이는 항목이에요. 추적 판단에는 영향을 주지 않아 접어 두었어요.</p></details>
+</section>`;
+}
+
+function evPanel(mode) {
+  const f = fits.find((x) => x.id === selected);
+  if (!f) return '';
+  const [lab, tone] = FIT[f.fit];
+  const why = { FULL: '연결된 회사 실적의 수행 범위가 이 요구를 포함해요.', PARTIAL: '일부만 근거가 있어요. 아래 조치가 필요해요.', UNKNOWN: '이 요구에 대응하는 회사 기록을 찾지 못했어요.', GAP: '회사 수행 기준과 맞지 않아요.', NOREAD: '원문의 이 범위를 읽지 못해 대조하지 않았어요.' }[f.fit];
+  return `<aside class="ev ${mode}" id="ev" aria-label="근거">
+    <div class="ev-head"><b>${f.id} ${esc(f.name)}</b><button class="btn btn-sm" type="button" data-close>닫기</button></div>
+    <p style="margin-top:8px">${tag(lab, tone)}</p>
+    <h4>원문 발췌</h4><blockquote>${esc(f.quote)}</blockquote>
+    <p class="cap">제안요청서.hwpx${dot}${f.page ? f.page + '쪽' : '요구사항 표 · 쪽 번호 없음'}　<a class="link" href="#">원문에서 열기</a></p>
+    <h4>판단 사유</h4><p>${why} <span class="k">(예시)</span></p>
+    <h4>회사 근거</h4><p>${f.n ? `회사 실적 ${f.n}건 <span class="k">(예시)</span>` : '연결된 회사 근거가 없어요'}</p>
+    ${f.gap ? `<h4>부족을 메우려면</h4><p>${esc(f.gap)}</p>` : ''}
+  </aside>`;
+}
+
+function reqsB() {
+  const groups = { open: (f) => ['GAP', 'UNKNOWN', 'NOREAD'].includes(f.fit), PARTIAL: (f) => f.fit === 'PARTIAL', FULL: (f) => f.fit === 'FULL', all: () => true };
+  const order = ['NOREAD', 'GAP', 'UNKNOWN', 'PARTIAL', 'FULL'];
+  const rows = fits.filter(groups[filter]).sort((a, b) => order.indexOf(a.fit) - order.indexOf(b.fit));
+  const open = !!selected, side = open && wide();
+  const pill = (k, label, n) => `<button type="button" data-filter="${k}" aria-pressed="${filter === k}">${label} ${n}</button>`;
+  const body = rows.map((f) => {
+    const [lab, tone] = FIT[f.fit];
+    return `<tr class="${f.id === selected ? 'is-selected' : ''}"><td class="id">${f.id}</td><td>${esc(f.name)}</td><td>${tag(lab, tone)}</td>${side ? '' : `<td>${f.n ? `회사 실적 ${f.n}건` : '<span class="k">근거 없음</span>'}</td><td>${f.gap ? esc(f.gap) : '<span class="k">—</span>'}</td>`}<td class="act"><button class="link" type="button" data-ev="${f.id}">${f.page ? f.page + '쪽' : '근거 보기'}</button></td></tr>`;
+  }).join('');
+  const table = `<table><thead><tr><th style="width:92px">요구 ID</th><th>요구사항</th><th style="width:84px">대응</th>${side ? '' : '<th style="width:124px">회사 근거</th><th style="width:330px">부족을 메우려면</th>'}<th class="act" style="width:84px">원문</th></tr></thead><tbody>${body}</tbody></table>`;
+  return `
+<section class="sec" id="reqs"><div class="sec-head"><h2 class="sec-title">요구사항 대응<span class="n">${fits.length}건</span></h2>
+    <div class="pills" role="group" aria-label="대응 상태">${pill('open', partial ? '읽기 실패·부족·미확인' : '부족·미확인', fits.filter(groups.open).length)}${pill('PARTIAL', '부분', cnt('PARTIAL'))}${pill('FULL', '충족', cnt('FULL'))}${pill('all', '전체', fits.length)}</div></div>
+  <div class="req-layout ${side ? 'is-open' : ''}"><div>${table}</div>${side ? evPanel('side') : ''}</div>
+  <p class="cap" style="margin-top:12px">${partial ? '회사 근거 문구는 예시예요.' : '이번 결과에는 필수 여부와 원문 쪽 번호가 없어 표시하지 않았어요. 회사 근거 문구는 예시예요.'}</p>
+</section>`;
+}
+
+function risksB() {
+  const row = ([s, c, d, m]) => `<tr><td style="width:64px">${tag(...SEV[s])}</td><td style="width:64px">${c}</td><td>${d}</td><td style="width:330px">${m}</td></tr>`;
+  const head = '<thead><tr><th>심각도</th><th>분류</th><th>내용</th><th>대응 방안</th></tr></thead>';
+  return `
+<section class="sec" id="risks"><div class="sec-head"><h2 class="sec-title">리스크<span class="n">${risks.length}건</span></h2><span class="sec-meta">심각도 상 → 하</span></div>
+  <table>${head}<tbody>${risks.filter((r) => r[0] === 'H').map(row).join('')}</tbody></table>
+  <details><summary>중 8건, 하 2건 보기</summary><table><tbody>${risks.filter((r) => r[0] !== 'H').map(row).join('')}</tbody></table></details>
+</section>`;
+}
+
+const termsB = `
+<section class="sec" id="terms"><div class="sec-head"><h2 class="sec-title">인력·계약 조건</h2><span class="sec-meta">원문에 없는 값은 미확인으로 표시</span></div>
+  <div class="two-col">
+    <table><thead><tr><th>역할</th><th>인원</th><th>상주</th><th>경력</th></tr></thead><tbody>
+      <tr><td>웹개발&시스템관리자<span class="sub">장소 · 성남시 제공 장소(협의 후 결정)</span></td><td>1명 이상</td><td>상주</td><td>5년 이상 권장</td></tr>
+      <tr><td>기획/분석</td><td class="k">미확인</td><td class="k">미확인</td><td>7년 이상 권장</td></tr>
+      <tr><td>웹디자인/퍼블리싱</td><td class="k">미확인</td><td class="k">미확인</td><td>3년 이상 권장</td></tr>
+    </tbody></table>
+    <dl class="terms">
+      <dt>하도급</dt><dd>가능 · 사업금액의 50% 이내, 사전승인 필요, 재하도급 불허</dd>
+      <dt>공동수급</dt><dd>공동이행방식만 · 5개 업체 이내, 구성원 지분 5% 이상</dd>
+      <dt>지연배상</dt><dd>장애처리 지연 시 월 유지관리비에서 공제</dd>
+      <dt>하자보수</dt><dd>12개월</dd>
+      <dt>지식재산권</dt><dd>발주기관과 공동 소유 원칙, 세부는 협의</dd>
+      <dt>원격 근무</dt><dd><span class="k">미확인</span> · 작업장소는 성남시 제공, 제안 장소는 검토 후 거부 가능</dd>
+    </dl>
+  </div>
+</section>`;
+
+function pageB() {
+  return `
+<section class="sec sec-facts" aria-label="사전규격 사실">
+  <dl class="facts five">
+    <div><dt>의견 마감</dt><dd>2026.11.27 18:00<small class="due">D-6</small></dd></div>
+    <div><dt>사업 예산</dt><dd>271,188,650원</dd></div>
+    <div><dt>구분</dt><dd>일반용역<small>SW사업대상 Y</small></dd></div>
+    <div><dt>게시</dt><dd>2026.11.20 10:30</dd></div>
+    <div><dt>추적 상태</dt><dd>${partial ? '계속 추적' : '미선택'}</dd></div>
+  </dl>
+  <p class="ident">사전규격번호 <b>R26BD00309999</b> <button class="link" type="button">번호 복사</button>${dot}<a class="link" href="#">나라장터 원문 ↗</a>${dot}본공고 아직 없음</p>
+</section>
+${summaryB()}${gatesB()}${todosB()}${reqsB()}${risksB()}${termsB}
+<details class="sec sec-fold" id="overview"><summary>사업 개요와 주요 과업<span class="sec-meta">개요 완료 · 과업 5건</span></summary><p class="cap">분석 전 화면의 개요 구역과 같은 내용이에요.</p></details>
+<section class="sec" id="files"><div class="sec-head"><h2 class="sec-title">원문·첨부<span class="n">1건</span></h2><span class="sec-meta">분석에 쓴 파일</span></div>
+  <table><thead><tr><th>파일</th><th>형식</th><th>분석 범위</th><th class="act">열기</th></tr></thead><tbody><tr><td>제안요청서.hwpx</td><td>HWPX</td><td>${partial ? `Ⅰ~Ⅲ장, Ⅴ장 ${tag('Ⅳ장 읽기 실패', 'err')}` : '전체'}</td><td class="act"><a class="link" href="#">원본 열기</a>　<a class="link" href="#">다운로드</a></td></tr></tbody></table></section>
+<details class="sec sec-fold"><summary>처리 상태·기술 정보<span class="sec-meta">원문 준비 완료 · 분석 ${partial ? '부분 완료' : '완료'}</span></summary><p class="cap">자동 준비 단계, 문서 준비, 처리 이력, 실행 식별 정보</p></details>
+<p class="foot">시안 · 예시 데이터예요. 다른 공고의 실제 엔진 결과에서 구조와 건수를 옮겼고, 회사 근거 문구는 실제가 아니에요.</p>`;
+}
+
+/* ───────── 그리기 ───────── */
+function topbar() {
+  const b = S[0] === 'b';
+  const tabs = b ? `<nav class="topbar-tabs" aria-label="구역 이동">${[['summary', '요약'], ['gates', '자격 조건', gates.length + gatesPass.length], ['todos', '확인할 일', 7], ['reqs', '요구사항', 41], ['risks', '리스크', 11], ['terms', '인력·계약'], ['files', '원문']].map(([id, n, c], i) => `<a href="#${id}" ${(S === 'b3' ? id === 'reqs' : i === 0) ? 'aria-current="true"' : ''}>${n}${c ? `<span class="n">${c}</span>` : ''}</a>`).join('')}</nav>` : '';
+  const el = document.getElementById('topbar');
+  el.classList.toggle('has-tabs', b);
+  el.innerHTML = `<div class="topbar-inner">
+    <a class="topbar-back-link" href="#"><svg aria-hidden="true" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"></path></svg>사전규격</a>
+    <div class="topbar-main"><div class="topbar-heading"><p class="topbar-eyebrow">${b ? '사전규격 · 경기도 성남시' : A.eyebrow}</p><h1 class="topbar-title">${b ? '2027년 성남시 홈페이지 운영·유지관리' : A.title}</h1></div>
+      <div class="topbar-page-actions"><div class="nav-pos"><span>선택 항목</span><strong>3 / 12</strong></div><div class="nav-btns"><button type="button">이전</button><button type="button">다음</button></div></div></div>${tabs}</div>`;
+}
+
+/* 하단 결정 띠. 분석 전은 추적 시작 하나, 분석 완료는 계속 추적·보류·종료. */
+function decisionBar() {
+  if (S[0] === 'a') {
+    const lead = { a1: '개요를 읽고 추적할지 정해요', a2: '개요가 나오기 전에도 추적을 시작할 수 있어요', a3: '개요 없이도 추적을 시작할 수 있어요', a4: '추적할지 정해요' }[S];
+    return `<div class="decision-bar" id="decision-bar"><form class="decision-bar-inner" onsubmit="return false">
+      <p class="txt"><b>추적 상태 미선택 · ${lead}</b>${boundaryText}</p>
+      <div class="field"><select aria-label="선택 사유"><option>선택 사유</option>${reasonOptions}</select></div>
+      <button class="btn btn-primary" type="submit">추적 시작하기</button></form></div>`;
+  }
+  const now = partial ? '현재 계속 추적 · jechoi · 2026.11.20 09:12' : '추적 결정이 아직 없어요';
+  return `<div class="decision-bar is-result" id="decision-bar"><form class="decision-bar-inner" onsubmit="return false">
+    <p class="txt"><b>${now}</b><button class="link" type="button">결정 없이 확인만 기록</button></p>
+    <div class="seg" role="group" aria-label="추적 결정"><button type="button" aria-pressed="${partial}">계속 추적</button><button type="button" aria-pressed="false">보류</button><button type="button" aria-pressed="false">종료</button></div>
+    <div class="field"><select aria-label="결정 사유"><option>결정 사유</option></select></div>
+    <button class="btn btn-primary" type="submit">추적 결정 저장하기</button></form></div>`;
+}
+
+let lastTrigger = null;
+function draw() {
+  topbar();
+  document.getElementById('record').innerHTML = S[0] === 'a' ? pageA() : pageB();
+  document.getElementById('ev-drawer')?.remove();
+  document.getElementById('decision-bar')?.remove();
+  const panel = document.getElementById('panel');
+  panel.insertAdjacentHTML('beforeend', decisionBar());
+  if (S[0] === 'b' && selected && !wide()) {
+    const wrap = document.createElement('div');
+    wrap.id = 'ev-drawer';
+    wrap.innerHTML = evPanel('drawer');
+    panel.appendChild(wrap);
+    wrap.firstElementChild.style.bottom = `${document.getElementById('decision-bar').offsetHeight}px`;
+  }
+}
+function closeEv() {
+  const id = selected; selected = null; draw();
+  document.querySelector(`[data-ev="${id}"]`)?.focus();
+}
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-filter],[data-ev],[data-close]');
+  if (!t) return;
+  if (t.dataset.filter) { filter = t.dataset.filter; draw(); document.querySelector(`[data-filter="${filter}"]`)?.focus(); }
+  else if (t.dataset.ev) { selected = t.dataset.ev; draw(); document.querySelector('#ev [data-close]')?.focus(); }
+  else closeEv();
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && selected) closeEv(); });
+window.addEventListener('resize', () => { if (selected) draw(); });
+draw();
+if (S === 'b3') document.getElementById('reqs').scrollIntoView();
+</script>
+</body>
+</html>
