@@ -141,10 +141,6 @@
   --tdc-inline-control: var(--bo-k-control-row);
 }
 
-.app-shell .page-canvas .ps-record-tracking-card {
-  --ps-tracking-control: var(--bo-k-control-input);
-}
-
 .app-shell .page-canvas .pre-spec-tracking-decision.is-inline .pre-spec-tracking-save {
   font-size: var(--bo-k-lead);
 }

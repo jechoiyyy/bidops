@@ -1,4 +1,4 @@
-import type { ReactNode, Ref } from "react";
+import type { ComponentProps, ReactNode, Ref } from "react";
 import { Selector } from "@astryxdesign/core/Selector";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import type { ApiErrorDescription } from "../../lib/apiErrors";
@@ -106,6 +106,13 @@ export interface TrackingDecisionInputsProps {
    * 문장과 `이름 바꾸기`를 넣는다. 없으면 입력 칸이다.
    */
   actorSlot?: ReactNode;
+  /**
+   * 칸 이름(`선택 사유`·`선택 사유 직접 입력`)을 화면에서 감추고 낭독기에만 남긴다. 한 줄 띠(사전규격 상세 하단 결정 띠)
+   * 처럼 칸 위에 라벨 줄을 둘 자리가 없을 때 쓴다. 무슨 칸인지는 placeholder가 말한다.
+   */
+  isLabelHidden?: boolean;
+  /** 사유 드롭다운이 열리는 쪽. 화면 아래에 고정된 띠는 `above`다(아래로 열면 화면 밖으로 나간다). */
+  selectorPlacement?: ComponentProps<typeof Selector>["placement"];
 }
 
 /**
@@ -128,12 +135,16 @@ export function TrackingDecisionInputs({
   rememberActor = true,
   actorPlaceholder = "예: 홍길동",
   actorSlot,
+  isLabelHidden = false,
+  selectorPlacement,
 }: TrackingDecisionInputsProps) {
   return (
     <>
       <div className={`tracking-decision-reason ${reasonClassName}`.trim()} ref={reasonRef}>
         <Selector
           label={TRACKING_FIELD_LABEL.reason}
+          isLabelHidden={isLabelHidden}
+          placement={selectorPlacement}
           hasClear
           size={size}
           isDisabled={isDisabled}
@@ -154,6 +165,7 @@ export function TrackingDecisionInputs({
         {choice === TRACKING_OTHER_REASON ? (
           <TextInput
             label={TRACKING_FIELD_LABEL.custom}
+            isLabelHidden={isLabelHidden}
             size={size}
             value={custom}
             onChange={onCustomChange}

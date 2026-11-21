@@ -4,6 +4,8 @@ import {
   mockPreSpecAutoDetail,
   mockPreSpecMatrix,
   mockWorkload,
+  openProcessSection,
+  settleProcessSection,
 } from "./api-mock";
 import { installScreenFixtures } from "./screen-fixtures";
 import fixtures from "./fixtures/api.json" with { type: "json" };
@@ -317,7 +319,11 @@ test("사전규격 상세가 자동 준비 세 단계를 한 줄로 말하고 �
   await mockPreSpecAutoDetail(page, "started");
   await page.goto("/pre-specs/991");
 
-  const steps = page.locator(".pre-spec-auto-steps");
+  // 2026-11-21: 자동 준비 단계는 맨 아래 접힌 `처리 상태·기술 정보` 안에 있다. 확정 묶음·개요 완료 건은 닫혀 들어온다.
+  await expect(await settleProcessSection(page)).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator(".pre-spec-auto-steps")).toHaveCount(0);
+  await openProcessSection(page);
+  const steps = page.locator("#ps-process .pre-spec-auto-steps");
   await expect(steps).toBeVisible({ timeout: 10_000 });
   await expect(page.locator(".pre-spec-detail-grade-row")).toHaveCount(0);
   await expect(steps).toContainText("1 · 첨부 취득");
@@ -334,7 +340,8 @@ test("개요가 끝난 확정 묶음은 개요 검토 종료로 말하고 심층
   await mockPreSpecAutoDetail(page, "settled");
   await page.goto("/pre-specs/991");
 
-  const steps = page.locator(".pre-spec-auto-steps");
+  await openProcessSection(page);
+  const steps = page.locator("#ps-process .pre-spec-auto-steps");
   await expect(steps).toBeVisible({ timeout: 10_000 });
   await expect(page.locator(".ps-document-panel-summary-line")).toContainText("개요 검토 종료");
   await expect(page.getByText("심층 검토 클릭 대기", { exact: false })).toHaveCount(0);
@@ -347,6 +354,7 @@ test("개요가 끝난 확정 묶음은 개요 검토 종료로 말하고 심층
 test("사전규격 상세는 정정 등급이 있어도 등급을 그리지 않고 실제 자격 문장을 보인다", async ({ page }) => {
   await mockPreSpecAutoDetail(page, "corrected");
   await page.goto("/pre-specs/991");
+  await openProcessSection(page);
   const toggle = page.getByRole("button", { name: /^문서 준비 (열기|닫기)$/ });
   await expect(toggle).toBeVisible({ timeout: 10_000 });
   if ((await toggle.textContent())?.includes("열기")) await toggle.click();

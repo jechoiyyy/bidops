@@ -1,4 +1,4 @@
-import type { Route, Page } from "@playwright/test";
+import { expect, type Route, type Page } from "@playwright/test";
 import fixtures from "./fixtures/api.json" with { type: "json" };
 import { getVisualResponse } from "./fixtures/visual-api";
 
@@ -40,6 +40,8 @@ import {
   type CompanyTrackingRow,
 } from "./fixtures/company-demo";
 import { RL_COMPANY_ID, rlAttentionCount, rlContextView, rlFacts, rlProfileView, type RlFact } from "./fixtures/company-rl";
+import { engineAnalysisRunFixture } from "./fixtures/engine-analysis";
+import type { EngineRun } from "../src/lib/engineApi";
 import { briefingFixture, previousBriefingFixture } from "./fixtures/briefing";
 import { NOTICE_FIXTURES, RECORD_FIXTURES, RECORD_NOW, RELATED_BY_NOTICE, type RecordFixture } from "./fixtures/opportunity-record";
 import { VERDICT_COMPANY_ID, noneView, pageBlocks, runningView } from "./fixtures/verdict";
@@ -2429,7 +2431,7 @@ function visualDocument(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function visualBundle(state: DocumentPreparationVisualState) {
+export function visualBundle(state: DocumentPreparationVisualState) {
   const status = state === "draft" ? "draft" : state === "processing" ? "processing" : state === "blocked" ? "needs_review" : "ready";
   const documents = state === "draft"
     ? []
@@ -5048,4 +5050,57 @@ export async function mockRunWarnings(page: Page, runId: string, total: number):
       run_id: runId, total, level: null, code: null,
       items: Array.from({ length: total }, (_, index) => ({ id: index + 1, run_id: runId, level: "warning", code: "fixture_warning", message: "합성 적재 경고", context: null })),
     }));
+}
+
+
+// ---------------------------------------------------------------------------
+// 사전규격 상세 `분석 완료` 화면(mock 빌드 전용, 2026-11-21 시안 b1~b3)의 엔진 run 예시.
+// 구조는 원본 Analysis 스키마에서 옮겼다(`fixtures/engine-analysis.ts`). 기존 엔진 spec의 fixture와 섞이지 않게
+// 별도 함수다 — 부르는 spec만 이 응답을 본다.
+export { engineAnalysisRunFixture };
+
+export async function mockEngineAnalysis(page: Page, variant: "completed" | "partial", noticeId = 991): Promise<EngineRun> {
+  const run = engineAnalysisRunFixture(variant, RL_COMPANY_ID, noticeId);
+  await page.route(/\/api\/company(?:\?.*)?$/, async (route) => {
+    if (route.request().method() !== "GET") { await route.fallback(); return; }
+    await fulfillJson(route, rlContextView());
+  });
+  await page.route(new RegExp(`/api/companies/${RL_COMPANY_ID}/notices/${noticeId}/engine-runs(?:\\?.*)?$`), async (route) => {
+    if (route.request().method() !== "GET") { await route.fallback(); return; }
+    await fulfillJson(route, { items: [run], total: 1 });
+  });
+  await page.route(new RegExp(`/api/engine-runs/${run.id}$`), async (route) => {
+    await fulfillJson(route, run);
+  });
+  return run;
+}
+
+/**
+ * 담당자 이름은 사이드바 담당자 칸 하나다(ADR-0076 결정 2·10). 사람이 하듯 칸을 열어 적고 닫는다.
+ * 사전규격 상세의 하단 결정 띠는 이 값을 `X-Bidops-Actor-Name` 헤더로 보낸다.
+ */
+export async function setSidebarActor(page: Page, name = "최담당") {
+  await page.locator("aside.sidebar .sidebar-actor-trigger").click();
+  await page.locator("aside.sidebar").getByLabel("담당자 이름").fill(name);
+  await page.locator("aside.sidebar").getByRole("button", { name: "닫기", exact: true }).click();
+}
+
+/**
+ * 사전규격 상세 `처리 상태·기술 정보` 구역의 기본 열림이 정해질 때까지 기다린다. 규칙은 묶음·개요·요약 응답을 모두 받은
+ * 뒤에 한 번 판단하므로(`preSpecProcessDefaultOpen`), 요약 줄이 확정되고 요청이 끝난 다음에 현재 상태를 읽어야 한다.
+ */
+export async function settleProcessSection(page: Page) {
+  await expect(page.getByTestId("pre-spec-process-summary")).not.toContainText("확인 중");
+  await page.waitForLoadState("networkidle");
+  const toggle = page.locator("#ps-process .ps-fold-toggle");
+  await expect(toggle).toBeVisible();
+  return toggle;
+}
+
+/** 구역을 연다(2026-11-21 시안). 기본 닫힘이고 문제가 있으면 열려 들어오므로 닫혀 있을 때만 누른다. */
+export async function openProcessSection(page: Page) {
+  const toggle = await settleProcessSection(page);
+  if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#ps-process-body")).toBeVisible();
 }

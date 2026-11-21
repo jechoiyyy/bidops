@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mockApi, mockFeatureFlags } from "./api-mock";
+import { mockApi, mockFeatureFlags, openProcessSection } from "./api-mock";
 import { completedView } from "./fixtures/verdict";
 
 // 2026-11-19 사전규격 단계 수정안 §3 B — 검토할 항목·확인 필요·다음 행동 안내·참여 판정 열.
@@ -68,7 +68,12 @@ test("참여 판정 열은 RL이 꺼진 환경에서 꺼져 있다고 먼저 말
   });
   await mockFeatureFlags(page, { rl_analysis: false, prespec_overview: false });
   await page.goto("/pre-specs/991");
-  const column = page.locator("#ps-conditions");
+  // 2026-11-21: 값이 없는 열이라 `회사 관련성 참고` 구역은 그리지 않는다. 꺼짐 안내는 지우지 않고 접힌
+  // `처리 상태·기술 정보` 안에 있고, 그 구역의 요약 한 줄도 꺼짐을 먼저 말한다.
+  await expect(page.locator("#ps-conditions")).toHaveCount(0);
+  await expect(page.getByTestId("pre-spec-process-summary")).toContainText("참여 판정(RL 분석) 꺼짐");
+  await openProcessSection(page);
+  const column = page.locator("#ps-process .ps-process-relevance");
   await expect(column.locator("#ps-conditions-list-title")).toHaveText("참여 판정");
   await expect(column).toContainText("참여 판정(RL 분석) · 이 환경에서 꺼져 있음");
   await expect(column).not.toContainText("심층 검토");

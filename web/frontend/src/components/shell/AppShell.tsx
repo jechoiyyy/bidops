@@ -116,7 +116,8 @@ export function AppShell({ demoEnabled = false }: { demoEnabled?: boolean }) {
         runSearch={runSearch}
       />
       {/* 본문은 바탕(frame) 위에 뜬 흰 패널 하나다(2026-11-19 최종 시안). 패널 헤더 → 본문. */}
-      <div className="app-content" data-shell-region="panel">
+      {/* `data-reading-width`: 상세 본문·헤더 안쪽·하단 띠를 읽기 폭 가운데에 맞추는 화면(route metadata). */}
+      <div className="app-content" data-reading-width={location.readingWidth ? "detail" : undefined} data-shell-region="panel">
         <TopBar
           companyContext={demoEnabled ? <CompanySelector companyId={activeCompanyId} /> : null}
           crumbs={crumbs}
@@ -150,6 +151,9 @@ export function AppShell({ demoEnabled = false }: { demoEnabled?: boolean }) {
             </RecordTitleSetterContext.Provider>
           </PageHeaderSetterContext.Provider>
         </main>
+        {/* 패널 아래 고정 띠 portal 슬롯(`PageFooterBar`). 본문 스크롤 밖이라 읽는 동안 늘 같은 자리에 있다.
+            비어 있으면 CSS가 접어 높이가 0이고 다른 화면의 배치는 바뀌지 않는다. */}
+        <div className="page-footer" data-shell-region="footer" id="page-footer" />
       </div>
     </div>
   );

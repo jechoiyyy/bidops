@@ -120,7 +120,18 @@ function CandidateRow({
   );
 }
 
-export function OrderPlanCandidatesSection({ noticeId }: { noticeId: number }) {
+export function OrderPlanCandidatesSection({
+  noticeId,
+  hideWhenEmpty = false,
+}: {
+  noticeId: number;
+  /**
+   * 후보가 1건 이상일 때만 구역을 그린다(2026-11-21 사전규격 상세 시안). 확인 중이거나 0건이면 아무것도 그리지
+   * 않는다 — 0건 구역이 자리를 차지하지 않게 한다. 조회 오류와 응답 불일치는 숨기지 않는다(후보가 없다는 뜻이
+   * 아니다). 저장 알림이 떠 있는 동안은 틀을 남겨 알림이 사라지지 않게 한다.
+   */
+  hideWhenEmpty?: boolean;
+}) {
   const queryClient = useQueryClient();
   const headingId = `ps-plan-candidates-title-${useId()}`;
   const { toast, showToast, dismissToast } = useToast();
@@ -188,6 +199,7 @@ export function OrderPlanCandidatesSection({ noticeId }: { noticeId: number }) {
   );
 
   if (candidatesQuery.isPending) {
+    if (hideWhenEmpty) return toast ? frame(null) : null;
     return frame(<p className="ps-cap ps-muted" role="status">발주계획 후보를 확인하는 중이에요.</p>);
   }
 
@@ -216,6 +228,7 @@ export function OrderPlanCandidatesSection({ noticeId }: { noticeId: number }) {
 
   const items = candidatesQuery.data.items;
   if (items.length === 0) {
+    if (hideWhenEmpty) return toast ? frame(null) : null;
     return frame(<p className="ps-cap ps-muted">발주계획 후보 없음 (자동 대조는 SW사업대상 사전규격에서만 해요)</p>);
   }
 

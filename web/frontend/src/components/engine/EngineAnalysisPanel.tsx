@@ -23,7 +23,8 @@ function EngineProblem({ error }: { error: unknown }) {
 }
 
 /** Normal prespec route uses the server's real-company context, never a guessed company. */
-export function CurrentCompanyEnginePanel({ noticeId, bundleId }: { noticeId: number; bundleId: string | null }) {
+/** `hideScore`: 점수를 어디에도 보이지 않는 화면(사전규격 상세, 2026-11-21 시안)이 켠다. 회사 데모 화면은 그대로다. */
+export function CurrentCompanyEnginePanel({ noticeId, bundleId, hideScore = false }: { noticeId: number; bundleId: string | null; hideScore?: boolean }) {
   const company = useQuery({ queryKey: companyContextQueryKey, queryFn: ({ signal }) => getCompanyContext({ signal }), retry: false });
   if (company.isPending) return <p role="status">엔진 분석의 회사 기준을 확인하는 중이에요.</p>;
   // 운영 회사 근거가 없으면 실행할 수 없다. 실패 문구가 아니라 꺼진 사실로 먼저 말한다(설계고도화안 C-4).
@@ -33,10 +34,10 @@ export function CurrentCompanyEnginePanel({ noticeId, bundleId }: { noticeId: nu
   if (company.isError) return <section className="engine-panel"><h3>분석 엔진 · mock 참조</h3><EngineProblem error={company.error} /><Button label="회사 기준 다시 조회" onClick={() => { void company.refetch(); }} /></section>;
   if (!company.data) return null;
   const companyId = company.data.company.company_id;
-  return <EngineAnalysisPanel key={`${companyId}:${noticeId}`} companyId={companyId} noticeId={noticeId} bundleId={bundleId} />;
+  return <EngineAnalysisPanel key={`${companyId}:${noticeId}`} companyId={companyId} noticeId={noticeId} bundleId={bundleId} hideScore={hideScore} />;
 }
 
-export function EngineAnalysisPanel({ companyId, noticeId, bundleId }: { companyId: string; noticeId: number; bundleId: string | null }) {
+export function EngineAnalysisPanel({ companyId, noticeId, bundleId, hideScore = false }: { companyId: string; noticeId: number; bundleId: string | null; hideScore?: boolean }) {
   const client = useQueryClient();
   const [actor, setActor] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -121,7 +122,7 @@ export function EngineAnalysisPanel({ companyId, noticeId, bundleId }: { company
           <dl className="engine-facts">
             <dt>판정 상태</dt><dd>{analysis.assessment === null ? "표식 없음" : analysis.assessment.state === "abstain" ? "판정 유보 · 미확인 조건 확인 필요" : "엔진 참고 판정 준비됨"}</dd>
             <dt>엔진 참고 판정</dt><dd>{analysis.assessment?.decision ?? "미확인"}</dd>
-            <dt>점수 구간</dt><dd>{analysis.assessment?.score_interval ? `${analysis.assessment.score_interval.min}–${analysis.assessment.score_interval.max}` : "계산 불가"}</dd>
+            {hideScore ? null : <><dt>점수 구간</dt><dd>{analysis.assessment?.score_interval ? `${analysis.assessment.score_interval.min}–${analysis.assessment.score_interval.max}` : "계산 불가"}</dd></>}
           </dl>
           {analysis.assessment?.reason_codes.length ? <p>판정 사유 · {analysis.assessment.reason_codes.join(" · ")}</p> : null}
           <h4>참여 조건</h4>

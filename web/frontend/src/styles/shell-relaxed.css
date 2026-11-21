@@ -747,6 +747,30 @@ body {
   border-bottom: 1px solid var(--color-border);
 }
 
+/* ---- 패널 아래 고정 띠 슬롯 (`PageFooterBar`, 2026-11-21) ----------------------
+   본문 스크롤 밖, 패널 맨 아래에 붙는다. 띠를 올린 화면이 없으면 높이 0으로 접혀 다른 화면의 배치를 바꾸지 않는다. */
+.app-shell[data-astryx-theme="bidops"] .page-footer {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.app-shell[data-astryx-theme="bidops"] .page-footer:empty {
+  display: none;
+}
+
+/* ---- 상세 읽기 폭 (route metadata `detailReadingWidth`, 2026-11-21 사전규격 상세 시안) ----
+   본문 묶음·패널 헤더 안쪽·하단 띠 안쪽을 같은 읽기 폭(1040px) 가운데에 놓아 세 곳의 왼쪽 선을 맞춘다. 가용 폭이
+   읽기 폭보다 좁으면(1280) 지금처럼 패널 여백에서 시작한다. 다른 화면의 헤더는 그대로다. */
+.app-shell[data-astryx-theme="bidops"] .app-content[data-reading-width="detail"] {
+  --shell-reading-width: 1040px;
+}
+
+.app-shell[data-astryx-theme="bidops"] .app-content[data-reading-width="detail"] .topbar > * {
+  width: 100%;
+  max-width: var(--shell-reading-width);
+  margin-inline: auto;
+}
+
 /* ---- 공용 상태 표식(시안) ---------------------------------------------------
    추적 중 = 브랜드 옅은 채움, 결정 필요·후보 확인 대기 = 주의색, 모델 판단 = 정보색(보라),
    보류 = 회색. 13px/700, 4×10, radius 6. 마감·단계·건수는 표식이 아니라 글자다.
@@ -1151,16 +1175,16 @@ body {
 }
 
 /* 사전규격 상세(2026-11-19·2026-11-20, ADR-0076): 카드 더미 대신 패널 한 장 안의 구역이다. 그림자·둥근 상자·
-   초록 띠·회색 머리 띠 없이, 구역 제목 줄과 구역 사이 옅은 선 한 줄로 나눈다. 본문은 헤더와 같은 왼쪽 선에서
-   시작한다. 구역 차례·내용·결정 동작은 그대로다. */
+   초록 띠·회색 머리 띠 없이, 구역 제목 줄과 구역 사이 옅은 선 한 줄로 나눈다. 2026-11-21 시안
+   (`docs/1121_prespec-detail/`)부터 본문 묶음은 읽기 폭 1040px로 패널 가운데에 놓이고, 패널 헤더 안쪽과 하단
+   결정 띠 안쪽도 같은 폭이라(`data-reading-width="detail"`) 세 곳의 왼쪽 선이 같다. */
 .app-shell .page-canvas .ps-record {
   --ps-brand-band: transparent;
-  /* 읽기 폭 상한 1040px(spec §4)은 그대로 두고, 가운데 대신 헤더와 같은 왼쪽 선에 붙인다. */
-  align-items: flex-start;
+  align-items: center;
   gap: 0;
 }
 
-.app-shell .page-canvas .ps-record :is(.ps-card, .ps-record-tracking-card) {
+.app-shell .page-canvas .ps-record .ps-card {
   border: 0;
   border-bottom: 1px solid var(--color-border);
   border-radius: 0;
@@ -1168,11 +1192,11 @@ body {
   box-shadow: none;
 }
 
-.app-shell .page-canvas .ps-record :is(.ps-card, .ps-record-tracking-card):last-child {
+.app-shell .page-canvas .ps-record .ps-card:last-child {
   border-bottom: 0;
 }
 
-.app-shell .page-canvas .ps-record :is(.ps-sec > .ps-sec-head:first-child, .ps-record-tracking-head) {
+.app-shell .page-canvas .ps-record .ps-sec > .ps-sec-head:first-child {
   padding: var(--spacing-6) 0 var(--spacing-3);
   border-bottom: 0;
   border-radius: 0;
@@ -1181,14 +1205,6 @@ body {
 
 .app-shell .page-canvas .ps-record .ps-sec > :not(.ps-sec-head:first-child) {
   margin-inline: 0;
-}
-
-.app-shell .page-canvas .ps-record .ps-record-tracking-body {
-  padding: 0 0 var(--spacing-6);
-}
-
-.app-shell .page-canvas .ps-record .ps-record-header-body {
-  padding: 0 0 var(--spacing-4);
 }
 
 .app-shell .page-canvas .ps-record .ps-chip-accent {

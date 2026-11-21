@@ -719,6 +719,8 @@ export interface PageOverviewView {
   model_revision: string | null;
   prompt_version: string;
   created_at: string;
+  /** 그 실행의 비차단 경고 코드(`OverviewRun.warnings`, 수치·날짜 대조 등). 어댑터가 옮기지 않은 view에는 없다. */
+  warnings?: string[];
 }
 /** `stale`은 새 계약에 없다. 서버는 보내지 않으며 화면이 만들지도 않는다. */
 export type PageOverviewCurrentStatus =

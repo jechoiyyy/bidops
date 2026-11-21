@@ -7,8 +7,28 @@ import {
   overviewRangeReviewFixture,
   overviewRunFixture,
   overviewVerificationFixture,
+  openProcessSection,
 } from './api-mock';
 import type { OverviewEnvelope, OverviewRun } from '../src/lib/types';
+import type { Page } from '@playwright/test';
+
+/**
+ * 사람이 확정해야 하는 범위(`needs_human_review`)가 아닌 범위 확인(자동 선택·확정됨·실행 중)은 맨 아래
+ * `처리 상태·기술 정보` 안에서 `개요 입력 범위 보기`를 눌렀을 때만 열린다(2026-11-21 시안 a3).
+ */
+async function openRangeReview(page: Page) {
+  await openProcessSection(page);
+  const toggle = page.locator('#ps-process').getByRole('button', { name: '개요 입력 범위 보기' });
+  await toggle.click();
+  const region = page.getByRole('region', { name: '개요 범위 확인' });
+  await expect(region).toBeVisible();
+  return region;
+}
+
+/** 범위 입력 폼의 절 후보 표는 처음엔 접혀 있다. `절 제목에서 고르기`를 눌러 연다. */
+async function openCandidateTable(region: ReturnType<Page['getByRole']>) {
+  await region.getByRole('button', { name: /^절 제목에서 고르기 \(후보 \d+개\)$/ }).click();
+}
 
 // 개요 검토 화면(`PageOverviewSection`)이 새 계약(`bidops.prespec-overview.v1`)의
 // run envelope 하나를 어떻게 말하는지 본다. 백엔드는 병행 구현 중이므로 route
@@ -57,32 +77,40 @@ for (const width of [1280, 1440]) {
     await expect(review).toBeVisible();
     await expect(tasks.getByText('주장 검증 완료 · 운영 승인 아님')).toBeVisible();
     await expect(tasks.getByText('참조 실행 · 품질 미측정')).toBeVisible();
-    await expect(page.locator('#ps-summary')).toContainText('사업 요약');
-    await expect(page.locator('#ps-summary')).toContainText(currentFactText);
+    // 2026-11-21: 머리의 `사업 요약` 블록은 없앴다. 같은 문장은 개요 구역에 한 번만 나온다.
+    await expect(page.locator('#ps-summary')).not.toContainText('사업 요약');
+    await expect(page.locator('#ps-summary')).not.toContainText(currentFactText);
     await expect(review).toContainText(currentFactText);
-    // 첫 주장의 근거 링크는 ① 요약 띠가 갖는다(③ 본문은 같은 문장을 계약대로
-    // 담되 화면에서는 감춘다). 링크가 가리키는 run·쪽은 그대로다.
-    await expect(page.locator('#ps-summary').getByRole('link', { name: 'PDF 3페이지 ↗' }).first()).toHaveAttribute(
+    await expect(page.getByText(currentFactText, { exact: true })).toHaveCount(1);
+    // 주장마다 그 줄에 쪽 링크가 붙는다(옛 `주장별 원문 위치` 목록을 흡수). 링크가 가리키는 run·쪽은 그대로다.
+    await expect(page.locator('#ps-tasks .ps-claims').getByRole('link', { name: 'PDF 3페이지 ↗' }).first()).toHaveAttribute(
       'href',
       `/api/pre-specs/991/overview/runs/${overviewCompletedRunFixture.id}/pdf#page=3`,
     );
-    // 2026-11-19: ④ 첫 열은 기존 심층 검토 보고서 대신 사업기회의 RL 판정 요약이다. 판정이
+    await expect(page.locator('#ps-evidence .ps-evidence-claims')).toHaveCount(0);
+    // 2026-11-19: 참여 판정 열은 기존 심층 검토 보고서 대신 사업기회의 RL 판정 요약이다. 판정이
     // 없는 사업(가짜 서버의 200 `none`)이면 "판정 없음 — 추적 후 요청"이고, 개요 결과는 판정
-    // 열에도 위험 열에도 옮겨 쓰지 않는다.
-    const conditions = page.locator('#ps-conditions');
-    await expect(conditions.locator('#ps-conditions-list-title')).toHaveText('참여 판정');
-    await expect(conditions.getByText('판정 없음 — 추적 후 요청')).toBeVisible();
-    await expect(conditions.getByText('심층 검토에서 확인')).toHaveCount(0);
-    await expect(conditions.locator('.ps-risks')).toHaveCount(0);
+    // 열에도 위험 열에도 옮겨 쓰지 않는다. 2026-11-21: 값이 없으면 `회사 관련성 참고` 구역을 그리지 않고 이 문구는
+    // 접힌 `처리 상태·기술 정보` 안으로 간다.
+    await expect(page.locator('#ps-conditions')).toHaveCount(0);
+    await openProcessSection(page);
+    const relevance = page.locator('#ps-process .ps-process-relevance');
+    await expect(relevance.locator('#ps-conditions-list-title')).toHaveText('참여 판정');
+    await expect(relevance.getByText('판정 없음 — 추적 후 요청')).toBeVisible();
+    await expect(relevance.getByText('심층 검토에서 확인')).toHaveCount(0);
+    await expect(relevance.locator('.ps-risks')).toHaveCount(0);
 
-    // 주장 ID는 ⑤ 근거 목록에서 빠지고 ⑥ 접힌 `기술 정보`에서 전문으로 읽힌다
+    // 주장 ID는 원문·첨부 구역에 없고 `처리 상태·기술 정보` 안의 접힌 `기술 정보`에서 전문으로 읽힌다
     // (docs/0921_practitioner-screens/spec.md §3.2).
     await expect(page.locator('#ps-evidence .ps-loc')).toHaveCount(0);
     await expect(page.locator('#ps-evidence code')).toHaveCount(0);
-    await expect(page.locator('.ps-collapsed dl[aria-label="현재 개요 결과 식별 정보"]'))
+    await expect(page.locator('#ps-process .ps-collapsed dl[aria-label="현재 개요 결과 식별 정보"]'))
       .toContainText('c1, c2, c3');
-    // 같은 취지의 경계 문장은 ② 추적 결정 카드 한 곳만 갖는다(M4 승인 2026-09-21).
-    await expect(page.getByText('적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않아요. 입찰 참여 여부는 최종 Go/No-Go에서 정해요.')).toHaveCount(1);
+    // 경계 문장은 하단 결정 띠 한 곳만 갖는다(2026-11-21). 이 건은 이미 결정이 기록돼 띠에 입력이 없으므로 문장 자체가 없고,
+    // 옛 본문 카드의 긴 문장도 사전규격 상세에 없다. 입력 상태의 문장은 pre-specs.spec.ts가 검사한다.
+    await expect(page.locator('#page-footer .pre-spec-tracking-decision.is-recorded')).toBeVisible();
+    await expect(page.getByText('보류·종료는 사업 추적에서, 입찰 참여는 최종 Go/No-Go에서 정해요.')).toHaveCount(0);
+    await expect(page.getByText('적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않아요. 입찰 참여 여부는 최종 Go/No-Go에서 정해요.')).toHaveCount(0);
     await expect(page.getByText('추적 승인과 최종 입찰 결정은 사람이')).toHaveCount(0);
     await expect(page.getByText('서로 대신하지 않음')).toHaveCount(0);
     await expect(page.getByText('추적 선택과 최종 입찰 Go/No-Go는 사람이 결정해요.')).toHaveCount(0);
@@ -137,8 +165,8 @@ test('current result is selected by result_id and terminal state refreshes relat
   const currentRegion = page.getByRole('region', { name: 'PDF 기반 개요 검토' });
   await expect(currentRegion).toContainText(currentFactText);
   await expect(currentRegion).not.toContainText('과거 성공 결과의 본문이다.');
-  // 첫 주장의 근거 링크는 ① 요약 띠가 갖는다. 링크는 **현재** run의 pdf를 가리킨다.
-  await expect(page.locator('#ps-summary').getByRole('link', { name: 'PDF 3페이지 ↗' }).first()).toHaveAttribute(
+  // 첫 주장의 쪽 링크는 그 주장 줄이 갖는다. 링크는 **현재** run의 pdf를 가리킨다.
+  await expect(page.locator('#ps-tasks .ps-claims').getByRole('link', { name: 'PDF 3페이지 ↗' }).first()).toHaveAttribute(
     'href',
     new RegExp(`${overviewCompletedRunFixture.id}/pdf#page=3$`),
   );
@@ -294,12 +322,14 @@ test('current body keeps long text and limitations without client truncation', a
   await page.goto('/pre-specs/991');
   const currentRegion = page.getByRole('region', { name: 'PDF 기반 개요 검토' });
   await expect(currentRegion).toContainText(longText);
-  await expect(page.locator('#ps-summary')).toContainText(longText);
-  await expect(page.locator('#ps-summary').getByRole('link', { name: 'PDF 3페이지 ↗' }).first()).toHaveAttribute(
+  await expect(page.locator('#ps-tasks .ps-claims').first()).toContainText(longText);
+  await expect(page.locator('#ps-summary')).not.toContainText(longText);
+  await expect(page.locator('#ps-tasks .ps-claims').getByRole('link', { name: 'PDF 3페이지 ↗' }).first()).toHaveAttribute(
     'href',
     new RegExp(`${longRun.id}/pdf#page=3$`),
   );
-  // 검토 범위·실행 정보는 ⑥ 카드의 접힌 진단 줄이 갖는다(spec §4 ⑥). 본문은 잘리지 않는다.
+  // 검토 범위·실행 정보는 `처리 상태·기술 정보` 안의 접힌 진단 줄이 갖는다. 본문은 잘리지 않는다.
+  await openProcessSection(page);
   await expect(page.locator('#ps-process')).toContainText('선택된 PDF 3~11페이지를 기준으로 검토했어요.');
 });
 
@@ -335,15 +365,18 @@ test('detail range notification leads to the live confirmation form outside the 
     });
   });
   await page.goto('/pre-specs/991');
-  // ③ 카드 맨 위에는 알림 한 줄만 있고 조작 폼은 ⑥ 카드가 소유한다
-  // (docs/0915_ui-redesign/spec.md §4 ③·⑥).
+  // 2026-11-21(시안 a3): 사람이 확정해야 하는 범위는 개요 구역 자리에 폼이 온다. 알림의 `확정하기 →`가 그 자리를
+  // 가리키고, 폼의 절 후보 표는 처음엔 접혀 있다. 구역 위쪽 알림 줄 자체에는 조작이 없다.
   const notices = page.locator('#ps-tasks .ps-notices');
   await expect(notices.getByRole('radio')).toHaveCount(0);
   const link = notices.locator('a[href="#ps-record-range"]');
   await expect(link).toContainText('확정하기');
   await link.click();
-  const region = page.locator('#ps-record-range').getByRole('region', { name: '개요 범위 확인' });
+  const region = page.locator('#ps-tasks #ps-record-range').getByRole('region', { name: '개요 범위 확인' });
   await expect(region).toBeVisible();
+  await expect(region.getByRole('radio', { name: '시작 #1' })).toHaveCount(0);
+  await expect(region.getByRole('table')).toHaveCount(0);
+  await openCandidateTable(region);
   await region.getByRole('radio', { name: '시작 #1' }).check();
   await region.getByRole('radio', { name: '끝 #2' }).check();
   await region.getByLabel('담당자 이름 (필수)').fill('최정인');
@@ -376,6 +409,11 @@ test('pending range review confirms a clause range and refetches the overview', 
   await expect(region).toContainText('범위 확인 필요');
   await expect(region).toContainText('범위 제목을 찾지 못함');
   await expect(region).toContainText('확정하면 그 범위로 개요 검토 실행 하나를 예약해요.');
+  // 후보 표는 처음엔 접혀 있고(쪽 입력이 기본), 토글로 연다. 후보 수는 토글 이름이 말한다.
+  await expect(region.getByRole('table')).toHaveCount(0);
+  await expect(region.getByLabel('시작 쪽')).toBeVisible();
+  await expect(region.getByRole('button', { name: `절 제목에서 고르기 (후보 ${overviewRangeCandidatesFixture.length}개)` })).toHaveAttribute('aria-expanded', 'false');
+  await openCandidateTable(region);
   const table = region.getByRole('table');
   for (const candidate of overviewRangeCandidatesFixture) await expect(table).toContainText(candidate.title);
   await expect(table).toContainText('12쪽');
@@ -459,6 +497,9 @@ test('complete candidates keep clause default but allow an exact page pair', asy
 
   await page.goto('/pre-specs/991');
   const region = page.getByRole('region', { name: '개요 범위 확인' });
+  // 후보 표는 처음엔 접혀 있고 쪽 입력이 기본이다. 표를 열면 완전한 후보는 절 선택이 기본이다(기존 확정 동작).
+  await expect(region.getByRole('radio', { name: '시작 #0' })).toHaveCount(0);
+  await openCandidateTable(region);
   await expect(region.getByRole('radio', { name: '시작 #0' })).toBeVisible();
   await region.getByRole('button', { name: '쪽 직접 선택' }).click();
   await expect(region.getByRole('radio', { name: '시작 #0' })).toHaveCount(0);
@@ -488,6 +529,9 @@ test('partial candidates are reference-only and page selection remains available
 
   await page.goto('/pre-specs/991');
   const region = page.getByRole('region', { name: '개요 범위 확인' });
+  await expect(region.getByRole('table')).toHaveCount(0);
+  await expect(region.getByLabel('시작 쪽')).toBeVisible();
+  await openCandidateTable(region);
   await expect(region.getByRole('button', { name: '절 후보 선택' })).toHaveCount(0);
   await expect(region.getByLabel('시작 쪽')).toBeVisible();
   await expect(region.getByRole('table')).toContainText('1. 사업 개요');
@@ -519,7 +563,7 @@ test('ready automatic range with failed capacity keeps PDF and separates prepara
   for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport);
     await page.goto('/pre-specs/991');
-    const region = page.getByRole('region', { name: '개요 범위 확인' });
+    const region = await openRangeReview(page);
     await expect(region).toContainText('변환 완료 · 자동 선택 · 내용 검증 상태는 개요 상태에서 확인');
     await expect(region).toContainText('자동 선택 범위 2~18쪽');
     await expect(region.getByRole('link', { name: '변환 PDF 열기 ↗' })).toHaveAttribute(
@@ -549,7 +593,7 @@ test('unsafe or active ready target explains why confirmation is blocked without
   }));
 
   await page.goto('/pre-specs/991');
-  const region = page.getByRole('region', { name: '개요 범위 확인' });
+  const region = await openRangeReview(page);
   await expect(region).toContainText('실행 중인 개요가 있어 새 범위를 저장할 수 없어요');
   await expect(region.getByRole('button', { name: '범위 확정' })).toBeDisabled();
   await expect(region.getByRole('link', { name: '변환 PDF 열기 ↗' })).toBeVisible();
@@ -575,7 +619,7 @@ test('confirmed range review renders the read-only summary on the detail record'
   }));
 
   await page.goto('/pre-specs/991');
-  const region = page.getByRole('region', { name: '개요 범위 확인' });
+  const region = await openRangeReview(page);
   await expect(region).toContainText('범위 확정됨');
   await expect(region).toContainText('변환 완료 · 범위 확정 · 내용 검증 상태는 개요 상태에서 확인');
   await expect(region).toContainText('6~12쪽');
@@ -600,7 +644,7 @@ test('completed overview alongside the latest range target does not claim conten
   }));
 
   await page.goto('/pre-specs/991');
-  const range = page.getByRole('region', { name: '개요 범위 확인' });
+  const range = await openRangeReview(page);
   await expect(range).toContainText('내용 검증 상태는 개요 상태에서 확인');
   await expect(range).not.toContainText('내용 미검증');
   await expect(page.getByRole('region', { name: '현재 개요 검토' })).toContainText('개요 검토 완료');

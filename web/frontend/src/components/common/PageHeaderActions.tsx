@@ -42,6 +42,18 @@ export function PageHeaderTabs({ children }: { children: ReactNode }) {
   return <ShellSlotPortal slotId="page-header-tabs">{children}</ShellSlotPortal>;
 }
 
+/**
+ * 화면의 결정 띠를 패널 아래 고정 슬롯(`#page-footer`)에 넣는다(2026-11-21 사전규격 상세 시안).
+ *
+ * 띠는 본문 스크롤 영역(`main.page-canvas`) 밖, 패널 맨 아래에 붙어 읽는 동안 늘 같은 자리에 있다. 띠의
+ * 입력·저장은 페이지의 상태(조회 결과·저장 전 이탈 보호)를 쓰므로 셸로 올릴 수 없어 `PageHeaderActions`와
+ * 같은 이유로 portal을 쓴다. 슬롯은 셸(`AppShell`)이 늘 그리고 비어 있으면 CSS가 높이 0으로 접는다.
+ * portal 내용은 페이지 root 밖이라 화면 CSS의 글자 재적용이 닿지 않는다 — 띠가 자기 글자·조작 크기를 갖는다.
+ */
+export function PageFooterBar({ children }: { children: ReactNode }) {
+  return <ShellSlotPortal slotId="page-footer">{children}</ShellSlotPortal>;
+}
+
 function ShellSlotPortal({ slotId, children }: { slotId: string; children: ReactNode }) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {

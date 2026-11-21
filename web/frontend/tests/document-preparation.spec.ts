@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockApi } from "./api-mock";
+import { mockApi, openProcessSection } from "./api-mock";
 
 const NOTICE_ID = 991;
 const BUNDLE_ID = "10000000-0000-0000-0000-000000000991";
@@ -393,6 +393,8 @@ test("ready·superseded 이력은 불변이고 확정 묶음에서도 심층 검
   await page.goto(`/pre-specs/${NOTICE_ID}`);
   // 묶음이 `ready`이고 자동 준비가 조치 대기가 아니므로 문서 준비는 접힌 기본값이다
   // (ADR-0055 결정 3). 조작하려면 먼저 열어야 한다.
+  // 2026-11-21: 문서 준비 패널은 접힌 `처리 상태·기술 정보` 안에 있다. 확정 묶음은 두 단계 모두 닫혀 들어온다.
+  await openProcessSection(page);
   await page.getByRole("button", { name: "문서 준비 열기" }).click();
   await page.getByLabel("문서 준비 담당자 이름").fill("홍길동");
 

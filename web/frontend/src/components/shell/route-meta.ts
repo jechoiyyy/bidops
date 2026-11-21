@@ -67,6 +67,12 @@ export interface RouteMetadata {
    * 목록과 상세가 metadata를 공유하는 화면은 상세(식별자 칸이 있을 때)에서 기본 여백으로 돌아간다.
    */
   canvas?: "flush";
+  /**
+   * 상세(식별자 칸이 있을 때)의 본문·패널 헤더 안쪽·패널 아래 고정 띠를 읽기 폭(1040px) 가운데에 맞춘다
+   * (2026-11-21 사전규격 상세 시안 `docs/1121_prespec-detail/`). 목록에서는 쓰지 않는다. 없으면 지금처럼
+   * 패널 왼쪽 여백에서 시작한다.
+   */
+  detailReadingWidth?: boolean;
   /** 사이드바 묶음 라벨(`레코드`·`리스트`). 상단 경로의 첫 칸이다. 라벨 없는 묶음(대시보드)과
    *  하단 항목(실행 상태·판정 기준)은 `null`이다(2026-11-18, ui-spec §1.2 메모). */
   navGroup: string | null;
@@ -220,6 +226,8 @@ export const routeMetadata = {
     topbar: "title",
     runSelectorVisible: false,
     canvas: "flush",
+    // 상세만: 본문·헤더 안쪽·하단 추적 결정 띠를 읽기 폭 1040px 가운데에 맞춘다(2026-11-21 시안).
+    detailReadingWidth: true,
     navGroup: "레코드",
     navPath: "/pre-specs",
     ancestors: [],
@@ -353,6 +361,8 @@ export interface ResolvedRouteLocation {
   title: string;
   /** 본문 칸 여백. 상세(식별자 칸이 있음)에서는 언제나 기본이다. */
   canvas: "flush" | "default";
+  /** 상세 본문·헤더 안쪽·하단 띠를 읽기 폭 가운데에 맞추는가. 상세(식별자 칸이 있음)에서만 `true`일 수 있다. */
+  readingWidth: boolean;
 }
 
 /**
@@ -413,7 +423,14 @@ export function resolveRouteLocation(
   });
   if (trailingRecord) crumbs.push({ label: trailingRecord.label, to: trailingRecord.to, role: "record" });
   const topbarMode: RouteTopbarMode = metadata.topbar === "title" && record === null ? "title" : "breadcrumb";
-  return { navPath: origin.navPath, crumbs, topbarMode, title: metadata.title, canvas: metadata.canvas === "flush" && record === null ? "flush" : "default" };
+  return {
+    navPath: origin.navPath,
+    crumbs,
+    topbarMode,
+    title: metadata.title,
+    canvas: metadata.canvas === "flush" && record === null ? "flush" : "default",
+    readingWidth: metadata.detailReadingWidth === true && record !== null,
+  };
 }
 
 /** `run` 질의 파라미터를 읽지 않는 화면의 경로.

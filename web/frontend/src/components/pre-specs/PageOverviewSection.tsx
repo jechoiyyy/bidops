@@ -388,20 +388,6 @@ export function PageOverviewNotices({
   );
 }
 
-/**
- * 상세 ④ `위험 및 미확인 사항` 열이 읽는 항목 하나의 모양(spec §4 ④).
- *
- * 개요는 앞부분 요약만 맡고(ADR-0057 결정 1), 참여 조건·위험·미확인은 심층
- * 검토가 있을 때만 그 결과에서 읽는다 — 개요 결과에서 새 분석을 만들지 않는다.
- */
-export interface PageOverviewRisk {
-  /** 칩 글자. 색은 `tone`이 정한다. */
-  label: string;
-  tone: "caution" | "neutral";
-  title: string;
-  detail: string | null;
-}
-
 export function PageOverviewHistory({ reviews }: { reviews: PageOverviewView[] }) {
   if (reviews.length === 0) return null;
   return (
@@ -503,11 +489,11 @@ function RangeReviewPending({
   onConfirmed: () => void;
 }) {
   const candidatesComplete = review.candidate_status === "complete" && review.candidates.length > 0;
-  // 완전한 후보가 있으면 기존 절 선택을 기본값으로 유지한다. 부분/미제공 후보는
-  // 참고만 가능하고 쪽 범위만 저장한다.
-  const [rangeMode, setRangeMode] = useState<"candidates" | "pages">(
-    candidatesComplete ? "candidates" : "pages",
-  );
+  // 2026-11-21 시안 a3: 시작 쪽·끝 쪽 입력과 확정 단추를 먼저 보이고, 절 후보 표는 `절 제목에서 고르기`를
+  // 눌렀을 때만 연다(후보가 수십 개면 본문이 수천 px로 늘어난다). 표를 열면 완전한 후보는 기존처럼 절 선택이
+  // 기본이고, 부분/미제공 후보는 참고만 가능해 쪽 범위로만 저장한다. 표를 접으면 쪽 범위로 돌아간다.
+  const [candidatesOpen, setCandidatesOpen] = useState(false);
+  const [rangeMode, setRangeMode] = useState<"candidates" | "pages">("pages");
   const pagesMode = rangeMode === "pages";
   const [startIndex, setStartIndex] = useState<number | null>(null);
   const [endIndex, setEndIndex] = useState<number | null>(null);
@@ -605,7 +591,7 @@ function RangeReviewPending({
         </ul>
       ) : null}
 
-      {review.candidates.length > 0 ? (
+      {candidatesOpen && review.candidates.length > 0 ? (
         <ToggleButtonGroup
           label="범위 선택 방식"
           type="single"
@@ -672,7 +658,7 @@ function RangeReviewPending({
         </>
       ) : null}
 
-      {review.candidates.length ? (
+      {candidatesOpen && review.candidates.length ? (
         <div className="page-overview-range-table">
           <Table
             aria-label="개요 범위 절 후보"
@@ -715,6 +701,22 @@ function RangeReviewPending({
         {missing && !confirmed ? <p className="page-overview-note">{missing}</p> : null}
         {!review.can_confirm ? <p className="page-overview-note">안전 또는 실행 상태를 확인할 때까지 저장할 수 없어요.</p> : null}
       </div>
+
+      {review.candidates.length > 0 ? (
+        <Button
+          className="page-overview-range-candidates-toggle"
+          label={candidatesOpen ? "절 후보 접기" : `절 제목에서 고르기 (후보 ${review.candidates.length}개)`}
+          size="sm"
+          variant="ghost"
+          aria-expanded={candidatesOpen}
+          isDisabled={locked && !candidatesOpen}
+          onClick={() => {
+            const next = !candidatesOpen;
+            setCandidatesOpen(next);
+            setRangeMode(next && candidatesComplete ? "candidates" : "pages");
+          }}
+        />
+      ) : null}
 
       {confirmed ? <p role="status">{RANGE_CONFIRMED_NOTE}</p> : null}
       {failure ? (
@@ -846,40 +848,4 @@ export function useCurrentPageOverview(noticeId: number | null): CurrentPageOver
     ));
 
   return { query, isValid, current, hasCurrentProjection, currentResult, legacyReview, history, rangeReview, verification };
-}
-
-export function PageOverviewSection({ noticeId }: { noticeId: number }) {
-  const { query, isValid, current, hasCurrentProjection, currentResult, legacyReview, history, rangeReview, verification } = useCurrentPageOverview(noticeId);
-
-  if (query.isPending) return <p role="status">PDF 기반 개요를 불러오는 중이에요.</p>;
-  if (query.isError) return <div role="alert" className="page-overview-validation">
-    <p>PDF 기반 개요를 불러오지 못했어요. 아래 기존 개요 기록과는 별도 조회예요.</p>
-    <Button label="개요 다시 불러오기" size="sm" onClick={() => { void query.refetch(); }} />
-  </div>;
-  if (!isValid) {
-    return <p role="alert">개요 응답의 공고 또는 구조가 일치하지 않아 표시하지 않아요.</p>;
-  }
-
-  // 범위 확인은 현재 실행 카드보다 위에 온다. 입력 범위가 정해지지 않으면
-  // 아래 실행 기록은 아직 그 범위의 결과가 아니다.
-  const rangeReviewNode = rangeReview
-    ? <PageOverviewRangeReview noticeId={noticeId} review={rangeReview} onConfirmed={() => { void query.refetch(); }} />
-    : null;
-
-  if (!hasCurrentProjection) {
-    return legacyReview ? <>
-      {rangeReviewNode}
-      <PageOverviewResult review={legacyReview} />
-      <h3 className="page-overview-legacy">기존 개요 권고·처리 기록</h3>
-      <PageOverviewHistory reviews={history} />
-    </> : rangeReviewNode;
-  }
-
-  return <>
-    {rangeReviewNode}
-    {current ? <PageOverviewCurrent current={current} currentResult={currentResult} /> : null}
-    {current?.attempt_id && verification ? <PageOverviewVerificationDetails noticeId={noticeId} attemptId={current.attempt_id} verification={verification} /> : null}
-    {currentResult ? <PageOverviewResult review={currentResult} /> : null}
-    <PageOverviewHistory reviews={history} />
-  </>;
 }
