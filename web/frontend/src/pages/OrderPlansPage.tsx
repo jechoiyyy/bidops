@@ -16,7 +16,6 @@ import { ToggleButton, ToggleButtonGroup } from "@astryxdesign/core/ToggleButton
 import { Text } from "@astryxdesign/core/Text";
 import { ConfirmDecisionDialog, trackingEndConfirmContent } from "../components/common/ConfirmDecisionDialog";
 import { EmptyState } from "../components/common/EmptyState";
-import { CollectionStatus } from "../components/shell/CollectionStatus";
 import { PageHeaderActions, PageHeaderTabs } from "../components/common/PageHeaderActions";
 import { setRememberedActorName, useRememberedActorName } from "../components/common/ActorField";
 import { usePageHeader } from "../components/shell/PageHeaderContext";
@@ -72,7 +71,6 @@ import {
 } from "../components/order-plans/OrderPlanBulkTrackingDialog";
 import { OrderPlanDetailPane } from "../components/order-plans/OrderPlanDetailPane";
 import { OrderPlanListRow } from "../components/order-plans/OrderPlanListRow";
-import { OrderPlanScopeDialogBody } from "../components/order-plans/OrderPlanScopeDialogBody";
 import { scopeLabel } from "../components/order-plans/orderPlanDialogShared";
 import {
   TRACKING_REASONS,
@@ -171,7 +169,7 @@ type FeedbackToken = "has" | "none";
  */
 type TrackingToken = OpportunityTrackingStatus | "none";
 /** 기본 검토 화면 밖으로 옮긴 보조 표시. 한 번에 하나만 연다. */
-type SecondaryDialog = "feedback" | "runtime";
+type SecondaryDialog = "feedback";
 
 const RELEVANCE_TOKENS: readonly RelevanceToken[] = ["relevant", "uncertain", "not_relevant", "null"];
 const STAGE1_TOKENS: readonly Stage1Token[] = ["selected", "filtered_out", "failed", "rejected", "null"];
@@ -1670,16 +1668,11 @@ function OrderPlansWorkspace() {
           칩이 그 실행을 특정해 연다(0921 명세 §3.1). */}
       <PageHeaderActions>
         <div className="c2l-header-actions">
-          <CollectionStatus track="order-plans" />
-          {/* 평상시에는 아무것도 그리지 않는다. 문제가 있을 때만 상태와 운영 화면 링크를
-              겸한 칩 하나가 선다(시안 M3 ② 승인). */}
           <ExecutionHealthChip
             isError={executionsQuery.isError}
             latest={latestExecutionOverall}
             onRetry={() => { void executionsQuery.refetch(); }}
           />
-          {/* 목록 범위를 설명하는 단추는 네 화면이 같은 이름을 쓴다(시안 M1 승인 결정 3). */}
-          <button className="panel-header-link" type="button" onClick={() => setDialog("runtime")}>목록 기준</button>
           {bulkRecoveryAvailable && !bulkDialogMode ? (
             <Button
               label="저장된 일괄 요청 확인"
@@ -1996,23 +1989,7 @@ function OrderPlansWorkspace() {
             className="c2l-workspace"
           >
             <aside className="review-split-list c2l-list-pane">
-              {/* 머리는 한 줄이다: 왼쪽은 제목과 건수, 오른쪽은 지금 보고 있는 기본 보기
-                  설명(ADR-0062). 범위·policy·정렬 설명은 목록 바닥 안내 줄로 내렸다. */}
               <header className="review-list-head c2l-list-head">
-                {/* 선택이 없을 때도 `현재 페이지 전체 선택`에 닿는 길(머리 체크박스). 선택이 생기면 아래 일괄 바가 같은
-                    조작을 갖는다. 이 체크박스는 현재 페이지에 그려진 행만 더한다(사전규격과 같은 규칙). */}
-                {orderPlanSelection.selectedIds.length === 0 ? (
-                  <input
-                    aria-label="현재 페이지 전체 선택"
-                    checked={false}
-                    className="c2l-list-select-all"
-                    disabled={bulkPending || !orderPlanSelection.hydrated || visibleItems.length === 0}
-                    onChange={selectCurrentPage}
-                    type="checkbox"
-                  />
-                ) : null}
-                {/* 시안의 한 줄: `관련 3건 · 추적을 정하지 않은 건`. 목록을 못 읽었으면 건수는 0이 아니라 확인 불가다.
-                    축 안 OR·축끼리 AND인 전체 설명은 title(마우스)과 `목록 기준` 대화상자가 진다. */}
                 <p className="c2l-list-heading" title={filterMeaning}>
                   <span className="c2l-list-count">
                     {listHeadLabel} {listQuery.isError
@@ -2031,7 +2008,7 @@ function OrderPlansWorkspace() {
                   {bulkEndNotice.toLocaleString("ko-KR")}건을 추적 종료했어요 · 추적 필터 &apos;종료&apos;에서 볼 수 있어요
                 </p>
               ) : null}
-              {orderPlanSelection.selectedIds.length > 0 || bulkPending ? <SelectionToolbar
+              <SelectionToolbar
                 className="c2l-selection-toolbar"
                 count={orderPlanSelection.selectedIds.length}
                 data-testid="order-plan-selection-toolbar"
@@ -2045,11 +2022,9 @@ function OrderPlansWorkspace() {
                     ? "목록 선택 상태를 준비하는 중이에요."
                     : !orderPlanSelection.storageAvailable || orderPlanSelection.storageError
                       ? "선택 저장소를 확인하지 못해 단건 추적 경로를 사용해 주세요."
-                      : orderPlanSelection.selectedIds.length === 0
-                        ? "계획을 선택하면 일괄 추적 시작·종료를 쓸 수 있어요."
-                        : orderPlanSelection.selectedIds.length > ORDER_PLAN_BULK_END_MAX_SELECTION
+                      : orderPlanSelection.selectedIds.length > ORDER_PLAN_BULK_END_MAX_SELECTION
                           ? "한 번에 200건까지 종료할 수 있어요. 선택을 줄여 주세요."
-                          : "전체 선택은 현재 페이지의 행만 더해요. 추적 시작은 사유·담당자 확인 창을 거쳐요."}
+                          : ""}
                 actions={(
                   <>
                     {/* M7 ②(ADR-0062 결정 표): 선택 도구 4개를 사전규격과 같은 부품·같은
@@ -2059,8 +2034,9 @@ function OrderPlansWorkspace() {
                       className="interaction-control"
                       type="button"
                       onClick={selectCurrentPage}
-                      disabled={bulkPending || !orderPlanSelection.hydrated || visibleItems.length === 0 || pageFullySelected}
+                      disabled={bulkPending || !orderPlanSelection.hydrated || !orderPlanSelection.storageAvailable || visibleItems.length === 0 || pageFullySelected}
                       aria-label="현재 페이지 전체 선택"
+                      title="현재 페이지 전체 선택"
                     >
                       전체 선택
                     </button>
@@ -2080,7 +2056,8 @@ function OrderPlansWorkspace() {
                     <Button
                       aria-describedby="c2l-selection-action-reason"
                       isDisabled={bulkPending || mutation.isPending || trackingMutation.isPending || !orderPlanSelection.hydrated || !orderPlanSelection.storageAvailable || Boolean(orderPlanSelection.storageError) || orderPlanSelection.selectedIds.length === 0 || orderPlanSelection.selectedIds.length > ORDER_PLAN_BULK_END_MAX_SELECTION}
-                      label="선택한 계획 추적 종료"
+                      aria-label="선택한 계획 추적 종료"
+                      label="추적 종료"
                       onClick={() => setBulkDialogMode("end")}
                       size="sm"
                       variant="secondary"
@@ -2090,13 +2067,14 @@ function OrderPlansWorkspace() {
                       className="interaction-control interaction-control-primary"
                       type="button"
                       disabled={bulkPending || mutation.isPending || trackingMutation.isPending || !orderPlanSelection.hydrated || !orderPlanSelection.storageAvailable || Boolean(orderPlanSelection.storageError) || orderPlanSelection.selectedIds.length === 0}
+                      aria-label="선택 항목 추적 시작"
                       onClick={() => setBulkDialogMode("start")}
                     >
-                      선택 항목 추적 시작
+                      추적 시작
                     </button>
                   </>
                 )}
-              /> : null}
+              />
               {(!orderPlanSelection.storageAvailable || orderPlanSelection.storageError) && orderPlanSelection.hydrated ? (
                 <p className="c2l-selection-storage-warning" role="alert">
                   이 탭의 선택 저장소를 사용할 수 없어 일괄 추적을 사용할 수 없어요. 단건 추적 경로를 사용해 주세요.
@@ -2231,16 +2209,6 @@ function OrderPlansWorkspace() {
             />
         </SplitWorkspace>}
       </WorkspaceFrame>
-
-      {/* 이 목록의 기준(옛 `실행 상태와 표시 규칙`). 기본 화면에서 큰 설명 영역을 없앤 대신 여기서 읽는다. */}
-      <Dialog isOpen={dialog === "runtime"} onOpenChange={(open) => { if (!open) setDialog(null); }} purpose="info" width={640}>
-        <DialogHeader title="이 목록의 기준" onOpenChange={() => setDialog(null)} />
-        <OrderPlanScopeDialogBody
-          isCumulative={isCumulative}
-          listScope={listScope}
-          runLabel={selectedRunLabel}
-        />
-      </Dialog>
 
       {/* 사람 판단 수정. 추적 결정과 다른 요청·다른 저장이며 다음 건으로 이동하지 않는다. */}
       <Dialog isOpen={dialog === "feedback" && selectedItem !== null} onOpenChange={(open) => { if (!open) setDialog(null); }} purpose="form" width={560}>

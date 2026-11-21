@@ -519,16 +519,14 @@ test("LS-04 선택은 두 페이지·새로고침·정렬에 남고 실제 필�
   // 마감 구간은 정렬이 아니라 의미 필터다(ADR-0064 결정 6) — 전환하면 선택을 비운다.
   await page.getByRole("radiogroup", { name: "마감 구간" }).getByRole("radio", { name: /^마감 경과/ }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("deadline_scope")).toBe("passed");
-  // 2026-11-20: 0건이면 일괄 바가 없고 목록 머리 체크박스가 `현재 페이지 전체 선택`이다.
-  await expect(page.locator(".pre-specs-selection-toolbar")).toHaveCount(0);
-  await expect(page.getByRole("checkbox", { name: "현재 페이지 전체 선택", exact: true })).toBeVisible();
+  await expect(page.locator(".pre-specs-selection-toolbar")).toContainText("선택 0건");
+  await expect(page.getByRole("button", { name: "현재 페이지 전체 선택", exact: true })).toBeVisible();
   await page.locator(".pre-specs-row").first().getByRole("checkbox").check();
   await expect(page.getByText("선택 1건", { exact: true })).toBeVisible();
   await page.getByRole("combobox", { name: "발견 구분" }).click();
   await page.getByRole("option", { name: "발주계획 연계", exact: true }).click();
-  // 2026-11-20: 0건이면 일괄 바가 없고 목록 머리 체크박스가 `현재 페이지 전체 선택`이다.
-  await expect(page.locator(".pre-specs-selection-toolbar")).toHaveCount(0);
-  await expect(page.getByRole("checkbox", { name: "현재 페이지 전체 선택", exact: true })).toBeVisible();
+  await expect(page.locator(".pre-specs-selection-toolbar")).toContainText("선택 0건");
+  await expect(page.getByRole("button", { name: "현재 페이지 전체 선택", exact: true })).toBeVisible();
 });
 
 test("LS-02 native checkbox toggles without changing active row or detail draft", async ({ page }) => {
@@ -549,10 +547,9 @@ test("LS-02 native checkbox toggles without changing active row or detail draft"
   await expect(rows.first()).toHaveAttribute("aria-current", "true");
   await expect(page.locator(".pre-specs-selection-count")).toHaveAttribute("aria-live", "polite");
   await page.getByRole("button", { name: "선택 전체 해제", exact: true }).click();
-  // 2026-11-20: 0건이면 일괄 바가 없고 목록 머리 체크박스가 `현재 페이지 전체 선택`이다.
-  await expect(page.locator(".pre-specs-selection-toolbar")).toHaveCount(0);
-  await expect(page.getByRole("checkbox", { name: "현재 페이지 전체 선택", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "선택 전체 해제", exact: true })).toHaveCount(0);
+  await expect(page.locator(".pre-specs-selection-toolbar")).toContainText("선택 0건");
+  await expect(page.getByRole("button", { name: "현재 페이지 전체 선택", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "선택 전체 해제", exact: true })).toBeDisabled();
 });
 
 test("PN-01 선택 검토는 목록 정렬의 첫 ID를 opaque context로 연다", async ({ page }) => {
@@ -869,8 +866,7 @@ test("LS-08 전체 선택은 현재 페이지만 더하고 다른 페이지 선�
   await page.goto("/pre-specs?sw_only=false");
   const rows = page.locator(".pre-specs-row");
   await expect(rows).toHaveCount(200);
-  // 0건일 때는 목록 머리 체크박스, 1건 이상이면 일괄 바의 같은 이름 단추가 `현재 페이지 전체 선택`이다(2026-11-20).
-  await expect(page.getByRole("checkbox", { name: "현재 페이지 전체 선택", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "현재 페이지 전체 선택", exact: true })).toBeEnabled();
   const selectPage = page.getByRole("button", { name: "현재 페이지 전체 선택", exact: true });
 
   await rows.first().getByRole("checkbox").check();

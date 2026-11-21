@@ -60,7 +60,6 @@ interface ScreenSpec {
    */
   detailHeadPadding: string;
   /** 선택이 없을 때도 선택 도구줄을 그리는가. 발주계획(2026-11-19)·사전규격(2026-11-20)은 1건 이상 골랐을 때만 그린다. */
-  toolbarWhenEmpty?: boolean;
   /** 필터 바 바로 아래, 목록·상세를 감싸는 면. */
   workspace: string;
   listPane: string;
@@ -98,8 +97,7 @@ const screens: ScreenSpec[] = [
     listPane: ".c2l-list-pane",
     listHead: ".c2l-list-head",
     detailHead: ".c2l-detail-head",
-    detailHeadPadding: "28px 32px 0px 32px",
-    toolbarWhenEmpty: false,
+    detailHeadPadding: "12px 16px 8px 16px",
     unifiedFrame: true,
     unifiedListParts: true,
     rowType: { title: ".c2l-row-title", agency: ".c2l-row-agency", size: "16px", agencySize: "14px", titleWeight: "700" },
@@ -111,8 +109,7 @@ const screens: ScreenSpec[] = [
     listPane: ".pre-specs-list-pane",
     listHead: ".pre-specs-list-head",
     detailHead: ".pre-specs-detail-header",
-    detailHeadPadding: "28px 32px 16px 32px",
-    toolbarWhenEmpty: false,
+    detailHeadPadding: "12px 16px 8px 16px",
     unifiedFrame: true,
     unifiedListParts: true,
     rowType: { title: ".pre-specs-row-title", agency: ".pre-specs-row-agency", size: "16px", agencySize: "14px", titleWeight: "700" },
@@ -128,7 +125,7 @@ const screens: ScreenSpec[] = [
     listPane: ".review-split-list",
     listHead: ".review-list-head",
     detailHead: ".review-detail-head",
-    detailHeadPadding: "28px 32px 16px 32px",
+    detailHeadPadding: "12px 16px 8px 16px",
     unifiedFrame: true,
     // 목록은 Astryx `Table`을 유지하고(M1c A안) 묶음 선택이 없어 열 이름 줄·선택
     // 도구줄 부품이 없다. 행 글자 단은 아래 `rowType`이 따로 본다.
@@ -144,7 +141,7 @@ const screens: ScreenSpec[] = [
     listPane: ".review-split-list",
     listHead: ".review-list-head",
     detailHead: ".review-detail-head",
-    detailHeadPadding: "28px 32px 16px 32px",
+    detailHeadPadding: "12px 16px 8px 16px",
     unifiedFrame: true,
     // 목록은 Astryx `Table`을 유지하고(M1c A안) 묶음 선택이 없어 열 이름 줄·선택
     // 도구줄 부품이 없다 — `unifiedListParts`는 켜지 않는다.
@@ -190,7 +187,7 @@ function measure(selectors: Selectors) {
     titleWeight: headingStyle.fontWeight,
     topbarHeight: topbarBox.height,
     topbarPaddingRight: Number.parseFloat(topbarStyle.paddingRight),
-    actionsGap: topbarBox.right - slot.getBoundingClientRect().right,
+    actionsGap: slot.getBoundingClientRect().width ? topbarBox.right - slot.getBoundingClientRect().right : 0,
     crumbCount: document.querySelectorAll(".topbar-crumb").length,
     statusCount: document.querySelectorAll(".topbar-status").length,
 
@@ -274,12 +271,12 @@ function measure(selectors: Selectors) {
   };
 }
 
-test("탐색과 추적 목록 4화면은 두 지원 폭에서 같은 상단바·필터·프레임을 쓴다", async ({ page }) => {
+test("탐색과 추적 목록 4화면은 세 지원 폭에서 같은 상단바·필터·프레임을 쓴다", async ({ page }) => {
   await mockApi(page);
   let background: string | undefined;
   let agencyBackground: string | null | undefined;
 
-  for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
+  for (const viewport of [{ width: 1920, height: 1080 }, { width: 1440, height: 900 }, { width: 1280, height: 800 }]) {
     await page.setViewportSize(viewport);
 
     for (const screen of screens) {
@@ -329,7 +326,7 @@ test("탐색과 추적 목록 4화면은 두 지원 폭에서 같은 상단바·
       expect(metrics.workspaceTop - metrics.canvasTop, `${where} 헤더와 workspace 사이 틈`).toBeCloseTo(0, 0);
       expect(metrics.canvasScroll, `${where} 본문 세로 넘침`).toBeLessThanOrEqual(1);
       expect(metrics.listRatio, `${where} 목록 pane 비율`).toBeCloseTo(0.38, 2);
-      expect(metrics.listHeadPadding, `${where} 목록 머리 여백`).toBe("16px 24px 10px 24px");
+      expect(metrics.listHeadPadding, `${where} 목록 머리 여백`).toBe("8px 16px 8px 16px");
       expect(metrics.detailHeadPadding, `${where} 상세 머리 여백`).toBe(screen.detailHeadPadding);
 
       // 공용 골격으로 옮긴 화면 — 상세 머리가 sticky 부품이고, 발주기관 강조 블록이
@@ -352,16 +349,9 @@ test("탐색과 추적 목록 4화면은 두 지원 폭에서 같은 상단바·
       if (screen.unifiedListParts) {
         expect(metrics.listColumnCount, `${where} 열 이름 칸`).toBe(2);
         expect(metrics.listColumnsPadding, `${where} 열 이름 줄 여백`).toBe("4px 16px 4px 16px");
-        if (screen.toolbarWhenEmpty === false) {
-          // 발주계획·사전규격은 고른 것이 없으면 일괄 바를 그리지 않고 목록 머리 체크박스가 `현재 페이지 전체 선택`을 맡는다.
-          expect(metrics.toolbarCount, `${where} 선택 도구줄`).toBe(0);
-        } else {
-          expect(metrics.toolbarCount, `${where} 선택 도구줄`).toBe(1);
-          // 도구줄 단추의 클릭 대상이 24 CSS px 이상이다.
-          expect(metrics.toolbarButtonMinHeight, `${where} 도구줄 단추 클릭 대상 높이`)
-            .toBeGreaterThanOrEqual(24);
-          expect(metrics.toolbarReasonHeight, `${where} 비활성 사유 줄 높이`).toBeGreaterThan(0);
-        }
+        expect(metrics.toolbarCount, where).toBe(1);
+        expect(metrics.toolbarButtonMinHeight, where).toBe(32);
+        expect(metrics.toolbarReasonHeight, where).toBe(0);
       }
 
       // 목록 행의 두 줄은 화면이 선언한 글자 단을 지킨다.

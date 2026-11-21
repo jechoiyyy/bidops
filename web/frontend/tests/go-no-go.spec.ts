@@ -130,7 +130,7 @@ test("집계와 검색 범위를 밝히고 대기열이 넘치면 받은 범위 
   await expect(input).toHaveAccessibleDescription("Enter로 적용 · 띄어쓰기 무시");
   await input.press("Enter");
   await expect(rows(page)).toHaveCount(1);
-  await expect(page.locator(".gng-filter-context")).not.toContainText("받은 범위 안에서만");
+  await expect(page.locator(".gng-filter-context")).toHaveCount(0);
 
   await input.fill("없는사업");
   await expect(rows(page)).toHaveCount(1);
@@ -207,7 +207,6 @@ test("상세 조회 중·조회 실패·비교 없음·계산 대기를 미결�
 test("완료된 비교가 없으면 결정 화면의 공고 조건 근거로 안내하고 저장을 열지 않는다", async ({ page }) => {
   await openList(page, "?show=all&selected=902");
   await expect(page.getByRole("heading", { name: "변경 비교 계산을 기다리고 있어요" })).toBeVisible();
-  await expect(page.locator(".gng-action-footer")).toContainText("공고 조건을 근거로 기록해요");
   await expect(page.getByRole("button", { name: "공고 조건 검토·결정 열기" })).toBeVisible();
   await expect(page.getByRole("button", { name: "변경 검토·결정 열기" })).toHaveCount(0);
 
@@ -351,11 +350,7 @@ test("화면 제목과 페이지 액션은 상단바에 있고 경로·편집 �
   // 페이지에 남는 제목은 landmark 이름과 h1 → h2 위계를 위한 숨긴 제목 하나다.
   await expect(page.locator("#go-no-go-title")).toHaveClass(/visually-hidden/);
 
-  // `목록 기준`은 상단바 슬롯으로 올라가지만 대화상자는 여전히 이 화면이 연다.
-  const dataAction = topbar.getByRole("button", { name: "목록 기준", exact: true });
-  await expect(dataAction).toBeVisible();
-  await dataAction.click();
-  await expect(page.getByRole("dialog")).toContainText("‘계속 추적’인 사업기회만 최종 Go/No-Go 대상이에요");
+  await expect(topbar.getByRole("button", { name: "목록 기준" })).toHaveCount(0);
 });
 
 test("중복 페이지 머리말 없이 workspace가 화면의 남은 높이를 채운다", async ({ page }) => {
@@ -490,16 +485,6 @@ test("대기열 조회 실패도 분할 골격 안에서 말하고 건수를 0�
   await expect(page.locator(".gng-summary")).toHaveCount(0);
 });
 
-test("목록 기준은 API 경계와 집계 범위를 기본 화면 밖에서 설명한다", async ({ page }) => {
-  await openList(page);
-  await page.getByRole("button", { name: "목록 기준", exact: true }).click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText("‘계속 추적’인 사업기회만 최종 Go/No-Go 대상이에요");
-  await expect(dialog).toContainText("최종 결정 대기열을 한 번 받아 그려요");
-  await expect(dialog).toContainText("입찰공고가 연결되지 않은 사업은 결정할 공고가 없어 전체 보기에만 둬요");
-  await expect(dialog).toContainText("변경 비교를 계산하는 프로그램은 아직 운영에 없어요");
-  await expect(dialog).toContainText("최종 결정 저장은 결정 화면에서만 해요");
-});
 
 // 실패한 것은 결정 대기열이 아니라 **선택한 사업의 비교·결정 상세 조회**다. 대기열을
 // 다시 받아 봐야 실패한 workspace 조회는 그대로 실패로 남는다.

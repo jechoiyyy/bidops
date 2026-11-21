@@ -79,9 +79,9 @@ cd web/frontend && npm run test:pixel      # 기준 이미지 대조 (게이트 
 
 | 층 | 파일 | 폭 | 실패가 뜻하는 것 |
 |---|---|---|---|
-| 의미 | `screen-semantics.spec.ts`와 화면별 spec | 1440px 한 폭 | 화면이 업무 상태를 잘못 말한다 |
-| 구조 | `overflow.spec.ts`, `design-shell.spec.ts` | 1280·1440px 두 폭 | 지원 폭 안에 안 들어가거나 셸 치수가 어긋났다 |
-| 픽셀 | `pixel-screens.spec.ts` | 1440px | 지난 기준선과 화면이 달라졌다 |
+| 의미 | `screen-semantics.spec.ts`와 화면별 spec | 1920×1080 한 폭 | 화면이 업무 상태를 잘못 말한다 |
+| 구조 | `overflow.spec.ts`, `design-shell.spec.ts` | 1920×1080 · 1440×900 · 1280×800 | 표 열 간격, 목록·상세 비율, 본문 여백, 결정 영역 정렬 또는 화면 넘침에 문제가 있다 |
+| 픽셀 | `pixel-screens.spec.ts` | 1440×900 기존 회귀 기준선 | 지난 기준선과 화면이 달라졌다 |
 
 앞의 두 층이 `npm run test:screens`이고 이것이 게이트다. 픽셀 층은 게이트가 아니다 —
 "틀렸다"가 아니라 "달라졌다"를 말하므로, 의도한 변경이면 기준선을 갈아 끼우는 것이 정답이다.

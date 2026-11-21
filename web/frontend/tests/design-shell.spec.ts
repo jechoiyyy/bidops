@@ -279,6 +279,7 @@ test("native compact 셸이 드롭다운·대화상자를 viewport 안에 두고
   await selector.click();
   const listbox = page.getByRole("listbox");
   await expect(listbox).toBeVisible();
+  await listbox.evaluate(async node => { await Promise.all(node.getAnimations({ subtree: true }).map(animation => animation.finished)); });
   const popoverGeometry = await selector.evaluate((trigger) => {
     const panel = [...document.querySelectorAll<HTMLElement>('[role="listbox"]')]
       .find((candidate) => candidate.getBoundingClientRect().width > 0 && candidate.getBoundingClientRect().height > 0);
@@ -328,8 +329,8 @@ test("native compact 셸이 드롭다운·대화상자를 viewport 안에 두고
   await expect(listbox).toBeHidden();
   await expect(selector).toBeFocused();
 
-  await page.goto("/order-plans", { waitUntil: "domcontentloaded" });
-  const dialogTrigger = page.getByRole("button", { name: "목록 기준", exact: true });
+  await page.goto("/pre-specs?workspace=all", { waitUntil: "domcontentloaded" });
+  const dialogTrigger = page.locator(".pre-specs-detail-actions").getByRole("button", { name: "검토 제외", exact: true });
   await expect(dialogTrigger).toBeVisible();
   await dialogTrigger.focus();
   await dialogTrigger.click();

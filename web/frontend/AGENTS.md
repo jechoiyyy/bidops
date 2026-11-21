@@ -111,8 +111,8 @@
   문자열·계약 값·감사 기록에 저장되는 값은 바꾸지 않는다(2026-11-20 일괄 전환).
 - Tailwind `@theme`에 디자인 시스템과 이름이 겹치는 `--color-*`를 추가하지 않는다. `@theme`은 `:root`로 방출돼 `@layer astryx-theme`을 이기므로 테마 값이 조용히 무시된다([engineering-notes.md](../../docs/engineering-notes.md)).
 - 공고 목록과 상세 정보 밀도를 유지한다. 마케팅식 큰 여백, 장식 아이콘, gradient, glass effect를 사용하지 않는다.
-- 긴 한글 제목, 표의 긴 요구사항, keyboard focus, empty/loading/error 상태를 설계한다. 지원
-  데스크톱 검증 폭은 `1280x800`과 `1440x900`이고, 제품 폭은 1280~1920px이다. 모바일·
+- 긴 한글 제목, 표의 긴 요구사항, keyboard focus, empty/loading/error 상태를 설계한다.
+  디자인 검수는 기본 `1920x1080`, 작은 데스크톱 `1440x900`, 최소 노트북 `1280x800`에서 하며, 제품 폭은 1280~1920px이다. 모바일·
   태블릿 레이아웃을 만들지 않는다(ADR-0047). 1280px 미만은 가로 스크롤로 둔다.
 
 ## 검증
@@ -121,7 +121,7 @@
 cd web/frontend
 npm run build              # tsc -b + vite build
 npm run test:contrast      # 테마 대비 게이트 (ADR-0048)
-npm run test:screens       # 화면 게이트 — 의미(한 폭) + 구조(두 폭)
+npm run test:screens       # 화면 게이트 — 의미(한 폭) + 구조(세 폭)
 npm run test:design        # 셸 구조·색·치수만 따로
 npm run test:pixel         # 기준 이미지 대조 — 게이트 아님
 ```

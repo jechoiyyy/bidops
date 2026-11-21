@@ -14,13 +14,11 @@ import { useCurrentPageOverview } from "./PageOverviewSection";
 import { DeadlineMark } from "./PreSpecListRow";
 import { api } from "../../lib/api";
 import { formatDateTime } from "../../lib/format";
-import { TERM_SENSE } from "../../lib/glossary";
 import { readPreSpecLifecycle } from "../../lib/noticeLifecycle";
 import { formatPreSpecCaution, preSpecCautions } from "../../lib/preSpecCautions";
 import { preSpecDetailUrl } from "../../lib/preSpecSelectionReview";
 import {
   exactBudget,
-  nextActionLabel,
   originLabel,
   titleOf,
   trackingLabel,
@@ -180,7 +178,6 @@ export function PreSpecDetail({
   // 목록과 상세가 서로 다른 우선순위를 계산하지 않도록 서버가 정한
   // nullable next_action 코드 하나만 표시한다. null은 추가 행동이 없다는
   // 뜻이며 실패·마감 문구를 클라이언트에서 새로 만들지 않는다.
-  const serverNextAction = nextActionLabel(item.next_action);
   const openDetailHref = (event: MouseEvent) => {
     if (!onOpenDetail || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
@@ -330,10 +327,6 @@ export function PreSpecDetail({
         />
 
         <div className="pre-specs-action-row">
-          <div className="pre-specs-next-action">
-            <span>{TERM_SENSE.nextActionGuide}</span>
-            <strong>{serverNextAction ?? "없음"}</strong>
-          </div>
           {onReviewExclusion ? <Button size="sm" variant="secondary"
             label={item.review_exclusion_status === "excluded" ? "검토 목록으로 복원" : "검토 제외"}
             onClick={onReviewExclusion} /> : null}

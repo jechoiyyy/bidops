@@ -261,3 +261,88 @@
   --bo-type-body: 14px;
   --bo-type-caption: 12px;
 }
+
+/* 레코드 목록은 같은 분할선과 조작 높이를 사용한다. */
+.app-shell :is(.c2l-page, .pre-specs-page, .opportunities-page, .gng-page),
+.app-shell:has(:is(.c2l-page, .pre-specs-page, .opportunities-page, .gng-page)) .workspace-filters {
+  --bo-k-control-row: 32px;
+  --bo-k-control-input: 32px;
+  --bo-k-control-tab: 32px;
+  --bo-k-control-primary: 36px;
+}
+
+.app-shell .page-canvas[data-canvas="flush"] :is(.c2l-page, .pre-specs-page, .opportunities-page, .gng-page) {
+  --record-inset: var(--spacing-4);
+}
+
+.app-shell .page-canvas[data-canvas="flush"] :is(.c2l-page, .pre-specs-page, .opportunities-page, .gng-page) .review-split-list {
+  flex: 0 0 38%;
+  min-width: 0;
+}
+
+.app-shell .page-canvas[data-canvas="flush"] :is(.c2l-page, .pre-specs-page, .opportunities-page, .gng-page) .review-list-head {
+  padding: var(--spacing-2) var(--record-inset);
+}
+
+.app-shell .page-canvas[data-canvas="flush"] :is(.c2l-detail-head, .pre-specs-detail-header, .opportunity-detail-head, .gng-detail-head) {
+  padding: var(--spacing-3) var(--record-inset) var(--spacing-2);
+}
+
+.app-shell .page-canvas[data-canvas="flush"] :is(.c2l-detail-scroll, .pre-specs-detail-scroll, .opportunity-detail-scroll, .gng-detail-scroll, .pre-specs-detail-actions, .opportunity-action-footer, .gng-action-footer, .c2l-detail-actions) {
+  padding-inline: var(--record-inset);
+}
+
+.app-shell .page-canvas :is(.c2l-page, .pre-specs-page) .review-selection-toolbar {
+  gap: var(--spacing-1);
+  padding: 0 var(--record-inset) var(--spacing-2);
+  border: 0;
+}
+
+.app-shell .page-canvas :is(.c2l-page, .pre-specs-page) .review-selection-toolbar :is(.astryx-button, .interaction-control) {
+  height: 32px;
+  min-height: 32px;
+  padding-inline: var(--spacing-2);
+  font-size: 13px;
+}
+
+.review-selection-reason:empty {
+  display: none;
+}
+
+.app-shell .page-canvas .pre-specs-page .pre-specs-detail-actions {
+  flex-flow: row wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-1) var(--spacing-2);
+}
+
+.pre-specs-detail-actions > .pre-spec-tracking-decision {
+  flex: 1 1 320px;
+}
+
+.pre-specs-detail-actions .pre-spec-tracking-form.is-inline {
+  grid-template-columns: minmax(120px, 1fr) auto auto;
+}
+
+.pre-specs-detail-actions .ps-decision-bar-actor {
+  justify-self: end;
+}
+
+.app-shell .page-canvas :is(.c2l-page, .pre-specs-page) .review-selection-count {
+  min-width: 0;
+  font-size: var(--bo-k-meta);
+}
+
+.c2l-detail-actions .review-decision-bar-hint:has(.visually-hidden):not(:has([role="status"])) {
+  position: absolute;
+}
+
+
+.app-shell .c2l-page .c2l-detail-actions {
+  padding-block: var(--spacing-2);
+  gap: var(--spacing-2);
+}
+
+.app-shell .c2l-page .c2l-tracking {
+  gap: var(--spacing-1);
+}
