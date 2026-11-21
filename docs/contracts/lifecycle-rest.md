@@ -467,3 +467,8 @@ disabled 이전/다음 버튼을 제공한다.
 - 추적: `계속 추적|보류|종료`, 변경 이력, bid 발견, 사전규격 대비 delta, 알림 delivery 상태.
 - 실행: 자동 연결과 수동 단독 실행이 같은 execution, attempt, artifact, idempotency, audit 계약을 공유한다.
 - 최종 결정: 입찰공고 시점의 사람 `Go/No-Go`를 추적 선택이나 모델 권고와 분리한다.
+
+
+### 사전규격 목록 일괄 추적 시작
+
+`POST /api/opportunities/pre-spec-tracking/bulk-start`는 중복 없는 사전규격 ID 1~200개(`notice_ids`), 담당자(`actor_name`), 공통 사유(`reason`)를 받는다. 현재 확정 연결된 사업기회의 상태가 미선택일 때만 계속 추적으로 저장한다. 같은 사업기회에 연결된 여러 공고는 감사 이벤트 하나를 공유한다. 응답의 `items`는 요청 순서대로 `notice_id`와 `outcome`을 반환한다. `started`는 이번 요청에서 추적 시작, `already_decided`는 기존 결정 유지, `unavailable`은 사전규격 또는 유효한 연결을 찾을 수 없는 경우다. 결정과 감사 이벤트는 한 트랜잭션에 저장하고 단건과 같은 후속 적재·추적 변경 처리를 수행한다.

@@ -1346,6 +1346,12 @@ export const api = {
     offset?: number;
   }) => request<NoticeListResponse>(`/notices${query(params)}`),
 
+  startSelectedPreSpecs: (body: Omit<PreSpecReviewExclusionRequest, "status">) =>
+    request<{ items: { notice_id: number; outcome: "started" | "already_decided" | "unavailable" }[] }>(
+      "/opportunities/pre-spec-tracking/bulk-start",
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+    ),
+
   changePreSpecReviewExclusions: (body: PreSpecReviewExclusionRequest) =>
     request<PreSpecReviewExclusionResponse>("/pre-specs/review-exclusions", {
       method: "POST",

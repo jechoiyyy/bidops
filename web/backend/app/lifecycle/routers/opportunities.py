@@ -9,12 +9,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ...core.config import get_settings
 from ...core.db import get_db
 from .. import extension_registry
 from ..ingest.loader import tracked_backfill
+from ..models import Notice, Opportunity, OpportunityLink
+from ..schemas.pre_specs import PreSpecSelectionRequest, PreSpecBulkTrackingResponse, PreSpecBulkTrackingResult
 from ..schemas.opportunity_activity import (
     ACTIVITY_LIMIT_DEFAULT,
     ACTIVITY_LIMIT_MAX,
@@ -191,7 +194,7 @@ def _notify_tracking_decision(session: Session, opportunity_id: int) -> None:
         )
 
 
-def _backfill_tracked_records(session: Session, opportunity_id: int) -> None:
+def _backfill_tracked_records(session: Session, opportunity_ids: list[int]) -> None:
     """Load index-only records this newly tracked opportunity names (spec §5).
 
     Runs after the tracking decision is committed and commits separately; a
@@ -202,7 +205,7 @@ def _backfill_tracked_records(session: Session, opportunity_id: int) -> None:
         tracked_backfill(
             session,
             runs_root=get_settings().bidops_root / "data" / "runs",
-            opportunity_ids=[opportunity_id],
+            opportunity_ids=opportunity_ids,
         )
         session.commit()
     except Exception as error:
@@ -448,6 +451,51 @@ def decide_candidate_link(
         return _unexpected()
 
 
+@router.post("/pre-spec-tracking/bulk-start", response_model=PreSpecBulkTrackingResponse)
+def start_selected_pre_specs(
+    payload: PreSpecSelectionRequest, session: Session = Depends(get_db),
+) -> PreSpecBulkTrackingResponse | JSONResponse:
+    try:
+        actor = validate_actor(payload.actor_name)
+    except BundleServiceError as error:
+        return _error_response(error)
+    rows = session.execute(
+        select(Notice.id, Opportunity)
+        .join(OpportunityLink, OpportunityLink.notice_id == Notice.id)
+        .join(Opportunity, Opportunity.id == OpportunityLink.opportunity_id)
+        .where(
+            Notice.id.in_(payload.notice_ids), Notice.source_type == "pre_spec",
+            OpportunityLink.stage == "notice",
+            opportunity_integrity.authoritative_link_predicate(OpportunityLink),
+            opportunity_integrity.active_opportunity_predicate(Opportunity),
+        )
+        .order_by(Opportunity.id, Notice.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).all()
+    outcomes = {}
+    started = set()
+    now = datetime.now(UTC)
+    for notice_id, owner in rows:
+        if owner.tracking_status == "미선택":
+            opportunity_tracking.set_tracking_status(
+                session, owner, status="계속 추적", reason=payload.reason,
+                selected_by=actor, selected_at=now,
+            )
+            started.add(owner.id)
+        outcomes[notice_id] = "started" if owner.id in started else "already_decided"
+
+    session.commit()
+    if started:
+        _backfill_tracked_records(session, sorted(started))
+    for owner_id in sorted(started):
+        _notify_tracking_decision(session, owner_id)
+    return PreSpecBulkTrackingResponse(items=[
+        PreSpecBulkTrackingResult(notice_id=key, outcome=outcomes.get(key, "unavailable"))
+        for key in payload.notice_ids
+    ])
+
+
 @router.patch("/{opportunity_id}/tracking-status", response_model=OpportunityDetailResponse)
 def update_tracking_status(
     opportunity_id: int,
@@ -471,7 +519,7 @@ def update_tracking_status(
         session.commit()
         if payload.tracking_status in BACKFILL_TRACKING_STATUSES:
             # Backfill first so the hook below sees any record it loaded.
-            _backfill_tracked_records(session, opportunity_id)
+            _backfill_tracked_records(session, [opportunity_id])
         _notify_tracking_decision(session, opportunity_id)
         return opportunity_queries.get_opportunity(session, opportunity_id, now=_request_now())
     except (opportunity_tracking.OpportunityTrackingError, BundleServiceError) as error:

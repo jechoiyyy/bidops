@@ -135,7 +135,7 @@ test("200건 초과 선택은 전송을 막고 선택 축소를 안내", async (
   await page.getByRole('navigation', { name: '사전규격 목록 페이지' }).getByRole('button', { name: '다음', exact: true }).click();
   await row(page, 1191).getByRole('checkbox').check();
   await expect(page.getByRole('button', { name: '검토 목록에서 제외' })).toBeDisabled();
-  await expect(page.getByText('한 번에 200건까지 제외할 수 있어요. 선택을 줄여 주세요.')).toBeVisible();
+  await expect(page.getByText('한 번에 200건까지 일괄 처리할 수 있어요. 선택을 줄여 주세요.')).toBeVisible();
   expect(requests).toHaveLength(0);
 });
 
@@ -233,3 +233,36 @@ test("제외 기록은 목록 행·우측 상세·상세 페이지에 누가·�
   await page.getByRole("link", { name: "상세 페이지 열기 →" }).click();
   await expect(page.locator(".ps-record-exclusion-note")).toContainText("검증 담당자 · 09.21 · 타 부서 소관");
 });
+
+for (const [width, height] of [[1920, 1080], [1440, 900], [1280, 800]]) {
+  test(`선택한 공고 일괄 추적 시작 및 미연결 선택 유지 ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await setup(page);
+    await page.route("**/api/opportunities/pre-spec-tracking/bulk-start", async route => {
+      expect(route.request().postDataJSON()).toEqual({
+        notice_ids: [991, 992, 993], actor_name: "검토자", reason: "후속 입찰공고 확인",
+      });
+      await route.fulfill({ json: { items: [
+        { notice_id: 991, outcome: "started" }, { notice_id: 992, outcome: "already_decided" },
+        { notice_id: 993, outcome: "unavailable" },
+      ] } });
+    });
+    await page.goto("/pre-specs");
+    const action = page.getByRole("button", { name: "일괄 추적 시작" });
+    await expect(action).toBeDisabled();
+    await page.getByRole("button", { name: "현재 페이지 전체 선택" }).click();
+    await expect(action).toBeInViewport();
+    await action.click();
+    const dialog = page.getByRole("dialog", { name: "선택한 사전규격 추적 시작" });
+    const save = dialog.getByRole("button", { name: "3건 추적 시작" });
+    await expect(save).toBeDisabled();
+    await dialog.getByRole("textbox", { name: /^담당자/ }).fill("검토자");
+    await dialog.getByRole("combobox").click();
+    await page.getByRole("option", { name: "후속 입찰공고 확인" }).click();
+    await expect(save).toBeInViewport();
+    await save.click();
+    await expect(page.getByText("추적 시작 1건 · 기존 결정 유지 1건 · 연결 확인 필요 1건")).toBeVisible();
+    await expect(row(page, 993).getByRole("checkbox")).toBeChecked();
+    await expect(page.locator(".pre-specs-selection-toolbar")).toContainText("선택 1건");
+  });
+}
