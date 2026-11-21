@@ -9,6 +9,9 @@ export interface EngineEvidence {
   repaired?: boolean | null;
   locations?: { file: string; file_sha256: string; page: number; start: number; end: number }[];
   location_status: "exact" | "ambiguous" | "unavailable";
+  /** 원문 블록 위치(엔진 f69f8cf부터). 쪽을 대조할 PDF가 없어도 인용이 놓인 블록을 가리킨다. 옛 응답에는 없다. */
+  block_locations?: { file: string; file_sha256: string; block_idx: number; start: number; end: number }[];
+  block_location_status?: "exact" | "ambiguous" | "unavailable";
 }
 /** `analysis.source_evidence`(BidOps가 덧붙인 검증된 인용의 원문 블록 위치). `evidence_path`는 `/fits/3/evidence`꼴이다. */
 export interface EngineSourceEvidence {
@@ -60,6 +63,10 @@ export interface EngineConfirmRequest {
   affects: string[];
   blocking: boolean;
   completion: string;
+  /** 요청의 목적(엔진 f69f8cf부터). 추적 판단용·점수 추정용·수행 확인용을 엔진이 구분한다. 옛 응답에는 없다. */
+  purpose?: "decision" | "scoring" | "execution" | null;
+  /** 지금 사내에서 확인을 시작할 수 있는지, 새 분석 입력이 있어야 하는지. 근거가 없으면 `null`이다. */
+  availability?: "check_now" | "awaiting_input" | null;
 }
 export interface EngineProvisionalCondition {
   id: string;
@@ -99,7 +106,7 @@ export interface EngineAnalysis {
     action: string | null;
     unknown_fields: string[];
   }[];
-  fits: { req_id: string; fit: "FULL" | "PARTIAL" | "GAP" | "UNKNOWN"; rationale: string; gap_action: string | null; evidence: EngineEvidence | null; evidence_portfolio_ids?: string[] }[];
+  fits: { req_id: string; fit: "FULL" | "PARTIAL" | "GAP" | "UNKNOWN"; rationale: string; gap_action: string | null; evidence: EngineEvidence | null; evidence_portfolio_ids?: string[]; /** 원문에 표기된 필수(true)·선택(false). 표기가 없으면 `null`, 옛 응답에는 없다. */ mandatory?: boolean | null }[];
   data_to_confirm: { field: string; why: string }[];
   /** 아래는 원본 Analysis에 있고 사전규격 상세 분석 완료 화면(mock 빌드 전용)이 읽는다. 옛 응답·fixture에는 없을 수 있다. */
   risks?: EngineRisk[];

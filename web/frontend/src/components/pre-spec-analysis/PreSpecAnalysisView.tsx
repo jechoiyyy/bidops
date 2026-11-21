@@ -65,6 +65,26 @@ function evidencePage(analysis: EngineAnalysis, path: string, evidence: EngineEv
   return analysis.source_evidence?.find((item) => item.evidence_path === path && item.page !== null)?.page ?? null;
 }
 
+/**
+ * 인용이 원문 어디에 있는지: 쪽 → 엔진의 원문 블록 위치 → BidOps `source_evidence`의 같은 경로 → 없음(`null`).
+ * 블록 위치는 "어느 쪽"을 말하지 않으므로 쪽 번호로 바꿔 적지 않고, 후보가 여럿이면 그 수를 그대로 알린다.
+ */
+function evidencePlace(analysis: EngineAnalysis, path: string, evidence: EngineEvidence | null | undefined): string | null {
+  const page = evidencePage(analysis, path, evidence);
+  if (page !== null) return `${page}쪽`;
+  const blocks = evidence?.block_locations ?? [];
+  if (blocks.length === 1) return "원문 위치 확인";
+  if (blocks.length > 1) return `위치 후보 ${blocks.length}곳`;
+  const source = analysis.source_evidence?.filter((item) => item.evidence_path === path) ?? [];
+  if (source.length === 1 && source[0].location_status === "exact") return "원문 위치 확인";
+  if (source.length > 0) return source.length > 1 ? `위치 후보 ${source.length}곳` : "위치 후보 여러 곳";
+  return null;
+}
+
+const AVAILABILITY_LABEL: Record<string, string> = { check_now: "지금 확인 가능", awaiting_input: "새 분석 입력 필요" };
+/** 옛 응답의 확인 요청 제목은 회사 필드 키(`company.founded`)다. 그런 값만 코드 글꼴로 보인다. */
+const FIELD_KEY = /^[a-z_][a-z0-9_]*([.[][^\s]*)?$/;
+
 function pageLabel(page: number | null, missing = "쪽 정보 없음"): string {
   return page === null ? missing : `${page}쪽`;
 }
@@ -138,6 +158,11 @@ export function PreSpecAnalysisSections({ run }: { run: EngineRun }) {
   const requests = analysis.review_actions?.requests ?? [];
   const planRequests = requests.filter((request) => request.kind === "execution" || request.kind === "notice");
   const companyRequests = requests.filter((request) => request.kind === "company");
+  // 엔진이 목적을 붙인 응답에서는 추적 판단에 쓰이는 회사 확인을 접지 않는다. 목적이 없는 옛 응답은 지금처럼 모두 접는다.
+  const decisionCompanyRequests = companyRequests.filter((request) => request.purpose === "decision");
+  const otherCompanyRequests = companyRequests.filter((request) => request.purpose !== "decision");
+  const todoCount = conditions.length + planRequests.length + decisionCompanyRequests.length;
+  const mandatoryKnown = fits.filter((fit) => fit.mandatory === true || fit.mandatory === false).length;
   const coverage = provisional?.fit_coverage ?? null;
 
   const gateCount = (verdict: string) => gates.filter((gate) => gate.verdict === verdict).length;
@@ -182,7 +207,7 @@ export function PreSpecAnalysisSections({ run }: { run: EngineRun }) {
   const sectionLinks: [string, string, number | null][] = [
     ["pa-summary", "요약", null],
     ["pa-gates", "자격 조건", gates.length],
-    ["pa-todos", "확인할 일", conditions.length + planRequests.length],
+    ["pa-todos", "확인할 일", todoCount],
     ["pa-reqs", "요구사항", fits.length],
     ["pa-risks", "리스크", risks.length],
     ["pa-terms", "인력·계약", null],
@@ -207,7 +232,7 @@ export function PreSpecAnalysisSections({ run }: { run: EngineRun }) {
     if (!selectedRow) return null;
     const { fit, index } = selectedRow;
     const [fitText, fitTone] = tone(FIT_LABEL, fit.fit);
-    const page = evidencePage(analysis, `/fits/${index}/evidence`, fit.evidence);
+    const place = evidencePlace(analysis, `/fits/${index}/evidence`, fit.evidence);
     const portfolio = fit.evidence_portfolio_ids;
     return (
       <aside className={`pa-ev is-${mode}`} aria-label={`${fit.req_id} 근거`} id="pa-ev">
@@ -220,7 +245,7 @@ export function PreSpecAnalysisSections({ run }: { run: EngineRun }) {
         {fit.evidence ? <blockquote>{fit.evidence.quote}</blockquote> : <p className="pa-muted">연결된 원문 근거가 없어요.</p>}
         <p className="pa-cap">
           {joinFacts([
-            pageLabel(page),
+            place ?? "쪽 정보 없음",
             fit.evidence ? (fit.evidence.verified === null ? "인용 검증 대기" : fit.evidence.verified ? "인용 검증됨" : "인용 검증 실패") : null,
           ])}
         </p>
@@ -255,7 +280,10 @@ export function PreSpecAnalysisSections({ run }: { run: EngineRun }) {
           const portfolio = fit.evidence_portfolio_ids;
           return (
             <tr key={`${index}:${fit.req_id}`} className={fit.req_id === selected ? "is-selected" : undefined}>
-              <td className="pa-col-id">{fit.req_id}</td>
+              <td className="pa-col-id">
+                {fit.req_id}
+                {fit.mandatory === true ? <span className="pa-sub">필수</span> : fit.mandatory === false ? <span className="pa-sub">선택</span> : null}
+              </td>
               <td className="pa-quote">{fit.evidence?.quote ?? <span className="pa-muted">원문 발췌 없음</span>}</td>
               <td><Tag label={fitText} tone={fitTone} /></td>
               {sideOpen ? null : <td>{portfolio === undefined ? <span className="pa-muted">미확인</span> : portfolio.length ? `회사 실적 ${portfolio.length}건` : <span className="pa-muted">근거 없음</span>}</td>}
@@ -424,7 +452,7 @@ export function PreSpecAnalysisSections({ run }: { run: EngineRun }) {
       {/* 4. 확인할 일 */}
       <section id="pa-todos" className="ps-card ps-sec pa-sec" aria-labelledby="pa-todos-title">
         <div className="ps-sec-head">
-          <h2 id="pa-todos-title" className="ps-h-sec">확인할 일 <span className="ps-cnt">{conditions.length + planRequests.length}건</span></h2>
+          <h2 id="pa-todos-title" className="ps-h-sec">확인할 일 <span className="ps-cnt">{todoCount}건</span></h2>
           <p className="pa-sec-meta">추적 판단에 영향을 주는 것부터</p>
         </div>
         <h3 className="pa-sub-title">추적 판단을 바꾸는 확인 {conditions.length}건</h3>
@@ -448,18 +476,36 @@ export function PreSpecAnalysisSections({ run }: { run: EngineRun }) {
               {planRequests.map((request) => (
                 <tr key={request.id}>
                   <td className="pa-col-title"><strong>{request.title}</strong>{request.kind === "notice" ? <span className="pa-sub">공고 원문 확인</span> : null}</td>
-                  <td>{request.why}</td>
+                  <td>{request.why}{request.availability ? <span className="pa-sub">{AVAILABILITY_LABEL[request.availability] ?? request.availability}</span> : null}</td>
                   <td className="pa-col-end">{request.blocking ? <Tag label="결정 전 확인" tone="warn" /> : null}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         ) : <p className="pa-muted">수행 방안 확인 요청이 없어요.</p>}
-        {companyRequests.length > 0 ? (
+        {decisionCompanyRequests.length > 0 ? (
+          <>
+            <h3 className="pa-sub-title">회사 자료로 확인 {decisionCompanyRequests.length}건</h3>
+            <table className="pa-table" data-testid="pa-company-decision">
+              <tbody>
+                {decisionCompanyRequests.map((request) => (
+                  <tr key={request.id}>
+                    <td className="pa-col-title"><strong>{request.title}</strong></td>
+                    <td>{request.why}{request.availability ? <span className="pa-sub">{AVAILABILITY_LABEL[request.availability] ?? request.availability}</span> : null}</td>
+                    <td className="pa-col-end">{request.blocking ? <Tag label="결정 전 확인" tone="warn" /> : null}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        ) : null}
+        {otherCompanyRequests.length > 0 ? (
           <details className="pa-fold">
-            <summary>회사 자료 확인 {companyRequests.length}건 보기</summary>
+            <summary>{decisionCompanyRequests.length > 0 ? "그 밖의 회사 자료 확인" : "회사 자료 확인"} {otherCompanyRequests.length}건 보기</summary>
             <ul className="pa-field-list">
-              {companyRequests.map((request) => <li key={request.id}><code>{request.title}</code></li>)}
+              {otherCompanyRequests.map((request) => (
+                <li key={request.id}>{FIELD_KEY.test(request.title) ? <code>{request.title}</code> : request.title}</li>
+              ))}
             </ul>
           </details>
         ) : null}
@@ -486,8 +532,12 @@ export function PreSpecAnalysisSections({ run }: { run: EngineRun }) {
           <div className="pa-req-table-wrap">{fitTable}</div>
           {sideOpen ? evidencePanel("side") : null}
         </div>
-        {/* 원본 Analysis의 요구사항 대응에는 요구사항 이름·필수 여부가 없다. 지어내지 않고 그 사실을 적는다. */}
-        <p className="pa-cap">엔진 결과에 요구사항 이름과 필수 여부가 없어 원문 발췌로 요구를 보여요.</p>
+        {/* 원본 Analysis의 요구사항 대응에는 요구사항 이름이 없다. 필수 여부는 원문에 표기된 건만 온다. 지어내지 않고 그 사실을 적는다. */}
+        <p className="pa-cap">
+          {mandatoryKnown > 0
+            ? `엔진 결과에 요구사항 이름이 없어 원문 발췌로 요구를 보여요. 필수·선택은 원문에 표기된 ${mandatoryKnown}건만 표시해요.`
+            : "엔진 결과에 요구사항 이름과 필수 여부가 없어 원문 발췌로 요구를 보여요."}
+        </p>
         {drawerHost ? createPortal(
           <div className="pa-ev-drawer" style={{ bottom: footerHeight }}>{evidencePanel("drawer")}</div>,
           drawerHost,
