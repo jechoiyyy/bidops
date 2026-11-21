@@ -23,6 +23,8 @@ from bid_deep_engine.analysis.schemas import (
     Analysis,
     Evidence,
     LocationStatus,
+    RequirementFit,
+    SourceBlockLocation,
     SourceLocation,
     iter_evidence,
 )
@@ -418,18 +420,90 @@ def locate_model_evidence[ModelT: BaseModel](
     model: ModelT,
     bundle: NoticeBundle | None,
     raws: Iterable[RawDoc] | Mapping[str, RawDoc],
+    *,
+    document: RfpDocument | None = None,
 ) -> ModelT:
-    """모델의 모든 Evidence(충돌 포함)를 현재 raw 캐시로 위치 확인한 복사본."""
+    """현재 raw 캐시에서 검증된 인용에 물리 쪽과 원문 블록 위치를 붙인다."""
     result = model.model_copy(deep=True)
     raw_list = _raw_documents(raws)
+    requirements = {} if document is None else {req.id: req for req in document.requirements}
+    primary = (
+        None
+        if document is None
+        else next((raw for raw in raw_list if raw.format == document.primary_format), None)
+    )
+    sections = {} if document is None else {sec.id: sec for sec in document.sections}
+    table_blocks = {} if primary is None else {t.id: t.block_idx for t in primary.tables}
+    fits: list[RequirementFit] = []
+    if isinstance(result, Analysis):
+        fits = result.fits
+    elif isinstance(result, RequirementFit):
+        fits = [result]
+    fit_blocks: dict[int, int] = {}
+    for fit in fits:
+        requirement = requirements.get(fit.req_id)
+        if document is not None:
+            fit.mandatory = None if requirement is None else requirement.mandatory
+        if fit.evidence is not None and requirement and requirement.table_id in table_blocks:
+            fit_blocks[id(fit.evidence)] = table_blocks[requirement.table_id]
+
+    block_source = None
+    if bundle is not None and primary is not None and len(primary.source_paths) == 1:
+        files, _ = _valid_source_files(bundle)
+        candidate = files.get(primary.source_paths[0])
+        if candidate is not None and candidate.format == primary.format:
+            block_source = candidate
+    pages_available = bool(bundle is not None and _physical_pages(bundle, raw_list)[0])
+
     for evidence in iter_evidence(result, include_conflicts=True):
-        located = (
-            locate_evidence(evidence, bundle, raw_list)
-            if bundle is not None
-            else evidence.model_copy(update={"locations": [], "location_status": "unavailable"})
-        )
-        evidence.locations = list(located.locations)
-        evidence.location_status = located.location_status
+        evidence.locations = []
+        evidence.location_status = "unavailable"
+        evidence.block_locations = []
+        evidence.block_location_status = "unavailable"
+        if document is None:
+            if bundle is not None:
+                located = locate_evidence(evidence, bundle, raw_list)
+                evidence.locations = located.locations
+                evidence.location_status = located.location_status
+            continue
+
+        evidence.page = None
+        if evidence.repaired is True:
+            evidence.verified = False
+        if evidence.verified is not True:
+            continue
+
+        if block_source is not None and primary is not None:
+            section = sections.get(evidence.section_id)
+            fit_block = fit_blocks.get(id(evidence))
+            for block in primary.blocks:
+                if fit_block is not None and block.idx != fit_block:
+                    continue
+                if section and not section.block_start <= block.idx <= section.block_end:
+                    continue
+                evidence.block_locations.extend(
+                    SourceBlockLocation(
+                        file=block_source.path,
+                        file_sha256=block_source.sha256,
+                        block_idx=block.idx,
+                        start=start,
+                        end=end,
+                    )
+                    for start, end in _page_matches(evidence.quote, block.text)
+                )
+            evidence.block_location_status = location_status(len(evidence.block_locations))
+            if primary.format != "pdf" and not evidence.block_locations:
+                evidence.verified = False
+                continue
+
+        if pages_available and bundle is not None:
+            evidence.locations, evidence.location_status = resolve_locations(
+                evidence.quote, bundle, raw_list
+            )
+            if evidence.location_status == "exact":
+                evidence.page = evidence.locations[0].page
+            if primary is not None and primary.format == "pdf" and not evidence.locations:
+                evidence.verified = False
     return result
 
 

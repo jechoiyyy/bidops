@@ -19,6 +19,7 @@ from typing import Any, Literal
 
 from pydantic import TypeAdapter, ValidationError
 
+from bid_deep_engine.analysis.evidence import EVIDENCE_LOCATION_FIELDS
 from bid_deep_engine.analysis.gates import resolve_as_of
 from bid_deep_engine.analysis.provenance import (
     canonical_hash,
@@ -56,7 +57,7 @@ from bid_deep_engine.analysis.schemas import (
 )
 from bid_deep_engine.analysis.scoring import score_request_exclusion_reason
 from bid_deep_engine.company.hints import hint_for
-from bid_deep_engine.company.provenance import DECISION_LEVELS, CompanyEvidenceView
+from bid_deep_engine.company.provenance import DECISION_LEVELS, CompanyEvidenceView, parse_canonical_path
 
 _KIND_ORDER = {"company": 0, "notice": 1, "execution": 2}
 # REV-02 reasons whose fix is regenerating a stage input (missing/stale/legacy stage output).
@@ -77,6 +78,61 @@ _SCHEDULE_PREPARATIONS = (
     ("eval_date", "평가일"),
     ("kickoff", "착수일"),
 )
+_FIELD_TITLES = {
+    "company": "회사 기본 정보",
+    "company.region": "회사 소재지",
+    "company.founded": "회사 창업일",
+    "company.incorporated": "법인 설립일",
+    "company.employees": "정규직 인원",
+    "registrations": "회사 등록·인증",
+    "registrations.g2b": "나라장터 입찰참가자격 등록",
+    "registrations.g2b.industry_codes": "나라장터 등록 업종 코드",
+    "registrations.sw_business_report": "SW사업자 신고",
+    "registrations.sme_certificate": "중소기업확인서",
+    "registrations.direct_production": "직접생산확인증명서",
+    "registrations.credit_rating": "기업신용평가등급",
+    "registrations.credit_rating.grade": "기업신용평가등급",
+    "registrations.gs_cert": "GS인증",
+    "registrations.tax_delinquency": "국세·지방세 체납 여부",
+    "registrations.insolvency": "부도·파산·회생 여부",
+    "people": "보유 인력",
+    "people.headcount_by_grade": "기술자 등급별 인원",
+    "people.roles": "직군별 투입 인원",
+    "people.roles.pm_capable": "PM 투입 가능 인원",
+    "people.roles.web_designer_5y_plus": "경력 5년 이상 웹디자이너 인원",
+    "people.roles.security": "보안 담당 인원",
+    "people.onsite_capacity": "상주 가능 지역·인원",
+    "people.certifications": "자격증별 보유 인원",
+    "people.trainings": "교육 이수 인원",
+    "people.trainings.sw_security_diagnostician": "SW보안약점진단원 교육 이수 인원",
+    "people.trainings.sw_test_expert": "SW테스트전문가 교육 이수 인원",
+    "capabilities": "회사 수행 역량",
+    "capabilities.cms_experience": "상용 CMS 유지보수 경험",
+    "capabilities.commercial_sw_experience": "상용 SW 운영 경험",
+    "capabilities.egov_framework_experience": "전자정부표준프레임워크 적용 경험",
+    "capabilities.web_accessibility_experience": "웹 접근성 대응 경험",
+    "capabilities.tech_stack": "보유 기술 스택",
+    "policy": "회사 참여 기준",
+    "policy.seoul_resident_ok": "서울 상주 사업 수용 여부",
+    "policy.default_bid_mode": "단독·공동수급 기본 방침",
+    "policy.min_contract_amount_krw": "최소 계약 금액",
+    "policy.target_gross_margin_pct": "목표 매출총이익률",
+    "portfolio": "평가 대상 수행 실적 목록",
+    "portfolio.completed": "수행 완료 여부",
+    "portfolio.period": "수행 기간",
+    "portfolio.period.start": "수행 시작일",
+    "portfolio.period.end": "수행 종료일",
+    "portfolio.amount_krw": "수행 실적 금액",
+    "portfolio.evidence": "수행 실적 증빙",
+    "portfolio.client": "수행 실적 발주기관",
+    "portfolio.type": "수행 실적 유형",
+}
+_FIELD_PART_TITLES = {
+    "valid_until": "유효기간",
+    "classification": "확인서 분류",
+    "grade": "등급",
+    "registered": "등록 여부",
+}
 FactsArtifact = Literal["facts.json", "analysis.json"]
 ActionSource = Literal["code", "llm", "legacy"]
 
@@ -195,7 +251,7 @@ def _preparation_id(
 
 def _evidence_identity(evidence: Evidence) -> tuple[Any, ...]:
     """Compare source evidence conservatively while ignoring resolver-owned locations."""
-    raw = evidence.model_dump(mode="json", exclude={"locations", "location_status"})
+    raw = evidence.model_dump(mode="json", exclude=EVIDENCE_LOCATION_FIELDS)
     return tuple(raw[name] for name in raw)
 
 
@@ -504,6 +560,31 @@ def _display_title(field: str, why: str) -> str:
     return field.strip() or why
 
 
+def _company_title(path: str) -> str:
+    parts = parse_canonical_path(path)
+    fields = [name for name, _ in parts]
+    suffix = []
+    while ".".join(fields) not in _FIELD_TITLES:
+        suffix.insert(0, _FIELD_PART_TITLES.get(fields.pop(), "세부 정보"))
+        if not fields:
+            return "회사 기록 확인"
+    identifiers = [identifier for _, identifier in parts if identifier is not None]
+    return " · ".join([_FIELD_TITLES[".".join(fields)], *identifiers, *dict.fromkeys(suffix)])
+
+
+def _notice_title(path: str) -> str:
+    parts = path.removeprefix("facts#/").split("/")
+    if len(parts) == 2 and parts[0] == "schedule":
+        return dict(_SCHEDULE_PREPARATIONS).get(parts[1], "공고 일정 확인")
+    return {
+        "project": "발주 사업 정보 확인",
+        "eligibility": "공고 참가자격 확인",
+        "evaluation": "공고 평가기준 확인",
+        "staffing": "공고 인력 조건 확인",
+        "contract_terms": "공고 계약 조건 확인",
+    }.get(parts[0], "공고 원문 확인")
+
+
 def _classify(
     item: DataToConfirm,
     company: CompanyEvidenceView,
@@ -588,6 +669,19 @@ def _blocking(
         str(ref) for reason in reasons for ref in reason.get("refs", []) if isinstance(ref, str)
     }
     return bool(set(affects) & reason_refs)
+
+
+def _request_purpose_and_availability(kind: str, members: Sequence[_Candidate]):
+    sources = {cause.source for member in members for cause in member.causes}
+    if "readiness" in sources:
+        return "decision", "awaiting_input"
+    if "gate" in sources:
+        return "decision", "check_now" if kind == "company" else None
+    if sources == {"score"}:
+        return "scoring", "check_now" if kind == "company" else None
+    if "pdf" in sources:
+        return "decision", None
+    return ("execution", None) if kind == "execution" else (None, None)
 
 
 def build_confirmation_projection(
@@ -689,16 +783,24 @@ def build_confirmation_projection(
         first = members[0]
         fields = _dedup_strings([field for member in members for field in member.fields])
         affects = _dedup_strings([ref for member in members for ref in member.affects])
+        purpose, availability = _request_purpose_and_availability(first.kind, members)
+        title = first.title
+        if first.kind == "company":
+            title = _company_title(fields[0])
+        elif first.kind == "notice":
+            title = _notice_title(fields[0])
         request = ConfirmRequest(
             id=_request_id(first.kind, fields, affects, first.title),
             kind=first.kind,  # type: ignore[arg-type]
             fields=fields,
-            title=first.title,
+            title=title,
             why=_joined([member.why for member in members]),
             affects=affects,
             blocking=_blocking(affects, assessment, reasons),
             completion=_joined([member.completion for member in members]),
             refs=_dedup_refs([ref for member in members for ref in member.refs]),
+            purpose=purpose,
+            availability=availability,
         )
         requests_with_order.append((min(member.raw_index for member in members), request))
 

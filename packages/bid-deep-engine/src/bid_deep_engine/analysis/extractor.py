@@ -69,7 +69,9 @@ def finish_partials(results: list[ParseResult], doc: RfpDocument) -> ExtractResu
     for r in results:
         assert isinstance(r.parsed, RfpFactsPartial)  # output_model=RfpFactsPartial의 결과
         partials.append(r.parsed)
-    facts, citations, verify_warnings = verify_facts(merge_partials(partials), doc)
+    facts, citations, verify_warnings = verify_facts(
+        merge_partials(partials), doc, allow_repair=False
+    )
     return ExtractResult(
         facts=facts,
         citations=citations,
@@ -83,7 +85,7 @@ def finish_extract(result: ParseResult, doc: RfpDocument) -> ExtractResult:
     """Pass1 single 응답을 인용 검증하고 경고(verify → pdf primary → max_price)를 붙인다."""
     parsed = result.parsed
     assert isinstance(parsed, RfpFacts)  # output_model=RfpFacts의 결과
-    facts, citations, verify_warnings = verify_facts(parsed, doc)
+    facts, citations, verify_warnings = verify_facts(parsed, doc, allow_repair=False)
     warnings = _pass1_warnings(verify_warnings, doc, [result])
     return ExtractResult(
         facts=facts,

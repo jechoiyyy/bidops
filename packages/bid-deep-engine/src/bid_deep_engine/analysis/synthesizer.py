@@ -84,12 +84,16 @@ def postprocess_synth(
     result = out.model_copy(deep=True)
     warnings: list[str] = []
     for i, risk in enumerate(result.risks):
-        risk.evidence, ev_warnings = verify(risk.evidence, doc.full_text, doc.sections)
+        risk.evidence, ev_warnings = verify(
+            risk.evidence, doc.full_text, doc.sections, allow_repair=False
+        )
         warnings.extend(f"synth: risks[{i}]: {w}" for w in ev_warnings)
     for i, item in enumerate(result.checklist):
         if item.source is None:
             continue
-        item.source, ev_warnings = verify(item.source, doc.full_text, doc.sections)
+        item.source, ev_warnings = verify(
+            item.source, doc.full_text, doc.sections, allow_repair=False
+        )
         warnings.extend(f"synth: checklist[{i}]: {w}" for w in ev_warnings)
     # ``origin`` is code-owned provenance.  A structured model response may contain any enum
     # value, so overwrite every validated SynthOut request rather than trusting model choice.

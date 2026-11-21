@@ -168,14 +168,21 @@ def postprocess_fits(
     # 6. 모든 인용 verify(실패해도 항목 유지, verified=false)
     for item in items:
         assert item.evidence is not None  # 5단계에서 채움
-        checked, ev_warnings = verify(item.evidence, doc.full_text, doc.sections)
+        checked, ev_warnings = verify(
+            item.evidence, doc.full_text, doc.sections, allow_repair=False
+        )
         item.evidence = checked
         warnings.extend(f"match: {item.req_id}: {w}" for w in ev_warnings)
 
     # 7. scope_ids 순서로 정렬, 8. 저장 모델로 변환(req_id pattern 검증)
     order = {req_id: k for k, req_id in enumerate(scope_ids)}
     items.sort(key=lambda it: order[it.req_id])
-    fits = [RequirementFit.model_validate(it.model_dump()) for it in items]
+    fits = [
+        RequirementFit.model_validate(
+            {**item.model_dump(), "mandatory": requirements[item.req_id].mandatory}
+        )
+        for item in items
+    ]
     return fits, warnings
 
 

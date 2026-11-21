@@ -23,7 +23,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-# company.knowledge는 bid_deep_engine.analysis를 import하지 않는다(순환 없음, KB-01 import 규칙)
+# company.knowledge는 bidops.analysis를 import하지 않는다(순환 없음, KB-01 import 규칙)
 from bid_deep_engine.company.knowledge import KnowledgeSelection
 
 QUOTE_MAX_CHARS = 200  # 인용 최대 길이(제약 1). 모델이 아니라 M2-02 verify가 검사한다.
@@ -186,16 +186,48 @@ class SourceLocation(BaseModel):
         return self
 
 
+class SourceBlockLocation(BaseModel):
+    """NFC 문자 구간 [start, end)과 정규화 전 원문 블록 번호."""
+
+    file: str
+    file_sha256: str
+    block_idx: int = Field(strict=True)
+    start: int = Field(strict=True)
+    end: int = Field(strict=True)
+
+    @field_validator("file")
+    @classmethod
+    def _file_is_relative(cls, value: str) -> str:
+        return _relative_source_path(value)
+
+    @field_validator("file_sha256")
+    @classmethod
+    def _sha256_is_lower_hex(cls, value: str) -> str:
+        if not _SHA256_RE.fullmatch(value):
+            raise ValueError("file_sha256 must be 64 lowercase hex characters")
+        return value
+
+    @model_validator(mode="after")
+    def _valid_span(self) -> "SourceBlockLocation":
+        if self.block_idx < 0 or self.start < 0:
+            raise ValueError("block_idx and start must be >= 0")
+        if self.end <= self.start:
+            raise ValueError("end must be greater than start")
+        return self
+
+
 class Evidence(BaseModel):
     quote: str  # 원문 그대로, ≤ QUOTE_MAX_CHARS — 길이는 코드에서 검증
     section_id: str | None = None  # LLM 입력 표지의 S번호("S012"). 모르면 null
-    page: int | None = None  # 코드가 섹션 page_start로 채움. LLM은 null
+    page: int | None = None  # 확인된 물리 쪽. 이전 산출물에는 섹션 시작 쪽일 수 있다.
     verified: bool | None = None  # 코드가 채움(M2-02). LLM은 null
     repaired: bool | None = None  # 코드가 채움(M2-02): 근사 일치로 원문 구간 교정. LLM은 null
     # LLM 출력의 일부가 아니라 verify 뒤 현재 ingest 캐시 resolver가 덮어쓰는 코드 소유 metadata다.
     # mapreduce merge guard에는 각 Evidence 경로별 명시 규칙으로 등록한다.
     locations: list[SourceLocation] = Field(default_factory=list)
     location_status: LocationStatus = "unavailable"
+    block_locations: list[SourceBlockLocation] = Field(default_factory=list)
+    block_location_status: LocationStatus = "unavailable"
 
     @model_validator(mode="after")
     def _location_count_matches_status(self) -> "Evidence":
@@ -210,6 +242,10 @@ class Evidence(BaseModel):
             raise ValueError(
                 f"location_status must be {expected} for {len(self.locations)} locations"
             )
+        count = len(self.block_locations)
+        block_status = "unavailable" if count == 0 else "exact" if count == 1 else "ambiguous"
+        if self.block_location_status != block_status:
+            raise ValueError(f"block_location_status must be {block_status} for {count} locations")
         return self
 
 
@@ -479,6 +515,7 @@ class RequirementFit(BaseModel):
     evidence_pages: list[str] = Field(default_factory=list)  # 발췌 포함 지식 페이지 slug(등장 순)
     gap_action: str | None = None
     evidence: Evidence | None = None
+    mandatory: bool | None = None  # 원문 응락수준에서 확인한 필수/선택 여부
 
 
 class Risk(BaseModel):
@@ -516,6 +553,8 @@ class ConfirmRequest(BaseModel):
     blocking: bool
     completion: str
     refs: list[ActionRef]
+    purpose: Literal["decision", "scoring", "execution"] | None = None
+    availability: Literal["check_now", "awaiting_input"] | None = None
 
 
 class Preparation(BaseModel):

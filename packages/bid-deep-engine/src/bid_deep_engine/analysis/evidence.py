@@ -26,7 +26,9 @@ from pydantic import BaseModel
 from bid_deep_engine.analysis.schemas import (
     QUOTE_MAX_CHARS,
     Evidence,
+    RequirementFit,
     RfpFacts,
+    SourceBlockLocation,
     SourceLocation,
     iter_evidence,
 )
@@ -34,7 +36,9 @@ from bid_deep_engine.ingest.models import RfpDocument, Section
 
 QUOTE_REPAIR_RATIO = 0.9  # 근사 교정 임계값(tunable, 사용자 결정 6). 호출 시점에 모듈 값을 읽는다
 WINDOW_TOLERANCE = 0.2  # 근사 탐색 창 길이 L×(1±이 값)(tunable)
-EVIDENCE_LOCATION_FIELDS = frozenset({"locations", "location_status"})
+EVIDENCE_LOCATION_FIELDS = frozenset(
+    {"locations", "location_status", "block_locations", "block_location_status"}
+)
 
 _COARSE_DIV = 4  # 후보 간격·정밀 탐색 반경 = max(1, L // _COARSE_DIV)
 _COARSE_TOP = 5  # 정밀 탐색할 거친 후보 수
@@ -66,6 +70,9 @@ def _llm_exclude(value: object) -> set[str] | dict[object, object] | None:
     if isinstance(value, BaseModel):
         fields: dict[object, object] = {}
         for name in type(value).model_fields:
+            if isinstance(value, RequirementFit) and name == "mandatory":
+                fields[name] = True
+                continue
             child = _llm_exclude(getattr(value, name))
             if child:
                 fields[name] = child
@@ -110,9 +117,12 @@ def model_json_schema_for_llm(output_model: type[BaseModel]) -> dict[str, Any]:
             evidence["required"] = [
                 name for name in required if name not in EVIDENCE_LOCATION_FIELDS
             ]
-        definitions.pop(SourceLocation.__name__, None)
-        if f"#/$defs/{SourceLocation.__name__}" in json.dumps(schema):
-            raise ValueError("SourceLocation is referenced outside Evidence location metadata")
+        for model in (SourceLocation, SourceBlockLocation):
+            definitions.pop(model.__name__, None)
+            if f"#/$defs/{model.__name__}" in json.dumps(schema):
+                raise ValueError(
+                    f"{model.__name__} is referenced outside Evidence location metadata"
+                )
     return schema
 
 
@@ -161,16 +171,18 @@ class _Source:
 
 
 def verify(
-    evidence: Evidence, source_text: str, sections: list[Section]
+    evidence: Evidence, source_text: str, sections: list[Section], *, allow_repair: bool = True
 ) -> tuple[Evidence, list[str]]:
     """Evidence 하나를 검증한 새 Evidence와 경고 목록(입력은 바꾸지 않는다)."""
-    return _verify(evidence, _Source.build(source_text, sections))
+    return _verify(evidence, _Source.build(source_text, sections), allow_repair=allow_repair)
 
 
-def _verify(evidence: Evidence, src: _Source) -> tuple[Evidence, list[str]]:
+def _verify(
+    evidence: Evidence, src: _Source, *, allow_repair: bool
+) -> tuple[Evidence, list[str]]:
     warnings: list[str] = []
     quote = evidence.quote
-    if len(quote) > QUOTE_MAX_CHARS:
+    if allow_repair and len(quote) > QUOTE_MAX_CHARS:
         quote = quote[:QUOTE_MAX_CHARS]
         warnings.append(f"quote truncated to {QUOTE_MAX_CHARS} chars")
 
@@ -178,7 +190,7 @@ def _verify(evidence: Evidence, src: _Source) -> tuple[Evidence, list[str]]:
     if section_id is not None and section_id not in src.sections:
         warnings.append(f"unknown section_id {section_id}")
         section_id = None
-    page = src.sections[section_id].page_start if section_id is not None else None
+    page = src.sections[section_id].page_start if allow_repair and section_id is not None else None
 
     def result(q: str, verified: bool, repaired: bool) -> tuple[Evidence, list[str]]:
         update = {
@@ -190,6 +202,10 @@ def _verify(evidence: Evidence, src: _Source) -> tuple[Evidence, list[str]]:
         }
         return evidence.model_copy(update=update), warnings
 
+    if not allow_repair and len(quote) > QUOTE_MAX_CHARS:
+        warnings.append(f"quote exceeds {QUOTE_MAX_CHARS} chars")
+        return result(quote, False, False)
+
     norm_q, _ = normalize(quote)
     if not norm_q:
         warnings.append("empty quote")
@@ -199,9 +215,10 @@ def _verify(evidence: Evidence, src: _Source) -> tuple[Evidence, list[str]]:
     if found >= 0:
         return result(_cap(src.span(found, found + len(norm_q)), warnings), True, False)
 
-    window = _best_window(norm_q, src.norm, QUOTE_REPAIR_RATIO)
-    if window is not None:
-        return result(_cap(src.span(*window), warnings), True, True)
+    if allow_repair:
+        window = _best_window(norm_q, src.norm, QUOTE_REPAIR_RATIO)
+        if window is not None:
+            return result(_cap(src.span(*window), warnings), True, True)
     return result(quote, False, False)
 
 
@@ -338,7 +355,9 @@ def _count(facts: RfpFacts) -> Citations:
     )
 
 
-def verify_facts(facts: RfpFacts, doc: RfpDocument) -> tuple[RfpFacts, Citations, list[str]]:
+def verify_facts(
+    facts: RfpFacts, doc: RfpDocument, *, allow_repair: bool = True
+) -> tuple[RfpFacts, Citations, list[str]]:
     """conflicts 포함 모든 Evidence를 문서 순으로 verify한 새 RfpFacts, 통계, 경로 접두 경고."""
     src = _Source.build(doc.full_text, doc.sections)
     new = facts.model_copy(deep=True)
@@ -347,7 +366,7 @@ def verify_facts(facts: RfpFacts, doc: RfpDocument) -> tuple[RfpFacts, Citations
         iter_evidence(new, include_conflicts=True), _evidence_paths(new), strict=True
     ):
         assert ev is same  # 경로 순회가 iter_evidence 순서와 같다
-        checked, ev_warnings = _verify(ev, src)
+        checked, ev_warnings = _verify(ev, src, allow_repair=allow_repair)
         for name in Evidence.model_fields:  # 제자리 교체(새 RfpFacts 안의 인스턴스)
             setattr(ev, name, getattr(checked, name))
         warnings.extend(f"{path}: {w}" for w in ev_warnings)
