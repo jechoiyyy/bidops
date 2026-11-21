@@ -22,6 +22,10 @@ function extractionTone(status: string | null): string {
  * 목록이던 것을 `파일 · 형식·크기 · 본문 추출 · 열기` 네 칸 표로 바꾼다. 말하는
  * 사실은 그대로다 — 크기가 없으면 `크기 미확인`이고 0바이트는 `0 B`로 남으며,
  * 원본 열기는 검증된 절대 HTTP(S) 주소가 있을 때만 그린다.
+ *
+ * 나라장터 사전규격 목록은 첨부를 주소로만 줘서 `name`이 자리표시자("첨부 1")다. 서버가
+ * 원문을 내려받아 실제 파일명·형식·크기를 알면(`acquired_file`) 그 값을 보이고, 모르면
+ * 목록 값 그대로 둔다 — 화면이 이름을 추정하지 않는다.
  */
 export function PreSpecAttachmentList({ attachments }: { attachments: AttachmentResponse[] }) {
   if (attachments.length === 0) return <p className="ps-cap ps-muted">첨부 없음 · 0건</p>;
@@ -38,12 +42,14 @@ export function PreSpecAttachmentList({ attachments }: { attachments: Attachment
       <tbody>
         {attachments.map((attachment) => {
           const original = collectedWebUrl(attachment.url);
+          const acquired = attachment.acquired_file ?? null;
+          const sizeBytes = acquired?.size_bytes ?? attachment.size_bytes;
           return (
             <tr key={attachment.id}>
-              <td><strong>{attachment.name ?? "파일명 미확인"}</strong></td>
+              <td><strong>{acquired?.filename ?? attachment.name ?? "파일명 미확인"}</strong></td>
               <td className="ps-cap">
-                {attachment.file_ext ?? "확장자 미확인"} · {attachment.size_bytes === null
-                  ? "크기 미확인" : `${formatNumber(attachment.size_bytes)} B`}
+                {acquired?.file_ext ?? attachment.file_ext ?? "확장자 미확인"} · {sizeBytes === null
+                  ? "크기 미확인" : `${formatNumber(sizeBytes)} B`}
               </td>
               <td>
                 <span className={`ps-chip ${extractionTone(attachment.extract_status)}`}>

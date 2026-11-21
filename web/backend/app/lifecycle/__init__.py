@@ -79,6 +79,9 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     # 형제 모듈이 확장점을 구현하고, 조립이 registry에 등록하며, 테스트가 그
     # 계약을 검사한다. `ClaimedDirectoryLoad`는 `RunDirectoryClaim.load`의 형일
     # 뿐이라 밖에서 이름으로 받지 않는다 — 공개하지 않는다.
+    # 취득한 첨부 원문의 파일 정보(실제 파일명·크기). deep_review가 문서 version에서 채운다.
+    "AcquiredAttachmentFile": (".extensions", "AcquiredAttachmentFile"),
+    "AcquiredAttachmentFilesProvider": (".extensions", "AcquiredAttachmentFilesProvider"),
     "BriefingOrderPlanCandidatesProvider": (".extensions", "BriefingOrderPlanCandidatesProvider"),
     # RL-03 브리핑 추천 hook. deep_review가 자동 판정 트리거·대기열 처리로 구현한다.
     "BriefingRecommendationHook": (".extensions", "BriefingRecommendationHook"),
@@ -121,6 +124,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     # `get_run_or_404`은 사람이 쓰는 회차 디렉터리 이름까지 풀고 없으면 404를
     # 낸다. 잠그지도 404를 내지도 않는 단순 조회(`api.get_run`)는 밖에서 쓰는
     # 곳이 없으므로 공개하지 않는다.
+    "attachment_responses": (".routers.common", "attachment_responses"),
     "get_run_or_404": (".routers.common", "get_run"),
     "notice_list_item": (".routers.common", "notice_list_item"),
     # === 형제 모듈이 쓴다 — 회차 산출물을 읽는 공통 helper (ingest/loader.py)
@@ -188,6 +192,8 @@ if TYPE_CHECKING:  # pragma: no cover - 정적 분석용 이름 노출
     from .services.company_notices import company_pre_spec_notices
     from .services.opportunity_tracking import company_tracking_views
     from .extensions import (
+        AcquiredAttachmentFile,
+        AcquiredAttachmentFilesProvider,
         BriefingOrderPlanCandidatesProvider,
         BriefingRecommendationHook,
         BriefingVerdictDisplayProvider,

@@ -97,6 +97,30 @@ def test_absent_overview_projection_yields_null_status_and_zero_document_counts(
     assert registry.overview_filters_supported is False
 
 
+def test_acquired_attachment_files_are_empty_without_a_provider_and_delegate_with_one(registry):
+    from app.lifecycle import AcquiredAttachmentFile
+
+    assert registry.acquired_attachment_files(None, [1, 2]) == {}
+
+    class _Provider:
+        def __init__(self):
+            self.calls: list[list[int]] = []
+
+        def acquired_attachment_files(self, session, attachment_ids):
+            self.calls.append(list(attachment_ids))
+            return {1: AcquiredAttachmentFile("제안요청서.hwpx", "HWPX", 10)}
+
+    provider = _Provider()
+    registry.register_acquired_attachment_files(provider, owner="tests.acquired")
+
+    assert registry.acquired_attachment_files(None, [1, 2]) == {
+        1: AcquiredAttachmentFile("제안요청서.hwpx", "HWPX", 10)
+    }
+    # 첨부가 없으면 제공자를 부르지 않는다.
+    assert registry.acquired_attachment_files(None, []) == {}
+    assert provider.calls == [[1, 2]]
+
+
 def test_prespec_document_counts_default_to_zero_because_the_contract_forbids_null():
     """`PreSpecDocumentSummary`의 다섯 건수는 `ge=0` 정수라 `null`이 될 수 없다."""
 

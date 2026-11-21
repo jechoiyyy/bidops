@@ -20,7 +20,6 @@ from ...lifecycle.schemas import (
     AttachmentProcedureResponse,
     AttachmentQueueItem,
     AttachmentQueueResponse,
-    AttachmentResponse,
     AgencyPortalResponse,
 )
 from ..services.attachments import (
@@ -36,7 +35,7 @@ from ..services.attachments import (
 from ..services import assets
 from ..services.document_bundles import BundleServiceError, stable_api_error, validate_actor
 from ...lifecycle import (
-    attachment_download_url,
+    attachment_responses,
     get_run_or_404 as get_run,
     notice_list_item,
 )
@@ -61,19 +60,6 @@ def _portal_response(portal: AgencyPortal | None) -> AgencyPortalResponse | None
         search_url_template=portal.search_url_template,
         enabled=portal.enabled,
         note=portal.note,
-    )
-
-
-def _attachment_response(attachment: Attachment) -> AttachmentResponse:
-    return AttachmentResponse(
-        id=attachment.id,
-        name=attachment.name,
-        url=attachment_download_url(attachment),
-        origin=attachment.origin,
-        file_ext=attachment.file_ext,
-        size_bytes=attachment.size_bytes,
-        extract_status=attachment.extract_status,
-        created_at=attachment.created_at,
     )
 
 
@@ -109,7 +95,7 @@ def _procedure_response(session: Session, notice: Notice) -> AttachmentProcedure
         search_url=search_url,
         portal_message=portal_message,
         steps=PROCEDURE_STEPS,
-        attachments=[_attachment_response(item) for item in notice.attachments],
+        attachments=attachment_responses(session, notice.attachments),
     )
 
 

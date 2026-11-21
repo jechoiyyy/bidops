@@ -323,6 +323,39 @@ class BriefingVerdictDisplayProvider(Protocol):
         """공고 id → 판정 표시 글자. 모르는 공고는 빠진다."""
 
 
+# --- 취득한 첨부 원문의 파일 정보 ---------------------------------------------
+
+
+@dataclass(frozen=True)
+class AcquiredAttachmentFile:
+    """첨부를 실제로 내려받아 알게 된 파일 정보.
+
+    나라장터 사전규격 목록은 첨부를 주소로만 주므로 `attachment.name`이 수집 때 붙인
+    자리표시자("첨부 1")다. 실제 파일명은 취득 응답에서만 오고 문서 version에 남는다.
+    lifecycle은 그 표를 읽지 않으므로 값을 이 형태로 건네받는다. `attachment` 행은
+    바꾸지 않는다 — 원본의 정체는 해시와 크기이고 목록 이름은 관측값이다.
+    """
+
+    filename: str
+    file_ext: str | None = None
+    size_bytes: int | None = None
+
+
+@runtime_checkable
+class AcquiredAttachmentFilesProvider(Protocol):
+    """`acquired_attachment_files(session, attachment_ids) -> {attachment_id: AcquiredAttachmentFile}`.
+
+    현재 문서 version이 있는 첨부만 담는다. 아직 내려받지 않은 첨부와 모르는 첨부는
+    빠지고, 호출부는 그 자리를 `None`(미확인)으로 둔다 — 이름을 추정해 채우지 않는다.
+    구현은 읽기 전용이며 넘긴 `attachment_ids` 만큼을 상수 회 조회로 처리한다.
+    """
+
+    def acquired_attachment_files(
+        self, session: Any, attachment_ids: Sequence[int]
+    ) -> Mapping[int, AcquiredAttachmentFile]:
+        """첨부 id → 취득한 파일 정보. 모르는 첨부는 빠진다."""
+
+
 # --- RL-02 사업기회 활동 피드 hook --------------------------------------------
 
 
@@ -618,6 +651,7 @@ class ExtensionRegistry:
     _company_facts: _OwnedProvider | None = None
     _briefing_order_plans: _OwnedProvider | None = None
     _briefing_verdict_display: _OwnedProvider | None = None
+    _acquired_attachment_files: _OwnedProvider | None = None
     _workload_projections: dict[str, WorkloadProjection] = field(default_factory=dict)
     _run_ingest_hooks: dict[str, RunIngestHook] = field(default_factory=dict)
     _tracking_hooks: dict[str, TrackingDecisionHook] = field(default_factory=dict)
@@ -658,6 +692,13 @@ class ExtensionRegistry:
     ) -> None:
         self._briefing_verdict_display = _claim_slot(
             self._briefing_verdict_display, owner, provider, "브리핑 판정 표시"
+        )
+
+    def register_acquired_attachment_files(
+        self, provider: AcquiredAttachmentFilesProvider, *, owner: str
+    ) -> None:
+        self._acquired_attachment_files = _claim_slot(
+            self._acquired_attachment_files, owner, provider, "취득 첨부 파일 정보"
         )
 
     def register_workload_projection(
@@ -764,6 +805,17 @@ class ExtensionRegistry:
         if self._briefing_verdict_display is None or not notice_ids:
             return {}
         return self._briefing_verdict_display.provider.briefing_verdict_display(session, notice_ids)
+
+    def acquired_attachment_files(
+        self, session: Any, attachment_ids: Sequence[int]
+    ) -> Mapping[int, AcquiredAttachmentFile]:
+        """첨부 id → 취득한 파일 정보. 제공자가 없거나 첨부가 없으면 빈 사전(전부 미확인)."""
+
+        if self._acquired_attachment_files is None or not attachment_ids:
+            return {}
+        return self._acquired_attachment_files.provider.acquired_attachment_files(
+            session, attachment_ids
+        )
 
     def workload_counts(self, session: Any) -> Mapping[str, WorkloadCount]:
         counts: dict[str, WorkloadCount] = {}

@@ -15,7 +15,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.db import init_db
-from app.lifecycle import OverviewDocumentProjection, PreSpecDocumentCounts
+from app.lifecycle import (
+    AcquiredAttachmentFile,
+    AcquiredAttachmentFilesProvider,
+    OverviewDocumentProjection,
+    PreSpecDocumentCounts,
+)
 from app.deep_review.models import (
     AttachmentFetch,
     ContentObject,
@@ -24,7 +29,10 @@ from app.deep_review.models import (
     WorkJob,
 )
 from app.lifecycle.models import Attachment, Notice
-from app.deep_review.services.prespec_projection import PreSpecOverviewDocumentProjection
+from app.deep_review.services.prespec_projection import (
+    AcquiredAttachmentFiles,
+    PreSpecOverviewDocumentProjection,
+)
 
 
 def _notice(session: Session, key: str) -> Notice:
@@ -201,3 +209,65 @@ def test_each_projection_method_uses_a_bounded_batch_projection(projection_db):
     # 상태와 건수는 각각 현재 run batch 조회 하나, 문서 건수는 grouped 조회
     # 하나다. 공고 수가 늘어도 이 수는 그대로다.
     assert len(statements) == 3
+
+
+def _acquired_document(
+    session: Session, attachment: Attachment, filename: str, *, version: int, current: bool, size: int
+) -> DocumentVersion:
+    content = ContentObject(
+        sha256=f"{attachment.id:032d}{version:032d}", size_bytes=size,
+        detected_mime="application/octet-stream", retention_class="source",
+    )
+    session.add(content)
+    session.flush()
+    document = DocumentVersion(
+        notice_id=attachment.notice_id, attachment_id=attachment.id, content_object_id=content.id,
+        version=version, source_kind="provider", source_system="g2b",
+        source_attachment_key=f"key-{attachment.id}", source_url="https://example.invalid/file",
+        original_filename=filename, role="기타", is_current=current, safety_status="safe",
+    )
+    session.add(document)
+    session.flush()
+    return document
+
+
+def test_acquired_files_come_from_the_current_document_version_of_each_attachment(projection_db):
+    session, engine, refs = projection_db
+    acquired, replaced, no_suffix, pending = [
+        Attachment(notice=refs["bare"], name=f"첨부 {index}", origin="g2b") for index in range(1, 5)
+    ]
+    session.add_all([acquired, replaced, no_suffix, pending])
+    session.flush()
+    _acquired_document(session, acquired, "제안요청서(고도화).hwpx", version=1, current=True, size=2048)
+    # 교체된 옛 version의 이름은 쓰지 않는다. 현재 version 하나만 읽는다.
+    _acquired_document(session, replaced, "옛 이름.pdf", version=1, current=False, size=10)
+    _acquired_document(session, replaced, "과업지시서.PDF", version=2, current=True, size=4096)
+    _acquired_document(session, no_suffix, "붙임", version=1, current=True, size=7)
+    session.commit()
+    # commit 뒤 만료된 행을 미리 읽어 둔다 — 아래에서 세는 조회에 섞이지 않게.
+    acquired_id, replaced_id, no_suffix_id, pending_id = acquired.id, replaced.id, no_suffix.id, pending.id
+
+    provider = AcquiredAttachmentFiles()
+    assert isinstance(provider, AcquiredAttachmentFilesProvider)
+    statements: list[str] = []
+
+    def record(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        files = provider.acquired_attachment_files(
+            session, [acquired_id, replaced_id, no_suffix_id, pending_id, 999_999]
+        )
+        assert provider.acquired_attachment_files(session, []) == {}
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+    # 아직 내려받지 않은 첨부와 모르는 첨부는 빠진다 — 호출부가 미확인으로 둔다.
+    assert files == {
+        acquired_id: AcquiredAttachmentFile("제안요청서(고도화).hwpx", "HWPX", 2048),
+        replaced_id: AcquiredAttachmentFile("과업지시서.PDF", "PDF", 4096),
+        no_suffix_id: AcquiredAttachmentFile("붙임", None, 7),
+    }
+    # 첨부 수와 무관하게 조회 한 번이고, 빈 입력은 조회하지 않는다.
+    assert len(statements) == 1

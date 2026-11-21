@@ -61,6 +61,35 @@ test("판정 없음과 본공고 미확인을 부재나 임의 번호로 바꾸�
   await expect(page.locator(".pre-spec-detail-header")).not.toContainText("[object Object]");
 });
 
+test("첨부 이름은 서버가 실제 파일명을 알 때만 그 이름으로 보이고, 모르면 목록 값 그대로다", async ({ page }) => {
+  await mockApi(page);
+  // 운영 사전규격의 실제 모양: 목록 이름은 자리표시자, 형식·크기는 null이다.
+  await page.route("**/api/notices/991", route => route.fulfill({ json: {
+    ...visualPreSpecNotice,
+    attachments: [
+      { id: 81, name: "첨부 1", url: "https://example.invalid/1", origin: "g2b", file_ext: null, size_bytes: null,
+        extract_status: null, created_at: null,
+        acquired_file: { filename: "제안요청서(온시스템 고도화).hwpx", file_ext: "HWPX", size_bytes: 204800 } },
+      { id: 82, name: "첨부 2", url: "https://example.invalid/2", origin: "g2b", file_ext: null, size_bytes: null,
+        extract_status: null, created_at: null, acquired_file: null },
+      { id: 83, name: "첨부 3", url: "https://example.invalid/3", origin: "g2b", file_ext: null, size_bytes: null,
+        extract_status: null, created_at: null,
+        acquired_file: { filename: "붙임", file_ext: null, size_bytes: null } },
+    ],
+  } }));
+  await page.goto("/pre-specs/991");
+  const rows = page.getByRole("table", { name: "첨부 파일 목록" }).locator("tbody").getByRole("row");
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(0).getByRole("cell").nth(0)).toHaveText("제안요청서(온시스템 고도화).hwpx");
+  await expect(rows.nth(0).getByRole("cell").nth(1)).toHaveText("HWPX · 204,800 B");
+  // 아직 내려받지 않은 첨부는 자리표시자와 미확인 그대로다.
+  await expect(rows.nth(1).getByRole("cell").nth(0)).toHaveText("첨부 2");
+  await expect(rows.nth(1).getByRole("cell").nth(1)).toHaveText("확장자 미확인 · 크기 미확인");
+  // 파일명만 알고 형식·크기를 모르면 모르는 칸만 미확인이다.
+  await expect(rows.nth(2).getByRole("cell").nth(0)).toHaveText("붙임");
+  await expect(rows.nth(2).getByRole("cell").nth(1)).toHaveText("확장자 미확인 · 크기 미확인");
+});
+
 test("첨부는 안전한 원본 URL과 실제 다운로드 경로만 제공하며 0바이트를 보존한다", async ({ page }) => {
   await mockApi(page);
   await page.route("**/api/notices/991", route => route.fulfill({ json: {
@@ -82,6 +111,8 @@ test("첨부는 안전한 원본 URL과 실제 다운로드 경로만 제공하�
   await expect(attachments.getByRole("link", { name: "원본 열기" })).toHaveAttribute("rel", "noopener noreferrer");
   await expect(rows.first()).toContainText("0 B");
   await expect(rows.nth(1)).toContainText("크기 미확인");
+  // `acquired_file`이 없는 응답은 목록 값을 그대로 보인다.
+  await expect(rows.first()).toContainText("공개 제안요청서.pdf");
 
   // 표는 `.ps-sec`의 세로 flex 자식이다. 폭을 `100%`로 못 박으면 형제 여백이 그
   // 바깥에 더해져 오른쪽 끝의 `열기` 칸이 카드 밖으로 나간다(2026-09-16 실측 24px).

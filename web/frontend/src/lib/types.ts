@@ -22,6 +22,15 @@ export interface AttachmentResponse {
   size_bytes: number | null;
   extract_status: string | null;
   created_at: string | null;
+  // 원문을 내려받은 뒤 서버가 아는 실제 파일 정보. 사전규격 목록의 `name`은 수집 때 붙인
+  // 자리표시자("첨부 1")일 수 있다. 아직 내려받지 않았으면 `null`이다.
+  acquired_file?: AcquiredFile | null;
+}
+
+export interface AcquiredFile {
+  filename: string;
+  file_ext: string | null;
+  size_bytes: number | null;
 }
 
 export interface AgencyPortal {
