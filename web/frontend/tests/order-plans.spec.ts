@@ -264,6 +264,16 @@ async function mockReorderedOrderPlanList(
     }
     const limit = Number(url.searchParams.get("limit") ?? 100);
     const offset = Number(url.searchParams.get("offset") ?? 0);
+    const stages = url.searchParams.get("stage1_status")?.split(",");
+    const relevance = url.searchParams.get("qwen_relevance");
+    const tracking = url.searchParams.get("tracking_status");
+    const filtered = items.filter(item =>
+      (!stages || stages.includes(item.stage1_status ?? "missing"))
+      && (!relevance || item.qwen_relevance === relevance)
+      && (!tracking || item.tracking?.tracking_status === tracking)
+      && (url.searchParams.get("issue") !== "true"
+        || [item.stage1_status, item.stage2_status].some(status => status === "failed" || status === "rejected")),
+    );
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -272,8 +282,8 @@ async function mockReorderedOrderPlanList(
         producer: "order-plan-review-api",
         consumer: "order-plan-review-client",
         scope: { mode: "cumulative", policy_versions: ["c2-policy.v1"], activated_policy_versions: ["c2-policy.v1"] },
-        items: items.slice(offset, offset + limit),
-        total: items.length,
+        items: filtered.slice(offset, offset + limit),
+        total: filtered.length,
         limit,
         offset,
       }),

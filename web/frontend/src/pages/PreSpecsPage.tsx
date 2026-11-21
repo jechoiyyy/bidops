@@ -1,3 +1,5 @@
+import { PRE_SPEC_PAGE_SIZE as PAGE_SIZE, preSpecPageOptions } from "../lib/defaultViewCounts";
+import { SkeletonBlock } from "../components/common/Skeleton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -77,7 +79,6 @@ import "../styles/pre-specs-relaxed.css";
 // 한 페이지에 200건. 서버 한도(500) 안이고, 상단 보기로 좁히는 경우가 대부분이라
 // 이 크기면 한 화면에서 업무 화면과 목록이 대체로 일치한다. 그래도 전체 건수가
 // 페이지 크기를 넘으면 목록 바닥이 전체 집합과 현재 범위를 함께 밝힌다.
-const PAGE_SIZE = 200;
 const BUSINESS_DIVISIONS = ["일반용역", "기술용역"] as const;
 const ORIGINS: PreSpecOrigin[] = ["추적", "신규"];
 // 이전 대시보드의 누적 업무 링크는 workspace를 갖지 않는다. 그 링크의
@@ -314,8 +315,7 @@ export function PreSpecsPage() {
     [reviewExclusion, autoPreparationStatus, businessDivision, deadlineScope, deadlineStatus, offset, origin, overviewView, queryText, rawObservedFrom, rawObservedTo, sort, sourceRunId, swOnly, trackingDecision, trackingStatus, workspace],
   );
   const result = useQuery({
-    queryKey: ["pre-specs", { ...listQuery, q: searchKey(queryText) }],
-    queryFn: ({ signal }) => api.getPreSpecs(listQuery, { signal }),
+    ...preSpecPageOptions(listQuery, searchKey(queryText)),
     // 기본값으로 돌아왔을 때도 sw_only=true 요청을 다시 보내 ADR-0031의 서버 기본
     // projection과 화면 상태가 같은지 확인한다.
     staleTime: 0,
@@ -1034,7 +1034,7 @@ export function PreSpecsPage() {
                 onPointerDownCapture={rowKeyboard.onPointerDownCapture}
               >
                 {result.isPending ? (
-                  <div className="pre-specs-loading" role="status" aria-live="polite">사전규격 목록을 불러오는 중이에요.</div>
+                  <div className="pre-specs-loading" role="status" aria-live="polite">사전규격 목록을 불러오는 중이에요.<SkeletonBlock label={null} lines={3} /></div>
                 ) : result.isError ? (
                   <EmptyState
                     compact
