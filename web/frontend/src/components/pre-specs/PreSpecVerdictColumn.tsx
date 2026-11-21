@@ -20,7 +20,12 @@ export const PRE_SPEC_NO_VERDICT_LABEL = "판정 없음 — 추적 후 요청";
  * - 이 환경에서 RL 분석이 꺼져 있으면 조회하지 않고 꺼져 있다고 먼저 말한다(설계고도화안 C-4).
  * - 사업기회가 없거나 판정 기록이 없으면 `판정 없음 — 추적 후 요청`이다.
  */
-export function PreSpecVerdictColumn({ opportunityId }: { opportunityId: number | null }) {
+/**
+ * 참여 판정 조회 하나. 열(`PreSpecVerdictColumn`)과 상세 화면의 `회사 관련성 참고` 구역 표시 여부가 같은 응답을
+ * 읽는다(같은 query key). `hasValue`는 서버가 판정 기록(완료 결과 또는 헤더 pill)을 줬는지만 본다 — 화면이 판정을
+ * 다시 계산하지 않는다.
+ */
+export function usePreSpecVerdict(opportunityId: number | null) {
   const features = useFeatureFlags();
   const rlOff = features.state("rl_analysis") === "off";
   const verdictQuery = useQuery({
@@ -34,6 +39,12 @@ export function PreSpecVerdictColumn({ opportunityId }: { opportunityId: number 
   const view: PractitionerVerdictView | null = verdictQuery.data ?? null;
   const pill = headerVerdictPill(view);
   const result = view?.availability === "completed" ? view.result : null;
+  const hasValue = !rlOff && opportunityId !== null && (result !== null || pill !== null);
+  return { rlOff, verdictQuery, view, pill, result, hasValue };
+}
+
+export function PreSpecVerdictColumn({ opportunityId }: { opportunityId: number | null }) {
+  const { rlOff, verdictQuery, view, pill, result } = usePreSpecVerdict(opportunityId);
 
   return (
     <section className="ps-tri-col" aria-labelledby="ps-conditions-list-title">

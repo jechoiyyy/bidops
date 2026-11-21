@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { mockApi, mockFeatureFlags, mockPreSpecOverviewAbsent, visualPreSpecNotice } from "./api-mock";
+import { completedView } from "./fixtures/verdict";
+import { mockApi, mockFeatureFlags, mockPreSpecOverviewAbsent, openProcessSection, visualPreSpecNotice } from "./api-mock";
 
 test("C-1 판정·정정 사유는 그리지 않고 본공고와 품명을 읽는다", async ({ page }) => {
   await mockApi(page);
@@ -31,7 +32,7 @@ test("C-1 판정·정정 사유는 그리지 않고 본공고와 품명을 읽�
     }],
   } }));
   await page.goto("/pre-specs/991");
-  await expect(page.locator("#ps-conditions")).toBeVisible();
+  await expect(page.locator("#ps-summary")).toBeVisible();
   // 2026-11-19(사전규격 단계 수정안 §3 B): C-1 공고 판정을 다시 돌리지 않으므로 등급 사유·사람 정정
   // 사유·판정의 반론은 사전규격 화면에서 내려갔다. 응답에 값이 있어도 그리지 않는다.
   await expect(page.getByRole("heading", { name: "등급 사유", exact: true })).toHaveCount(0);
@@ -50,8 +51,11 @@ test("판정 없음과 본공고 미확인을 부재나 임의 번호로 바꾸�
     procurement_class: { detail: { invalid: true } },
   } }));
   await page.goto("/pre-specs/991");
-  // ④ 첫 열은 RL 판정이 없는 사업을 "판정 없음 — 추적 후 요청"으로 말한다(부재로 접지 않는다).
-  await expect(page.locator("#ps-conditions").getByText("판정 없음 — 추적 후 요청")).toBeVisible();
+  // 참여 판정 열은 RL 판정이 없는 사업을 "판정 없음 — 추적 후 요청"으로 말한다(부재로 접지 않는다).
+  // 값이 없는 열이라 `회사 관련성 참고` 구역은 없고, 이 문구는 `처리 상태·기술 정보` 안에 남는다.
+  await expect(page.locator("#ps-conditions")).toHaveCount(0);
+  await openProcessSection(page);
+  await expect(page.locator("#ps-process").getByText("판정 없음 — 추적 후 요청")).toBeVisible();
   await expect(page.getByText("본공고 미확인", { exact: true })).toBeVisible();
   await expect(page.locator(".pre-spec-detail-header")).not.toContainText("malformed-number");
   await expect(page.locator(".pre-spec-detail-header")).not.toContainText("[object Object]");
@@ -98,31 +102,34 @@ test("첨부는 안전한 원본 URL과 실제 다운로드 경로만 제공하�
 test("승계 사유와 담당자를 읽되 조회 오류는 미확인으로 남긴다", async ({ page }) => {
   await mockApi(page);
   await page.goto("/pre-specs/991");
-  const card = page.locator(".ps-record-tracking-card");
-  // mockApi includes the opportunity fixture and therefore preserves its actual saved context.
-  await expect(card.locator(".pre-spec-inherited-context")).toContainText("기존 담당자");
+  // 하단 결정 띠(2026-11-21). mockApi includes the opportunity fixture and therefore preserves its actual saved context.
+  const bar = page.locator("#page-footer .pre-spec-tracking-decision.is-recorded");
+  await expect(bar.locator(".pre-spec-inherited-context")).toContainText("기존 담당자");
   await page.route("**/api/opportunities/202", route => route.fulfill({ status: 503, json: { detail: "service_unavailable" } }));
   await page.reload();
-  await expect(card.getByText("승계 사유 확인 불가", { exact: true })).toBeVisible();
-  await expect(card.getByRole("button", { name: "추적 상태 저장", exact: true })).toHaveCount(0);
+  await expect(bar.locator(".pre-spec-inherited-context")).toContainText("기록 사유 확인 불가");
+  await expect(bar.getByRole("button", { name: "추적 상태 저장", exact: true })).toHaveCount(0);
+  await expect(bar.getByRole("button", { name: "추적 시작하기", exact: true })).toHaveCount(0);
 });
 
-// A6(docs/0915_ui-redesign/spec.md §6): 상세는 세로 보고서형 6단이고, 순회는 상단바
-// 액션 슬롯이 가지며, 등급 라벨과 현재 추적 상태 글자는 화면에 각각 한 번만 나온다.
-test("상세 6단이 DOM 순서대로 있고 순회는 상단바가 가지며 등급은 없고 추적 상태는 한 번만 나온다", async ({ page }) => {
+// 2026-11-21 시안(`docs/1121_prespec-detail/`): 본문은 사실 줄 → 사업 개요와 주요 과업 → (값이 있을 때만)
+// 회사 관련성 참고 → 원문·첨부 → 처리 상태·기술 정보 순이다. 추적 결정은 본문 구역이 아니라 패널 아래 하단 띠이고,
+// 순회는 상단바 액션 슬롯이 가지며, 등급 라벨은 없다. 값이 없으면 회사 관련성 참고 구역은 그리지 않는다.
+test("상세 본문이 시안 순서대로 있고 순회는 상단바가 가지며 등급은 없고 추적 결정은 하단 띠에만 있다", async ({ page }) => {
   await mockApi(page);
   await page.goto("/pre-specs/991");
   await expect(page.locator("#ps-process")).toBeVisible();
 
   const cards = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".ps-record > [id]")].map(element => element.id));
-  // ④ 참여 조건 · 회사 적합성 · 위험 및 미확인 사항은 개요 결과가 아니라
-  // 심층 검토 영역에 속하므로 ⑥ 문서 준비/검토 실행 카드 다음으로 옮겼다
-  // (ADR-0057 결정 1·4).
-  expect(cards).toEqual(["ps-summary", "ps-tracking", "ps-tasks", "ps-evidence", "ps-process", "ps-conditions"]);
-  expect(await page.locator("#ps-tasks h2").innerText()).toContain("주요 과업과 수행 범위");
-  expect(await page.locator("#ps-conditions h2").innerText()).toContain("참여 판정 · 회사 적합성 · 위험 및 미확인 사항");
-  expect(await page.locator("#ps-evidence h2").innerText()).toContain("근거 문서 · 첨부");
-  expect(await page.locator("#ps-process h2").innerText()).toContain("처리 이력 · 문서 준비 · 검토 실행");
+  // 값이 없는 건은 `회사 관련성 참고` 구역을 그리지 않는다(판정·회사 적합성·예비 판단 근거 모두 없음).
+  expect(cards).toEqual(["ps-summary", "ps-tasks", "ps-evidence", "ps-process"]);
+  expect(await page.locator("#ps-tasks h2").innerText()).toContain("사업 개요와 주요 과업");
+  expect(await page.locator("#ps-evidence h2").innerText()).toContain("원문·첨부");
+  expect(await page.locator("#ps-process h2").innerText()).toContain("처리 상태·기술 정보");
+  // 없어진 본문 구역·요소.
+  await expect(page.locator("#ps-tracking")).toHaveCount(0);
+  await expect(page.locator(".ps-record-tracking-card, .ps-record-chips, .ps-record-list-link")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "목록으로 돌아가기" })).toHaveCount(0);
 
   const navigation = page.getByRole("navigation", { name: "사전규격 선택 순회" });
   await expect(page.locator("header.topbar").getByRole("navigation", { name: "사전규격 선택 순회" })).toHaveCount(1);
@@ -140,7 +147,21 @@ test("상세 6단이 DOM 순서대로 있고 순회는 상단바가 가지며 �
   });
   expect(gradeTexts).toEqual([]);
   await expect(page.locator(".pre-spec-detail-grade-row")).toHaveCount(0);
+  // 현재 추적 상태 글자는 화면에 한 번만 나온다 — 하단 띠가 그 자리다.
   await expect(page.getByText("현재 추적 상태", { exact: false })).toHaveCount(1);
+  await expect(page.locator("#page-footer").getByText("현재 추적 상태", { exact: false })).toHaveCount(1);
+});
+
+// 값이 있으면(RL 판정 요약) `회사 관련성 참고`가 개요 바로 다음, 원문·첨부 앞에 온다.
+test("회사 관련성 참고는 값이 있을 때만 개요 다음 구역으로 나온다", async ({ page }) => {
+  await mockApi(page);
+  const view = completedView({ opportunity_id: 202 });
+  await page.route("**/api/opportunities/202/verdict", (route) => route.fulfill({ json: view }));
+  await page.goto("/pre-specs/991");
+  await expect(page.locator("#ps-conditions")).toBeVisible();
+  const cards = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".ps-record > [id]")].map(element => element.id));
+  expect(cards).toEqual(["ps-summary", "ps-tasks", "ps-conditions", "ps-evidence", "ps-process"]);
+  expect(await page.locator("#ps-conditions h2").innerText()).toContain("회사 관련성 참고");
 });
 
 // 설계고도화안 C-4: 개요 자동 검토가 이 환경에서 꺼져 있으면 실행 기록이 없는 이유를 먼저 말한다.

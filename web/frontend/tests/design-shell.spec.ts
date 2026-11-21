@@ -396,3 +396,63 @@ test("콘텐츠를 스크롤해도 사이드바는 viewport에 고정되어 메�
   const after = await sidebar.evaluate((element) => element.getBoundingClientRect().top);
   expect(Math.abs(after - before)).toBeLessThanOrEqual(1);
 });
+
+// 2026-11-21 사전규격 상세 읽기 폭(ADR-0076 결정 13): 본문·패널 헤더 안쪽·하단 결정 띠 안쪽이 같은 폭(1040px)이고, 가용
+// 폭이 그보다 넓으면(1440) 패널 가운데에 놓인다. 세 곳의 왼쪽 선이 같다. 가용 폭이 좁은 1280은 지금처럼 패널 여백에서
+// 시작하며 세 왼쪽 선이 같고 가로 넘침이 없다. 이 두 폭은 project(layout-laptop·layout-desktop)가 나눠 돈다.
+test("사전규격 상세의 본문·헤더 안쪽·하단 띠가 같은 읽기 폭과 같은 왼쪽 선을 쓴다", async ({ page }) => {
+  await page.goto("/pre-specs/991");
+  await expect(page.locator("#ps-summary")).toBeVisible();
+  await expect(page.locator("#page-footer .ps-decision-bar-inner")).toBeVisible();
+  await expect(page.locator(".app-content")).toHaveAttribute("data-reading-width", "detail");
+  await page.waitForLoadState("networkidle");
+
+  const m = await page.evaluate(() => {
+    const rect = (selector: string) => document.querySelector(selector)!.getBoundingClientRect();
+    const canvas = document.querySelector<HTMLElement>(".page-canvas")!;
+    const canvasRect = canvas.getBoundingClientRect();
+    const bodyCards = [...document.querySelectorAll<HTMLElement>(".ps-record > [id]")].map((element) => element.getBoundingClientRect());
+    const title = rect("header.topbar h1");
+    return {
+      viewport: window.innerWidth,
+      bodyWidths: bodyCards.map((box) => Math.round(box.width)),
+      bodyLeft: Math.round(bodyCards[0].left),
+      bodyRight: Math.round(bodyCards[0].right),
+      canvasLeft: Math.round(canvasRect.left),
+      canvasRight: Math.round(canvasRect.left + canvas.clientWidth),
+      titleLeft: Math.round(title.left),
+      barLeft: Math.round(rect("#page-footer .ps-decision-bar-inner").left),
+      barWidth: Math.round(rect("#page-footer .ps-decision-bar-inner").width),
+      rootOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      canvasOverflow: canvas.scrollWidth - canvas.clientWidth,
+    };
+  });
+
+  // 본문 구역은 모두 읽기 폭을 넘지 않고, 헤더 제목·본문·하단 띠 안쪽의 왼쪽 선이 같다.
+  for (const width of m.bodyWidths) expect(width).toBeLessThanOrEqual(1040);
+  expect(m.barWidth).toBeLessThanOrEqual(1040);
+  expect(Math.abs(m.titleLeft - m.bodyLeft)).toBeLessThanOrEqual(1);
+  expect(Math.abs(m.barLeft - m.bodyLeft)).toBeLessThanOrEqual(1);
+  // 가로 넘침 없음.
+  expect(m.rootOverflow).toBe(0);
+  expect(m.canvasOverflow).toBe(0);
+
+  if (m.viewport >= 1440) {
+    // 가용 폭이 읽기 폭보다 넓다: 본문 폭이 1040이고 패널(스크롤 영역) 가운데에 있다.
+    expect(m.bodyWidths[0]).toBe(1040);
+    expect(Math.abs((m.bodyLeft - m.canvasLeft) - (m.canvasRight - m.bodyRight))).toBeLessThanOrEqual(2);
+    expect(m.bodyLeft).toBeGreaterThan(m.canvasLeft);
+  } else {
+    // 1280: 가용 폭이 읽기 폭보다 좁아 본문이 패널 안쪽 가득 차고 가운데 여백이 없다.
+    expect(m.bodyWidths[0]).toBeLessThan(1040);
+    expect(Math.abs((m.bodyLeft - m.canvasLeft) - (m.canvasRight - m.bodyRight))).toBeLessThanOrEqual(2);
+  }
+});
+
+test("읽기 폭 가운데 배치는 사전규격 상세에만 걸린다", async ({ page }) => {
+  for (const route of ["/pre-specs", "/order-plans", "/opportunities/202"]) {
+    await page.goto(route, { waitUntil: "domcontentloaded" });
+    await expect(page.locator(".app-content")).toBeVisible();
+    await expect(page.locator(".app-content[data-reading-width]"), route).toHaveCount(0);
+  }
+});

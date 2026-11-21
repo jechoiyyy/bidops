@@ -797,6 +797,7 @@ function pageOverviewView(noticeId: number, run: OverviewRun): PageOverviewView 
     model_revision: run.model_revision,
     prompt_version: run.prompt_version,
     created_at: run.created_at,
+    warnings: Array.isArray(run.warnings) ? run.warnings : [],
   };
 }
 

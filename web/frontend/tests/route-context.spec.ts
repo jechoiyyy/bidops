@@ -337,10 +337,6 @@ test("PN-03 상세 새로고침과 오류 branch도 위치·목록 context를 �
 
   const navigation = page.getByRole("navigation", { name: "사전규격 선택 순회" });
   await expect(navigation.locator("strong")).toHaveText("1 / 2");
-  await expect(page.locator(".ps-record-list-link")).toHaveAttribute(
-    "href",
-    "/pre-specs?sw_only=false&q=%EC%95%88%EC%A0%84&offset=200",
-  );
   await expect(page.locator("header.topbar .topbar-crumb-link[href^='/pre-specs']")).toHaveAttribute(
     "href",
     "/pre-specs?sw_only=false&q=%EC%95%88%EC%A0%84&offset=200",
@@ -348,10 +344,6 @@ test("PN-03 상세 새로고침과 오류 branch도 위치·목록 context를 �
 
   await page.reload();
   await expect(navigation.locator("strong")).toHaveText("1 / 2");
-  await expect(page.locator(".ps-record-list-link")).toHaveAttribute(
-    "href",
-    "/pre-specs?sw_only=false&q=%EC%95%88%EC%A0%84&offset=200",
-  );
 
   await navigation.getByRole("button", { name: "다음 선택 사전규격" }).click();
   await expect(navigation.locator("strong")).toHaveText("2 / 2");
@@ -370,10 +362,6 @@ test("PN-04 token 없는 직접 주소는 저장된 선택과 무관하게 단�
   await expect(navigation.locator("strong")).toHaveText("단건 상세");
   await expect(navigation.getByRole("button", { name: "이전 선택 사전규격" })).toBeDisabled();
   await expect(navigation.getByRole("button", { name: "다음 선택 사전규격" })).toBeDisabled();
-  await expect(page.locator(".ps-record-list-link")).toHaveAttribute(
-    "href",
-    "/pre-specs?sw_only=false&q=%EC%95%88%EC%A0%84&offset=200",
-  );
   await expect(page.locator("header.topbar .topbar-crumb-link[href^='/pre-specs']")).toHaveAttribute(
     "href",
     "/pre-specs?sw_only=false&q=%EC%95%88%EC%A0%84&offset=200",
@@ -438,10 +426,10 @@ test("PN-06 빠른 A→B 전환에서 늦은 A 응답이 B record를 덮지 않�
   await navigation.getByRole("button", { name: "다음 선택 사전규격" }).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs/992");
   await expect(page.getByRole("heading", { name: "두 번째 사전규격 상세" })).toBeVisible();
-  // ADR-0062 ⓑ — 전체 상세는 머리 최상단의 강조 블록과 식별 줄에서 기관명을 두 번
-  // 보인다(사용자가 중복 표시를 확인하고 승인). 어느 자리인지 밝혀 센다.
-  await expect(page.locator(".ps-record-agency-feature .review-agency-name")).toHaveText("두 번째 발주기관");
-  await expect(page.locator(".ps-record-agency")).toHaveText("두 번째 발주기관");
+  // 2026-11-21: 기관명 강조 블록은 없어졌다. 기관은 패널 헤더 작은 줄(eyebrow)이 한 번 말하고,
+  // 식별 줄의 공고기관은 수요기관과 다를 때만 나온다(같은 값은 반복하지 않는다).
+  await expect(page.getByTestId("page-header-eyebrow")).toHaveText("사전규격 · 두 번째 발주기관");
+  await expect(page.locator(".ps-record-agency")).toHaveCount(0);
   await expect(page.getByText("PRE-992")).toBeVisible();
 
   // The old request is resolved only after the new record is mounted. Its
@@ -472,8 +460,8 @@ test("PN-06 record key가 문서 패널 상태를 초기화하고 guard 취소�
   const reason = page.getByRole("combobox", { name: "선택 사유" });
   await reason.click();
   await page.getByRole("option", { name: "후속 입찰공고 확인" }).click();
-  const actor = page.getByRole("textbox", { name: "담당자 이름 (필수)" });
-  await actor.fill("PN-06 담당자");
+  // 2026-11-21: 담당자 입력 칸은 하단 띠에 없다(사이드바 칸 하나). 보호 대상은 띠의 사유 입력이다.
+  await expect(page.getByRole("textbox", { name: "담당자 이름 (필수)" })).toHaveCount(0);
   await navigation.getByRole("button", { name: "이전 선택 사전규격" }).click();
 
   const guard = page.getByRole("alertdialog");
@@ -483,7 +471,6 @@ test("PN-06 record key가 문서 패널 상태를 초기화하고 guard 취소�
   await expect(guard).toHaveCount(0);
   await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs/992");
   await expect(reason).toContainText("후속 입찰공고 확인");
-  await expect(actor).toHaveValue("PN-06 담당자");
   await expect(navigation.locator("strong")).toHaveText("2 / 2");
 });
 

@@ -122,8 +122,7 @@
 .ps-record .ps-chip-accent { background: var(--color-accent-muted); color: var(--color-text-secondary); }
 .ps-record .ps-chip-warn { background: var(--color-warning-muted); color: var(--color-warning); }
 .ps-record .ps-chip-err { background: var(--color-error-muted); color: var(--color-error); }
-.ps-record .ps-chip-ok { background: var(--color-success-muted); color: var(--color-success); }
-.ps-record .ps-chip-dark { background: var(--color-background-inverted); color: var(--color-on-accent); }
+
 .ps-record .ps-ref {
   padding: 0;
   border: 0;
@@ -138,7 +137,7 @@
   text-underline-offset: var(--spacing-0-5);
   cursor: pointer;
 }
-.ps-record .ps-ref-plain { text-decoration: none; }
+
 .ps-record .ps-dot {
   width: var(--spacing-2);
   height: var(--spacing-2);
@@ -331,9 +330,6 @@
 .ps-record .ps-table td.ps-table-end > .ps-ref + .ps-ref { margin-left: var(--spacing-3); }
 .ps-record .ps-table td.ps-cap { color: var(--color-text-secondary); }
 
-/* ⑤ 주장별 원문 위치 */
-.ps-record .ps-evidence-claims { display: grid; gap: var(--spacing-2); }
-
 /* 목록(번호·점) */
 .ps-record .ps-bul {
   display: flex;
@@ -521,39 +517,9 @@
   padding: 0;
 }
 /* 팩트 스트립은 같은 카드의 아랫단이다(spec §4 ①). 본문만 안쪽 여백을 갖는다. */
-.ps-record .ps-record-header-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
-  padding: var(--spacing-5) var(--spacing-6) var(--spacing-4);
-}
+
 .ps-record .ps-record-facts { border-top: var(--border-width) solid var(--ps-line); }
-.ps-record-header-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--spacing-6);
-}
-.ps-record-header-main { display: flex; flex-direction: column; gap: var(--spacing-1); min-width: 0; flex: 1; }
-.ps-record-header-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--spacing-1);
-  flex: 0 0 auto;
-}
-.ps-record-chips { display: flex; align-items: center; flex-wrap: wrap; gap: var(--spacing-2); }
-.ps-record-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--spacing-2);
-  min-width: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-body);
-  line-height: 1.5;
-}
-.ps-record-meta > [aria-hidden="true"] { color: var(--color-text-disabled); }
+
 .ps-record .ps-record-agency {
   margin: 0;
   color: var(--color-text-secondary);
@@ -636,148 +602,9 @@
 }
 
 /* ---- 추적 결정 카드 --------------------------------------------------- */
-/* 카드는 세로 스택, form은 사유·담당자·액션 3열 grid다. 정렬은 라벨 줄과 컨트롤의
- * 고정 높이 토큰 두 개로 정하며 글꼴 크기에서 계산하지 않는다. */
-.ps-record-tracking-card {
-  --ps-tracking-label: var(--spacing-6);
-  --ps-tracking-control: var(--spacing-10);
-  --ps-tracking-action: 220px;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  min-width: 0;
-  padding: 0;
-  /* 결정 카드만 포인트 테두리를 두른다(spec §4 ②). 흰 글자를 얹지 않는 테두리라
-     `--bo-brand-edge`를 쓴다. */
-  box-shadow: var(--shadow-low), inset 0 0 0 var(--border-width) var(--bo-brand-edge);
-}
-.ps-record .ps-record-tracking-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-3);
-  min-width: 0;
-  padding: var(--spacing-4) var(--spacing-6);
-  border-bottom: var(--border-width) solid color-mix(in srgb, var(--bo-brand-edge) 60%, var(--color-background-surface));
-  border-radius: var(--radius-container) var(--radius-container) 0 0;
-  background: var(--ps-brand-band);
-}
-.ps-record .ps-record-tracking-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-3);
-  min-width: 0;
-  padding: var(--spacing-4) var(--spacing-6);
-}
-.ps-record-tracking-card .pre-spec-tracking-decision { display: flex; flex-direction: column; gap: var(--spacing-3); min-width: 0; padding: 0; border: 0; }
-.ps-record-tracking-card .pre-spec-tracking-form {
-  display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) var(--ps-tracking-action);
-  column-gap: var(--spacing-4);
-  row-gap: var(--spacing-3);
-  align-items: start;
-  margin: 0;
-}
-.ps-record-tracking-card .pre-spec-tracking-form > :is(.mutation-feedback, .pre-spec-tracking-combined-note, .pre-spec-tracking-elsewhere) { grid-column: 1 / -1; }
-.ps-record-tracking-card :is(.pre-spec-tracking-reason-preset, .actor-field) { min-width: 0; width: auto; max-width: none; }
-.ps-record-tracking-card .pre-spec-tracking-reason-preset { display: grid; gap: var(--spacing-3); }
-.ps-record-tracking-card .pre-spec-tracking-reason-preset > .astryx-field { min-width: 0; width: 100%; gap: 0; }
-.ps-record-tracking-card .actor-field { display: grid; gap: 0; }
-.ps-record-tracking-card .actor-field > label,
-.ps-record-tracking-card .pre-spec-tracking-reason-preset .astryx-field-label,
-.ps-record-tracking-card .pre-spec-tracking-reason > span {
-  display: block;
-  box-sizing: border-box;
-  height: var(--ps-tracking-label);
-  margin: 0;
-  padding-bottom: var(--spacing-2);
-  color: var(--color-text-primary);
-  font-size: var(--bo-type-caption);
-  line-height: 1.5;
-  font-weight: 600;
-  white-space: nowrap;
-}
-.ps-record-tracking-card :is(.actor-field > label, .pre-spec-tracking-reason > span) em {
-  margin-left: var(--spacing-1);
-  color: var(--color-text-disabled);
-  font-size: var(--bo-type-caption);
-  font-style: normal;
-  font-weight: var(--font-weight-normal);
-}
-.ps-record-tracking-card :is(.astryx-selector, .actor-field input) {
-  width: 100%;
-  height: var(--ps-tracking-control);
-  min-height: var(--ps-tracking-control);
-  border-radius: var(--ps-radius-control);
-  font-size: var(--bo-type-body);
-}
-.ps-record-tracking-card .actor-field input { padding: 0 var(--spacing-3); }
-.ps-record-tracking-card .pre-spec-tracking-reason textarea {
-  width: 100%;
-  padding: var(--spacing-2) var(--spacing-3);
-  border-radius: var(--ps-radius-control);
-  font-size: var(--bo-type-body);
-}
-.ps-record-tracking-card .actor-field > p {
-  margin: var(--spacing-1) 0 0;
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
-}
-.ps-record-tracking-card .pre-spec-tracking-action {
-  grid-column: 3;
-  display: grid;
-  gap: var(--spacing-1);
-  padding-top: var(--ps-tracking-label);
-  min-width: 0;
-}
-.ps-record-tracking-card .pre-spec-tracking-form:not(:has(.actor-field)) .pre-spec-tracking-action { padding-top: 0; }
-.ps-record-tracking-card .pre-spec-tracking-save {
-  width: 100%;
-  height: var(--ps-tracking-control);
-  min-height: var(--ps-tracking-control);
-  margin: 0;
-  padding: 0 var(--spacing-4);
-  border: var(--border-width) solid var(--color-background-inverted);
-  border-radius: var(--ps-radius-control);
-  background: var(--color-background-inverted);
-  color: var(--color-on-accent);
-  font-size: var(--bo-type-body);
-  font-weight: 500;
-}
-.ps-record-tracking-card .pre-spec-tracking-save:disabled { opacity: 0.55; cursor: not-allowed; }
+
 /* 결정 버튼은 추적 결정 입력 한 벌(C-7)의 Astryx 버튼이다. 칸 폭·높이만 이 카드가 정한다. */
-.ps-record-tracking-card .pre-spec-tracking-action > .review-decision-action,
-.ps-record-tracking-card .pre-spec-tracking-action > .review-decision-action .astryx-button { width: 100%; }
-.ps-record-tracking-card .pre-spec-tracking-action > .review-decision-action .astryx-button {
-  height: var(--ps-tracking-control);
-  min-height: var(--ps-tracking-control);
-}
-.ps-record-tracking-card .disabled-reason {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
-}
-.ps-record-tracking-card .pre-spec-tracking-elsewhere {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
-}
-.ps-record-tracking-card .pre-spec-tracking-elsewhere a { margin-left: var(--spacing-1); }
-.ps-record-tracking-footer { display: flex; justify-content: space-between; gap: var(--spacing-4); }
-.ps-record-tracking-footer p,
-.ps-record .ps-record-tracking-help,
-.ps-record .ps-record-decision-note {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
-}
-.ps-record-tracking-footer .ps-record-decision-note { text-align: right; white-space: nowrap; }
+
 .ps-record-saved-decision { display: grid; gap: var(--spacing-2); }
 .ps-record-saved-decision h3 { margin: 0; font-size: var(--bo-type-body); font-weight: 600; }
 .ps-record-saved-decision p { margin: 0; }
@@ -785,20 +612,12 @@
 .ps-record-saved-decision dl > div { display: grid; grid-template-columns: calc(var(--spacing-12) + var(--spacing-6)) minmax(0, 1fr); gap: var(--spacing-3); }
 .ps-record-saved-decision dt { color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
 .ps-record-saved-decision dd { margin: 0; overflow-wrap: anywhere; }
-.ps-record-tracking-card .pre-spec-tracking-decision-header { display: grid; gap: var(--spacing-2); }
-.ps-record-tracking-card .pre-spec-tracking-decision-header h3 { margin: 0; font-size: var(--bo-type-body); font-weight: 600; }
+
 .ps-record-tracking-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-3); }
 .ps-record-tracking-reference { display: flex; align-items: baseline; gap: var(--spacing-2); }
 
 /* ---- 사실 띠 (dl 마크업을 시안 6칸에 맞춘다) -------------------------- */
-.ps-record .ps-record-facts .pre-spec-detail-grade-row {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--spacing-1);
-  margin: 0;
-}
-.ps-record .pre-spec-detail-grade-source { color: var(--color-text-disabled); font-size: var(--bo-type-caption); font-weight: var(--font-weight-normal); }
+
 .ps-record .ps-fact .ps-v .badge { font-size: var(--bo-type-caption); }
 
 /* ---- 배지·토큰을 시안 chip 모양으로 ----------------------------------- */
@@ -836,18 +655,13 @@
 .ps-record .pre-spec-overview-waiting strong { color: var(--color-text-primary); font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
 .ps-record .pre-spec-overview-waiting p { margin: 0; color: var(--color-text-secondary); font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
 
-/* ---- 근거 목록 (기존 마크업) ------------------------------------------ */
-.ps-record .pre-spec-overview-evidence-content { flex: 1; min-width: 0; }
-.ps-record .pre-spec-overview-evidence-content > p { margin: 0; font-size: var(--bo-type-body); line-height: 1.5; overflow-wrap: anywhere; }
-.ps-record .pre-spec-overview-evidence-open { flex: 0 0 auto; }
-
 /* ---- 문서 준비 패널 --------------------------------------------------- */
 .ps-record .ps-record-documents { display: flex; flex-direction: column; gap: var(--spacing-3); min-width: 0; scroll-margin-top: var(--spacing-3); }
 .ps-record .ps-record-documents:empty { display: none; }
 .ps-record .ps-document-panel-summary-line { margin: 0; color: var(--color-text-secondary); font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
 .ps-record .pre-spec-auto-preparation { display: grid; gap: var(--spacing-3); margin: 0; }
 .ps-record .pre-spec-auto-preparation-note { margin: 0; color: var(--color-text-secondary); font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
-.ps-record .pre-spec-auto-preparation-link { font-size: var(--bo-type-caption); }
+
 .ps-record .document-preparation {
   border-radius: var(--ps-radius-control);
   box-shadow: none;
@@ -943,10 +757,6 @@
 /* ---- 확인이 필요한 것 -------------------------------------------------- */
 .ps-record .pre-spec-overview-empty { margin: 0; color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
 
-/* ---- 지켜야 할 조건 ---------------------------------------------------- */
-.ps-record .ps-record-conditions { display: flex; flex-direction: column; gap: var(--spacing-2); margin: 0; padding: 0; list-style: none; }
-.ps-record .ps-record-conditions > li { display: flex; align-items: flex-start; gap: var(--spacing-3); min-width: 0; }
-
 /* ---- 로딩·오류 자리 (시안에 없는 기능 요소) --------------------------- */
 .ps-record .detail-skeleton-main { display: flex; flex-direction: column; gap: var(--spacing-4); min-width: 0; }
 .ps-record .empty-state, .ps-record .mutation-feedback { border-radius: var(--ps-radius-chip); font-size: var(--bo-type-caption); }
@@ -985,48 +795,9 @@
   line-height: var(--bo-type-caption-leading);
 }
 .ps-record .ps-record-briefing .company-fit-notice { padding: 0; background: transparent; }
-.ps-record .ps-briefing-next-action { margin: 0; }
 
 /* ---- 담당자 브리핑 ---------------------------------------------------- */
 .ps-record .ps-record-briefing { gap: var(--spacing-3); }
-.ps-record .ps-briefing-group {
-  display: grid;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-.ps-record .ps-briefing-content {
-  display: grid;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-.ps-record .ps-briefing-content > p,
-.ps-record .ps-briefing-list li {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-.ps-record .ps-briefing-content > p { line-height: 1.5; }
-.ps-record .ps-briefing-list {
-  display: grid;
-  gap: var(--spacing-2);
-  margin: 0;
-  padding-left: var(--spacing-5);
-  min-width: 0;
-}
-.ps-record .ps-briefing-list p { margin: 0; }
-.ps-record .ps-briefing-detail {
-  margin-top: var(--spacing-1);
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
-}
-.ps-record .ps-briefing-reviews {
-  gap: var(--spacing-3);
-}
-.ps-record .ps-briefing-reviews > li {
-  padding-bottom: var(--spacing-2);
-  border-bottom: var(--border-width) solid var(--ps-line);
-}
-.ps-record .ps-briefing-reviews > li:last-child { border-bottom: 0; padding-bottom: 0; }
 
 /* ---- 범위 확정 알림·변경 기록 ---------------------------------------- */
 .ps-record .ps-record-range {
@@ -1124,3 +895,361 @@
   outline: var(--focus-outline-width) solid var(--color-accent);
   outline-offset: var(--spacing-0-5);
 }
+
+/* ======================================================================
+ * 2026-11-21 재구성 — 분석 전 화면(시안 `docs/1121_prespec-detail/` a1·a2·a3)
+ *
+ * 구역은 제목 줄 + 구역 사이 옅은 선 한 줄(ADR-0076). 네 변 테두리 상자·그림자·왼쪽 굵은 선을 새로 두지 않는다.
+ * 글자·조작 크기는 `--bo-k-*`, 색은 테마 토큰만 쓴다. 본문 묶음의 가운데 배치는 셸(`shell-relaxed.css`)이 맡는다.
+ * ====================================================================== */
+
+/* 구역 공통: 제목 18/700(ADR-0076 결정 11), 구역 아래 24px. */
+.ps-record > .ps-sec { padding-bottom: var(--spacing-6); }
+.ps-record .ps-h-sec { font-size: var(--bo-k-section); font-weight: 700; line-height: 1.4; }
+.ps-record .ps-h-sec > .ps-cnt {
+  margin-left: var(--spacing-1-5);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+  font-weight: 500;
+}
+
+/* ---- 1. 사실 줄 -------------------------------------------------------- */
+.ps-record .ps-record-facts-section { padding: 0 0 var(--spacing-6); }
+.ps-record .ps-fact-row {
+  display: grid;
+  /* 날짜 칸(의견 마감·게시)은 `2026.11.22 23:59 KST`가 1280 폭에서도 한 줄에 들어가게 조금 넓다. */
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 0.85fr) minmax(0, 1.25fr);
+  margin: 0;
+}
+.ps-record .ps-fact-cell {
+  min-width: 0;
+  padding: 0 var(--spacing-5);
+  border-left: 1px solid var(--bo-line-soft);
+}
+.ps-record .ps-fact-cell:first-child { padding-left: 0; border-left: 0; }
+.ps-record .ps-fact-cell:last-child { padding-right: 0; }
+.ps-record .ps-fact-cell dt {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+  font-weight: 400;
+  line-height: 1.45;
+}
+.ps-record .ps-fact-cell dd {
+  margin: var(--spacing-1) 0 0;
+  color: var(--color-text-primary);
+  font-size: var(--bo-k-figure);
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.ps-record .ps-fact-sub {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: normal;
+}
+/* 마감 남은 날은 글자다. 임박·지남만 의미색을 함께 쓴다(색만으로 말하지 않는다 — 글자가 `D-n`·`마감 지남`). */
+.ps-record .ps-fact-sub.is-deadline { font-weight: 600; }
+.ps-record .ps-fact-sub.is-warn { color: var(--color-warning); }
+.ps-record .ps-fact-sub.is-err { color: var(--color-error); }
+
+/* 식별 줄: 사전규격번호 + 번호 복사 · 나라장터 원문 · 본공고 · 출처 · (다를 때만) 공고기관 · 품명 분류 */
+.ps-record .ps-ident {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--spacing-2);
+  row-gap: 0;
+  margin-top: var(--spacing-3);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.ps-record .ps-ident > .ps-ident-item::before {
+  /* 가운뎃점은 화면 구분자다. 대체 문자열을 비워 낭독기에는 실리지 않는다. */
+  content: "·" / "";
+  margin-right: var(--spacing-2);
+  color: var(--color-text-disabled);
+}
+.ps-record .ps-ident :is(.ps-record-number-group > span, .ps-record-source-unavailable) { font-size: var(--bo-k-meta); }
+.ps-record .ps-ident .ps-record-number { font-size: var(--bo-k-meta); }
+.ps-record .ps-ident .ps-record-agency { font-size: var(--bo-k-meta); }
+.ps-record .ps-exclusion-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  margin: var(--spacing-3) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+}
+
+/* ---- 2. 사업 개요와 주요 과업 ------------------------------------------ */
+.ps-record .ps-overview { gap: 0; }
+/* 기준 줄: 검토 범위 · 검증 표식 · 품질 표식 한 줄. 채움 블록이 아니라 글자 줄이다. */
+.ps-record .ps-overview .ps-overview-basis {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-1) var(--spacing-2);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+.ps-record .ps-overview .ps-overview-basis p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+  line-height: 1.5;
+}
+.ps-record .ps-overview .ps-overview-basis .ps-overview-basis-note { flex-basis: 100%; }
+.ps-record .ps-overview .ps-sub {
+  margin: var(--spacing-4) 0 var(--spacing-1);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-lead);
+  font-weight: 700;
+}
+.ps-record .ps-claims {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* 주장 한 줄: (번호) · 문장 · 오른쪽 끝의 쪽 링크. */
+.ps-record .ps-claims > li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-3);
+  min-width: 0;
+  padding: var(--spacing-1-5) 0;
+}
+.ps-record .ps-claims .ps-claim-no {
+  flex: 0 0 var(--spacing-5);
+  color: var(--color-text-secondary);
+  font-weight: 700;
+}
+.ps-record .ps-claims .page-overview-fact-line {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--bo-k-body);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.ps-record .ps-claims .page-overview-links {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+.ps-record .ps-overview-warnings { margin-top: var(--spacing-3); }
+.ps-record .ps-overview-warnings > summary {
+  display: list-item;
+  padding-block: var(--spacing-2);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-lead);
+  font-weight: 600;
+  cursor: pointer;
+}
+.ps-record .ps-overview-warnings ul {
+  display: grid;
+  gap: var(--spacing-1);
+  margin: var(--spacing-1) 0 var(--spacing-2);
+  padding-left: var(--spacing-5);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+  line-height: 1.5;
+}
+.ps-record .ps-overview-warnings code { font-size: var(--bo-k-meta); overflow-wrap: anywhere; }
+.ps-record .ps-overview-warnings p { margin: 0; font-size: var(--bo-k-meta); }
+/* 범위 확정이 필요할 때 개요 자리에 오는 폼(시안 a3). 회색 채움 블록이며 테두리가 없다. */
+.ps-record .ps-record-tasks > .ps-record-range {
+  padding: var(--spacing-5);
+  border-radius: var(--radius-element);
+  background: var(--color-background-muted);
+}
+.ps-record .ps-record-tasks > .ps-record-range .page-overview-section { padding-block: 0; border-bottom: 0; }
+
+/* ---- 3. 원문·첨부 ------------------------------------------------------ */
+.ps-record .ps-record-evidence .ps-table { width: 100%; }
+.ps-record .ps-record-evidence .ps-plan-candidates { margin-top: var(--spacing-3); }
+
+/* ---- 4. 처리 상태·기술 정보 (접힌 구역 하나) --------------------------- */
+.ps-record .ps-fold { padding-bottom: 0; }
+.ps-record .ps-fold:has(> .ps-fold-body) { padding-bottom: var(--spacing-6); }
+.app-shell .page-canvas .ps-record .ps-fold > .ps-fold-head:first-child {
+  justify-content: flex-start;
+  min-height: calc(var(--bo-k-control-row) + var(--spacing-6));
+  padding: var(--spacing-3) 0;
+}
+.ps-record .ps-fold-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: var(--bo-k-control-row);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--bo-k-section);
+  font-weight: 700;
+  cursor: pointer;
+}
+.ps-record .ps-fold-chevron {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  color: var(--color-text-secondary);
+}
+.ps-record .ps-fold-toggle[aria-expanded="true"] .ps-fold-chevron { transform: rotate(90deg); }
+.ps-record .ps-fold-meta {
+  min-width: 0;
+  margin: 0 0 0 auto;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+  line-height: 1.5;
+  text-align: right;
+}
+.ps-record .ps-fold-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-width: 0;
+}
+.ps-record .ps-process-actions { display: flex; align-items: center; gap: var(--spacing-2); }
+.ps-record .ps-fold-body .ps-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ps-record .ps-record-range > .astryx-button { align-self: flex-start; }
+.ps-record .ps-fold-body > .ps-record-range { display: flex; flex-direction: column; gap: var(--spacing-3); }
+.ps-record .ps-process-relevance { display: grid; gap: var(--spacing-3); min-width: 0; }
+.ps-record .ps-process-relevance .ps-sub { margin: 0; font-size: var(--bo-k-lead); font-weight: 700; }
+
+/* ---- 하단 결정 띠 (패널 아래 고정, `#page-footer` portal) ------------------
+   본문(`.page-canvas`) 밖이라 패널 본문 밀도 규칙(`panel-density.css`)이 닿지 않는다. 같은 k 단을 띠가 스스로
+   가리킨다. 높이는 위아래 12 + 입력 48 + 위 선 1(시안 73px). 추적 외의 할 일은 이 띠에 넣지 않는다. */
+#page-footer .ps-decision-bar {
+  --bo-type-body: var(--bo-k-body);
+  --bo-type-caption: var(--bo-k-meta);
+  --font-size-2xs: var(--bo-k-meta);
+  --font-size-xs: var(--bo-k-meta);
+  --font-size-sm: var(--bo-k-meta);
+  --font-size-base: var(--bo-k-body);
+  --size-element-sm: var(--bo-k-control-row);
+  --size-element-md: var(--bo-k-control-input);
+  --size-element-lg: var(--bo-k-control-input);
+  padding: var(--spacing-3) var(--shell-canvas-inline-padding);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-background-surface);
+  color: var(--color-text-primary);
+  font-size: var(--bo-k-meta);
+  line-height: 1.5;
+}
+#page-footer .ps-decision-bar-inner {
+  max-width: var(--shell-reading-width, none);
+  min-width: 0;
+  margin-inline: auto;
+}
+/* 옛 결정 카드 모양(테두리·채움·위 여백, `pre-specs-relaxed.css`)을 띠에서는 걷는다. */
+#page-footer .pre-spec-tracking-decision.is-bar {
+  display: grid;
+  gap: var(--spacing-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+#page-footer .ps-decision-bar-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--spacing-4);
+  min-width: 0;
+  min-height: var(--bo-k-control-input);
+  margin: 0;
+}
+#page-footer .ps-decision-bar-text { flex: 1 1 auto; display: grid; min-width: 0; }
+#page-footer .ps-decision-bar-status {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: var(--spacing-1);
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--bo-k-body);
+  line-height: 1.5;
+}
+#page-footer .ps-decision-bar-status strong { font-weight: 700; }
+#page-footer .ps-decision-bar-sep { color: var(--color-text-secondary); }
+#page-footer .ps-decision-bar-status :is(.ps-decision-bar-note, .disabled-reason) {
+  display: inline;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+}
+#page-footer .ps-decision-bar-boundary {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+#page-footer .ps-decision-bar-actor {
+  margin-left: var(--spacing-1);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-accent);
+  font: inherit;
+  font-size: var(--bo-k-meta);
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-0-5);
+  cursor: pointer;
+}
+#page-footer .ps-decision-bar-fields { flex: 0 0 auto; display: flex; min-width: 0; }
+/* 선택 사유와 `기타 · 직접 입력` 칸이 같은 줄에 놓인다. 칸 이름은 낭독기에만 남는다. */
+#page-footer .ps-decision-bar-reason-field { display: flex; align-items: center; gap: var(--spacing-3); min-width: 0; }
+#page-footer .ps-decision-bar-reason-field > * { width: 280px; min-width: 0; }
+#page-footer .ps-decision-bar-reason-field > * + * { width: 240px; }
+/* `기타 · 직접 입력`을 고르면 두 칸이 같은 줄에 놓이므로 드롭다운을 줄여 왼쪽 글자 칸을 남긴다. */
+#page-footer .ps-decision-bar-reason-field:has(> * + *) > :first-child { width: 200px; }
+#page-footer .ps-decision-bar-reason-field :is(.astryx-selector, .astryx-text-input, input) {
+  min-height: var(--bo-k-control-input);
+  font-size: var(--bo-k-body);
+}
+#page-footer .ps-decision-bar-action { flex: 0 0 auto; display: flex; align-items: center; gap: var(--spacing-2); }
+#page-footer .ps-decision-bar-action .astryx-button {
+  min-height: var(--bo-k-control-input);
+  font-size: var(--bo-k-body);
+  font-weight: 600;
+}
+#page-footer .ps-decision-bar-action .astryx-button.primary { min-width: 180px; font-weight: 700; }
+#page-footer .ps-decision-bar-link {
+  color: var(--color-text-accent);
+  font-size: var(--bo-k-meta);
+  font-weight: 600;
+  white-space: nowrap;
+}
+#page-footer .ps-decision-bar :is(a, button):focus-visible {
+  outline: var(--focus-outline-width) solid var(--color-accent);
+  outline-offset: var(--spacing-0-5);
+}
+
+/* 분석 완료 화면(mock 빌드 전용)의 사실 줄은 `추적 상태` 칸이 더해져 다섯 칸이다. */
+.ps-record .ps-fact-row.has-tracking {
+  /* 날짜 값은 줄바꿈하지 않는다. 날짜 칸(의견 마감·게시)은 내용 폭(`max-content`)을 최소로 잡고 남는 폭은 나머지가 나눈다. */
+  grid-template-columns: minmax(max-content, 1.25fr) minmax(0, 0.9fr) minmax(0, 0.8fr) minmax(max-content, 1.25fr) minmax(0, 0.8fr);
+}
+.ps-record .ps-fact-row.has-tracking .ps-fact-cell { padding-inline: var(--spacing-3); }
+.ps-record .ps-fact-row.has-tracking .ps-fact-cell dd { white-space: nowrap; overflow-wrap: normal; }
+.ps-record .ps-fact-row.has-tracking .ps-fact-cell dd small { white-space: normal; }
+.ps-record .ps-fact-row.has-tracking .ps-fact-cell:first-child { padding-left: 0; }
+.ps-record .ps-fact-row.has-tracking .ps-fact-cell:last-child { padding-right: 0; }

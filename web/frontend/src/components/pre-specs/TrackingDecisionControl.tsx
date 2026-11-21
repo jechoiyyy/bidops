@@ -1,14 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Badge } from "../common/Badge";
-import { ActorField } from "../common/ActorField";
+import { Button } from "@astryxdesign/core/Button";
+import { ActorField, requestActorInput, useRememberedActorName } from "../common/ActorField";
 import { ConfirmDecisionDialog, trackingEndConfirmContent } from "../common/ConfirmDecisionDialog";
 import { useUnsavedGuard } from "../common/useUnsavedGuard";
 import { DisabledReason } from "../common/DisabledReason";
 import { EmptyState } from "../common/EmptyState";
 import { MutationFeedback } from "../common/MutationFeedback";
+import { ReviewDecisionAction } from "../common/ReviewPrimitives";
 import {
+  TRACKING_DECISION_ORDER,
   TRACKING_SAVE_FAILED,
   TrackingDecisionActions,
   TrackingDecisionInputs,
@@ -54,8 +57,15 @@ import type {
  * ADR-0046 결정 6: 추적 상태를 묻는 자리를 하나로 제한한다. `보류`와 `추적 종료`는
  * 사업 추적에서만 사람이 선택하고, 발주계획에서 승계된 건은 여기서 다시 묻지 않으며,
  * 심층 검토가 정상 완료돼도 다시 묻지 않는다. 이 배열을 늘리면 그 결정이 깨진다.
+ *
+ * **예외(2026-11-21 사용자 결정, 결정 6 개정은 문서 작업이 기록한다):** 사전규격 상세의 `분석 완료` 화면
+ * (엔진 분석 결과가 있는 건, 지금은 mock 빌드 전용) 하단 띠만 `TRACKING_DECISION_STATUSES_AFTER_ANALYSIS`
+ * 세 가지를 고른다. 그 띠가 `barStatuses`로 받는다. 이 배열(분석 전 화면·목록)은 그대로 하나다.
  */
 export const TRACKING_DECISION_STATUSES: OpportunityTrackingStatus[] = ["계속 추적"];
+
+/** 분석 완료 화면 하단 띠가 고르는 세 상태(위 예외). `종료`는 기존 종료 확인 단계를 그대로 거친다. */
+export const TRACKING_DECISION_STATUSES_AFTER_ANALYSIS: readonly TrackingDecisionStatus[] = ["계속 추적", "보류", "종료"];
 
 /**
  * 회사 데모 경로(`CompanyTrackingDecision`)의 사유·담당자 필수 규칙. 사전규격 경로는 추적 결정
@@ -132,8 +142,12 @@ export interface PreSpecTrackingDecisionControlProps {
   /** Approved record presentation; the shared mutation and input guard remain here.
    * `inline`은 목록 우측 정보 영역 바닥의 한 줄 배치다(docs/0915_ui-redesign/spec.md §3.3).
    * `record`와 **같은 업무 규칙·필드·문구**를 쓰고 CSS 배치만 다르다 — 선택 가능한
-   * 상태값·사유 필수·담당자 기억·비활성 사유를 다시 구현하지 않는다. */
-  presentation?: "default" | "record" | "inline";
+   * 상태값·사유 필수·담당자 기억·비활성 사유를 다시 구현하지 않는다.
+   *
+   * `bar`는 사전규격 상세의 패널 아래 고정 띠다(2026-11-21 시안 `docs/1121_prespec-detail/`). 같은 상태값·사유 필수·
+   * 저장·오류·이탈 보호를 쓰고 배치만 한 줄이다. 담당자 입력 칸은 없고 사이드바 담당자 칸의 값(`bidops.actorName`)을
+   * 쓴다 — 비어 있으면 저장을 막고 그 칸을 여는 단추를 둔다(발주계획 결정 영역과 같은 규칙). */
+  presentation?: "default" | "record" | "inline" | "bar";
   noticeNumber?: string | null;
   /** 헤더가 같은 배지를 이미 그릴 때 중복을 피하기 위한 배치 옵션. 상태 계산은 이 컴포넌트가 계속 소유한다. */
   showRecordHeading?: boolean;
@@ -160,6 +174,11 @@ export interface PreSpecTrackingDecisionControlProps {
    * 막을 수 없다. 그 확인은 목록 화면이 이 콜백을 받아 걸어야 한다.
    */
   onDirtyChange?: (dirty: boolean) => void;
+  /**
+   * `bar` 배치에서 고를 수 있는 상태. 주지 않으면 `TRACKING_DECISION_STATUSES`(계속 추적 하나)다. 둘 이상이면
+   * 띠가 이미 기록된 건에서도 상태를 바꾸는 입력을 그린다(분석 완료 화면 예외, 위 주석).
+   */
+  barStatuses?: readonly TrackingDecisionStatus[];
 }
 
 /**
@@ -171,6 +190,11 @@ export interface PreSpecTrackingDecisionControlProps {
  *
  * 두 경로는 사유 필수·담당자 필수·종료 확인·미저장 이탈 확인 규칙을 같은 자리에서 쓴다.
  */
+/** 하단 결정 띠의 경계 문장. 추적 결정이 무엇을 정하지 않는지 띠에 한 번만 적는다(2026-11-21 시안). */
+export const TRACKING_BAR_BOUNDARY = "보류·종료는 사업 추적에서, 입찰 참여는 최종 Go/No-Go에서 정해요.";
+/** 세 상태를 고르는 띠(분석 완료 화면)의 경계 문장. 보류·종료를 여기서 고르므로 입찰 참여만 남는다. */
+export const TRACKING_BAR_BOUNDARY_AFTER_ANALYSIS = "입찰 참여는 최종 Go/No-Go에서 정해요.";
+
 export function TrackingDecisionControl(props: TrackingDecisionControlProps) {
   if (props.adapter) return <CompanyTrackingDecision adapter={props.adapter} headingLevel={props.headingLevel} />;
   return <PreSpecTrackingDecisionControl {...props} />;
@@ -192,14 +216,18 @@ function PreSpecTrackingDecisionControl({
   noticeNumber,
   showRecordHeading = true,
   showIntent = true,
+  barStatuses,
 }: PreSpecTrackingDecisionControlProps) {
   const Heading = headingLevel;
   const opportunityId = item?.opportunity_id ?? null;
   const inherited = item !== undefined && isInheritedTracking(item);
+  const bar = presentation === "bar";
+  // 서버에 이미 추적 결정이 있는가. 하단 띠는 그 결정의 사유·담당자·시각을 사업기회에서 읽어 함께 보인다.
+  const serverRecorded = opportunityId !== null && item?.tracking_status != null && item.tracking_status !== "미선택";
   const opportunityQuery = useQuery({
     queryKey: ["opportunity", opportunityId],
     queryFn: () => api.getOpportunity(opportunityId as number),
-    enabled: inherited && opportunityId !== null && !isPending && !isError,
+    enabled: (inherited || (bar && serverRecorded)) && opportunityId !== null && !isPending && !isError,
     retry: false,
     staleTime: 30_000,
   });
@@ -219,14 +247,20 @@ function PreSpecTrackingDecisionControl({
   // spec §3.3: inline은 record 변형의 배치 변형이다. 아래의 모든 업무 규칙 분기는
   // `record`를 그대로 읽으므로 두 변형이 같은 규칙을 공유한다.
   const inline = presentation === "inline";
-  const record = presentation === "record" || inline;
+  const record = presentation === "record" || inline || bar;
   const inlineClass = inline ? " is-inline" : "";
   const [savedDecision, setSavedDecision] = useState<{ reason: string; actor: string } | null>(null);
   // 입력은 추적 결정 입력 한 벌(C-7)과 같다 — 드롭다운 선택 키와 `기타` 직접 입력을 나눠 두고,
   // 저장 사유는 `trackingReasonValue`가 고른다. `기타` 키는 API에 보내지 않는다.
   const [choice, setChoice] = useState("");
+  // 분석 완료 화면 띠에서 사람이 고른 상태. 미리 골라 두지 않는다.
+  const multiStatus = presentation === "bar" && barStatuses !== undefined && barStatuses.length > 1;
+  const [picked, setPicked] = useState<TrackingDecisionStatus | null>(null);
   const [custom, setCustom] = useState("");
   const [actorName, setActorName] = useState("");
+  // 하단 띠는 담당자 입력 칸을 두지 않고 사이드바 담당자 칸 하나의 값을 쓴다(ADR-0076 결정 2·10).
+  const rememberedActor = useRememberedActorName();
+  const effectiveActor = bar ? rememberedActor : actorName;
   const [problem, setProblem] = useState<ApiErrorDescription | null>(null);
   // `종료`만 되돌릴 수 없다. 이 화면은 `계속 추적`만 저장하므로(ADR-0046 결정 6) 확인 단계가 열릴
   // 일은 없지만, 같은 규칙을 다른 경로와 함께 둔다. 요약은 열 때의 값을 얼려 둔다.
@@ -245,15 +279,16 @@ function PreSpecTrackingDecisionControl({
   //
   // 범위가 `pathname`인 이유: 두 화면 모두 선택·필터를 검색 인자로 옮기므로
   // `any`로 두면 사유를 적는 중에 목록 조작마다 이탈 확인이 뜬다.
-  const dirty = choice !== "" || custom.trim().length > 0;
+  const dirty = choice !== "" || custom.trim().length > 0 || picked !== null;
   const guard = useUnsavedGuard(dirty, {
     blockSpaNavigation: true,
     scope: "pathname",
     title: "추적 결정을 저장하지 않고 떠나요",
     message: "저장하지 않은 추적 결정 사유와 담당자 이름이 있어요. 지금 이동하면 사라지며 저장된 추적 상태는 바뀌지 않아요.",
     summary: [
+      ...(multiStatus ? [{ label: "추적 상태", value: picked ?? "값 없음" }] : []),
       { label: "사유", value: reasonValue || "값 없음" },
-      { label: "담당자", value: actorName.trim() || "값 없음" },
+      { label: "담당자", value: effectiveActor.trim() || "값 없음" },
     ],
   });
 
@@ -266,7 +301,7 @@ function PreSpecTrackingDecisionControl({
     mutationFn: (status: TrackingDecisionStatus) => api.updateOpportunityTrackingStatus(
       item?.opportunity_id as number,
       { tracking_status: status, reason: reasonValue },
-      actorName,
+      effectiveActor,
     ),
     onSuccess: (saved) => {
       if (!item) return;
@@ -276,6 +311,7 @@ function PreSpecTrackingDecisionControl({
       if (record) setSavedDecision({ reason: saved.tracking_reason ?? "기록된 사유 미확인", actor: saved.tracking_selected_by ?? "담당자 미확인" });
       setChoice("");
       setCustom("");
+      setPicked(null);
       setActorName("");
       setProblem(null);
       // 추적 결정은 추적만 정한다(2026-11-19). 분석 실행 승인으로 이어지지 않는다.
@@ -293,17 +329,139 @@ function PreSpecTrackingDecisionControl({
   const currentStatus = item?.tracking_status ?? null;
   const currentStatusLabel = currentStatus ?? "미확인";
   const currentStatusVariant = currentStatus === null ? "neutral" : trackingVariant(currentStatus);
-  const recorded = record && hasOpportunity && ((currentStatus !== null && currentStatus !== "미선택") || savedDecision !== null);
+  const recorded = record && !multiStatus && hasOpportunity && ((currentStatus !== null && currentStatus !== "미선택") || savedDecision !== null);
   const hasForm = Boolean(item) && !isPending && !isError && !(item && isInheritedTracking(item)) && !recorded;
   const disabledReason = !hasOpportunity && !mutation.isPending
     ? "아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없어요."
-    : trackingInputBlockedReason({ choice, custom, actorName, pending: mutation.isPending });
+    : multiStatus && picked === null && !mutation.isPending
+      ? "추적 상태(계속 추적·보류·종료)를 골라 주세요."
+      : trackingInputBlockedReason({ choice, custom, actorName: effectiveActor, pending: mutation.isPending });
   const ready = hasOpportunity && disabledReason === null;
   const saveLabel = trackingActionLabel(TRACKING_DECISION_STATUSES[0] as TrackingDecisionStatus, currentStatus);
 
   useEffect(() => {
     onDecisionStateChange?.({ ready, disabledReason, hasForm, saveLabel });
   }, [disabledReason, hasForm, onDecisionStateChange, ready, saveLabel]);
+
+  if (bar) {
+    return (
+      <TrackingDecisionBarLayout
+        state={isPending ? { kind: "loading" } : isError || !item ? { kind: "error", onRetry } : !hasOpportunity ? {
+          kind: "unlinked",
+          disabledReason: disabledReason ?? "아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없어요.",
+          currentStatus,
+        } : recorded ? {
+          kind: "recorded",
+          headline: savedDecision
+            ? trackingSavedMessage(currentStatus === null || currentStatus === "미선택" ? "계속 추적" : currentStatus)
+            : inherited ? "발주계획에서 추적 결정을 이어받았어요" : "추적 결정이 기록된 사업이에요",
+          statusLabel: `현재 추적 상태 ${currentStatusLabel}${inherited ? " · 발주계획에서 승계" : ""}`,
+          context: opportunityQuery.isSuccess && opportunityQuery.data?.id === opportunityId ? (
+            <>
+              사유 {present(opportunityQuery.data.tracking_reason, "미확인")}
+              {" · "}{present(opportunityQuery.data.tracking_selected_by, "담당자 미확인")}
+              {" · "}<time dateTime={opportunityQuery.data.tracking_selected_at ?? undefined}>
+                {formatDateTime(opportunityQuery.data.tracking_selected_at)}
+              </time>
+            </>
+          ) : savedDecision ? (
+            <>사유 {savedDecision.reason}{" · "}{savedDecision.actor}</>
+          ) : opportunityQuery.isError || opportunityQuery.isSuccess ? "기록 사유 확인 불가" : "기록 사유를 불러오는 중이에요.",
+          opportunityId: item.opportunity_id as number,
+        } : {
+          kind: "input",
+          currentStatusLabel,
+          disabledReason,
+          actor: effectiveActor.trim(),
+          savedMessage: multiStatus && savedDecision ? trackingSavedMessage(currentStatus ?? "계속 추적") : null,
+          // 세 상태를 고르는 띠는 "상태를 골라 주세요" 안내를 화면 글줄로 두지 않는다(띠 높이 73px 유지). 세 단추가 그 안내이고
+          // 이유 문장은 저장 단추의 aria-describedby 대상으로 남는다(낭독기용).
+          reasonHidden: multiStatus && picked === null && !mutation.isPending && hasOpportunity,
+          choices: multiStatus ? (
+            <div className="ps-decision-bar-choices" role="group" aria-label="추적 결정">
+              {TRACKING_DECISION_ORDER.filter((status) => barStatuses?.includes(status)).map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  aria-pressed={picked === status}
+                  disabled={mutation.isPending}
+                  onClick={() => setPicked(picked === status ? null : status)}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+          ) : null,
+        }}
+        inputs={(
+          <TrackingDecisionInputs
+            presets={reasonPresets ?? []}
+            choice={choice}
+            onChoiceChange={setChoice}
+            custom={custom}
+            onCustomChange={setCustom}
+            actorName={effectiveActor}
+            onActorNameChange={() => undefined}
+            isDisabled={mutation.isPending}
+            size="md"
+            isLabelHidden
+            selectorPlacement="above"
+            reasonClassName="ps-decision-bar-reason-field"
+            // 담당자 칸은 띠에 두지 않는다(사이드바 담당자 칸 하나). `null`은 기본 입력 칸으로 떨어지므로 `false`다.
+            actorSlot={false}
+          />
+        )}
+        actions={multiStatus ? (
+          <ReviewDecisionAction
+            className="tracking-action is-save"
+            disabledReasonId="pre-spec-tracking-save-disabled"
+            isDisabled={!ready}
+            label={mutation.isPending ? "저장 중…" : "추적 결정 저장하기"}
+            type="submit"
+            variant="primary"
+          />
+        ) : (
+          <TrackingDecisionActions
+            statuses={TRACKING_DECISION_STATUSES as TrackingDecisionStatus[]}
+            current={currentStatus}
+            disabledReasonId="pre-spec-tracking-save-disabled"
+            isDisabled={!ready}
+            pendingStatus={mutation.isPending ? (mutation.variables ?? null) : null}
+            onDecide={(status) => {
+              if (!ready || mutation.isPending) return;
+              mutation.mutate(status);
+            }}
+          />
+        )}
+        onSubmit={() => {
+          if (!ready || mutation.isPending) return;
+          if (!multiStatus) {
+            mutation.mutate(TRACKING_DECISION_STATUSES[0] as TrackingDecisionStatus);
+            return;
+          }
+          if (picked === null || !item) return;
+          // `종료`만 되돌릴 수 없다. 다른 경로와 같은 확인 단계를 거친다.
+          if (picked === "종료") {
+            setEndConfirm(trackingEndConfirmContent({ actor: effectiveActor, reason: reasonValue, target: `사업기회 #${item.opportunity_id}` }));
+            return;
+          }
+          mutation.mutate(picked);
+        }}
+        problem={problem ? <TrackingSaveError problem={problem} /> : null}
+        dialog={multiStatus && endConfirm ? (
+          <ConfirmDecisionDialog
+            confirmLabel={endConfirm.confirmLabel}
+            isPending={mutation.isPending}
+            onConfirm={() => mutation.mutate("종료", { onSettled: () => setEndConfirm(null) })}
+            onOpenChange={(next) => { if (!next) setEndConfirm(null); }}
+            open
+            summary={endConfirm.summary}
+            title={endConfirm.title}
+          />
+        ) : null}
+      />
+    );
+  }
 
   if (isPending) {
     return (
@@ -332,7 +490,7 @@ function PreSpecTrackingDecisionControl({
   const submit = (status: TrackingDecisionStatus) => {
     if (!ready || mutation.isPending) return;
     if (status === "종료") {
-      setEndConfirm(trackingEndConfirmContent({ actor: actorName, reason: reasonValue, target: `사업기회 #${item.opportunity_id}` }));
+      setEndConfirm(trackingEndConfirmContent({ actor: effectiveActor, reason: reasonValue, target: `사업기회 #${item.opportunity_id}` }));
       return;
     }
     mutation.mutate(status);
@@ -485,6 +643,136 @@ function PreSpecTrackingDecisionControl({
         title={endConfirm?.title ?? "추적을 종료해요"}
       />
     </section>
+  );
+}
+
+type TrackingDecisionBarState =
+  | { kind: "loading" }
+  | { kind: "error"; onRetry: () => void }
+  | { kind: "unlinked"; disabledReason: string; currentStatus: OpportunityTrackingStatus | null }
+  | { kind: "recorded"; headline: string; statusLabel: string; context: ReactNode; opportunityId: number }
+  | { kind: "input"; currentStatusLabel: string; disabledReason: string | null; actor: string; savedMessage: string | null; choices: ReactNode; reasonHidden: boolean };
+
+/**
+ * 하단 결정 띠의 배치(2026-11-21 시안 `.decision-bar`). 규칙·문구·저장은 `PreSpecTrackingDecisionControl`이 정하고
+ * 여기는 한 줄 배치만 한다: 왼쪽 두 줄(상태 · 경계 문장) / 선택 사유 / 주 버튼. 화면의 주 버튼은 이 띠의 하나뿐이다.
+ */
+function TrackingDecisionBarLayout({
+  state,
+  inputs,
+  actions,
+  onSubmit,
+  problem,
+  dialog,
+}: {
+  state: TrackingDecisionBarState;
+  inputs: ReactNode;
+  actions: ReactNode;
+  onSubmit: () => void;
+  problem: ReactNode;
+  dialog: ReactNode;
+}) {
+  const heading = <h2 className="visually-hidden" id="pre-spec-tracking-decision-title">추적 결정</h2>;
+  const boundary = <p className="ps-decision-bar-boundary">{state.kind === "input" && state.choices ? TRACKING_BAR_BOUNDARY_AFTER_ANALYSIS : TRACKING_BAR_BOUNDARY}</p>;
+  const frame = (body: ReactNode, modifier: string) => (
+    <section className={`pre-spec-tracking-decision is-bar ${modifier}`} aria-labelledby="pre-spec-tracking-decision-title">
+      {heading}
+      {body}
+    </section>
+  );
+
+  if (state.kind === "loading") {
+    return frame(
+      <div className="ps-decision-bar-row">
+        <div className="ps-decision-bar-text">
+          <p className="ps-decision-bar-status" role="status">사업기회 연결과 첨부 취득 집계를 불러오는 중이에요.</p>
+          {boundary}
+        </div>
+      </div>,
+      "is-loading",
+    );
+  }
+
+  if (state.kind === "error") {
+    return frame(
+      <div className="ps-decision-bar-row">
+        <div className="ps-decision-bar-text" role="alert">
+          <p className="ps-decision-bar-status"><strong>사업기회 연결 정보를 확인할 수 없어요</strong></p>
+          <p className="ps-decision-bar-boundary">추적 상태를 불러오지 못해 이 화면에서 결정을 기록하지 않아요.</p>
+        </div>
+        <div className="ps-decision-bar-action">
+          <Button label="다시 시도" onClick={state.onRetry} />
+        </div>
+      </div>,
+      "is-error",
+    );
+  }
+
+  if (state.kind === "recorded") {
+    return frame(
+      <div className="ps-decision-bar-row">
+        <div className="ps-decision-bar-text">
+          <p className="ps-decision-bar-status"><strong>{state.headline}</strong><span className="ps-decision-bar-sep" aria-hidden="true"> · </span><span>{state.statusLabel}</span></p>
+          <p className="ps-decision-bar-boundary pre-spec-inherited-context">{state.context}</p>
+        </div>
+        <div className="ps-decision-bar-action">
+          <Link className="ps-decision-bar-link" to={`/opportunities/${state.opportunityId}`}>사업 추적에서 상태 관리 ↗</Link>
+        </div>
+      </div>,
+      "is-recorded",
+    );
+  }
+
+  if (state.kind === "unlinked") {
+    return frame(
+      <div className="ps-decision-bar-row">
+        <div className="ps-decision-bar-text">
+          <p className="ps-decision-bar-status"><strong>사업기회 미연결</strong></p>
+          <DisabledReason className="ps-decision-bar-boundary" id="pre-spec-tracking-save-disabled">{state.disabledReason}</DisabledReason>
+        </div>
+        <div className="ps-decision-bar-action">{actions}</div>
+      </div>,
+      "is-unlinked",
+    );
+  }
+
+  return frame(
+    <>
+      <form
+        className="ps-decision-bar-row pre-spec-tracking-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit();
+        }}
+      >
+        <div className="ps-decision-bar-text">
+          <div className="ps-decision-bar-status">
+            {state.savedMessage ? <strong role="status">{state.savedMessage}</strong> : null}
+            {state.savedMessage ? <span className="ps-decision-bar-sep" aria-hidden="true"> · </span> : null}
+            <strong>{state.choices ? "현재 추적 상태" : "추적 상태"} {state.currentStatusLabel}</strong>
+            {state.reasonHidden ? null : <span className="ps-decision-bar-sep" aria-hidden="true"> · </span>}
+            {state.disabledReason ? (
+              <DisabledReason className={`ps-decision-bar-note${state.reasonHidden ? " visually-hidden" : ""}`} id="pre-spec-tracking-save-disabled">{state.disabledReason}</DisabledReason>
+            ) : (
+              <p className="ps-decision-bar-note">{state.actor} 이름으로 기록해요</p>
+            )}
+            {/* 이름은 사이드바 담당자 칸 하나에서만 적는다. 비어 있으면 그 칸을 열어 초점을 옮긴다. */}
+            {!state.actor ? (
+              <button className="ps-decision-bar-actor" data-testid="pre-spec-actor-missing" onClick={requestActorInput} type="button">사이드바에서 이름 입력하기</button>
+            ) : !state.disabledReason ? (
+              <button className="ps-decision-bar-actor" onClick={requestActorInput} type="button">이름 바꾸기</button>
+            ) : null}
+          </div>
+          {boundary}
+        </div>
+        {state.choices}
+        <div className="ps-decision-bar-fields">{inputs}</div>
+        <div className="ps-decision-bar-action pre-spec-tracking-action">{actions}</div>
+      </form>
+      {problem}
+      {dialog}
+    </>,
+    state.choices ? "is-input is-decide" : "is-input",
   );
 }
 

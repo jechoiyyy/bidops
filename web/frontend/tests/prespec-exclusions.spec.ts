@@ -147,7 +147,8 @@ test("전체 이력 제외 필터·단건 복원·URL 초기화·상세 표식",
   await expect(row(page, 991)).toContainText('검토 제외');
   await expect(row(page, 992)).toHaveCount(0);
   await page.getByRole('link', { name: '상세 페이지 열기 →' }).click();
-  await expect(page.locator('.ps-record-header-actions').getByText('검토 제외', { exact: true })).toBeVisible();
+  // 2026-11-21: 제외 표식은 사실 줄 머리 아래 한 줄(`.ps-exclusion-line`)이 갖는다.
+  await expect(page.locator('#ps-summary .ps-exclusion-line').getByText('검토 제외', { exact: true })).toBeVisible();
   await page.goBack();
   await expect(page).toHaveURL(/review_exclusion=excluded/);
   await page.getByRole('button', { name: '검토 목록으로 복원', exact: true }).click();

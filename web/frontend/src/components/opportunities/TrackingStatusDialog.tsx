@@ -37,7 +37,7 @@ import type { OpportunityDetailResponse } from "../../lib/types";
  */
 
 /** 사유 예시. 세 상태의 옛 예시를 한 목록으로 모았다(결정 버튼이 마지막에 오므로 상태별로 나누지 않는다). */
-const OPPORTUNITY_TRACKING_REASONS = [
+export const OPPORTUNITY_TRACKING_REASONS = [
   "사업 범위가 맞아 후속 공고 확인",
   "추가 문서와 요구사항 확인 필요",
   "참여 조건 확인 후 재검토",

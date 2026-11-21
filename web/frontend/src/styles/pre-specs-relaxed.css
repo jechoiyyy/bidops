@@ -979,24 +979,6 @@
   gap: var(--spacing-2);
 }
 
-.pre-spec-overview-evidence-open {
-  min-height: 32px;
-  padding: var(--spacing-1) var(--spacing-3);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  color: var(--color-deep);
-  background: var(--surface-card);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--bo-type-caption);
-  font-weight: 600;
-}
-
-.pre-spec-overview-evidence-open:hover {
-  border-color: var(--color-primary-strong);
-  color: var(--color-primary-strong);
-}
-
 .pre-spec-overview-waiting {
   padding: var(--spacing-3);
   border: 1px solid var(--border-subtle);
@@ -1325,8 +1307,7 @@
   color: var(--color-text-secondary);
 }
 
-.pre-spec-tracking-elsewhere,
-.pre-spec-tracking-combined-note {
+.pre-spec-tracking-elsewhere {
   min-width: 0;
   margin: var(--spacing-2) 0 0;
   color: var(--color-text-secondary);
@@ -1340,21 +1321,7 @@
   text-underline-offset: var(--spacing-0-5);
 }
 
-/* 상세 헤더의 등급 줄과 자동 준비 단계 표시. */
-.pre-spec-detail-grade-row {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-2);
-  margin-top: var(--spacing-2);
-}
-
-.pre-spec-detail-grade-source {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-}
-
+/* 자동 준비 단계 표시. */
 .pre-spec-auto-preparation {
   min-width: 0;
   margin-top: var(--spacing-2);
@@ -1396,14 +1363,6 @@
   overflow-wrap: anywhere;
 }
 
-.pre-spec-auto-preparation-link {
-  display: inline-block;
-  margin-top: var(--spacing-2);
-  color: var(--color-text-accent);
-  text-decoration: underline;
-  text-underline-offset: var(--spacing-0-5);
-}
-
 .pre-spec-auto-preparation-note {
   margin: var(--spacing-1) 0 0;
   color: var(--color-text-secondary);
@@ -1442,7 +1401,7 @@
 }
 
 /* 저장 결과·오류·안내 문장은 칸을 나눠 쓰지 않고 줄 전체를 쓴다. */
-.pre-spec-tracking-decision.is-inline .pre-spec-tracking-form > :is(.mutation-feedback, .pre-spec-tracking-combined-note, .pre-spec-tracking-elsewhere) {
+.pre-spec-tracking-decision.is-inline .pre-spec-tracking-form > :is(.mutation-feedback, .pre-spec-tracking-elsewhere) {
   grid-column: 1 / -1;
 }
 

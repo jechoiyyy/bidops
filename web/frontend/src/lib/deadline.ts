@@ -13,18 +13,36 @@ const DAY_MS = 86_400_000;
  * 3일 이내는 채운 칩, 7일 이내는 테두리 칩, 그보다 멀면 날짜만 보여 준다.
  */
 export function describeDeadline(value: string | null | undefined): DeadlineDisplay {
-  if (!value) return { label: "마감 미확인", urgency: "none" };
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return { label: "마감 미확인", urgency: "none" };
-
-  const remaining = date.getTime() - Date.now();
-  if (remaining < 0) {
+  const parsed = deadlineDays(value);
+  if (parsed === null) return { label: "마감 미확인", urgency: "none" };
+  const { date, days } = parsed;
+  if (days === null) {
     return { label: `마감 지남 · ${formatShortDate(date)}`, urgency: "passed" };
   }
-  const days = Math.ceil(remaining / DAY_MS);
   if (days <= 3) return { label: `D-${days}`, urgency: "critical" };
   if (days <= 7) return { label: `D-${days}`, urgency: "soon" };
   return { label: formatShortDate(date), urgency: "later" };
+}
+
+/**
+ * 날짜를 이미 함께 보이는 자리(사전규격 상세 사실 줄의 `의견 마감`)에서 쓰는 남은 날 글자. 등급(`urgency`)은
+ * `describeDeadline`과 같은 기준이고, 글자만 날짜 대신 늘 `D-n`(지났으면 `마감 지남`)이다. 마감이 없거나 읽을 수
+ * 없으면 `null`이다 — 날짜 칸이 이미 `미확인`을 말한다.
+ */
+export function describeDeadlineCountdown(value: string | null | undefined): DeadlineDisplay | null {
+  const parsed = deadlineDays(value);
+  if (parsed === null) return null;
+  const { urgency } = describeDeadline(value);
+  return { label: parsed.days === null ? "마감 지남" : `D-${parsed.days}`, urgency };
+}
+
+/** 마감까지 남은 날(올림). 지났으면 `days: null`, 값이 없거나 읽을 수 없으면 `null`이다. */
+function deadlineDays(value: string | null | undefined): { date: Date; days: number | null } | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const remaining = date.getTime() - Date.now();
+  return { date, days: remaining < 0 ? null : Math.ceil(remaining / DAY_MS) };
 }
 
 /** `09.08` 꼴의 짧은 날짜. 목록의 마감 열이 D-day 아래에 같은 형식으로 쓴다. */

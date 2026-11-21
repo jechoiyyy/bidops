@@ -12,12 +12,15 @@
  * 사실도 아니다.
  */
 
+import { RL_COMPANY_ID, rlContextView } from "../tests/fixtures/company-rl";
 import {
   mockApi,
   mockBidDelta,
   mockCompanyWorkspace,
   mockDeepReviewLifecycle,
   mockDocumentStructurePage,
+  engineAnalysisRunFixture,
+  visualBundle,
   mockOpportunity,
   mockOrderPlanBulkTracking,
   mockOrderPlans,
@@ -240,6 +243,35 @@ export async function resolveMockApi(input: MockApiRequest): Promise<MockApiResp
   const referer = input.headers.referer ? new URL(input.headers.referer) : null;
   const overviewChoice = referer?.searchParams.get("overview") ?? null;
   const envelopeFor = overviewChoice ? OVERVIEW_ENVELOPES[overviewChoice] : undefined;
+
+  // 사전규격 상세 `분석 완료` 화면(`?analysis=completed|partial`, 2026-11-21 시안 b1·b2). 회사 기준과 그 공고의
+  // 엔진 run만 바꾼다. 응답은 원본 Analysis 스키마에서 옮긴 예시이며 운영 데이터가 아니다.
+  const analysisChoice = referer?.searchParams.get("analysis") ?? null;
+  if (analysisChoice === "completed" || analysisChoice === "partial") {
+    const path = new URL(input.url).pathname;
+    const runsPath = path.match(new RegExp(`^/api/companies/${RL_COMPANY_ID}/notices/(\\d+)/engine-runs$`));
+    const detailPath = path.match(/^\/api\/engine-runs\/([^/]+)$/);
+    const noticeFromReferer = Number(referer?.pathname.match(/\/pre-specs\/(\d+)/)?.[1] ?? 991);
+    const run = engineAnalysisRunFixture(analysisChoice, RL_COMPANY_ID, runsPath ? Number(runsPath[1]) : noticeFromReferer);
+    const json = (body: unknown) => ({ status: 200, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    if (path === "/api/company" && input.method === "GET") return json(rlContextView());
+    if (runsPath && input.method === "GET") return json({ items: [run], total: 1 });
+    if (detailPath && detailPath[1] === run.id) return json(run);
+  }
+
+  // 개요·분석이 끝난 건은 확정된 문서 묶음이 있다(운영 실제). `?bundle=ready`로 켜고 `?analysis=`일 때는 기본으로 따라온다.
+  // 스위치가 없으면 기존 mock 동작(묶음 없음)이다. 이 응답은 테스트의 settled fixture(`visualBundle("ready")`)와 같다.
+  const bundleChoice = referer?.searchParams.get("bundle") ?? (analysisChoice === "completed" || analysisChoice === "partial" ? "ready" : null);
+  if (bundleChoice === "ready" && input.method === "GET") {
+    const bundlePath = new URL(input.url).pathname.match(/^\/api\/notices\/(\d+)\/document-bundles$/);
+    if (bundlePath) {
+      return {
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ items: [{ ...visualBundle("ready"), notice_id: Number(bundlePath[1]) }] }),
+      };
+    }
+  }
 
   if (envelopeFor) {
     const overviewPath = new URL(input.url).pathname.match(/^\/api\/pre-specs\/(\d+)\/overview$/);
