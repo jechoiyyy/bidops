@@ -15,7 +15,7 @@ import {
 } from "../common/BulkReasonField";
 import { api } from "../../lib/api";
 import { describeApiError, type ApiErrorDescription } from "../../lib/apiErrors";
-import type { PreSpecReviewExclusionResponse, PreSpecReviewExclusionStatus } from "../../lib/types";
+import type { PreSpecReviewExclusionStatus } from "../../lib/types";
 import "../../styles/bulk-dialog.css";
 
 /** 한 요청의 상한. 목록 선택 도구가 먼저 막고, 이 창도 같은 값으로 전송을 막는다. */
@@ -39,7 +39,20 @@ interface DialogCopy {
   errorFallback: string;
 }
 
-const COPY: Record<PreSpecReviewExclusionStatus, DialogCopy> = {
+export type PreSpecBulkAction = PreSpecReviewExclusionStatus | "track";
+
+const COPY: Record<PreSpecBulkAction, DialogCopy> = {
+  track: {
+    title: "선택한 사전규격 추적 시작",
+    summaryHead: "선택",
+    summaryDetail: "사업기회에 연결된 미선택 공고만 추적을 시작해요.",
+    guide: null,
+    reasonLabel: "추적 사유 (필수)",
+    reasonOptions: ["후속 입찰공고 확인", "세부 과업·연계 범위 확인", "참여 자격·실적 확인 필요"],
+    reasonRequiredError: "추적 사유를 선택해 주세요.",
+    saveVerb: "추적 시작",
+    errorFallback: "추적 시작 결과를 확인하지 못했어요.",
+  },
   excluded: {
     title: "선택한 사전규격 검토 제외",
     summaryHead: "제외",
@@ -71,11 +84,11 @@ function actorProblem(value: string): string | null {
   return null;
 }
 
-export function ReviewExclusionDialog({ ids, status, onClose, onSaved }: {
+export function PreSpecBulkDialog({ ids, status, onClose, onSaved }: {
   ids: number[];
-  status: PreSpecReviewExclusionStatus;
+  status: PreSpecBulkAction;
   onClose: () => void;
-  onSaved: (response: PreSpecReviewExclusionResponse) => Promise<void>;
+  onSaved: (handledIds: number[], message?: string) => Promise<void>;
 }) {
   const copy = COPY[status];
   const [actor, setActor] = useState("");
@@ -98,10 +111,17 @@ export function ReviewExclusionDialog({ ids, status, onClose, onSaved }: {
     setPending(true);
     setError(null);
     try {
-      const response = await api.changePreSpecReviewExclusions({
-        notice_ids: ids, status, actor_name: actor.trim(), reason: bulkReasonText(reason),
-      });
-      await onSaved(response);
+      const body = { notice_ids: ids, actor_name: actor.trim(), reason: bulkReasonText(reason) };
+      if (status === "track") {
+        const { items } = await api.startSelectedPreSpecs(body);
+        const handled = items.filter(item => item.outcome !== "unavailable");
+        const started = items.filter(item => item.outcome === "started").length;
+        await onSaved(handled.map(item => item.notice_id),
+          `추적 시작 ${started}건 · 기존 결정 유지 ${handled.length - started}건 · 연결 확인 필요 ${items.length - handled.length}건`);
+      } else {
+        const { items } = await api.changePreSpecReviewExclusions({ ...body, status });
+        await onSaved(items.map(item => item.notice_id));
+      }
     } catch (caught) {
       // 입력과 선택은 그대로 둔다. 다시 저장하는 것은 사람이 단추를 눌러야 한다.
       setError(describeApiError(caught, copy.errorFallback));
@@ -117,7 +137,7 @@ export function ReviewExclusionDialog({ ids, status, onClose, onSaved }: {
       <Dialog isOpen maxHeight="90dvh" onOpenChange={(open) => { if (!open) close(); }} purpose="form" width={680}>
         <form
           className="bulk-dialog"
-          data-testid="pre-spec-review-exclusion-dialog"
+          data-testid={status === "track" ? "pre-spec-bulk-tracking-dialog" : "pre-spec-review-exclusion-dialog"}
           onSubmit={(event) => { event.preventDefault(); void submit(); }}
         >
           <DialogHeader title={copy.title} onOpenChange={close} />

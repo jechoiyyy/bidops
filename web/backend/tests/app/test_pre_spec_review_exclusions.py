@@ -258,3 +258,40 @@ def test_concurrent_overlapping_requests_change_each_row_once():
         assert sorted([item.outcome for response in responses for item in response.items]) == ['changed', 'changed', 'unchanged', 'unchanged']
         with Session(engine) as session:
             assert session.scalar(select(func.count()).select_from(AuditEvent)) == 2
+
+
+def test_bulk_tracking_preserves_decisions_and_deduplicates_owner(engine, client, monkeypatch):
+    from app.lifecycle.routers import opportunities
+    from app.lifecycle.models import OpportunityLink
+
+    client.app.include_router(opportunities.router)
+    hooks = []
+    monkeypatch.setattr(opportunities, "_notify_tracking_decision", lambda _, key: hooks.append(key))
+    with Session(engine) as session:
+        notices = [_notice(session, str(i)) for i in range(4)]
+        ids = [row.id for row in notices]
+        owner = _tracking_link(session, notices[0])
+        owner_id = owner.id
+        session.add(OpportunityLink(opportunity_id=owner_id, notice_id=ids[1], stage="notice",
+                                    link_type="official", status="확정", evidence_external_no="PRE-shared"))
+        _tracking_link(session, notices[2], tracking_status="보류")
+        session.commit()
+
+    path = "/api/opportunities/pre-spec-tracking/bulk-start"
+    body = dict(notice_ids=ids, actor_name="담당자", reason="후속 공고 확인")
+    assert client.post(path, json=dict(body, actor_name="system")).status_code == 400
+    assert client.post(path, json=dict(body, notice_ids=[ids[0], ids[0]])).status_code == 422
+    for expected in [
+        ["started", "started", "already_decided", "unavailable"],
+        ["already_decided", "already_decided", "already_decided", "unavailable"],
+    ]:
+        response = client.post(path, json=body)
+        assert response.status_code == 200, response.text
+        assert response.json()["items"] == [
+            {"notice_id": key, "outcome": outcome} for key, outcome in zip(ids, expected, strict=True)
+        ]
+    assert hooks == [owner_id]
+    with Session(engine) as session:
+        event = session.scalars(select(AuditEvent)).one()
+        assert event.claimed_name == "담당자"
+        assert event.safe_metadata["reason"] == body["reason"]

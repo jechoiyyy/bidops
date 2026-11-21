@@ -270,6 +270,8 @@ function PreSpecTrackingBar({
   afterAnalysis?: boolean;
 }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
   const onSaved = (saved: OpportunityDetailResponse) => {
     queryClient.setQueryData<PreSpecListResponse>(
       ["pre-spec-detail", noticeId],
@@ -282,6 +284,12 @@ function PreSpecTrackingBar({
     void queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", noticeId] });
     void queryClient.invalidateQueries({ queryKey: ["pre-specs"] });
     void queryClient.invalidateQueries({ queryKey: ["opportunity", saved.id] });
+    const review = readPreSpecSelectionReview(params.toString(), noticeId);
+    if (review && window.location.pathname === `/pre-specs/${noticeId}` &&
+        new URLSearchParams(window.location.search).toString() === params.toString()) {
+      const next = review.orderedNoticeIds[review.orderedNoticeIds.indexOf(noticeId) + 1];
+      if (next !== undefined) navigate(preSpecDetailUrl(next, review.listSearch, review.reviewId));
+    }
   };
   return (
     <PageFooterBar>

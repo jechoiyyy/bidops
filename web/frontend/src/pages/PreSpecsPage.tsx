@@ -36,7 +36,7 @@ import {
   validWorkspace, workspaceOf, type WorkspaceKey,
 } from "../lib/preSpecViews";
 import { PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL } from "../lib/preSpecAutoPreparation";
-import { ReviewExclusionDialog } from "../components/pre-specs/ReviewExclusionDialog";
+import { PreSpecBulkDialog, type PreSpecBulkAction } from "../components/pre-specs/PreSpecBulkDialog";
 import { PreSpecDetail } from "../components/pre-specs/PreSpecListDetailPane";
 import { PreSpecRow } from "../components/pre-specs/PreSpecListRow";
 import { useListSelection } from "../components/common/useListSelection";
@@ -55,7 +55,6 @@ import { buildSourceRunOptions } from "../lib/runOptions";
 import { searchKey } from "../lib/search";
 import type {
   PreSpecReviewExclusionStatus,
-  PreSpecReviewExclusionResponse,
   PreSpecListResponse,
   PreSpecOrigin,
   PreSpecSort,
@@ -211,7 +210,7 @@ export function PreSpecsPage() {
     q: queryText,
   });
 
-  const [exclusionTarget, setExclusionTarget] = useState<{ ids: number[]; status: PreSpecReviewExclusionStatus; generation: number } | null>(null);
+  const [bulkTarget, setBulkTarget] = useState<{ ids: number[]; status: PreSpecBulkAction; generation: number } | null>(null);
   const exclusionLanding = useRef<{ active: number | null; index: number; order: number[]; offset: number } | null>(null);
   const [searchText, setSearchText] = useState(queryText);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -525,23 +524,27 @@ export function PreSpecsPage() {
     },
   });
 
-  function openExclusion(ids: readonly number[], status: PreSpecReviewExclusionStatus) {
+  function openBulk(ids: readonly number[], status: PreSpecBulkAction) {
     if (ids.length === 0 || ids.length > 200) return;
     trackingGuard.confirmDiscard(() => {
-      setExclusionTarget({ ids: [...ids], status, generation: selection.state.selectionGeneration });
+      setBulkTarget({ ids: [...ids], status, generation: selection.state.selectionGeneration });
     });
   }
 
-  async function exclusionSaved(response: PreSpecReviewExclusionResponse) {
-    const ids = response.items.map((item) => item.notice_id);
+  async function bulkSaved(ids: number[], message?: string) {
+    setSelectionMessage(message ?? null);
     exclusionLanding.current = { offset, active: selectedPk, index: items.findIndex((item) => item.notice_pk === selectedPk), order: itemKeys };
-    selection.applyResult(ids, exclusionTarget?.generation);
+    selection.applyResult(ids, bulkTarget?.generation);
     setTrackingDirty(false);
     // Remove the discarded tracking draft even when the active row remains visible.
     setTrackingFormVersion((version) => version + 1);
-    setExclusionTarget(null);
+    setBulkTarget(null);
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["pre-specs"] }),
+      ...(bulkTarget?.status === "track" ? [
+        queryClient.invalidateQueries({ queryKey: ["opportunity"] }),
+        queryClient.invalidateQueries({ queryKey: ["opportunities"] }),
+      ] : []),
       ...ids.map((id) => queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", id] })),
     ]);
   }
@@ -973,9 +976,12 @@ export function PreSpecsPage() {
                     >
                       전체 해제
                     </button>
+                    <Button size="sm" variant="secondary" label="일괄 추적 시작"
+                      isDisabled={!selection.hydrationReady || !selection.storageAvailable || selection.selectedIds.length === 0 || selection.selectedIds.length > 200}
+                      onClick={() => openBulk(selection.selectedIds, "track")} />
                     <Button size="sm" variant="secondary" aria-label="검토 목록에서 제외" label="검토 제외"
                       isDisabled={!selection.hydrationReady || !selection.storageAvailable || selection.selectedIds.length === 0 || selection.selectedIds.length > 200}
-                      onClick={() => openExclusion(selection.selectedIds, "excluded")} />
+                      onClick={() => openBulk(selection.selectedIds, "excluded")} />
                     <button
                       className="interaction-control interaction-control-primary"
                       type="button"
@@ -989,7 +995,7 @@ export function PreSpecsPage() {
                   </>
                 )}
               />
-              {selection.selectedIds.length > 200 ? <p role="alert">한 번에 200건까지 제외할 수 있어요. 선택을 줄여 주세요.</p> : null}
+              {selection.selectedIds.length > 200 ? <p role="alert">한 번에 200건까지 일괄 처리할 수 있어요. 선택을 줄여 주세요.</p> : null}
               {selectionMessage ? <p className="pre-specs-selection-message" role="alert">{selectionMessage}</p> : null}
               <ListColumns className="pre-specs-list-columns">
                 <span>사업명 / 발주기관</span>
@@ -1078,7 +1084,7 @@ export function PreSpecsPage() {
                 <PreSpecDetail
                   key={`${selectedItem.notice_pk}-${trackingFormVersion}`}
                   onReviewExclusion={selectedItem.review_exclusion_status !== "excluded" || workspace === "all"
-                    ? () => openExclusion([selectedItem.notice_pk], selectedItem.review_exclusion_status === "excluded" ? "included" : "excluded")
+                    ? () => openBulk([selectedItem.notice_pk], selectedItem.review_exclusion_status === "excluded" ? "included" : "excluded")
                     : undefined}
                   item={selectedItem}
                   listSearch={listSearch}
@@ -1113,8 +1119,8 @@ export function PreSpecsPage() {
         </SplitWorkspace>
       </WorkspaceFrame>
 
-      {exclusionTarget ? <ReviewExclusionDialog ids={exclusionTarget.ids} status={exclusionTarget.status}
-        onClose={() => setExclusionTarget(null)} onSaved={exclusionSaved} /> : null}
+      {bulkTarget ? <PreSpecBulkDialog ids={bulkTarget.ids} status={bulkTarget.status}
+        onClose={() => setBulkTarget(null)} onSaved={bulkSaved} /> : null}
     </section>
   );
 }

@@ -1785,3 +1785,27 @@ test("발주계획 후보 조회가 실패하면 후보 없음 대신 오류를 
   await expect(section.getByRole("heading", { name: "발주계획 후보 2건" })).toBeVisible();
   await expect(section.getByRole("alert")).toHaveCount(0);
 });
+
+test("선택 검토는 저장 실패 시 머물고 성공 시에만 다음 공고로 이동한다", async ({ page }) => {
+  await mockPreSpecs(page);
+  const token = "cb20c7f2-c92c-499c-afbc-e4a148872822";
+  await page.addInitScript(reviewId => {
+    sessionStorage.setItem("bidops.pre-specs.review.v1." + reviewId, JSON.stringify({
+      version: 1, reviewId, entryNoticeId: 992, orderedNoticeIds: [992, 991],
+      listSearch: "workspace=all", selectionGeneration: 1, filterFingerprint: "all",
+    }));
+  }, token);
+  const search = "?workspace=all&selection_review=" + token;
+  await page.goto("/pre-specs/992" + search);
+  await setSidebarActor(page, "검토자");
+  await fillRecordReason(page, "연계 범위 확인");
+  await page.route("**/api/opportunities/78/tracking-status", route =>
+    route.fulfill({ status: 503, json: {} }), { times: 1 });
+  const save = page.getByRole("button", { name: "추적 시작하기", exact: true });
+  await save.click();
+  await expect(page.locator("#page-footer [role=alert]")).toBeVisible();
+  await expect(page).toHaveURL(url => url.pathname === "/pre-specs/992");
+  await save.click();
+  await expect(page).toHaveURL(url => url.pathname + url.search === "/pre-specs/991" + search);
+  await expect(page.getByRole("navigation", { name: "사전규격 선택 순회" })).toContainText("2 / 2");
+});
