@@ -40,3 +40,9 @@
 운영 tailnet 주소에서 발주계획·사전규격 전체 이력·사업기회·최종 Go/No-Go를 1920×1080, 1440×900, 1280×800으로 열었다. 12개 조합 모두 문서 가로 넘침 0px. 두 선택 목록 모두 초기 선택 0건에서 전체 선택·해제가 보이고 해제는 비활성이었다. 각 해상도의 선택 버튼은 32px, 도구줄은 40px, 사전규격 하단은 68px였다. 기본 데스크톱에서 두 목록의 전체 선택·해제를 직접 실행했다. 검증 브라우저는 GET 이외의 API 요청을 차단했다.
 
 전체 DB 백업 `backups/postgres/full/bidops-20261121T120325Z.dump`(0600, 114530953바이트, SHA-256 `8f8a79393492eab71c663642be4e32e8facb66ab2cebc3588fd5c734a3e1c3ba`, TABLE DATA 111개). 직전 코드 태그 `before-record-compact-a8a2f75`, 설정 사본 `backups/env-prod-before-record-compact-a8a2f75`. 롤백 시 BIDOPS_IMAGE를 `bidops:main-20261121-689f41a`로 복구하고 web만 교체한다.
+
+## 사전규격 선택 검토 자동 이동과 일괄 추적 시작
+
+원격 main의 기능 커밋 `294be33`을 Git 아카이브로 빌드해 운영 web을 `bidops:main-20261121-294be33`으로 교체했다. 컨테이너 healthy, tailnet GET /api/health ok, 새 일괄 추적 POST 경로 등록과 DB revision `0042_engine_run`을 확인했다. 운영 데이터 쓰기는 검증에서 차단했다. 1920×1080, 1440×900, 1280×800에서 실제 목록의 공고 두 건을 선택하고 일괄 추적 창 열기·취소와 선택 검토 첫 상세 진입을 확인했다. 저장·재시도·다음 공고 이동은 격리 테스트에서 확인했다.
+
+배포 전 전체 백업은 `backups/postgres/full/bidops-20261121T121616Z.dump`이며 권한 0600, SHA-256 `8dae89866c1dbfd75c3f2f3463b6b7794729e43614c8bf3daa061fc8ded9fa62`, pg_restore 목록 TABLE DATA 111개다. 롤백 태그는 `before-prespec-bulk-294be33`, 설정 사본은 `backups/env-prod-before-prespec-bulk-294be33`이다. 롤백할 때는 BIDOPS_IMAGE를 직전 웹 이미지 `bidops:main-20261121-a8a2f75`로 되돌리고 web만 교체한다.
