@@ -3,13 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
-import { InternationalizationProvider } from "@astryxdesign/core/i18n";
-import koKR from "@astryxdesign/core/locales/ko-KR.json";
 import { Token } from "@astryxdesign/core/Token";
 import { StickyDecisionHeader } from "../common/ReviewPrimitives";
 import { PreSpecAgencyFeature, PreSpecExclusionRecord } from "./PreSpecAgency";
 import {
-  isInheritedTracking,
   TrackingDecisionControl,
   updateTrackingProjection,
 } from "./TrackingDecisionControl";
@@ -177,7 +174,6 @@ export function PreSpecDetail({
     deepReviewUnknownCount: null,
   });
 
-  const inherited = isInheritedTracking(item);
   // 연결이 없으면 `사업기회 미연결`, 연결은 있는데 값이 없으면 `미확인`이다.
   // 둘 중 어느 것도 사람이 고른 `미선택`으로 바꾸지 않는다.
   const trackingText = trackingLabel(item);
@@ -185,14 +181,6 @@ export function PreSpecDetail({
   // nullable next_action 코드 하나만 표시한다. null은 추가 행동이 없다는
   // 뜻이며 실패·마감 문구를 클라이언트에서 새로 만들지 않는다.
   const serverNextAction = nextActionLabel(item.next_action);
-  // 이미 기록된 건은 폼 대신 "현재 추적 상태" 블록이 나오고, 그 블록이
-  // `보류·추적 종료는 사업 추적에서 변경합니다.`를 스스로 그린다. 같은 문장을
-  // 줄 1에서 한 번 더 적지 않는다(spec §3.3 줄 1 캡션은 폼이 있을 때의 것이다).
-  const trackingRecorded = item.opportunity_id !== null
-    && item.tracking_status !== null
-    && item.tracking_status !== "미선택";
-  const trackingFormShown = !inherited && !trackingRecorded;
-
   const openDetailHref = (event: MouseEvent) => {
     if (!onOpenDetail || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
@@ -324,48 +312,27 @@ export function PreSpecDetail({
         </p>
       </div>
 
-      {/* ⑦ 바닥 고정 — 위는 **사람의 추적 선택**, 아래는 다음 작업이다. 두 줄은
-          서로 다른 결정이며 추적 선택이 모델 분석 승인이나 최종 Go/No-Go를
-          뜻하지 않는다(spec §3.3). */}
-      <footer className="pre-specs-detail-actions" id="pre-specs-tracking-target">
-        <div className="pre-specs-action-row">
-          <div className="pre-specs-tracking-head">
-            <strong>추적 결정</strong>
-            <span>현재 · {trackingText} → 저장하면 계속 추적</span>
-          </div>
-          {trackingFormShown ? (
-            <span className="pre-specs-tracking-elsewhere">보류·추적 종료는 사업 추적에서 변경</span>
-          ) : null}
-        </div>
-
-        {/* Astryx `Selector`가 locale 문구를 읽으므로 상세 화면과 같은 provider로 감싼다. */}
-        <InternationalizationProvider locale="ko-KR" messages={{ "ko-KR": koKR }}>
-          <TrackingDecisionControl
-            key={noticePk}
-            item={item}
-            isPending={false}
-            isError={false}
-            onRetry={() => { void overviewQuery.refetch(); }}
-            headingLevel="h4"
-            compact
-            presentation="inline"
-            showRecordHeading={false}
-            showIntent={false}
-            reasonPresets={TRACKING_REASON_PRESETS}
-            onDirtyChange={onDirtyChange}
-            // 추적 결정은 추적만 정한다(2026-11-19). 저장 뒤 분석 실행 자리로 데려가지 않는다.
-            onSaved={onSaved}
-          />
-        </InternationalizationProvider>
+      <footer className="pre-specs-detail-actions" id="pre-specs-tracking-target" aria-label="추적 결정">
+        <TrackingDecisionControl
+          key={noticePk}
+          item={item}
+          isPending={false}
+          isError={false}
+          onRetry={() => { void overviewQuery.refetch(); }}
+          headingLevel="h4"
+          compact
+          presentation="inline"
+          showRecordHeading={false}
+          showIntent={false}
+          reasonPresets={TRACKING_REASON_PRESETS}
+          onDirtyChange={onDirtyChange}
+          onSaved={onSaved}
+        />
 
         <div className="pre-specs-action-row">
           <div className="pre-specs-next-action">
             <span>{TERM_SENSE.nextActionGuide}</span>
-            <strong>{serverNextAction ?? `${TERM_SENSE.nextActionGuide} 없음`}</strong>
-            {/* 경계 문장은 상세 페이지 ② 추적 결정 카드와 같은 문안 하나로
-                통일한다(M4 승인 2026-09-21). 앞의 `다음 작업`과는 다른 사실이라
-                한 줄을 따로 쓴다. */}
-            <span className="pre-specs-detail-decision-note">적합성 등급 · 추적 결정 · 최종 Go/No-Go는 서로 대신하지 않아요. 입찰 참여 여부는 최종 Go/No-Go에서 정해요.</span>
+            <strong>{serverNextAction ?? "없음"}</strong>
           </div>
           {onReviewExclusion ? <Button size="sm" variant="secondary"
             label={item.review_exclusion_status === "excluded" ? "검토 목록으로 복원" : "검토 제외"}

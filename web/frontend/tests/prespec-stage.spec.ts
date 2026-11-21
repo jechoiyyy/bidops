@@ -43,7 +43,7 @@ test("실패한 개요는 검토할 항목이 아니라 확인 필요 보기에 
   await expect(scope).toContainText("마감 전·미확인 1");
   await expect(scope).toContainText("마감 경과 0");
   // 실패한 개요에는 다음 행동 안내가 없다 — 옛 "심층 검토 열기"로 올라오지 않는다.
-  await expect(page.locator(".pre-specs-next-action")).toContainText("다음 행동 안내 없음");
+  await expect(page.locator(".pre-specs-next-action strong")).toHaveText("없음");
   await expect(page.getByText("심층 검토 열기", { exact: true })).toHaveCount(0);
 });
 

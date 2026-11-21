@@ -707,81 +707,64 @@
   color: var(--color-text-orange);
 }
 
-/* --- ⑦ 바닥 고정 블록 ---
- * 줄 1은 사람의 추적 선택이 지금 무엇인지, 줄 2는 그 선택을 기록하는 인라인
- * 폼, 줄 3은 다음 작업과 상세 진입이다. 본문 스크롤과 무관하게 늘 보인다
- * (spec §3.3). */
 .pre-specs-detail-actions {
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
+  gap: var(--spacing-1);
+  padding: var(--spacing-2) var(--spacing-4);
   border-top: var(--border-width) solid var(--review-split-line);
   background: var(--review-quiet-surface);
 }
 
-.pre-specs-action-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-3);
-  min-height: var(--size-element-lg);
-  min-width: 0;
-}
-
-.pre-specs-tracking-head,
+.pre-specs-action-row,
 .pre-specs-next-action {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--spacing-2);
+  align-items: center;
   min-width: 0;
 }
 
-.pre-specs-tracking-head > strong {
-  color: var(--color-text-primary);
-  font-size: var(--bo-type-section-title);
-  font-weight: var(--bo-type-section-title-weight);
-}
-
-.pre-specs-tracking-head > span,
-.pre-specs-next-action > span {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
+.pre-specs-action-row {
+  justify-content: flex-end;
+  gap: var(--spacing-2);
 }
 
 .pre-specs-next-action {
   gap: var(--spacing-1);
-}
-
-.pre-specs-next-action > strong {
-  color: var(--color-text-primary);
-  font-size: var(--bo-type-caption);
-  font-weight: 600;
-}
-
-.pre-specs-next-action > [aria-hidden="true"] {
-  color: var(--color-border-emphasized);
-}
-
-/* 경계 문장은 `다음 작업`과 같은 줄을 다투지 않고 제 줄을 쓴다(M4 승인 문안). */
-.pre-specs-detail-decision-note {
-  flex: 1 1 100%;
-  min-width: 0;
-}
-
-.pre-specs-tracking-elsewhere {
-  flex: 0 0 auto;
+  margin-inline-end: auto;
   color: var(--color-text-secondary);
   font-size: var(--bo-type-caption);
   line-height: var(--bo-type-caption-leading);
 }
 
-/* 상세 진입은 선택 항목 검토와 같은 채운 Primary 단추다. 링크 동작과
-   selection_review URL은 유지하되, 바닥 action row에서 충분한 조작 면적을 준다. */
+.pre-specs-next-action > strong {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.pre-specs-tracking-status,
+.pre-specs-tracking-history {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+.pre-specs-tracking-history summary {
+  cursor: pointer;
+}
+
+.pre-specs-detail-actions .ps-record-saved-decision {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--spacing-1) var(--spacing-2);
+}
+
+.pre-specs-detail-actions .ps-record-saved-decision :is(h4, p, dl) {
+  margin: 0;
+}
+
 .pre-specs-page .pre-specs-detail-open {
   min-height: var(--size-element-lg);
   padding: 0 var(--spacing-4);
@@ -1371,15 +1354,7 @@
   overflow-wrap: anywhere;
 }
 
-/* spec §3.3 inline tracking form */
-/* 목록 우측 정보 영역 바닥의 한 줄 추적 폼(`TrackingDecisionControl
- * presentation="inline"`). 필드·검증·문구·비활성 사유는 record 변형 그대로이고
- * 여기서는 배치만 바꾼다: 선택 사유가 남은 폭을 갖고, 담당자 입력 168px,
- * `추적 시작` 32px primary다(시안 mockups/artboards/Main.dc.html 196~200줄).
- * 시안의 한 줄에는 라벨 줄이 없으므로 라벨과 담당자 설명은 **지우지 않고
- * 화면에서만 감춘다** — `label`과 `aria-describedby`는 그대로 남아 읽힌다. */
 .pre-spec-tracking-decision.is-inline {
-  /* 32px = 시안 `.field`·`추적 시작` 높이, 168px = 담당자 칸 고정 폭 */
   --tdc-inline-control: var(--spacing-8);
   --tdc-inline-actor: 168px;
   display: flex;

@@ -705,7 +705,7 @@ test("사전규격 workspace가 canvas 남은 높이를 채우고 pane 안에서
   expect(metrics.detailOverflowY).toBe("auto");
 });
 
-for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
+for (const viewport of [{ width: 1920, height: 1080 }, { width: 1440, height: 900 }, { width: 1280, height: 800 }]) {
   test(`목록 상세의 읽기 글자·구역 라벨·고정 action은 ${viewport.width}×${viewport.height}에서 계약을 지킨다`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await mockPreSpecs(page, { overviewBody: overviewCompletedEnvelope() });
@@ -731,8 +731,6 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       const detailPane = element.closest<HTMLElement>(".pre-specs-detail");
       const footer = detailPane?.querySelector<HTMLElement>(".pre-specs-detail-actions");
       const footerStyle = footer ? getComputedStyle(footer) : null;
-      const rows = [...element.closest<HTMLElement>(".pre-specs-detail")!.querySelectorAll<HTMLElement>(".pre-specs-action-row")]
-        .map((row) => Number.parseFloat(getComputedStyle(row).minHeight));
       const detailScrollStyle = getComputedStyle(element);
       return {
         summary: styleOf(".pre-specs-detail-summary"),
@@ -746,7 +744,9 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
         validation: styleOf(".pre-specs-detail-caption > span:last-child"),
         taskText: styleOf(".pre-specs-detail-tasks > li > span:last-child"),
         scaleText: styleOf(".pre-specs-detail-scale-text"),
-        rows,
+        footerWidth: footer!.clientWidth,
+        footerScrollWidth: footer!.scrollWidth,
+        footerHeight: footer!.offsetHeight,
         footerDisplay: footerStyle?.display,
         detailFlexGrow: detailScrollStyle.flexGrow,
         detailMinHeight: detailScrollStyle.minHeight,
@@ -769,8 +769,8 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     expect(styles.validation.fontWeight).toBeLessThan(600);
     expect(styles.taskText.fontWeight).toBeLessThan(600);
     expect(styles.scaleText.fontWeight).toBeLessThan(600);
-    // 2026-11-20 4차(ADR-0076 결정 11): 결정 칸 줄은 48px 입력·44px 단추를 품는다.
-    expect(styles.rows).toEqual([48, 48]);
+    expect(styles.footerHeight).toBeLessThanOrEqual(148);
+    expect(styles.footerScrollWidth).toBe(styles.footerWidth);
     expect(styles.footerDisplay).toBe("flex");
     expect(styles.detailFlexGrow).toBe("1");
     expect(styles.detailMinHeight).toBe("0px");
@@ -870,14 +870,13 @@ test("추적 상태의 미확인·미연결·미선택을 서로 다른 표시�
   await expect(preSpecRow(page, allOnlyPreSpec.title).locator(".pre-specs-row-state"))
     .toContainText("사업기회 미연결");
 
-  // 대화상자가 아니라 바닥 고정 블록의 줄 1이 현재 추적 상태를 말한다(spec §3.3).
   await selectPreSpecRow(page, unknownTrackingPreSpec.title);
   const decision = page.locator(".pre-specs-detail-actions");
-  await expect(decision).toContainText("현재 · 미확인");
+  await expect(page.locator(".pre-specs-detail-header")).toContainText("추적 결정 · 미확인");
   await expect(decision).not.toContainText("미선택");
 
   await selectPreSpecRow(page, allOnlyPreSpec.title);
-  await expect(decision).toContainText("사업기회 미연결");
+  await expect(page.locator(".pre-specs-detail-header")).toContainText("사업기회 미연결");
 });
 
 // ADR-0046 결정 6: 추적 상태를 묻는 자리는 하나다. 발주계획에서 승계한 건은 이 화면이
@@ -892,6 +891,8 @@ test("발주계획에서 승계한 건은 폼 대신 현재 추적 상태를 보
   const decision = page.locator(".pre-specs-detail-actions");
   await expect(decision.getByRole("heading", { name: "발주계획에서 추적 결정을 이어받았어요" })).toBeVisible();
   await expect(decision).toContainText("현재 추적 상태 · 계속 추적");
+  await decision.getByText("승계 사유", { exact: true }).click();
+  await expect(decision.locator(".pre-spec-inherited-context")).toBeVisible();
   await expect(decision.getByRole("button", { name: "추적 시작하기", exact: true })).toHaveCount(0);
   await expect(decision.getByRole("button", { name: "보류", exact: true })).toHaveCount(0);
   await expect(decision.getByRole("button", { name: "종료", exact: true })).toHaveCount(0);
@@ -908,7 +909,7 @@ test("신규 사전규격은 사유 드롭다운과 담당자로 추적을 시�
   await selectPreSpecRow(page, newPreSpec.title);
 
   const decision = page.locator(".pre-specs-detail-actions");
-  await expect(decision).toContainText("현재 · 미선택 → 저장하면 계속 추적");
+  await expect(page.locator(".pre-specs-detail-header")).toContainText("추적 결정 · 미선택");
   // 사유는 비어 있는 상태로 시작하고 자유 입력은 열려 있지 않다.
   await expect(decision.locator("textarea")).toHaveCount(0);
   const save = decision.getByRole("button", { name: "추적 시작하기", exact: true });
