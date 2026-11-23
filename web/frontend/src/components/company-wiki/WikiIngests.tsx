@@ -7,6 +7,7 @@ import { decideIngest, ingestDetail, ingestLimit, ingestListKey, type IngestDeta
 import { formatDateTime } from "../../lib/format";
 import { qualityStatusLabel, qualityStatusVariant } from "../../lib/qualityStatus";
 import { requestActorInput, useRememberedActorName } from "../common/ActorField";
+import { TechnicalInfo } from "../common/TechnicalInfo";
 import { Badge } from "../common/Badge";
 import { CriteriaDialog, CancelButton, DialogActions } from "../criteria/CriteriaPrimitives";
 import { IngestProblem } from "./IngestProblem";
@@ -17,6 +18,16 @@ import { wikiValue } from "./WikiState";
 const labels: Record<IngestStatus, string> = {
   queued: "접수됨", extracting: "요구사항 추출 중", classifying: "분류 중", awaiting_review: "검토 대기",
   approved: "승인됨", applying: "반영 중", applied: "반영 완료", failed: "실패", rejected: "반려", aborted: "중단",
+};
+
+function fileSize(bytes: number) {
+  const mb = bytes >= 1024 * 1024;
+  const value = bytes / (mb ? 1024 * 1024 : 1024);
+  return value.toLocaleString("ko-KR", { maximumFractionDigits: 1 }) + (mb ? " MB" : " KB");
+}
+
+const mediaNames: Record<string, string> = {
+  "application/x-hwp": "한글(HWP) 문서", "application/hwp+zip": "한글(HWPX) 문서", "application/pdf": "PDF 문서",
 };
 
 function Review({ run }: { run: IngestDetail }) {
@@ -74,7 +85,7 @@ function RunDetail({ id }: { id: string }) {
     <Badge variant={qualityStatusVariant(run.quality_status)} label={qualityStatusLabel(run.quality_status)}/>
     <p>{awaiting ? run.apply_allowed ? "참조 규칙이 만든 참조 분류예요. 반영하면 근거 지도에 그대로 들어가요." :
       "이 분류는 모델이 아니라 참조 규칙이 만든 것이에요. 위키에 반영되지 않아요." : "이 실행은 참조 규칙으로 분류해요."}</p>
-    <p>대상 실적 · {run.project_id}<br/>원본 파일 · {run.source_filename} ({run.source_size_bytes.toLocaleString("ko-KR")}바이트, {run.source_media_type})<br/>
+    <p>대상 실적 · {run.project_id}<br/>원본 파일 · {run.source_filename} ({fileSize(run.source_size_bytes)}, {mediaNames[run.source_media_type] ?? run.source_media_type})<br/>
       요구사항 수 · {wikiValue(run.requirement_count)}<br/>접수 · {run.created_by_name} · {formatDateTime(run.created_at)}</p>
     {run.decided_at && <p>검토 결정 · {wikiValue(run.decided_by_name)} · {formatDateTime(run.decided_at)}</p>}
     {run.status === "rejected" && <p>반려 사유 · {wikiValue(run.decision_reason)}</p>}
@@ -107,8 +118,9 @@ function RunDetail({ id }: { id: string }) {
     {!dialogOpen && decision.error && <IngestProblem error={decision.error}/>}
     {run.status === "applied" && <>
       <h3>위키 반영 기록</h3>
-      <p>반영 시각 · {formatDateTime(run.applied_at)}<br/>반영 전 · {run.wiki_sha256_before?.slice(0, 12) ?? "값 없음"}<br/>
-        반영 후 · {run.wiki_sha256_after?.slice(0, 12) ?? "값 없음"}<br/>사본 이름 · {wikiValue(run.backup_name)}</p>
+      <p>반영 시각 · {formatDateTime(run.applied_at)}</p>
+      <TechnicalInfo summary="기술 정보"><p>반영 전 · {run.wiki_sha256_before?.slice(0, 12) ?? "값 없음"}<br/>
+        반영 후 · {run.wiki_sha256_after?.slice(0, 12) ?? "값 없음"}<br/>사본 이름 · {wikiValue(run.backup_name)}</p></TechnicalInfo>
       <Link to={wikiUrl("work-units")}>업무별 근거 지도 보기</Link>
     </>}
   </>;
@@ -124,8 +136,8 @@ export function WikiIngests({ items, total, offset, selection }: {
   return <WikiSplit selected={selected} list={<>
     {!items.length && <p>넣기 기록이 없어요.</p>}
     {items.map(item => <Link key={item.id} to={url(offset, item.id)} aria-current={item.id === selected ? "page" : undefined}>
-      <strong>{item.project_id} · {item.project_title}</strong><span>{item.source_filename}</span>
-      <span>{labels[item.status]} · 요구사항 수 {wikiValue(item.requirement_count)}</span><span>{formatDateTime(item.created_at)}</span>
+      <strong>{item.project_title}</strong><small>실적 {item.project_id}</small><span>{item.source_filename}</span>
+      <span>{labels[item.status]} · 요구사항 {item.requirement_count === null ? "값 없음" : item.requirement_count + "건"}</span><span>{formatDateTime(item.created_at)}</span>
     </Link>)}
     {(offset > 0 || offset + ingestLimit < total) && <nav aria-label="넣기 기록 페이지">
       {offset > 0 && <Link to={url(Math.max(0, offset - ingestLimit))}>이전 기록</Link>}

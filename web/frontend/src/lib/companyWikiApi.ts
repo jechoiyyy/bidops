@@ -19,10 +19,22 @@ export interface WikiSummary extends Bundle {
     evidence_links: number | null;
     units_without_evidence: number | null;
   };
-  log: { date: string; text: string }[];
+  last_changed: Text;
+  labels_available: boolean;
+  log: WikiLog[];
 }
 
-export interface WikiFact { path: string; section: string; value: Text; level: Text }
+export interface WikiLog {
+  date: Text;
+  kind: "ingest" | "feedback" | "init" | "other";
+  text: string;
+  project: Text;
+  project_title: Text;
+  requirement_count: number | null;
+  unassigned_count: number | null;
+}
+
+export interface WikiFact { path: string; label: Text; value: Text; display_value: Text; level: Text }
 export interface WikiProject {
   id: string;
   title: Text;
@@ -37,18 +49,31 @@ export interface WikiProject {
   ingested_at: Text;
   evidence_links: number | null;
 }
-interface WikiTopic {
+export interface Requirement { req_id: string; name: Text }
+interface TopicInfo { id: string; title: string; scope: Text }
+interface WikiTopic extends TopicInfo {
+  unit_count: number;
+  units_without_evidence: number;
+  project_count: number;
+}
+export interface WikiUnit {
   id: string;
   title: string;
-  scope: Text;
-  units: {
-    id: string;
-    title: string;
-    covers: Text;
-    not: Text;
-    projects: { project: string; req_ids: string[] }[];
-    no_record: { note: string; as_of: Text; source: Text }[];
+  covers: Text;
+  not: Text;
+  project_count: number;
+  latest_year: number | null;
+  projects: {
+    project: string; title: Text; client: Text; period_start: Text; period_end: Text;
+    year: number | null; requirements: Requirement[];
   }[];
+  no_record: { note: string; as_of: Text; source: Text }[];
+}
+interface ProjectDetail extends WikiProject {
+  domain: string[] | Text;
+  scope_lines: string[];
+  work_units: { topic_id: string; topic_title: string; units: { id: string; title: string }[] }[];
+  requirements: Requirement[];
 }
 interface WikiPage {
   kind: WikiKind;
@@ -69,9 +94,13 @@ function resource<T extends Bundle>(path: string) {
 
 export const wiki = {
   summary: resource<WikiSummary>(""),
-  profile: resource<Bundle & { facts: WikiFact[] }>("/profile"),
+  profile: resource<Bundle & { sections: { key: string; label: Text; facts: WikiFact[] }[] }>("/profile"),
   portfolio: resource<Bundle & { items: WikiProject[] }>("/portfolio"),
   topics: resource<Bundle & { topics: WikiTopic[] }>("/work-units"),
+  topic: (id: string) => resource<Bundle & TopicInfo & { units: WikiUnit[] }>(`/work-units/${encodeURIComponent(id)}`),
+  project: (id: string) => resource<Bundle & ProjectDetail>(`/portfolio/${encodeURIComponent(id)}`),
+  requirement: (project: string, id: string) => resource<Bundle & Requirement & { project: string; text: string }>(
+    `/portfolio/${encodeURIComponent(project)}/requirements/${encodeURIComponent(id)}`),
   pages: resource<Bundle & { pages: WikiEntry[] }>("/pages"),
   detail: (kind: WikiKind, slug: string) =>
     resource<Bundle & WikiPage & { sources: string[]; body: string }>(

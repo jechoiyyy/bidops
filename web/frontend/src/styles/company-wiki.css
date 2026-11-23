@@ -48,3 +48,14 @@
   border: 1px solid var(--color-border);
   resize: vertical;
 }
+
+.company-wiki details { margin-block: 1em; }
+.company-wiki summary, .wiki-detail button[aria-expanded] { cursor: pointer; }
+.wiki-detail button[aria-expanded] {
+  color: var(--color-text);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  text-align: left;
+}
+.company-wiki small { font-size: var(--bo-k-meta); }
+.wiki-excerpt { padding: 0.5em 1em; border-left: 2px solid var(--bo-line-soft); }

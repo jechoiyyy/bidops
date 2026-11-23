@@ -2,16 +2,23 @@
 
 ## 위키 읽기
 
-`deep_review` 모듈이 제공한다. 아래 여섯 경로는 GET이고 요청 시점의 설정된 회사 폴더를 읽는다. 모든 성공 응답은 JSON 객체이며 최상위에 64자리 소문자 hex `bundle_sha256`이 있다. 엔진의 `company_bundle()`과 같은 프로필·곁 YAML·깊이 2 이하 마크다운 원문으로 계산한다. `work-units.json`과 `log.txt`만 바뀌면 digest는 그대로다.
+`deep_review` 모듈이 제공한다. 아래 아홉 경로는 GET이고 요청 시점의 설정된 회사 폴더를 읽는다. 모든 성공 응답은 JSON 객체이며 최상위에 64자리 소문자 hex `bundle_sha256`이 있다. 엔진의 `company_bundle()`과 같은 프로필·곁 YAML·깊이 2 이하 마크다운 원문으로 계산한다. `labels.yaml`·`work-units.json`·`log.txt`만 바뀌면 digest는 그대로다.
 
 | 경로 | 응답 필드와 의미 |
 |---|---|
-| `/api/company-wiki` | `slug, company_name, counts, work_units_available, log`. 로그는 최근 20줄을 역순으로 담은 `{date, text}[]`이며 파일이 없으면 빈 배열이다. |
-| `/api/company-wiki/profile` | `facts: [{path, section, value, level}]`. 점 경로의 목록 식별자는 item_no, id, name 순으로 고르고 없으면 0부터 센 순번을 쓴다. 스칼라 목록은 쉼표와 공백으로 합친다. 파일 참조 키는 제외한다. 값과 확인 수준은 각각 nullable이다. |
+| `/api/company-wiki` | `slug, company_name, counts, work_units_available, labels_available, last_changed, log`. 마지막 변경일은 모든 페이지의 updated와 전체 로그 날짜 중 가장 늦은 날(YYYY-MM-DD)이며 날짜가 없으면 null이다. 로그는 최근 20줄을 역순으로 담으며 파일이 없으면 빈 배열이다. |
+| `/api/company-wiki/profile` | `sections: [{key, label, facts: [{path, label, value, display_value, level}]}]`. 이름표가 없는 절·항목의 label은 null이다. 점 경로의 목록 식별자는 item_no, id, name 순으로 고르고 없으면 0부터 센 순번을 쓴다. 스칼라 목록은 쉼표와 공백으로 합친다. 파일 참조 키는 제외한다. 값과 확인 수준은 각각 nullable이다. |
 | `/api/company-wiki/portfolio` | `items: [{id, title, client, period_start, period_end, type, role, has_page, requirement_count, ingested, ingested_at, evidence_links}]`. 요구사항 소절이 없으면 건수는 null, 소절이 비었으면 0이다. 지도 파일이 없으면 반영 여부·날짜·연결 수도 null이다. 지도가 있고 미반영인 실적은 false와 null 날짜를 갖는다. |
-| `/api/company-wiki/work-units` | `topics: [{id, title, scope, units}]`. 단위는 `{id, title, covers, not, projects, no_record}`이고, 실적별 근거는 `{project, req_ids: string[]}`, 확인 메모는 `{note, as_of, source}`다. 근거와 메모는 각각 빈 배열일 수 있다. |
+| `/api/company-wiki/work-units` | `topics: [{id, title, scope, unit_count, units_without_evidence, project_count}]`. 실적 수는 주제 안에서 중복을 제거한 값이다. |
+| `/api/company-wiki/work-units/{topic_id}` | `id, title, scope, units`. 각 업무는 `id, title, covers, not, project_count, latest_year, projects, no_record`를 갖는다. 실적은 `{project, title, client, period_start, period_end, year, requirements: [{req_id, name}]}`이며 원문 줄이 없으면 명칭은 null이다. 종료 연도, 시작 연도, 실적 번호 순으로 연도를 정한다. 연도 내림차순, 동률은 실적 번호 내림차순이다. 기록 없음 메모는 `{note, as_of, source}`다. |
+| `/api/company-wiki/portfolio/{project}` | 목록 한 건의 필드와 `domain, scope_lines, work_units, requirements`. 범위는 수행한 요구 범위 절의 목록이며 요구사항 소절·관리 문구를 제외한다. 업무는 `{topic_id, topic_title, units: [{id, title}]}`로 묶고 요구사항은 페이지 순서대로 `{req_id, name}`을 담는다. 페이지가 없는 등록 실적도 기본 값은 조회된다. |
+| `/api/company-wiki/portfolio/{project}/requirements/{req_id}` | `project, req_id, name, text`. 실적 번호는 `P[0-9]{4}-[0-9]{2}`, 요구사항 번호는 `[A-Za-z0-9][A-Za-z0-9._-]*`다. text는 원문 줄에서 명칭 뒤의 내용을 최대 300자로 담는다. 내용 없이 명칭만 적힌 줄은 빈 문자열이다. |
 | `/api/company-wiki/pages` | `pages: [{kind, slug, title, updated, confidence, chars}]`. chars는 공개 본문의 문자 수다. INDEX·SCHEMA는 제외한다. |
 | `/api/company-wiki/pages/{kind}/{slug}` | `kind, slug, title, updated, confidence, sources, body`. 본문은 frontmatter를 제외한 마크다운이다. 페이지 주소에는 종류와 영숫자·하이픈 식별자만 쓴다. |
+
+로그 항목은 `{date, kind, text, project, project_title, requirement_count, unassigned_count}`다. `ingest`는 실적 번호·실적명·요구사항 수·미분류 수를 담는다. `feedback`과 `init`은 각각 분석 피드백 반영과 업무 분류표 생성이다. 해석되지 않은 줄은 `other`로 원래 문구를 유지한다. 구조화된 값이 없으면 null이다.
+
+선택 파일 `<slug>/labels.yaml`의 schema는 `bidops.wiki-labels.v1`이다. sections는 절 이름, fields는 항목 이름·단위·값 번역, hidden은 제외할 경로다. 목록 식별자는 `[]`, 한 칸의 키는 `*`로 매칭하며 정확한 경로가 우선이다. `{item}`은 name·std·title·식별자 순으로, `{key}`는 매칭된 키로 치환한다. display_value는 values 번역을 먼저 쓰고 krw·percent·people·count 단위를 적용한다. null, "unknown", 빈 문자열은 보존한다. 이름표가 없거나 깨진 경우 labels_available은 false이고 원래 경로와 값을 쓴다.
 
 `counts.pages_by_kind`에는 category, capability, portfolio, rule, glossary 다섯 키가 항상 있다. `portfolio_items`는 목록 건수, `portfolio_pages`는 실적 페이지 수다. `ingested_projects, work_topics, work_units, evidence_links, units_without_evidence`는 각각 지도에 등록된 실적, 주제, 단위, 근거 연결, 근거 없는 단위 수다. 지도가 없으면 다섯 값은 null이고 빈 지도라면 0이다. 문자열 `"unknown"`은 JSON null과 구분한다.
 
@@ -25,6 +32,9 @@
 | 503 | `company_wiki_unreadable` | 설정한 묶음의 판독 또는 형식 검사 실패 |
 | 404 | `company_wiki_work_units_unavailable` | 근거 지도 조회 시 지도 파일 부재 |
 | 404 | `company_wiki_page_not_found` | 허용되지 않은 종류·식별자, 부재·링크·범위 밖 페이지 |
+| 404 | `company_wiki_topic_not_found` | 요청한 주제 부재 |
+| 404 | `company_wiki_project_not_found` | 요청한 실적 미등록 |
+| 404 | `company_wiki_requirement_not_found` | 실적·요구사항 식별자 형식 오류 또는 해당 원문 줄 부재 |
 
 ## 실적 넣기
 

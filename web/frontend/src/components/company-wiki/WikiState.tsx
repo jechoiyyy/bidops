@@ -13,6 +13,10 @@ export function WikiState({ error }: { error: Error | null }) {
         return <p>회사 위키가 아직 연결되지 않았어요. 운영 설정에서 회사 묶음 폴더(BIDOPS_ENGINE_COMPANY_BUNDLE_DIR)와 회사 식별자(BIDOPS_ENGINE_COMPANY_BUNDLE_SLUG)를 지정해 주세요.</p>;
       case "company_wiki_work_units_unavailable":
         return <p>업무별 근거 지도가 아직 없어요.</p>;
+      case "company_wiki_project_not_found":
+        return <p>선택한 실적을 찾을 수 없어요.</p>;
+      case "company_wiki_topic_not_found":
+        return <p>선택한 주제를 찾을 수 없어요.</p>;
       case "company_wiki_page_not_found":
         return <p>선택한 페이지를 찾을 수 없어요.</p>;
       case "company_wiki_unreadable":

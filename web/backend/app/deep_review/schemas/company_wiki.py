@@ -24,13 +24,20 @@ class WikiCounts(BaseModel):
 
 
 class LogEntry(BaseModel):
-    date: str
+    date: str | None
+    kind: Literal["ingest", "feedback", "init", "other"] = "other"
+    project: str | None = None
+    project_title: str | None = None
+    requirement_count: int | None = None
+    unassigned_count: int | None = None
     text: str
 
 
 class Summary(WikiResponse):
     slug: str
     company_name: str | None
+    last_changed: str | None
+    labels_available: bool
     counts: WikiCounts
     work_units_available: bool
     log: list[LogEntry]
@@ -38,13 +45,20 @@ class Summary(WikiResponse):
 
 class Fact(BaseModel):
     path: str
-    section: str
+    label: str | None
+    display_value: str | None
     value: str | None
     level: str | None
 
 
-class Profile(WikiResponse):
+class Section(BaseModel):
+    key: str
+    label: str | None
     facts: list[Fact]
+
+
+class Profile(WikiResponse):
+    sections: list[Section]
 
 
 class PortfolioItem(BaseModel):
@@ -66,9 +80,42 @@ class Portfolio(WikiResponse):
     items: list[PortfolioItem]
 
 
+class Requirement(BaseModel):
+    req_id: str
+    name: str | None
+
+
+class RequirementDetail(Requirement, WikiResponse):
+    project: str
+    text: str
+
+
+class UnitName(BaseModel):
+    id: str
+    title: str
+
+
+class ProjectWork(BaseModel):
+    topic_id: str
+    topic_title: str
+    units: list[UnitName]
+
+
+class ProjectDetail(PortfolioItem, WikiResponse):
+    domain: list[str] | str | None
+    scope_lines: list[str]
+    work_units: list[ProjectWork]
+    requirements: list[Requirement]
+
+
 class Project(BaseModel):
     project: str
-    req_ids: list[str]
+    title: str | None
+    client: str | None
+    period_start: str | None
+    period_end: str | None
+    year: int | None
+    requirements: list[Requirement]
 
 
 class NoRecord(BaseModel):
@@ -77,24 +124,33 @@ class NoRecord(BaseModel):
     source: str | None = None
 
 
-class Unit(BaseModel):
-    id: str
-    title: str
+class Unit(UnitName):
+    project_count: int
+    latest_year: int | None
     covers: str | None = None
     excludes: str | None = Field(default=None, alias="not")
     projects: list[Project]
     no_record: list[NoRecord]
 
 
-class Topic(BaseModel):
+class TopicInfo(BaseModel):
     id: str
     title: str
     scope: str | None = None
+
+
+class Topic(TopicInfo, WikiResponse):
     units: list[Unit]
 
 
+class TopicSummary(TopicInfo):
+    unit_count: int
+    units_without_evidence: int
+    project_count: int
+
+
 class WorkUnits(WikiResponse):
-    topics: list[Topic]
+    topics: list[TopicSummary]
 
 
 class Page(BaseModel):

@@ -37,7 +37,7 @@ def wiki(tmp_path, monkeypatch):
     }
     records = [
         {
-            "id": "P1",
+            "id": "P2025-01",
             "title": "가상 실적",
             "client": "가상 기관",
             "role": "unknown",
@@ -45,7 +45,7 @@ def wiki(tmp_path, monkeypatch):
             "amount_krw": 987654321,
             "period": {"start": "unknown"},
         },
-        {"id": "P2"},
+        {"id": "P2024-02"},
     ]
     levels = {"registrations.direct_production[001].status": {"level": "demo"}}
     for filename, data in [
@@ -55,7 +55,7 @@ def wiki(tmp_path, monkeypatch):
     ]:
         (tmp_path / filename).write_text(yaml.safe_dump(data, allow_unicode=True))
     for kind, folder, slug in [
-        ("portfolio", "portfolio", "P1"),
+        ("portfolio", "portfolio", "P2025-01"),
         ("category", "categories", "group"),
         ("capability", "capabilities", "skill"),
         ("rule", "rules", "one"),
@@ -81,9 +81,9 @@ def wiki(tmp_path, monkeypatch):
                 ],
             }
         ],
-        "sources": {"P1": {"ingested_at": "2026-01-02"}},
+        "sources": {"P2025-01": {"ingested_at": "2026-01-02"}},
         "evidence": [
-            {"unit": "t.a", "project": "P1", "req_id": r} for r in ("R1", "R2")
+            {"unit": "t.a", "project": "P2025-01", "req_id": r} for r in ("R1", "R2")
         ],
         "no_record": [
             {"unit": "t.b", "note": "확인", "as_of": "2026-01-03", "source": "면담"}
@@ -112,7 +112,7 @@ def error(response, status, code):
     }
 
 
-def test_six_views_share_engine_digest_and_only_public_fields(wiki):
+def test_views_share_engine_digest_and_only_public_fields(wiki):
     client, root = wiki
     digest = company_bundle()["bundle_sha256"]
 
@@ -142,12 +142,12 @@ def test_six_views_share_engine_digest_and_only_public_fields(wiki):
         "evidence_links": 2,
         "units_without_evidence": 1,
     }
-    assert summary["log"] == [
-        {"date": f"2026-01-{i:02}", "text": f"추가 | {i}"} for i in range(22, 2, -1)
+    assert [(row["date"], row["text"], row["kind"]) for row in summary["log"]] == [
+        (f"2026-01-{i:02}", f"추가 | {i}", "other") for i in range(22, 2, -1)
     ]
     facts = {
-        f["path"]: (f["section"], f["value"], f["level"])
-        for f in get("/profile")["facts"]
+        f["path"]: (section["key"], f["value"], f["level"])
+        for section in get("/profile")["sections"] for f in section["facts"]
     }
     assert facts == {
         "people.by_year.2025": ("people", "2", None),
@@ -163,7 +163,7 @@ def test_six_views_share_engine_digest_and_only_public_fields(wiki):
     }
     first, second = get("/portfolio")["items"]
     assert first == {
-        "id": "P1",
+        "id": "P2025-01",
         "title": "가상 실적",
         "client": "가상 기관",
         "type": "구축",
@@ -184,13 +184,17 @@ def test_six_views_share_engine_digest_and_only_public_fields(wiki):
     ) == (False, None, False, 0)
     (topic,) = get("/work-units")["topics"]
     assert (topic["id"], topic["title"], topic["scope"]) == ("t", "주제", "범위")
-    a, b = topic["units"]
+    assert topic == dict(id="t", title="주제", scope="범위", unit_count=2, units_without_evidence=1, project_count=1)
+    a, b = get("/work-units/t")["units"]
     assert a == {
         "id": "t.a",
         "title": "가",
         "covers": "포함",
         "not": "제외",
-        "projects": [{"project": "P1", "req_ids": ["R1", "R2"]}],
+        "project_count": 1, "latest_year": 2025,
+        "projects": [dict(project="P2025-01", title="가상 실적", client="가상 기관",
+                          period_start="unknown", period_end=None, year=2025,
+                          requirements=[dict(req_id=r, name=None) for r in ("R1", "R2")])],
         "no_record": [],
     }
     assert b["projects"] == [] and b["no_record"] == [
@@ -217,7 +221,7 @@ def test_absent_side_files_and_empty_map_are_distinct(wiki):
     path = root / "work-units.json"
     path.unlink()
     summary = client.get(BASE).json()
-    assert summary["log"] == [] and summary["work_units_available"] is False
+    assert [(row["date"], row["text"], row["kind"]) for row in summary["log"]] == [] and summary["work_units_available"] is False
     for key in (
         "ingested_projects",
         "work_topics",
@@ -287,14 +291,159 @@ def test_page_boundaries(wiki):
 def test_rereads_pages_and_withholds_private_prose(wiki):
     client, root = wiki
     initial = client.get(BASE).json()["bundle_sha256"]
-    page = root / "portfolio/P1.md"
+    page = root / "portfolio/P2025-01.md"
     page.write_text(
         page.read_text().split("### 요구사항")[0]
         + f"원본: {root}/private file\n금액 987,654,321원\n"
     )
-    detail = client.get(BASE + "/pages/portfolio/P1").json()
+    detail = client.get(BASE + "/pages/portfolio/P2025-01").json()
     assert detail["bundle_sha256"] != initial
     assert str(root) not in detail["body"] and "987,654,321" not in detail["body"]
     assert (
         client.get(BASE + "/portfolio").json()["items"][0]["requirement_count"] is None
     )
+
+
+def test_profile_labels(wiki):
+    client, root = wiki
+    path = root.parent / "sample.yaml"
+    profile = yaml.safe_load(path.read_text())
+    profile["company"].update({
+        "cash": {"2020": 500000000, "2021": 3769270000, "2022": 30000000},
+        "people": 35, "share": 15, "count": 9, "empty": [], "allowed": True,
+    })
+    profile["registrations"]["direct_production"][0]["name"] = "시험 품목"
+    path.write_text(yaml.safe_dump(profile))
+    digest = client.get(BASE).json()["bundle_sha256"]
+    labels = {
+        "schema": "bidops.wiki-labels.v1", "sections": {"company": "회사"},
+        "hidden": ["registrations.direct_production[].name"],
+        "fields": {
+            "company.cash.*": {"label": "{key}년", "unit": "krw"},
+            "company.cash.2020": {"label": "설립 자본", "unit": "krw"},
+            "company.people": {"label": "인원", "unit": "people"},
+            "company.share": {"label": "비중", "unit": "percent"},
+            "company.count": {"label": "등록", "unit": "count"},
+            "company.allowed": {"label": "가능 여부", "values": {"true": "가능"}},
+            "registrations.direct_production[].status": {"label": "{item} 상태", "values": {"unknown": "대체"}},
+        },
+    }
+    labels["fields"]["registrations.direct_production[].item_no"] = {"label": "{item} 번호"}
+    (root / "labels.yaml").write_text(yaml.safe_dump(labels, sort_keys=False))
+    summary = client.get(BASE).json()
+    assert summary["bundle_sha256"] == digest and summary["labels_available"]
+    sections = client.get(BASE + "/profile").json()["sections"]
+    assert {row["key"]: row["label"] for row in sections} == dict(company="회사", registrations=None, people=None)
+    facts = {f["path"]: (f["label"], f["display_value"]) for s in sections for f in s["facts"]}
+    assert facts["company.cash.2020"] == ("설립 자본", "5억 원")
+    assert facts["company.cash.2021"] == ("2021년", "37억 6,927만 원")
+    assert facts["company.cash.2022"] == ("2022년", "3,000만 원")
+    assert facts["company.people"] == ("인원", "35명")
+    assert facts["company.share"] == ("비중", "15%")
+    assert facts["company.count"] == ("등록", "9건")
+    assert facts["company.allowed"] == ("가능 여부", "가능")
+    assert facts["company.empty"] == (None, "")
+    assert facts["company.blank"] == (None, None)
+    assert facts["registrations.direct_production[001].status"] == ("시험 품목 상태", "unknown")
+    assert "registrations.direct_production[001].name" not in facts
+    profile["registrations"]["direct_production"] = [
+        {"id": "s", "std": "표준", "title": "후순위", "item_no": "가"},
+        {"title": "제목", "item_no": "나"}, {"item_no": "다"},
+    ]
+    path.write_text(yaml.safe_dump(profile))
+    sections = client.get(BASE + "/profile").json()["sections"]
+    labels = [f["label"] for s in sections for f in s["facts"] if f["path"].endswith(".item_no")]
+    assert labels == ["표준 번호", "제목 번호", "다 번호"]
+
+
+@pytest.mark.parametrize("contents", [None, "[", "schema: wrong", "schema: bidops.wiki-labels.v1\nfields: []"])
+def test_optional_labels(wiki, contents):
+    client, root = wiki
+    if contents is not None:
+        (root / "labels.yaml").write_text(contents)
+    assert client.get(BASE).json()["labels_available"] is False
+    result = client.get(BASE + "/profile")
+    assert result.status_code == 200
+    assert all(s["label"] is None and all(f["label"] is None and f["value"] == f["display_value"]
+               for f in s["facts"]) for s in result.json()["sections"])
+
+
+def test_log_and_last_changed(wiki):
+    client, root = wiki
+    log = root / "log.txt"
+    log.write_text("2026-02-03 | ingest | P2025-01 | 요구사항 70건, 미분류 10건\n"
+                   "2026-01-02 | feedback | 검토\n2026-01-02 | init | 분류\n알 수 없는 기록")
+    summary = client.get(BASE).json()
+    assert summary["last_changed"] == "2026-02-03"
+    other, init, feedback, ingest = summary["log"]
+    assert (other["kind"], other["text"], other["date"]) == ("other", "알 수 없는 기록", None)
+    assert (init["kind"], feedback["kind"]) == ("init", "feedback")
+    assert (ingest["kind"], ingest["project"], ingest["project_title"], ingest["requirement_count"],
+            ingest["unassigned_count"]) == ("ingest", "P2025-01", "가상 실적", 70, 10)
+    log.unlink()
+    assert client.get(BASE).json()["last_changed"] == "2026-01-02"
+    for page in root.rglob("*.md"):
+        page.write_text(page.read_text().replace("updated: 2026-01-02", "updated: null"))
+    assert client.get(BASE).json()["last_changed"] is None
+
+
+def test_project_and_requirement_details(wiki):
+    client, root = wiki
+    page = root / "portfolio/P2025-01.md"
+    excerpt = "가" * 310
+    page.write_text(page.read_text().split("## 개요")[0] + "## 수행한 요구 범위\n- 관제 지원\n"
+        "- `관리`\n- YAML 참고\n- 라벨 참고\n- past.yaml 참고\n### 요구사항 전체 목록(원문)\n"
+        f"- R1 요구 하나 — {excerpt}\n- R2 요구 둘 — 참고 {root}/secret\n"
+        "- R3 요구 셋 — 계약 987,654,321원\n## 다음 절\n- 포함하지 않음\n")
+    path = root.parent / "sample.portfolio.yaml"
+    records = yaml.safe_load(path.read_text())
+    records[0]["domain"] = ["문서"]
+    path.write_text(yaml.safe_dump(records))
+    project = BASE + "/portfolio/P2025-01"
+    detail = client.get(project).json()
+    assert detail["domain"] == ["문서"]
+    assert detail["scope_lines"] == ["관제 지원"]
+    assert detail["requirements"] == [dict(req_id="R" + str(i), name="요구 " + name)
+                                      for i, name in enumerate(("하나", "둘", "셋"), 1)]
+    assert detail["work_units"] == [dict(topic_id="t", topic_title="주제", units=[dict(id="t.a", title="가")])]
+    assert detail["requirement_count"] == 3
+    def requirement(rid):
+        response = client.get(project + "/requirements/" + rid)
+        assert response.status_code == 200
+        for private in (str(root), "987,654,321", "amount_krw"):
+            assert private not in response.text
+        return response.json()
+    row = requirement("R1")
+    assert (row["name"], row["project"], row["req_id"], row["text"]) == ("요구 하나", "P2025-01", "R1", excerpt[:300])
+    for suffix in ("/work-units/t", "/portfolio/P2025-01"):
+        response = client.get(BASE + suffix)
+        assert response.status_code == 200 and str(root) not in response.text and "987,654,321" not in response.text
+    assert requirement("R2")["text"] == "[경로 생략]"
+    assert "[금액 생략]" in requirement("R3")["text"]
+    for suffix, code in [("work-units/missing", "topic"), ("portfolio/P2100-99", "project"),
+                         ("portfolio/P2100-99/requirements/R1", "requirement"),
+                         ("portfolio/P2025-01/requirements/missing", "requirement"),
+                         ("portfolio/P2025-01/requirements/_bad", "requirement"),
+                         ("portfolio/P1/requirements/R1", "requirement")]:
+        error(client.get(BASE + "/" + suffix), 404, f"company_wiki_{code}_not_found")
+
+
+def test_project_order_and_distinct_topic_counts(wiki):
+    client, root = wiki
+    path = root.parent / "sample.portfolio.yaml"
+    records = yaml.safe_load(path.read_text())
+    records[0]["period"] = dict(start="2021-01", end="2024-03")
+    records[1]["period"] = dict(start="2025-02")
+    records.append(dict(id="P2024-03", title="다른 실적"))
+    path.write_text(yaml.safe_dump(records))
+    path = root / "work-units.json"
+    work = json.loads(path.read_text())
+    work["evidence"].extend(dict(unit=unit, project=project, req_id="RX")
+                            for unit, project in [("t.a", "P2024-02"), ("t.a", "P2024-03"), ("t.b", "P2024-02")])
+    path.write_text(json.dumps(work))
+    topic, = client.get(BASE + "/work-units").json()["topics"]
+    assert (topic["project_count"], topic["units_without_evidence"]) == (3, 0)
+    unit = client.get(BASE + "/work-units/t").json()["units"][0]
+    assert (unit["project_count"], unit["latest_year"]) == (3, 2025)
+    assert [(p["year"], p["project"]) for p in unit["projects"]] == [
+        (2025, "P2024-02"), (2024, "P2025-01"), (2024, "P2024-03")]

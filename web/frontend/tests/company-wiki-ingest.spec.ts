@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
 import type { IngestDetail } from "../src/lib/companyWikiIngestApi";
-import { mockWiki, project } from "./fixtures/company-wiki";
+import { mockWiki, project, projectDetail } from "./fixtures/company-wiki";
 
 const id = "12345678-1234-4123-8123-123456789012";
 const projectId = "P2025-08";
@@ -26,7 +26,9 @@ async function setup(page: Page, options: {
 } = {}) {
   const state = { run: options.initial === undefined ? { ...review } : options.initial };
   if (options.actor !== "") await page.addInitScript(name => localStorage.setItem("bidops.actorName", name), options.actor ?? "이담당");
-  await mockWiki(page, { "/portfolio": { items: [{ ...project, id: projectId, title: "기록 관리", has_page: false }] } });
+  const item = { ...project, id: projectId, title: "기록 관리", has_page: false, requirement_count: null };
+  await mockWiki(page, { "/portfolio": { items: [item] },
+    ["/portfolio/" + projectId]: { ...projectDetail, ...item, scope_lines: [], work_units: [], requirements: [] } });
   await page.route(/\/api\/company-wiki\/ingests(?:[/?]|$)/, route => {
     const url = new URL(route.request().url());
     if (route.request().method() === "POST" && options.post) return options.post(route);
@@ -77,7 +79,7 @@ test("같은 요청으로 파일 제출을 재시도하고 선택된 넣기 기�
   await expect(page.getByRole("dialog").getByRole("alert")).toBeVisible();
   await submit.click();
   await expect(page).toHaveURL(new RegExp("view=ingests&run=" + id + "$"));
-  await expect(page.getByRole("link", { name: /기록 관리.*접수됨.*요구사항 수 값 없음/ })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: /기록 관리.*접수됨.*요구사항 값 없음/ })).toHaveAttribute("aria-current", "page");
   expect(keys).toEqual([expect.stringMatching(/^[a-f\d]{8}-[a-f\d]{4}-4[a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12}$/i), keys[0]]);
 });
 
@@ -115,6 +117,8 @@ test("진행 상태를 다시 조회하고 사람 확인 뒤 위키 반영 기�
   state.run = { ...review, status: "applied", apply_allowed: false, backup_name: "wiki-copy",
     wiki_sha256_before: "1".repeat(64), wiki_sha256_after: "2".repeat(64), applied_at: now };
   await expect(status).toHaveText("반영 완료");
+  await expect(page.getByText(/사본 이름 · wiki-copy/)).toBeHidden();
+  await page.getByText("기술 정보", { exact: true }).click();
   await expect(page.getByText(/사본 이름 · wiki-copy/)).toContainText("반영 전 · " + "1".repeat(12));
   await expect(page.getByText(/사본 이름 · wiki-copy/)).toContainText("반영 후 · " + "2".repeat(12));
   await expect(page.getByText(/1{13}|2{13}/)).toHaveCount(0);
@@ -158,7 +162,7 @@ test("기능이 꺼지면 기록 주소에서도 실적 보기로 돌아가요",
   await mockWiki(page, { "/ingests": { status: 404, error: { code: "company_wiki_ingest_disabled" } } });
   await page.goto(history);
   await expect(page).toHaveURL(/view=portfolio$/);
-  await page.getByRole("link", { name: /^실적 P1 / }).click();
+  await page.getByRole("link", { name: /실적 P2026-01$/ }).click();
   await expect(page.getByText("실적 넣기는 아직 켜지지 않았어요.")).toBeVisible();
   for (const name of ["넣기 기록", "실적 넣기"]) await expect(page.getByRole("button", { name, exact: true })).toHaveCount(0);
 });
@@ -242,3 +246,17 @@ test("다음 기록과 이전 기록을 서버 페이지로 조회해요", async
   await page.getByRole("link", { name: "이전 기록" }).click();
   await expect(page.getByRole("heading", { name: "실적 1", exact: true })).toBeVisible();
 });
+
+for (const [media, size, expected] of [
+  ["application/x-hwp", 1536, "1.5 KB, 한글(HWP) 문서"],
+  ["application/hwp+zip", 1572864, "1.5 MB, 한글(HWPX) 문서"],
+  ["application/pdf", 2048, "2 KB, PDF 문서"],
+  ["application/example", 0, "0 KB, application/example"],
+] as const) {
+  test(`넣기 기록에서 ${expected}와 요구사항 0건을 읽어요`, async ({ page }) => {
+    await setup(page, { initial: { ...review, source_media_type: media, source_size_bytes: size, requirement_count: 0 } });
+    await page.goto(history);
+    await expect(page.getByRole("main")).toContainText(expected);
+    await expect(page.getByRole("link", { name: /기록 관리.*요구사항 0건/ })).toBeVisible();
+  });
+}

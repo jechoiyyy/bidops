@@ -4,14 +4,14 @@ import { Navigate, useSearchParams } from "react-router-dom";
 import { PageHeaderTabs } from "../components/common/PageHeaderActions";
 import { WorkspaceViewTabs } from "../components/common/WorkspaceFilters";
 import { usePageHeader } from "../components/shell/PageHeaderContext";
-import { WikiState } from "../components/company-wiki/WikiState";
+import { WikiState, wikiValue } from "../components/company-wiki/WikiState";
 import { WikiOverview, WikiPages, WikiPortfolio, WikiTopics } from "../components/company-wiki/WikiViews";
 import { ApiError } from "../lib/api";
 import { ingestList, inProgress } from "../lib/companyWikiIngestApi";
 import { WikiIngests } from "../components/company-wiki/WikiIngests";
 import { IngestProblem } from "../components/company-wiki/IngestProblem";
 import { wikiUrl } from "../components/company-wiki/WikiBody";
-import { wiki } from "../lib/companyWikiApi";
+import { wiki, type WikiLog } from "../lib/companyWikiApi";
 import "../styles/criteria-erp.css";
 import "../styles/company-wiki.css";
 
@@ -20,6 +20,16 @@ const tabs = [
   { key: "work-units", label: "업무별 근거" }, { key: "pages", label: "규칙·페이지" },
   { key: "ingests", label: "넣기 기록" }, { key: "log", label: "변경 이력" },
 ];
+
+function logText(entry: WikiLog) {
+  switch (entry.kind) {
+    case "init": return "업무 분류표를 만들었어요";
+    case "feedback": return "분석에서 확인한 내용을 반영했어요";
+    case "ingest": return `${entry.project_title ?? entry.project} 실적을 넣었어요 · 요구사항 ${entry.requirement_count}건` +
+      (entry.unassigned_count ? ` · 분류되지 않은 요구사항 ${entry.unassigned_count}건` : "");
+    default: return entry.text;
+  }
+}
 
 export default function CompanyWikiPage() {
   const [params, setParams] = useSearchParams();
@@ -65,7 +75,7 @@ export default function CompanyWikiPage() {
         {view === "pages" && <WikiPages selected={params.get("page")}/>}
         {view === "log" && <section className="wiki-content"><h2>변경 이력</h2>
           {summary.data.log.length ? <table><thead><tr><th>날짜</th><th>내용</th></tr></thead><tbody>
-            {summary.data.log.map((entry, i) => <tr key={i}><td><time>{entry.date}</time></td><td>{entry.text}</td></tr>)}
+            {summary.data.log.map((entry, i) => <tr key={i}><td>{entry.date ? <time>{entry.date}</time> : wikiValue(null)}</td><td>{logText(entry)}</td></tr>)}
           </tbody></table> : <p>기록된 변경 이력이 없어요.</p>}</section>}
       </>}
     </div>

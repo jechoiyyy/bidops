@@ -53,3 +53,18 @@ def pages():
 @router.get("/pages/{kind}/{slug:path}", response_model=dto.PageDetail)
 def page(kind: str, slug: str):
     return _get(CompanyWiki.page, kind, slug)
+
+
+@router.get("/work-units/{topic_id}", response_model=dto.Topic)
+def topic(topic_id: str):
+    return _get(CompanyWiki.topic, topic_id)
+
+
+@router.get("/portfolio/{project}", response_model=dto.ProjectDetail)
+def project_detail(project: str):
+    return _get(CompanyWiki.project_detail, project)
+
+
+@router.get("/portfolio/{project}/requirements/{req_id}", response_model=dto.RequirementDetail)
+def requirement(project: str, req_id: str):
+    return _get(CompanyWiki.requirement, project, req_id)

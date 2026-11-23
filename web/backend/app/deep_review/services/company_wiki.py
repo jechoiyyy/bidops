@@ -2,16 +2,18 @@
 
 from collections import Counter, defaultdict
 from datetime import date
+from functools import cached_property
 import stat
 from pathlib import Path, PureWindowsPath
 import re
 
-from typing import Literal
+from typing import Literal, NamedTuple
 from pydantic import BaseModel, Field
 import yaml
 
 from ...core.config import get_settings
 from ..schemas import company_wiki as dto
+from .company_wiki_labels import Labels, display_value
 from .engine_runs import company_bundle, EngineRunError
 
 
@@ -53,36 +55,31 @@ def mapping(value):
     return value
 
 
-def flatten(value, path, section, levels):
+def flatten(value, path, pattern, levels, labels, item_name=""):
+    if labels and labels.hides(pattern):
+        return
     if isinstance(value, dict):
         for key, child in value.items():
             key = scalar(key)
             if key == "amount_krw" or key.endswith("_file"):
                 continue
-            yield from flatten(
-                child, f"{path}.{key}" if path else key, section or key, levels
-            )
+            yield from flatten(child, f"{path}.{key}", f"{pattern}.{key}", levels, labels, item_name)
         return
     if isinstance(value, list):
         if any(isinstance(item, (dict, list)) for item in value):
             for i, item in enumerate(value):
-                identifier = i
-                if isinstance(item, dict):
-                    identifier = next(
-                        (
-                            item[k]
-                            for k in ("item_no", "id", "name")
-                            if item.get(k) is not None
-                        ),
-                        i,
-                    )
-                yield from flatten(item, f"{path}[{identifier}]", section, levels)
+                fields = item if isinstance(item, dict) else {}
+                identifier = next((fields[k] for k in ("item_no", "id", "name")
+                                   if fields.get(k) is not None), i)
+                name = next((fields[k] for k in ("name", "std", "title") if fields.get(k)), identifier)
+                yield from flatten(item, f"{path}[{identifier}]", pattern + "[]", levels, labels, str(name))
             return
         value = ", ".join("null" if item is None else scalar(item) for item in value)
+    value = scalar(value)
+    field, key = labels.lookup(pattern) if labels else (None, "")
     yield dto.Fact(
-        path=path,
-        section=section,
-        value=scalar(value),
+        path=path, label=field.label.replace("{key}", key).replace("{item}", item_name) if field else None,
+        value=value, display_value=display_value(value, field),
         level=mapping(levels.get(path, {})).get("level"),
     )
 
@@ -101,9 +98,18 @@ class Note(dto.NoRecord):
     unit: str
 
 
+class SourceUnit(dto.UnitName):
+    covers: str | None = None
+    excludes: str | None = Field(default=None, alias="not")
+
+
+class SourceTopic(dto.TopicInfo):
+    units: list[SourceUnit]
+
+
 class Sidecar(BaseModel):
     schema_id: Literal["bidops.wiki-work-units.v1"] = Field(alias="schema")
-    topics: list[dict]
+    topics: list[SourceTopic]
     sources: dict[str, Source]
     evidence: list[Evidence]
     no_record: list[Note] = []
@@ -119,36 +125,32 @@ class EvidenceMap:
             projects[row.unit][row.project].append(row.req_id)
         for note in data.no_record:
             notes[note.unit].append(note.model_dump(exclude={"unit"}))
-        self.topics = []
-        known = set()
-        for topic in data.topics:
-            units = []
-            for unit in topic["units"]:
-                uid = unit["id"]
-                if uid in known:
-                    raise WikiError()
-                known.add(uid)
-                units.append(
-                    dto.Unit.model_validate(
-                        {
-                            **unit,
-                            "projects": [
-                                dto.Project(project=p, req_ids=ids)
-                                for p, ids in projects.get(uid, {}).items()
-                            ],
-                            "no_record": notes.get(uid, []),
-                        }
-                    )
-                )
-            self.topics.append(dto.Topic.model_validate({**topic, "units": units}))
-        if (projects.keys() | notes.keys()) - known:
+        self.topics = data.topics
+        self.projects = projects
+        self.notes = notes
+        units = [unit.id for topic in data.topics for unit in topic.units]
+        known = set(units)
+        if len(known) != len(units) or (projects.keys() | notes.keys()) - known:
             raise WikiError()
         self.unit_count = len(known)
         self.without_evidence = len(known - projects.keys())
 
 
-def requirement_count(body):
+PROJECT_ID = re.compile(r"P[0-9]{4}-[0-9]{2}")
+REQ_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+
+
+class ProjectSections(NamedTuple):
+    scope: list[str]
+    requirements: dict[str, tuple[str | None, str]]
+    count: int | None
+
+
+def project_sections(body):
+    scope = []
+    requirements = {}
     count = None
+    in_scope = in_list = False
     fence = None
     for line in body.splitlines():
         marker = re.match(r"^ {0,3}(`{3,}|~{3,})", line)
@@ -161,14 +163,38 @@ def requirement_count(body):
             continue
         if fence:
             continue
-        if line.rstrip() == "### 요구사항 전체 목록(원문)":
-            count = 0
-        elif count is not None:
-            if re.match(r"^#{1,3}(?:\s|$)", line):
-                break
-            if line.startswith("- "):
+        if re.match(r"^#{1,2}(?:\s|$)", line):
+            in_scope = line.rstrip() == "## 수행한 요구 범위"
+            in_list = False
+        elif line.startswith("### "):
+            in_list = line.rstrip() == "### 요구사항 전체 목록(원문)"
+            if in_list and count is None:
+                count = 0
+        elif line.startswith("- "):
+            if in_list:
                 count += 1
-    return count
+                heading, _, text = line[2:].partition(" — ")
+                parts = heading.split(maxsplit=1)
+                if parts and REQ_ID.fullmatch(parts[0]):
+                    requirements[parts[0]] = (parts[1] if len(parts) > 1 else None, text)
+            elif in_scope and not any(token in line for token in ("`", "YAML", "라벨", "past.yaml")):
+                scope.append(line[2:])
+    return ProjectSections(scope, requirements, count)
+
+
+def project_year(start, end, project):
+    for value in (end, start, project.removeprefix("P")):
+        match = re.match(r"^(\d{4})(?:\D|$)", value or "")
+        if match:
+            return int(match[1])
+    return None
+
+
+def iso_day(value):
+    try:
+        return date.fromisoformat(value or "").isoformat()
+    except ValueError:
+        return None
 
 
 class CompanyWiki:
@@ -191,6 +217,7 @@ class CompanyWiki:
         if not isinstance(self.records, list):
             raise WikiError()
         self.knowledge = bundle["knowledge"]
+        self._sections = {}
 
         amounts = set()
         for record in self.records:
@@ -233,11 +260,20 @@ class CompanyWiki:
         except FileNotFoundError:
             return None
 
+    @cached_property
+    def labels(self):
+        try:
+            raw = self.side_file("labels.yaml")
+            return Labels.model_validate(yaml.safe_load(raw)) if raw else None
+        except (OSError, ValueError, RecursionError, yaml.YAMLError):
+            return None
+
+    @cached_property
     def evidence(self):
         raw = self.side_file("work-units.json")
         return None if raw is None else EvidenceMap(Sidecar.model_validate_json(raw))
 
-    def page(self, kind, slug):
+    def _page(self, kind, slug):
         missing = WikiError("company_wiki_page_not_found", 404)
         if kind not in FOLDERS or not PAGE_SLUG.fullmatch(slug):
             raise missing
@@ -279,9 +315,14 @@ class CompanyWiki:
                     or PureWindowsPath(s.strip()).is_absolute()
                 )
             ],
-            body=self.public_prose(raw[front.end() :]),
+            body=raw[front.end() :],
             bundle_sha256=self.digest,
         )
+
+    def page(self, kind, slug):
+        page = self._page(kind, slug)
+        page.body = self.public_prose(page.body)
+        return page
 
     def all_pages(self):
         kinds = {folder: kind for kind, folder in FOLDERS.items()}
@@ -294,14 +335,31 @@ class CompanyWiki:
                 yield self.page(kinds[folder], rel.stem)
 
     def summary(self):
-        pages = Counter(p.kind for p in self.all_pages())
-        work = self.evidence()
+        pages = Counter()
+        dates = []
+        for page in self.all_pages():
+            pages[page.kind] += 1
+            dates.append(iso_day(page.updated))
+        work = self.evidence
+        titles = {r["id"]: r.get("title") for r in self.records}
         log = []
-        for line in reversed((self.side_file("log.txt") or "").splitlines()[-20:]):
+        for line in (self.side_file("log.txt") or "").splitlines():
             match = re.fullmatch(r"(\d{4}-\d{2}-\d{2}) \| (.*)", line)
-            if not match:
-                raise WikiError()
-            log.append(dto.LogEntry(date=match[1], text=self.public_prose(match[2])))
+            day, text = (iso_day(match[1]), match[2]) if match else (None, line)
+            dates.append(day)
+            entry = dto.LogEntry(date=day, text=self.public_prose(text))
+            ingest = re.fullmatch(r"ingest \| (P[0-9]{4}-[0-9]{2}) \| 요구사항 (\d+)건, 미분류 (\d+)건", text)
+            if ingest:
+                entry.kind = "ingest"
+                entry.project = ingest[1]
+                entry.project_title = titles.get(ingest[1])
+                entry.requirement_count = int(ingest[2])
+                entry.unassigned_count = int(ingest[3])
+            elif text.startswith("feedback | "):
+                entry.kind = "feedback"
+            elif text.startswith("init | "):
+                entry.kind = "init"
+            log.append(entry)
         counts = dto.WikiCounts(
             pages_by_kind={k: pages[k] for k in FOLDERS},
             portfolio_items=len(self.records),
@@ -318,59 +376,120 @@ class CompanyWiki:
             bundle_sha256=self.digest,
             counts=counts,
             work_units_available=bool(work),
-            log=log,
+            last_changed=max(filter(None, dates), default=None),
+            labels_available=self.labels is not None, log=log[-20:][::-1],
         )
 
     def profile(self):
         provenance = self.files.get(f"{self.slug}.provenance.yaml", {"fields": {}})
         levels = mapping(mapping(provenance)["fields"])
-        return dto.Profile(
-            bundle_sha256=self.digest,
-            facts=list(flatten(self.profile_data, "", "", levels)),
+        sections = []
+        for key, value in self.profile_data.items():
+            if key.endswith("_file") or key == "amount_krw":
+                continue
+            facts = list(flatten(value, key, key, levels, self.labels))
+            if facts:
+                sections.append(dto.Section(key=key, label=self.labels.sections.get(key) if self.labels else None,
+                                            facts=facts))
+        return dto.Profile(bundle_sha256=self.digest, sections=sections)
+
+    @cached_property
+    def records_by_id(self):
+        return {record["id"]: record for record in self.records}
+
+    def sections_for(self, project):
+        if project not in self._sections:
+            body = ""
+            if project in self.records_by_id and f"portfolio/{project}.md" in self.knowledge:
+                body = self._page("portfolio", project).body
+            self._sections[project] = project_sections(body)
+        return self._sections[project]
+
+    def portfolio_item(self, record):
+        project = record["id"]
+        work = self.evidence
+        source = work.sources.get(project) if work else None
+        period = record.get("period")
+        return dto.PortfolioItem(
+            id=project,
+            **{key: scalar(record.get(key)) for key in ("title", "client", "type", "role")},
+            period_start=scalar(period.get("start") if isinstance(period, dict) else period),
+            period_end=scalar(period.get("end") if isinstance(period, dict) else period),
+            has_page=f"portfolio/{project}.md" in self.knowledge,
+            requirement_count=self.sections_for(project).count,
+            ingested=source is not None if work else None,
+            ingested_at=source.ingested_at if source else None,
+            evidence_links=work.links[project] if work else None,
         )
 
     def portfolio(self):
-        work = self.evidence()
-        pages = {
-            page.slug: page for page in self.all_pages() if page.kind == "portfolio"
-        }
-        items = []
-        for record in self.records:
-            project = record["id"]
-            page = pages.get(project)
-            period = record.get("period")
-            source = work.sources.get(project) if work else None
-            items.append(
-                dto.PortfolioItem(
-                    id=project,
-                    **{
-                        k: scalar(record.get(k))
-                        for k in ("title", "client", "type", "role")
-                    },
-                    period_start=scalar(
-                        period.get("start") if isinstance(period, dict) else period
-                    ),
-                    period_end=scalar(
-                        period.get("end") if isinstance(period, dict) else period
-                    ),
-                    has_page=page is not None,
-                    requirement_count=requirement_count(
-                        self.knowledge[f"portfolio/{project}.md"]
-                    )
-                    if page
-                    else None,
-                    ingested=source is not None if work else None,
-                    ingested_at=source.ingested_at if source else None,
-                    evidence_links=work.links[project] if work else None,
-                )
-            )
-        return dto.Portfolio(bundle_sha256=self.digest, items=items)
+        return dto.Portfolio(bundle_sha256=self.digest, items=[self.portfolio_item(r) for r in self.records])
 
     def work_units(self):
-        work = self.evidence()
+        work = self.evidence
         if work is None:
             raise WikiError("company_wiki_work_units_unavailable", 404)
-        return dto.WorkUnits(bundle_sha256=self.digest, topics=work.topics)
+        topics = []
+        for topic in work.topics:
+            groups = [work.projects[u.id] for u in topic.units]
+            topics.append(dto.TopicSummary(**topic.model_dump(exclude={"units"}), unit_count=len(groups),
+                units_without_evidence=sum(not group for group in groups),
+                project_count=len({project for group in groups for project in group})))
+        return dto.WorkUnits(bundle_sha256=self.digest, topics=topics)
+
+    def topic(self, topic_id):
+        work = self.evidence
+        topic = next((t for t in work.topics if t.id == topic_id), None) if work else None
+        if not topic:
+            raise WikiError("company_wiki_topic_not_found", 404)
+        units = []
+        for unit in topic.units:
+            projects = []
+            for project, req_ids in work.projects[unit.id].items():
+                record = self.records_by_id.get(project)
+                item = self.portfolio_item(record) if record else None
+                start, end = (item.period_start, item.period_end) if item else (None, None)
+                requirements = self.sections_for(project).requirements
+                projects.append(dto.Project(
+                    project=project, title=item.title if item else None, client=item.client if item else None,
+                    period_start=start, period_end=end, year=project_year(start, end, project),
+                    requirements=[dto.Requirement(req_id=rid, name=requirements.get(rid, (None, ""))[0])
+                                  for rid in req_ids],
+                ))
+            projects.sort(key=lambda p: (p.year or 0, p.project), reverse=True)
+            units.append(dto.Unit(**unit.model_dump(by_alias=True), projects=projects, project_count=len(projects),
+                                  latest_year=projects[0].year if projects else None, no_record=work.notes[unit.id]))
+        return dto.Topic(**topic.model_dump(exclude={"units"}), bundle_sha256=self.digest, units=units)
+
+    def project_detail(self, project):
+        record = self.records_by_id.get(project)
+        if not record:
+            raise WikiError("company_wiki_project_not_found", 404)
+        sections = self.sections_for(project)
+        groups = []
+        work = self.evidence
+        for topic in work.topics if work else ():
+            units = [dto.UnitName(id=u.id, title=u.title) for u in topic.units if project in work.projects[u.id]]
+            if units:
+                groups.append(dto.ProjectWork(topic_id=topic.id, topic_title=topic.title, units=units))
+        return dto.ProjectDetail(
+            **self.portfolio_item(record).model_dump(), bundle_sha256=self.digest, domain=record.get("domain"),
+            scope_lines=sections.scope, work_units=groups, requirements=[
+                dto.Requirement(req_id=rid, name=name) for rid, (name, _) in sections.requirements.items()
+            ],
+        )
+
+    def requirement(self, project, req_id):
+        missing = WikiError("company_wiki_requirement_not_found", 404)
+        if not PROJECT_ID.fullmatch(project) or not REQ_ID.fullmatch(req_id):
+            raise missing
+        requirements = self.sections_for(project).requirements
+        if req_id not in requirements:
+            raise missing
+        name, text = requirements[req_id]
+        return dto.RequirementDetail(
+            bundle_sha256=self.digest, project=project, req_id=req_id, name=name, text=self.public_prose(text)[:300],
+        )
 
     def pages(self):
         return dto.Pages(
@@ -388,13 +507,20 @@ def read(view, *args):
         wiki = CompanyWiki()
         result = view(wiki, *args).model_dump(by_alias=True)
 
-        def public(value):
+        # Copy identifiers and structured values exactly. Redact any financial
+        # values repeated in prose before returning the new projections.
+        prose_fields = {"title", "topic_title", "project_title", "name", "client", "type", "role", "domain",
+                        "scope", "scope_lines", "covers", "not", "note", "source", "text", "company_name"}
+
+        def public(value, field=None):
             if isinstance(value, str):
+                if field in prose_fields:
+                    return wiki.public_prose(value)
                 return wiki.public_text(value)
             if isinstance(value, list):
-                return [public(item) for item in value]
+                return [public(item, field) for item in value]
             if isinstance(value, dict):
-                return {key: public(item) for key, item in value.items()}
+                return {key: public(item, key) for key, item in value.items()}
             return value
 
         return public(result)
