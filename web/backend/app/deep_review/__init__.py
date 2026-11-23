@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any
 #: 그것은 §9가 금지한 일이다(`tests/app/test_module_boundaries.py`의 startup 검사).
 _EXPORTS: dict[str, tuple[str, str]] = {
     "engine_runs_router": (".routers.engine_runs", "router"),
+    "company_wiki_router": (".routers.company_wiki", "router"),
     "run_engine_once": (".services.engine_runs", "run_once"),
     # === 조립이 쓴다 — router 인스턴스 (routers/*.py) ======================
     # `app/main.py`가 `getattr(<모듈>, <router 이름>)`로 가져간다. 정적 import가

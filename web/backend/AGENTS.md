@@ -166,6 +166,7 @@ GPU 휴지는 `app/workers/gpu_rest.py`가 분석 합성 worker와 C-1 worker �
 - 파이프라인은 versioned file과 subprocess로 호출한다. 내부 script 함수를 서비스로 import하거나 같은 판정 규칙을 다시 구현하지 않는다.
 - DB row를 그대로 REST 응답으로 노출하지 않는다. 명명된 Pydantic request/response와 안전한 오류 코드를 사용한다.
 - 회사 프로필 조회는 승인된 불변 version·digest에 묶인 구조화 항목·`unknown` projection만 반환한다. filesystem source, source line, raw block·raw text, 원문 예외 문자열을 schema에 넣지 않는다.
+- 회사 위키 조회(`/api/company-wiki`)는 사람이 읽도록 쓴 위키 페이지의 본문과 프로필 값을 묶음 digest와 함께 돌려주는 별도 계약이며, 파일 경로·금액·예외 문자열은 싣지 않는다.
 - frontend가 DB, run 디렉터리, 객체 key를 직접 읽게 하지 않는다.
 - model client와 문서 converter에 광범위 DB session이나 임의 filesystem 권한을 주지 않는다.
 - 사용자 파일명으로 저장 경로를 만들지 않는다. 허용 namespace, 서버 생성 key, symlink·path escape 검사를 사용한다.

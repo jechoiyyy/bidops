@@ -31,6 +31,7 @@ C-1 `candidate_selection`의 기존 `collect-candidate.v2 / candidate_pool_all /
 
 | 범위 | 정본 |
 |---|---|
+| 회사 위키 읽기·프로필·업무별 근거 | [회사 위키 REST](contracts/company-wiki.md) |
 | 실회사 근거·브리핑·카드 판정·제안서 | [RL](contracts/rl.md) |
 | 생애주기 목록·추적·레코드 활동/노트·입찰 delta | [생애주기 REST](contracts/lifecycle-rest.md) |
 | C-2 정책·품질 게이트·일일 스위치 | [C-2](contracts/c2.md) |

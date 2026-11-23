@@ -212,6 +212,8 @@ def company_bundle():
     profile = base / f"{slug}.yaml"
     tree = base / slug
     try:
+        if base.is_symlink():
+            raise EngineRunError("company_bundle_unavailable")
         files = {
             path.name: path.read_text(encoding="utf-8")
             for path in sorted([profile, *base.glob(f"{slug}.*.yaml")])
@@ -219,7 +221,16 @@ def company_bundle():
         }
         pages = {}
         if tree.is_dir() and not tree.is_symlink():
-            for path in sorted(tree.rglob("*.md")):
+            # The engine accepts only root pages and one directory of pages.
+            paths = []
+            for entry in tree.iterdir():
+                if entry.is_symlink():
+                    continue
+                if entry.is_dir():
+                    paths.extend(child for child in entry.iterdir() if child.suffix == ".md")
+                elif entry.suffix == ".md":
+                    paths.append(entry)
+            for path in sorted(paths):
                 if path.is_file() and not path.is_symlink():
                     pages[path.relative_to(tree).as_posix()] = path.read_text(
                         encoding="utf-8"
