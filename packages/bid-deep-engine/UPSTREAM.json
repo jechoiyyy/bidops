@@ -459,7 +459,7 @@
     {
       "path": "src/bid_deep_engine/runner.py",
       "purpose": "bidops.engine-input.v1/output.v1 subprocess boundary and mock_reference transport",
-      "sha256": "b63aed36eda831401b7ceea6440128f217110b172fcda9ee2ff9cb70148af0ea"
+      "sha256": "ff961fbcf9e217b020f6203224679febe0b4b5a53e7531cd3ec7314d191d6e3f"
     },
     {
       "path": "engine_tests/test_adapter.py",
@@ -484,12 +484,12 @@
     {
       "path": "src/bid_deep_engine/wiki_tools.py",
       "purpose": "company wiki maintenance: work-unit evidence map sidecar, single-prompt ingest (prompt, validation, repair prompt, apply), feedback-apply, render, lint, content check (no transport)",
-      "sha256": "5b4b1131d089a37c596f3bb97c19d3ee54776df96483dc748e697048e133187b"
+      "sha256": "3a42b1a6be43399052fbf6e274561e4c2840dda70ac4c47aeb021eed48f75ec7"
     },
     {
       "path": "engine_tests/test_wiki_tools.py",
       "purpose": "wiki maintenance tests",
-      "sha256": "668f0f3b2eecf901747c0aff8a621e12b05e6956999b17ab356b6e97a1e990e9"
+      "sha256": "25e64e48feeac20ed96cf1072800c4fc6eecc17440872145a480f3d4990a7329"
     }
   ],
   "excluded_transport_files": [

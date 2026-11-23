@@ -176,13 +176,8 @@ def engine_company_input_hash(profile):
     return CompanyEvidenceView(profile).company_input_hash
 
 
-def execute(payload, *, mock_rules=()):
-    """Run the pipeline once. `mock_rules` is for tests only; `main` never passes it."""
-    if (
-        payload.get("schema_version") not in (INPUT_V1, INPUT_V2)
-        or payload.get("mode") != "mock_reference"
-    ):
-        raise EngineError("engine_live_not_approved")
+def document_from_blocks(payload):
+    """Normalize structured input without running analysis or accessing company data."""
     blocks, tables = raw_blocks(payload)
     if not blocks or not any(b.text.strip() for b in blocks):
         raise EngineError("structure_unavailable")
@@ -216,7 +211,17 @@ def execute(payload, *, mock_rules=()):
         created_at=datetime.now(UTC).isoformat(),
         warnings=["structure_projection_partial"],
     )
-    rfp = build(bundle, raw, None)
+    return bundle, build(bundle, raw, None)
+
+
+def execute(payload, *, mock_rules=()):
+    """Run the pipeline once. `mock_rules` is for tests only; `main` never passes it."""
+    if (
+        payload.get("schema_version") not in (INPUT_V1, INPUT_V2)
+        or payload.get("mode") != "mock_reference"
+    ):
+        raise EngineError("engine_live_not_approved")
+    bundle, rfp = document_from_blocks(payload)
     client = MockTransport(rfp, mock_rules)
     with tempfile.TemporaryDirectory(prefix="bid-deep-engine-") as folder:
         root = Path(folder)

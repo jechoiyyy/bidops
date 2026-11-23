@@ -65,3 +65,6 @@ change log. Ingest is one prompt per project: `ingest-prompt` builds it, the cal
 `ingest-apply` merges a valid mapping (`bidops.wiki-ingest-mapping.v1`), re-renders the pages and
 lints the tree. `feedback-apply` writes back approved findings and `check` reports content problems.
 The module makes no model call.
+
+For offline ingest, `source-from-blocks --project ID --title TITLE` reads `{"blocks":[...]}` on stdin and emits the source JSON, and `reference-mapping --root WIKI` reads that source and emits a deterministic mapping against existing unit titles.
+`expand-requirements --root WIKI --project ID` reads the same source, updates the registered portfolio page’s original-requirements list and emits `{"project":"ID","requirement_count":N}` for the rows written.

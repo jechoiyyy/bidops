@@ -36,6 +36,9 @@ import sys
 from datetime import date
 from pathlib import Path
 
+import yaml
+
+from bid_deep_engine.runner import document_from_blocks
 from bid_deep_engine.company.knowledge import lint_knowledge
 
 SIDECAR = "work-units.json"
@@ -211,6 +214,118 @@ def validate_mapping(data: dict, mapping: dict, source: dict) -> list[str]:
     return errors
 
 
+AMOUNT = re.compile(r"\d[\d,.]*\s*(?:[천백]\s*)?(?:만\s*)?(?:억(?:\s*원)?|원)")
+MENTIONED_ID = re.compile(r"(?<![A-Z])[A-Z]{2,4}-\d{2,3}(?!\d)")
+SCOPE_HEAD = "## 수행한 요구 범위"
+LIST_HEAD = "### 요구사항 전체 목록(원문)"
+LIST_NOTE = "원문 RFP의 요구사항을 빠짐없이 옮긴 목록이다. 수주 실적의 RFP 요구 범위는 수행한 범위로 본다(사용자 지시 2026-10-25)."
+
+
+def source_from_blocks(blocks: list[dict], project: str, title: str) -> dict:
+    if not PROJECT_RE.fullmatch(project) or not isinstance(blocks, list):
+        raise WikiToolError("invalid source input")
+    requirements = []
+    if blocks:
+        # The projection already contains converted blocks. The format hint is only
+        # needed for document metadata/page mapping, neither of which leaves here.
+        _, document = document_from_blocks({"blocks": blocks, "slug": project, "title": title,
+                                            "primary_format": "hwpx"})
+        for req in document.requirements:
+            requirements.append({
+                "id": req.key, "name": AMOUNT.sub("(금액 생략)", req.name),
+                "definition": AMOUNT.sub("(금액 생략)", req.definition) if req.definition else None,
+                "details": AMOUNT.sub("(금액 생략)", req.details)[:700],
+            })
+    mentioned = {rid for block in blocks for rid in MENTIONED_ID.findall(block["text"])}
+    listed = {r["id"].partition("@")[0] for r in requirements}
+    return {"project": project, "title": title, "requirements": requirements,
+            "unlisted_ids": sorted(mentioned - listed)}
+
+
+def reference_mapping(data: dict, source: dict) -> dict:
+    units = [(unit["id"], re.findall(r"\w+", unit["title"].casefold()))
+             for topic in data["topics"] for unit in topic["units"]]
+    assignments = []
+    for req in source["requirements"]:
+        text = " ".join(req.get(key) or "" for key in ("name", "definition", "details")).casefold()
+        matches = [uid for uid, words in units if any(word in text for word in words)]
+        assignments.append({"req_id": req["id"], "units": matches})
+    mapping = {"schema": MAPPING_SCHEMA, "project": source["project"], "title": source["title"],
+               "source": "과거 수주 사업 RFP 요구사항 (mock_reference)",
+               "assignments": assignments, "new_units": []}
+    if not PROJECT_RE.fullmatch(source["project"]) or validate_mapping(data, mapping, source):
+        raise WikiToolError("invalid reference mapping")
+    return mapping
+
+
+def _requirement_line(req: dict) -> str | None:
+    rid, name, definition, details = (
+        AMOUNT.sub("(금액 생략)", " ".join((req.get(key) or "").split()))
+        for key in ("id", "name", "definition", "details")
+    )
+    if not rid:
+        raise WikiToolError("missing requirement id")
+    if not name or name == rid:
+        if not definition and not details:
+            return None
+        name, definition = definition or details[:40], ""
+    text = definition if definition and definition != name else details
+    excerpt = text[:300] + ("…" if len(text) > 300 else "")
+    return f"- {rid} {name}" + (f" — {excerpt}" if excerpt and excerpt != name else "")
+
+
+def _update_portfolio_header(front: str, sources: list[str], today: str) -> str:
+    # Replace just these YAML values. Re-serializing the mapping would discard
+    # comments and rewrite unrelated fields on a human-maintained page.
+    values = {"sources": json.dumps(sources, ensure_ascii=False), "updated": json.dumps(today)}
+    edits = []
+    for key, value in yaml.compose(front, Loader=yaml.SafeLoader).value:
+        if key.value in values:
+            start, end = key.start_mark.index, value.end_mark.index
+            scalar = f"{key.value}: {values.pop(key.value)}"
+            if front[start:end].endswith("\n"):
+                scalar += "\n"
+            edits.append((start, end, scalar))
+    for start, end, replacement in reversed(edits):
+        front = front[:start] + replacement + front[end:]
+    return front + "".join(f"{key}: {value}\n" for key, value in values.items())
+
+
+def expand_requirements(root: Path, project: str, source: dict, *, today: str) -> dict:
+    if not PROJECT_RE.fullmatch(project) or project != source["project"]:
+        raise WikiToolError("invalid project")
+    page = root / "portfolio" / f"{project}.md"
+    if not page.resolve().is_relative_to(root.resolve()) or not page.is_file():
+        raise WikiToolError("portfolio_page_missing")
+    original = page.read_text(encoding="utf-8")
+    header = re.match(r"\A---\n(.*?)^---(?:\n|$)", original, re.M | re.S)
+    if not header:
+        raise WikiToolError("invalid portfolio page")
+    meta = yaml.safe_load(header[1])
+    body = original[header.end():]
+    lines = [line for req in source["requirements"] if (line := _requirement_line(req))]
+    block = "\n".join([LIST_HEAD, "", LIST_NOTE, "", *lines]) + "\n"
+    scope = re.search(rf"^{SCOPE_HEAD}$.*?(?=^#{{1,2}} |\Z)", body, re.M | re.S)
+    if scope:
+        section = scope[0]
+        previous = re.search(rf"^{re.escape(LIST_HEAD)}$.*?(?=^#{{1,3}} |\Z)", section, re.M | re.S)
+        if previous:
+            section = section[:previous.start()] + block + ("\n" if section[previous.end():] else "") + section[previous.end():]
+        else:
+            section = section.rstrip("\n") + "\n\n" + block
+        updated = body[:scope.start()] + section.rstrip("\n") + ("\n\n" if body[scope.end():] else "\n") + body[scope.end():]
+    else:
+        updated = body.rstrip("\n") + "\n\n" + SCOPE_HEAD + "\n\n" + block
+
+    sources = meta.setdefault("sources", [])
+    marker = f"BidOps 변환 사전규격 RFP ({project}) (요구사항 전체 목록, "
+    if updated != body or not any(s.startswith(marker) for s in sources):
+        sources[:] = [s for s in sources if not s.startswith(marker)] + [marker + today + ")"]
+        front = _update_portfolio_header(header[1], sources, today)
+        page.write_text("---\n" + front + "---\n" + updated, encoding="utf-8")
+    return {"project": project, "requirement_count": len(lines)}
+
+
 def build_repair_prompt(prompt: str, response: str, errors: list[str]) -> str:
     """Second and last attempt: the first answer and what the check found wrong with it."""
     return (prompt + "\n\n## 앞선 답과 검사 결과\n\n앞선 답:\n" + response.strip()
@@ -384,9 +499,24 @@ def stats(data: dict) -> dict:
     }
 
 
+class _IngestArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        self.exit(2, "error: invalid arguments\n")
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="bid_deep_engine.wiki_tools")
+    argv = sys.argv[1:] if argv is None else argv
+    ingest = bool(argv) and argv[0] in {"source-from-blocks", "reference-mapping", "expand-requirements"}
+    parser_type = _IngestArgumentParser if ingest else argparse.ArgumentParser
+    parser = parser_type(prog="bid_deep_engine.wiki_tools")
     sub = parser.add_subparsers(dest="command", required=True)
+    source_cmd = sub.add_parser("source-from-blocks")
+    source_cmd.add_argument("--project", required=True)
+    source_cmd.add_argument("--title", required=True)
+    sub.add_parser("reference-mapping").add_argument("--root", required=True)
+    expand_cmd = sub.add_parser("expand-requirements")
+    expand_cmd.add_argument("--root", required=True)
+    expand_cmd.add_argument("--project", required=True)
     for name in ("init", "ingest-prompt", "ingest-validate", "ingest-apply", "feedback-apply", "render", "lint", "check", "stats"):
         cmd = sub.add_parser(name)
         cmd.add_argument("--root", required=True)
@@ -402,6 +532,21 @@ def main(argv: list[str] | None = None) -> int:
         sub.choices[name].add_argument("--out", help="write the mapping here when it is valid")
         sub.choices[name].add_argument("--repair-prompt", help="write the second-attempt prompt here when it is not")
     args = parser.parse_args(argv)
+    if ingest:
+        try:
+            payload = json.load(sys.stdin)
+            if args.command == "source-from-blocks":
+                result = source_from_blocks(payload["blocks"], args.project, args.title)
+            elif args.command == "reference-mapping":
+                result = reference_mapping(load_sidecar(Path(args.root)), payload)
+            else:
+                result = expand_requirements(Path(args.root), args.project, payload, today=date.today().isoformat())
+            print(json.dumps(result, ensure_ascii=False))
+            return 0
+        except Exception as exc:
+            # Parser, filesystem and YAML exceptions can include source text or local paths.
+            print(f"error: {type(exc).__name__}", file=sys.stderr)
+            return 2
     root = Path(args.root)
     try:
         if args.command == "init":

@@ -1,12 +1,15 @@
 """The compiled work-unit evidence map: ingest mapping -> sidecar -> rendered pages that lint clean."""
 
+import io
 import json
+import sys
 
 import pytest
+import yaml
 
 from bid_deep_engine import wiki_tools
 from bid_deep_engine.company.knowledge import lint_knowledge
-from engine_tests.test_runner import _CATEGORY, _FALLBACK, _INDEX, _PORTFOLIO_PAGE
+from engine_tests.test_runner import _CATEGORY, _FALLBACK, _INDEX, _PORTFOLIO_PAGE, _block, make_payload
 
 TAXONOMY = {
     "topics": [
@@ -201,3 +204,99 @@ def test_cli_validate_writes_mapping_or_repair_prompt(wiki, tmp_path, capsys):
     capsys.readouterr()
     assert wiki_tools.main(args) == 0
     assert json.loads((tmp_path / "m.json").read_text(encoding="utf-8"))["project"] == "P2025-01"
+
+
+def _stdin(monkeypatch, value):
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(value)))
+
+
+def test_source_from_runner_blocks(monkeypatch, capsys):
+    blocks = make_payload([_block("refs", "ZZZZ-99와 AB-003, ZZZZ-99 및 SFR-001")])["blocks"]
+    blocks[-1]["text"] = "42,000원 " + "가" * 690 + " 9백만원 끝"
+    _stdin(monkeypatch, {"blocks": blocks})
+    assert wiki_tools.main(["source-from-blocks", "--project", SOURCE["project"], "--title", "합성"]) == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert json.loads(captured.out) == {
+        "project": SOURCE["project"], "title": "합성", "unlisted_ids": ["AB-003", "ZZZZ-99"],
+        "requirements": [{"id": "SFR-001", "name": "통합검색", "definition": None,
+                          "details": ("(금액 생략) " + "가" * 690 + " (금액 생략) 끝")[:700]}],
+    }
+
+
+def test_reference_mapping_is_deterministic_and_valid(wiki, monkeypatch, capsys):
+    source = {"project": SOURCE["project"], "title": "합성", "requirements": [
+        {"id": "A", "name": "예약", "details": "좌석을 선택한다."},
+        {"id": "B", "name": "기타", "definition": "예매한다."},
+        {"id": "C", "name": "기타"},
+    ]}
+    outputs = []
+    for _ in range(2):
+        _stdin(monkeypatch, source)
+        assert wiki_tools.main(["reference-mapping", "--root", str(wiki)]) == 0
+        outputs.append(capsys.readouterr().out)
+    assert outputs[0] == outputs[1]
+    mapping = json.loads(outputs[0])
+    assert mapping["new_units"] == []
+    assert mapping["assignments"] == [
+        {"req_id": "A", "units": ["booking.timeslot", "booking.seatmap"]},
+        {"req_id": "B", "units": ["booking.seatmap"]},
+        {"req_id": "C", "units": []},
+    ]
+    assert wiki_tools.validate_mapping(wiki_tools.load_sidecar(wiki), mapping, source) == []
+
+
+@pytest.mark.parametrize("sources", ["sources: [합성 출처]", "sources:\n- 합성 출처", "sources:\n  - 합성 출처"])
+def test_expand_replaces_only_list_and_is_idempotent(wiki, monkeypatch, capsys, sources):
+    project = SOURCE["project"]
+    page = wiki / "portfolio" / f"{project}.md"
+    template = _PORTFOLIO_PAGE.replace("sources: [합성 출처]", sources)
+    page.write_text(template.replace("kind: portfolio", "kind: portfolio  # 보존") + "\n### 요구사항 전체 목록(원문)\n\n이전 내용\n\n"
+                    "### 참고\n\n보존할 문장\n\n## 다음 절\n\n끝\n", encoding="utf-8")
+    source = {**SOURCE, "requirements": [
+        {"id": "SFR-000", "name": "SFR-000"},
+        {"id": "SFR-001", "name": "예약", "details": "10백만원\n" + "가" * 320},
+    ]}
+    _stdin(monkeypatch, source)
+    assert wiki_tools.main(["expand-requirements", "--root", str(wiki), "--project", project]) == 0
+    assert json.loads(capsys.readouterr().out) == {"project": project, "requirement_count": 1}
+    first = page.read_text(encoding="utf-8")
+    _, front, body = first.split("---", 2)
+    assert "kind: portfolio  # 보존" in front
+    meta = yaml.safe_load(front)
+    assert meta["updated"] and len(meta["sources"]) == 2
+    assert meta["sources"][0] == "합성 출처"
+    assert meta["sources"][1].endswith(f"(요구사항 전체 목록, {meta['updated']})")
+    assert body.count("### 요구사항 전체 목록(원문)") == 1
+    assert "SFR-000" not in body and "이전 내용" not in body and "10백만원" not in body
+    assert "- SFR-001 예약 — " + ("(금액 생략) " + "가" * 320)[:300] + "…\n" in body
+    assert body.endswith("### 참고\n\n보존할 문장\n\n## 다음 절\n\n끝\n")
+    wiki_tools.expand_requirements(wiki, project, source, today="2099-01-01")
+    assert page.read_text(encoding="utf-8") == first
+
+
+@pytest.mark.parametrize("command", ["source-from-blocks", "reference-mapping", "expand-requirements"])
+def test_ingest_cli_failures_are_content_free(wiki, monkeypatch, capsys, command):
+    if command == "source-from-blocks":
+        args = ["--project", SOURCE["project"], "--title", "private"]
+        payload = {"blocks": [{"text": {"private": 1}}]}
+    elif command == "reference-mapping":
+        args = ["--root", str(wiki / "private")]
+        payload = SOURCE
+    else:
+        args = ["--root", str(wiki), "--project", "P2025-09"]
+        payload = {**SOURCE, "project": "P2025-09"}
+    _stdin(monkeypatch, payload)
+    assert wiki_tools.main([command, *args]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.startswith("error: ") and len(captured.err.splitlines()) == 1
+    assert "private" not in captured.err and str(wiki) not in captured.err
+    assert not (wiki / "portfolio/P2025-09.md").exists()
+
+
+def test_ingest_cli_does_not_echo_unexpected_arguments(capsys):
+    with pytest.raises(SystemExit) as exc:
+        wiki_tools.main(["reference-mapping", "--root", ".", "private/path"])
+    assert exc.value.code == 2
+    assert capsys.readouterr().err == "error: invalid arguments\n"
