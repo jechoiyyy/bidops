@@ -17,7 +17,7 @@ set -euo pipefail
 : "${BIDOPS_PROPOSAL_PDF_SECRET_KEY:?proposal-pdf secret key is required}"
 
 mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null
-for bucket in bidops-source bidops-structure bidops-quarantine bidops-model-response bidops-proposal-pdf; do
+for bucket in bidops-source bidops-structure bidops-quarantine bidops-model-response bidops-proposal-pdf bidops-company-wiki-ingest; do
   mc mb --ignore-existing "local/$bucket" >/dev/null
   # Keep immutable content addressable by its persisted version id.  Re-running
   # this bootstrap is idempotent and never removes prior versions: enabling an
@@ -83,3 +83,15 @@ mc admin policy attach local bidops-proposal-pdf --user "$BIDOPS_PROPOSAL_PDF_AC
 # until an explicit governed process.
 mc ilm add --expire-days 90 local/bidops-model-response >/dev/null
 mc ilm add --expire-days 365 local/bidops-proposal-pdf >/dev/null
+
+# Optional credentials keep existing installations off until explicitly provisioned.
+if [[ -n "${BIDOPS_COMPANY_WIKI_INGEST_ACCESS_KEY:-}${BIDOPS_COMPANY_WIKI_INGEST_SECRET_KEY:-}" ]]; then
+  : "${BIDOPS_COMPANY_WIKI_INGEST_ACCESS_KEY:?wiki ingest access key required}"
+  : "${BIDOPS_COMPANY_WIKI_INGEST_SECRET_KEY:?wiki ingest secret key required}"
+  mc admin user add local "$BIDOPS_COMPANY_WIKI_INGEST_ACCESS_KEY" "$BIDOPS_COMPANY_WIKI_INGEST_SECRET_KEY" >/dev/null
+  cat >"$tmp_dir/wiki-ingest.json" <<'JSON'
+{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetBucketLocation","s3:PutObject","s3:GetObjectVersion","s3:DeleteObjectVersion","s3:AbortMultipartUpload"],"Resource":["arn:aws:s3:::bidops-company-wiki-ingest","arn:aws:s3:::bidops-company-wiki-ingest/*"]}]}
+JSON
+  mc admin policy create local bidops-company-wiki-ingest "$tmp_dir/wiki-ingest.json" >/dev/null
+  mc admin policy attach local bidops-company-wiki-ingest --user "$BIDOPS_COMPANY_WIKI_INGEST_ACCESS_KEY" >/dev/null
+fi

@@ -6,7 +6,14 @@ set -euo pipefail
 mkdir -p "$OBJECT_BACKUP_DIR"
 manifest="$OBJECT_BACKUP_DIR/object-versions.tsv"
 : > "$manifest"
-for bucket in bidops-source bidops-structure bidops-quarantine bidops-model-response bidops-proposal-pdf; do
+for bucket in bidops-source bidops-structure bidops-quarantine bidops-model-response bidops-proposal-pdf bidops-company-wiki-ingest; do
+  # The ingest bucket may be absent on pre-0043 installations.
+  if [[ "$bucket" == bidops-company-wiki-ingest ]] && ! info="$(mc stat --json "$MINIO_ALIAS/$bucket" 2>&1)"; then
+    case "$info" in
+      *'"Code":"NoSuchBucket"'*) continue ;;
+      *) printf '%s\n' 'cannot verify wiki ingest bucket' >&2; exit 1 ;;
+    esac
+  fi
   namespace="${bucket#bidops-}"
   # This pinned mc has no mirror --versions flag. Enumerate every immutable
   # version explicitly, copy it under a version-qualified backup filename, and

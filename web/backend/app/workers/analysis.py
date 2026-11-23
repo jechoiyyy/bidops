@@ -25,6 +25,7 @@ from ..deep_review import (
     run_prespec_overview_once,
     run_proposal_once,
     run_engine_once,
+    run_wiki_ingest_once,
 )
 from ..screening import C2ScreeningWorker
 
@@ -77,6 +78,8 @@ def main() -> None:
                     elif run_deep_review_once(session, worker_id).claimed:
                         did_work = True
                     elif run_engine_once(session, worker_id):
+                        did_work = True
+                    elif run_wiki_ingest_once(session, worker_id):
                         did_work = True
                     elif run_assumption_analysis_once(session, worker_id):
                         did_work = True

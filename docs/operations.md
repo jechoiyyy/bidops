@@ -28,6 +28,7 @@
 | 호스트·Compose와 일상 실행 | [host](operations/host.md) |
 | 설치·설정·모듈 | [setup](operations/setup.md) |
 | 일일 수집·C-2 운영 | [daily](operations/daily.md) |
+| 회사 위키 실적 넣기 | [활성화 절차 초안](operations/company-wiki-ingest.md) |
 | 사전규격 참조 실행 | [prespec-reference](operations/prespec-reference.md) |
 | 백업·복구·서버 이전 | [backup-restore](operations/backup-restore.md) |
 | 루트랩 회사 근거·판정·제안서·평가 | [rl](operations/rl.md) |

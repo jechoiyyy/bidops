@@ -89,7 +89,7 @@ ALL_TABLES = frozenset(
     + OPPORTUNITY_NOTE_TABLES
     + CARD_ANALYSIS_TABLES
     + PROPOSAL_TABLES
-    + ("engine_run",)
+    + ("engine_run", "company_wiki_ingest_run")
 )
 
 

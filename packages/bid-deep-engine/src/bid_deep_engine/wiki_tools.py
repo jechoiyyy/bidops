@@ -243,12 +243,13 @@ def source_from_blocks(blocks: list[dict], project: str, title: str) -> dict:
 
 
 def reference_mapping(data: dict, source: dict) -> dict:
-    units = [(unit["id"], re.findall(r"\w+", unit["title"].casefold()))
-             for topic in data["topics"] for unit in topic["units"]]
+    ordered = sorted((u for topic in data["topics"] for u in topic["units"]),
+                     key=lambda u: (-len(u["title"]), u["id"]))
+    units = [(u["id"], re.findall(r"\w{2,}", u["title"].casefold())) for u in ordered]
     assignments = []
     for req in source["requirements"]:
         text = " ".join(req.get(key) or "" for key in ("name", "definition", "details")).casefold()
-        matches = [uid for uid, words in units if any(word in text for word in words)]
+        matches = [uid for uid, words in units if words and all(word in text for word in words)][:5]
         assignments.append({"req_id": req["id"], "units": matches})
     mapping = {"schema": MAPPING_SCHEMA, "project": source["project"], "title": source["title"],
                "source": "과거 수주 사업 RFP 요구사항 (mock_reference)",

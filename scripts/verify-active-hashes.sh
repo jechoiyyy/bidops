@@ -31,7 +31,7 @@ validate_object_key() {
   local namespace="${object_key%%/*}"
   local object_name="${object_key#*/}"
   case "$namespace" in
-    source|structure|quarantine|model-response|proposal-pdf) ;;
+    source|structure|quarantine|model-response|proposal-pdf|company-wiki-ingest) ;;
     *) printf '%s\n' "invalid object namespace in object manifest" >&2; return 2 ;;
   esac
   if [[ -z "$object_name" || "$object_name" == /* || "$object_name" == *$'\n'* || "$object_name" == *$'\t'* || "$object_name" == *'//'* || "$object_name" == '..' || "$object_name" == ../* || "$object_name" == */../* || "$object_name" == */.. || "$object_name" == *'\\'* ]]; then
@@ -156,7 +156,14 @@ fi
 
 target_records="$tmp_dir/target.tsv"
 : > "$target_records"
-for bucket in bidops-source bidops-structure bidops-quarantine bidops-model-response bidops-proposal-pdf; do
+for bucket in bidops-source bidops-structure bidops-quarantine bidops-model-response bidops-proposal-pdf bidops-company-wiki-ingest; do
+  # The ingest bucket may be absent on pre-0043 installations.
+  if [[ "$bucket" == bidops-company-wiki-ingest ]] && ! info="$(mc stat --json "$OBJECT_VERIFY_ALIAS/$bucket" 2>&1)"; then
+    case "$info" in
+      *'"Code":"NoSuchBucket"'*) continue ;;
+      *) printf '%s\n' 'cannot verify wiki ingest bucket' >&2; exit 1 ;;
+    esac
+  fi
   namespace="${bucket#bidops-}"
   target_listing="$(mc find --versions --print $'{version}\t{}' "$OBJECT_VERIFY_ALIAS/$bucket")"
   while IFS=$'\t' read -r target_version_id rendered_ref extra; do
@@ -198,7 +205,7 @@ while IFS=$'\t' read -r object_key target_version_id expected_sha256; do
   namespace="${object_key%%/*}"
   object_name="${object_key#*/}"
   case "$namespace" in
-    source|structure|quarantine|model-response|proposal-pdf) bucket="bidops-$namespace" ;;
+    source|structure|quarantine|model-response|proposal-pdf|company-wiki-ingest) bucket="bidops-$namespace" ;;
     *) printf '%s\n' "invalid object namespace in active hash manifest" >&2; exit 2 ;;
   esac
   mc stat --version-id "$target_version_id" "$OBJECT_VERIFY_ALIAS/$bucket/$object_name" >/dev/null

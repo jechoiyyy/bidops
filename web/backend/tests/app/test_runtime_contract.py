@@ -370,7 +370,10 @@ def test_mock_reference_override_has_no_model_egress_or_external_provider_gate()
         assert environment["BIDOPS_ANALYSIS_PROVIDER"] == "mock"
         assert environment["BIDOPS_REFERENCE_WORKFLOW_MODE"] == "true"
         assert environment["BIDOPS_OPENAI_ENABLED"] == "false"
-        assert "networks" not in service and "volumes" not in service
+        assert "networks" not in service
+    assert override["services"]["web"]["volumes"] == ["./wiki:/app/company-bundle:ro"]
+    assert override["services"]["analysis-worker"]["volumes"] == [
+        "./wiki:/app/company-bundle:rw", "./backups/company-wiki:/app/company-wiki-backups:rw"]
 
 
 def test_minio_versioning_and_object_first_recovery_contract():
@@ -466,18 +469,18 @@ def test_rl04_proposal_pdf_bucket_is_provisioned_backed_up_and_verified_like_mod
     assert 'mc admin policy attach local bidops-proposal-pdf --user "$BIDOPS_PROPOSAL_PDF_ACCESS_KEY"' in bootstrap
     assert "mc ilm add --expire-days 365 local/bidops-proposal-pdf" in bootstrap
     assert bootstrap.count("mc ilm add") == 2
-    buckets = "for bucket in bidops-source bidops-structure bidops-quarantine bidops-model-response bidops-proposal-pdf; do"
+    buckets = "for bucket in bidops-source bidops-structure bidops-quarantine bidops-model-response bidops-proposal-pdf bidops-company-wiki-ingest; do"
     assert buckets in (ROOT / "scripts/backup-objects.sh").read_text(encoding="utf-8")
     verify = (ROOT / "scripts/verify-active-hashes.sh").read_text(encoding="utf-8")
     assert buckets in verify
-    assert verify.count("source|structure|quarantine|model-response|proposal-pdf)") == 2
+    assert verify.count("source|structure|quarantine|model-response|proposal-pdf|company-wiki-ingest)") == 2
     assert 'index($1, "model-response/") != 1' in verify  # only model-response skips the byte hash
     restore = (ROOT / "scripts/restore.sh").read_text(encoding="utf-8")
-    assert 'source|structure|quarantine|model-response|proposal-pdf) bucket="bidops-$namespace" ;;' in restore
+    assert 'source|structure|quarantine|model-response|proposal-pdf|company-wiki-ingest) bucket="bidops-$namespace" ;;' in restore
     generate_active = (ROOT / "scripts/generate-active-hash-manifest.sh").read_text(encoding="utf-8")
     assert "NOT IN ('source', 'structure', 'quarantine', 'model-response', 'proposal-pdf')" in generate_active
     transfer = (ROOT / "scripts/transfer-check.py").read_text(encoding="utf-8")
-    assert '("source", "structure", "quarantine", "model-response", "proposal-pdf")' in transfer
+    assert '("source", "structure", "quarantine", "model-response", "proposal-pdf", "company-wiki-ingest")' in transfer
     compose = yaml.safe_load((ROOT / "docker/docker-compose.yml").read_text(encoding="utf-8"))
     init_env = compose["services"]["minio-init"]["environment"]
     assert init_env["BIDOPS_PROPOSAL_PDF_ACCESS_KEY"].startswith("${BIDOPS_PROPOSAL_PDF_ACCESS_KEY:?")
@@ -490,4 +493,4 @@ def test_rl04_proposal_pdf_bucket_is_provisioned_backed_up_and_verified_like_mod
     assert "BIDOPS_PROPOSAL_PDF_SECRET_KEY=replace-in-secret-manager" in example
     from app.core.object_store import BUCKETS, NAMESPACES
 
-    assert NAMESPACES[-1] == "proposal-pdf" and BUCKETS["proposal-pdf"] == "bidops-proposal-pdf"
+    assert "proposal-pdf" in NAMESPACES and BUCKETS["proposal-pdf"] == "bidops-proposal-pdf"

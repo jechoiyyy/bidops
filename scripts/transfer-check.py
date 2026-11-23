@@ -19,8 +19,10 @@ def check(config):
                    secret_key=config["minio_password"], secure=False)
     versions = {}
     issues = []
-    for namespace in ("source", "structure", "quarantine", "model-response", "proposal-pdf"):
+    for namespace in ("source", "structure", "quarantine", "model-response", "proposal-pdf", "company-wiki-ingest"):
         bucket = "bidops-" + namespace
+        if namespace == "company-wiki-ingest" and not client.bucket_exists(bucket):
+            continue
         if client.get_bucket_versioning(bucket).status != "Enabled":
             raise ValueError("bucket versioning disabled")
         for obj in client.list_objects(bucket, recursive=True, include_version=True):
@@ -44,6 +46,11 @@ def check(config):
             l.object_version_id, o.sha256 FROM bidops.content_object_location l
             JOIN bidops.content_object o ON o.id=l.content_object_id
             WHERE l.status='verified' AND l.purged_at IS NULL ORDER BY l.id""")).mappings().all()
+        if connection.scalar(text("SELECT to_regclass('bidops.company_wiki_ingest_run') IS NOT NULL")):
+            rows.extend(connection.execute(text("""SELECT id, 'company-wiki-ingest' AS namespace_key,
+                source_object_key AS object_key, source_object_version AS object_version_id,
+                source_sha256 AS sha256 FROM bidops.company_wiki_ingest_run
+                WHERE error_code IS DISTINCT FROM 'malware_detected' ORDER BY id""")).mappings())
         for row in rows:
             identity = row["object_key"] + "@" + str(row["object_version_id"])
             saved = versions.get(identity)

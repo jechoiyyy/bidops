@@ -23,9 +23,9 @@ from .config import Settings, get_settings
 from .db import isolated_test_boundary_active
 
 
-NAMESPACES = ("source", "structure", "quarantine", "model-response", "proposal-pdf")
+NAMESPACES = ("source", "structure", "quarantine", "model-response", "proposal-pdf", "company-wiki-ingest")
 BUCKETS = {namespace: f"bidops-{namespace}" for namespace in NAMESPACES}
-_SAFE_KEY = re.compile(r"^(?:source|structure|quarantine|model-response|proposal-pdf)/[A-Za-z0-9._/-]+$")
+_SAFE_KEY = re.compile(r"^(?:source|structure|quarantine|model-response|proposal-pdf|company-wiki-ingest)/[A-Za-z0-9._/-]+$")
 MAX_OBJECT_BYTES = 50 * 1024 * 1024
 
 
@@ -46,6 +46,8 @@ class ObjectStore(Protocol):
     def put(self, namespace: str, object_key: str, data: bytes, *, content_type: str) -> ObjectMetadata: ...
 
     def get(self, namespace: str, object_key: str, *, max_bytes: int = MAX_OBJECT_BYTES, version_id: str | None = None) -> tuple[bytes, ObjectMetadata]: ...
+
+    def delete_ingest_version(self, key: str, version: str) -> None: ...
 
     def head(self, namespace: str, object_key: str) -> ObjectMetadata: ...
 
@@ -113,13 +115,17 @@ class FilesystemObjectStore:
             raise ObjectStoreError("object version unavailable")
         return data, metadata
 
+    def delete_ingest_version(self, key: str, version: str) -> None:
+        self.get("company-wiki-ingest", key, version_id=version)
+        self._path("company-wiki-ingest", key).unlink()
+
     def head(self, namespace: str, object_key: str) -> ObjectMetadata:
         data, metadata = self.get(namespace, object_key)
         return ObjectMetadata(namespace, object_key, metadata.object_version_id, metadata.etag, len(data))
 
 
 class MinioObjectStore:
-    """MinIO backend with purpose-specific clients and no delete capability."""
+    """MinIO backend with purpose-specific clients and version-specific ingest cleanup."""
 
     def __init__(self, settings: Settings, namespaces: tuple[str, ...], read_namespaces: tuple[str, ...] = ()) -> None:
         endpoint = settings.object_store_endpoint
@@ -136,6 +142,16 @@ class MinioObjectStore:
             if not access_key or not secret_key:
                 raise ObjectStoreError(f"MinIO credentials are missing for {namespace}")
             self._clients[namespace] = Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=settings.object_store_secure)
+
+    def delete_ingest_version(self, key: str, version: str) -> None:
+        namespace = "company-wiki-ingest"
+        _validate_key(namespace, key)
+        if not version:
+            raise ObjectStoreError("missing version")
+        try:
+            self._client(namespace).remove_object(BUCKETS[namespace], self._key(key), version_id=version)
+        except Exception:
+            raise ObjectStoreError("object cleanup failed") from None
 
     @staticmethod
     def _key(object_key: str) -> str:

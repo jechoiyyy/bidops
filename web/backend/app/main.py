@@ -73,6 +73,7 @@ _ROUTER_REGISTRATION: tuple[tuple[str, str], ...] = (
     ("deep_review", "document_bundles_router"),
     ("deep_review", "engine_runs_router"),
     ("deep_review", "company_wiki_router"),
+    ("deep_review", "company_wiki_ingests_router"),
     ("deep_review", "deep_reviews_router"),
     ("deep_review", "assumption_analysis_router"),
     ("deep_review", "bid_decision_queue_router"),

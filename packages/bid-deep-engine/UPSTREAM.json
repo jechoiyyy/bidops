@@ -484,12 +484,12 @@
     {
       "path": "src/bid_deep_engine/wiki_tools.py",
       "purpose": "company wiki maintenance: work-unit evidence map sidecar, single-prompt ingest (prompt, validation, repair prompt, apply), feedback-apply, render, lint, content check (no transport)",
-      "sha256": "3a42b1a6be43399052fbf6e274561e4c2840dda70ac4c47aeb021eed48f75ec7"
+      "sha256": "f4c652e02bf6ff0661afb0cb6523bcc8941b901d333bb780d0dbb3acea911bba"
     },
     {
       "path": "engine_tests/test_wiki_tools.py",
       "purpose": "wiki maintenance tests",
-      "sha256": "25e64e48feeac20ed96cf1072800c4fc6eecc17440872145a480f3d4990a7329"
+      "sha256": "a2da045cd2e4e57126e15f6af1125cfcbe071ea772b113187147484275d2b3c9"
     }
   ],
   "excluded_transport_files": [

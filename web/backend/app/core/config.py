@@ -283,6 +283,11 @@ class Settings(BaseSettings):
     #: (저장소 밖 로컬 사본 `wiki/`). 둘 다 있으면 실행 입력이 `bidops.engine-input.v2`가 되어
     #: 회사 자료와 위키를 그대로 싣고, 하나라도 비면 기존 v1(BidOps 회사 사실의 보수적 사상)이다.
     engine_company_bundle_dir: str = Field(default="", validation_alias="BIDOPS_ENGINE_COMPANY_BUNDLE_DIR")
+    company_wiki_ingest_enabled: bool = Field(default=False, validation_alias="BIDOPS_COMPANY_WIKI_INGEST_ENABLED")
+    company_wiki_ingest_apply_reference_enabled: bool = Field(default=False, validation_alias="BIDOPS_COMPANY_WIKI_INGEST_APPLY_REFERENCE_ENABLED")
+    company_wiki_backup_dir: str = Field(default="", validation_alias="BIDOPS_COMPANY_WIKI_BACKUP_DIR")
+    company_wiki_ingest_access_key: str | None = Field(default=None, validation_alias="BIDOPS_COMPANY_WIKI_INGEST_ACCESS_KEY")
+    company_wiki_ingest_secret_key: str | None = Field(default=None, validation_alias="BIDOPS_COMPANY_WIKI_INGEST_SECRET_KEY")
     engine_company_bundle_slug: str = Field(default="", validation_alias="BIDOPS_ENGINE_COMPANY_BUNDLE_SLUG")
     deep_review_auto_start_enabled: bool = Field(default=False, validation_alias="BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED")
     luna_deep_review_enabled: bool = Field(default=False, validation_alias="BIDOPS_LUNA_DEEP_REVIEW_ENABLED")
@@ -503,6 +508,7 @@ class Settings(BaseSettings):
             "structure": (self.structure_access_key, self.structure_secret_key),
             "quarantine": (self.quarantine_access_key, self.quarantine_secret_key),
             "model-response": (self.model_response_access_key, self.model_response_secret_key),
+            "company-wiki-ingest": (self.company_wiki_ingest_access_key, self.company_wiki_ingest_secret_key),
             "proposal-pdf": (self.proposal_pdf_access_key, self.proposal_pdf_secret_key),
         }
         try:

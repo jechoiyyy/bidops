@@ -85,6 +85,15 @@ JOIN bidops.content_object AS content
 WHERE location.status = 'verified'
   AND location.purged_at IS NULL
 ORDER BY location.object_key, location.object_version_id, location.id;
+
+-- A backup taken before 0043 has only the original namespaces.
+SELECT to_regclass('bidops.company_wiki_ingest_run') IS NOT NULL AS has_ingests \gset
+\if :has_ingests
+SELECT source_object_key, source_object_version, source_sha256
+FROM bidops.company_wiki_ingest_run
+WHERE error_code IS DISTINCT FROM 'malware_detected'
+ORDER BY 1, 2;
+\endif
 SQL
 
 mv -f -- "$tmp_manifest" "$ACTIVE_HASH_MANIFEST"

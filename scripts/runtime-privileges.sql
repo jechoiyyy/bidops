@@ -631,4 +631,13 @@ GRANT SELECT ON TABLE bidops.engine_run TO worker;
 GRANT UPDATE (status, result_payload, result_sha256, error_code, started_at, completed_at)
     ON bidops.engine_run TO worker;
 
+GRANT SELECT, INSERT ON TABLE bidops.company_wiki_ingest_run TO app;
+GRANT UPDATE (status, updated_at, decided_at, decided_by_name, decision_reason)
+    ON bidops.company_wiki_ingest_run TO app;
+GRANT SELECT ON TABLE bidops.company_wiki_ingest_run TO worker;
+GRANT UPDATE (status, updated_at, error_code, worker_id, heartbeat_at, requirement_count,
+    document_requirement_ids_unlisted, classification_attempts, mapping, review_input,
+    wiki_sha256_before, wiki_sha256_after, backup_name, applied_at)
+    ON bidops.company_wiki_ingest_run TO worker;
+
 COMMIT;

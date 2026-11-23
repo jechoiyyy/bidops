@@ -26,6 +26,8 @@ from typing import TYPE_CHECKING, Any
 _EXPORTS: dict[str, tuple[str, str]] = {
     "engine_runs_router": (".routers.engine_runs", "router"),
     "company_wiki_router": (".routers.company_wiki", "router"),
+    "company_wiki_ingests_router": (".routers.company_wiki_ingests", "router"),
+    "run_wiki_ingest_once": (".services.company_wiki_ingest_worker", "run_once"),
     "run_engine_once": (".services.engine_runs", "run_once"),
     # === 조립이 쓴다 — router 인스턴스 (routers/*.py) ======================
     # `app/main.py`가 `getattr(<모듈>, <router 이름>)`로 가져간다. 정적 import가

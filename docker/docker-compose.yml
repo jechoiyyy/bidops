@@ -110,6 +110,8 @@ services:
       BIDOPS_QUARANTINE_SECRET_KEY: "${BIDOPS_QUARANTINE_SECRET_KEY:?set an external quarantine secret key}"
       BIDOPS_MODEL_RESPONSE_ACCESS_KEY: "${BIDOPS_MODEL_RESPONSE_ACCESS_KEY:?set an external model-response access key}"
       BIDOPS_MODEL_RESPONSE_SECRET_KEY: "${BIDOPS_MODEL_RESPONSE_SECRET_KEY:?set an external model-response secret key}"
+      BIDOPS_COMPANY_WIKI_INGEST_ACCESS_KEY: ${BIDOPS_COMPANY_WIKI_INGEST_ACCESS_KEY:-}
+      BIDOPS_COMPANY_WIKI_INGEST_SECRET_KEY: ${BIDOPS_COMPANY_WIKI_INGEST_SECRET_KEY:-}
       BIDOPS_PROPOSAL_PDF_ACCESS_KEY: "${BIDOPS_PROPOSAL_PDF_ACCESS_KEY:?set an external proposal-pdf access key}"
       BIDOPS_PROPOSAL_PDF_SECRET_KEY: "${BIDOPS_PROPOSAL_PDF_SECRET_KEY:?set an external proposal-pdf secret key}"
     volumes:

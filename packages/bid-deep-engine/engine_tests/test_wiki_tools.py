@@ -226,10 +226,16 @@ def test_source_from_runner_blocks(monkeypatch, capsys):
 
 def test_reference_mapping_is_deterministic_and_valid(wiki, monkeypatch, capsys):
     source = {"project": SOURCE["project"], "title": "합성", "requirements": [
-        {"id": "A", "name": "예약", "details": "좌석을 선택한다."},
+        {"id": "A", "name": "시간대 예약", "details": "좌석을 선택한다."},
         {"id": "B", "name": "기타", "definition": "예매한다."},
         {"id": "C", "name": "기타"},
     ]}
+    data = wiki_tools.load_sidecar(wiki)
+    units = data["topics"][0]["units"]
+    units.extend({"id": f"booking.u{i}", "title": "예약"} for i in reversed(range(6)))
+    units.append({"id": "booking.short", "title": "가"})
+    assert wiki_tools.reference_mapping(data, source)["assignments"][0]["units"] == [
+        "booking.timeslot", "booking.u0", "booking.u1", "booking.u2", "booking.u3"]
     outputs = []
     for _ in range(2):
         _stdin(monkeypatch, source)
@@ -239,8 +245,8 @@ def test_reference_mapping_is_deterministic_and_valid(wiki, monkeypatch, capsys)
     mapping = json.loads(outputs[0])
     assert mapping["new_units"] == []
     assert mapping["assignments"] == [
-        {"req_id": "A", "units": ["booking.timeslot", "booking.seatmap"]},
-        {"req_id": "B", "units": ["booking.seatmap"]},
+        {"req_id": "A", "units": ["booking.timeslot"]},
+        {"req_id": "B", "units": []},
         {"req_id": "C", "units": []},
     ]
     assert wiki_tools.validate_mapping(wiki_tools.load_sidecar(wiki), mapping, source) == []

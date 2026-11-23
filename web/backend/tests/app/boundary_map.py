@@ -342,6 +342,7 @@ TABLE_OWNER: dict[str, str] = {
     # RL-04 proposal draft (0041).
     "proposal_draft": DEEP_REVIEW,
     "engine_run": DEEP_REVIEW,
+    "company_wiki_ingest_run": DEEP_REVIEW,
     "proposal_section": DEEP_REVIEW,
     "proposal_sentence_edit": DEEP_REVIEW,
     "proposal_export": DEEP_REVIEW,

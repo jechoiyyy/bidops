@@ -3000,3 +3000,47 @@ class EngineRun(Base):
     created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now, nullable=False)
     started_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+
+
+class CompanyWikiIngestRun(Base):
+    __tablename__ = "company_wiki_ingest_run"
+    __table_args__ = (
+        UniqueConstraint("request_id", name="uq_wiki_ingest_request"),
+        CheckConstraint("project_id ~ '^P[0-9]{4}-[0-9]{2}$'", name="ck_wiki_ingest_project").ddl_if(dialect="postgresql"),
+        CheckConstraint("status IN ('queued','extracting','classifying','awaiting_review','approved','applying','applied','failed','rejected','aborted')", name="ck_wiki_ingest_status"),
+        CheckConstraint("quality_status = 'mock_reference'", name="ck_wiki_ingest_quality"),
+        Index("uq_wiki_ingest_project", "project_id", unique=True,
+              postgresql_where=text("status NOT IN ('applied','failed','rejected','aborted')"), sqlite_where=text("status NOT IN ('applied','failed','rejected','aborted')")),
+        Index("uq_wiki_ingest_applying", "status", unique=True,
+              postgresql_where=text("status = 'applying'"), sqlite_where=text("status = 'applying'")),
+    )
+    id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True)
+    request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True))
+    project_id: Mapped[str] = mapped_column(Text)
+    project_title: Mapped[str] = mapped_column(Text)
+    quality_status: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text)
+    source_object_key: Mapped[str] = mapped_column(Text)
+    source_object_version: Mapped[str] = mapped_column(Text)
+    source_sha256: Mapped[str] = mapped_column(Text)
+    source_media_type: Mapped[str] = mapped_column(Text)
+    source_filename: Mapped[str] = mapped_column(Text)
+    created_by_name: Mapped[str] = mapped_column(Text)
+    error_code: Mapped[str | None] = mapped_column(Text)
+    wiki_sha256_before: Mapped[str | None] = mapped_column(Text)
+    wiki_sha256_after: Mapped[str | None] = mapped_column(Text)
+    backup_name: Mapped[str | None] = mapped_column(Text)
+    decided_by_name: Mapped[str | None] = mapped_column(Text)
+    decision_reason: Mapped[str | None] = mapped_column(Text)
+    worker_id: Mapped[str | None] = mapped_column(Text)
+    source_size_bytes: Mapped[int] = mapped_column(Integer)
+    classification_attempts: Mapped[int] = mapped_column(Integer, server_default="0")
+    requirement_count: Mapped[int | None] = mapped_column(Integer)
+    document_requirement_ids_unlisted: Mapped[int | None] = mapped_column(Integer)
+    mapping: Mapped[dict | None] = mapped_column(JSONB_NULL_COMPAT)
+    review_input: Mapped[dict | None] = mapped_column(JSONB_NULL_COMPAT)
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(AwareDateTime(), default=utc_now)
+    decided_at: Mapped[datetime | None] = mapped_column(AwareDateTime())
+    applied_at: Mapped[datetime | None] = mapped_column(AwareDateTime())
+    heartbeat_at: Mapped[datetime | None] = mapped_column(AwareDateTime())
