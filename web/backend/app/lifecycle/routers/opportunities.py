@@ -17,7 +17,7 @@ from ...core.db import get_db
 from .. import extension_registry
 from ..ingest.loader import tracked_backfill
 from ..models import Notice, Opportunity, OpportunityLink
-from ..schemas.pre_specs import PreSpecSelectionRequest, PreSpecBulkTrackingResponse, PreSpecBulkTrackingResult
+from ..schemas.pre_specs import PreSpecBulkTrackingRequest, PreSpecBulkTrackingResponse, PreSpecBulkTrackingResult
 from ..schemas.opportunity_activity import (
     ACTIVITY_LIMIT_DEFAULT,
     ACTIVITY_LIMIT_MAX,
@@ -67,6 +67,7 @@ _ERRORS: dict[str, tuple[int, str]] = {
     "opportunity_invalid": (422, "사업기회 식별자가 올바르지 않습니다"),
     "tracking_status_invalid": (422, "지원하지 않는 추적 상태입니다"),
     "tracking_reason_required": (422, "추적 상태를 선택한 이유가 필요합니다"),
+    "tracking_start_conflict": (409, "이미 추적 결정이 기록되어 있습니다"),
     "opportunity_merged": (409, "병합된 사업기회의 상태는 변경할 수 없습니다"),
     "opportunity_link_invalid": (422, "사업기회 연결 식별자가 올바르지 않습니다"),
     "opportunity_link_not_found": (404, "사업기회 연결을 찾을 수 없습니다"),
@@ -453,7 +454,7 @@ def decide_candidate_link(
 
 @router.post("/pre-spec-tracking/bulk-start", response_model=PreSpecBulkTrackingResponse)
 def start_selected_pre_specs(
-    payload: PreSpecSelectionRequest, session: Session = Depends(get_db),
+    payload: PreSpecBulkTrackingRequest, session: Session = Depends(get_db),
 ) -> PreSpecBulkTrackingResponse | JSONResponse:
     try:
         actor = validate_actor(payload.actor_name)

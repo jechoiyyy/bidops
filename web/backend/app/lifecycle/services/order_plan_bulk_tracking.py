@@ -177,7 +177,7 @@ def _canonical_hash(
     schema_version: str,
     request_id: UUID,
     plan_ids: list[int],
-    reason: str,
+    reason: str | None,
     actor: str,
     operation: str = ORDER_PLAN_BULK_START_OPERATION,
 ) -> str:
@@ -626,7 +626,7 @@ def _apply_bulk_transition(
     order_plan_ids: list[int] | tuple[int, ...],
     *,
     request_id: UUID,
-    reason: str,
+    reason: str | None,
     selected_by: str,
     target_status: str,
     operation: str,
@@ -654,7 +654,7 @@ def _apply_bulk_transition(
             "invalid_request", "request_id가 올바르지 않습니다", status_code=422
         )
     actor = _validate_actor(selected_by, request_id)
-    clean_reason = _validate_reason(reason, request_id)
+    clean_reason = None if reason is None and target_status == "계속 추적" else _validate_reason(reason, request_id)
     request_hash = _canonical_hash(
         schema_version=request_schema,
         request_id=request_id,
@@ -966,7 +966,7 @@ def start_order_plan_tracking(
     order_plan_ids: list[int] | tuple[int, ...],
     *,
     request_id: UUID,
-    reason: str,
+    reason: str | None = None,
     selected_by: str,
 ) -> BulkStartResult:
     """Atomically start tracking (``계속 추적``) for unselected owners."""

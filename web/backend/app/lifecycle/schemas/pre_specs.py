@@ -67,10 +67,12 @@ PreSpecReviewExclusionStatus = Literal["included", "excluded"]
 PreSpecReviewExclusionFilter = Literal["all", "included", "excluded"]
 
 
+PreSpecReason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
+
+
 class PreSpecSelectionRequest(RuntimeContractModel):
     notice_ids: list[Annotated[int, Field(strict=True, ge=1, le=2147483647)]] = Field(min_length=1, max_length=200)
     actor_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=128)]
-    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
 
     @field_validator("notice_ids")
     @classmethod
@@ -78,6 +80,10 @@ class PreSpecSelectionRequest(RuntimeContractModel):
         if len(set(values)) != len(values):
             raise ValueError("duplicate notice_ids")
         return values
+
+
+class PreSpecBulkTrackingRequest(PreSpecSelectionRequest):
+    reason: PreSpecReason | None = None
 
 
 class PreSpecBulkTrackingResult(RuntimeContractModel):
@@ -90,6 +96,7 @@ class PreSpecBulkTrackingResponse(RuntimeContractModel):
 
 
 class PreSpecReviewExclusionRequest(PreSpecSelectionRequest):
+    reason: PreSpecReason
     status: PreSpecReviewExclusionStatus
 
 

@@ -27,6 +27,7 @@ python3 scripts/feature_status.py doctor _
 
 - RL-07 판정 UX: `review`, 0/6 STEP. 주의 포인트·판정 요약·사람 확인 항목·근거 연결·1280 배치·브리핑 진입 개선. [기능 계획](work/groups/RL/features/RL-07-verdict-ux/plan.md) 범위이며 회사 대조 알고리즘은 바꾸지 않는다.
 - RL-06 로컬 LLM 최적화: `review`, 0/4 STEP. RL-04·03·05 의존과 품질 인수 실패를 확인한 뒤 착수한다. 모델 교체나 운영 전송은 이 문서 갱신으로 승인되지 않는다.
+- RL-11 실제 사전규격 엔진: RL-09의 mock 연결을 이어 회사 위키 매핑, 승인된 Luna 분석, 장문·차단·원문 검증, 동일 입력 비교와 실무 상세 화면을 준비한다. [명세와 계획](work/groups/RL/features/RL-11-live-prespec-engine/plan.md)의 현재 상태는 실행 큐에서 확인한다.
 - 큐의 유효 단계는 저장된 `phase=done`과 다를 수 있다. `queue _ show`가 현재 입력에 대한 증거를 검사하기 때문이다. [RL-07 선행 증거 기록](work/_runs/rl07-preflight-20261020/evidence-reuse.md)을 대조하고 소스 동일성과 변경 범위에 맞춰 증거를 재사용한다. 문서 수정만으로 제품 테스트·실제 호출을 반복하지 않는다.
 
 ## 인수 실패와 후속 명세가 필요한 작업

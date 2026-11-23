@@ -628,7 +628,7 @@ def set_tracking_status(
     opportunity: Opportunity | int,
     *,
     status: str,
-    reason: str,
+    reason: str | None,
     selected_by: str,
     selected_at: datetime,
     request_id: UUID | str | None = None,
@@ -641,7 +641,10 @@ def set_tracking_status(
     because the database CHECK requires an unselected row to have no human
     selection metadata.  The audit event retains the actor and event time.
 
-    The same status may be selected again.  It is treated as a new human
+    A start without a reason is accepted only while the locked opportunity is
+    unselected. Other choices require a reason.
+
+    The same status may be selected again with a reason. It is treated as a new human
     assertion: the current reason/actor/time are replaced and another
     append-only audit event is written.  Saving resolves the current recheck signal.
     The caller owns the surrounding transaction; this function flushes so a
@@ -650,11 +653,13 @@ def set_tracking_status(
 
     if not isinstance(status, str) or status not in _TRACKING_STATUS_SET:
         raise OpportunityTrackingError("tracking_status_invalid", "지원하지 않는 추적 상태입니다")
-    clean_reason = _validate_reason(reason)
+    clean_reason = None if reason is None and status == "계속 추적" else _validate_reason(reason)
     clean_actor = _validate_human_name(selected_by)
     event_at = _validate_timestamp(selected_at)
     target = _resolve_opportunity(session, opportunity)
     previous_status = target.tracking_status
+    if clean_reason is None and previous_status != "미선택":
+        raise OpportunityTrackingError("tracking_start_conflict", "이미 추적 결정이 기록되어 있습니다")
     previous_signal_link_id = target.recheck_signal_link_id
     had_signal = target.recheck_signal_at is not None
     if had_signal:

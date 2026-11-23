@@ -278,6 +278,43 @@ def test_tracking_status_change_requires_actor_and_decodes_non_ascii_actor(oppor
     assert decoded.json()["tracking_selected_by"] == actor
 
 
+def test_tracking_start_without_reason_records_actor_and_preserves_existing_decisions(opportunity_api):
+    client, session, ended, unselected = opportunity_api
+    url = f"/api/opportunities/{unselected.id}/tracking-status"
+    headers = {"X-BidOps-Actor-Name": "reviewer"}
+    start = {"tracking_status": "계속 추적"}
+
+    assert client.patch(url, json=start).status_code == 400
+    for status in ("보류", "종료", "미선택"):
+        missing_reason = client.patch(url, json={"tracking_status": status}, headers=headers)
+        assert missing_reason.status_code == 422
+        assert missing_reason.json()["error"]["code"] == "tracking_reason_required"
+
+    started = client.patch(url, json=start, headers=headers)
+    assert started.status_code == 200
+    assert started.json()["tracking_status"] == "계속 추적"
+    assert started.json()["tracking_reason"] is None
+    assert started.json()["tracking_selected_by"] == "reviewer"
+    assert started.json()["tracking_selected_at"]
+
+    for opportunity_id in (started.json()["id"], ended.id):
+        conflict = client.patch(
+            f"/api/opportunities/{opportunity_id}/tracking-status", json=start, headers=headers,
+        )
+        assert conflict.status_code == 409
+        assert conflict.json()["error"]["code"] == "tracking_start_conflict"
+    assert client.get(f"/api/opportunities/{ended.id}").json()["tracking_reason"] == "현재 추적 종료"
+
+    event = session.scalars(
+        select(AuditEvent).where(
+            AuditEvent.action == "opportunity.tracking_status.changed",
+            AuditEvent.aggregate_id == str(unselected.id),
+        )
+    ).one()
+    assert event.claimed_name == "reviewer"
+    assert event.safe_metadata["reason"] is None
+
+
 def test_tracking_status_change_rejects_invalid_status_and_missing_opportunity(opportunity_api):
     client, _session, _ended, plan_opportunity = opportunity_api
 

@@ -67,6 +67,16 @@ _TARGET_WORDS = frozenset(
 _FORM_CHAPTER_WORDS = (
     "제안서작성안내", "제안서작성요령", "제안서작성방법", "제안서목차", "세부작성지침",
 )
+_BODY_SECTION_GROUPS = {
+    **dict.fromkeys(("사업개요", "과업개요", "사업목적", "과업목적", "추진배경", "사업배경"), "purpose"),
+    **dict.fromkeys(("사업범위", "과업범위", "과업내용", "주요과업", "주요과업내용", "사업내용"), "scope"),
+    **dict.fromkeys(("사업기간", "과업기간", "용역기간", "수행기간"), "period"),
+    **dict.fromkeys(("사업예산", "사업비", "소요예산", "추정금액", "사업금액"), "budget"),
+}
+_BODY_SECTION_BOUNDARIES = frozenset({
+    "제안요청사항", "제안안내", "제안서평가", "입찰참가자격", "과업수행지침", "요구사항", "과업지시사항",
+    *_FORM_CHAPTER_WORDS,
+})
 
 MAX_V4_PROVENANCE_BYTES = 128 * 1024
 
@@ -522,6 +532,14 @@ def select_v4_input_range(payload: Mapping[str, Any], *, candidates_complete: bo
         reason = "ambiguous_scope_boundary"
     if not candidates_complete:
         reason = "section_candidates_incomplete"
+    if reason == "scope_heading_missing" and toc_reason == "toc_missing" and not ambiguous_chapter_line:
+        section_range = _body_section_range(body, form_ordinal, line_positions)
+        if section_range is not None:
+            section_start, section_end = section_range
+            return _range_from_lines(
+                payload, pages, lines, line_positions, section_start, section_end,
+                strategy="body_sections", toc_reason_code=toc_reason,
+            )
     if reason is not None or start is None or last is None or end is None:
         manifest = {
             "schema_version": V4_MANIFEST_SCHEMA,
@@ -542,6 +560,28 @@ def select_v4_input_range(payload: Mapping[str, Any], *, candidates_complete: bo
         payload, pages, lines, line_positions, start, end,
         strategy="heading_scope", toc_reason_code=toc_reason,
     )
+
+
+def _body_section_range(
+    body: Sequence[_Line], form_ordinal: int | None, line_positions: Mapping[int, int],
+) -> tuple[_Line, _Line] | None:
+    """Require two distinct overview signals, then a clear end in the front matter."""
+    start = None
+    groups: set[str] = set()
+    for line in body:
+        if line.page > 20 or (start is not None and line.page - start.page > 5):
+            return None
+        heading = _normalise_heading(re.split(r"[:：]", line.heading_title or line.text, maxsplit=1)[0])
+        group = _BODY_SECTION_GROUPS.get(heading)
+        boundary = heading in _BODY_SECTION_BOUNDARIES or (
+            form_ordinal is not None and line_positions[id(line)] >= form_ordinal
+        )
+        if boundary or (start is not None and line.chapter and group is None):
+            return (start, line) if start is not None and len(groups) >= 2 else None
+        if group is not None:
+            start = start or line
+            groups.add(group)
+    return None
 
 
 def _range_from_lines(

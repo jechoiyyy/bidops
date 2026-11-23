@@ -397,7 +397,10 @@ def test_workload_matches_real_list_totals_and_tracking_exceptions(
             assert values[PRE_SPEC_NEEDS_CHECK] == (needs_check["total"], None) == (1, None)
             assert [row["notice_pk"] for row in needs_check["items"]] == [open_failed.id]
             pending = get_json(client, "/api/bid-delta/decision-queue", status="pending", limit=1)
-            assert values[FINAL_DECISION] == (pending["total"], None) == (2, None)
+            assert values[FINAL_DECISION] == (pending["total"], None) == (3, None)
+            assert pending["view_counts"]["pending"] == 3
+            checks = get_json(client, "/api/bid-delta/decision-queue", status="notice_check")
+            assert {row["opportunity_id"] for row in checks["items"]} == {unknown.id, stale.id, undecided.id}
             # 개요 하위 건수는 배타적인 두 상태의 목록 `total` 합과 같다.
             failed = get_json(client, "/api/pre-specs", overview_view="failed", sw_only=False)
             attention = get_json(client, "/api/pre-specs", overview_view="attention", sw_only=False)

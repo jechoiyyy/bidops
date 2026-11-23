@@ -85,6 +85,14 @@
         "RL-00-company-ground-truth"
       ],
       "added_at": "2026-11-19T11:43:15+09:00"
+    },
+    {
+      "feature": "RL-11-live-prespec-engine",
+      "depends_on": [
+        "RL-09-engine-integration",
+        "RL-10-compare-blockers"
+      ],
+      "added_at": "2026-11-20T13:25:42+09:00"
     }
   ]
 }

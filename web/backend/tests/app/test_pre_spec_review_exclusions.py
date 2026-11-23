@@ -260,9 +260,10 @@ def test_concurrent_overlapping_requests_change_each_row_once():
             assert session.scalar(select(func.count()).select_from(AuditEvent)) == 2
 
 
-def test_bulk_tracking_preserves_decisions_and_deduplicates_owner(engine, client, monkeypatch):
+@pytest.mark.parametrize("reason_fields", [{}, {"reason": "후속 공고 확인"}])
+def test_bulk_tracking_preserves_decisions_and_deduplicates_owner(engine, client, monkeypatch, reason_fields):
     from app.lifecycle.routers import opportunities
-    from app.lifecycle.models import OpportunityLink
+    from app.lifecycle.models import Opportunity, OpportunityLink
 
     client.app.include_router(opportunities.router)
     hooks = []
@@ -278,7 +279,7 @@ def test_bulk_tracking_preserves_decisions_and_deduplicates_owner(engine, client
         session.commit()
 
     path = "/api/opportunities/pre-spec-tracking/bulk-start"
-    body = dict(notice_ids=ids, actor_name="담당자", reason="후속 공고 확인")
+    body = dict(notice_ids=ids, actor_name="담당자", **reason_fields)
     assert client.post(path, json=dict(body, actor_name="system")).status_code == 400
     assert client.post(path, json=dict(body, notice_ids=[ids[0], ids[0]])).status_code == 422
     for expected in [
@@ -294,4 +295,6 @@ def test_bulk_tracking_preserves_decisions_and_deduplicates_owner(engine, client
     with Session(engine) as session:
         event = session.scalars(select(AuditEvent)).one()
         assert event.claimed_name == "담당자"
-        assert event.safe_metadata["reason"] == body["reason"]
+        assert event.safe_metadata["reason"] == body.get("reason")
+        owner = session.get(Opportunity, owner_id)
+        assert (owner.tracking_status, owner.tracking_reason) == ("계속 추적", body.get("reason"))

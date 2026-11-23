@@ -261,6 +261,21 @@ class OrderPlanListItem(_Strict):
     first_observed_at: datetime | None
 
 
+class OrderPlanReviewCounts(_Strict):
+    relevant: int
+    uncertain: int
+    unjudged: int
+    all: int
+
+
+class OrderPlanReviewPage(_Strict):
+    view_counts: OrderPlanReviewCounts
+    previous_pk: int | None
+    next_pk: int | None
+    target_found: bool | None
+    target_filters_cleared: bool
+
+
 class OrderPlanListResponse(_Strict):
     schema_version: Literal["order-plan-list-response.v5"]
     producer: Literal["order-plan-review-api"]
@@ -270,6 +285,7 @@ class OrderPlanListResponse(_Strict):
     total: int = Field(ge=0)
     limit: int = Field(ge=1, le=500)
     offset: int = Field(ge=0)
+    review_page: OrderPlanReviewPage | None = None
 
 
 class OrderPlanObservationView(_Strict):

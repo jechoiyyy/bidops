@@ -90,7 +90,7 @@ def _unexpected(session: Session, request_id: UUID | None = None) -> JSONRespons
     )
 
 
-@router.get("/order-plans", response_model=OrderPlanListResponse)
+@router.get("/order-plans", response_model=OrderPlanListResponse, response_model_exclude_unset=True)
 def list_order_plans(
     source_run_id: str | None = None,
     stage1_status: str | None = None,
@@ -106,6 +106,11 @@ def list_order_plans(
     q: str | None = None,
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    review_order: Literal["default", "relevance", "relevant", "uncertain", "unjudged"] | None = None,
+    feedback_present: bool | None = None,
+    unjudged: bool = False,
+    locate: int | None = Query(default=None, ge=1),
+    retain: int | None = Query(default=None, ge=1),
     session: Session = Depends(get_db),
 ) -> dict[str, object] | JSONResponse:
     try:
@@ -122,6 +127,11 @@ def list_order_plans(
             q=q,
             limit=limit,
             offset=offset,
+            review_order=review_order,
+            feedback_present=feedback_present,
+            unjudged=unjudged,
+            locate=locate,
+            retain=retain,
         )
     except OrderPlanScreeningError as error:
         session.rollback()

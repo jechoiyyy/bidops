@@ -798,10 +798,10 @@ class BidDeltaService:
 
         return comparison_currentness(session, [comparison.opportunity_id], comparisons=[comparison])[comparison.id]
 
-    def decision_queue(self, session: Session, *, status: str = "pending", limit: int = 50, offset: int = 0) -> dict[str, Any]:
+    def decision_queue(self, session: Session, *, status: str = "pending", limit: int = 50, offset: int = 0, q: str | None = None) -> dict[str, Any]:
         from .decision_queue import decision_queue
 
-        return decision_queue(session, status=status, limit=limit, offset=offset)
+        return decision_queue(session, status=status, limit=limit, offset=offset, q=q)
 
     def create_comparison(
         self,

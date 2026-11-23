@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from pydantic import ValidationError
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, func, or_, select, true
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased
 
@@ -36,6 +36,7 @@ from ..models import (
     OrderPlanScreeningResult,
 )
 from ...core.api_errors import BundleServiceError, validate_actor
+from .order_plan_workspace import review_page
 
 
 #: `first_observed_from`이 받는 날짜의 계약 시간대. 사전규격 목록의
@@ -1338,6 +1339,96 @@ class OrderPlanScreeningService:
             raise OrderPlanScreeningError("invalid_request", "필터 값이 올바르지 않습니다", status_code=422)
         return values
 
+    def _order_plan_list_projection(
+        self,
+        source_run_id: str | None,
+        execution: OrderPlanScreeningExecution | None,
+        plan_ids: list[int] | None = None,
+        *,
+        compact: bool = False,
+    ):
+        first_observations = select(
+            OrderPlanObservation.order_plan_id,
+            func.min(OrderPlanObservation.observed_at).label("first_observed_at"),
+        ).group_by(OrderPlanObservation.order_plan_id)
+        if plan_ids is not None:
+            first_observations = first_observations.where(OrderPlanObservation.order_plan_id.in_(plan_ids))
+        first_observations = first_observations.subquery()
+        # 결과는 발주계획마다 범위 안 최신 1건이다. 누적 모드는 누적 결과 범위(완료 실행 우선, 그다음
+        # `실패` 실행) 전부, 회차 모드는 그 회차의 최신 완료 실행 하나.
+        executions = (
+            self._cumulative_result_executions()
+            if source_run_id is None
+            else select(OrderPlanScreeningExecution).where(
+                OrderPlanScreeningExecution.execution_id == (execution.execution_id if execution is not None else None)
+            )
+        ).subquery()
+        ranked_results = self._ranked_results(executions)
+        if plan_ids is not None:
+            ranked_results = ranked_results.where(OrderPlanScreeningResult.order_plan_id.in_(plan_ids))
+        result_rows = ranked_results.subquery()
+        result = aliased(OrderPlanScreeningResult, result_rows)
+        # feedback은 두 모드 모두 발주계획마다 최신 1건이다. 실행과 무관하다.
+        feedback_rows = select(
+            OrderPlanScreeningFeedback,
+            func.row_number().over(
+                partition_by=OrderPlanScreeningFeedback.order_plan_id,
+                order_by=(OrderPlanScreeningFeedback.created_at.desc(), OrderPlanScreeningFeedback.revision.desc()),
+            ).label("position"),
+        )
+        if plan_ids is not None:
+            feedback_rows = feedback_rows.where(OrderPlanScreeningFeedback.order_plan_id.in_(plan_ids))
+        feedback_rows = feedback_rows.subquery()
+        feedback = aliased(OrderPlanScreeningFeedback, feedback_rows)
+        owners = self._tracking_owners()
+        if compact:
+            # First-observation rows already establish membership in the
+            # cumulative scope. In run mode test membership without ranking or
+            # retrieving the latest observation payload for the entire scope.
+            statement = select(OrderPlan).join(
+                first_observations, first_observations.c.order_plan_id == OrderPlan.id,
+            )
+            if source_run_id is not None:
+                in_run = select(OrderPlanObservation.order_plan_id).where(
+                    OrderPlanObservation.order_plan_id == OrderPlan.id,
+                    OrderPlanObservation.run_id == source_run_id,
+                ).exists()
+                statement = statement.where(in_run)
+        else:
+            observations = select(
+                OrderPlanObservation,
+                func.row_number().over(
+                    partition_by=OrderPlanObservation.order_plan_id,
+                    order_by=(OrderPlanObservation.observed_at.desc(), OrderPlanObservation.id.desc()),
+                ).label("position"),
+            )
+            if source_run_id is not None:
+                observations = observations.where(OrderPlanObservation.run_id == source_run_id)
+            if plan_ids is not None:
+                observations = observations.where(OrderPlanObservation.order_plan_id.in_(plan_ids))
+            observation_rows = observations.subquery()
+            observation = aliased(OrderPlanObservation, observation_rows)
+            statement = select(
+                OrderPlan, observation, result, feedback, Opportunity, first_observations.c.first_observed_at,
+            ).join(
+                observation,
+                and_(observation.order_plan_id == OrderPlan.id, observation_rows.c.position == 1),
+            ).join(
+                first_observations, first_observations.c.order_plan_id == OrderPlan.id,
+            )
+        statement = statement.outerjoin(
+            result,
+            and_(result.order_plan_id == OrderPlan.id, result_rows.c.position == 1),
+        ).outerjoin(
+            feedback,
+            and_(feedback.order_plan_id == OrderPlan.id, feedback_rows.c.position == 1),
+        ).outerjoin(owners, owners.c.order_plan_id == OrderPlan.id).outerjoin(
+            Opportunity, Opportunity.id == owners.c.opportunity_id,
+        )
+        if plan_ids is not None:
+            statement = statement.where(OrderPlan.id.in_(plan_ids))
+        return statement, result, feedback, first_observations.c.first_observed_at
+
     def list_order_plans(
         self,
         session: Session,
@@ -1353,13 +1444,18 @@ class OrderPlanScreeningService:
         q: str | None = None,
         limit: int = 100,
         offset: int = 0,
+        review_order: str | None = None,
+        feedback_present: bool | None = None,
+        unjudged: bool = False,
+        locate: int | None = None,
+        retain: int | None = None,
     ) -> dict[str, Any]:
         filters = (
             ("stage1_status", self._filter_values(stage1_status, {"selected", "filtered_out", "failed", "rejected", "missing"})),
             ("stage2_status", self._filter_values(stage2_status, {"not_attempted", "success", "failed", "rejected", "unknown", "missing"})),
             ("qwen_relevance", self._filter_values(qwen_relevance, {"relevant", "not_relevant", "uncertain", "missing"})),
             ("human_relevance", self._filter_values(human_relevance, {"relevant", "not_relevant", "uncertain", "missing"})),
-            ("tracking_status", self._filter_values(tracking_status, {"미선택", "계속 추적", "보류", "종료"})),
+            ("tracking_status", self._filter_values(tracking_status, {"미선택", "계속 추적", "보류", "종료"} | ({"missing"} if review_order is not None else set()))),
         )
         execution: OrderPlanScreeningExecution | None = None
         if source_run_id is not None:
@@ -1367,57 +1463,8 @@ class OrderPlanScreeningService:
             execution_id = self._latest_completed_execution(session, source_run_id)
             execution = session.get(OrderPlanScreeningExecution, execution_id) if execution_id is not None else None
 
-        observations = select(
-            OrderPlanObservation,
-            func.row_number().over(
-                partition_by=OrderPlanObservation.order_plan_id,
-                order_by=(OrderPlanObservation.observed_at.desc(), OrderPlanObservation.id.desc()),
-            ).label("position"),
-        )
-        if source_run_id is not None:
-            observations = observations.where(OrderPlanObservation.run_id == source_run_id)
-        observation_rows = observations.subquery()
-        observation = aliased(OrderPlanObservation, observation_rows)
-        first_observations = select(
-            OrderPlanObservation.order_plan_id,
-            func.min(OrderPlanObservation.observed_at).label("first_observed_at"),
-        ).group_by(OrderPlanObservation.order_plan_id).subquery()
-        # 결과는 발주계획마다 범위 안 최신 1건이다. 누적 모드는 누적 결과 범위(완료 실행 우선, 그다음
-        # `실패` 실행) 전부, 회차 모드는 그 회차의 최신 완료 실행 하나.
-        executions = (
-            self._cumulative_result_executions()
-            if source_run_id is None
-            else select(OrderPlanScreeningExecution).where(
-                OrderPlanScreeningExecution.execution_id == (execution.execution_id if execution is not None else None)
-            )
-        ).subquery()
-        result_rows = self._ranked_results(executions).subquery()
-        result = aliased(OrderPlanScreeningResult, result_rows)
-        # feedback은 두 모드 모두 발주계획마다 최신 1건이다. 실행과 무관하다.
-        feedback_rows = select(
-            OrderPlanScreeningFeedback,
-            func.row_number().over(
-                partition_by=OrderPlanScreeningFeedback.order_plan_id,
-                order_by=(OrderPlanScreeningFeedback.created_at.desc(), OrderPlanScreeningFeedback.revision.desc()),
-            ).label("position"),
-        ).subquery()
-        feedback = aliased(OrderPlanScreeningFeedback, feedback_rows)
-        owners = self._tracking_owners()
-        statement = select(
-            OrderPlan, observation, result, feedback, Opportunity, first_observations.c.first_observed_at,
-        ).join(
-            observation,
-            and_(observation.order_plan_id == OrderPlan.id, observation_rows.c.position == 1),
-        ).join(
-            first_observations, first_observations.c.order_plan_id == OrderPlan.id,
-        ).outerjoin(
-            result,
-            and_(result.order_plan_id == OrderPlan.id, result_rows.c.position == 1),
-        ).outerjoin(
-            feedback,
-            and_(feedback.order_plan_id == OrderPlan.id, feedback_rows.c.position == 1),
-        ).outerjoin(owners, owners.c.order_plan_id == OrderPlan.id).outerjoin(
-            Opportunity, Opportunity.id == owners.c.opportunity_id,
+        statement, result, feedback, first_observed_at = self._order_plan_list_projection(
+            source_run_id, execution, compact=review_order is not None,
         )
         columns = {
             "stage1_status": result.stage1_status,
@@ -1426,6 +1473,7 @@ class OrderPlanScreeningService:
             "human_relevance": feedback.relevance,
             "tracking_status": Opportunity.tracking_status,
         }
+        predicates = []
         for name, values in filters:
             if values is None:
                 continue
@@ -1435,29 +1483,33 @@ class OrderPlanScreeningService:
                 # missing은 검색 전용 NULL 투영값이다. 저장 상태를 새로 만들지 않는다.
                 missing_column = feedback.feedback_id if name == "human_relevance" else column
                 predicate = or_(predicate, missing_column.is_(None))
-            statement = statement.where(predicate)
+            predicates.append(predicate)
         if first_observed_from is not None:
             # "처음 관측"은 회차와 무관한 관측 행의 최소 시각이다. 회차 모드에서도
             # 같은 값을 쓴다 — `first_observations`는 회차로 좁히지 않는다.
             statement = statement.where(
-                first_observations.c.first_observed_at >= self._seoul_day_start(first_observed_from)
+                first_observed_at >= self._seoul_day_start(first_observed_from)
             )
+        failure = or_(
+            result.stage1_status.in_({"failed", "rejected"}),
+            result.stage2_status.in_({"failed", "rejected"}),
+        )
+        unjudged_row = or_(result.stage1_status == "filtered_out", failure)
         if issue:
-            statement = statement.where(or_(
-                result.stage1_status.in_({"failed", "rejected"}),
-                result.stage2_status.in_({"failed", "rejected"}),
-            ))
+            predicates.append(failure)
+        if unjudged:
+            predicates.append(unjudged_row)
+        if feedback_present is not None:
+            predicates.append(feedback.feedback_id.is_not(None) if feedback_present else feedback.feedback_id.is_(None))
         from ...core.search import search_key, search_sql_match
 
         query = search_key(q)
         if query:
-            statement = statement.where(or_(
+            predicates.append(or_(
                 search_sql_match(OrderPlan.title, q),
                 search_sql_match(OrderPlan.agency_name, q),
                 search_sql_match(OrderPlan.order_plan_unty_no, q),
             ))
-        total = int(session.scalar(select(func.count()).select_from(statement.subquery())) or 0)
-        rows = session.execute(statement.order_by(OrderPlan.id.asc()).limit(limit).offset(offset)).all()
         scope: dict[str, Any] | None
         if source_run_id is None:
             # 누적 범위에 실행이 실제로 있는 policy 버전만 말한다. 활성화 이력만 있고 운영 완료
@@ -1492,6 +1544,35 @@ class OrderPlanScreeningService:
             }
         else:
             scope = None
+        page_metadata = None
+        if review_order is not None:
+            # Read only the fields needed to choose the page. Fetch full DTOs
+            # for that page with a primary-key filter.
+            candidates = session.execute(statement.with_only_columns(
+                OrderPlan.id.label("pk"),
+                result.qwen_relevance.label("relevance"),
+                Opportunity.tracking_status.label("tracking"),
+                result.stage1_rank,
+                OrderPlan.planned_order_year,
+                OrderPlan.planned_order_month,
+                OrderPlan.notice_posted,
+                first_observed_at,
+                unjudged_row.label("unjudged"),
+                and_(true(), *predicates).label("matches"),
+            )).all()
+            ids, total, offset, page_metadata = review_page(
+                candidates, order=review_order,
+                judgments_available=scope is not None and (scope["mode"] == "run" or bool(scope["policy_versions"])),
+                limit=limit, offset=offset, locate=locate, retain=retain,
+            )
+            by_pk = {
+                row[0].id: row for row in session.execute(self._order_plan_list_projection(source_run_id, execution, ids)[0])
+            } if ids else {}
+            rows = [by_pk[pk] for pk in ids if pk in by_pk]
+        else:
+            statement = statement.where(*predicates)
+            total = int(session.scalar(select(func.count()).select_from(statement.subquery())) or 0)
+            rows = session.execute(statement.order_by(OrderPlan.id.asc()).limit(limit).offset(offset)).all()
         return {
             "schema_version": "order-plan-list-response.v5",
             "producer": "order-plan-review-api",
@@ -1501,6 +1582,7 @@ class OrderPlanScreeningService:
             "total": total,
             "limit": limit,
             "offset": offset,
+            **({"review_page": page_metadata} if page_metadata is not None else {}),
         }
 
     def _history_items(self, session: Session, order_plan_id: int) -> list[dict[str, Any]]:

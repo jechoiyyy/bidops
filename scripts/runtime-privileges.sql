@@ -502,6 +502,12 @@ GRANT UPDATE (
     structure_id_at_confirmation, structure_payload_sha256
 ) ON bidops.document_bundle_item TO worker;
 
+-- 첨부 취득과 자동 준비의 추적 범위는 현재 사업기회의 권위 연결을 읽는다.
+GRANT SELECT (opportunity_id, notice_id, stage, link_type, status, human_decision)
+ON bidops.opportunity_link TO worker;
+GRANT SELECT (id, merged_into_opportunity_id, tracking_status)
+ON bidops.opportunity TO worker;
+
 -- Backup reads current/future tables and sequence state without advancing it.
 GRANT SELECT ON ALL TABLES IN SCHEMA bidops TO ro_backup;
 ALTER DEFAULT PRIVILEGES IN SCHEMA bidops GRANT SELECT ON TABLES TO ro_backup;

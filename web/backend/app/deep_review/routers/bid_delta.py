@@ -92,13 +92,14 @@ def _unexpected(session: Session, request_id: UUID | None = None) -> JSONRespons
 
 @decision_queue_router.get("/decision-queue", response_model=BidDecisionQueueResponse)
 def get_bid_decision_queue(
-    status: Literal["pending", "all"] = "pending",
+    status: Literal["pending", "recheck", "notice_check", "decided", "all"] = "pending",
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
+    q: str | None = Query(None, max_length=100),
     session: Session = Depends(get_db),
 ) -> dict[str, object] | JSONResponse:
     try:
-        return service.decision_queue(session, status=status, limit=limit, offset=offset)
+        return service.decision_queue(session, status=status, limit=limit, offset=offset, q=q)
     except BidDeltaServiceError as error:
         session.rollback()
         return _error_response(error)

@@ -790,6 +790,79 @@ def test_a_too_small_auto_range_is_not_frozen_and_falls_back_to_the_head(context
     assert selection.page_numbers == (1, 2)
 
 
+@pytest.mark.parametrize(("page_text", "last_page"), [("본문 계속", 20), ("본문 " * 3000, 11)])
+def test_head_fallback_respects_page_and_text_limits(context, page_text, last_page):
+    session, store = context
+
+    selection, codes = _range_of(session, store, [page_text] * 24)
+
+    assert codes[-1] == "range_fallback_head"
+    assert selection.page_numbers == tuple(range(1, last_page + 1))
+
+
+def test_unnumbered_overview_without_a_toc_ends_before_bid_instructions(context):
+    session, store = context
+
+    selection, codes = _range_of(session, store, [
+        "표지",
+        "사업 목적\n통합 시스템을 구축한다.\n과업 범위: 이전 자료를 이관한다.\n사업 기간: 12개월\n입찰 참가 자격\n입찰 조건",
+    ])
+
+    assert selection.strategy == "body_sections" and selection.page_numbers == (2,)
+    assert selection.manifest["pages"][0]["text"].endswith("사업 기간: 12개월")
+    assert codes == []
+
+
+def test_body_sections_require_a_clear_boundary(context):
+    session, store = context
+
+    selection, codes = _range_of(session, store, ["사업 목적\n기존 서비스를 개선한다.\n과업 범위\n화면을 개편한다."])
+
+    assert codes[-1] == "range_fallback_head"
+    assert selection.page_numbers == (1,)
+
+
+def test_qwen_budget_trims_head_and_preserves_both_review_stages(context, monkeypatch):
+    from app.deep_review.services.overview_tokenizer import _MODEL_REVISION
+
+    session, store = context
+    notice, _document, snapshot = seed(session, store, pages=[PAGE_TEXT, *["내용을 입력합니다. " * 450] * 10])
+    monkeypatch.setenv("BIDOPS_PRESPEC_OVERVIEW_POLICY_PATH", str(
+        Path(overview_runs.__file__).resolve().parents[1] / "policies" / "prespec-overview-policy-v7-litellm-v2.json"
+    ))
+    get_settings.cache_clear()
+    settings = get_settings()
+    run = overview_runs.enqueue_overview_run(session, notice.id, settings=settings)
+    run.snapshot_id = snapshot.id
+    session.commit()
+
+    class _LocalQwen:
+        api_dialect = "litellm"
+        model_context_tokens = 32_768
+
+        def __init__(self):
+            self.inputs = []
+            self.transport = MockOverviewTransport("local-agent-main")
+
+        def verify_identity(self):
+            return SimpleNamespace(revision=_MODEL_REVISION)
+
+        def invoke(self, stage, input_slice, _policy, **_kwargs):
+            self.inputs.append(input_slice)
+            result = self.transport._draft(input_slice) if stage == CLAIMS_STAGE else self.transport._semantic(input_slice)
+            return SimpleNamespace(raw_response=json.dumps(result, ensure_ascii=False).encode())
+
+    client = _LocalQwen()
+    result = overview_runs.run_once(session, "test-worker", settings=settings, client_factory=lambda _: client, store=store)
+
+    row = session.get(PrespecOverviewRun, run.id)
+    assert result.status == "completed"
+    assert row.page_start == 1 and 1 <= row.page_end < 11
+    assert row.range_reason_codes[-2:] == ["range_clipped_to_token_budget", "range_fallback_head"]
+    assert row.call_count == 2
+    assert all([block["pdf_page"] for block in value["blocks"]] == list(range(1, row.page_end + 1)) for value in client.inputs)
+
+
 def test_a_toc_confirmed_range_keeps_one_page_without_the_minimum_size_rule(context):
     """목차로 확정한 한 쪽짜리 개요 장은 최소 크기 규칙을 타지 않는다 (0916 공고 785)."""
 

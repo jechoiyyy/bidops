@@ -25,6 +25,7 @@ dependencies = [
     "openai>=1.109,<3",
     "slack_sdk>=3.27,<4",
     "reportlab>=5.0,<6",
+    "tiktoken==0.12.0",
 ]
 
 [tool.pytest.ini_options]
@@ -37,3 +38,6 @@ markers = [
 
 [tool.setuptools.packages.find]
 where = ["."]
+
+[tool.setuptools.package-data]
+"app.deep_review" = ["resources/qwen35.*"]

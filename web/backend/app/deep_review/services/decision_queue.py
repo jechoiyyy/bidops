@@ -6,10 +6,27 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ...core.search import search_match
 from ...lifecycle import active_opportunity_predicate, authoritative_link_predicate
 from ...lifecycle.models import Notice, Opportunity, OpportunityLink, OrderPlan
 from ..models import BidDeltaComparison, BidFinalDecision
-from .bid_delta_currentness import decision_currentness
+from .bid_delta_currentness import decision_currentness, latest_bid_notice, latest_observation_hashes
+
+
+def _review_state(*, has_decision: bool, state: str, bid_reason: str | None, has_observation: bool) -> tuple[str, str | None]:
+    if bid_reason == "bid_notice_missing" and not has_decision:
+        return "waiting_notice", None
+    if bid_reason is not None:
+        return "notice_check", bid_reason
+    if has_decision and state == "current":
+        return "decided", None
+    if not has_observation:
+        return "notice_check", "observation_unknown"
+    if not has_decision:
+        return "undecided", None
+    if state == "stale":
+        return "recheck", None
+    return "notice_check", "decision_currentness_unknown"
 
 
 def _amount(value: Decimal | None) -> str | None:
@@ -30,13 +47,16 @@ def _deadline_sort_key(value: datetime | None) -> tuple[int, datetime]:
     return (0, value)
 
 
-def decision_queue(session: Session, *, status: str = "pending", limit: int = 50, offset: int = 0) -> dict:
+def decision_queue(
+    session: Session, *, status: str = "pending", limit: int = 50, offset: int = 0, q: str | None = None,
+) -> dict:
+    view_counts = dict.fromkeys(("pending", "recheck", "notice_check", "decided", "all"), 0)
     opportunities = session.scalars(select(Opportunity).where(
         active_opportunity_predicate(), Opportunity.tracking_status == "계속 추적"
     ).order_by(Opportunity.created_at.desc(), Opportunity.id.desc())).all()
     ids = [row.id for row in opportunities]
     if not ids:
-        return {"items": [], "total": 0, "limit": limit, "offset": offset}
+        return {"items": [], "total": 0, "limit": limit, "offset": offset, "view_counts": view_counts}
 
     latest_sequence = select(BidFinalDecision.opportunity_id, func.max(BidFinalDecision.sequence).label("sequence")).where(
         BidFinalDecision.opportunity_id.in_(ids)
@@ -64,25 +84,40 @@ def decision_queue(session: Session, *, status: str = "pending", limit: int = 50
         .order_by(OpportunityLink.id.desc())).all():
         records[link.opportunity_id].append((notice, plan))
 
+    latest_bids = {
+        owner_id: latest_bid_notice(list({notice.id: notice for notice, _ in linked
+            if notice is not None and notice.source_type == "bid_notice"}.values()))
+        for owner_id, linked in records.items()
+    }
+    hashes = latest_observation_hashes(session, [bid.id for bid, _ in latest_bids.values() if bid is not None])
     items = []
     for opportunity in opportunities:
         linked = records[opportunity.id]
-        bids = [notice for notice, _plan in linked if notice is not None and notice.source_type == "bid_notice"]
-        # This selects display metadata only; unknown dates remain unknown and do
-        # not authorize a comparison or determine currentness.
-        bid = max(bids, key=lambda n: (
-            n.published_at is not None,
-            n.published_at.replace(tzinfo=UTC) if n.published_at is not None and n.published_at.tzinfo is None else n.published_at,
-            n.id,
-        )) if bids else None
+        bid, bid_reason = latest_bids.get(opportunity.id, (None, "bid_notice_missing"))
         record = bid or next((notice if notice is not None else plan for notice, plan in linked if notice is not None or plan is not None), None)
+        title = record.title if record is not None else None
+        agency = (record.agency if isinstance(record, Notice) else record.agency_name) if record is not None else None
+        if q and not search_match(q, title, agency):
+            continue
         decision = decisions.get(opportunity.id)
         state = currentness[decision.id][0] if decision is not None else "unknown"
-        if status == "pending" and (bid is None or (decision is not None and state != "stale")):
+        review_state, notice_check_reason = _review_state(
+            has_decision=decision is not None, state=state, bid_reason=bid_reason,
+            has_observation=bid is not None and bool(hashes.get(bid.id)),
+        )
+        views = ["all"]
+        if review_state in {"undecided", "recheck", "notice_check"}:
+            views.append("pending")
+        if review_state in {"recheck", "notice_check"}:
+            views.append(review_state)
+        if decision is not None:
+            views.append("decided")
+        for view in views:
+            view_counts[view] += 1
+        if status not in views:
             continue
         items.append({"opportunity_id": opportunity.id,
-            "title": record.title if record is not None else None,
-            "agency": (record.agency if isinstance(record, Notice) else record.agency_name) if record is not None else None,
+            "title": title, "agency": agency,
             "tracking_status": opportunity.tracking_status,
             "first_registered_stage": opportunity.first_registered_stage,
             "recheck_signal": opportunity.recheck_signal_at is not None,
@@ -91,6 +126,7 @@ def decision_queue(session: Session, *, status: str = "pending", limit: int = 50
             "latest_final_decision": {"decision": decision.decision, "decided_at": decision.created_at,
                 "claimed_name": decision.claimed_name} if decision is not None else None,
             "decision_currentness": state,
+            "review_state": review_state, "notice_check_reason": notice_check_reason,
             # Selected bid notice's own columns only (spec §5); no order plan
             # or pre-spec fallback, and no value when no bid notice is chosen.
             "deadline_at": bid.deadline_at if bid is not None else None,
@@ -105,4 +141,5 @@ def decision_queue(session: Session, *, status: str = "pending", limit: int = 50
         _deadline_sort_key(row["deadline_at"]),
         row["latest_final_decision"] is not None,
     ))
-    return {"items": items[offset:offset + limit], "total": len(items), "limit": limit, "offset": offset}
+    return {"items": items[offset:offset + limit], "total": len(items), "limit": limit, "offset": offset,
+        "view_counts": view_counts}

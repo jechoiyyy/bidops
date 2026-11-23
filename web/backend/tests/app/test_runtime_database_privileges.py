@@ -1075,6 +1075,30 @@ def test_effective_runtime_role_matrix_and_future_defaults() -> None:
 
 
 @requires_postgres
+def test_worker_can_read_only_the_lifecycle_fields_needed_to_claim_attachments() -> None:
+    from app.deep_review.services.prespec_attachments import claim_next
+
+    _ensure_roles()
+    with temporary_database() as database_url:
+        engine = _apply_policy(database_url)
+        try:
+            with schema_bound(engine).begin() as connection:
+                connection.exec_driver_sql("SET LOCAL ROLE worker")
+                with Session(connection) as session:
+                    assert claim_next(session, worker_id="attachment-role-test", lease_seconds=120) is None
+                for table in ("opportunity", "opportunity_link"):
+                    assert not _table_privilege(connection, "worker", table, "SELECT")
+                    assert not _table_privilege(connection, "worker", table, "DELETE")
+                    for privilege in ("INSERT", "UPDATE"):
+                        assert not connection.scalar(
+                            text("SELECT has_any_column_privilege('worker', :table, :privilege)"),
+                            {"table": f"bidops.{table}", "privilege": privilege},
+                        )
+        finally:
+            engine.dispose()
+
+
+@requires_postgres
 def test_effective_worker_auto_preparation_writes_without_deletes() -> None:
     """첨부 worker의 자동 준비 경로가 필요로 하는 쓰기만 실제로 열려 있다.
 

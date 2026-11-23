@@ -175,7 +175,8 @@ class TrackingStatusUpdateRequest(RuntimeContractModel):
         validation_alias=AliasChoices("tracking_status", "status"),
         min_length=1,
     )
-    reason: str = Field(
+    reason: str | None = Field(
+        default=None,
         validation_alias=AliasChoices("reason", "tracking_reason"),
         min_length=1,
     )
@@ -272,7 +273,9 @@ class OrderPlanBulkPreviewRequest(RuntimeContractModel):
     _validate_plan_ids = field_validator("order_plan_ids")(_positive_plan_ids)
 
 
-def _nonblank_reason(value: str) -> str:
+def _nonblank_reason(value: str | None) -> str | None:
+    if value is None:
+        return None
     clean = value.strip()
     if not clean:
         raise ValueError("reason must not be blank")
@@ -285,7 +288,7 @@ class OrderPlanBulkStartRequest(RuntimeContractModel):
     schema_version: Literal["order-plan-bulk-start-request.v1"]
     request_id: UUID
     order_plan_ids: list[StrictInt] = Field(min_length=1)
-    reason: str = Field(min_length=1)
+    reason: str | None = Field(default=None, min_length=1)
 
     _validate_plan_ids = field_validator("order_plan_ids")(_positive_plan_ids)
     _trim_reason = field_validator("reason")(_nonblank_reason)

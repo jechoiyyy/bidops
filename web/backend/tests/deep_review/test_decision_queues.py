@@ -82,14 +82,17 @@ def test_queue_filters_before_pagination_and_uses_latest_decision(queue_session)
     stale = opportunity(session)
     s, _b, _n = comparison(session, stale)
     decide(session, stale, s)
-    add_bid(session, stale, published=NOW + timedelta(days=1))
+    updated, _ = add_bid(session, stale, published=NOW + timedelta(days=1))
+    observe(session, updated, SHA_A)
     undecided = opportunity(session, created_at=NOW - timedelta(days=1))
     add_bid(session, undecided, published=None)
     unlinked = opportunity(session)
     candidate = opportunity(session)
     add_bid(session, candidate, kind="candidate", status="후보 확인 대기")
     accepted = opportunity(session)
-    add_bid(session, accepted, kind="candidate", status="사람 확인 완료", human="accepted")
+    confirmed, _ = add_bid(session, accepted, kind="candidate", status="사람 확인 완료", human="accepted")
+    confirmed.title = "데이터 플랫폼 검토"
+    observe(session, confirmed, SHA_A)
     ended = opportunity(session, tracking="종료")
     add_bid(session, ended)
     merged = opportunity(session)
@@ -99,14 +102,22 @@ def test_queue_filters_before_pagination_and_uses_latest_decision(queue_session)
     session.commit()
     service = BidDeltaService()
     pending = service.decision_queue(session, status="pending", limit=1, offset=0)
-    assert pending["total"] == 3
+    assert pending["total"] == 4
+    assert pending["view_counts"] == {"pending": 4, "recheck": 1, "notice_check": 2, "decided": 3, "all": 7}
     assert pending["items"][0]["opportunity_id"] == accepted.id
+    assert pending["items"][0]["review_state"] == "undecided"
     second = service.decision_queue(session, status="pending", limit=1, offset=1)
     assert second["items"][0]["opportunity_id"] == undecided.id
-    assert second["items"][0]["decision_currentness"] == "unknown"
-    third = service.decision_queue(session, status="pending", limit=1, offset=2)
-    assert third["items"][0]["opportunity_id"] == stale.id
-    assert third["items"][0]["decision_currentness"] == "stale"
+    assert second["items"][0]["notice_check_reason"] == "ordering_unknown"
+    rechecks = service.decision_queue(session, status="recheck", limit=1, offset=0)
+    assert [row["opportunity_id"] for row in rechecks["items"]] == [stale.id]
+    assert rechecks["items"][0]["review_state"] == "recheck"
+    checks = service.decision_queue(session, status="notice_check", limit=1, offset=1)
+    assert [row["opportunity_id"] for row in checks["items"]] == [unknown.id]
+    assert checks["view_counts"] == pending["view_counts"]
+    search = service.decision_queue(session, q="데이터플랫폼", limit=1, offset=0)
+    assert search["total"] == search["view_counts"]["pending"] == search["view_counts"]["all"] == 1
+    assert search["items"][0]["opportunity_id"] == accepted.id
     all_rows = service.decision_queue(session, status="all", limit=500, offset=0)
     by_id = {row["opportunity_id"]: row for row in all_rows["items"]}
     assert set(by_id) == {current.id, unknown.id, stale.id, undecided.id, unlinked.id, candidate.id, accepted.id}
@@ -126,8 +137,8 @@ def test_queue_query_count_is_constant_across_500_links(queue_session):
     session.commit()
     with counted(session) as small:
         assert BidDeltaService().decision_queue(session, status="all")["total"] == 1
-    for _ in range(500):
-        add_bid(session, owner)
+    for index in range(500):
+        add_bid(session, owner, published=NOW + timedelta(seconds=index + 1))
     session.commit()
     with counted(session) as large:
         assert BidDeltaService().decision_queue(session, status="all")["total"] == 1
@@ -143,7 +154,10 @@ def test_queue_http_validation_and_safe_empty_shape(queue_session):
     with TestClient(app) as client:
         response = client.get("/api/bid-delta/decision-queue")
         assert response.status_code == 200
-        assert response.json() == {"items": [], "total": 0, "limit": 50, "offset": 0}
+        assert response.json() == {
+            "items": [], "total": 0, "limit": 50, "offset": 0,
+            "view_counts": {"pending": 0, "recheck": 0, "notice_check": 0, "decided": 0, "all": 0},
+        }
         for query in ("status=bogus", "limit=0", "limit=501", "offset=-1"):
             assert client.get(f"/api/bid-delta/decision-queue?{query}").status_code == 422
 
@@ -701,7 +715,11 @@ def test_notice_conditions_currentness_drives_queue_workspace_and_workload(queue
         session.commit()
         assert client.get(f"/api/opportunities/{owner.id}/bid-delta").json()["currentness_reasons"] == [
             "ordering_unknown"]
-        assert queue_state() == ("unknown", 0)
+        assert queue_state() == ("unknown", 1)
+        assert registry.workload_counts(session)["bid_final_decision_pending"] == WorkloadCount(1)
+        checks = service.decision_queue(session, status="notice_check")
+        assert checks["view_counts"]["notice_check"] == 1
+        assert checks["items"][0]["notice_check_reason"] == "ordering_unknown"
 
     # The shared rule stays a constant number of reads as decided opportunities grow.
     def add_decided(count):

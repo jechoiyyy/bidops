@@ -545,12 +545,13 @@ claim 대상이 없음을 먼저 확인한다. 그 다음 합성 analysis worker
 호출 단계까지 계속 `false`로 두어서는 안 된다. 실패 결과를 재시도나 다른 provider fallback으로
 성공 처리하지 않는다.
 
-## 상시 실행으로 켜기 — 사전규격 1단계 (승인 대기 절차)
+## 상시 실행으로 켜기 — 사전규격 1단계
 
-[사전규격 단계 수정안](../1118_launch-hardening/사전규격-단계-수정안.md) §6의 2~4단계다. **아직 실행하지
-않았고 각 단계 직전에 사람 확인이 필요하다.** 앞 단계의 승인은 다음 단계로 이어지지 않는다. 결과는
-`docs/validation-runs/<날짜>-prespec-stage1/`에 남기며, 첫날 감독 전에는 "검증됨"으로 적지 않는다 —
-상시 첨부 worker에서 개요까지 이어지는 경로는 끝까지 증명된 적이 없다.
+[사전규격 단계 수정안](../1118_launch-hardening/사전규격-단계-수정안.md) §6의 2~4단계다. 2026-11-20에
+백업·빌드·web/analysis-worker 교체를 마쳤고, 별도 승인 뒤 첨부 worker의 추적 범위 조회 권한을 적용해
+취득 완료를 확인했다. LiteLLM의 입력 상한 정보를 보강한 뒤 개요를 재활성화했고, 대표 실제 공고에서
+첨부 취득·변환·개요·검토 목록을 확인했다. 다음 자동 C-2와의 간섭 및 전체 처리율 확인은 남아 있다.
+[운영 이미지 배포 기록](../validation-runs/20261120-prespec-stage1/README.md)
 
 **세 서비스가 같은 값을 봐야 한다.** 개요 run을 등록하는 곳은 web(사람의 범위 확정), analysis-worker(실행),
 prespec-attachment-worker(취득 종결 뒤 자동 준비·enqueue) 셋이다. 셋의 `BIDOPS_PRESPEC_OVERVIEW_ENABLED`와
@@ -578,8 +579,9 @@ prespec-attachment-worker(취득 종결 뒤 자동 준비·enqueue) 셋이다. �
    --force-recreate web analysis-worker`. analysis-worker의 재시작 정책은 이 절차에서 바꾸지 않는다(현재 운영 값을
    따른다). 올린 뒤 컨테이너 안에서 정책 파일 sha256을 세 서비스 모두 같은 값으로 본다
    (`sha256sum <정책 경로>`; 값은 `0e69ae43…`로 시작해야 한다).
-5. **첨부 worker 재생성.** `BIDOPS_ENV=prod scripts/compose.sh --profile prespec up -d --no-deps --no-build
-   --force-recreate prespec-attachment-worker`. 이 서비스만 `restart: unless-stopped`이고 나라장터 첨부 host로만
+5. **첨부 worker 재생성.** `BIDOPS_ENV=prod scripts/compose.sh up -d --no-deps --no-build
+   --force-recreate prespec-attachment-worker`. 이름을 지정하면 서비스의 profile이 선택된다. 이 서비스는
+   `restart: unless-stopped`이고 나라장터 첨부 host로만
    나간다(`prespec-egress`, `env/prespec-attachment.env`의 허용 host). 첫 몇 분 동안 마감 전·추적 중 건의 취득
    행만 `진행`·`완료`로 바뀌는지 사전규격 목록의 첨부 집계로 본다(마감 경과 미추적 건은 `대기` 그대로).
    이 단계까지는 플래그가 꺼져 있어 묶음 자동 준비는 `우선 검토` 등급 건만, 개요 enqueue는 없다.

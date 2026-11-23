@@ -1,11 +1,11 @@
 # 운영 절차
 
-## 마지막 운영 확인과 현재 코드 (2026-11-18 배포)
+## 마지막 운영 확인과 현재 코드 (2026-11-20 배포)
 
-운영 상태의 마지막 확인 근거는 [2026-11-18 일일 트랙 보강 배포·따라잡기 기록](validation-runs/20261118-launch-hardening-deploy/README.md)이다(checkout 이전은 [앞 단계 기록](validation-runs/20261118-ops-main-move/README.md)). 운영은 Mac에서만 한다(2026-11-18 사용자 결정).
+운영 상태의 마지막 확인 근거는 [2026-11-20 사전규격 1단계 운영 이미지 배포 기록](validation-runs/20261120-prespec-stage1/README.md)이다. 운영은 Mac에서만 한다(2026-11-18 사용자 결정).
 
-- 운영 작업 트리 `/Users/temp/orca/bidops`(main checkout, `.env`가 운영 값), compose 프로젝트 `bidops`, main `cfc5942`(+문서 commit), 이미지 `bidops:main-20261119`(web·analysis-worker 동일, C-2 active v6·일일 ON — [2026-11-19 기록](validation-runs/20261119-c2-top150/README.md))·문서 worker `bidops:document-arm64-main-20261118`, DB head `0042_engine_run`. 옛 작업 트리 `bidops-c2mac`과 브랜치 `feat/c2-litellm-mac`은 삭제했다(롤백 태그 `before-ops-main-20261118`). 데모 스택 `bidops-local`은 종료했다(volume 보존).
-- C-2 v6 active·일일 스위치 ON(2026-11-19), `/api/health` 200 확인. **analysis-worker는 C-2 실행용으로 올라와 있고 2026-11-19부터 restart 정책이 `unless-stopped`다**(사용자 결정, cron 검증 B4) — host 재시작 뒤 자동으로 올라오며, 끊긴 `실행 중` 실행은 `stale_execution`으로 닫힌다. 개요 플래그·상시 첨부 worker는 꺼진 상태를 유지했다. postgres·minio·clamav·document-worker는 `unless-stopped`라 host 재시작 뒤 스스로 올라온다(2026-11-18 재시작에서 확인). 발주계획 11-04~11-17은 C-2 판정까지, 공고는 같은 기간 수집·적재까지 했다. **cron은 설치되어 있지 않다**(진입점 `scripts/cron-daily-track.sh` 감독 실행까지, 설치는 승인 대기).
+- 운영 작업 트리 `/Users/temp/orca/bidops`(main checkout, `.env`가 운영 값), Compose 프로젝트 `bidops`. web·analysis-worker는 main `b839367`의 이미지 `bidops:main-20261120-b839367`로 실행 중이며 문서 worker는 `bidops:document-arm64-main-20261118`을 쓴다. DB head는 `0042_engine_run`이다. 직전 앱 이미지 `bidops:main-20261119`의 롤백 태그는 `before-prespec-stage1-20261120`이다.
+- C-2 v6 active·일일 스위치 ON, `/api/health` 200 확인. analysis-worker·postgres·minio·clamav·document-worker는 `unless-stopped`다. 일일 cron은 공고 06:30·발주계획 07:00으로 설치했다. 11월 20일 공고는 종료 코드 0이었고 해당 회차에 적재 경고 440건이 남았다. 발주계획은 수집기 수정 뒤 수동 재실행에서 11월 19일치 557건을 수집하고 상위 150건을 판정했다. 사전규격 1단계 코드와 첨부 worker 조회 권한을 적용했고 로컬 개요는 활성화했다. 실제 공고 1건의 첨부부터 검토 목록까지 [시운전](validation-runs/20261120-prespec-stage1/README.md)에서 확인했다.
 - RL 분석은 `BIDOPS_RL_ANALYSIS_ENABLED=false`. 운영 회사 근거·브리핑 미등록이며 코드·스키마 배포가 기능 활성화나 모델 전송 승인은 아니다.
 - RL import 기본 정책 v11 코드가 운영 이미지에 들어갔으나 RL 분석은 꺼져 있다. 10월 20일 실제 v11 분석과 인수 reject는 격리 `bidops-local` 기록이며 운영 품질 근거가 아니다. 새 엔진 경로(`engine_run`)는 mock_reference 계약이며 운영 활성화가 아니다.
 - 아래 일반 설치 명령·WSL2 v4 이력·격리 RL 실행 절차를 구분한다. Mac 운영 조합은 main checkout에서 `BIDOPS_ENV=prod scripts/compose.sh` (`mac-compose.sh`는 호환 진입점), RL·Slack 추가 활성화는 해당 절의 승인·설정 절차를 따른다.

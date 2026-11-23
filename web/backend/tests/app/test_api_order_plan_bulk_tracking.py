@@ -116,7 +116,8 @@ def test_bulk_preview_is_read_only_and_separates_plans_from_owners(bulk_api):
     assert (count(session, AuditEvent), count(session, IdempotencyRecord)) == before
 
 
-def test_bulk_mixed_results_preserve_prior_decisions_and_fan_out_one_audit(bulk_api):
+@pytest.mark.parametrize("with_reason", [False, True])
+def test_bulk_mixed_results_preserve_prior_decisions_and_fan_out_one_audit(bulk_api, with_reason):
     client, session, ids, extras, owner_ids = bulk_api
     def original_values():
         session.expire_all()
@@ -125,7 +126,10 @@ def test_bulk_mixed_results_preserve_prior_decisions_and_fan_out_one_audit(bulk_
                  owner.recheck_signal_link_id)
                 for owner in [session.get(Opportunity, pk) for pk in owner_ids[1:]]]
     before = original_values()
-    response = client.post(f"{BASE}/bulk-start", json=command(ids + extras + [999999, ids[0]]), headers=HEADERS)
+    payload = command(ids + extras + [999999, ids[0]])
+    if not with_reason:
+        del payload["reason"]
+    response = client.post(f"{BASE}/bulk-start", json=payload, headers=HEADERS)
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["schema_version"] == "order-plan-bulk-start-response.v1"
@@ -143,6 +147,9 @@ def test_bulk_mixed_results_preserve_prior_decisions_and_fan_out_one_audit(bulk_
     assert items[extras[1]]["code"] == "owning_opportunity_missing"
     assert items[extras[2]]["outcome"] == "failed"
     assert original_values() == before
+    owner = session.get(Opportunity, owner_ids[0])
+    assert (owner.tracking_status, owner.tracking_reason) == ("계속 추적", payload.get("reason"))
+    assert session.scalars(select(AuditEvent)).one().safe_metadata["reason"] == payload.get("reason")
     assert count(session, AuditEvent) == 1
     assert count(session, IdempotencyRecord) == 1
 
@@ -150,6 +157,7 @@ def test_bulk_mixed_results_preserve_prior_decisions_and_fan_out_one_audit(bulk_
 def test_receipt_replay_preserves_json_after_later_single_reset(bulk_api):
     client, session, ids, extras, owner_ids = bulk_api
     payload = command([extras[1], ids[0], ids[2]])
+    del payload["reason"]
     first = client.post(f"{BASE}/bulk-start", json=payload, headers=HEADERS)
     assert first.status_code == 200, first.text
     with Session(session.get_bind()) as receipt_session:
@@ -164,6 +172,7 @@ def test_receipt_replay_preserves_json_after_later_single_reset(bulk_api):
     replay = client.post(f"{BASE}/bulk-start", json=payload, headers=HEADERS)
     assert replay.status_code == first.status_code
     assert replay.json() == snapshot
+    assert client.post(f"{BASE}/bulk-start", json=dict(payload, reason=None), headers=HEADERS).json() == snapshot
     session.expire_all()
     assert session.get(Opportunity, owner_ids[0]).tracking_status == "미선택"
     assert count(session, AuditEvent) == audits

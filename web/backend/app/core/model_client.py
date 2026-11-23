@@ -275,9 +275,8 @@ class StructuredRequestCapacity:
     """Conservative local bound for one structured chat request.
 
     ``input_token_upper_bound`` is deliberately not reported as measured
-    tokens.  Every byte in the canonical UTF-8 request can contribute at most
-    one tokenizer token, while the serialization also counts schema and
-    generation fields that a provider may process outside the chat template.
+    tokens. The canonical request includes schema and generation fields and
+    uses a byte bound unless the caller supplies a revision-bound tokenizer.
     """
 
     input_token_upper_bound: int
@@ -764,8 +763,9 @@ def structured_request_capacity(
     timeout_seconds: int = APPROVED_TIMEOUT_SECONDS,
     seed: int = 0,
     correction: str | None = None,
+    count_tokens: Callable[[str], int] | None = None,
 ) -> StructuredRequestCapacity:
-    """Preflight the exact structured request without tokenizer/network I/O."""
+    """Preflight the exact structured request, using only local computation."""
 
     if (
         type(policy_context_ceiling) is not int
@@ -790,14 +790,20 @@ def structured_request_capacity(
         correction=correction,
     )
     try:
-        encoded = json.dumps(
+        serialized = json.dumps(
             request, ensure_ascii=False, sort_keys=True,
             separators=(",", ":"), allow_nan=False,
-        ).encode("utf-8")
+        )
+        input_bound = len(serialized.encode("utf-8"))
+        if count_tokens is not None:
+            input_bound = max(
+                count_tokens(serialized),
+                sum(count_tokens(message["content"]) for message in request["messages"]),
+            )
     except (TypeError, ValueError, UnicodeError):
         raise ModelInvocationError("input_capacity_exceeded", ()) from None
     result = StructuredRequestCapacity(
-        input_token_upper_bound=len(encoded),
+        input_token_upper_bound=input_bound,
         chat_template_reserve_tokens=chat_template_reserve_tokens,
         reserved_output_tokens=max_tokens,
         effective_context_tokens=(

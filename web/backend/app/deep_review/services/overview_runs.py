@@ -85,6 +85,7 @@ from .prespec_overview_claim_policy import (
     canonical_sha256,
     load_claims_policy,
 )
+from .overview_tokenizer import overview_token_counter
 from .prespec_overview_claim_validation import (
     ClaimDraftError,
     SemanticResponseError,
@@ -1274,9 +1275,14 @@ def prepare_run_snapshot(
 #: (2026-09-11 운영 첫 실행: 공고 805가 목차 쪽 한 장으로 선택됐다).
 MIN_AUTO_RANGE_PAGES = 2
 MIN_AUTO_RANGE_CHARS = 1500
+MAX_HEAD_FALLBACK_PAGES = 20
+# The semantic request adds the draft and verified quotes to the same pages.
+HEAD_FALLBACK_SEMANTIC_HEADROOM = 4096
 
 
-def _fallback_pages(pages: Sequence[Mapping[str, Any]], first: int = 1) -> int:
+def _last_page_within_limits(
+    pages: Sequence[Mapping[str, Any]], *, max_pages: int, first: int = 1,
+) -> int:
     """`first` 쪽부터 상한을 넘지 않는 마지막 쪽. 한 쪽도 못 담으면 0이다."""
 
     total = 0
@@ -1284,7 +1290,7 @@ def _fallback_pages(pages: Sequence[Mapping[str, Any]], first: int = 1) -> int:
     for index, page in enumerate(pages, 1):
         if index < first:
             continue
-        if index - first + 1 > LIMITS["max_pages"]:
+        if index - first + 1 > max_pages:
             break
         text = str(page.get("text") or "")
         if total + len(text) > LIMITS["max_page_text_chars"]:
@@ -1339,7 +1345,7 @@ def _select_range(
         if len(numbers) > LIMITS["max_pages"] or chars > LIMITS["max_page_text_chars"]:
             # 상한을 넘은 자동 선택은 통째로 버리지 않는다. 시작 쪽은 맞았으니
             # 상한 안에 드는 마지막 쪽까지만 잘라 쓰고 잘렸다고 남긴다.
-            clipped_last = _fallback_pages(pages, numbers[0])
+            clipped_last = _last_page_within_limits(pages, max_pages=LIMITS["max_pages"], first=numbers[0])
             if clipped_last >= numbers[0]:
                 return select_v4_page_span(
                     payload, numbers[0], clipped_last,
@@ -1356,7 +1362,7 @@ def _select_range(
             return selection, []
         else:
             reasons = ["range_too_small"]
-    last = _fallback_pages(pages)
+    last = _last_page_within_limits(pages, max_pages=MAX_HEAD_FALLBACK_PAGES)
     if last < 1:
         raise _RunFailure("failed", "manifest_invalid")
     fallback = select_v4_page_span(
@@ -1442,6 +1448,7 @@ class _Caller:
         self.settings = settings
         self.clock = clock
         self._store: Any | None = None
+        self.count_tokens = overview_token_counter(run.model_revision, getattr(client, "api_dialect", "vllm"))
 
     def _record(
         self,
@@ -1477,13 +1484,11 @@ class _Caller:
         })
         self.run.raw_response_refs = refs
 
-    def invoke(
-        self, stage: str, ledger_stage: str, input_slice: Mapping[str, Any], *,
+    def check_capacity(
+        self, stage: str, input_slice: Mapping[str, Any], *,
         correction: str | None = None, seed: int | None = None,
         expected_check_count: int | None = None,
-    ) -> tuple[Any, bytes]:
-        if int(self.run.call_count) >= LIMITS["max_calls"]:
-            raise _RunFailure("failed", "call_budget_exhausted")
+    ) -> tuple[Any, Any, Any]:
         # 의미 단계의 `checks` 길이는 이 run의 실제 주장 수로 못박는다. 정책
         # 파일은 그대로이고 digest도 바뀌지 않는다 (ADR-0057 결정 3).
         contract = self.policy.structured_output_contract(
@@ -1511,9 +1516,22 @@ class _Caller:
                 timeout_seconds=int(stage_policy["chunking"]["timeout_seconds"]),
                 seed=int(generation["seed"] if seed is None else seed),
                 correction=correction,
+                count_tokens=self.count_tokens,
             )
         except ModelInvocationError as error:
             raise _RunFailure("failed", "input_capacity_exceeded") from error
+        return contract, stage_policy, capacity
+
+    def invoke(
+        self, stage: str, ledger_stage: str, input_slice: Mapping[str, Any], *,
+        correction: str | None = None, seed: int | None = None,
+        expected_check_count: int | None = None,
+    ) -> tuple[Any, bytes]:
+        if int(self.run.call_count) >= LIMITS["max_calls"]:
+            raise _RunFailure("failed", "call_budget_exhausted")
+        contract, stage_policy, capacity = self.check_capacity(
+            stage, input_slice, correction=correction, seed=seed, expected_check_count=expected_check_count,
+        )
         if capacity.context_unverified:
             self.run.warnings_json = sorted({*_string_list(self.run.warnings_json), "context_unverified"})
         self.run.call_count = int(self.run.call_count) + 1
@@ -1535,6 +1553,38 @@ class _Caller:
             latency_ms=getattr(response, "latency_ms", None),
         )
         return response, raw
+
+
+def _budget_head_fallback(
+    session: Session, run: PrespecOverviewRun, caller: _Caller, snapshot: PrespecV4PdfSnapshot,
+    store: Any, pages: dict[int, str],
+) -> dict[int, str]:
+    """Keep a whole-page prefix that fits the first claims request."""
+
+    for last in range(max(pages), 0, -1):
+        prefix = {page: value for page, value in pages.items() if page <= last}
+        if not any(value.strip() for value in prefix.values()):
+            break
+        try:
+            _, _, capacity = caller.check_capacity(CLAIMS_STAGE, build_claims_stage_input(prefix))
+        except _RunFailure:
+            continue
+        if not capacity.context_unverified and last > 1 and (
+            capacity.total_token_upper_bound + HEAD_FALLBACK_SEMANTIC_HEADROOM > capacity.effective_context_tokens
+        ):
+            continue
+        if last != max(pages):
+            original = read_snapshot_page_text(session, store, snapshot)
+            bounded = select_v4_page_span(
+                {**original, "document_version_id": str(run.document_version_id), "source_sha256": snapshot.source_sha256,
+                 "blocks": original.get("blocks", [])},
+                1, last, start_locator=_locator(1, "page"), end_locator=_locator(last, "page"),
+            )
+            run.page_end = last
+            run.input_sha256 = bounded.input_sha256
+            run.range_reason_codes = [*run.range_reason_codes[:-1], "range_clipped_to_token_budget", "range_fallback_head"]
+        return prefix
+    raise _RunFailure("failed", "input_capacity_exceeded")
 
 
 def _draft_text(raw: bytes) -> str:
@@ -1857,6 +1907,9 @@ def _execute(
             str(getattr(error, "code", "") or IDENTITY_UNAVAILABLE_REASON), error
         ) from error
     run.model_revision = str(getattr(identity, "revision", "") or "") or None
+    caller = _Caller(session, run, client, policy, settings=settings, clock=clock)
+    if run.range_source == "fallback" and not policy.is_assessment and caller.count_tokens is not None:
+        pages = _budget_head_fallback(session, run, caller, snapshot, store, pages)
     run.input_binding_sha256 = canonical_sha256({
         "document_version_id": str(run.document_version_id),
         "input_sha256": run.input_sha256,
@@ -1872,8 +1925,6 @@ def _execute(
     })
     if _reuse_assessment_result(session, run):
         return
-    caller = _Caller(session, run, client, policy, settings=settings, clock=clock)
-
     if policy.is_assessment:
         _execute_assessment(run, caller, policy, pages, snapshot)
         return

@@ -571,13 +571,11 @@ actor·사유·결정 값·supersession·idempotency·감사·sequence·잠금 �
 GET /api/bid-delta/decision-queue
 ```
 
-`BidDecisionQueueItem`에 `deadline_at`·`budget`·`estimated_price`를 추가한다(0921_practitioner-screens
-spec §5). 값의 출처는 그 사업기회에서 이미 고른 대표 입찰공고(§3.8과 같은 "표시용 메타데이터"
-선택, 비교·현재성 판정을 좌우하지 않음)의 `notice.deadline_at`·`notice.budget`·
-`notice.estimated_price`뿐이다. 발주계획이나 사전규격 값으로 대신 채우지 않으며, 그 사업기회에
-선택된 입찰공고가 없으면 셋 다 `null`이다. `budget`·`estimated_price`는 §3.8의 `BidConditionValues`와
-같은 규약으로 Decimal 원문 그대로의 문자열이다(부동소수점 반올림 없음). `deadline_at`은 저장된
-timestamp 그대로다.
+대상은 병합되지 않은 `계속 추적` 사업기회다. `deadline_at`·`budget`·`estimated_price`와 공고 식별자는 공고 조건 및 결정 저장과 동일한 최신 차수에서 읽는다. 최신 차수를 확정할 수 없으면 해당 값들은 `null`이다. 금액은 Decimal 문자열이고 시각은 저장된 timestamp다.
+
+- `pending`에는 `undecided`(최신 공고가 있고 사람 결정 없음), `recheck`(효력이 지난 결정과 확인 가능한 최신 공고), `notice_check`(공고·최신 차수·관측 근거 또는 이전 결정 효력 확인 필요)가 들어간다. 공고와 결정이 모두 없으면 `waiting_notice`로 전체 보기에 남긴다.
+- `recheck`와 `notice_check`는 각각 같은 이름의 상태를 보여 준다. `decided`는 이전 결정을 포함해 기록이 있는 사업을 모은다.
+- 사유는 `bid_notice_missing`, `ordering_unknown`, `observation_unknown`, `decision_currentness_unknown` 중 하나다. `q` 검색은 사업명 또는 기관명에서 공백을 무시하고 페이지 분할 전에 적용한다. 대시보드와 업무량은 `pending.total`을, 목록 탭은 동일 범위의 `view_counts`를 사용한다.
 
 정렬은 **입찰 마감(`deadline_at`) 오름차순이 1차 키이고, `deadline_at`이 `null`인 행은 맨 뒤**다.
 기존 규칙(결정 없는 사업기회가 먼저, 그다음은 등록 최신순)은 2차 키로 그대로 남는다 — 같은
@@ -823,7 +821,7 @@ item·evidence UPDATE/DELETE를 trigger로 거부한다. 실패 attempt의 부�
 | 공고 조건 요약 | 차수 2개, 한쪽 값 `null`, 사전규격 연결 | 차수 순서·필드별 changed/unchanged/unknown, 예산·사업명만 비교, 마감 `not_comparable` |
 | 공고 조건 결정 | 최신 공고·관측 hash fence 일치 | 201 `notice_conditions` row+idempotency+audit, replay 동일 응답 |
 | 공고 조건 결정 | 최신 아님·hash 변경·입찰공고 없음·`published_at` 없음 | 409·409·409·503, row 없음 |
-| 공고 조건 현재성 | 새 차수 적재·관측 hash 변경·순서 불명 | stale·stale·unknown, 결정 큐 pending은 stale만 |
+| 공고 조건 현재성 | 새 차수 적재·관측 hash 변경·순서 불명 | stale·stale·unknown, stale과 unknown 모두 결정 큐 pending에 포함 |
 | DB 근거 CHECK | 섞인 근거·빠진 열·기본값 없는 `basis_kind` | PostgreSQL이 거부, `0028` downgrade는 공고 조건 행이 있으면 거부 |
 | 권한 | app role로 공고 조건 결정·supersede | INSERT와 `UPDATE (id)` 잠금 성공, UPDATE·DELETE는 거부 |
 | 사람 경계 | delta completed/changed | final decision 자동 생성 0건 |

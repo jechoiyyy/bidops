@@ -389,6 +389,68 @@ def test_selection_review_order_plan_pk_sort_and_pagination_keep_all_501_source_
         session.bind.dispose()
 
 
+def test_review_page_filters_counts_boundaries_and_locates_target(listing):
+    session, service, policy, plans, client = listing
+    chosen = execution(session, service, policy)
+    for plan in plans[:3]:
+        result(session, chosen, plan)
+        owner(session, plan)
+    result(session, chosen, plans[3], relevance="uncertain")
+    owner(session, plans[3])
+    result(session, chosen, plans[4], stage1="filtered_out", stage2="not_attempted")
+    result(session, chosen, plans[5], stage2="failed")
+    feedback(session, chosen, plans[1])
+    for plan in plans[:3]:
+        plan.planned_order_month = None
+    plans[0].notice_posted = "Y"
+    session.commit()
+
+    first = client.get("/api/order-plans", params={"review_order": "default", "limit": 2})
+    assert ids(first) == [plans[1].id, plans[2].id]
+    assert first.json()["total"] == 3
+    assert first.json()["review_page"] == {
+        "view_counts": {"relevant": 3, "uncertain": 1, "unjudged": 2, "all": 9},
+        "previous_pk": None, "next_pk": plans[0].id,
+        "target_found": None, "target_filters_cleared": False,
+    }
+    located = client.get("/api/order-plans", params={
+        "review_order": "default", "limit": 2, "locate": plans[0].id,
+    })
+    assert ids(located) == [plans[0].id]
+    assert located.json()["offset"] == 2
+    assert located.json()["review_page"]["previous_pk"] == plans[2].id
+
+    hidden = client.get("/api/order-plans", params={
+        "review_order": "default", "limit": 2, "locate": plans[3].id,
+    })
+    assert plans[3].id in ids(hidden)
+    assert hidden.json()["review_page"]["target_filters_cleared"] is True
+    assert hidden.json()["total"] == 9
+
+    run_page = client.get("/api/order-plans", params={
+        "review_order": "default", "source_run_id": chosen.source_run_id, "limit": 2,
+    })
+    assert ids(run_page) == ids(first)
+    missing_scope = client.get("/api/order-plans", params={
+        "review_order": "default", "source_run_id": "missing-run", "locate": plans[0].id,
+    })
+    assert ids(missing_scope) == []
+    assert missing_scope.json()["review_page"]["target_found"] is False
+
+    narrowed = client.get("/api/order-plans", params={
+        "review_order": "unjudged", "unjudged": True, "feedback_present": False, "tracking_status": "missing",
+    })
+    assert set(ids(narrowed)) == {plans[4].id, plans[5].id}
+    assert narrowed.json()["review_page"]["view_counts"] == first.json()["review_page"]["view_counts"]
+
+    query = plans[1].order_plan_unty_no
+    match = client.get("/api/order-plans", params={"review_order": "relevance", "q": query, "feedback_present": True})
+    assert ids(match) == [plans[1].id]
+    removed = client.get("/api/order-plans", params={"review_order": "relevance", "q": query, "feedback_present": False})
+    assert ids(removed) == []
+    assert "review_page" not in client.get("/api/order-plans", params={"limit": 1}).json()
+
+
 def test_scope_ordering_uses_finished_then_execution_id(listing):
     session, service, policy, plans, client = listing
     first = execution(session, service, policy, minute=2, execution_id=UUID(int=1))

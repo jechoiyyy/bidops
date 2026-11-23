@@ -172,7 +172,7 @@ quote, start_char, end_char}]}]}`. `page_text_sha256`은 내부 결속 값이라
 analysis worker의 개요 slot이 enqueue(플래그 on ∧ 활성 run 없음 ∧ effective grade
 `우선 검토` ∧ ready 묶음에 RFP 문서) → claim(WorkJob lease 1,200초) →
 prepare(snapshot 없으면 `prepare_v4_pdf_snapshot`, 변환 300초) → range(human 확정값 또는
-자동 선택, 실패 시 fallback 1쪽~min(60쪽,100,000자)에 `range_fallback_head`; 전 쪽 공백이면
+자동 선택, 실패 시 1쪽부터 최대 20쪽·100,000자 안의 연속 쪽에 `range_fallback_head`; 전 쪽 공백이면
 `failed/manifest_invalid`) → draft(1회, 형식 오류 시 1회 재생성) →
 deterministic(인용 1곳 대응·페이지 범위·duplicate_id 실패와 주장 0개
 (`claims_empty`)는 `needs_human_review`; 섹션 배정·수치·역할·VAT·기산점·date·latin·
@@ -183,7 +183,7 @@ semantic(1회; 남은 주장이 모두 supported면 `completed`) → save 순서
 max_prompt_chars 120000, max_claims 12, max_model_context_tokens 393216).
 의미 단계 입력에는 `expected_claim_ids`와 `expected_check_count`가 들어가고, 그 run의 응답
 schema `checks`는 `minItems=maxItems=expected_check_count`로 좁혀 나간다. 정책 파일의
-`max_claims`는 상한 검증으로만 남고 **정책 digest는 바뀌지 않는다.** 문맥 상한 판정은 요청 JSON의 byte 수를 token 상계로 쓰므로
+`max_claims`는 상한 검증으로만 남고 **정책 digest는 바뀌지 않는다.** 고정 토크나이저가 없는 경우 문맥 상한 판정은 요청 JSON의 byte 수를 token 상계로 쓰므로
 한국어 100,000자 입력이 지나갈 수 있도록 천장을 함께 올렸다. 서버가 `max_model_len`을 내지
 않으면 초과 판정을 하지 않고 run의 `warnings`에 `context_unverified`를 남긴다.
 
@@ -200,8 +200,9 @@ run의 `warnings`에만 남는다. 차단은 `quote_not_found`·`quote_ambiguous
 
 자동 선택은 **목차 우선**이다(ADR-0057 결정 2). 입력 manifest의 `strategy`는
 `toc_scope`(목차 항목의 인쇄 쪽을 본문 제목 대조로 물리 쪽에 맞춰 고름)·`heading_scope`(본문
-heading만으로 고름)·`human_confirmed`(사람이 확정한 쪽 span) 셋이다. `range_source`는
-그대로 `auto|fallback|human`이며 `toc_scope`·`heading_scope` 모두 `auto`다. 목차 전략은 절 후보를
+장의 제목으로 고름)·`body_sections`(목차 없이 앞부분의 독립된 개요 항목으로 고름)·
+`human_confirmed`(사람이 확정한 쪽 span)다. `range_source`는 `auto|fallback|human`이며
+앞의 세 전략으로 성공한 범위는 `auto`다. 목차 전략은 절 후보를
 쓰지 않으므로 절 후보 완결성(`candidates_truncated`)과 무관하게 먼저 시도하며, 후보가 잘렸을 때의
 자동 확정 금지(`section_candidates_incomplete`)는 목차가 실패한 뒤의 본문 전략에만 적용한다.
 
@@ -212,6 +213,17 @@ offset을 두 장 이상에서 같은 값으로 확정하지 못함)·`toc_targe
 썼는지는 manifest `strategy`가 말하며, 성공한 선택에 사유를 붙여 `range_review.reason_code`로
 노출하지 않는다. 목차 사유는 최종 결과가 fallback이거나 사람 검토일 때만 본문 사유
 (`range_too_small`·`scope_heading_missing` 등) **뒤에** `range_fallback_head` 앞자리로 남는다.
+
+목차가 없고 장 제목으로 개요를 찾지 못하면 앞 20쪽에서 목적·범위·기간·예산 중 서로 다른 두 항목과
+명시적인 종료 제목을 찾는다. 첫 항목부터 종료 직전까지 최대 6쪽의 원문을 페이지 번호와
+함께 보존한다. 범위가 불분명하면 기존 앞부분 대체 경로를 사용한다.
+
+운영 LiteLLM 개요 모델의 고정 Qwen revision이 확인되면 원문과 스키마를 포함한 요청을
+해당 로컬 토크나이저로 센다. 기존 모델 문맥 상한, 출력 예약과 템플릿 여유를 적용하며,
+그 외 revision과 토크나이저 파일을 검증할 수 없는 환경에서는 UTF-8 바이트 상계로 검사한다.
+v7의 앞부분 대체 입력을 줄일 때는 1쪽부터 연속 쪽을 고르고 의미 검증 입력을 위해 4,096토큰의
+여유를 둔다. 줄인 경우 `range_clipped_to_token_budget`을 기록하고 줄인 범위를 해시로 결속한다.
+초안과 의미 검증은 각 요청을 보내기 전에 각각 용량을 검사한다.
 
 의미 검토 응답에 기대 주장 ID가 모두 정확히 한 번씩 있으면 그 밖의 항목은 무시하고 경고
 `semantic_extra_ids`를 남긴다. 누락은 `failed/semantic_missing_ids`, 중복은

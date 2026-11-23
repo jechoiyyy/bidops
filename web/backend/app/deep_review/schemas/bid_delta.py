@@ -232,6 +232,8 @@ class BidDecisionQueueItem(BidDeltaModel):
     comparison_count: int
     latest_final_decision: BidDecisionQueueLatestDecision | None
     decision_currentness: Currentness
+    review_state: Literal["undecided", "recheck", "notice_check", "decided", "waiting_notice"]
+    notice_check_reason: Literal["bid_notice_missing", "ordering_unknown", "observation_unknown", "decision_currentness_unknown"] | None
     # Additive projection (0921_practitioner-screens spec §5): the selected bid
     # notice's own deadline/amount columns, for the queue's default sort and
     # display. When no bid notice is selected for the opportunity, all three
@@ -248,6 +250,7 @@ class BidDecisionQueueResponse(BidDeltaModel):
     total: int
     limit: int
     offset: int
+    view_counts: dict[Literal["pending", "recheck", "notice_check", "decided", "all"], int]
 
 
 class BidConditionValues(BidDeltaModel):
