@@ -1,3 +1,5 @@
+import { gateResultMark } from "../components/quality/gateResultMark";
+import { DecisionBar, ReviewPreviewHeader, SplitWorkspace } from "../components/common/ReviewPrimitives";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
@@ -7,7 +9,6 @@ import { Plus } from "lucide-react";
 import { gateResultLabel } from "../lib/glossary";
 import {
   DataTable,
-  DetailFooter,
   DetailHeader,
   DetailTabs,
   Facts,
@@ -199,14 +200,14 @@ export function QualityGatesPage() {
 
   if (gatesQuery.isPending || policiesQuery.isPending) {
     return (
-      <div className="crit-workspace" id="criteria-panel-quality-gates" role="tabpanel">
+      <div className="workbench-admin-state">
         <StateView description="게이트 목록과 정책을 확인하는 중이에요." kind="loading" title="품질 게이트를 불러오는 중이에요" />
       </div>
     );
   }
   if (gatesQuery.error || policiesQuery.error) {
     return (
-      <div className="crit-workspace" id="criteria-panel-quality-gates" role="tabpanel">
+      <div className="workbench-admin-state">
         <StateView
           action={<Button label="다시 조회" onClick={() => { void gatesQuery.refetch(); void policiesQuery.refetch(); }} />}
           description={queryErrorText(gatesQuery.error ?? policiesQuery.error, "품질 게이트")}
@@ -227,7 +228,7 @@ export function QualityGatesPage() {
   const distinctCount = typeof latestEvaluation?.distinct_notice_review_count === "number" ? latestEvaluation.distinct_notice_review_count : null;
 
   return (
-    <div className="crit-workspace" id="criteria-panel-quality-gates" role="tabpanel">
+    <SplitWorkspace className="workbench-admin-workspace" aria-label="품질 게이트">
       <Queue
         count={gatesQuery.data?.total ?? listItems.length}
         emptyText="생성된 게이트가 없어요."
@@ -238,15 +239,16 @@ export function QualityGatesPage() {
           // 목적이 같은 게이트가 여러 개일 수 있으므로 gate_id를 함께 적는다.
           // 서버에 게이트 이름 필드가 없어 목적만으로는 행을 구별할 수 없다.
           subtitle: `${item.gate_id}`,
-          status: gateResultLabel(item.result_status),
+          status: gateResultMark(item.result_status),
           meta: `${item.policy_version} · ${item.model_name} · ${moment(item.created_at)} · 실행 ${item.execution_status}${item.purpose === "model_comparison" ? " · 운영 활성화에 사용 불가" : ""}`,
         }))}
         onSelect={(id) => updateParams({ gate: id })}
         selectedId={selectedGateId}
         title="품질 게이트 목록"
-        tools={<Button icon={<Plus aria-hidden="true" />} label="새 품질 게이트" onClick={() => setCreateOpen(true)} size="sm" width="100%" />}
+        tools={<Button icon={<Plus aria-hidden="true" />} label="새 품질 게이트" onClick={() => setCreateOpen(true)} size="sm" />}
       />
-      <section aria-label="선택한 품질 게이트" className="crit-detail">
+      <section aria-label="선택한 품질 게이트" className="review-split-detail crit-detail">
+        <ReviewPreviewHeader />
         {detailQuery.isPending && selectedGateId ? (
           <StateView description="A/B 실행 상태와 지표를 확인하는 중이에요." kind="loading" title="게이트 상세를 불러오는 중이에요" />
         ) : null}
@@ -261,7 +263,6 @@ export function QualityGatesPage() {
         ) : null}
         {!selectedGateId && !detailQuery.error ? (
           <StateView
-            action={<Button icon={<Plus aria-hidden="true" />} label="새 품질 게이트" onClick={() => setCreateOpen(true)} />}
             description="목적·정책·담당자를 입력해 첫 게이트를 만들면 A/B 검증 실행이 시작돼요."
             kind="empty"
             title="생성된 품질 게이트가 없어요"
@@ -269,7 +270,7 @@ export function QualityGatesPage() {
         ) : null}
         {gate && !detailQuery.error ? (
           <>
-            <DetailHeader eyebrow="품질 게이트 · 고정 표본 40건" status={gateResultLabel(gate.result_status)} title={`${purposeLabel(gate.purpose)} 검증`}>
+            <DetailHeader eyebrow="품질 게이트 · 고정 표본 40건" status={gateResultMark(gate.result_status)} title={`${purposeLabel(gate.purpose)} 검증`}>
               <Small>{`${gate.gate_id} · 최신 평가 ${latestEvaluation ? `수정본 ${latestEvaluation.revision}` : "없음"} · 실행 ${gate.execution_status}`}</Small>
             </DetailHeader>
             <DetailTabs
@@ -278,7 +279,7 @@ export function QualityGatesPage() {
               onChange={(value) => updateParams({ gtab: value === "result" ? null : value })}
               value={detailTab}
             />
-            <div className="crit-detail-scroll" id={`criteria-gate-${detailTab}`} role="tabpanel">
+            <div className="workbench-admin-detail-scroll crit-detail-scroll" id={`criteria-gate-${detailTab}`} role="tabpanel">
               {comparison ? (
                 <Note role="alert" title="모델 비교 결과는 운영 활성화에 사용할 수 없어요" tone="warning">
                   수치가 통과해도 정책 활성화와 상시 운영 승인에는 연결하지 않아요.
@@ -359,7 +360,7 @@ export function QualityGatesPage() {
                       rows={gate.evaluations.map((evaluation) => [
                         <Text key="rev" weight="semibold">{`${evaluation.revision}${evaluation.evaluation_id === gate.latest_evaluation_id ? " · 최신" : ""}`}</Text>,
                         <code key="id">{evaluation.evaluation_id}</code>,
-                        <StatusToken key="st" label={gateResultLabel(evaluation.result_status)} />,
+                        <StatusToken key="st" {...gateResultMark(evaluation.result_status)} />,
                         <Text key="c">{`${countLabel(evaluation.valid_review_count)}/10 · ${countLabel(evaluation.distinct_notice_review_count)}/10`}</Text>,
                         <Text key="t">{moment(evaluation.created_at)}</Text>,
                         <Text key="r">{evaluation.reasons.length > 0 ? evaluation.reasons.join(" ") : "사유 없음"}</Text>,
@@ -370,9 +371,14 @@ export function QualityGatesPage() {
                 </>
               ) : null}
             </div>
-            <DetailFooter note={comparison ? "모델 비교용 · 운영 활성화에 연결 불가" : "운영 승인용 · 최신 통과 평가만 정책 활성화에 연결 가능"}>
-              <Button isDisabled={!selectedGateId} label="근거 리뷰 작성" onClick={() => setReviewTarget(selectedGateId)} size="sm" variant="primary" />
-            </DetailFooter>
+            <DecisionBar
+              stateLabel="평가 결과"
+              state={gateResultMark(gate.result_status)}
+              note={comparison ? "모델 비교용 · 운영 활성화에 연결 불가" : "운영 승인용 · 최신 통과 평가만 정책 활성화에 연결 가능"}
+              primaryAction={
+                <Button isDisabled={!selectedGateId} label="근거 리뷰 작성" onClick={() => setReviewTarget(selectedGateId)} size="sm" variant="primary" />
+              }
+            />
           </>
         ) : null}
       </section>
@@ -400,6 +406,6 @@ export function QualityGatesPage() {
           refreshDetail();
         }}
       />
-    </div>
+    </SplitWorkspace>
   );
 }

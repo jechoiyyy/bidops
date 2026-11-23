@@ -1,3 +1,4 @@
+import { searchMatches } from "../src/lib/search";
 import type { Page, Route } from "@playwright/test";
 import type { BidConditionsView } from "../src/components/bid-delta/types";
 
@@ -394,6 +395,9 @@ export function queueItemFor(index: number, title?: string) {
       ? { decision: decision.decision, decided_at: decision.created_at, claimed_name: decision.claimed_name }
       : null,
     decision_currentness: decision ? scenario.currentness : "unknown",
+    review_state: scenario.bidNotice === false ? "waiting_notice" : !decision ? "undecided"
+      : scenario.currentness === "stale" ? "recheck" : scenario.currentness === "current" ? "decided" : "notice_check",
+    notice_check_reason: decision && scenario.currentness === "unknown" ? "decision_currentness_unknown" : null,
     // 추가형 투영(0921_practitioner-screens spec §5). 선택된 입찰공고가 없으면
     // (`bidNotice === false`) 셋 다 null이다. 있는 건 안에서도 마감·예산·추정가격이
     // 각각 있는 건·없는 건이 섞이도록 index로 나눈다 — 발주계획·사전규격에서
@@ -434,6 +438,7 @@ export function bidConditionsFixture(opportunityId: number, options: {
   latestNoticeId?: number | null;
   latestObservation?: string | null;
   firstNoticeId?: number;
+  latestConditions?: Partial<BidConditionsView["bid_notices"][number]["conditions"]>;
 } = {}): BidConditionsView {
   const first = options.firstNoticeId ?? 1100;
   const ids = [first, first + 1, first + 2];
@@ -444,6 +449,7 @@ export function bidConditionsFixture(opportunityId: number, options: {
     technical_evaluation_rate: "90",
     deadline_at: "2026-09-27T01:00:00Z",
     change_reason: "입찰마감 일시 연장",
+    ...options.latestConditions,
   });
   const fields = Object.keys(round0) as Array<keyof typeof round0>;
   const changes = (before: typeof round0, after: typeof round0) => fields.map((field) => {
@@ -469,7 +475,7 @@ export function bidConditionsFixture(opportunityId: number, options: {
       { notice_id: ids[2], bid_no: "R26BK00267196", bid_ord: "002", published_at: "2026-09-10T01:00:00Z", observation_sha256: latestObservation, conditions: round2, changes_from_previous: changes(round1, round2) },
     ],
     pre_spec_comparison: [
-      { field: "budget", status: "changed", before: "150000000", after: "160000000" },
+      { field: "budget", status: round2.budget === null ? "unknown" : round2.budget === "150000000" ? "unchanged" : "changed", before: "150000000", after: round2.budget },
       { field: "title", status: "unchanged", before: "공고 조건 검토 사업", after: "공고 조건 검토 사업" },
     ],
     not_comparable: ["deadline_at"],
@@ -546,11 +552,20 @@ export async function mockGoNoGo(page: Page, options: GoNoGoMockOptions = {}): P
     const status = url.searchParams.get("status") ?? "pending";
     const limit = Number(url.searchParams.get("limit") ?? "50");
     const offset = Number(url.searchParams.get("offset") ?? "0");
-    const filtered = status === "all"
-      ? queueItems
-      : queueItems.filter((item) => item.bid_notice_external_id !== null
-        && (item.latest_final_decision === null || item.decision_currentness === "stale"));
-    await json(route, { items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset });
+    const q = url.searchParams.get("q");
+    const all = q ? queueItems.filter((item) => searchMatches(q, item.title, item.agency)) : queueItems;
+    const views = {
+      all,
+      pending: all.filter((item) => ["undecided", "recheck", "notice_check"].includes(item.review_state)),
+      recheck: all.filter((item) => item.review_state === "recheck"),
+      notice_check: all.filter((item) => item.review_state === "notice_check"),
+      decided: all.filter((item) => item.latest_final_decision !== null),
+    };
+    const filtered = views[status as keyof typeof views];
+    await json(route, {
+      items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset,
+      view_counts: Object.fromEntries(Object.entries(views).map(([key, items]) => [key, items.length])),
+    });
   });
 
   await page.route(/\/api\/opportunities\/\d+(\?|$)/, async (route) => {
@@ -604,7 +619,11 @@ export async function mockGoNoGo(page: Page, options: GoNoGoMockOptions = {}): P
       });
       return;
     }
-    await json(route, bidConditionsFixture(id, { firstNoticeId: id * 100 }));
+    const { budget, deadline_at, estimated_price } = queueItemFor(index);
+    await json(route, bidConditionsFixture(id, {
+      firstNoticeId: id * 100,
+      latestConditions: { budget, deadline_at, estimated_price },
+    }));
   });
 
   await page.route(/\/api\/opportunities\/\d+\/final-decisions$/, async (route) => {

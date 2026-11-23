@@ -41,6 +41,7 @@ bidops/
 │   ├── 1118_launch-hardening/      실사용 전 설계 고도화안(2026-11-18, 범위·순서·승인 경계·진행 기록. 계획이며 품질·운영 활성화 근거가 아님)
 │   ├── 1119_kstyle-shell/          관리 화면 셸·화면 재구성 정본 시안(2026-11-19 승인, ADR-0076, mockups·shots)
 │   ├── 1121_prespec-detail/        사전규격 상세 재구성 시안·기획(2026-11-21 승인·운영 배포, ADR-0076 결정 13, 분석 완료 화면은 mock 빌드 전용)
+│   ├── 1123_astryx-templates/      관리 화면 표 작업대 배치 정본(2026-11-23 사용자 결정, ADR-0077: Astryx 적용 시안·분석, 수정안과 단계별 검증 기록 plan.md)
 │   ├── deep-review-v2/               첨부문서 분석 설계(결정적 부분만 구현, ADR-0051)와 Luna 시안 검증 계획(보류)
 │   ├── 0910_rhwp-document-pipeline/       rhwp 네이티브 변환 파이프라인 작업 정본(ADR·Requirements·Design·Spec·Plan, 2026-09-10 시작)
 │   ├── reference/                    회사 프로필·실적 근거자료

@@ -1,23 +1,26 @@
+import { ReviewPreviewHeader } from "../common/ReviewPrimitives";
 import { type Ref } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Badge } from "@astryxdesign/core/Badge";
+import { StatusMark, type Mark } from "../common/Marks";
 import { Button } from "@astryxdesign/core/Button";
 import { Text } from "@astryxdesign/core/Text";
 import {
   TRACKING_OTHER_REASON,
-  TrackingDecisionActions,
+  trackingActionLabel,
+  type TrackingDecisionStatus,
   TrackingDecisionInputs,
   TrackingSaveError,
 } from "../common/TrackingDecisionForm";
 import {
   AgencyFeature,
   ReviewDecisionAction,
-  ReviewDecisionBar,
+  DecisionBar,
   ReviewValue,
   StickyDecisionHeader,
 } from "../common/ReviewPrimitives";
 import { requestActorInput } from "../common/ActorField";
+import { SideFacts } from "../common/Facts";
 import { EmptyState } from "../common/EmptyState";
 import { api } from "../../lib/api";
 import type { ApiErrorDescription } from "../../lib/apiErrors";
@@ -36,10 +39,10 @@ import {
   NO_MODEL_JUDGMENT_LABEL,
   noticePostedLabel,
   plannedTiming,
-  qwenBadgeVariant,
+  qwenStatusTone,
   qwenRowLabel,
   stage1BadgeLabel,
-  stage1BadgeVariant,
+  stage1StatusTone,
   textOrUnknown,
   trackingAvailability,
 } from "./orderPlanFormat";
@@ -71,16 +74,16 @@ function trackingStatusLabel(item: OrderPlanListItem | null): string {
  * 계속 추적은 `추적 중`(브랜드 옅은 채움), 보류·종료는 회색이다. 기록할 수 없는 건(미지원·미연결)은
  * 그 사실 그대로 주의색으로 둔다. 미선택은 추적 종료가 아니다.
  */
-function trackingTag(item: OrderPlanListItem): { label: string; tone: "warning" | "brand" | "muted" } {
+function trackingTag(item: OrderPlanListItem): Mark {
   const availability = trackingAvailability(item);
   if (availability !== "available") return { label: trackingStatusLabel(item), tone: "warning" };
   switch (item.tracking?.tracking_status) {
     case "계속 추적":
-      return { label: "추적 중", tone: "brand" };
+      return { label: "추적 중", tone: "accent" };
     case "보류":
-      return { label: "보류", tone: "muted" };
+      return { label: "보류", tone: "neutral" };
     case "종료":
-      return { label: "추적 종료", tone: "muted" };
+      return { label: "추적 종료", tone: "neutral" };
     default:
       return { label: "결정 필요", tone: "warning" };
   }
@@ -105,7 +108,7 @@ function evidenceHeading(item: OrderPlanListItem): string {
  * 상세 pane 바닥의 추적 결정 입력.
  *
  * 머리줄(추적 결정 · 현재 상태 · 위치) 아래에 추적 결정 입력 한 벌(`TrackingDecisionInputs`, C-7)을
- * 둔다 — 선택 사유(직접 입력 포함)와 담당자 이름. 결정 버튼과 안내 한 줄은 `ReviewDecisionBar`의
+ * 둔다 — 선택 사유(직접 입력 포함)와 담당자 이름. 결정 버튼과 안내 한 줄은 `DecisionBar`의
  * action·hint 자리에 있고, 저장 실패는 입력 바로 아래에 같은 모양(`TrackingSaveError`)으로 남는다.
  */
 function TrackingDecisionFields({
@@ -159,6 +162,7 @@ function TrackingDecisionFields({
       <div className="c2l-tracking-fields">
         <TrackingDecisionInputs
           presets={TRACKING_REASONS}
+          reasonLabel={item.tracking?.tracking_status === "미선택" ? "보류·종료 선택 사유" : undefined}
           choice={reasonChoice}
           onChoiceChange={onReasonChoiceChange}
           custom={customReason}
@@ -251,6 +255,7 @@ export interface OrderPlanDetailPaneProps {
   trackingProblem: ApiErrorDescription | null;
   trackingMessage: { pk: number; text: string } | null;
   trackingDisabledReason: string | undefined;
+  startDisabledReason: string | undefined;
   trackingActor: string;
   onActorNameChange: (value: string) => void;
   customReason: string;
@@ -262,6 +267,9 @@ export interface OrderPlanDetailPaneProps {
   selectedIndex: number;
   total: number;
   trackingSectionRef: Ref<HTMLElement>;
+  editingDecision: TrackingDecisionStatus | null;
+  onEditDecision: (status: TrackingDecisionStatus | null) => void;
+  decisionLocked: boolean;
   trackingReady: boolean;
   onDecideTracking: (status: Exclude<OpportunityTrackingStatus, "미선택">) => void;
   onSkipCurrent: () => void;
@@ -286,6 +294,7 @@ export function OrderPlanDetailPane({
   trackingProblem,
   trackingMessage,
   trackingDisabledReason,
+  startDisabledReason,
   trackingActor,
   onActorNameChange,
   customReason,
@@ -297,6 +306,9 @@ export function OrderPlanDetailPane({
   selectedIndex,
   total,
   trackingSectionRef,
+  editingDecision,
+  onEditDecision,
+  decisionLocked,
   trackingReady,
   onDecideTracking,
   onSkipCurrent,
@@ -325,12 +337,14 @@ export function OrderPlanDetailPane({
     pending: selectedPk !== null && detail === null && !detailQuery.isError,
     failed: selectedPk !== null && detailQuery.isError,
   };
+  const stage1Label = selectedItem ? stage1BadgeLabel(selectedItem.stage1_status) : null;
   /** 총괄기관은 값이 있을 때만 그린다(시안 M5 ①) — 없는 기관을 `미제공`으로 적지 않는다. */
   const supervisingAgency = detail?.supervising_agency_name?.trim() ? detail.supervising_agency_name : null;
   /** 신규·계속 구분(`service_type`). 값이 없거나 아직 받지 못했으면 절 자체를 만들지 않는다. */
   const serviceType = detail?.service_type?.trim() ? detail.service_type : null;
   return (
     <section className="review-split-detail c2l-detail-pane">
+      <ReviewPreviewHeader position={selectedItem && selectedIndex > 0 ? `${selectedIndex} / ${total.toLocaleString("ko-KR")}` : undefined} />
       {listPending || listError ? (
         <div className="c2l-detail-empty">
           <Text type="body" color="secondary" as="p">
@@ -357,8 +371,7 @@ export function OrderPlanDetailPane({
           {/* 시안 §4: 발주기관을 라벨과 함께 강조 블록으로 먼저 읽히고, 사업명은
               그다음이다. 식별자와 추적 상태는 한 줄로 붙인다. */}
           <StickyDecisionHeader className="review-detail-head c2l-detail-head" label="발주계획 상세 헤더">
-            {/* 총괄기관은 발주기관 바로 아래에서 작게 읽힌다(시안 M5 ①). 공용 블록의
-                부제 슬롯이라 배경·여백을 발주기관과 함께 쓴다. 값이 없으면 줄 자체를
+            {/* 총괄기관은 발주기관 뒤에 같은 보조 글자로 붙는다. 값이 없으면 줄 자체를
                 만들지 않는다 — 없는 기관을 `미제공`으로 적지 않는다. */}
             <AgencyFeature
               className="c2l-agency-feature"
@@ -369,15 +382,15 @@ export function OrderPlanDetailPane({
               sub={supervisingAgency ? `총괄기관 ${supervisingAgency}` : null}
               subClassName="c2l-agency-supervising"
             />
-            <span className={`bo-tag is-${trackingTag(selectedItem).tone} c2l-detail-tag`} data-testid="order-plan-detail-tag">{trackingTag(selectedItem).label}</span>
             <h2 className="c2l-detail-title">{textOrUnknown(selectedItem.title)}</h2>
-            <div className="c2l-detail-identity">
+            <StatusMark className="c2l-detail-tag" mark={trackingTag(selectedItem)} data-testid="order-plan-detail-tag" />
+            <div className="c2l-detail-identity review-detail-identity">
               {/* 외부 계획번호 하나만 둔다. 내부 계획 ID는 실무 판단에 쓰이지 않으며
                   주소(`?selected=`)와 운영 화면이 그대로 들고 있다(0921 명세 §3.1).
                   첫 수집일은 목록이 이미 준 값이라 상세 응답을 기다리지 않는다.
                   신규·계속 구분은 상세 전용이므로 값이 온 뒤에만 절이 붙는다. */}
               <Text type="supporting" color="secondary" as="p">
-                계획번호 {selectedItem.order_plan_unty_no}
+                계획번호 <code className="mono">{selectedItem.order_plan_unty_no}</code>
                 {` · 첫 수집 ${formatKstDateShort(selectedItem.first_observed_at)}`}
                 {serviceType ? ` · ${serviceType}` : ""}
               </Text>
@@ -400,40 +413,26 @@ export function OrderPlanDetailPane({
             {/* 계약 조건은 참여 판단을 좌우한다(시안 M5 ①): 수의계약인지, 이미 공고가
                 났는지, 추적을 시작한 사업기회가 있는지. 예산·발주 예정·사업 분야는
                 목록이 이미 준 값이라 상세 응답을 기다리지 않는다. */}
-            <dl className="c2l-detail-facts">
-              <div><dt>발주계획 예산</dt><dd>{budgetValue(selectedItem.budget_amount)}</dd></div>
-              <div><dt>발주 예정</dt><dd>{plannedTiming(selectedItem.planned_order_year, selectedItem.planned_order_month)}</dd></div>
-              <div><dt>사업 분야</dt><dd>{textOrUnknown(selectedItem.business_division)}</dd></div>
-              {/* 계약방법은 목록 응답(v5)에도 있는 같은 열이므로 즉시 보인다. */}
-              <div><dt>계약방법</dt><dd>{detailFactValue(selectedItem.contract_method)}</dd></div>
-              <div><dt>조달방식</dt><dd>{detailFactValue(detail?.procurement_method ?? null, detailState)}</dd></div>
-              <div>
-                <dt>공고 게시</dt>
-                <dd>
+            <SideFacts className="c2l-detail-facts" items={[
+              { label: "발주계획 예산", value: budgetValue(selectedItem.budget_amount) },
+              { label: "발주 예정", value: plannedTiming(selectedItem.planned_order_year, selectedItem.planned_order_month) },
+              { label: "사업 분야", value: textOrUnknown(selectedItem.business_division) },
+              { label: "계약방법", value: detailFactValue(selectedItem.contract_method) },
+              { label: "조달방식", value: detailFactValue(detail?.procurement_method ?? null, detailState) },
+              { label: "공고 게시", value: (
+                <>
                   {noticePostedLabel(selectedItem.notice_posted)}
-                  {/* 연관 공고번호는 수집 원문 문자열 그대로다 — 서버가 쪼개지 않으므로
-                      화면도 쪼개지 않는다(contracts.md). */}
                   {detail?.bid_ntice_no_list ? (
-                    <span className="c2l-detail-facts-sub">공고번호 {detail.bid_ntice_no_list}</span>
+                    <small>공고번호 <code className="mono">{detail.bid_ntice_no_list}</code></small>
                   ) : null}
-                </dd>
-              </div>
-              <div>
-                <dt>연결된 사업기회</dt>
-                <dd>
-                  {selectedItem.tracking
-                    ? (
-                      <Link className="c2l-detail-opportunity" to={`/opportunities/${selectedItem.tracking.opportunity_id}`}>
-                        사업 추적에서 보기 →
-                      </Link>
-                    )
-                    /* 소유 사업기회를 확인하지 못한 것과 추적을 고르지 않은 것은 다른
-                       상태다(`OrderPlanTracking` 계약 — `null`은 `미선택`이 아니다).
-                       머리 badge와 같은 문구를 써서 둘을 뭉개지 않는다. */
-                    : trackingStatusLabel(selectedItem)}
-                </dd>
-              </div>
-            </dl>
+                </>
+              ) },
+              { label: "연결된 사업기회", value: selectedItem.tracking ? (
+                <Link className="c2l-detail-opportunity" to={`/opportunities/${selectedItem.tracking.opportunity_id}`}>
+                  사업 추적에서 보기 →
+                </Link>
+              ) : trackingStatusLabel(selectedItem) },
+            ]} />
 
             {/* 기본 상세는 실제로 있는 근거만 싣는다. 제안요청서 본문·확인할 점은
                 지금 API의 필드가 아니므로 만들어 넣지 않는다. */}
@@ -441,15 +440,11 @@ export function OrderPlanDetailPane({
               <div className="c2l-evidence-head">
                 <h3 className="c2l-evidence-title" id={`c2l-evidence-${selectedItem.order_plan_pk}`}>{evidenceHeading(selectedItem)}</h3>
                 <span className="c2l-row-badges">
-                  {stage1BadgeLabel(selectedItem.stage1_status) ? (
-                    <Badge variant={stage1BadgeVariant(selectedItem.stage1_status)} label={stage1BadgeLabel(selectedItem.stage1_status) as string} />
-                  ) : null}
-                  {/* 모델 판단은 정보색(보라) 표식이다. 판단이 없으면 사람이 봐야 하는 사실이라 주의색이다. */}
-                  {qwenBadgeVariant(selectedItem) === "error" ? (
-                    <Badge variant="error" label={qwenRowLabel(selectedItem)} />
-                  ) : (
-                    <span className={`bo-tag ${hasNoModelJudgment(selectedItem) ? "is-warning" : "is-info"}`}>{qwenRowLabel(selectedItem)}</span>
-                  )}
+                  {stage1Label ? <StatusMark mark={{ label: stage1Label, tone: stage1StatusTone(selectedItem.stage1_status) }} /> : null}
+                  <StatusMark mark={{
+                    label: qwenRowLabel(selectedItem),
+                    tone: qwenStatusTone(selectedItem) === "error" ? "error" : hasNoModelJudgment(selectedItem) ? "warning" : "info",
+                  }} />
                 </span>
               </div>
               {/* 모델 판정이 없는 건(배치 실패 포함)은 비관련이 아니다. 이유와 할 일을 한 줄로 남긴다. */}
@@ -533,57 +528,78 @@ export function OrderPlanDetailPane({
           {/* 분할 화면의 결정 액션은 상세 pane 바닥에 둔다. 여기의 결정은
               **추적 결정 하나**다(ADR-0046 결정 4). 사람 판단 수정은
               별도 대화상자가 자기 저장을 소유한다. */}
-          <ReviewDecisionBar
+          <DecisionBar
             className="c2l-detail-actions"
-            // 비활성 사유는 세 결정이 함께 읽는 한 문장이다. 버튼 옆이 아니라
-            // 여기 한 곳에서 그리고, 각 버튼은 같은 id를 `aria-describedby`로 가리킨다.
-            hint={(
+            label="발주계획 추적 결정"
+            stateLabel="추적 상태"
+            state={{
+              label: trackingStatusLabel(selectedItem),
+              tone: trackingTag(selectedItem).tone,
+            }}
+            content={(
               <>
+                {editingDecision ? (
+                  <TrackingDecisionFields
+                    actorName={trackingActor}
+                    customReason={customReason}
+                    item={selectedItem}
+                    lastReason={lastReason}
+                    onActorNameChange={onActorNameChange}
+                    onCustomReasonChange={onCustomReasonChange}
+                    onReasonChoiceChange={onReasonChoiceChange}
+                    onReuseLastReason={onReuseLastReason}
+                    position={`${selectedIndex} / ${total.toLocaleString("ko-KR")}건`}
+                    reasonChoice={reasonChoice}
+                    sectionRef={trackingSectionRef}
+                    problem={trackingProblem}
+                    isDisabled={decisionLocked}
+                  />
+                ) : trackingProblem ? <TrackingSaveError problem={trackingProblem} /> : null}
                 {trackingMessage?.pk === selectedItem.order_plan_pk
                   ? <span className="c2l-decision-message" role="status">{trackingMessage.text}</span>
                   : null}
-                <span className="visually-hidden" id="c2l-tracking-decision-reason">
-                  {trackingDisabledReason}
-                </span>
+                <span className="visually-hidden" id="c2l-tracking-decision-reason">{trackingDisabledReason}</span>
+                <span className="visually-hidden" id="c2l-start-disabled-reason">{startDisabledReason}</span>
               </>
             )}
-            label="발주계획 추적 결정"
-            status={(
-              <TrackingDecisionFields
-                actorName={trackingActor}
-                customReason={customReason}
-                item={selectedItem}
-                lastReason={lastReason}
-                onActorNameChange={onActorNameChange}
-                onCustomReasonChange={onCustomReasonChange}
-                onReasonChoiceChange={onReasonChoiceChange}
-                onReuseLastReason={onReuseLastReason}
-                position={`${selectedIndex} / ${total.toLocaleString("ko-KR")}건`}
-                reasonChoice={reasonChoice}
-                sectionRef={trackingSectionRef}
-                problem={trackingProblem}
-                isDisabled={bulkPending}
-              />
-            )}
-            actions={(
+            actorAction={!editingDecision ? (
+              <button className="c2l-actor-change" data-testid={trackingActor.trim() ? undefined : "order-plan-actor-missing"}
+                onClick={requestActorInput} type="button">
+                {trackingActor.trim() ? "이름 변경" : "담당자 이름 입력"}
+              </button>
+            ) : null}
+            secondaryActions={(
               <>
-                {/* 세 결정이 같은 사유로 함께 막힌다. 문장은 hint 자리에 한 번만 있고 버튼은 모두
-                    같은 id를 가리킨다. 버튼의 순서·이름은 추적 결정 입력 한 벌(C-7)이 정한다. */}
-                <TrackingDecisionActions
-                  statuses={["계속 추적", "보류", "종료"]}
-                  current={selectedItem.tracking?.tracking_status ?? null}
-                  disabledReasonId="c2l-tracking-decision-reason"
-                  isDisabled={bulkPending || !trackingReady}
-                  onDecide={onDecideTracking}
-                />
-                {/* 아무것도 저장하지 않으므로 계약이 없어도 비활성이 아니다. */}
-                <ReviewDecisionAction
-                  label="넘기기"
-                  variant="ghost"
-                  isDisabled={bulkPending}
-                  onClick={onSkipCurrent}
-                />
+                <ReviewDecisionAction label="넘기기" variant="ghost" isDisabled={bulkPending} onClick={onSkipCurrent} />
+                {editingDecision ? (
+                  <ReviewDecisionAction label="취소" variant="secondary" isDisabled={decisionLocked}
+                    onClick={() => onEditDecision(null)} />
+                ) : (
+                  <>
+                    <ReviewDecisionAction className="tracking-action is-end" label="추적 종료" variant="secondary"
+                      isDisabled={decisionLocked} disabledReasonId="c2l-tracking-decision-reason" onClick={() => onEditDecision("종료")} />
+                    <ReviewDecisionAction className="tracking-action is-hold" label="보류" variant="secondary"
+                      isDisabled={decisionLocked} disabledReasonId="c2l-tracking-decision-reason" onClick={() => onEditDecision("보류")} />
+                  </>
+                )}
               </>
+            )}
+            primaryAction={editingDecision ? (
+              <ReviewDecisionAction label={`${trackingActionLabel(editingDecision, selectedItem.tracking?.tracking_status ?? null)} 확인`}
+                variant="primary" isDisabled={!trackingReady} disabledReasonId="c2l-tracking-decision-reason"
+                onClick={() => onDecideTracking(editingDecision)} />
+            ) : (
+              <ReviewDecisionAction
+                className="tracking-action is-continue"
+                label={trackingActionLabel("계속 추적", selectedItem.tracking?.tracking_status ?? null)}
+                variant="primary"
+                isDisabled={selectedItem.tracking?.tracking_status === "미선택" ? startDisabledReason !== undefined : decisionLocked}
+                disabledReasonId={selectedItem.tracking?.tracking_status === "미선택" ? "c2l-start-disabled-reason" : "c2l-tracking-decision-reason"}
+                onClick={() => {
+                  if (selectedItem.tracking?.tracking_status === "미선택") onDecideTracking("계속 추적");
+                  else onEditDecision("계속 추적");
+                }}
+              />
             )}
           />
         </>

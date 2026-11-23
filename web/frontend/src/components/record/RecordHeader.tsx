@@ -2,24 +2,8 @@ import { Button } from "@astryxdesign/core/Button";
 import { DropdownMenu } from "@astryxdesign/core/DropdownMenu";
 import { Ellipsis } from "lucide-react";
 import { PageHeaderActions } from "../common/PageHeaderActions";
-import type { RecordDecisionAxis, RecordPill } from "../../lib/record";
 
-/*
- * 레코드 헤더(ui-spec §3, RL-02 spec "레코드 헤더"): 기관 머리글자 아이콘(40px, teal) · 제목 ·
- * pill 4개(단계·마감·판정·추적 상태, 순서 고정) · 액션.
- *
- * 판정 보기는 서버가 준 판정 결과가 있을 때만 열린다(RL-03). 판정 탭에서는 제안서 초안 · 다시 판정 · ⋯가
- * 액션이고 ⋯에 판정 오류 제보·실행 정보가 더해진다. 제안서 초안은 완료된 판정이 있을 때만 열리고 제안서
- * 탭으로 간다(RL-04). 제안서 탭에서는 PDF로 내보내기(주) · 다시 만들기 · ⋯가 액션이고 ⋯에 제출 준비로 표시와
- * 후속(HWP·버전 비교, 비활성)이 더해진다. ⋯ 메뉴의 추적 항목은 기존 추적 대화상자를 여는 자리일 뿐 저장
- * 규칙을 새로 갖지 않는다.
- *
- * pill 아래 결정 축 요약 줄(설계고도화안 C-6)은 사람이 내리는 결정 셋(추적 결정 · 판정 확인 · 최종
- * Go/No-Go)을 축마다 이름과 상태로 적는다. pill이 사업 사실(단계·마감)과 판정 결과를 짧게 보이는 자리라면
- * 이 줄은 "누가 무엇을 아직 정하지 않았나"를 보이는 자리이며 셋을 한 상태로 합치지 않는다.
- */
-
-export type RecordMenuAction = "tracking" | "reset" | "signal" | "candidate";
+export type RecordMenuAction = "reset" | "signal" | "candidate";
 export type VerdictMenuAction = "verdict-feedback" | "verdict-run-info";
 
 /** 판정 관련 헤더 액션(RL-03). 판정 탭이 아니면 `판정 보기`, 판정 탭이면 `다시 판정`과 ⋯ 추가 항목이다. */
@@ -70,11 +54,6 @@ export interface RecordMenuState {
 
 interface RecordHeaderProps {
   title: string;
-  /** 예전 머리글자 아이콘 자리. 최종 시안에서 아이콘을 뺐고 값은 셸 헤더의 화면 이름 줄이 쓴다. */
-  agency?: string | null;
-  /** 예전 상태 줄(pill·결정 축). 2026-11-19부터 셸 헤더의 태그·사실 줄이 같은 값을 보인다(여기서는 그리지 않는다). */
-  pills?: readonly RecordPill[];
-  axes?: readonly RecordDecisionAxis[];
   menu: RecordMenuState;
   verdict: RecordVerdictActions;
   proposal: RecordProposalActions;
@@ -84,7 +63,6 @@ const FOLLOW_UP_REASON = "후속 기능이에요";
 
 export function RecordHeader({ title, menu, verdict, proposal }: RecordHeaderProps) {
   const trackingItems = [
-    { label: "추적 상태 변경", onClick: () => menu.onSelect("tracking") },
     {
       label: "추적 되돌리기",
       description: menu.resetBlockedReason ?? undefined,
@@ -137,10 +115,7 @@ export function RecordHeader({ title, menu, verdict, proposal }: RecordHeaderPro
     : trackingItems;
   return (
     <>
-      {/* 2026-11-19 최종 시안: 레코드 제목은 셸 패널 헤더의 `<h1>`이고, 상태(추적 태그·단계·마감·판정·판정 확인·최종
-          Go/No-Go)는 헤더의 태그와 사실 줄이 보인다. 이 컴포넌트는 탭별 액션을 헤더 오른쪽 슬롯으로 올리고 제목은
-          구역 이름으로 낭독기에만 남긴다. */}
-      <h2 className="rec-title visually-hidden" data-testid="record-title">{title}</h2>
+      <span className="visually-hidden" data-testid="record-title">{title}</span>
       <PageHeaderActions>
       <div className="rec-actions" data-testid="record-header">
         {proposal.onProposalTab && proposal.showActions ? (
@@ -153,7 +128,7 @@ export function RecordHeader({ title, menu, verdict, proposal }: RecordHeaderPro
                 label={proposal.exportPending ? "내보내는 중…" : "PDF로 내보내기"}
                 onClick={proposal.onExport}
                 size="sm"
-                variant="primary"
+                variant="secondary"
               />
               {proposal.exportBlockedReason ? (
                 <span className="visually-hidden" id="rec-export-hint">{proposal.exportBlockedReason}</span>
@@ -183,7 +158,7 @@ export function RecordHeader({ title, menu, verdict, proposal }: RecordHeaderPro
                 label="제안서 초안"
                 onClick={verdict.onOpenProposal}
                 size="sm"
-                variant="primary"
+                variant="secondary"
               />
               {verdict.proposalBlockedReason ? (
                 <span className="visually-hidden" id="rec-proposal-hint">{verdict.proposalBlockedReason}</span>
@@ -213,7 +188,7 @@ export function RecordHeader({ title, menu, verdict, proposal }: RecordHeaderPro
                 label="판정 보기"
                 onClick={verdict.onOpenVerdict}
                 size="sm"
-                variant="primary"
+                variant="secondary"
               />
               {verdict.hasResult ? null : <span className="visually-hidden" id="rec-verdict-hint">아직 판정이 없어요</span>}
             </span>

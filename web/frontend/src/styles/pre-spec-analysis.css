@@ -292,7 +292,7 @@
   background: var(--color-background-muted);
 }
 #page-footer .ps-decision-bar-choices button {
-  min-height: var(--bo-k-control-tab);
+  min-height: var(--bo-k-control-nav);
   border: 0;
   border-radius: var(--radius-inner);
   background: transparent;

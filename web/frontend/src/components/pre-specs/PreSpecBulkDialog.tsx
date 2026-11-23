@@ -32,9 +32,7 @@ interface DialogCopy {
   summaryHead: string;
   summaryDetail: string;
   guide: string | null;
-  reasonLabel: string;
-  reasonOptions: readonly string[];
-  reasonRequiredError: string;
+  reasonField?: { label: string; options: readonly string[]; requiredError: string };
   saveVerb: string;
   errorFallback: string;
 }
@@ -47,9 +45,6 @@ const COPY: Record<PreSpecBulkAction, DialogCopy> = {
     summaryHead: "선택",
     summaryDetail: "사업기회에 연결된 미선택 공고만 추적을 시작해요.",
     guide: null,
-    reasonLabel: "추적 사유 (필수)",
-    reasonOptions: ["후속 입찰공고 확인", "세부 과업·연계 범위 확인", "참여 자격·실적 확인 필요"],
-    reasonRequiredError: "추적 사유를 선택해 주세요.",
     saveVerb: "추적 시작",
     errorFallback: "추적 시작 결과를 확인하지 못했어요.",
   },
@@ -58,9 +53,7 @@ const COPY: Record<PreSpecBulkAction, DialogCopy> = {
     summaryHead: "제외",
     summaryDetail: "팀 전체의 일상 목록에서 숨겨요. 추적 상태와 자동 분석은 그대로예요.",
     guide: "제외한 건은 ‘전체 이력’ 보기에서 검토 제외 필터로 찾아 한 건씩 복원할 수 있어요.",
-    reasonLabel: "제외 사유 (필수)",
-    reasonOptions: BULK_EXCLUSION_REASONS,
-    reasonRequiredError: "제외 사유를 선택해 주세요.",
+    reasonField: { label: "제외 사유 (필수)", options: BULK_EXCLUSION_REASONS, requiredError: "제외 사유를 선택해 주세요." },
     saveVerb: "검토 제외",
     errorFallback: "검토 제외를 저장하지 못했어요.",
   },
@@ -69,9 +62,7 @@ const COPY: Record<PreSpecBulkAction, DialogCopy> = {
     summaryHead: "복원",
     summaryDetail: "복원 후 기존 보기 조건에 맞는 건만 일상 목록에 나타나요. 추적 상태와 자동 분석은 그대로예요.",
     guide: null,
-    reasonLabel: "복원 사유 (필수)",
-    reasonOptions: RESTORE_REASON_OPTIONS,
-    reasonRequiredError: "복원 사유를 입력해 주세요.",
+    reasonField: { label: "복원 사유 (필수)", options: RESTORE_REASON_OPTIONS, requiredError: "복원 사유를 입력해 주세요." },
     saveVerb: "검토 목록으로 복원",
     errorFallback: "검토 목록 복원을 저장하지 못했어요.",
   },
@@ -92,7 +83,7 @@ export function PreSpecBulkDialog({ ids, status, onClose, onSaved }: {
 }) {
   const copy = COPY[status];
   const [actor, setActor] = useState("");
-  const [reason, setReason] = useState<BulkReasonDraft>(() => emptyBulkReason(copy.reasonOptions));
+  const [reason, setReason] = useState<BulkReasonDraft>(() => emptyBulkReason(copy.reasonField?.options ?? []));
   const [pending, setPending] = useState(false);
   const submitting = useRef(false);
   const [error, setError] = useState<ApiErrorDescription | null>(null);
@@ -102,7 +93,7 @@ export function PreSpecBulkDialog({ ids, status, onClose, onSaved }: {
     ? "선택한 사전규격이 없어요."
     : ids.length > MAX_IDS
       ? `한 번에 ${MAX_IDS}건까지 처리할 수 있어요. 선택을 줄여 주세요.`
-      : bulkReasonError(reason, copy.reasonRequiredError) ?? actorProblem(actor);
+      : (copy.reasonField ? bulkReasonError(reason, copy.reasonField.requiredError) : null) ?? actorProblem(actor);
   const valid = blocker === null;
 
   async function submit() {
@@ -111,7 +102,7 @@ export function PreSpecBulkDialog({ ids, status, onClose, onSaved }: {
     setPending(true);
     setError(null);
     try {
-      const body = { notice_ids: ids, actor_name: actor.trim(), reason: bulkReasonText(reason) };
+      const body = { notice_ids: ids, actor_name: actor.trim() };
       if (status === "track") {
         const { items } = await api.startSelectedPreSpecs(body);
         const handled = items.filter(item => item.outcome !== "unavailable");
@@ -119,7 +110,7 @@ export function PreSpecBulkDialog({ ids, status, onClose, onSaved }: {
         await onSaved(handled.map(item => item.notice_id),
           `추적 시작 ${started}건 · 기존 결정 유지 ${handled.length - started}건 · 연결 확인 필요 ${items.length - handled.length}건`);
       } else {
-        const { items } = await api.changePreSpecReviewExclusions({ ...body, status });
+        const { items } = await api.changePreSpecReviewExclusions({ ...body, status, reason: bulkReasonText(reason) });
         await onSaved(items.map(item => item.notice_id));
       }
     } catch (caught) {
@@ -147,13 +138,15 @@ export function PreSpecBulkDialog({ ids, status, onClose, onSaved }: {
               <span className="bulk-dialog-summary-detail">{copy.summaryDetail}</span>
             </div>
             <div className="bulk-dialog-fields">
-              <BulkReasonField
-                label={copy.reasonLabel}
-                options={copy.reasonOptions}
-                value={reason}
-                onChange={setReason}
-                isDisabled={pending}
-              />
+              {copy.reasonField && (
+                <BulkReasonField
+                  label={copy.reasonField.label}
+                  options={copy.reasonField.options}
+                  value={reason}
+                  onChange={setReason}
+                  isDisabled={pending}
+                />
+              )}
               <ActorField
                 label="담당자 이름 · 감사 표식 (필수)"
                 description="감사 표식이며 로그인·신원 인증이 아니에요."

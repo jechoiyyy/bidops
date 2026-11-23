@@ -5,7 +5,7 @@
 | 문서 상태 | 현재 결정 기준선·통합 색인 |
 | 기준일 | 2026-09-21 |
 | 범위 | 수집, 선별, 사전규격 검토, 심층 검토, 입찰공고 추적, 운영·보안 |
-| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051·0053~0054·0056~0068·0069~0076, ADR-0039~0041·0046~0048·0055(구 `docs/design/ADR.md`, git 이력에서 확인) |
+| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051·0053~0054·0056~0068·0069~0077, ADR-0039~0041·0046~0048·0055(구 `docs/design/ADR.md`, git 이력에서 확인) |
 | 함께 읽을 문서 | [`PRD.md`](PRD.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`contracts.md`](contracts.md) |
 
 이 문서는 여러 시점에 작성된 결정 기록을 현재 관점에서 읽기 위한 통합 ADR이다. 각 결정의
@@ -352,6 +352,8 @@ ADR-0021은 “운영 제품 전에 동일 모집단과 사람 정답으로 비�
 
 - ADR-0073 RL-10 대조 차단 결정(2026-11-19, launch-hardening D-1, 브랜치 `feat/rl03-compare-blockers`·미병합): E1 결정적 대조 규칙 `card-compare-v2`를 새 정책 v12(v11 바이트 + identity)로만 고르고 v1~v11은 `card-compare-v1` 고정(저장 compare 행을 다시 계산하는 종합만 다시 실행·RL-05 재현 보존, 정책 키는 닫혀 있어 규칙 버전을 파일에 못 적음), E2 제외 분야는 회사 근거의 새 선택 키 `requirement_terms`(`hardware`·`election`만)로만 연결(v4 `keywords` 재사용·온톨로지 별칭·코드 별칭 기각), E3 상주 장소는 버전 고정 행정구역 표로 시·도를 정하고 사람이 확인한 상주 가능 지역 전체 목록(`pref:onsite_cap.params.onsite_regions`)과 겹치지 않을 때만 `gap`, E4 확인된 모순이 계약 유형보다 먼저, E5 추출 전 사전 검사는 단계 행 migration이 필요해 후속. 회사 근거 v4에는 두 구조화 값이 없어 그대로는 놓친 차단 0/7이다. [spec](work/groups/RL/features/RL-10-compare-blockers/spec.md)·[재생](validation-runs/20261119-rl10-compare-blockers/README.md).
 - [ADR-0074 분석 엔진 통합 개발 기준선](tracking/decisions/0074-deep-engine-development-baseline.md): 분석 코어 패키지·기존 작업 슬롯·mock_reference adapter, Compose 선택 통합. 품질 인수·운영 활성화 제외.
+- ADR-0074 후속 사용자 결정(2026-11-20). 루트랩 회사 위키를 BidOps의 확인된 회사 근거에 매핑하고, Luna 건별 승인·감사를 적용해 실제 사전규격 분석을 연결한다. 동일 입력으로 기존 RL 판정과 비교한 뒤 상세 기본 표시를 사람 인수로 결정한다. [실사용 통합 계획](work/groups/RL/features/RL-11-live-prespec-engine/plan.md)
 
 - [ADR-0075 C-2 1단계 절단 300 → 150(정책 v6)](tracking/decisions/0075-c2-stage1-top150.md) (2026-11-18): 절단 값은 동결 policy `stage1.top_k`(허용 `{150, 300}`, binding과 같아야 함)가 정하고 v6 policy·binding을 발행, 파일은 행마다 digest로 같은 디렉터리에서 찾아 v5 active 중 v6 측정·활성화에 재시작이 필요 없음, 누적 목록은 `실패` 실행의 결과 행을 완료 결과보다 낮은 우선순위로 읽음. migration 없음. v6는 적재·게이트 측정·활성화 전이며 ADR-0037은 대체하지 않는다.
 - [ADR-0076 관리 화면 셸을 바탕 위 흰 패널 한 장과 패널 헤더로](tracking/decisions/0076-kstyle-panel-shell.md) (2026-11-19 사용자 승인): 최종 시안 4장(`docs/1119_kstyle-shell/mockups/`)대로 228px 면 없는 사이드바 + 흰 패널(1px·radius 12) + 패널 헤더(화면 이름·문장형 `<h1>`·설명·둥근 칸 탭, `usePageHeader`), 상세는 `‹ 목록` 배치(옛 breadcrumb 폐기). ADR-0048의 라이트 중립색을 따뜻한 회색(본문 `#1B1B1A`·보조 `#5E5D5A`·경계 `#E4E3E0`·fill `#F6F5F3`)으로, purple을 모델 판단 정보색으로, `--shadow-low`를 옅은 선으로 개정. 강조·의미색과 대비 게이트는 그대로. 2026-11-20 후속: 나머지 화면 안쪽·해요체 문구·읽기 전용 수집 기준일 API(`GET /api/daily-collection-status`)·pixel 기준선 갱신. 구현은 브랜치 `worktree-agent-a72925add1c17cfca`(main 병합 전).
+- [ADR-0077 관리 화면의 목록·관리·상세를 표 작업대 배치와 공용 틀로](tracking/decisions/0077-table-workbench-layout.md) (2026-11-23 사용자 결정): 목록은 Astryx `Table` 조합 방식의 `RecordTable` 하나(행 `<tr>`이 키보드 계약을 짐), 목록 60% | 미리보기 40%, 결정 띠 `DecisionBar`, 관리 화면은 왼쪽 `SectionNav`, 읽기 상세는 본문 + 오른쪽 정보 열(`RecordFrame`). 색·글꼴·셸은 그대로. ADR-0076의 목록 폭·선택 행과 `approved-layout.md`의 분할·행·관리 탭을 대체

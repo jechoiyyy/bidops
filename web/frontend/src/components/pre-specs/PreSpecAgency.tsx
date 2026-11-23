@@ -61,12 +61,13 @@ export function PreSpecAgencyFeature({
 export function PreSpecRowAgency({ item }: { item: PreSpecListItem }) {
   const demand = demandAgencyOf(item);
   const announcer = trimmed(item.agency);
-  if (!demand) return <>{agencyOf(item)}</>;
+  const name = demand ?? agencyOf(item);
+  const proxy = demand && announcer && announcer !== demand ? ` · ${announcer} 대행` : "";
   return (
-    <>
-      {demand}
-      {announcer && announcer !== demand ? <span className="pre-specs-row-agency-proxy"> · {announcer} 대행</span> : null}
-    </>
+    <span className="record-table-ellipsis" title={name + proxy}>
+      {name}
+      {proxy ? <span className="pre-specs-row-agency-proxy">{proxy}</span> : null}
+    </span>
   );
 }
 

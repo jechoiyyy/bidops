@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.app.json",
+  "compilerOptions": { "tsBuildInfoFile": "../../node_modules/.tmp/tsconfig.design-astryx.tsbuildinfo", "baseUrl": "../.." },
+  "include": ["."],
+  "exclude": ["dist", "vite.config.ts"]
+}

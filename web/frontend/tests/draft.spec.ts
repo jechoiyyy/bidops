@@ -114,6 +114,6 @@ test("사업 추적의 추적 상태 변경은 미저장 입력을 지키라고 
     return event.defaultPrevented;
   })).toBe(false);
   // 입력을 버린 뒤에는 다른 화면으로의 이동이 막히지 않는다(목록 화면은 상단 경로 대신 사이드바로 이동한다).
-  await page.locator("aside.sidebar").getByRole("link", { name: "오늘의 브리핑", exact: true }).click();
-  await expect.poll(() => new URL(page.url()).pathname).toBe("/briefing");
+  await page.locator("aside.sidebar").getByRole("link", { name: "오늘 할 일", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/");
 });

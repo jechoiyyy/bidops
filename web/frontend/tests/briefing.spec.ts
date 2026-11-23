@@ -53,10 +53,10 @@ async function openBriefing(page: Page, search = "", options: BriefingMockOption
   return { trace, external };
 }
 
-// 2026-11-19 최종 시안: 행은 표가 아니라 묶음(마감 전·마감일 없음·마감 지남·추적 변화) 안의 목록 항목이다.
-const row = (page: Page, itemId: string) => page.locator(`li[data-item-id="${itemId}"]`);
-const rowButton = (page: Page, itemId: string) => row(page, itemId).locator(".briefing-row-main");
-const rowIds = (page: Page) => page.locator("li[data-item-id]").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-item-id")));
+// 마감 묶음과 추적 변화의 RecordTable 행이 선택과 키보드 초점을 받는다.
+const row = (page: Page, itemId: string) => page.locator(`tr.briefing-row[data-row-key="${itemId}"]`);
+const rowTitle = (page: Page, itemId: string) => row(page, itemId).locator(".briefing-row-title");
+const rowIds = (page: Page) => page.locator("tr.briefing-row").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-row-key")));
 /** 탭·데이터가 바뀐 직후의 행 목록은 렌더가 끝날 때까지 기다려 비교한다. */
 const expectRows = (page: Page, ids: Array<string | undefined>) => expect.poll(() => rowIds(page)).toEqual(ids);
 const peek = (page: Page) => page.getByRole("complementary", { name: "선택한 공고" });
@@ -65,9 +65,6 @@ const reactions = (page: Page, itemId: string) => row(page, itemId).locator(".br
 const toast = (page: Page) => page.locator(".toast");
 const tab = (page: Page, name: RegExp) => page.getByRole("tab", { name });
 const count = (page: Page, key: "pending" | "accepted" | "ignored" | "later") => page.getByTestId(`briefing-count-${key}`);
-const sidebarCount = (page: Page) =>
-  page.locator("aside.sidebar").getByRole("link", { name: "오늘의 브리핑", exact: true }).locator(".sidebar-item-count");
-
 /** 담당자 이름은 사이드바 담당자 칸 하나다(최종 시안). 칸을 열어 적고 닫는다. */
 async function setActor(page: Page, name = "최담당") {
   await page.locator("aside.sidebar .sidebar-actor-trigger").click();
@@ -83,8 +80,8 @@ test("T10: 뷰 탭은 반응 필터이고 건수는 클라이언트가 센다 ·
   const { trace, external } = await openBriefing(page);
 
   // 패널 헤더(최종 시안): 화면 이름 · 문장형 제목(반응 대기 건수) · 설명(마감 전 건수·가장 가까운 마감) · 수집 상태.
-  await expect(page.locator("header.topbar h1")).toHaveText("오늘 반응할 추천이 3건 있어요");
-  await expect(page.getByTestId("page-header-eyebrow")).toHaveText("오늘의 브리핑 · 10월 16일 금요일");
+  await expect(page.locator("header.topbar h1")).toHaveText("오늘의 브리핑");
+  await expect(page.locator(".topbar-location-date")).toHaveText("10월 16일 금요일");
   await expect(page.getByTestId("page-header-description")).toHaveText("마감 전인 건은 2건이고, 가장 가까운 마감은 10월 18일이에요.");
   await expect(page.getByTestId("briefing-collection-status")).toHaveText("수집 완료 · 10월 15일 기준");
   expect(trace.requests[0]).toBe("GET /api/briefings/latest");
@@ -103,9 +100,11 @@ test("T10: 뷰 탭은 반응 필터이고 건수는 클라이언트가 센다 ·
   await expect(page.getByRole("heading", { level: 2 })).toHaveText(["마감 전", "마감일이 정해지지 않았어요", "추적 중인 사업의 변화"]);
   await expect(page.getByTestId("briefing-group-count-open")).toHaveText("2건");
   await expect(page.getByTestId("briefing-group-count-undated")).toHaveText("1건");
-  await expect(page.getByRole("list", { name: "마감 전 추천" }).locator("li")).toHaveCount(2);
+  const open = page.getByRole("table", { name: "마감 전 추천" });
+  await expect(open.getByRole("columnheader")).toHaveText(["사업명", "발주기관", "반응", "마감"]);
+  await expect(open.locator("tbody tr")).toHaveCount(2);
   await expect(page.getByTestId("briefing-tracked-count")).toHaveText("2");
-  await expect(page.getByRole("list", { name: "추적 중인 사업의 변화" }).locator("li")).toHaveCount(2);
+  await expect(page.getByRole("table", { name: "추적 중인 사업의 변화" }).locator("tbody tr")).toHaveCount(2);
 
   // 채택 탭: 채택 1건만, 추적 변화 묶음은 반응이 없으므로 이 탭에 없다. URL과 동기화된다.
   await tab(page, /^채택/).click();
@@ -135,7 +134,9 @@ test("T10: 행 칸 — 단계·마감은 글자, 마감 전은 굵은 D-n · 반
   // 사전규격 · D-2 · 의견 마감. 단계·마감은 표식이 아니라 글자다(최종 시안).
   const r1 = row(page, ID[1]);
   await expect(r1.locator(".briefing-row-title")).toHaveText(TITLE[1]);
-  await expect(r1.locator(".briefing-row-main .briefing-row-sub")).toHaveText("대구광역시 · 4.8억원 · 분석 대기");
+  await expect(r1.locator(".briefing-row-agency")).toHaveText("대구광역시");
+  await expect(r1.locator(".briefing-row-amount")).toHaveText("4.8억원");
+  await expect(r1.locator(".briefing-row-verdict")).toHaveText("분석 대기");
   await expect(r1.locator(".briefing-row-stage")).toHaveText("사전규격");
   await expect(r1.locator(".briefing-deadline")).toHaveText("D-2 · 10월 18일 의견 마감");
   await expect(r1.locator(".briefing-deadline")).toHaveAttribute("data-urgent", "true");
@@ -158,7 +159,9 @@ test("T10: 행 칸 — 단계·마감은 글자, 마감 전은 굵은 D-n · 반
   await expect(r3.locator(".briefing-row-stage")).toHaveText("발주계획");
   await expect(r3.locator(".briefing-deadline")).toHaveText("2월 발주 예정");
   await expect(r3.locator(".briefing-deadline")).toHaveAttribute("data-urgent", "false");
-  await expect(r3.locator(".briefing-row-main .briefing-row-sub")).toHaveText("대구광역시 수성구 · 금액 미공개 · 연차 추적");
+  await expect(r3.locator(".briefing-row-agency")).toHaveText("대구광역시 수성구");
+  await expect(r3.locator(".briefing-row-amount")).toHaveText("금액 미공개");
+  await expect(r3.locator(".briefing-row-verdict")).toHaveText("연차 추적");
   await expect(reactions(page, ID[3]).getByRole("button", { name: "채택", exact: true })).not.toHaveClass(/is-primary/);
 
   // 다른 탭의 마감 전 행도 같은 규칙이다(D-7·D-8).
@@ -180,22 +183,24 @@ test("T10: 행을 누르면 피크가 열린다 — 머리·제목·보조·판�
   await openBriefing(page);
   await expect(peek(page)).toHaveCount(0);
 
-  await rowButton(page, ID[1]).click();
+  await rowTitle(page, ID[1]).click();
   await expect.poll(() => selectedParam(page)).toBe(ID[1]);
-  await expect(row(page, ID[1])).toHaveAttribute("data-selected", "true");
-  await expect(rowButton(page, ID[1])).toHaveAttribute("aria-current", "true");
-  await expect(row(page, ID[2])).toHaveAttribute("data-selected", "false");
+  await expect(row(page, ID[1])).toHaveAttribute("tabindex", "0");
+  await expect(row(page, ID[1])).toHaveAttribute("aria-current", "true");
+  await expect(row(page, ID[2])).not.toHaveAttribute("aria-current", "true");
 
   const panel = peek(page);
   await expect(panel.getByRole("heading", { level: 3 })).toHaveText(TITLE[1]);
   await expect(panel.locator(".briefing-peek-stage")).toHaveText("사전규격");
   await expect(panel.locator(".briefing-dday")).toHaveText("D-2");
   await expect(panel.locator(".briefing-dday")).toHaveAttribute("data-urgent", "true");
-  await expect(panel.locator(".briefing-peek-sub")).toHaveText("대구광역시 · 4.8억원 · 10월 18일 (일) 18:00 의견 마감");
+  await expect(panel.locator(".workbench-facts dt")).toHaveText(["발주기관", "금액", "마감", "판정", "반응 기록"]);
+  await expect(panel.locator(".workbench-facts dd:not(:has([data-testid]))"))
+    .toHaveText(["대구광역시", "4.8억원", "10월 18일 (일) 18:00 의견 마감"]);
 
   // 반응 버튼은 행 안에만 있다(최종 시안). 피크는 판정 이름(서버 글자 그대로)과 반응 기록 한 줄을 보인다.
   await expect(panel.locator("[data-reaction]")).toHaveCount(0);
-  await expect(panel.getByTestId("briefing-peek-verdict")).toHaveText("판정 · 분석 대기");
+  await expect(panel.getByTestId("briefing-peek-verdict")).toHaveText("분석 대기");
   await expect(panel.getByTestId("briefing-peek-record")).toHaveText("아직 반응이 없어요");
 
   // 왜 추천: 키워드·비슷한 실적 n건·기관 거래 이력(칩 3개).
@@ -215,7 +220,7 @@ test("T10: 행을 누르면 피크가 열린다 — 머리·제목·보조·판�
   // 다른 행을 누르면 피크가 그 행으로 바뀐다. 반응 기록은 한 줄이다.
   await page.getByRole("tab", { name: /^채택/ }).click();
   await expect(peek(page)).toHaveCount(0);
-  await rowButton(page, ID[4]).click();
+  await rowTitle(page, ID[4]).click();
   await expect(reactions(page, ID[4]).getByRole("button", { name: "채택", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(panel.getByTestId("briefing-peek-record")).toHaveText("김담당이 채택 · 08:41");
   await expect(panel.locator(".briefing-peek-title")).toHaveText(LONG_TITLE);
@@ -231,13 +236,13 @@ test("T10: 행을 누르면 피크가 열린다 — 머리·제목·보조·판�
 test("T10: ?selected=<item_id>로 피크를 연다 · 속한 탭을 고르고 모르는 id는 무시한다", async ({ page }) => {
   await openBriefing(page, `?selected=${ID[2]}`);
   await expect(peek(page).getByRole("heading", { level: 3 })).toHaveText(TITLE[2]);
-  await expect(row(page, ID[2])).toHaveAttribute("data-selected", "true");
+  await expect(row(page, ID[2])).toHaveAttribute("aria-current", "true");
   await expect(tab(page, /^반응 대기/)).toHaveAttribute("aria-selected", "true");
 
   // view 없이 채택 항목을 선택하면 그 항목이 속한 탭(채택)이 열리고 주소에 고정된다.
   await page.goto(`/briefing?selected=${ID[4]}`);
   await expect(tab(page, /^채택/)).toHaveAttribute("aria-selected", "true");
-  await expect(row(page, ID[4])).toHaveAttribute("data-selected", "true");
+  await expect(row(page, ID[4])).toHaveAttribute("aria-current", "true");
   await expect(page).toHaveURL(/[?&]view=accepted/);
 
   // 추적 변화 행 선택: 버튼·반응 기록이 없고 바뀐 항목이 보인다.
@@ -259,9 +264,8 @@ test("T10: ?selected=<item_id>로 피크를 연다 · 속한 탭을 고르고 �
 test("T10: 키보드 1·2·H·Z — 저장 본문·담당자·다음 행 이동·5초 토스트 되돌리기", async ({ page }) => {
   const { trace } = await openBriefing(page);
   await setActor(page, "최담당");
-  await expect(sidebarCount(page)).toHaveText("3");
 
-  await rowButton(page, ID[1]).click();
+  await rowTitle(page, ID[1]).click();
   await expect(peek(page)).toContainText(TITLE[1]);
 
   // 1 = 채택: expected_revision·reaction·UUID request_id, actor 헤더.
@@ -273,15 +277,14 @@ test("T10: 키보드 1·2·H·Z — 저장 본문·담당자·다음 행 이동�
   expect(trace.patches[0].body).toMatchObject({ reaction: "채택", expected_revision: 0 });
   expect(String(trace.patches[0].body.request_id)).toMatch(UUID);
 
-  // 서버 응답으로 건수가 바뀌고(대기 3→2, 채택 1→2) 사이드바 건수도 따라간다.
+  // 서버 응답으로 건수가 바뀌고(대기 3→2, 채택 1→2).
   await expect(count(page, "pending")).toHaveText("2");
   await expect(count(page, "accepted")).toHaveText("2");
-  await expect(sidebarCount(page)).toHaveText("2");
   // 행은 이 탭을 떠났고 다음 행(2번)으로 선택·초점이 옮겨졌다.
   await expect(row(page, ID[1])).toHaveCount(0);
   await expect.poll(() => selectedParam(page)).toBe(ID[2]);
   await expect(peek(page)).toContainText(TITLE[2]);
-  await expect(rowButton(page, ID[2])).toBeFocused();
+  await expect(row(page, ID[2])).toBeFocused();
   // 5초 토스트 + 되돌리기.
   await expect(toast(page)).toContainText("반응을 저장했어요 · 채택");
   await expect(toast(page).getByRole("button", { name: "되돌리기" })).toBeVisible();
@@ -303,8 +306,6 @@ test("T10: 키보드 1·2·H·Z — 저장 본문·담당자·다음 행 이동�
   expect(trace.patches[2].body).toMatchObject({ reaction: "나중에", expected_revision: 0 });
   await expect(count(page, "pending")).toHaveText("0");
   await expect(count(page, "later")).toHaveText("2");
-  // 건수 0은 그리지 않는다(최종 시안). 불러오지 못한 경우(`–`)와 모양이 다르다.
-  await expect(sidebarCount(page)).toHaveCount(0);
   await expect(page.getByText("반응 대기 항목이 없어요")).toBeVisible();
   // 다음 행은 추적 변화 묶음(7번)이다. 이 행에는 반응이 없다.
   await expect.poll(() => selectedParam(page)).toBe(ID[7]);
@@ -322,7 +323,6 @@ test("T10: 키보드 1·2·H·Z — 저장 본문·담당자·다음 행 이동�
   expect(String(trace.patches[3].body.request_id)).toMatch(UUID);
   await expect(count(page, "pending")).toHaveText("1");
   await expect(count(page, "later")).toHaveText("1");
-  await expect(sidebarCount(page)).toHaveText("1");
   await expect.poll(() => selectedParam(page)).toBe(ID[3]);
   await expect(toast(page)).toContainText("되돌렸어요");
   await expect(toast(page).getByRole("button", { name: "되돌리기" })).toHaveCount(0);
@@ -343,7 +343,7 @@ test("T10: 키보드 1·2·H·Z — 저장 본문·담당자·다음 행 이동�
 test("T10: 토스트 되돌리기 버튼 · 5초 뒤 사라지면 Z는 아무것도 하지 않는다", async ({ page }) => {
   const { trace } = await openBriefing(page);
   await setActor(page);
-  await rowButton(page, ID[1]).click();
+  await rowTitle(page, ID[1]).click();
   await page.keyboard.press("1");
   await expect(toast(page)).toContainText("반응을 저장했어요 · 채택");
 
@@ -378,7 +378,7 @@ test("T10: 토스트 되돌리기 버튼 · 5초 뒤 사라지면 Z는 아무것
 test("T10: 이미 선택된 반응을 다시 누르면 대기로 돌아간다 · 마우스 버튼도 같은 저장 경로", async ({ page }) => {
   const { trace } = await openBriefing(page, "?view=accepted");
   await setActor(page, "김담당");
-  await rowButton(page, ID[4]).click();
+  await rowTitle(page, ID[4]).click();
   const accept = reactions(page, ID[4]).getByRole("button", { name: "채택", exact: true });
   await expect(accept).toHaveAttribute("aria-pressed", "true");
 
@@ -408,7 +408,7 @@ test("T10: 이미 선택된 반응을 다시 누르면 대기로 돌아간다 ·
 
 test("T10: 담당자 이름이 없으면 저장하지 않고 입력 칸으로 안내한다 · 입력 중에는 단축키가 동작하지 않는다", async ({ page }) => {
   const { trace } = await openBriefing(page);
-  await rowButton(page, ID[1]).click();
+  await rowTitle(page, ID[1]).click();
 
   await page.keyboard.press("1");
   await expect(toast(page)).toContainText("담당자 이름을 입력한 뒤 다시 눌러 주세요");
@@ -423,7 +423,7 @@ test("T10: 담당자 이름이 없으면 저장하지 않고 입력 칸으로 �
 
   // 이름을 고치고 행으로 돌아와 누르면 저장된다. 한글 이름은 안전하게 인코딩돼 전달된다.
   await page.locator("aside.sidebar").getByLabel("담당자 이름").fill("홍길동");
-  await rowButton(page, ID[1]).click();
+  await rowTitle(page, ID[1]).click();
   await page.keyboard.press("1");
   await expect.poll(() => trace.patches.length).toBe(1);
   expect(trace.patches[0].actor).toBe("홍길동");
@@ -434,7 +434,7 @@ test("T10: Enter는 피크를 열고 한 번 더 누르면 레코드로 간다 �
   await openBriefing(page);
 
   // 초점이 행에 있으면 Enter = 피크 열기(선택), 이미 열린 행에서 Enter = 레코드.
-  await rowButton(page, ID[1]).focus();
+  await row(page, ID[1]).focus();
   await page.keyboard.press("Enter");
   await expect.poll(() => selectedParam(page)).toBe(ID[1]);
   await expect(peek(page)).toContainText(TITLE[1]);
@@ -442,7 +442,7 @@ test("T10: Enter는 피크를 열고 한 번 더 누르면 레코드로 간다 �
   // ↓ = 다음 행 선택(피크 따라감, 초점도 따라감).
   await page.keyboard.press("ArrowDown");
   await expect.poll(() => selectedParam(page)).toBe(ID[2]);
-  await expect(rowButton(page, ID[2])).toBeFocused();
+  await expect(row(page, ID[2])).toBeFocused();
   await expect(peek(page)).toContainText(TITLE[2]);
   await page.keyboard.press("ArrowUp");
   await expect.poll(() => selectedParam(page)).toBe(ID[1]);
@@ -453,7 +453,7 @@ test("T10: Enter는 피크를 열고 한 번 더 누르면 레코드로 간다 �
   await expect.poll(() => selectedParam(page)).toBeNull();
 
   // 열린 피크에서 Enter → 레코드(record_path).
-  await rowButton(page, ID[1]).focus();
+  await row(page, ID[1]).focus();
   await page.keyboard.press("Enter");
   await expect(peek(page)).toBeVisible();
   await page.keyboard.press("Enter");
@@ -464,7 +464,7 @@ test("T10: Enter는 피크를 열고 한 번 더 누르면 레코드로 간다 �
 test("T10: 409 version_conflict는 조용히 덮어쓰지 않고 다시 읽은 뒤 확인하게 한다", async ({ page }) => {
   const { trace } = await openBriefing(page);
   await setActor(page, "최담당");
-  await rowButton(page, ID[1]).click();
+  await rowTitle(page, ID[1]).click();
   await expect(peek(page)).toContainText(TITLE[1]);
   const readsBefore = trace.requests.filter((entry) => entry === "GET /api/briefings/latest").length;
 
@@ -498,21 +498,21 @@ test("T10: 409 version_conflict는 조용히 덮어쓰지 않고 다시 읽은 �
 test("T10: 추적 변화 행에는 반응 버튼이 없고 서버도 반응을 받지 않는다", async ({ page }) => {
   const { trace } = await openBriefing(page);
   await setActor(page);
-  // 둘째 묶음 안에는 행 선택 버튼 외에 반응 버튼이 없다.
-  const tracked = page.getByRole("list", { name: "추적 중인 사업의 변화" });
-  await expect(tracked.locator("li")).toHaveCount(2);
+  // 추적 변화는 키보드로 고를 수 있는 표 행으로 표시한다.
+  const tracked = page.getByRole("table", { name: "추적 중인 사업의 변화" });
+  await expect(tracked.locator("tbody tr[data-row-key][tabindex]")).toHaveCount(2);
   await expect(tracked.locator("[data-reaction]")).toHaveCount(0);
-  await expect(tracked.getByRole("button")).toHaveCount(2); // 행마다 선택 버튼 하나
+  await expect(tracked.getByRole("button")).toHaveCount(0);
 
   // 추적 변화 행을 눌러 열어도 반응 버튼이 없고, 키 1·2·H는 저장하지 않는다.
-  await rowButton(page, ID[7]).click();
+  await rowTitle(page, ID[7]).click();
   await expect(peek(page)).toContainText(TITLE[7]);
   await expect(peek(page).getByRole("button", { name: /채택|무시|나중에/ })).toHaveCount(0);
   await page.keyboard.press("1");
   await page.keyboard.press("2");
   await page.keyboard.press("h");
   // 아래 PATCH가 바로 이 키 하나의 것이다(앞의 세 키는 아무것도 보내지 않았다).
-  await rowButton(page, ID[1]).click();
+  await rowTitle(page, ID[1]).click();
   await expect(peek(page)).toContainText(TITLE[1]);
   await page.keyboard.press("1");
   await expect.poll(() => trace.patches.length).toBe(1);
@@ -521,14 +521,12 @@ test("T10: 추적 변화 행에는 반응 버튼이 없고 서버도 반응을 �
 
 test("T10: 추천 0건이면 수집 정상 빈 상태를 보여 준다", async ({ page }) => {
   await openBriefing(page, "", { briefings: { [BRIEFING_DATE]: emptyBriefingFixture() } });
-  await expect(page.getByText("오늘 추천할 공고가 없어요 · 수집 정상")).toBeVisible();
-  await expect(page.locator("header.topbar h1")).toHaveText("오늘 추천할 공고가 없어요");
+  await expect(page.getByRole("tabpanel").getByText("오늘 추천할 공고가 없어요 · 수집 정상", { exact: true })).toBeVisible();
+  await expect(page.locator("header.topbar h1")).toHaveText("오늘의 브리핑");
   await expect(page.getByTestId("briefing-collection-status")).toHaveText("수집 완료 · 10월 15일 기준");
   await expect(page.getByText("오늘 수집이 끝나지 않았어요")).toHaveCount(0);
-  await expect(page.locator("li[data-item-id]")).toHaveCount(0);
+  await expect(page.locator("tr.briefing-row[data-row-key]")).toHaveCount(0);
   await expect(count(page, "pending")).toHaveText("0");
-  // 건수 0은 그리지 않는다(최종 시안). 불러오지 못한 경우(`–`)와 모양이 다르다.
-  await expect(sidebarCount(page)).toHaveCount(0);
 });
 
 test("T10: 수집이 끝나지 않은 날은 경고 블록과 함께 항목도 보여 준다", async ({ page }) => {
@@ -557,7 +555,6 @@ test("T10: 브리핑이 없으면 현재 자리 화면의 안내 문구를 보�
   await expect(page.getByText(NOT_FOUND)).toBeVisible();
   await expect(page.getByRole("link", { name: "사전규격 목록 열기" })).toHaveAttribute("href", "/pre-specs");
   await expect(page.getByTestId("briefing-collection-status")).toHaveCount(0);
-  await expect(sidebarCount(page)).toHaveCount(0);
   await expect(page.locator("header.topbar h1")).toHaveText("오늘의 브리핑");
 
   // 없는 날짜: 404. 최신 브리핑으로 돌아가는 링크가 있다.
@@ -592,13 +589,13 @@ test("T10: 날짜 이동 — 이전 브리핑은 직전 평일이고 최신 브�
   await previous.click();
   await expect(page).toHaveURL(new RegExp(`date=${BRIEFING_PREVIOUS_DATE}`));
   // 지난 날짜의 브리핑은 `오늘`이라고 말하지 않는다.
-  await expect(page.getByTestId("page-header-eyebrow")).toHaveText("오늘의 브리핑 · 10월 15일 목요일");
-  await expect(page.locator("header.topbar h1")).toHaveText(/^반응할 추천이 \d+건 있어요$|^추천에 모두 반응했어요$/);
+  await expect(page.locator(".topbar-location-date")).toHaveText("10월 15일 목요일");
+  await expect(page.locator("header.topbar h1")).toHaveText("오늘의 브리핑");
   // 요청 기록은 재시도하지 않는 단언이라 데이터가 그려진 뒤에 읽는다(URL 변경은 fetch보다 먼저 일어난다).
   expect(trace.requests).toContain(`GET /api/briefings/${BRIEFING_PREVIOUS_DATE}`);
   await expectRows(page, [briefingItemId(21)]);
   await page.getByRole("link", { name: "최신 브리핑" }).click();
-  await expect(page.getByTestId("page-header-eyebrow")).toHaveText("오늘의 브리핑 · 10월 16일 금요일");
+  await expect(page.locator(".topbar-location-date")).toHaveText("10월 16일 금요일");
 
   // 월요일 브리핑의 이전은 지난 금요일이다(주말에는 브리핑이 없다).
   const second = await page.context().newPage();
@@ -608,24 +605,32 @@ test("T10: 날짜 이동 — 이전 브리핑은 직전 평일이고 최신 브�
     briefings: { [BRIEFING_MONDAY_DATE]: mondayBriefingFixture(), [BRIEFING_DATE]: briefingFixture(), [BRIEFING_PREVIOUS_DATE]: previousBriefingFixture() },
   });
   await second.goto(`/briefing?date=${BRIEFING_MONDAY_DATE}`);
-  await expect(second.getByTestId("page-header-eyebrow")).toHaveText("오늘의 브리핑 · 10월 19일 월요일");
+  await expect(second.locator(".topbar-location-date")).toHaveText("10월 19일 월요일");
   await expect(second.getByRole("link", { name: "이전 브리핑" })).toHaveAttribute("href", `/briefing?date=${BRIEFING_DATE}`);
 });
 
-test("T10: 사이드바 건수는 briefing_pending이고 브리핑이 없으면 그리지 않는다", async ({ page }) => {
-  await openBriefing(page);
-  const link = page.locator("aside.sidebar").getByRole("link", { name: "오늘의 브리핑", exact: true });
-  await expect(link).toHaveAttribute("href", "/briefing");
-  await expect(link).toHaveAttribute("aria-current", "page");
-  await expect(link.locator(".sidebar-item-count")).toHaveText("3");
-  await expect(link).toHaveAttribute("title", "오늘의 브리핑 3건");
+test("오늘 할 일에서 브리핑 추천을 열고 브리핑이 없으면 영역을 표시하지 않는다", async ({ page }) => {
+  await mockApi(page);
+  await mockBriefing(page);
+  await page.goto("/");
+  const briefing = page.locator('[data-block="briefing"]');
+  await expect(briefing.getByRole("link", { name: "브리핑과 반응 이력 열기" })).toHaveAttribute("href", "/briefing");
+  await briefing.getByRole("link", { name: new RegExp(TITLE[1]) }).click();
+  await expect(peek(page)).toContainText(TITLE[1]);
+  expect(new URL(page.url()).searchParams.get("date")).toBe(BRIEFING_DATE);
+  await expect(page.locator('aside.sidebar [aria-current="page"]')).toHaveText("오늘 할 일");
+
+  await expect(peek(page).getByRole("link", { name: "추적 검토 열기" })).toHaveCount(0);
+  await page.goto(`/briefing?date=${BRIEFING_DATE}&selected=${ID[4]}`);
+  await expect(peek(page).getByRole("link", { name: "추적 검토 열기" })).toHaveAttribute("href", "/pre-specs/9004");
 
   const second = await page.context().newPage();
   await mockApi(second);
   await mockBriefing(second, { briefings: {} });
-  await second.goto("/pre-specs");
-  await expect(second.locator("aside.sidebar").getByRole("link", { name: "오늘의 브리핑", exact: true })).toBeVisible();
-  await expect(second.locator("aside.sidebar").getByRole("link", { name: "오늘의 브리핑", exact: true }).locator(".sidebar-item-count")).toHaveCount(0);
+  const unavailable = second.waitForResponse((response) => new URL(response.url()).pathname === "/api/briefings/latest");
+  await second.goto("/");
+  expect((await unavailable).status()).toBe(404);
+  await expect(second.locator('[data-block="briefing"]')).toHaveCount(0);
 });
 
 // 실무 화면 DOM에 운영 정보가 없어야 한다(ui-spec §5, spec "표시 금지").
@@ -651,12 +656,12 @@ test("T10: 표시 금지 문자열 — 정책·점수·초 단위 시각·분모
   await checks("반응 대기");
   for (const [name, itemId] of [[/^채택/, ID[4]], [/^무시/, ID[5]], [/^나중에/, ID[6]]] as const) {
     await tab(page, name).click();
-    await rowButton(page, itemId).click();
+    await rowTitle(page, itemId).click();
     await expect(peek(page)).toBeVisible();
     await checks(String(name));
   }
   await tab(page, /^반응 대기/).click();
-  await rowButton(page, ID[7]).click();
+  await rowTitle(page, ID[7]).click();
   await checks("추적 변화");
 });
 
@@ -667,8 +672,8 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     await expect(peek(page)).toBeVisible();
 
     await expect(page.locator("h1")).toHaveCount(1);
-    await expect(page.locator("header.topbar h1")).toHaveText("오늘 반응할 추천이 3건 있어요");
-    await expect(page.locator("li[data-item-id]")).toHaveCount(1);
+    await expect(page.locator("header.topbar h1")).toHaveText("오늘의 브리핑");
+    await expect(page.locator("tr.briefing-row[data-row-key]")).toHaveCount(1);
 
     const geometry = await page.evaluate(() => {
       const rect = (selector: string) => {
@@ -687,43 +692,45 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
           const list = document.querySelector(".briefing-list");
           return list ? list.scrollWidth - list.clientWidth : null;
         })(),
-        list: rect(".briefing-list"),
-        peek: rect(".briefing-peek"),
+        workspace: rect(".briefing-workspace"),
+        list: rect(".briefing-workspace > .review-split-list"),
+        peek: rect(".briefing-workspace > .review-split-detail"),
         sidebar: rect("aside.sidebar"),
         viewport: window.innerWidth,
       };
     });
-    // 문서·캔버스 모두 가로 스크롤이 생기지 않는다(긴 한글 제목은 줄바꿈으로 받는다).
+    // 문서·캔버스와 목록 모두 폭을 넘지 않는다.
     expect(geometry.pageOverflow).toBeLessThanOrEqual(0);
     expect(geometry.canvasOverflow).toBeLessThanOrEqual(0);
     expect(geometry.listOverflow).toBeLessThanOrEqual(0);
-    // 피크 패널(왼쪽 여백 24 포함)은 320~360px이고 목록 오른쪽에 겹치지 않으며 화면 안에 있다.
-    expect(geometry.peek!.width).toBeGreaterThanOrEqual(320);
-    expect(geometry.peek!.width).toBeLessThanOrEqual(360);
-    expect(geometry.list!.right).toBeLessThanOrEqual(geometry.peek!.left + 1);
+    expect(geometry.list!.width / geometry.workspace!.width).toBeCloseTo(0.60, 2);
+    expect(geometry.peek!.left).toBeCloseTo(geometry.list!.right, 0);
+    expect(geometry.peek!.width / geometry.workspace!.width).toBeCloseTo(0.40, 2);
     expect(geometry.peek!.right).toBeLessThanOrEqual(geometry.viewport);
-    // 사이드바는 고정 228px이다(최종 시안).
-    expect(Math.round(geometry.sidebar!.width)).toBe(228);
+    // 사이드바는 고정 216px이다.
+    expect(Math.round(geometry.sidebar!.width)).toBe(216);
 
     // 반응 대기 탭(묶음 + 둘째 묶음 + 긴 제목 없음)에서도 같은 구조다.
     await page.getByRole("tab", { name: /^반응 대기/ }).click();
-    await expect(page.getByRole("list", { name: "추적 중인 사업의 변화" })).toBeVisible();
+    await expect(page.getByRole("table", { name: "추적 중인 사업의 변화" })).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(0);
   });
 }
 
-test("T10: 긴 한글 제목은 행에서 줄바꿈되고 가로 스크롤을 만들지 않는다", async ({ page }) => {
+test("T10: 긴 한글 제목은 표에서 한 줄 말줄임하고 전체 제목을 제공한다", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await openBriefing(page, "?view=accepted");
   const title = row(page, ID[4]).locator(".briefing-row-title");
   await expect(title).toHaveText(LONG_TITLE);
-  // 제목이 셀 안에 머물고(넘치지 않고) 한 줄보다 높다(줄바꿈됐다).
+  await expect(title).toHaveAttribute("title", LONG_TITLE);
+  // 제목의 표시 영역은 셀 안에 있고 한 줄 말줄임을 적용한다.
   const fits = await title.evaluate((node) => {
     const box = node.getBoundingClientRect();
-    const cell = node.closest(".briefing-row-main")!.getBoundingClientRect();
-    const lineHeight = parseFloat(getComputedStyle(node).lineHeight);
-    return box.right <= cell.right + 1 && box.height >= lineHeight * 1.9;
+    const cell = node.closest("td")!.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    return box.right <= cell.right + 1 && box.height <= parseFloat(style.lineHeight) + 1
+      && style.textOverflow === "ellipsis" && node.scrollWidth > node.clientWidth;
   });
   expect(fits).toBe(true);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

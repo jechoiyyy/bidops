@@ -125,7 +125,7 @@ export function trackingChipLabel(item: Pick<OrderPlanListItem, "tracking">): st
  * 실패·거부·값 없음을 한 문구로 뭉개지 않는다(경고 ④) — 실패는 성공이 아니고,
  * 값이 없는 것은 실패가 아니다.
  */
-export function stage1RowLabel(value: OrderPlanStage1Status | null): string {
+function stage1RowLabel(value: OrderPlanStage1Status | null): string {
   // 2026-11-18 수정안 3B: `선별 실패` 용어를 `모델 미판정(판정 실패)`로 바꿨다.
   if (value === "failed") return `${ORDER_PLAN_UNJUDGED_LABEL}(${ORDER_PLAN_UNJUDGED_KIND_LABEL.judgment_failed})`;
   if (value === "rejected") return "선별 거부";
@@ -153,7 +153,7 @@ export function stage1BadgeLabel(value: OrderPlanStage1Status | null): string | 
  * 상태를 색으로 구분하지 않는다 — 값 없음까지 색이 켜지면 화면이 온통 강조색이 되고,
  * 정작 눈에 띄어야 할 실패가 묻힌다. 구분은 라벨이 진다.
  */
-export function stage1BadgeVariant(value: OrderPlanStage1Status | null): "neutral" | "error" {
+export function stage1StatusTone(value: OrderPlanStage1Status | null): "neutral" | "error" {
   if (value === "failed" || value === "rejected") return "error";
   return "neutral";
 }
@@ -161,7 +161,7 @@ export function stage1BadgeVariant(value: OrderPlanStage1Status | null): "neutra
 /** stage2_status 5값(not_attempted/success/failed/rejected/unknown)을 그대로 구분한다.
  * relevance가 null이라고 실패·거부·미판정·미확인을 전부 같은 문구로 뭉개지 않는다.
  * 모델 이름은 쓰지 않는다(0921 명세 §3.1). */
-export function stage2Label(value: OrderPlanStage2Status | null): string {
+function stage2Label(value: OrderPlanStage2Status | null): string {
   // `success`인데 판단이 없는 조합은 계약상 나오지 않는다. 그래도 값이 오면 완료
   // 사실을 그대로 적고 `결과 없음`으로 낮추지 않는다.
   if (value === null) return "모델 결과 없음";
@@ -183,163 +183,12 @@ export function qwenRowLabel(item: { qwen_relevance: OrderPlanRelevance | null; 
   return stage2Label(item.stage2_status);
 }
 
-/**
- * 발주 예정월(`YYYY-MM`). 원문은 `planned_order_month`가 `YYYY-MM`이거나(실데이터) 연도와 따로 온
- * `M`/`MM`이다. 해석할 수 없으면 `null`(미확인)이며 지남으로 보지 않는다.
- */
-export function plannedMonthKey(item: { planned_order_year: string | null; planned_order_month: string | null }): string | null {
-  const month = item.planned_order_month?.trim() ?? "";
-  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return month;
-  const year = item.planned_order_year?.trim() ?? "";
-  if (/^\d{4}$/.test(year) && /^\d{1,2}$/.test(month)) {
-    const value = Number(month);
-    if (value >= 1 && value <= 12) return `${year}-${String(value).padStart(2, "0")}`;
-  }
-  return null;
-}
-
-const KST_MONTH = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit" });
-
-/** 지금의 한국 시간 달(`YYYY-MM`). */
-export function currentKstMonth(now: number): string {
-  const parts = KST_MONTH.formatToParts(new Date(now));
-  const part = (type: string) => parts.find((entry) => entry.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}`;
-}
-
-/**
- * 검토 순서에서 뒤로 보내는 이유. `예정월 지남`: 발주 예정월이 지금 한국 시간 달보다 앞이다(같은 달은
- * 지나지 않았다, 예정월 미확인은 지남이 아니다). `공고 게시됨`: 공고 게시 여부 원문이 `Y`다. 둘 다
- * 표식일 뿐이며 제외·추적 상태를 바꾸지 않는다. 둘 다면 공고 게시가 먼저다(더 확실한 사실).
- */
-export type OrderPlanStaleReason = "공고 게시됨" | "예정월 지남";
-
-export function orderPlanStaleReason(
-  item: { planned_order_year: string | null; planned_order_month: string | null; notice_posted: string | null },
-  nowMonth: string,
-): OrderPlanStaleReason | null {
-  if (item.notice_posted === "Y") return "공고 게시됨";
-  const key = plannedMonthKey(item);
-  return key !== null && key < nowMonth ? "예정월 지남" : null;
-}
-
-/**
- * `관련`·`불확실` 보기의 검토 순서(2026-11-18). 화면이 이미 범위 전체를 받으므로 브라우저가 정한다.
- * 1) 예정월이 지나지 않았고 공고도 없는 건이 앞, 그 안에서 예정월이 가까운 순(미확인 월은 뒤),
- * 2) 같으면 최근 첫 수집 순, 3) 예정월 지남·공고 게시됨은 뒤에 같은 규칙으로. 같으면 서버 순서를 지킨다.
- */
-export function sortForReview<T extends {
-  planned_order_year: string | null; planned_order_month: string | null; notice_posted: string | null; first_observed_at: string | null;
-}>(items: readonly T[], nowMonth: string): T[] {
-  return items
-    .map((item, index) => {
-      const observed = item.first_observed_at ? Date.parse(item.first_observed_at) : Number.NaN;
-      return { item, index, stale: orderPlanStaleReason(item, nowMonth) !== null, month: plannedMonthKey(item), observed: Number.isFinite(observed) ? observed : -Infinity };
-    })
-    .sort((left, right) =>
-      Number(left.stale) - Number(right.stale)
-      || (left.stale ? 0 : (left.month ?? "9999-99").localeCompare(right.month ?? "9999-99"))
-      || (right.observed === left.observed ? 0 : right.observed > left.observed ? 1 : -1)
-      || left.index - right.index)
-    .map(({ item }) => item);
-}
-
-/**
- * 수집일: `first_observed_at`의 한국 시간 날짜(`YYYY-MM-DD`). 읽을 수 없으면 `null`(미확인)이다.
- * BM25 순위는 **수집일마다** 따로 매겨지므로(일일 실행 하나가 그날 모집단 하나를 줄 세운다)
- * 순위를 비교하려면 이 값이 먼저 같아야 한다.
- */
-export function collectionDayKst(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return null;
-  const parts = Object.fromEntries(KST_DATE_PARTS.formatToParts(parsed).map((part) => [part.type, part.value])) as
-    Record<"year" | "month" | "day", string>;
-  return `${parts.year}-${parts.month}-${parts.day}`;
-}
-
-interface RankSortable {
-  first_observed_at: string | null;
-  stage1_rank: number | null;
-}
-
-interface RankSortKey {
-  index: number;
-  day: string | null;
-  rank: number | null;
-  observed: number;
-}
-
-function rankSortKey(item: RankSortable, index: number): RankSortKey {
-  const observed = item.first_observed_at ? Date.parse(item.first_observed_at) : Number.NaN;
-  return {
-    index,
-    day: collectionDayKst(item.first_observed_at),
-    rank: item.stage1_rank,
-    observed: Number.isFinite(observed) ? observed : -Infinity,
-  };
-}
-
-/**
- * 수집일 최신 → 그날 BM25 순위 오름차순(순위 없음은 뒤) → 최근 첫 수집 → 서버 순서.
- *
- * 수집일이 다르면 순위를 보지 않는다 — 다른 날의 1위와 2위는 서로 비교할 수 없다. 수집일을
- * 모르는 건(`null`)은 맨 뒤이며 그 안에서도 순위를 비교하지 않는다(같은 날인지 모른다).
- */
-function compareByDayThenRank(left: RankSortKey, right: RankSortKey): number {
-  if (left.day !== right.day) {
-    if (left.day === null) return 1;
-    if (right.day === null) return -1;
-    return right.day.localeCompare(left.day);
-  }
-  if (left.day !== null && left.rank !== right.rank) {
-    if (left.rank === null) return 1;
-    if (right.rank === null) return -1;
-    return left.rank - right.rank;
-  }
-  return (right.observed === left.observed ? 0 : right.observed > left.observed ? 1 : -1)
-    || left.index - right.index;
-}
-
-/**
- * `불확실`(훑어보기) 보기의 순서(2026-11-18 수정안 3B). 지난 건(예정월 지남·공고 게시됨, `sortForReview`와
- * 같은 규칙)을 뒤로 보낸 뒤, 각 묶음 안에서 수집일 최신 → 그날 BM25 순위순이다.
- */
-export function sortForBrowse<T extends RankSortable & {
-  planned_order_year: string | null; planned_order_month: string | null; notice_posted: string | null;
-}>(items: readonly T[], nowMonth: string): T[] {
-  return items
-    .map((item, index) => ({ item, stale: orderPlanStaleReason(item, nowMonth) !== null, key: rankSortKey(item, index) }))
-    .sort((left, right) => Number(left.stale) - Number(right.stale) || compareByDayThenRank(left.key, right.key))
-    .map(({ item }) => item);
-}
-
-/** `모델 미판정` 보기의 순서(2026-11-18 수정안 3B): 수집일 최신 → 그날 BM25 순위순. 지난 건을 따로 보내지 않는다. */
-export function sortByCollectionRank<T extends RankSortable>(items: readonly T[]): T[] {
-  return items
-    .map((item, index) => ({ item, key: rankSortKey(item, index) }))
-    .sort((left, right) => compareByDayThenRank(left.key, right.key))
-    .map(({ item }) => item);
-}
-
-/**
- * 판정 실패: 1차 선별 또는 모델 판정이 실패·거부된 건. 상세 필터 `실패·거부만`과 같은 조건이며,
- * 모델이 한 건도 답하지 못한 실행의 행(stage2 `failed`)도 여기 든다.
- */
-export function isJudgmentFailure(item: { stage1_status: OrderPlanStage1Status | null; stage2_status: OrderPlanStage2Status | null }): boolean {
-  return item.stage1_status === "failed" || item.stage1_status === "rejected"
-    || item.stage2_status === "failed" || item.stage2_status === "rejected";
-}
-
-/** `모델 미판정` 보기에 드는 두 갈래. 서버가 준 상태만 읽으며 판정을 새로 만들지 않는다. */
-export type OrderPlanUnjudgedKind = keyof typeof ORDER_PLAN_UNJUDGED_KIND_LABEL;
-
-/** 판정 실패가 먼저다 — 실패는 사람이 조치할 사실이고 순위 밖은 정책의 절단 결과다. 둘 다 아니면 `null`이다. */
-export function orderPlanUnjudgedKind(item: { stage1_status: OrderPlanStage1Status | null; stage2_status: OrderPlanStage2Status | null }): OrderPlanUnjudgedKind | null {
-  if (isJudgmentFailure(item)) return "judgment_failed";
-  if (item.stage1_status === "filtered_out") return "out_of_rank";
-  return null;
-}
+export {
+  currentKstMonth,
+  isJudgmentFailure,
+  orderPlanStaleReason,
+  orderPlanUnjudgedKind,
+} from "./orderPlanReviewFacts";
 
 /**
  * 행의 1차 선별 순위 표기. 실무 화면은 알고리즘 이름(`BM25`)을 쓰지 않으므로(0921 명세 §3.1) `1차 순위`다.
@@ -375,7 +224,7 @@ export function hasNoModelJudgment(item: {
 }
 
 /** stage1과 같은 규칙이다. 판단은 라벨로 구분하고 색은 실패·거부에만 쓴다. */
-export function qwenBadgeVariant(item: { qwen_relevance: OrderPlanRelevance | null; stage2_status: OrderPlanStage2Status | null }): "error" | "neutral" {
+export function qwenStatusTone(item: { qwen_relevance: OrderPlanRelevance | null; stage2_status: OrderPlanStage2Status | null }): "error" | "neutral" {
   if (item.stage2_status === "failed" || item.stage2_status === "rejected") return "error";
   return "neutral";
 }

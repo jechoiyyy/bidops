@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
+import { MetadataList, MetadataListItem } from "@astryxdesign/core/MetadataList";
 
-export interface FactItem {
+interface FactItem {
   label: string;
   value: ReactNode;
 }
@@ -27,5 +28,27 @@ export function Facts({ items, className = "", fallback = "값 없음" }: FactsP
         </div>
       ))}
     </dl>
+  );
+}
+
+export function SideFacts(props: FactsProps) {
+  return <WorkbenchFacts {...props} columns="single" />;
+}
+
+export function GridFacts({ columns, ...props }: FactsProps & { columns: 2 | 3 }) {
+  return <WorkbenchFacts {...props} columns={columns} />;
+}
+
+function WorkbenchFacts({ items, className = "", fallback = "값 없음", columns }: FactsProps & { columns: "single" | 2 | 3 }) {
+  return (
+    <div className={`workbench-facts ${className}`.trim()}>
+      <MetadataList columns={columns} label={columns === "single" ? { position: "start", width: 108 } : { position: "top" }}>
+        {items.map((item) => (
+          <MetadataListItem key={item.label} label={item.label}>
+            {normalizeValue(item.value, fallback)}
+          </MetadataListItem>
+        ))}
+      </MetadataList>
+    </div>
   );
 }

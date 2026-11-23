@@ -7,8 +7,7 @@ import { Heading } from "@astryxdesign/core/Heading";
 import { RadioList, RadioListItem } from "@astryxdesign/core/RadioList";
 import { Text } from "@astryxdesign/core/Text";
 import { TextArea } from "@astryxdesign/core/TextArea";
-import { Token } from "@astryxdesign/core/Token";
-import { ArrowLeft, ArrowUpRight } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, ClipboardList, Files, History, PencilLine } from "lucide-react";
 import { ActorField } from "../components/common/ActorField";
 import {
   ConfirmDecisionDialog,
@@ -16,9 +15,12 @@ import {
 } from "../components/common/ConfirmDecisionDialog";
 import { DisabledReason } from "../components/common/DisabledReason";
 import { EmptyState } from "../components/common/EmptyState";
-import { PageHeaderActions } from "../components/common/PageHeaderActions";
+import { SideFacts } from "../components/common/Facts";
+import { StatusMark } from "../components/common/Marks";
+import { PageHeaderActions, PageHeaderTabs } from "../components/common/PageHeaderActions";
 import { usePageHeader } from "../components/shell/PageHeaderContext";
 import { MutationFeedback } from "../components/common/MutationFeedback";
+import { DecisionBar } from "../components/common/ReviewPrimitives";
 import { TechnicalFacts, TechnicalInfo } from "../components/common/TechnicalInfo";
 import { Toast } from "../components/common/Toast";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
@@ -77,8 +79,8 @@ import "../styles/bid-delta-decision.css";
  * 입찰 변경 비교 · 최종 결정.
  *
  * 승인된 시안(`design-previews/bidops-go-no-go-erp-20260907/`)의 두 번째 화면이다.
- * 최종 Go/No-Go 목록에서 들어오는 결정 작업면이며, 왼쪽 62%에서 공고 조건·변경
- * 항목과 근거를 읽고 오른쪽 38%에서 사람이 결정을 입력한다. 결정 확인 액션은
+ * 최종 Go/No-Go 목록에서 들어오는 결정 작업면이며, 왼쪽 60%에서 공고 조건·변경
+ * 항목과 근거를 읽고 오른쪽 40%에서 사람이 결정을 입력한다. 결정 확인 액션은
  * 오른쪽 아래에 고정되어 읽는 동안 사라지지 않는다.
  *
  * 결정의 근거는 둘이다(spec §9.2·ADR-0058). 완료된 변경 비교를 고르면 그 비교
@@ -179,7 +181,7 @@ function CurrentnessPanel({
     <section className="bid-delta-currentness" aria-labelledby={titleId}>
       <div className="bid-delta-panel-heading">
         <h3 id={titleId}>최종 결정 {TERM.currentness}</h3>
-        <Token size="sm" label={statusTokenLabel(currentness)} />
+        <StatusMark mark={{ label: statusTokenLabel(currentness), tone: "neutral" }} />
       </div>
       {decision ? (
         <div className="bid-delta-latest-decision">
@@ -269,8 +271,8 @@ function ComparisonList({ comparisons, opportunityId, baseSearch }: { comparison
                   <small>버전 {item.version} · 범주 정책 {item.category_policy_version}</small>
                 </span>
                 <span className="bid-delta-comparison-link-status">
-                  <Token size="sm" label={CALCULATION_LABELS[item.calculation_status]} />
-                  <Token size="sm" label={item.result_status ? RESULT_LABELS[item.result_status] : "결과 미발행"} />
+                  <StatusMark mark={{ label: CALCULATION_LABELS[item.calculation_status], tone: "neutral" }} />
+                  <StatusMark mark={{ label: item.result_status ? RESULT_LABELS[item.result_status] : "결과 미발행", tone: "neutral" }} />
                 </span>
               </Link>
               <div className="bid-delta-comparison-summary">
@@ -303,7 +305,7 @@ function EvidenceCard({ evidence, side }: { evidence: BidDeltaEvidenceView | nul
     <article className={`bid-delta-evidence-card bid-delta-evidence-${evidence.verification_status}`.trim()}>
       <div className="bid-delta-evidence-heading">
         <strong>{side === "baseline" ? "기준 사전규격" : "대상 입찰공고"}</strong>
-        <Token size="sm" label={verificationLabel} />
+        <StatusMark mark={{ label: verificationLabel, tone: "neutral" }} />
       </div>
       <p className="bid-delta-evidence-locator"><span>원문 위치</span> {LOCATOR_LABELS[evidence.locator_type]} · {locatorText(evidence)}</p>
       <blockquote>{evidence.quote ?? "인용 값 없음"}</blockquote>
@@ -330,7 +332,7 @@ function DeltaItem({ item, onOpenEvidence }: { item: BidDeltaItemView; onOpenEvi
       <header className="bid-delta-item-heading">
         <h4 id={`bid-delta-item-${item.id}`}>{CATEGORY_LABELS[item.category]}</h4>
         <div className="bid-delta-item-statuses">
-          <Token size="sm" label={itemKindLabel(item)} />
+          <StatusMark mark={{ label: itemKindLabel(item), tone: "neutral" }} />
         </div>
       </header>
       <div className="bid-delta-compare-values">
@@ -400,7 +402,10 @@ function AttemptHistory({ comparison }: { comparison: BidDeltaComparisonView }) 
                   <strong>{attempt.sequence}회차</strong>
                   {current ? <span className="bid-delta-current-label">현재 회차</span> : null}
                 </div>
-                <Token size="sm" label={attempt.status === "queued" ? "대기" : attempt.status === "running" ? "진행 중" : attempt.status === "completed" ? "완료" : "실패"} />
+                <StatusMark mark={{
+                  label: attempt.status === "queued" ? "대기" : attempt.status === "running" ? "진행 중" : attempt.status === "completed" ? "완료" : "실패",
+                  tone: "neutral",
+                }} />
                 <span>시작 {formatMoment(attempt.started_at)} · 완료 {formatMoment(attempt.completed_at)}</span>
                 {attempt.last_error_code ? <code>오류 코드 {attempt.last_error_code}</code> : null}
               </li>
@@ -440,7 +445,7 @@ function DecisionHistory({
             <li key={decision.id}>
               <div className="bid-delta-decision-history-heading">
                 <strong>{decision.decision === "go" ? "Go" : "No-Go"}</strong>
-                <Token size="sm" label={CURRENTNESS_LABELS[decision.currentness]} />
+                <StatusMark mark={{ label: CURRENTNESS_LABELS[decision.currentness], tone: "neutral" }} />
               </div>
               <span>{decision.sequence}번째 결정 · {decision.claimed_name}</span>
               <span className="bid-delta-decision-basis">{BASIS_LABELS[decision.basis_kind]} · {decisionBasisDetail(decision)}</span>
@@ -560,26 +565,6 @@ function withRequestId(previous: FrozenFinalDecision | null, next: FrozenFinalDe
   // 두 갈래의 payload 형태가 달라 근거 종류로 좁힌 뒤 같은 방식으로 새 식별자를 넣는다.
   if (next.basis === "comparison") return { ...next, payload: { ...next.payload, request_id: generateRequestId() } };
   return { ...next, payload: { ...next.payload, request_id: generateRequestId() } };
-}
-
-interface ChecklistItem {
-  key: string;
-  label: string;
-  met: boolean;
-}
-
-/** 저장 조건 체크리스트. 충족 여부를 색이 아니라 문자(`확인됨`·`필요`)로도 적는다. */
-function SaveChecklist({ items }: { items: ChecklistItem[] }) {
-  return (
-    <ol className="bid-delta-save-conditions" aria-label="저장 조건">
-      {items.map((item) => (
-        <li key={item.key} data-met={item.met ? "true" : "false"}>
-          <span className="bid-delta-check-state">{item.met ? "확인됨" : "필요"}</span>
-          {item.label}
-        </li>
-      ))}
-    </ol>
-  );
 }
 
 export function BidDeltaDecisionPage() {
@@ -703,14 +688,14 @@ export function BidDeltaDecisionPage() {
   // 현재 결정은 태그다. 값은 이미 받은 사업기회·작업 공간 응답 그대로이며 없으면 식별자만 쓴다.
   const headerDecision = workspaceQuery.data?.latest_final_decision ?? null;
   usePageHeader(workspaceQuery.isSuccess ? {
-    eyebrow: "입찰 변경 비교 · 최종 결정",
+    eyebrow: "입찰 참여 결정",
     tag: headerDecision
       ? { label: `현재 결정 ${headerDecision.decision === "go" ? "Go" : "No-Go"} · ${statusTokenLabel(workspaceQuery.data.decision_currentness)}`, tone: "brand" }
       : { label: "현재 결정 없음", tone: "muted" },
     title: businessTitle ?? `사업기회 ${opportunityId}`,
-    description: `${businessAgency ?? "발주기관 미확인"} · 사업기회 ${opportunityId}${comparisonView
+    description: `${businessTitle ? `${businessTitle} · ` : ""}${businessAgency ?? "발주기관 미확인"} · 사업기회 ${opportunityId}${comparisonView
       ? ` · 기준 ${comparisonView.baseline.notice_external_id} ↔ 대상 ${comparisonView.comparison.notice_external_id}`
-      : " · 비교 미선택"}`,
+      : ""}`,
   } : null);
   const comparisonLoading = Boolean(selectedComparisonId) && comparisonQuery.isPending;
   const comparisonBasisAvailable = Boolean(
@@ -732,7 +717,9 @@ export function BidDeltaDecisionPage() {
         : conditionsQuery.isError || !conditions
           ? "공고 조건을 불러오지 못해 최종 Go/No-Go를 저장할 수 없어요."
           : !noticeFence
-            ? NOTICE_UNRESOLVED_REASON
+            ? conditions.latest_notice_id === null
+              ? NOTICE_UNRESOLVED_REASON
+              : "최신 공고의 수집 근거를 확인해야 최종 결정을 저장할 수 있어요."
             : null;
   const formAvailable = basisBlockedReason === null;
   const decisionDisabledReason = finalDecisionMutation.isPending
@@ -746,22 +733,26 @@ export function BidDeltaDecisionPage() {
             ? "최종 결정을 저장하려면 이유를 입력해 주세요."
             : null);
   const finalReady = decisionDisabledReason === null;
-  const hasUnsavedDraft = Boolean(decisionActor.trim() || retryActor.trim() || reason.trim() || decision);
+  // The remembered actor is filled even on read-only visits and persists independently of this draft.
+  const hasUnsavedDraft = Boolean(reason.trim() || decision);
   const counts = comparisonView && comparisonView.calculation_status === "completed"
     ? countDeltaItems(comparisonView.items)
     : null;
-  const checklist: ChecklistItem[] = [
+  const checklist = [
     basis === "comparison" && comparisonView
-      ? { key: "basis", label: `비교 계산 완료 확인 · 비교 #${comparisonView.sequence} 버전 ${comparisonView.version}`, met: comparisonBasisAvailable }
+      ? {
+        label: "비교 계산 확인",
+        detail: `비교 #${comparisonView.sequence} 버전 ${comparisonView.version}`,
+        met: comparisonBasisAvailable,
+      }
       : {
-        key: "basis",
-        label: noticeFence
-          ? `최신 차수 확인 · ${latestNotice ? noticeRoundLabel(latestNotice) : `공고 ID ${noticeFence.noticeId}`}`
-          : "최신 차수 확인 · 최신 입찰공고를 확정할 수 없음",
+        label: "최신 차수 확인",
+        detail: latestNotice ? noticeRoundLabel(latestNotice) : noticeFence ? `공고 ID ${noticeFence.noticeId}` : undefined,
         met: Boolean(noticeFence) && !comparisonLoading,
       },
-    { key: "reason", label: "사유 입력", met: Boolean(reason.trim()) },
-    { key: "actor", label: "담당자 이름", met: Boolean(decisionActor.trim()) },
+    { label: "결정 값 선택", met: Boolean(decision) },
+    { label: "결정 이유 입력", met: Boolean(reason.trim()) },
+    { label: "담당자 이름", met: Boolean(decisionActor.trim()) },
   ];
   // 확인 창을 연 뒤 배경 재조회로 fence가 달라졌는지. 달라졌어도 화면이 값을
   // 바꿔치기하지 않고, 사람에게 그 사실만 알린다.
@@ -798,7 +789,8 @@ export function BidDeltaDecisionPage() {
   }
   useUnsavedGuard(hasUnsavedDraft, {
     blockSpaNavigation: true,
-    message: "저장되지 않은 입찰 최종 결정 초안이 있어요. 이 페이지를 벗어날까요?",
+    title: "결정 입력을 그만둘까요?",
+    message: "이동하면 작성 중인 결정과 사유가 사라져요.",
   });
 
   async function refreshLatestState() {
@@ -901,7 +893,9 @@ export function BidDeltaDecisionPage() {
   const opportunityDetailSearch = new URLSearchParams(searchParams);
   opportunityDetailSearch.delete("comparison");
   opportunityDetailSearch.delete("back");
+  opportunityDetailSearch.delete("from");
   const backSearch = searchParams.get("back") ?? "";
+  const fromOpportunity = searchParams.get("from") === "opportunity";
   const latestDecision = workspace.latest_final_decision;
 
   return (
@@ -912,33 +906,46 @@ export function BidDeltaDecisionPage() {
       <span className="visually-hidden" id="bid-delta-title">입찰 변경 비교 · 최종 결정</span>
       <PageHeaderActions>
         <div className="bid-delta-page-header">
-          <Link className="bid-delta-back-link panel-header-link" to={{ pathname: "/go-no-go", search: backSearch }}>
+          <Link className="bid-delta-back-link panel-header-link" to={fromOpportunity ? `/opportunities/${opportunityId}` : { pathname: "/go-no-go", search: backSearch }}>
             <ArrowLeft aria-hidden="true" />
-            결정 목록으로
+            {fromOpportunity ? "사업기회로" : "결정 목록으로"}
           </Link>
           {/* 비교 계산 상태는 읽기 칸 머리에 한 번만 둔다(헤더에서 되풀이하지 않는다). */}
           <div className="bid-delta-head-actions">
             <button className="interaction-control" type="button" onClick={focusDecisionForm} disabled={!formAvailable}>
+              <PencilLine aria-hidden="true" />
               결정 입력으로 이동
             </button>
           </div>
         </div>
       </PageHeaderActions>
+      <PageHeaderTabs>
+        <nav className="bid-delta-section-nav" aria-label="입찰 변경 비교 구역">
+          <a href="#bid-delta-conditions-title"><ClipboardList aria-hidden="true" />검토 요약</a>
+          {selectedComparisonId && !comparisonView ? null : (
+            <a href="#bid-delta-documents" onClick={() => {
+              const details = document.getElementById("bid-delta-documents");
+              if (details instanceof HTMLDetailsElement) details.open = true;
+            }}><Files aria-hidden="true" />비교 문서</a>
+          )}
+          <a href="#bid-delta-decision-record"><History aria-hidden="true" />결정 기록</a>
+        </nav>
+      </PageHeaderTabs>
 
       {/* 무엇에 대한 결정인지(사업명 → 발주기관 → 양쪽 문서 식별자)와 현재 결정은 패널 헤더의 제목·설명·태그가
           그린다(2026-11-19). 본문은 읽기 | 결정 두 칸만 둔다. */}
       <div className="bid-delta-workspace">
         <section className="bid-delta-reading" aria-labelledby="bid-delta-reading-title">
           <header className="bid-delta-pane-head">
-            <h3 id="bid-delta-reading-title">공고 조건과 변경 비교</h3>
+            <h3 id="bid-delta-reading-title">결정 근거 검토</h3>
             {/* 시안은 이 자리에 비교 계산 상태를 둔다. 아래에서 되풀이하지 않는다. */}
             <span className="bid-delta-muted" id="bid-delta-calculation-title">
-              {comparisonView ? CALCULATION_LABELS[comparisonView.calculation_status] : "비교 미선택"}
+              {comparisonView ? CALCULATION_LABELS[comparisonView.calculation_status] : "공고 조건 기준"}
             </span>
           </header>
           <div className="bid-delta-reading-scroll">
             {/* 공고 조건은 비교가 있든 없든 맨 위다. 비교 계산 프로그램이 없는 지금 최종
-                결정의 근거는 대개 이 표다(spec §11.3). */}
+                결정의 근거는 대개 이 조건이다(spec §11.3). */}
             <BidConditionsSection
               view={conditions}
               isPending={conditionsQuery.isPending}
@@ -947,11 +954,10 @@ export function BidDeltaDecisionPage() {
             />
 
             {!selectedComparisonId ? (
-              <>
-                <p className="bid-delta-help">사전규격과 입찰공고의 변경 비교와 사람의 최종 결정을 따로 기록해요. 이 화면이 정하는 것은 최종 입찰 Go/No-Go 하나이며 적합성 등급·참여 준비 상태·추적 선택을 대신하지 않아요.</p>
+              <details className="bid-delta-create-panel" id="bid-delta-documents"><summary>문서 비교 및 기술 정보</summary>
                 <WorkspaceCandidates workspace={workspace} baseline={baseline} comparison={comparison} onBaselineChange={setBaseline} onComparisonChange={setComparison} />
 
-                <section className="bid-delta-create-panel" aria-labelledby="bid-delta-create-title">
+                <details className="bid-delta-create-panel"><summary>비교 생성 조건</summary>
                   <div className="bid-delta-panel-heading">
                     <h3 id="bid-delta-create-title">고른 문서로 비교 만들기</h3>
                     <span className="bid-delta-muted">지금은 만들 수 없음</span>
@@ -967,10 +973,10 @@ export function BidDeltaDecisionPage() {
                     </button>
                     <DisabledReason id="bid-delta-create-disabled">비교 계산 프로그램 미구현</DisabledReason>
                   </div>
-                </section>
+                </details>
 
                 <ComparisonList comparisons={workspace.comparisons} opportunityId={opportunityId} baseSearch={searchParams.toString()} />
-              </>
+              </details>
             ) : comparisonQuery.isPending ? (
               <p className="bid-delta-page-status" role="status">선택한 비교 상세를 불러오는 중이에요.</p>
             ) : comparisonQuery.isError || !comparisonView ? (
@@ -984,7 +990,7 @@ export function BidDeltaDecisionPage() {
                 <div className="bid-delta-status-strip">
                   <section className="bid-delta-status-cell" aria-labelledby="bid-delta-result-title">
                     <h4 id="bid-delta-result-title">결과 상태</h4>
-                    <Token size="sm" label={comparisonView.result_status ? RESULT_LABELS[comparisonView.result_status] : "결과 미발행"} />
+                    <StatusMark mark={{ label: comparisonView.result_status ? RESULT_LABELS[comparisonView.result_status] : "결과 미발행", tone: "neutral" }} />
                   </section>
                   {counts ? (
                     <span className="bid-delta-counts-line">
@@ -1047,7 +1053,7 @@ export function BidDeltaDecisionPage() {
                   )}
                 </section>
 
-                <details className="bid-delta-technical-details bid-delta-input-ref-section">
+                <details className="bid-delta-technical-details bid-delta-input-ref-section" id="bid-delta-documents">
                   <summary>비교 기준·고정 입력·계산 회차 자세히</summary>
                   {/* 무엇과 무엇을 언제 비교한 결과인지(PLAN 단계 F 작업 3)와 바뀌지
                       않는 입력, 회차 이력을 함께 둔다. 접혀 있어도 지워지지 않는다. */}
@@ -1110,6 +1116,12 @@ export function BidDeltaDecisionPage() {
             <span className="bid-delta-muted">추가만 기록</span>
           </header>
           <div className="bid-delta-decision-scroll">
+            {latestDecision && workspace.decision_currentness !== "current" ? (
+              <div className="bid-delta-decision-conditions">
+                <strong>이전 {latestDecision.decision === "go" ? "Go" : "No-Go"} · {workspace.decision_currentness === "stale" ? "재검토 필요" : "효력 미확인"}</strong>
+                <p>{workspace.decision_currentness === "stale" ? "결정 뒤 공고 근거가 바뀌었어요. 최신 차수의 변경을 확인해 주세요." : "결정에 사용한 차수와 최신 공고를 대조해 주세요."}</p>
+              </div>
+            ) : null}
             <div className={`bid-delta-decision-conditions ${formAvailable ? "" : "bid-delta-decision-blocked"}`.trim()}>
               <strong>{formAvailable ? `결정 근거 · ${BASIS_LABELS[basis]}` : "지금은 결정을 기록할 수 없어요"}</strong>
               {/* 무엇에 묶이는지는 폼 아래 안내와 `이 결정이 묶는 값 보기`가 말한다. 결정 칸의
@@ -1140,9 +1152,19 @@ export function BidDeltaDecisionPage() {
               </RadioList>
             ) : null}
 
-            {/* 저장 조건 셋을 폼 바로 위에 둔다. 무엇이 갖춰져야 저장되는지 알기 위해
-                비활성 사유를 하나씩 눌러 보게 하지 않는다. */}
-            <SaveChecklist items={checklist} />
+            {formAvailable ? (
+              <section className="bid-delta-save-checks" aria-labelledby="bid-delta-save-checks-title">
+                <h4 id="bid-delta-save-checks-title">저장 전 확인</h4>
+                <ul className="bid-delta-checklist">
+                  {checklist.map((item) => (
+                    <li key={item.label} title={item.detail} data-met={item.met}>
+                      <span className="bid-delta-check-label">{item.label}</span>
+                      <StatusMark mark={item.met ? { label: "확인됨", tone: "accent" } : { label: "필요", tone: "neutral" }} />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
 
             {formAvailable ? (
               <form
@@ -1162,8 +1184,8 @@ export function BidDeltaDecisionPage() {
                     value={decision}
                     onChange={(value) => setDecision(value === "go" || value === "no_go" ? value : "")}
                   >
-                    <RadioListItem value="go" label="Go" />
-                    <RadioListItem value="no_go" label="No-Go" />
+                    <RadioListItem value="go" label="참여(Go)" />
+                    <RadioListItem value="no_go" label="불참(No-Go)" />
                   </RadioList>
                 </div>
                 <TextArea
@@ -1185,21 +1207,17 @@ export function BidDeltaDecisionPage() {
                 </p>
                 <details className="bid-delta-technical-details">
                   <summary>이 결정이 묶는 값 보기</summary>
-                  <div className="bid-delta-form-fence" aria-label="최종 결정 저장 조건">
-                    {basis === "comparison" && comparisonView ? (
-                      <>
-                        <div><span>기대 비교 버전</span><code>{comparisonView.version}</code></div>
-                        <div><span>기대 결과 SHA-256</span><code>{comparisonView.result_sha256 ?? "값 없음"}</code></div>
-                        <div><span>양쪽 문서 버전 ID</span><code>{comparisonView.baseline.document_version_id} · {comparisonView.comparison.document_version_id}</code></div>
-                      </>
-                    ) : (
-                      <>
-                        <div><span>기대 입찰공고 ID</span><code>{noticeFence?.noticeId ?? "값 없음"}</code></div>
-                        <div><span>기대 관측 SHA-256</span><code>{noticeFence?.observationSha256 ?? "값 없음"}</code></div>
-                      </>
-                    )}
-                    <div><span>대체하는 이전 결정 ID</span><code>{latestDecision?.id ?? "없음"}</code></div>
-                  </div>
+                  <SideFacts items={[
+                    ...(basis === "comparison" && comparisonView ? [
+                      { label: "기대 비교 버전", value: <code>{comparisonView.version}</code> },
+                      { label: "기대 결과 SHA-256", value: <code>{comparisonView.result_sha256 ?? "값 없음"}</code> },
+                      { label: "양쪽 문서 버전 ID", value: <code>{comparisonView.baseline.document_version_id} · {comparisonView.comparison.document_version_id}</code> },
+                    ] : [
+                      { label: "기대 입찰공고 ID", value: <code>{noticeFence?.noticeId ?? "값 없음"}</code> },
+                      { label: "기대 관측 SHA-256", value: <code>{noticeFence?.observationSha256 ?? "값 없음"}</code> },
+                    ]),
+                    { label: "대체하는 이전 결정 ID", value: <code>{latestDecision?.id ?? "없음"}</code> },
+                  ]} />
                 </details>
               </form>
             ) : null}
@@ -1212,6 +1230,7 @@ export function BidDeltaDecisionPage() {
               />
             ) : null}
 
+            <div id="bid-delta-decision-record">
             {comparisonView ? (
               <>
                 <DecisionHistory decisions={comparisonView.final_decisions} workspaceLatest={workspace.latest_final_decision} />
@@ -1220,20 +1239,32 @@ export function BidDeltaDecisionPage() {
             ) : (
               <CurrentnessPanel titleId="bid-delta-workspace-currentness-title" decision={workspace.latest_final_decision} currentness={workspace.decision_currentness} reasons={workspace.currentness_reasons} />
             )}
+            </div>
           </div>
-          <footer className="bid-delta-decision-footer">
-            <Button
-              label={finalDecisionMutation.isPending ? "결정 저장 중" : "결정 확인"}
-              variant="primary"
-              type="submit"
-              form="bid-delta-final-form"
-              width="100%"
-              isDisabled={!finalReady}
-              aria-describedby={decisionDisabledReason ? "bid-delta-final-disabled" : undefined}
-            />
-            {decisionDisabledReason ? <DisabledReason id="bid-delta-final-disabled">{decisionDisabledReason}</DisabledReason> : null}
-            <p className="bid-delta-footer-note">확인 후 저장하며, 저장은 되돌릴 수 없어요.</p>
-          </footer>
+          <DecisionBar
+            className="bid-delta-decision-footer"
+            stateLabel="현재 사람 결정"
+            state={latestDecision
+              ? {
+                label: `${latestDecision.decision === "go" ? "Go" : "No-Go"}${workspace.decision_currentness === "stale" ? " · 재검토 필요" : workspace.decision_currentness === "unknown" ? " · 효력 미확인" : ""}`,
+                tone: workspace.decision_currentness === "stale" ? "warning" : "neutral",
+              }
+              : { label: "미결정", tone: "neutral" }}
+            note={formAvailable ? <>
+              {decisionDisabledReason ? <span id="bid-delta-final-disabled">{decisionDisabledReason}</span> : null}
+              <span>확인 후 저장하며, 저장은 되돌릴 수 없어요.</span>
+            </> : undefined}
+            primaryAction={formAvailable ? (
+              <Button
+                label={finalDecisionMutation.isPending ? "결정 저장 중" : "결정 확인"}
+                variant="primary"
+                type="submit"
+                form="bid-delta-final-form"
+                isDisabled={!finalReady}
+                aria-describedby={decisionDisabledReason ? "bid-delta-final-disabled" : undefined}
+              />
+            ) : undefined}
+          />
         </section>
       </div>
 
@@ -1246,7 +1277,7 @@ export function BidDeltaDecisionPage() {
             <>
               <div className="bid-delta-panel-heading">
                 <Heading level={3}>{CATEGORY_LABELS[evidenceItem.category]}</Heading>
-                <Token size="sm" label={itemKindLabel(evidenceItem)} />
+                <StatusMark mark={{ label: itemKindLabel(evidenceItem), tone: "neutral" }} />
               </div>
               <div className="bid-delta-evidence-pairs">
                 {Array.from(

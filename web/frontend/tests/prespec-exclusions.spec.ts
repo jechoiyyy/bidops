@@ -146,8 +146,9 @@ test("전체 이력 제외 필터·단건 복원·URL 초기화·상세 표식",
   await expect(row(page, 991)).toContainText('검토 제외');
   await expect(row(page, 992)).toHaveCount(0);
   await page.getByRole('link', { name: '상세 페이지 열기 →' }).click();
-  // 2026-11-21: 제외 표식은 사실 줄 머리 아래 한 줄(`.ps-exclusion-line`)이 갖는다.
-  await expect(page.locator('#ps-summary .ps-exclusion-line').getByText('검토 제외', { exact: true })).toBeVisible();
+  const exclusion = page.locator('.workbench-record-main .ps-exclusion-line');
+  await expect(exclusion.getByText('검토 제외', { exact: true })).toBeVisible();
+  await expect(exclusion.getByText('제외 기록', { exact: true })).toBeVisible();
   await page.goBack();
   await expect(page).toHaveURL(/review_exclusion=excluded/);
   await page.getByRole('button', { name: '검토 목록으로 복원', exact: true }).click();
@@ -164,21 +165,27 @@ test("전체 이력 제외 필터·단건 복원·URL 초기화·상세 표식",
   await expect(row(page, 991)).toBeVisible();
 });
 
-test("미저장 추적 입력의 취소는 제외 창과 요청을 열지 않는다", async ({ page }) => {
+test("사전규격 미리보기는 추적 사유를 받지 않고 검토 제외 창을 바로 연다", async ({ page }) => {
   const { requests } = await setup(page);
   await page.goto('/pre-specs');
-  // 미저장 판정은 사유만 본다(2026-09-23). 담당자 이름만으로는 확인 창이 뜨지 않는다.
-  await page.getByRole('combobox', { name: '선택 사유' }).click();
-  await page.getByRole('option', { name: '후속 입찰공고 확인' }).click();
-  await page.getByRole('button', { name: '검토 제외', exact: true }).click();
-  const guard = page.getByRole('alertdialog', { name: '추적 결정 입력을 저장하지 않고 옮겨요' });
-  await expect(guard).toBeVisible();
-  await guard.getByRole('button', { name: '계속 편집' }).click();
-  await expect(page.getByRole('combobox', { name: '선택 사유' })).toContainText('후속 입찰공고 확인');
+  const preview = page.locator('.pre-specs-detail');
+  const start = preview.getByRole('button', { name: '추적 시작하기', exact: true });
+  await expect(start).toBeDisabled();
+  await preview.getByRole('button', { name: '담당자 이름 입력', exact: true }).click();
+  await page.locator('#sidebar-actor-input').fill('검증 담당자');
+  await page.locator('.sidebar-actor-done').click();
+  await expect(start).toBeEnabled();
+  await expect(preview.getByRole('combobox', { name: /사유/ })).toHaveCount(0);
+  await expect(preview.getByRole('textbox', { name: /사유/ })).toHaveCount(0);
+
+  await preview.getByRole('button', { name: '검토 제외', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: EXCLUDE_DIALOG, exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
   expect(requests).toHaveLength(0);
-  await page.getByRole('button', { name: '검토 제외', exact: true }).click();
-  await guard.getByRole('button', { name: '저장하지 않고 옮기기' }).click();
-  await expect(page.getByRole('dialog', { name: EXCLUDE_DIALOG, exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: '취소', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  expect(requests).toHaveLength(0);
 });
 
 
@@ -198,7 +205,9 @@ test("전체 이력 포함 여부 필터는 URL과 선택 범위를 함께 갱�
   state.items[0].review_exclusion_status = 'excluded';
   await page.goto('/pre-specs?workspace=all');
   await row(page, 992).getByRole('checkbox').check();
-  await page.getByRole('combobox', { name: '검토 포함 여부' }).click();
+  await page.getByRole('button', { name: '상세 필터', exact: true }).click();
+  const filters = page.getByRole('region', { name: '상세 필터', exact: true });
+  await filters.getByRole('combobox', { name: '검토 포함 여부', exact: true }).click();
   await page.getByRole('option', { name: '검토 제외', exact: true }).click();
   await expect(page).toHaveURL(/review_exclusion=excluded/);
   await expect(row(page, 991)).toBeVisible();
@@ -210,7 +219,7 @@ test("전체 이력 포함 여부 필터는 URL과 선택 범위를 함께 갱�
 // F2 · spec §6.2 — 제외된 건은 **누가·언제·왜** 뺐는지 보여야 복원을 판단할 수
 // 있다. 값이 없는 항목은 빼고 셋 다 없으면 `사유 미기록`이며, 빈 값을 다른
 // 담당자·사유로 바꾸지 않는다. 제외 건은 전체 이력 보기에만 나온다.
-test("제외 기록은 목록 행·우측 상세·상세 페이지에 누가·언제·왜를 남기고 값이 없으면 사유 미기록이다", async ({ page }) => {
+test("제외 행은 상태를 보여 주고 미리보기와 상세는 누가·언제·왜를 남긴다", async ({ page }) => {
   const state = await setup(page);
   Object.assign(state.items[0], {
     review_exclusion_status: "excluded",
@@ -222,11 +231,13 @@ test("제외 기록은 목록 행·우측 상세·상세 페이지에 누가·�
   state.items[1].review_exclusion_status = "excluded";
 
   await page.goto("/pre-specs?workspace=all&review_exclusion=excluded");
-  await expect(row(page, 991).locator(".pre-specs-row-exclusion")).toHaveText("검증 담당자 · 09.21 · 타 부서 소관");
-  await expect(row(page, 992).locator(".pre-specs-row-exclusion")).toHaveText("사유 미기록");
+  await expect(row(page, 991).locator(".pre-specs-row-state")).toContainText("검토 제외");
+  await expect(row(page, 992).locator(".pre-specs-row-state")).toContainText("검토 제외");
 
-  await row(page, 991).locator(".pre-specs-row-meta").click();
   const detailExclusion = page.locator(".pre-specs-detail-exclusion");
+  await row(page, 992).locator(".pre-specs-row-title").click();
+  await expect(detailExclusion).toContainText("사유 미기록");
+  await row(page, 991).locator(".pre-specs-row-title").click();
   await expect(detailExclusion).toContainText("제외 기록");
   await expect(detailExclusion).toContainText("검증 담당자 · 09.21 · 타 부서 소관");
 
@@ -240,7 +251,7 @@ for (const [width, height] of [[1920, 1080], [1440, 900], [1280, 800]]) {
     await setup(page);
     await page.route("**/api/opportunities/pre-spec-tracking/bulk-start", async route => {
       expect(route.request().postDataJSON()).toEqual({
-        notice_ids: [991, 992, 993], actor_name: "검토자", reason: "후속 입찰공고 확인",
+        notice_ids: [991, 992, 993], actor_name: "검토자",
       });
       await route.fulfill({ json: { items: [
         { notice_id: 991, outcome: "started" }, { notice_id: 992, outcome: "already_decided" },
@@ -257,8 +268,7 @@ for (const [width, height] of [[1920, 1080], [1440, 900], [1280, 800]]) {
     const save = dialog.getByRole("button", { name: "3건 추적 시작" });
     await expect(save).toBeDisabled();
     await dialog.getByRole("textbox", { name: /^담당자/ }).fill("검토자");
-    await dialog.getByRole("combobox").click();
-    await page.getByRole("option", { name: "후속 입찰공고 확인" }).click();
+    await expect(dialog.getByRole("combobox")).toHaveCount(0);
     await expect(save).toBeInViewport();
     await save.click();
     await expect(page.getByText("추적 시작 1건 · 기존 결정 유지 1건 · 연결 확인 필요 1건")).toBeVisible();

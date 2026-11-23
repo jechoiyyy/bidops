@@ -9,7 +9,7 @@ import type {
   ScreeningExecutionResponse,
 } from "../../lib/types";
 import { formatDateTime } from "../../lib/format";
-import { Caption, Facts, Note } from "./RunStatusPrimitives";
+import { Caption, DialogFacts, Note } from "./RunStatusPrimitives";
 import { countLabel, remainingCount } from "./runStatusData";
 import { screeningStatusLabel } from "./ScreeningRunPanel";
 
@@ -189,7 +189,7 @@ export function JudgmentStartDialog({
               ) : null}
 
               {selectedPolicy && selectedProfile ? (
-                <Facts
+                <DialogFacts
                   items={[
                     ["정책", <span className="rs-mono" key="p">{selectedPolicy.policy_version}</span>],
                     ["정책 상태", selectedPolicy.status === "active" ? "active" : "activation candidate"],
@@ -274,7 +274,7 @@ export function JudgmentStopDialog({
         <DialogHeader title="판정 실행 중지" onOpenChange={(next) => { if (!next && !stopBusy) onClose(); }} />
         <div className="rs-dialog-scroll">
           {target ? (
-            <Facts
+            <DialogFacts
               items={[
                 ["원본 회차", <span className="rs-mono" key="run">{runId}</span>],
                 ["대상 실행", <span className="rs-mono" key="exec">{target.execution_id}</span>],

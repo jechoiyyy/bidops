@@ -92,6 +92,7 @@ export interface TrackingDecisionInputsProps {
   onActorNameChange: (value: string) => void;
   isDisabled?: boolean;
   size?: "sm" | "md";
+  reasonLabel?: string;
   /** 사유 칸(드롭다운 + 직접 입력)의 배치 class. 화면의 기존 배치 규칙이 이 칸을 잡는다. */
   reasonClassName?: string;
   /** 사유 드롭다운 바로 아래에 둘 보조 조작(예: 발주계획의 `직전 사유 다시 쓰기`). */
@@ -129,6 +130,7 @@ export function TrackingDecisionInputs({
   onActorNameChange,
   isDisabled = false,
   size = "sm",
+  reasonLabel = TRACKING_FIELD_LABEL.reason,
   reasonClassName = "",
   reasonExtra,
   reasonRef,
@@ -142,7 +144,7 @@ export function TrackingDecisionInputs({
     <>
       <div className={`tracking-decision-reason ${reasonClassName}`.trim()} ref={reasonRef}>
         <Selector
-          label={TRACKING_FIELD_LABEL.reason}
+          label={reasonLabel}
           isLabelHidden={isLabelHidden}
           placement={selectorPlacement}
           hasClear
@@ -202,6 +204,7 @@ export interface TrackingDecisionActionsProps {
   onDecide: (status: TrackingDecisionStatus) => void;
   /** 저장 중인 결정. 그 버튼만 `저장 중…`이 된다. */
   pendingStatus?: TrackingDecisionStatus | null;
+  immediateStart?: { isDisabled: boolean; disabledReasonId: string };
 }
 
 /** 결정 버튼 줄. 첫 버튼이 주 결정이고 나머지는 보조다. 확인 단계(`종료`)는 화면이 연다. */
@@ -212,21 +215,25 @@ export function TrackingDecisionActions({
   disabledReasonId,
   onDecide,
   pendingStatus = null,
+  immediateStart,
 }: TrackingDecisionActionsProps) {
   const allowed = TRACKING_DECISION_ORDER.filter((status) => statuses.includes(status));
   return (
     <>
-      {allowed.map((status, index) => (
-        <ReviewDecisionAction
-          key={status}
-          disabledReasonId={disabledReasonId}
-          isDisabled={isDisabled}
-          label={pendingStatus === status ? "저장 중…" : trackingActionLabel(status, current)}
-          className={`tracking-action is-${status === "계속 추적" ? "continue" : status === "보류" ? "hold" : "end"}`}
-          variant={index === 0 ? "primary" : "secondary"}
-          onClick={() => onDecide(status)}
-        />
-      ))}
+      {allowed.map((status, index) => {
+        const start = status === "계속 추적" && current === "미선택" ? immediateStart : undefined;
+        return (
+          <ReviewDecisionAction
+            key={status}
+            disabledReasonId={start?.disabledReasonId ?? disabledReasonId}
+            isDisabled={start?.isDisabled ?? isDisabled}
+            label={pendingStatus === status ? "저장 중…" : trackingActionLabel(status, current)}
+            className={`tracking-action is-${status === "계속 추적" ? "continue" : status === "보류" ? "hold" : "end"}`}
+            variant={index === 0 ? "primary" : "secondary"}
+            onClick={() => onDecide(status)}
+          />
+        );
+      })}
     </>
   );
 }

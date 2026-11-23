@@ -21,7 +21,7 @@ test("T8: 사이드바 회사 근거는 /company로 가고 건수와 워크스�
   await page.goto("/briefing");
   await sidebar.getByRole("link", { name: "회사 근거", exact: true }).click();
   await expect(page).toHaveURL(/\/company$/);
-  await expect(page.getByTestId("page-header-eyebrow")).toHaveText("회사 근거");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("회사 근거");
 });
 
 test("등록 회사나 활성 버전이 없으면 사이드바에 건수가 없어요", async ({ page }) => {
@@ -31,7 +31,10 @@ test("등록 회사나 활성 버전이 없으면 사이드바에 건수가 없�
     await page.goto("/company");
     const sidebar = page.locator("aside.sidebar");
     await expect(page.getByRole("group", { name: "회사 근거 보기" })).toBeVisible();
-    if (options.notRegistered) await expect(sidebar.locator(".sidebar-brand strong")).toHaveText("BidOps");
+    if (options.notRegistered) {
+      await expect(sidebar.locator(".sidebar-brand")).toHaveText("BidOps");
+      await expect(sidebar.locator(".sidebar-brand strong")).toHaveCount(0);
+    }
     await expect(sidebar.getByRole("link", { name: "회사 근거", exact: true }).locator(".sidebar-item-count")).toHaveCount(0);
   }
 });

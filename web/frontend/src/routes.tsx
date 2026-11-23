@@ -97,7 +97,7 @@ export function buildRoutes(demoEnabled: boolean): RouteObject[] {
           { path: "queue/:noticePk", element: <ReviewWorkspacePage />, handle: routeHandle(routeMetadata.queue) },
           { path: "judgments", element: <ReviewWorkspacePage />, handle: routeHandle(routeMetadata.noticeJudgments) },
           { path: "judgments/:noticePk", element: <ReviewWorkspacePage />, handle: routeHandle(routeMetadata.noticeJudgments) },
-          { path: "reviews", element: <ReviewWorkspacePage />, handle: routeHandle(routeMetadata.queue) },
+          { path: "reviews", element: <ReviewWorkspacePage />, handle: routeHandle({ ...routeMetadata.queue, canvas: undefined }) },
           // 마감 추적은 검토 대기열의 저장된 뷰다(정렬 하나가 메뉴 한 칸을 쓰고 있었다).
           // 리다이렉트가 아니라 그 뷰의 주소다: 리다이렉트는 AppShell의 회차 동기화와
           // 경쟁해 sort 파라미터를 잃었고, 그러면 저장된 뷰가 저장되지 않는다.
@@ -115,7 +115,7 @@ export function buildRoutes(demoEnabled: boolean): RouteObject[] {
           { path: "pre-specs", element: <PreSpecsPage />, handle: routeHandle(routeMetadata.preSpecs) },
           ...(MockReviewPage ? [{ path: "pre-specs/mock-review", element: <MockReviewPage />, handle: routeHandle(routeMetadata.preSpecs) }] : []),
           { path: "pre-specs/:noticeId", element: <PreSpecDetailPage />, handle: routeHandle(routeMetadata.preSpecs) },
-          // 기준 4화면은 판정 기준 한 화면의 탭이다. 옛 경로가 각 탭의 주소다.
+          // 판정 기준은 발주계획 선별로 열리고 각 탭은 정식 주소도 유지한다.
           { path: "criteria", element: criteriaView, handle: routeHandle(routeMetadata.criteria) },
           { path: "profile", element: criteriaView, handle: routeHandle(routeMetadata.criteria) },
           { path: "metrics", element: criteriaView, handle: routeHandle(routeMetadata.criteria) },

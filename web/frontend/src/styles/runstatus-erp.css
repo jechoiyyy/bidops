@@ -1,38 +1,6 @@
-/* 실행 상태 (수집 실행 · 첨부 확보 · 상시 운영 · 산출물 감사 로그).
- *
- * 승인된 시안 `design-previews/bidops-criteria-runstatus-erp-20260907/`의
- * `source/style.css` 중 **이 화면이 소유한 부분만** 옮긴 것이다. 시안의 바깥
- * 셸(preview bar · sidebar · page header)은 제품 공통 셸이 이미 갖고 있으므로
- * 옮기지 않는다. 비율·글자 크기·여백·정보 순서는 시안의 값을 그대로 쓰고
- * 선택자 이름만 `rs-` 접두사로 바꿨다. 접두사를 붙였으므로 이 파일은 옛
- * `runs-*`·`operations-*`·`attachments-*` 규칙이나 다른 화면을 건드리지 않는다.
- *
- * 색은 `bidops` 테마 토큰만 읽는다(ADR-0048). `:root`나 이 파일에서 `--color-*`를
- * 새로 정의하지 않는다. 값은 전부 토큰이며 raw hex·px를 두지 않는다.
- *
- * 지원 폭은 1280~1920px 하나뿐이다(ADR-0047). 미디어 쿼리로 다른 배치를
- * 만들지 않는다.
- *
- * 2026-09-15: 카드 외곽 테두리 → `--shadow-low` 그림자, 카드 안 구분선 →
- * `--color-background-muted` 1px (docs/0915_ui-redesign/spec.md §2.3). 진행 막대
- * 채움은 accent 대신 `--bo-brand`를 읽는다(spec §1.2).
- */
+/* 실행 상태의 요약, 상세 내용과 대화상자. */
 
 .rs-page {
-  /* 시안 §목록 제목 15px. 정수 척도의 목록 제목 단(16px, typography.css)을 읽는다. */
-  --rs-list-title: var(--bo-type-list-title);
-  /* 시안의 --spacing-14 · --spacing-16은 Astryx 0.5.2에 없다. 같은 값을
-     있는 토큰으로 계산한다. */
-  --rs-strip-height: calc(var(--spacing-8) + var(--spacing-4) + var(--border-width));
-  --rs-footer-height: calc(var(--spacing-8) + var(--spacing-6) + var(--border-width));
-
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  /* pane 안에서만 스크롤한다. 페이지가 통째로 길어지면 상세 바닥의 고정
-     액션이 화면 밖으로 밀린다. */
-  height: 100%;
-  min-height: 604px;
   font-size: var(--bo-type-body);
   line-height: var(--bo-type-body-leading);
   color: var(--color-text-primary);
@@ -102,243 +70,72 @@
   overflow-wrap: anywhere;
 }
 
-/* --- 탭 줄 ---------------------------------------------------------------
- * 네 탭은 이 화면의 정식 주소다(/runs · /attachments · /operations · /audit).
- * 트랙 안의 pill 로 그린다. 값은 `criteria-runstatus.css`가 쓰던 것과 같고
- * 선택자만 이 화면 것으로 옮겼다. */
-
-.rs-tabs {
-  flex: 0 0 auto;
-  min-width: 0;
+.workbench-admin-summary.rs-overview {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-2);
+  background: var(--color-background-muted);
 }
 
-.rs-tabs .astryx-tab-list {
-  width: 100%;
-}
-
-/* --- 요약 한 줄 -----------------------------------------------------------
- * 시안 §콘텐츠: 탭 → 요약 한 줄 → 목록/상세. 항상 켜져 있던 경계 패널의
- * 사실은 사라지지 않고 이 줄과 각 탭의 맥락 주석으로 옮겼다. 조회 실패는
- * 꺼짐이 아니라 미확인으로 남는다. */
-
-.rs-summary {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  /* 시안은 사실 셋과 조작 하나를 spacing-5 간격으로 두지만, 이 화면은 조회
-     범위와 운영 조건까지 넷·둘을 담는다. 1280px에서 한 줄에 들어가도록
-     spacing-3으로 좁힌다. 넘치면 잘라내지 않고 줄을 바꾼다 — 사실을 숨기지
-     않는다. */
-  gap: var(--spacing-2) var(--spacing-3);
-  flex-wrap: wrap;
-  /* 시안 실측 49px = 내용 32 + 위아래 패딩 16 + 아래 테두리 1. */
-  min-height: var(--rs-strip-height);
-  min-width: 0;
-  margin-top: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-4);
-  border: 0;
-  border-radius: var(--radius-container) var(--radius-container) 0 0;
-  box-shadow: var(--shadow-low);
-  background: var(--color-background-surface);
-}
-
+.rs-collection,
+.rs-summary,
+.rs-collection > ul,
+.rs-collection-track,
 .rs-summary-item {
   display: flex;
   align-items: baseline;
-  gap: var(--spacing-2);
   min-width: 0;
+}
+
+.rs-collection,
+.rs-summary,
+.rs-collection > ul {
+  gap: var(--spacing-3);
+}
+
+.rs-collection {
+  padding-bottom: var(--spacing-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rs-collection > ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rs-collection-track,
+.rs-summary-item {
+  flex-wrap: wrap;
+  gap: var(--spacing-0-5) var(--spacing-2);
 }
 
 .rs-summary-item + .rs-summary-item {
-  padding-left: var(--spacing-3);
-  border-left: var(--border-width) solid var(--color-background-muted);
+  padding-inline-start: var(--spacing-3);
+  border-inline-start: 1px solid var(--color-border);
+}
+
+.rs-overview .rs-collection > h2,
+.rs-overview .rs-summary-label,
+.rs-overview .rs-caption {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-small);
+  line-height: 1.4;
+}
+
+.rs-collection > h2 {
+  white-space: nowrap;
+}
+
+.rs-overview .rs-summary-value,
+.rs-overview .rs-collection-track :is(.workbench-mark span, a) {
+  font-size: var(--bo-k-meta);
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .rs-summary-value {
-  font-weight: 600;
   overflow-wrap: anywhere;
-}
-
-.rs-summary-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  margin-left: auto;
-}
-
-/* --- 목록/상세 ------------------------------------------------------------
- * 시안 §목록/상세: 콘텐츠 내부 38% / 62%, 각각 독립 스크롤. */
-
-.rs-workspace {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: row;
-  align-items: stretch;
-  min-height: 0;
-  border: 0;
-  border-radius: 0 0 var(--radius-container) var(--radius-container);
-  box-shadow: var(--shadow-low);
-  background: var(--color-background-surface);
-  overflow: hidden;
-}
-
-.rs-list-pane {
-  display: flex;
-  flex: 0 0 38%;
-  flex-direction: column;
-  width: 38%;
-  min-width: 0;
-  min-height: 0;
-  border-right: var(--border-width) solid var(--color-background-muted);
-}
-
-.rs-list-head {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
-  border-bottom: var(--border-width) solid var(--color-background-muted);
-}
-
-.rs-list-title {
-  margin: 0;
-  font-weight: 600;
-}
-
-.rs-list-filters {
-  display: grid;
-  flex: 0 0 auto;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3);
-  border-bottom: var(--border-width) solid var(--color-background-muted);
-}
-
-/* 목록 pane 안의 입력은 pane 폭을 넘지 않는다. 회차 식별자가 길어도 선택기가
-   상세 pane 위로 뻗지 않도록 폭을 가둔다. */
-.rs-list-filters .rs-field,
-.rs-list-filters .astryx-field,
-.rs-list-filters .astryx-selector,
-.rs-list-filters .astryx-text-input {
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-}
-
-/* 회차 식별자는 길다. 선택기 안에서 줄이되 값 자체는 목록과 상세에 그대로
-   남는다 — 잘라 보이는 것은 트리거 한 줄뿐이다. */
-.rs-list-filters .astryx-selector > button {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.rs-filter-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-1);
-}
-
-.rs-filter-pills .astryx-button {
-  min-height: var(--spacing-7);
-  border-color: transparent;
-  background: transparent;
-  font-size: var(--bo-type-caption);
-}
-
-.rs-filter-pills .astryx-button[aria-pressed="true"] {
-  border-color: var(--color-border);
-  background: var(--color-accent-muted);
-  color: var(--color-text-accent);
-}
-
-.rs-list-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-}
-
-.rs-list-foot,
-.rs-detail-foot {
-  flex: 0 0 auto;
-  padding: var(--spacing-3) var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-background-muted);
-  background: var(--color-background-body);
-}
-
-/* 목록 행. 제목 15px semibold, 보조 14px, 캡션 12px (시안 고정 기준). */
-.rs-record {
-  display: grid;
-  gap: var(--spacing-1);
-  width: 100%;
-  padding: var(--spacing-3) var(--spacing-4);
-  border: 0;
-  border-bottom: var(--border-width) solid var(--color-background-muted);
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.rs-record:hover {
-  background: var(--color-overlay-hover);
-}
-
-.rs-record:focus-visible {
-  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
-  outline-offset: calc(var(--focus-outline-offset) * -1);
-}
-
-.rs-record[aria-pressed="true"] {
-  /* 선택 행 좌측 inset 바 없음(spec §2.3). */
-  background: var(--color-accent-muted);
-}
-
-.rs-record-title {
-  font-size: var(--rs-list-title);
-  font-weight: 600;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-.rs-record-subtitle {
-  font-size: var(--bo-type-body);
-  overflow-wrap: anywhere;
-}
-
-.rs-record .rs-row {
-  align-items: flex-start;
-}
-
-.rs-record .astryx-token {
-  flex-shrink: 0;
-  margin-top: var(--spacing-0-5);
-}
-
-.rs-list-empty {
-  display: grid;
-  justify-items: center;
-  gap: var(--spacing-3);
-  padding: var(--spacing-8) var(--spacing-4);
-  text-align: center;
-}
-
-.rs-list-empty > svg {
-  width: var(--spacing-8);
-  height: var(--spacing-8);
-  color: var(--color-text-secondary);
-}
-
-/* --- 상세 pane ----------------------------------------------------------- */
-
-.rs-detail-pane {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
 }
 
 .rs-detail-head {
@@ -364,47 +161,6 @@
   min-width: 0;
 }
 
-.rs-detail-tabs {
-  display: flex;
-  flex: 0 0 auto;
-  gap: var(--spacing-3);
-  padding: 0 var(--spacing-5);
-  border-top: var(--border-width) solid var(--color-background-muted);
-  border-bottom: var(--border-width) solid var(--color-background-muted);
-  overflow-x: auto;
-}
-
-.rs-detail-tabs .astryx-button {
-  min-height: var(--spacing-10);
-  padding-inline: var(--spacing-1);
-  border: 0;
-  border-bottom: var(--spacing-0-5) solid transparent;
-  border-radius: 0;
-  background: transparent;
-  font-size: var(--bo-type-body);
-  white-space: nowrap;
-}
-
-.rs-detail-tabs [aria-pressed="true"] {
-  border-bottom-color: var(--color-accent);
-  color: var(--color-text-accent);
-  font-weight: 600;
-}
-
-.rs-detail-scroll {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  gap: var(--spacing-5);
-  min-height: 0;
-  padding: var(--spacing-4) var(--spacing-5);
-  overflow: auto;
-}
-
-.rs-detail-scroll > * {
-  flex-shrink: 0;
-}
-
 .rs-detail-empty {
   display: flex;
   flex: 1 1 auto;
@@ -414,30 +170,6 @@
   gap: var(--spacing-3);
   padding: var(--spacing-8);
   text-align: center;
-}
-
-/* 바닥 고정 액션. 본문 스크롤과 분리되며 두 지원 폭에서 화면 안에 있다. */
-.rs-detail-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-3);
-  /* 시안 실측 57px = 내용 32 + 위아래 패딩 24 + 위 테두리 1. 바닥 한 줄이
-     불어나지 않도록 안내 문구는 짧게 두고 긴 설명은 본문에 남긴다. */
-  min-height: var(--rs-footer-height);
-  padding: var(--spacing-3) var(--spacing-4);
-}
-
-.rs-detail-foot > .rs-caption {
-  min-width: 0;
-}
-
-.rs-detail-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--spacing-2);
-  flex-shrink: 0;
 }
 
 /* --- 상세 안의 구성요소 -------------------------------------------------- */
@@ -510,45 +242,6 @@
 
 .rs-note.is-error {
   border-left-color: var(--color-error);
-}
-
-.rs-stage-track {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  border: 0;
-  border-radius: var(--radius-container);
-  box-shadow: var(--shadow-low);
-  overflow: hidden;
-}
-
-.rs-stage {
-  display: grid;
-  gap: var(--spacing-2);
-  align-content: start;
-  padding: var(--spacing-3);
-  min-width: 0;
-}
-
-.rs-stage + .rs-stage {
-  border-left: var(--border-width) solid var(--color-background-muted);
-}
-
-.rs-stage.is-current {
-  background: var(--color-accent-muted);
-}
-
-.rs-stage-name {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  min-width: 0;
-  font-weight: 600;
-}
-
-.rs-stage-name > svg {
-  width: var(--spacing-4);
-  height: var(--spacing-4);
-  flex-shrink: 0;
 }
 
 .rs-progress-track {
@@ -1007,13 +700,12 @@
 
 .rs-detail-links {
   display: flex;
-  flex: 0 0 auto;
-  align-items: center;
   flex-wrap: wrap;
-  gap: var(--spacing-3);
-  padding: var(--spacing-2) var(--spacing-5);
-  border-top: var(--border-width) solid var(--color-background-muted);
+  align-items: center;
+  gap: var(--spacing-2);
   min-width: 0;
+  padding-block-start: var(--spacing-2);
+  border-top: 1px solid var(--color-border);
 }
 
 .rs-inline-link {

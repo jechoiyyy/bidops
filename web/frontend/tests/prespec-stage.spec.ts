@@ -38,8 +38,10 @@ test("실패한 개요는 검토할 항목이 아니라 확인 필요 보기에 
   expect(queries.at(-1)?.get("deadline_scope")).toBe("current");
   const row = page.locator(".pre-specs-row").filter({ hasText: "신규 지능형 행정 지원 사전규격" });
   await expect(row).toBeVisible();
-  // 마감 구간 전환은 확인 필요에서도 보이며 건수는 `needs_check_deadline_scope_counts`다.
-  const scope = page.locator(".pre-specs-deadline-scope");
+  // 확인 필요에서도 상세 필터에 `needs_check_deadline_scope_counts`가 보인다.
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
+  const scope = page.getByRole("region", { name: "상세 필터", exact: true })
+    .getByRole("radiogroup", { name: "마감 구간" });
   await expect(scope).toContainText("마감 전·미확인 1");
   await expect(scope).toContainText("마감 경과 0");
   // 실패한 개요에는 다음 행동 안내가 없다 — 옛 "심층 검토 열기"로 올라오지 않는다.

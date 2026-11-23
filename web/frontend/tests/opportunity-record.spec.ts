@@ -31,8 +31,8 @@ const pillTexts = async (page: Page) => [
 ];
 const fact = (page: Page, key: string) => page.locator(`[data-testid="page-header-facts"] [data-fact="${key}"]`);
 const crumbs = (page: Page) => page.locator("header.topbar .topbar-crumb");
-const attribute = (page: Page, key: string) => page.locator(`.rec-attribute[data-attribute="${key}"]`);
-const stage = (page: Page, label: string) => page.locator(`[data-testid="stage-bar"] .rec-stage[data-stage="${label}"]`);
+const attribute = (page: Page, key: string) => page.locator(".workbench-record-rail dd").filter({ has: page.locator(`[data-attribute="${key}"]`) });
+const stage = (page: Page, label: string) => page.getByTestId("stage-bar").locator("[data-step-state]").filter({ has: page.locator(`[data-stage="${label}"]`) });
 const composerBody = (page: Page) => page.getByRole("textbox", { name: "노트 남기기" });
 const actorInput = (page: Page) => page.getByLabel("담당자 이름", { exact: true });
 const feedItems = (page: Page) => page.locator(".rec-activity");
@@ -60,7 +60,9 @@ test("/opportunities/:id는 활동 탭으로 replace 이동하고 알 수 없는
 
   await page.goto("/opportunities/9999/activity");
   await expect(page.getByText("사업기회를 찾을 수 없어요", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "사업기회 목록 열기" })).toHaveAttribute("href", "/opportunities");
+  const back = page.getByRole("link", { name: "사업기회 목록 열기" });
+  await expect(back).toHaveAttribute("href", "/opportunities");
+  await expect(back).toHaveCSS("background-color", "rgb(29, 123, 78)");
 });
 
 test("상단 경로는 사업기회 / 제목이고 제목이 오기 전에는 #id, 다른 레코드의 제목은 쓰지 않는다", async ({ page }) => {
@@ -76,17 +78,18 @@ test("상단 경로는 사업기회 / 제목이고 제목이 오기 전에는 #i
   });
   await page.goto("/opportunities/7101/activity");
 
-  // 제목이 오기 전에는 route 이름이 `<h1>`이고 화면 이름 줄은 식별자(`#7101`)다. 옛 경로 배치는 없다.
-  await expect(page.locator("header.topbar h1")).toHaveText("사업기회");
+  // 제목이 오기 전에는 위치 줄이 화면명과 식별자를 함께 `<h1>`으로 표시한다.
+  await expect(page.locator("header.topbar h1")).toHaveText("사업기회 #7101");
   await expect(page.locator("header.topbar")).toHaveAttribute("data-topbar-mode", "breadcrumb");
   await expect(crumbs(page)).toHaveCount(0);
-  await expect(page.getByTestId("page-header-eyebrow")).toHaveText("#7101");
+  await expect(page.getByTestId("page-header-eyebrow")).toHaveCount(0);
   await expect(page.locator('[data-testid="record-title"]')).toHaveText("#7101");
 
   release();
   // 제목이 오면 패널 헤더가 레코드 배치로 바뀐다(2026-11-19 최종 시안): `‹ 사업기회` 돌아갈 링크 · 화면 이름 줄
   // (`사업기회 #id · 기관`) + 추적 상태 표식 · 레코드 제목 `<h1>` · 연결 상태 한 문장.
   await expect(page.locator("header.topbar h1")).toHaveText(FULL_TITLE);
+  await expect(page.locator("header.topbar .topbar-location-title")).toHaveText("사업기회 #7101");
   await expect(page.locator("header.topbar")).toHaveAttribute("data-header-layout", "page");
   await expect(page.getByTestId("page-header-eyebrow")).toHaveText("사업기회 #7101 · 해솔시청");
   await expect(page.getByTestId("page-header-tag")).toHaveText("추적 중");
@@ -177,10 +180,10 @@ test("같은 단계에 권위 연결이 둘이면 서버가 준 대표(stages[].
   await expect(page.locator('[data-testid="record-title"]')).toHaveText("통합 민원 포털 재구축 (재공고)");
   await expect.poll(() => pillTexts(page)).toEqual(["입찰공고", "D-5", "분석 대기", "추적 미선택"]);
   await expect(fact(page, "deadline").locator("dd")).not.toHaveText("마감 지남");
-  await expect(attribute(page, "bid_deadline").locator("dd")).toHaveText("10월 21일 (수) 18:00");
-  await expect(attribute(page, "amount").locator("dd")).toHaveText("2억 5,400만원 · 추정가격");
-  await expect(attribute(page, "method").locator("dd")).toHaveText("협상에 의한 계약");
-  await expect(attribute(page, "joint").locator("dd")).toHaveText("분담이행방식");
+  await expect(attribute(page, "bid_deadline")).toHaveText("10월 21일 (수) 18:00");
+  await expect(attribute(page, "amount")).toHaveText("2억 5,400만원 · 추정가격");
+  await expect(attribute(page, "method")).toHaveText("협상에 의한 계약");
+  await expect(attribute(page, "joint")).toHaveText("분담이행방식");
   expect(trace.noticeGets).not.toContain(9601);
   expect(trace.noticeGets).toContain(9602);
 
@@ -192,59 +195,57 @@ test("같은 단계에 권위 연결이 둘이면 서버가 준 대표(stages[].
 
 test("속성 8개는 고정 순서이고 값이 없으면 미공개·미지정이다", async ({ page }) => {
   await openRecord(page, "/opportunities/7101/activity");
-  await expect(page.locator(".rec-attribute dt")).toHaveText(["발주기관", "사업기간", "금액", "계약방법", "공동수급", "입찰 마감", "담당", "추적"]);
-  await expect(attribute(page, "agency").locator("dd")).toHaveText("해솔시청");
-  await expect(attribute(page, "period").locator("dd")).toHaveText("미공개");
-  await expect(attribute(page, "amount").locator("dd")).toHaveText("12억 3,000만원 · 추정가격");
-  await expect(attribute(page, "method").locator("dd")).toHaveText("제한경쟁입찰");
-  await expect(attribute(page, "joint").locator("dd")).toHaveText("공동이행방식");
-  await expect(attribute(page, "bid_deadline").locator("dd")).toHaveText("10월 20일 (화) 18:00");
+  await expect(page.locator("#rec-attributes-title + .workbench-facts dt")).toHaveText(["발주기관", "사업기간", "금액", "계약방법", "공동수급", "입찰 마감", "담당", "추적"]);
+  await expect(attribute(page, "agency")).toHaveText("해솔시청");
+  await expect(attribute(page, "period")).toHaveText("미공개");
+  await expect(attribute(page, "amount")).toHaveText("12억 3,000만원 · 추정가격");
+  await expect(attribute(page, "method")).toHaveText("제한경쟁입찰");
+  await expect(attribute(page, "joint")).toHaveText("공동이행방식");
+  await expect(attribute(page, "bid_deadline")).toHaveText("10월 20일 (화) 18:00");
   // 담당 = 마지막 반응·결정의 기록자. 결정(10/15 14:05)이 반응(10/15 09:10)보다 늦다.
-  await expect(attribute(page, "owner").locator("dd")).toHaveText("최담당");
-  await expect(attribute(page, "tracking").locator("dd")).toHaveText("계속 추적 · 최담당");
-  await expect(attribute(page, "period").locator("dd")).toHaveClass(/is-empty/);
+  await expect(attribute(page, "owner")).toHaveText("최담당");
+  await expect(attribute(page, "tracking")).toHaveText("계속 추적 · 최담당");
+  await expect(attribute(page, "period").locator("[data-empty]")).toHaveAttribute("data-empty", "true");
 
   // 발주계획만: 금액은 예산, 사업기간은 발주 예정월, 그 밖은 미공개·미지정.
   await page.goto("/opportunities/7102/activity");
-  await expect(attribute(page, "agency").locator("dd")).toHaveText("바다시청");
-  await expect(attribute(page, "period").locator("dd")).toHaveText("3월 발주 예정");
-  await expect(attribute(page, "amount").locator("dd")).toHaveText("4억 5,000만원 · 예산");
-  await expect(attribute(page, "method").locator("dd")).toHaveText("미공개");
-  await expect(attribute(page, "joint").locator("dd")).toHaveText("미공개");
-  await expect(attribute(page, "bid_deadline").locator("dd")).toHaveText("미공개");
-  await expect(attribute(page, "owner").locator("dd")).toHaveText("미지정");
-  await expect(attribute(page, "tracking").locator("dd")).toHaveText("미선택");
+  await expect(attribute(page, "agency")).toHaveText("바다시청");
+  await expect(attribute(page, "period")).toHaveText("3월 발주 예정");
+  await expect(attribute(page, "amount")).toHaveText("4억 5,000만원 · 예산");
+  await expect(attribute(page, "method")).toHaveText("미공개");
+  await expect(attribute(page, "joint")).toHaveText("미공개");
+  await expect(attribute(page, "bid_deadline")).toHaveText("미공개");
+  await expect(attribute(page, "owner")).toHaveText("미지정");
+  await expect(attribute(page, "tracking")).toHaveText("미선택");
 
   // 사전규격만: 추정가격이 없으면 예산, 입찰 마감은 미공개(의견 마감은 헤더 pill에만).
   await page.goto("/opportunities/7103/activity");
-  await expect(attribute(page, "amount").locator("dd")).toHaveText("8억원 · 예산");
-  await expect(attribute(page, "bid_deadline").locator("dd")).toHaveText("미공개");
-  await expect(attribute(page, "method").locator("dd")).toHaveText("미공개");
+  await expect(attribute(page, "amount")).toHaveText("8억원 · 예산");
+  await expect(attribute(page, "bid_deadline")).toHaveText("미공개");
+  await expect(attribute(page, "method")).toHaveText("미공개");
 
   // 연결이 없으면 값을 만들지 않는다.
   await page.goto("/opportunities/7105/activity");
-  await expect(attribute(page, "agency").locator("dd")).toHaveText("미공개");
-  await expect(attribute(page, "amount").locator("dd")).toHaveText("미공개");
-  await expect(attribute(page, "tracking").locator("dd")).toHaveText("미선택");
+  await expect(attribute(page, "agency")).toHaveText("미공개");
+  await expect(attribute(page, "amount")).toHaveText("미공개");
+  await expect(attribute(page, "tracking")).toHaveText("미선택");
 
   // 억 미만 금액도 반올림하지 않는다.
   await page.goto("/opportunities/7108/activity");
-  await expect(attribute(page, "amount").locator("dd")).toHaveText("5만원 · 추정가격");
+  await expect(attribute(page, "amount")).toHaveText("5만원 · 추정가격");
 });
 
-test("제출 서류 블록은 비활성 안내 한 줄뿐이고 진행 막대·숫자가 없다", async ({ page }) => {
+test("제출 서류 준비 상태는 서류 탭에 한 번만 표시한다", async ({ page }) => {
   await openRecord(page, "/opportunities/7101/activity");
-  const block = page.getByRole("region", { name: "제출 서류" });
-  await expect(block.locator("p")).toHaveText("제출 서류 체크는 준비 중이에요");
-  await expect(block.locator("p")).toHaveAttribute("aria-disabled", "true");
-  await expect(block.locator('[role="progressbar"], progress')).toHaveCount(0);
-  await expect(block).not.toContainText("/ 27");
+  await expect(page.getByText("제출 서류 체크는 준비 중이에요")).toHaveCount(0);
+  await page.getByRole("tab", { name: "서류", exact: true }).click();
+  await expect(page.getByText("제출 서류 체크는 준비 중이에요", {exact:true})).toBeVisible();
 });
 
-test("단계 바는 서버 상태 6개를 그대로 그리고 unknown은 미확인 글자와 회색 테두리다", async ({ page }) => {
+test("단계 바는 서버 상태 6개를 그대로 그리고 미확인을 완료와 구분한다", async ({ page }) => {
   await openRecord(page, "/opportunities/7101/activity");
   await expect(stage(page, "발주계획")).toBeVisible();
-  const states = await page.locator('[data-testid="stage-bar"] .rec-stage').evaluateAll((nodes) => nodes.map((node) => [node.getAttribute("data-stage"), node.getAttribute("data-state")]));
+  const states = await page.getByTestId("stage-bar").locator("[data-stage]").evaluateAll((nodes) => nodes.map((node) => [node.getAttribute("data-stage"), node.getAttribute("data-state")]));
   expect(states).toEqual([
     ["발주계획", "done"], ["사전규격", "done"], ["입찰공고", "current"],
     ["마감", "upcoming_deadline"], ["개찰", "unknown"], ["계약", "unknown"],
@@ -253,20 +254,16 @@ test("단계 바는 서버 상태 6개를 그대로 그리고 unknown은 미확�
   await expect(stage(page, "개찰")).toContainText("미확인");
   await expect(stage(page, "발주계획")).toContainText("완료");
   await expect(stage(page, "마감")).toContainText("10월 20일");
-  // 완료 단계는 ✓ 아이콘, 그 밖은 비어 있다.
-  await expect(stage(page, "발주계획").locator("svg")).toHaveCount(1);
-  await expect(stage(page, "개찰").locator("svg")).toHaveCount(0);
+  await expect(stage(page, "발주계획").locator(".astryx-step-indicator .lucide-check")).toHaveCount(1);
+  await expect(stage(page, "개찰").locator(".astryx-step-indicator .lucide-minus")).toHaveCount(1);
+  await expect(stage(page, "개찰").locator(".astryx-step-indicator .lucide-check")).toHaveCount(0);
 
   await page.goto("/opportunities/7102/activity");
-  const border = (label: string) => stage(page, label).locator(".rec-stage-marker").evaluate((node) => getComputedStyle(node).borderTopColor);
-  const doneBorder = await border("발주계획");
-  const pendingBorder = await border("사전규격");
-  const unknownBorder = await border("마감");
-  // 대기와 미확인은 같은 회색 테두리이고 현재(채움 색)와 다르다.
-  expect(unknownBorder).toBe(pendingBorder);
-  expect(unknownBorder).not.toBe(doneBorder);
-  await expect(stage(page, "발주계획")).toHaveAttribute("data-state", "current");
-  await expect(stage(page, "사전규격")).toHaveAttribute("data-state", "pending");
+  await expect(stage(page, "발주계획")).toHaveAttribute("data-step-state", "current");
+  await expect(stage(page, "사전규격")).toHaveAttribute("data-step-state", "todo");
+  await expect(stage(page, "마감")).toHaveAttribute("data-step-state", "unknown");
+  await expect(stage(page, "발주계획").locator("[data-state]")).toHaveAttribute("data-state", "current");
+  await expect(stage(page, "사전규격").locator("[data-state]")).toHaveAttribute("data-state", "pending");
   await expect(stage(page, "사전규격")).not.toContainText("미확인");
   await expect(stage(page, "마감")).toContainText("미확인");
 });
@@ -564,8 +561,8 @@ test("판정(없음)·제안서·서류 탭은 빈 상태 문장만 그리고 �
     await page.getByRole("tab", { name: tab, exact: true }).click();
     await expect(page.getByRole("tab", { name: tab, exact: true })).toHaveAttribute("aria-selected", "true");
     await expect(page.getByRole("tabpanel")).toContainText(sentence);
-    await expect(page.locator(".rec-stagebar")).toHaveCount(0);
-    await expect(page.locator(".rec-attribute")).toHaveCount(8);
+    await expect(page.getByTestId("stage-bar")).toHaveCount(0);
+    await expect(page.locator(".workbench-record-rail [data-attribute]")).toHaveCount(8);
   }
   await expect(page).toHaveURL(/\/opportunities\/7101\/documents$/);
 });
@@ -616,15 +613,17 @@ test("병합된 사업기회는 병합 대상 레코드로 이동한다", async 
   await expect(page.locator("header.topbar h1")).toHaveText(FULL_TITLE);
 });
 
-test("⋯ 메뉴는 기존 추적 대화상자를 열고 저장하면 헤더·속성·활동이 다시 읽힌다", async ({ page }) => {
+test("하단 띠는 기존 추적 대화상자를 열고 저장하면 헤더·속성·활동이 다시 읽힌다", async ({ page }) => {
   const trace = await openRecord(page, "/opportunities/7101/activity");
   await page.getByRole("button", { name: "사업기회 더보기" }).click();
   const menu = page.getByRole("menu");
-  await expect(menu.getByRole("menuitem")).toHaveText([/추적 상태 변경/, /추적 되돌리기/, /신호 확인/, /후보 연결/]);
+  await expect(menu.getByRole("menuitem")).toHaveText([/추적 되돌리기/, /신호 확인/, /후보 연결/]);
   await expect(menu.getByRole("menuitem", { name: /신호 확인/ })).toBeDisabled();
   await expect(menu.getByRole("menuitem", { name: /후보 연결/ })).toBeDisabled();
   await expect(menu.getByRole("menuitem", { name: /추적 되돌리기/ })).toBeEnabled();
-  await menu.getByRole("menuitem", { name: /추적 상태 변경/ }).click();
+  await page.keyboard.press("Escape");
+  const footer = page.locator("#page-footer").getByRole("group", { name: "추적 결정" });
+  await footer.getByRole("button", { name: "추적 상태 바꾸기", exact: true }).click();
 
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("heading", { name: "추적 상태 변경" })).toBeVisible();
@@ -637,7 +636,7 @@ test("⋯ 메뉴는 기존 추적 대화상자를 열고 저장하면 헤더·�
   expect(trace.trackingPatches).toHaveLength(1);
   expect(trace.trackingPatches[0].body).toEqual({ tracking_status: "보류", reason: "예산·일정 추가 확인 필요" });
   await expect.poll(() => pillTexts(page)).toEqual(["입찰공고", "D-4", "분석 대기", "보류"]);
-  await expect(attribute(page, "tracking").locator("dd")).toHaveText("보류 · 김담당");
+  await expect(attribute(page, "tracking")).toHaveText("보류 · 김담당");
   await expect(feedItems(page).first().locator(".rec-activity-title")).toHaveText("김담당이 보류으로 결정");
 });
 
@@ -670,7 +669,7 @@ test("레코드 DOM에 회차·정책·모델·참조 실행 표식이 없다", 
   const forbidden = /run_id|unmeasured_reference|mock_reference|policy_id|policy_sha|c2-order-plan|qwen|gpt-\d|luna|\d{8}-\d{8}--/i;
   for (const tab of ["activity", "verdict", "proposal", "documents", "source", "similar"]) {
     await page.goto(`/opportunities/7101/${tab}`);
-    await expect(page.locator(".rec-body")).toBeVisible();
+    await expect(page.locator(".workbench-record")).toBeVisible();
     await expect(page.locator('[data-testid="record-title"]')).toHaveText(FULL_TITLE);
     const html = await page.locator(".page-canvas").evaluate((node) => node.innerHTML);
     expect(html, `${tab} 탭`).not.toMatch(forbidden);
@@ -681,13 +680,15 @@ test("레코드 DOM에 회차·정책·모델·참조 실행 표식이 없다", 
 });
 
 for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
-  test(`${viewport.width}px에서 가로로 넘치지 않고 오른쪽 열이 420px이며 작성기가 보인다`, async ({ page }) => {
+  test(`${viewport.width}px에서 가로로 넘치지 않고 오른쪽 열이 320px이며 작성기가 보인다`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await openRecord(page, "/opportunities/7101/activity");
     await expect(feedItems(page)).toHaveCount(11);
     const metrics = await page.evaluate(() => {
       const canvas = document.querySelector(".page-canvas") as HTMLElement;
-      const side = document.querySelector(".rec-side") as HTMLElement;
+      const side = document.querySelector(".workbench-record-rail") as HTMLElement;
+      const main = document.querySelector(".workbench-record-main") as HTMLElement;
+      const frame = side.parentElement!;
       // 2026-11-19(ADR-0076): 탭별 액션은 셸 패널 헤더 오른쪽에 있다.
       const header = document.querySelector("header.topbar") as HTMLElement;
       const actions = document.querySelector("header.topbar .rec-actions") as HTMLElement;
@@ -695,6 +696,9 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
         pageOverflow: document.documentElement.scrollWidth - window.innerWidth,
         canvasOverflow: canvas.scrollWidth - canvas.clientWidth,
         side: side.getBoundingClientRect().width,
+        sideLeft: side.getBoundingClientRect().left,
+        mainRight: main.getBoundingClientRect().right,
+        frameWidth: frame.getBoundingClientRect().width,
         actionsRight: actions.getBoundingClientRect().right,
         headerRight: header.getBoundingClientRect().right,
         actionsTop: actions.getBoundingClientRect().top,
@@ -704,8 +708,9 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     });
     expect(metrics.pageOverflow).toBeLessThanOrEqual(0);
     expect(metrics.canvasOverflow).toBeLessThanOrEqual(0);
-    // 활동 탭은 최종 시안대로 왼쪽 사업 흐름 + 오른쪽 420px(지금 할 일·추적 상태·사업 정보)이다.
-    expect(Math.round(metrics.side)).toBe(420);
+    expect(Math.round(metrics.side)).toBe(320);
+    expect(metrics.sideLeft).toBeGreaterThan(metrics.mainRight);
+    expect(metrics.frameWidth).toBeLessThanOrEqual(1040);
     expect(metrics.actionsRight).toBeLessThanOrEqual(metrics.headerRight + 1);
     expect(metrics.actionsTop).toBeGreaterThanOrEqual(metrics.headerTop);
     expect(metrics.actionsTop).toBeLessThan(metrics.headerBottom);
@@ -724,8 +729,8 @@ test("C-3 레코드는 단계 바·목록 창 조작·목록 복귀 링크로 �
   // 마감·개찰·계약은 입찰공고 대표를 따르거나 연결이 없어 링크가 아니다.
   await expect(bar.getByRole("link")).toHaveCount(3);
   const links = page.getByTestId("record-pane-links");
-  await expect(links.getByRole("link", { name: "확인 항목 답변 →" })).toHaveAttribute("href", "/opportunities?selected=7101&detail=checks");
-  await expect(links.getByRole("link", { name: "변경 비교·Go/No-Go →" })).toHaveAttribute("href", "/opportunities/7101/bid-delta");
+  await expect(links.getByRole("link", { name: "확인 항목 답변 →" })).toHaveAttribute("href", "/opportunities?section=전체&selected=7101&detail=checks");
+  await expect(page.locator("#page-footer").getByRole("link", { name: "공고 조건 검토·결정 →" })).toHaveAttribute("href", "/opportunities/7101/bid-delta?from=opportunity");
   // 상단 경로의 `사업기회` 칸은 이 사업기회를 고른 채 목록으로 돌아간다.
   await expect(page.locator("header.topbar .topbar-crumb-link", { hasText: "사업기회" })).toHaveAttribute("href", "/opportunities?selected=7101");
 });

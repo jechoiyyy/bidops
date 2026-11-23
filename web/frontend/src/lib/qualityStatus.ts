@@ -1,3 +1,4 @@
+import type { Mark } from "../components/common/Marks";
 import type { BadgeVariant } from "../components/common/Badge";
 import type { QualityStatus } from "../components/deep-review/types";
 
@@ -29,6 +30,10 @@ export function qualityStatusVariant(
   if (status === "measured") return "evidence-confirmed";
   if (status === null || status === undefined) return "evidence-unknown";
   return "neutral";
+}
+
+export function qualityStatusMark(status: QualityStatus | null | undefined): Mark {
+  return { label: qualityStatusLabel(status), tone: status === "measured" ? "confirmed" : "neutral" };
 }
 
 export function qualityStatusNote(

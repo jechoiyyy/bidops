@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ActorField } from "../common/ActorField";
 import { DisabledReason } from "../common/DisabledReason";
 import { MutationFeedback } from "../common/MutationFeedback";
-import { StatusBadge, type StatusTone } from "../common/StatusBadge";
+import { StatusMark, type MarkTone } from "../common/Marks";
 import { describeApiError } from "../../lib/apiErrors";
 import { useFeatureFlags } from "../../lib/featureFlags";
 import { TERM } from "../../lib/glossary";
@@ -71,11 +71,11 @@ function bundleIsImmutable(bundle: BundleView): boolean {
   return bundle.status === "ready" || bundle.status === "superseded";
 }
 
-function statusTone(status: string): StatusTone {
-  if (status === "safe" || status === "ready") return "success";
-  if (status === "blocked" || status === "failed") return "danger";
+function statusTone(status: SafetyStatus | StructureStatus | BundleStatus): MarkTone {
+  if (status === "safe" || status === "ready") return "confirmed";
+  if (status === "blocked" || status === "failed") return "error";
   if (status === "needs_review") return "warning";
-  return "info";
+  return "neutral";
 }
 
 function invalidFileReason(file: File): string | null {
@@ -144,8 +144,8 @@ function DocumentMetadataEditor({
           <span className="mono tabular-nums">문서 버전 {document.version}</span>
         </div>
         <div className="document-preparation-status-pair">
-          <StatusBadge tone={statusTone(document.safety_status)} label={SAFETY_STATUS_LABELS[document.safety_status]} />
-          <StatusBadge tone={statusTone(document.structure_status)} label={STRUCTURE_STATUS_LABELS[document.structure_status]} />
+          <StatusMark mark={{ label: SAFETY_STATUS_LABELS[document.safety_status], tone: statusTone(document.safety_status) }} />
+          <StatusMark mark={{ label: STRUCTURE_STATUS_LABELS[document.structure_status], tone: statusTone(document.structure_status) }} />
         </div>
       </header>
 
@@ -412,7 +412,6 @@ export function DocumentPreparationPanel({ noticeId }: DocumentPreparationPanelP
         <div>
           <span className="document-preparation-eyebrow">안전한 문서 준비 작업대</span>
           <h3 id="document-preparation-title">문서 묶음 준비</h3>
-          <p>문서 등록, 안전 검사, 변환·구조화, 역할 확인, 묶음 확정을 각 단계로 나눠 확인해요. 확정한 묶음이 개요 검토와 참여 판정의 입력이 돼요. 이 화면은 입력을 준비할 뿐 추적 결정이나 최종 Go/No-Go를 정하지 않아요.</p>
         </div>
       </header>
 
@@ -467,7 +466,7 @@ export function DocumentPreparationPanel({ noticeId }: DocumentPreparationPanelP
                 onClick={() => setSelectedBundleId(bundle.id)}
               >
                 <span className="mono tabular-nums">{TERM.revision} {bundle.revision}</span>
-                <StatusBadge tone={statusTone(bundle.status)} label={BUNDLE_STATUS_LABELS[bundle.status]} />
+                <StatusMark mark={{ label: BUNDLE_STATUS_LABELS[bundle.status], tone: statusTone(bundle.status) }} />
                 <span>{bundle.documents.length}개 문서</span>
               </button>
             </li>

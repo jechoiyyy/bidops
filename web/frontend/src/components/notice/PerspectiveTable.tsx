@@ -1,4 +1,4 @@
-import { Badge, type BadgeVariant } from "../common/Badge";
+import { StatusMark, type MarkTone } from "../common/Marks";
 import { EmptyState } from "../common/EmptyState";
 import { Panel } from "../common/Panel";
 import { ReviewEvidenceList } from "../common/ReviewPrimitives";
@@ -9,17 +9,17 @@ interface PerspectiveTableProps {
   perspectives: PerspectiveResponse[];
 }
 
-function assessmentVariant(value: string | null): BadgeVariant {
-  if (value === "적합") return "grade-2";
-  if (value === "부분 적합") return "grade-3";
-  if (value === "부적합") return "grade-4";
-  return "neutral";
+function assessmentLevel(value: string | null): number | undefined {
+  if (value === "적합") return 2;
+  if (value === "부분 적합") return 3;
+  if (value === "부적합") return 4;
+  return undefined;
 }
 
-function evidenceVariant(status: string | null): BadgeVariant {
-  if (status === "confirmed") return "evidence-confirmed";
-  if (status === "inferred") return "evidence-inferred";
-  return "evidence-unknown";
+function evidenceTone(status: string | null): MarkTone {
+  if (status === "confirmed") return "accent";
+  if (status === "inferred") return "info";
+  return "neutral";
 }
 
 function evidenceLabel(status: string | null): string {
@@ -51,7 +51,7 @@ export function PerspectiveTable({ perspectives }: PerspectiveTableProps) {
               {perspectives.map((perspective) => (
                 <tr key={perspective.id}>
                   <td className="perspective-name">{present(perspective.name, "관점 미확인")}</td>
-                  <td><Badge label={present(perspective.assessment, "판정 미확인")} variant={assessmentVariant(perspective.assessment)} /></td>
+                  <td><StatusMark gradeLevel={assessmentLevel(perspective.assessment)} mark={{ label: present(perspective.assessment, "판정 미확인"), tone: "neutral" }} /></td>
                   <td>
                     <div>{present(perspective.reason, "판정 사유 미확인")}</div>
                     {perspective.evidence.length > 0 ? (
@@ -62,7 +62,7 @@ export function PerspectiveTable({ perspectives }: PerspectiveTableProps) {
                           items={perspective.evidence.map((evidence) => ({
                             detail: present(evidence.fact, "근거 내용 미확인"),
                             id: evidence.id,
-                            startContent: <Badge label={evidenceLabel(evidence.status)} variant={evidenceVariant(evidence.status)} />,
+                            startContent: <StatusMark mark={{ label: evidenceLabel(evidence.status), tone: evidenceTone(evidence.status) }} />,
                             title: present(evidence.source, "출처 미확인"),
                           }))}
                           label={`${present(perspective.name, "관점 미확인")} 근거`}

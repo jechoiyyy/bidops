@@ -3,6 +3,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { Table, pixel, proportional, type TableColumn } from "@astryxdesign/core/Table";
 import { REQUIREMENT_PAGE_SIZE, type LinkedRequirement } from "../../lib/proposal";
 import { FIT_LABEL, FIT_TONE } from "../../lib/verdict";
+import { StatusMark } from "../common/Marks";
 
 /*
  * 우측 "이 절이 답하는 요구사항" 표(ui-spec §4.5): 요구사항 600 + 보조 "근거: …" + 상태 pill.
@@ -54,8 +55,8 @@ export function RequirementLinks({ rows, onGoParagraph }: RequirementLinksProps)
       width: pixel(76),
       renderCell: ({ link }) => (
         link.fitStatus === null
-          ? <span className="vd-pill is-muted">대조 없음</span>
-          : <span className={`vd-pill is-${FIT_TONE[link.fitStatus] ?? "muted"}`}>{FIT_LABEL[link.fitStatus] ?? link.fitStatus}</span>
+          ? <StatusMark mark={{ label: "대조 없음", tone: "neutral" }} />
+          : <StatusMark mark={{ label: FIT_LABEL[link.fitStatus] ?? link.fitStatus, tone: FIT_TONE[link.fitStatus] ?? "neutral" }} />
       ),
     },
   ];

@@ -2,8 +2,7 @@
  * 사업기회 레코드 판정 탭 `/opportunities/:id/verdict`(RL-03 STEP-009, ui-spec §3·§4.4).
  *
  * 레이아웃은 프로젝트가 소유한다(ADR-0040). 색·간격·모서리는 테마 토큰만 읽고 `--color-*`를 다시
- * 정의하지 않는다(ADR-0048). 글자는 4단 스케일만 쓴다(`styles/typography.css`): 판정 이름은 page-title
- * 단(20px)에 700 굵기를 준다. 지원 폭은 1280~1920px이다(ADR-0047).
+ * 정의하지 않는다(ADR-0048). 판정 이름은 공용 상태 표식으로 표시한다. 지원 폭은 1280~1920px이다(ADR-0047).
  *
  * 색 의미(ui-spec §2·§3): 판정 이름 — 진행 가능 success · 조건부 진행 warning · 진행 어려움 error ·
  * 판단 불가 secondary. 대조 pill — 충족 success · 부족 error · 확인 필요 warning. 확인 필요는 부족이
@@ -11,32 +10,17 @@
  * 상태 이름이고 색은 의미를 거들 뿐이다.
  */
 
-/* 좌측: 판정 이름 20px/700 + 사유 */
+/* 판정 표식과 사유 */
 .vd-verdict {
   gap: var(--spacing-2);
 }
 
 .vd-verdict-name {
   margin: 0;
-  font-size: var(--bo-type-page-title);
-  font-weight: 600;
-  line-height: var(--bo-type-page-title-leading);
 }
 
-.vd-verdict-name.is-success {
-  color: var(--color-success);
-}
-
-.vd-verdict-name.is-warning {
-  color: var(--color-warning);
-}
-
-.vd-verdict-name.is-error {
-  color: var(--color-error);
-}
-
-.vd-verdict-name.is-muted {
-  color: var(--color-text-secondary);
+.vd-verdict-name > .workbench-mark {
+  font-weight: var(--font-weight-semibold);
 }
 
 .vd-verdict-reason {

@@ -1,11 +1,14 @@
+import { DECISION_REVIEW_LABELS } from "../bid-delta/labels";
 import { deadlineLabel } from "../../lib/deadline";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { Button } from "@astryxdesign/core/Button";
 import { Text } from "@astryxdesign/core/Text";
 import { ArrowRight } from "lucide-react";
 import type {
   BidDeltaDecisionQueueItem,
   BidDeltaDecisionQueueResponse,
+  OpportunityListItem,
   OpportunityListResponse,
   OrderPlanListItem,
   OrderPlanListResponse,
@@ -14,11 +17,12 @@ import type {
 } from "../../lib/types";
 import { formatPrice } from "../../lib/format";
 import { EmptyState } from "../common/EmptyState";
+import { RecordTable, type RecordTableColumn } from "../common/RecordTable";
 import { SkeletonPanel } from "../common/Skeleton";
 import { budgetValue, plannedTiming, qwenRowLabel } from "../order-plans/orderPlanFormat";
-import { primaryTitle } from "../opportunities/trackingFlow";
+import { primaryAgency, primaryTitle } from "../opportunities/trackingFlow";
 import { DashboardPanel, LinkButton, Small, Tag } from "./DashboardPrimitives";
-import { WORK_PANEL_LIMIT, imminentDeadline, queueDeadlineLabel } from "./dashboardData";
+import { DEADLINE_IMMINENT_DAYS, WORK_PANEL_LIMIT, imminentDeadline, queueDeadlineLabel } from "./dashboardData";
 
 /**
  * 회차 없이 완결되는 누적 업무 패널들(시안 M6 승인 2026-09-22, ADR-0067).
@@ -30,9 +34,6 @@ import { WORK_PANEL_LIMIT, imminentDeadline, queueDeadlineLabel } from "./dashbo
  * - 패널 하나의 조회 실패가 다른 패널을 막지 않는다. 실패는 그 패널 안에서만 알린다.
  * - 서버가 주지 않은 값(대표 마감 등)을 지어내지 않는다.
  */
-
-/** 사업 추적 화면의 `전체` 구역 값. 기본 구역(`조치 필요`)이 목록을 더 좁히지 않게 건다. */
-const ALL_SECTION = "전체";
 
 export interface WorkPanelState {
   isPending: boolean;
@@ -74,7 +75,7 @@ export function WorkPanel({
   </DashboardPanel>;
 }
 
-/** 업무 패널의 행 하나. 다섯 패널이 모두 이 모양을 쓴다(보류 재검토 포함, S1). */
+/** 보류 재검토 등 대시보드 보조 목록의 행 하나. */
 export function WorkRow({ to, title, meta, end }: { to: string; title: string; meta: string; end: ReactNode }) {
   return <li className="dash-work-item"><Link className="dash-work-row" to={to}>
     <div className="dash-cell-stack"><Text className="dash-work-title" weight="semibold">{title}</Text><Small>{meta}</Small></div>
@@ -86,47 +87,121 @@ export function DueText({ text, urgent }: { text: string; urgent: boolean }) {
   return <Text className={urgent ? "dash-work-due dash-work-due-urgent" : "dash-work-due"}>{text}</Text>;
 }
 
-/**
- * 마감 임박 추적 건. 서버가 대표 마감을 고르지 않으므로 행의 마감 종류·D-day는
- * `links[]`에서 화면이 고른다(`imminentDeadline`).
- */
-export function DeadlineImminentPanel({ data, state, footBasis, footCount, now, windowDays }: {
-  data: OpportunityListResponse | undefined; state: WorkPanelState;
-  footBasis: ReactNode; footCount: ReactNode; now: number;
-  /** 목록 호출과 링크가 함께 쓰는 창(일). 둘이 갈라지지 않게 한 값을 받는다. */
-  windowDays: number;
-}) {
-  const rows = (data?.items ?? []).slice(0, WORK_PANEL_LIMIT).map((item) => {
-    const due = imminentDeadline(item, now);
-    return <WorkRow key={item.id} to={`/opportunities/${item.id}`} title={primaryTitle(item)}
-      meta={`${due ? due.kind : "마감 종류 미확인"} · ${item.tracking_status}`}
-      end={<DueText text={due ? deadlineLabel(due.days, new Date(due.deadlineAt)) : "마감 미확인"} urgent={due?.urgent ?? false} />} />;
-  });
-  // 링크는 패널의 목록 호출과 **같은 조건**을 사업 추적 화면에 그대로 넘긴다(S1).
-  // 구역은 `전체`로 연다 — 그 화면의 기본 구역(`조치 필요`)이 걸리면 다른 집합이 된다.
-  const to = `/opportunities?section=${ALL_SECTION}&deadline_within_days=${windowDays}&sort=deadline`;
-  return <WorkPanel title="마감 임박 추적 건" to={to} linkLabel="사업기회" state={state} rows={rows}
-    emptyTitle="7일 이내 마감인 추적 건이 없어요" errorTitle="마감 임박 추적 건을 불러오지 못했어요"
-    footBasis={footBasis} footCount={footCount} />;
+interface TodayDecisionRow {
+  kind: "tracking" | "final";
+  to: string;
+  title: string;
+  meta: string;
+  deadlineAt: string | null;
+  due: { text: string; urgent: boolean };
 }
 
-/** 최종 결정 대기. 대기열과 같은 값·같은 마감 표기를 쓴다(F3). */
-export function FinalDecisionPanel({ data, state, footBasis, footCount, now }: {
-  data: BidDeltaDecisionQueueResponse | undefined; state: WorkPanelState;
-  footBasis: ReactNode; footCount: ReactNode; now: number;
+const TODAY_DECISION_COLUMNS: readonly RecordTableColumn<TodayDecisionRow>[] = [
+  {
+    key: "title", header: "사업명", title: (row) => row.title,
+    renderTitle: (row, title) => <Link to={row.to}>{title}</Link>,
+  },
+  {
+    key: "kind", header: "결정 종류", width: 132,
+    renderCell: (row) => row.kind === "tracking" ? "추적 건 마감" : "최종 Go/No-Go",
+  },
+  { key: "meta", header: "기관·상태", width: 360, ellipsis: true, renderCell: (row) => row.meta },
+  { key: "due", header: "마감", width: 132, renderCell: (row) => <DueText {...row.due} /> },
+];
+
+function trackingDecisionRow(item: OpportunityListItem, now: number): TodayDecisionRow {
+  const due = imminentDeadline(item, now);
+  return {
+    kind: "tracking",
+    to: `/opportunities/${item.id}`,
+    title: primaryTitle(item),
+    meta: `${due?.kind ?? "마감 종류 미확인"} · ${item.tracking_status} · ${primaryAgency(item)}`,
+    deadlineAt: due?.deadlineAt ?? null,
+    due: { text: due ? deadlineLabel(due.days, new Date(due.deadlineAt)) : "마감 미확인", urgent: due?.urgent ?? false },
+  };
+}
+
+function finalDecisionRow(item: BidDeltaDecisionQueueItem, now: number): TodayDecisionRow {
+  const price = item.estimated_price === null ? "미제공" : formatPrice(Number(item.estimated_price));
+  return {
+    kind: "final",
+    to: `/go-no-go?selected=${item.opportunity_id}`,
+    title: item.title?.trim() || "제목 미확인",
+    meta: `${item.agency?.trim() || "발주기관 미확인"} · 추정가격 ${price}${item.review_state ? ` · ${DECISION_REVIEW_LABELS[item.review_state]}` : ""}`,
+    deadlineAt: item.deadline_at,
+    due: queueDeadlineLabel(item.deadline_at, now),
+  };
+}
+
+function deadlineOrder(value: string | null): number {
+  const timestamp = Date.parse(value ?? "");
+  return Number.isFinite(timestamp) ? timestamp : Number.POSITIVE_INFINITY;
+}
+
+interface DecisionSource<Data> extends WorkPanelState {
+  data: Data | undefined;
+}
+
+/** 두 출처의 조회 상태를 표시하며 성공한 행을 하나의 마감순 표로 그린다. */
+export function TodayDecisionTable({ tracking, final, now }: {
+  tracking: DecisionSource<OpportunityListResponse>;
+  final: DecisionSource<BidDeltaDecisionQueueResponse>;
+  now: number;
 }) {
-  const rows = (data?.items ?? []).slice(0, WORK_PANEL_LIMIT).map((item: BidDeltaDecisionQueueItem) => {
-    const deadline = queueDeadlineLabel(item.deadline_at, now);
-    // `formatPrice`의 null 표기가 이미 "추정가격"을 품으므로 값이 있을 때만 부른다.
-    const price = item.estimated_price === null ? "미제공" : formatPrice(Number(item.estimated_price));
-    return <WorkRow key={item.opportunity_id} to={`/go-no-go?selected=${item.opportunity_id}`}
-      title={item.title?.trim() || "제목 미확인"}
-      meta={`${item.agency?.trim() || "발주기관 미확인"} · 추정가격 ${price}`}
-      end={<DueText text={deadline.text} urgent={deadline.urgent} />} />;
-  });
-  return <WorkPanel title="최종 결정 대기" to="/go-no-go" linkLabel="최종 Go/No-Go" state={state} rows={rows}
-    emptyTitle="최종 결정을 기다리는 사업이 없어요" errorTitle="최종 결정 대기 목록을 불러오지 못했어요"
-    footBasis={footBasis} footCount={footCount} />;
+  const trackingRows = tracking.isPending || tracking.isError ? [] :
+    (tracking.data?.items ?? []).slice(0, WORK_PANEL_LIMIT).map((item) => trackingDecisionRow(item, now));
+  const finalRows = final.isPending || final.isError ? [] :
+    (final.data?.items ?? []).slice(0, WORK_PANEL_LIMIT).map((item) => finalDecisionRow(item, now));
+  const rows = [...trackingRows, ...finalRows].sort((left, right) =>
+    deadlineOrder(left.deadlineAt) - deadlineOrder(right.deadlineAt),
+  );
+  const sources = [
+    {
+      key: "tracking",
+      name: "마감 임박 추적 건",
+      state: tracking,
+      emptyNote: !trackingRows.length ? `${DEADLINE_IMMINENT_DAYS}일 이내 마감인 추적 건이 없어요.` : null,
+    },
+    {
+      key: "final",
+      name: "최종 결정 대기",
+      state: final,
+      emptyNote: !finalRows.length && (final.data?.total ?? 0) > 0 ? "최종 결정을 기다리는 사업이 없어요." : null,
+    },
+  ];
+  const empty = rows.length === 0 && sources.every(({ state }) => !state.isError && !state.isPending);
+
+  return <div className="dash-decision-body">
+    {rows.length > 0 || empty ? (
+      <RecordTable
+        className="dash-decisions-table"
+        columns={TODAY_DECISION_COLUMNS}
+        getKey={(row) => row.to}
+        label="오늘 결정할 것"
+        rowClassName={(row) => `dash-decision-${row.kind}`}
+        rows={rows}
+        state={empty ? {
+          kind: "empty",
+          message: {
+            title: "표시할 결정 항목이 없어요",
+            description: "마감 임박 추적과 최종 결정 대기 목록이 비어 있어요.",
+          },
+        } : undefined}
+      />
+    ) : null}
+    {!empty && sources.map(({ key, name, state, emptyNote }) => {
+      if (state.isError) return (
+        <div className="dash-decision-status" data-source={key} key={key} role="alert">
+          <span>{name} 목록을 불러오지 못했어요.</span>
+          <Button label="다시 시도" onClick={state.onRetry} size="sm" variant="ghost" />
+        </div>
+      );
+      if (state.isPending) return (
+        <p className="dash-decision-status" data-source={key} key={key} role="status">{name} 목록을 불러오는 중이에요.</p>
+      );
+      return emptyNote ? <p className="dash-decision-status" data-source={key} key={key}>{emptyNote}</p> : null;
+    })}
+  </div>;
 }
 
 /** 사람 확인 필요 행 하나. 개요 실패·개요 사람 확인·공고별 확인 항목을 섞지 않고 표식으로 나눈다. */

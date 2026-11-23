@@ -31,6 +31,15 @@
   min-width: 0;
 }
 
+.opp-gate-surface-head > .workbench-mark {
+  flex: none;
+}
+
+.opp-gate-surface-head > .astryx-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .opp-list {
   display: grid;
   gap: var(--spacing-1);
@@ -51,18 +60,21 @@
 }
 
 .opp-switch-row {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--spacing-5);
+  display: grid;
+  gap: var(--spacing-3);
   min-width: 0;
 }
 
-.opp-switch-row > * {
+.opp-switch-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
   min-width: 0;
 }
 
 .opp-switch-guide {
   display: grid;
   gap: var(--spacing-1);
-  flex: 1 1 0;
 }

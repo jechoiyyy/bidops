@@ -128,6 +128,11 @@ const KNOWN_CODE_DESCRIPTION: Record<string, CodeDescription> = {
     detail: "병합된 사업기회에는 노트를 남길 수 없어요. 병합된 쪽 레코드를 열어 주세요.",
     action: "reload",
   },
+  tracking_start_conflict: {
+    title: "이미 추적 결정이 기록됐어요.",
+    detail: "현재 추적 상태는 사업기회에서 확인할 수 있어요.",
+    action: "reload",
+  },
   bundle_not_ready: {
     title: "확정된 문서 묶음이 필요해요.",
     detail: "문서 준비에서 문서 묶음을 확정한 뒤 다시 시도해 주세요.",

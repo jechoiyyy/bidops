@@ -29,9 +29,3 @@ export function statusTone(status: string | null | undefined): "success" | "warn
   if (status === "대기" || status === "unknown" || status === "not_attempted") return "info";
   return "neutral";
 }
-
-/** StatusDot은 success/warning/error/accent/neutral만 지원한다(Badge와 다름). */
-export function statusDotVariant(status: string | null | undefined): "success" | "warning" | "error" | "accent" | "neutral" {
-  const tone = statusTone(status);
-  return tone === "info" ? "accent" : tone;
-}

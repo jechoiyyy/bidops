@@ -7,23 +7,28 @@
  * `:root`나 여기서 `--color-*`를 새로 정의하지 않고 새 hex 값도 만들지 않는다
  * (ADR-0048).
  *
- * 확인 버튼은 accent(primary)다. 결정은 오류가 아니므로 위험 의미색을 쓰지 않고,
- * 되돌릴 수 없다는 사실은 색이 아니라 kicker·경고 문장·요약 표가 전달한다.
+ * 별도 host에서 열리는 창도 셸과 같은 라이트 테마를 사용한다.
  */
 
 .confirm-decision-dialog {
   /* Keep the native top-layer surface explicitly hit-testable when nested. */
   pointer-events: auto;
+  color-scheme: light;
   max-width: min(560px, calc(100% - var(--spacing-8)));
   max-height: calc(var(--bo-ui-viewport-dynamic-height) - var(--spacing-8));
   gap: var(--spacing-4);
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: var(--spacing-6);
-  border: 1px solid var(--color-border-emphasized);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-container);
   color: var(--color-text-primary);
   background: var(--color-background-card);
+}
+
+.confirm-decision-dialog::backdrop {
+  background: color-mix(in srgb, var(--color-overlay) 64%, transparent);
+  backdrop-filter: none;
 }
 
 .confirm-decision-dialog-header {
@@ -33,25 +38,30 @@
   text-align: left;
 }
 
-.confirm-decision-dialog-kicker {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-}
-
 .confirm-decision-dialog [data-slot="alert-dialog-title"] {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: 0;
   color: var(--color-text-primary);
   font-size: var(--bo-type-page-title);
   font-weight: var(--bo-type-page-title-weight);
   line-height: var(--bo-type-page-title-leading);
 }
 
+.confirm-decision-dialog [data-slot="alert-dialog-title"] > svg {
+  flex: 0 0 var(--spacing-5);
+  width: var(--spacing-5);
+  height: var(--spacing-5);
+  color: var(--color-warning);
+}
+
 .confirm-decision-dialog [data-slot="alert-dialog-description"] {
   max-width: 60ch;
-  color: var(--color-text-primary);
+  margin: 0;
+  color: var(--color-text-secondary);
   font-size: var(--bo-type-body);
-  font-weight: 600;
+  font-weight: 400;
   line-height: var(--bo-type-body-leading);
 }
 
@@ -88,6 +98,9 @@
 }
 
 .confirm-decision-dialog-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--spacing-2);
 }
 
@@ -100,23 +113,23 @@
   font-weight: 600;
 }
 
-.confirm-decision-dialog-cancel {
+.confirm-decision-dialog-footer .secondary {
   border: 1px solid var(--color-border-emphasized);
   color: var(--color-text-primary);
   background: var(--color-background-card);
 }
 
-.confirm-decision-dialog-cancel:hover:not(:disabled) {
+.confirm-decision-dialog-footer .secondary:hover:not(:disabled) {
   background: var(--color-background-muted);
 }
 
-.confirm-decision-dialog-confirm {
+.confirm-decision-dialog-footer .primary {
   border: 1px solid var(--color-accent);
   color: var(--color-on-accent);
   background: var(--color-accent);
 }
 
-.confirm-decision-dialog-confirm:hover:not(:disabled) {
+.confirm-decision-dialog-footer .primary:hover:not(:disabled) {
   border-color: var(--color-accent);
   color: var(--color-on-accent);
   background: var(--color-accent);

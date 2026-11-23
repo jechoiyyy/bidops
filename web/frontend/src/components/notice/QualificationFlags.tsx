@@ -1,4 +1,4 @@
-import { Panel } from "../common/Panel";
+import { SideFacts } from "../common/Facts";
 import type { NoticeDetailResponse } from "../../lib/types";
 import { present } from "../../lib/format";
 
@@ -37,19 +37,5 @@ const fields: Array<[string, string]> = [
 // (ADR-0066 §3.3 한글화). 빈 값은 `값 없음`으로 남고 미확인과 섞지 않는다.
 export function QualificationFlags({ notice }: QualificationFlagsProps) {
   const values = record(notice.qualification_flags);
-  return (
-    <Panel className="qualification-flags-panel" title="자격·제약 플래그" action={<span className="panel-note">나라장터 제공 값</span>}>
-      <dl className="qualification-flags-list">
-        {fields.map(([key, label]) => {
-          const value = flagValue(values[key]);
-          return (
-            <div className={`qualification-flag-row ${value === "값 없음" ? "is-missing" : ""}`.trim()} key={key}>
-              <dt>{label}</dt>
-              <dd className={value === "값 없음" ? "" : "mono tabular-nums"}>{value}</dd>
-            </div>
-          );
-        })}
-      </dl>
-    </Panel>
-  );
+  return <SideFacts items={fields.map(([key, label]) => ({ label, value: flagValue(values[key]) }))} />;
 }

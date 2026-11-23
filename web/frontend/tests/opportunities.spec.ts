@@ -19,6 +19,10 @@ async function openDetail(page: Page, id: number): Promise<void> {
   await page.goto(`/opportunities?section=${encodeURIComponent("전체")}&selected=${id}`);
 }
 
+function connectionSteps(page: Page) {
+  return page.getByRole("list", { name: "공고 연결 현황" }).getByRole("listitem");
+}
+
 test("추적을 선택했지만 사유·기록자가 없으면 미선택으로 바꾸지 않는다", async ({ page }) => {
   await mockOpportunities(page);
   const stored = FIXTURES.find((item) => item.id === 101)!;
@@ -26,7 +30,7 @@ test("추적을 선택했지만 사유·기록자가 없으면 미선택으로 �
     json: { ...stored, tracking_reason: null, tracking_selected_by: null },
   }));
   await page.goto("/opportunities");
-  const footer = page.locator(".opportunity-action-footer");
+  const footer = page.getByRole("group", { name: "결정 영역", exact: true });
   await expect(footer).toContainText("계속 추적");
   await expect(footer).toContainText("결정 기록자 미확인");
   await expect(footer).not.toContainText("아직 사람이 선택하지 않음");
@@ -102,11 +106,11 @@ test("레코드 route는 목록으로 돌아갈 경로 표시를 그대로 갖�
   await expect(back).toHaveText("사업기회");
   // 목록 링크는 이 사업기회를 고른 채 연다(설계고도화안 C-3).
   await expect(back).toHaveAttribute("href", "/opportunities?selected=501");
-  await expect(topbar.getByTestId("page-header-eyebrow")).toContainText("#501");
+  await expect(topbar.getByRole("navigation", { name: "현재 위치" }).locator(".topbar-location-title")).toHaveText("사업기회 #501");
   await expect(topbar.getByRole("button", { name: "목록 기준" })).toHaveCount(0);
 });
 
-test("구역 탭은 신규 입찰공고까지 여섯이고 건수는 서버가 센 값이며 표시 수와 구분된다", async ({ page }) => {
+test("구역 탭은 마감 임박을 포함하고 구역 건수는 서버가 센다", async ({ page }) => {
   const trace = await mockOpportunities(page);
   await page.goto("/opportunities");
 
@@ -114,12 +118,12 @@ test("구역 탭은 신규 입찰공고까지 여섯이고 건수는 서버가 �
   // 전체는 미결정까지 모든 구역 건수의 합이다. T1 후속: 보류에 대표 링크가 사전규격이고
   // 마감이 미래인 표본(id 911)이 더해져 보류·전체가 하나씩 늘었다.
   await expect(page.locator(".opportunity-view-tabs button")).toHaveText([
-    /^조치 필요\s*5$/, /^추적 중\s*1$/, /^보류\s*2$/, /^추적 종료\s*1$/, /^신규 입찰공고\s*1$/, /^전체\s*11$/,
+    /^조치 필요\s*5$/, /^추적 중\s*1$/, /^보류\s*2$/, /^마감 임박$/, /^추적 종료\s*1$/, /^신규 입찰공고\s*1$/, /^전체\s*11$/,
   ]);
   await expect(page.locator(".opportunity-view-tabs button").first()).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(".opportunity-list-foot")).toContainText("서버 5건 중 5건 표시");
-  // 서버가 구역을 정하지 못한 건은 0으로 접지 않고 어디서 보이는지 말한다.
-  await expect(page.locator(".opportunity-list-foot")).toContainText("미결정 1건은 전체에서만 보여요");
+  const pager = page.getByRole("navigation", { name: "사업 추적 목록 페이지" });
+  await expect(pager).toContainText("1–5 / 5");
+  await expect(pager.locator(".review-list-pager-summary")).toHaveText(`전체 ${FIXTURES.length}건 · 조치 필요 5건`);
   // 기본 구역은 서버 질의로 나가고 사유·검색어는 보내지 않는다.
   expect(trace.listQueries.at(-1)?.get("section")).toBe("조치 필요");
   expect(trace.listQueries.at(-1)?.has("reason")).toBe(false);
@@ -162,7 +166,7 @@ test("조치 필요 사유 칩은 서버 reason으로 좁히고 주소에 남으
   // 같은 칩을 다시 누르면 풀린다.
   await chips.getByRole("button", { name: /^병합 확인/ }).click();
   await expect.poll(() => new URL(page.url()).searchParams.has("reason")).toBe(false);
-  await expect(page.locator(".opportunity-table-scroll tbody tr")).toHaveCount(5);
+  await expect(page.locator(".opportunity-table-scroll tbody tr.opportunity-row")).toHaveCount(5);
 
   // 다른 구역으로 가면 사유 필터를 버리고 보내지 않는다.
   await chips.getByRole("button", { name: /^확인 항목/ }).click();
@@ -185,7 +189,7 @@ test("URL의 마감 창과 마감 임박순을 서버에 그대로 보내고 문
   expect(trace.listQueries.at(-1)?.get("sort")).toBe("deadline");
   // 구역 `전체`는 서버 인자를 보내지 않는다 — 기본 구역(`조치 필요`)이 다시 걸리지 않는다.
   expect(trace.listQueries.at(-1)?.has("section")).toBe(false);
-  await expect(page.locator(".opportunity-view-tabs button").last()).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "마감 임박", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".opportunity-list-head")).toContainText("전체 · 7일 이내 마감");
 
   // 정렬 값은 상세 필터에서 사람 말로 읽힌다.
@@ -202,6 +206,11 @@ test("URL의 마감 창과 마감 임박순을 서버에 그대로 보내고 문
   expect(trace.listQueries.slice(before).every((params) => !params.has("deadline_within_days"))).toBe(true);
   // 창만 푼다 — 정렬은 사람이 고른 값이라 남는다.
   expect(new URL(page.url()).searchParams.get("sort")).toBe("deadline");
+  await page.getByRole("button", { name: "마감 임박", exact: true }).click();
+  await expect.poll(() => trace.listQueries.at(-1)?.get("deadline_within_days")).toBe("7");
+  await page.getByRole("button", { name: "추적 중", exact: true }).click();
+  await expect.poll(() => trace.listQueries.at(-1)?.get("section")).toBe("추적 중");
+  expect(trace.listQueries.at(-1)?.has("deadline_within_days")).toBe(false);
 });
 
 test("허용 범위 밖의 마감 창은 서버에 보내지 않고 줄도 그리지 않는다", async ({ page }) => {
@@ -232,25 +241,30 @@ test("한 사업기회는 구역을 통틀어 한 행으로만 나타난다", as
   await expect(page.locator(".opportunity-row-title", { hasText: "공공업무 시스템 개선 용역" })).toHaveCount(1);
 });
 
-test("행은 사업명·기관·단계 줄에 사유 칩과 사유별 주 행동 하나를 붙이고 보류 기한은 한국 시간 날짜 차이로 적는다", async ({ page }) => {
+test("행은 사업명 아래 사유 칩과 다음 확인의 주 행동 하나를 두고 보류 기한은 한국 시간 날짜 차이로 적는다", async ({ page }) => {
   await page.clock.setFixedTime(FIXED_NOW);
   await mockOpportunities(page);
   await page.goto("/opportunities");
-  const row = (title: string) => page.locator(".opportunity-table-scroll tbody tr", { hasText: title });
+  const row = (title: string) => page.locator(".opportunity-table-scroll tbody tr.opportunity-row", { hasText: title });
 
+  await expect(page.getByRole("table", { name: "사업 추적" }).getByRole("columnheader")).toHaveText([
+    "사업명", "발주기관", "금액", "추적 상태", "다음 마감", "다음 확인",
+  ]);
   const candidate = row("공공데이터 통합관리체계 고도화");
+  await expect(candidate.locator(".opportunity-row-title")).toHaveAttribute("title", "공공데이터 통합관리체계 고도화");
   await expect(candidate.locator(".opportunity-row-agency")).toHaveText("해솔시청");
   await expect(candidate.locator(".opportunity-row-meta")).toContainText("발주계획");
-  await expect(candidate.locator(".opportunity-row-meta")).toContainText("계속 추적");
-  await expect(candidate.locator(".opportunity-next-cell")).toContainText("연결 후보 확인");
-  await expect(candidate.locator(".opportunity-next-cell")).toContainText("후보 1건");
+  await expect(candidate.locator(".opportunity-row-status")).toHaveText("계속 추적");
+  await expect(candidate.getByRole("list", { name: "조치 사유" })).toContainText("연결 후보 확인");
+  await expect(candidate.locator(".opportunity-row-next-note")).toHaveText("후보 1건");
   // F3(spec §6.3): 대표 링크(id 1001, 발주계획)의 예산·발주 예정을 그 값 그대로 붙인다.
-  await expect(candidate.locator(".opportunity-row-meta")).toContainText("950,000,000원 · 발주 예정 2026년 11월");
+  await expect(candidate.locator(".opportunity-row-budget")).toHaveText("950,000,000원");
+  await expect(candidate.locator(".opportunity-row-milestone")).toContainText("발주 예정 2026년 11월");
 
   const expected = [
-    { title: "공공데이터 통합관리체계 고도화", chips: ["후보 확인"], action: "후보 확인" },
-    { title: "시설관리 업무시스템 구축", chips: ["새 공고"], action: "확인" },
-    { title: "환경측정 데이터 품질관리 용역", chips: ["확인 항목"], action: "확인 사항 열기" },
+    { title: "공공데이터 통합관리체계 고도화", chips: ["연결 후보 확인"], action: "후보 확인" },
+    { title: "시설관리 업무시스템 구축", chips: ["새 공고 재검토"], action: "확인" },
+    { title: "환경측정 데이터 품질관리 용역", chips: ["확인 항목 답변"], action: "확인 사항 열기" },
     { title: "스마트 민원 상담 플랫폼 구축", chips: ["병합 확인"], action: "후보 확인" },
     // 기한 2026-09-15 10:00 KST, 기준 2026-09-17 12:00 KST.
     { title: "도시계획 정보체계 유지관리", chips: ["보류 기한 지남 D+2"], action: "재검토" },
@@ -260,9 +274,9 @@ test("행은 사업명·기관·단계 줄에 사유 칩과 사유별 주 행동
     const actions = row(entry.title).locator(".opportunity-next-cell").getByRole("button");
     await expect(actions, entry.title).toHaveText([entry.action]);
   }
-  await expect(row("시설관리 업무시스템 구축").locator(".opportunity-next-cell")).toContainText("새 공고 재검토");
-  await expect(row("환경측정 데이터 품질관리 용역").locator(".opportunity-next-cell")).toContainText("확인 항목 1건");
-  await expect(row("도시계획 정보체계 유지관리").locator(".opportunity-next-cell")).toContainText("보류 재검토");
+  await expect(row("시설관리 업무시스템 구축").locator(".opportunity-row-next-note")).toHaveText("재검토 신호");
+  await expect(row("환경측정 데이터 품질관리 용역").locator(".opportunity-row-next-note")).toHaveText("확인 항목 1건");
+  await expect(row("도시계획 정보체계 유지관리").getByRole("list", { name: "조치 사유" })).toContainText("보류 기한 지남 D+2");
 
   // 기한이 남은 보류는 사유가 아니라 중립 캡션이고 주 행동이 없다(기한 2026-09-18 KST → D-1).
   await page.locator(".opportunity-view-tabs").getByRole("button", { name: /^보류/ }).click();
@@ -274,13 +288,14 @@ test("행은 사업명·기관·단계 줄에 사유 칩과 사유별 주 행동
   // 사유가 없는 미선택 행은 칩도 주 행동도 없다.
   await page.locator(".opportunity-view-tabs").getByRole("button", { name: /^신규 입찰공고/ }).click();
   const unselected = row("학교 통합정보서비스");
-  await expect(unselected.locator(".opportunity-next-cell")).toContainText("추적 결정");
-  await expect(unselected.locator(".opportunity-row-meta")).toContainText("미선택");
+  await expect(unselected.locator(".opportunity-row-next-note")).toContainText("추적 결정");
+  await expect(unselected.locator(".opportunity-row-status")).toHaveText("미선택");
   await expect(unselected.getByRole("list", { name: "조치 사유" })).toHaveCount(0);
   await expect(unselected.locator(".opportunity-next-cell").getByRole("button")).toHaveCount(0);
   // F3: 대표 링크(id 3001, 공고)에 예산·마감 값이 없으면 `미확인`이 아니라
   // `미제공`이다(서버가 null을 준 것, spec §1.1).
-  await expect(unselected.locator(".opportunity-row-meta")).toContainText("예산 미제공 · 마감 미제공");
+  await expect(unselected.locator(".opportunity-row-budget")).toHaveText("예산 미제공");
+  await expect(unselected.locator(".opportunity-row-milestone")).toContainText("마감 미제공");
 });
 
 // F3(spec §6.3): 대표 링크가 공고(bid_notice)이고 예산·마감 값이 있는 경우. 이 공유
@@ -291,9 +306,10 @@ test("행은 사업명·기관·단계 줄에 사유 칩과 사유별 주 행동
 test("대표 링크가 공고면 예산·입찰 마감을 그 값 그대로 보인다", async ({ page }) => {
   await page.goto("/opportunities");
   await page.locator(".opportunity-view-tabs").getByRole("button", { name: /^추적 중/ }).click();
-  const row = page.locator(".opportunity-table-scroll tbody tr", { hasText: "최종 결정 대기 사업" });
-  await expect(row.locator(".opportunity-row-meta")).toContainText(
-    `430,000,000원 · 입찰 마감 지남 · ${shortDateLabel("2026-09-18T00:00:00Z")}`,
+  const row = page.locator(".opportunity-table-scroll tbody tr.opportunity-row", { hasText: "최종 결정 대기 사업" });
+  await expect(row.locator(".opportunity-row-budget")).toHaveText("430,000,000원");
+  await expect(row.locator(".opportunity-row-milestone")).toContainText(
+    `입찰 마감 지남 · ${shortDateLabel("2026-09-18T00:00:00Z")}`,
   );
 });
 
@@ -305,9 +321,11 @@ test("대표 링크가 사전규격이고 마감이 남아 있으면 예산·의
   await mockOpportunities(page);
   await page.goto("/opportunities");
   await page.locator(".opportunity-view-tabs").getByRole("button", { name: /^보류/ }).click();
-  const row = page.locator(".opportunity-table-scroll tbody tr", { hasText: "교통정보 수집·제공 플랫폼 고도화" });
+  const row = page.locator(".opportunity-table-scroll tbody tr.opportunity-row", { hasText: "교통정보 수집·제공 플랫폼 고도화" });
   const days = Math.ceil((new Date(FUTURE_NOTICE_DEADLINE).getTime() - Date.now()) / 86_400_000);
-  await expect(row.locator(".opportunity-row-meta")).toContainText(`780,000,000원 · 의견 마감 D-${days}`);
+  await expect(row.locator(".opportunity-row-budget")).toHaveText("780,000,000원");
+  await expect(row.locator(".opportunity-row-milestone")).toContainText(`의견 마감 D-${days}`);
+  await expect(row.locator(".opportunity-row-deadline")).toHaveText(`의견등록 마감 D-${days}`);
 });
 
 test("사유가 여럿이면 칩은 표기 순서로 모두 보이고 주 행동은 우선순위 하나다", async ({ page }) => {
@@ -327,11 +345,11 @@ test("사유가 여럿이면 칩은 표기 순서로 모두 보이고 주 행동
   }));
   await page.goto("/opportunities");
 
-  const row = page.locator(".opportunity-table-scroll tbody tr");
+  const row = page.locator(".opportunity-table-scroll tbody tr.opportunity-row");
   // 기한 값이 없으면 D±n을 만들어 내지 않는다.
-  await expect(row.getByRole("list", { name: "조치 사유" }).getByRole("listitem")).toHaveText(["새 공고", "후보 확인", "확인 항목", "보류 기한 지남"]);
+  await expect(row.getByRole("list", { name: "조치 사유" }).getByRole("listitem")).toHaveText(["새 공고 재검토", "후보 확인", "확인 항목", "보류 기한 지남"]);
   await expect(row.locator(".opportunity-next-cell").getByRole("button")).toHaveText(["확인"]);
-  await expect(row.locator(".opportunity-next-cell")).toContainText("새 공고 재검토");
+  await expect(row.locator(".opportunity-row-next-note")).toHaveText("재검토 신호");
   await page.getByRole("button", { name: "상세 필터", exact: true }).click();
   // 병합 확인 칩 건수 0은 값 없음이 아니라 실제 0이다.
   await expect(page.getByRole("group", { name: "조치 사유" }).getByRole("button", { name: /^병합 확인/ })).toHaveText(/^병합 확인\s*0$/);
@@ -340,7 +358,7 @@ test("사유가 여럿이면 칩은 표기 순서로 모두 보이고 주 행동
 test("행의 주 행동은 사유에 맞는 상세 자리를 연다", async ({ page }) => {
   await mockOpportunities(page);
   await page.goto("/opportunities");
-  const row = (title: string) => page.locator(".opportunity-table-scroll tbody tr", { hasText: title });
+  const row = (title: string) => page.locator(".opportunity-table-scroll tbody tr.opportunity-row", { hasText: title });
 
   // 새 공고 → 상세의 확인 사항.
   await row("시설관리 업무시스템 구축").locator(".opportunity-next-cell").getByRole("button", { name: "확인", exact: true }).click();
@@ -370,20 +388,20 @@ test("사업명·기관·행 어디를 눌러도 목록을 떠나지 않고 오�
   await page.goto("/opportunities");
   await expect(page.locator(".opportunity-detail-title")).toHaveText("공공데이터 통합관리체계 고도화");
 
-  // 기관 글자를 눌러도 같은 버튼이 받는다.
-  await page.locator("tbody tr", { hasText: "시설관리 업무시스템 구축" }).locator(".opportunity-row-agency").click();
+  // 기관 글자를 눌러도 같은 행이 선택된다.
+  await page.locator("tbody tr.opportunity-row", { hasText: "시설관리 업무시스템 구축" }).locator(".opportunity-row-agency").click();
   await expect(page.locator(".opportunity-detail-title")).toHaveText("시설관리 업무시스템 구축");
   await expect(page).toHaveURL(/\/opportunities\?/);
   await expect(page.locator(".review-split-list tbody tr")).toHaveCount(5);
 
-  // 행의 빈 자리(다음 확인 칸의 글자)를 눌러도 선택된다. 주 행동 단추는 자기 동작을 한다.
-  await page.locator("tbody tr", { hasText: "환경측정 데이터 품질관리 용역" }).locator(".opportunity-next-label").click();
+  // 마감 칸을 눌러도 행이 선택된다. 주 행동 단추는 자기 동작을 한다.
+  await page.locator("tbody tr.opportunity-row", { hasText: "환경측정 데이터 품질관리 용역" }).locator(".opportunity-row-deadline").click();
   await expect(page.locator(".opportunity-detail-title")).toHaveText("환경측정 데이터 품질관리 용역");
   expect(new URL(page.url()).searchParams.get("selected")).toBe("404");
 });
 
 // 선택된 행이 눈으로 구분되지 않으면 어떤 사업의 상세를 보고 있는지 알 수 없다.
-// 표식이 표가 아니라 행의 선택 버튼에 있으므로 실제 표시를 함께 확인한다.
+// 행의 현재 선택 속성과 실제 배경·왼쪽 띠를 함께 확인한다.
 test("선택한 행은 배경으로 표시되고 다른 행을 고르면 함께 옮겨간다", async ({ page }) => {
   await mockOpportunities(page);
   for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
@@ -391,31 +409,33 @@ test("선택한 행은 배경으로 표시되고 다른 행을 고르면 함께 
     await page.goto("/opportunities");
     await expect(page.locator(".opportunity-detail-title")).toHaveText("공공데이터 통합관리체계 고도화");
 
-    const marks = () => page.evaluate(() => [...document.querySelectorAll("tbody tr")].map((row) => {
+    const marks = () => page.evaluate(() => [...document.querySelectorAll("tbody tr.opportunity-row")].map((row) => {
       const style = getComputedStyle(row);
       const firstCell = getComputedStyle(row.querySelector("td") as Element);
       return {
         title: row.querySelector(".opportunity-row-title")?.textContent ?? "",
-        pressed: row.querySelector(".opportunity-row-business")?.getAttribute("aria-pressed") === "true",
+        current: row.getAttribute("aria-current") === "true",
         background: style.backgroundColor,
         accent: firstCell.boxShadow,
       };
     }));
 
     const first = await marks();
-    const selected = first.filter((row) => row.pressed);
+    const selected = first.filter((row) => row.current);
     expect(selected, `${viewport.width}px 선택 행`).toHaveLength(1);
     expect(selected[0].title).toBe("공공데이터 통합관리체계 고도화");
-    // 선택 행만 배경을 갖는다(docs/0915_ui-redesign/spec.md §2.3: 좌측 inset 바 없음).
+    // 현재 행에서만 배경과 왼쪽 띠를 볼 수 있다.
     expect(selected[0].background).not.toBe("rgba(0, 0, 0, 0)");
-    for (const row of first.filter((entry) => !entry.pressed)) {
+    expect(selected[0].accent).toMatch(/inset/);
+    for (const row of first.filter((entry) => !entry.current)) {
       expect(row.background, `${viewport.width}px 비선택 행 배경`).not.toBe(selected[0].background);
+      expect(row.accent, `${viewport.width}px 비선택 행의 왼쪽 띠`).not.toBe(selected[0].accent);
     }
 
     await page.locator("tbody tr", { hasText: "시설관리 업무시스템 구축" }).locator(".opportunity-row-title").click();
     await expect(page.locator(".opportunity-detail-title")).toHaveText("시설관리 업무시스템 구축");
     const moved = await marks();
-    const movedSelection = moved.filter((row) => row.pressed);
+    const movedSelection = moved.filter((row) => row.current);
     expect(movedSelection).toHaveLength(1);
     expect(movedSelection[0].title).toBe("시설관리 업무시스템 구축");
     // 포인터가 올라간 행은 hover가 겹쳐 색이 미세하게 달라진다. 표시가 옮겨갔는지만 본다.
@@ -464,7 +484,7 @@ test("검색은 Enter로 서버 q에 적용하고 첫 페이지로 돌아가며 
   // 두 글자 미만 draft는 적용 전까지 주소·서버 결과를 바꾸지 않는다.
   await input.fill("도");
   await expect.poll(() => new URL(page.url()).searchParams.get("q")).toBeNull();
-  await expect(page.locator(".opportunity-table-scroll tbody tr")).toHaveCount(0);
+  await expect(page.locator(".opportunity-table-scroll tbody tr.opportunity-row")).toHaveCount(0);
   await input.fill("도담도시");
   await expect.poll(() => new URL(page.url()).searchParams.get("q")).toBeNull();
   await input.press("Enter");
@@ -477,7 +497,7 @@ test("검색은 Enter로 서버 q에 적용하고 첫 페이지로 돌아가며 
   expect(new URL(page.url()).searchParams.has("offset")).toBe(false);
   await expect(page.locator(".opportunity-row-title")).toHaveText(["시설관리 업무시스템 구축"]);
   await expect(page.locator(".opportunity-list-head")).toContainText('조치 필요 · 검색 "도담도시" 전체 1건');
-  await expect(page.locator(".opportunity-list-foot")).toContainText("서버가 페이지를 나누기 전에 적용해요");
+  await expect(page.getByRole("navigation", { name: "사업 추적 목록 페이지" })).toContainText("1–1 / 1");
   await expect(page.getByText("받은 페이지 안에서만")).toHaveCount(0);
   await expect(page.getByText("불러온 목록 안에서만")).toHaveCount(0);
 
@@ -493,7 +513,7 @@ test("검색은 Enter로 서버 q에 적용하고 첫 페이지로 돌아가며 
   await expect(page.getByText("조건에 맞는 사업이 없어요")).toBeVisible();
   await expect(page.getByText('적용된 검색어 "없는사업검색"', { exact: false })).toBeVisible();
   await page.getByRole("button", { name: "검색어만 지우기" }).click();
-  await expect(page.locator(".opportunity-table-scroll tbody tr")).toHaveCount(5);
+  await expect(page.locator(".opportunity-table-scroll tbody tr.opportunity-row")).toHaveCount(5);
   await expect(input).toHaveValue("");
   expect(new URL(page.url()).searchParams.has("q")).toBe(false);
 });
@@ -517,30 +537,36 @@ test("목록에서 ↑↓로 행을 옮기면 선택·초점·URL이 함께 따�
   await mockOpportunities(page);
   await page.goto("/opportunities");
 
-  const buttons = page.locator(".opportunity-row-business");
-  await expect(buttons).toHaveCount(5);
+  const records = page.locator("tr.opportunity-row");
+  await expect(records).toHaveCount(5);
   await expect(page.locator(".opportunity-detail-title")).toHaveText("공공데이터 통합관리체계 고도화");
 
-  await buttons.first().focus();
+  await records.nth(0).focus();
   await page.keyboard.press("ArrowDown");
   // 선택은 hook이 아니라 URL이 소유하므로 선택 이동을 먼저 확인한다.
-  await expect(buttons.nth(1)).toHaveAttribute("aria-pressed", "true");
+  await expect(records.nth(1)).toHaveAttribute("aria-current", "true");
   await expect.poll(() => new URL(page.url()).searchParams.get("selected")).toBe("202");
-  await expect(buttons.nth(1)).toBeFocused();
+  await expect(records.nth(1)).toBeFocused();
   await expect(page.locator(".opportunity-detail-title")).toHaveText("시설관리 업무시스템 구축");
 
   await page.keyboard.press("ArrowUp");
-  await expect(buttons.first()).toHaveAttribute("aria-pressed", "true");
+  await expect(records.nth(0)).toHaveAttribute("aria-current", "true");
   await expect.poll(() => new URL(page.url()).searchParams.get("selected")).toBe("101");
-  await expect(buttons.first()).toBeFocused();
+  await expect(records.nth(0)).toBeFocused();
   await expect(page.locator(".opportunity-detail-title")).toHaveText("공공데이터 통합관리체계 고도화");
 
+  await records.nth(2).focus();
+  await page.keyboard.press("Enter");
+  await expect(records.nth(2)).toHaveAttribute("aria-current", "true");
+  const thirdId = await records.nth(2).getAttribute("data-row-key");
+  await expect.poll(() => new URL(page.url()).searchParams.get("selected")).toBe(thirdId);
+
   // 상세 pane 안에서 누른 방향키는 목록을 움직이지 않는다.
-  await page.locator(".opportunity-row-business", { hasText: "시설관리 업무시스템 구축" }).click();
+  await records.filter({ hasText: "시설관리 업무시스템 구축" }).click();
   await page.getByRole("tab", { name: /확인 사항/ }).click();
   await page.locator(".opportunity-recheck-item").getByLabel("결정 기록자").focus();
   await page.keyboard.press("ArrowDown");
-  await expect(buttons.nth(1)).toHaveAttribute("aria-pressed", "true");
+  await expect(records.nth(1)).toHaveAttribute("aria-current", "true");
   expect(new URL(page.url()).searchParams.get("selected")).toBe("202");
 });
 
@@ -550,28 +576,28 @@ test("페이지 경계에서 ↑↓는 앞뒤 페이지의 첫 행·마지막 �
   await mockOpportunities(page, { large: true });
   await page.goto("/opportunities");
 
-  const buttons = page.locator(".opportunity-row-business");
-  await expect(buttons).toHaveCount(100);
-  const lastOfFirstPage = await buttons.nth(99).getAttribute("data-row-key");
+  const records = page.locator("tr.opportunity-row");
+  await expect(records).toHaveCount(100);
+  const lastOfFirstPage = await records.nth(99).getAttribute("data-row-key");
 
-  await buttons.nth(99).click();
-  await expect(buttons.nth(99)).toHaveAttribute("aria-pressed", "true");
-  await buttons.nth(99).focus();
+  await records.nth(99).click();
+  await expect(records.nth(99)).toHaveAttribute("aria-current", "true");
+  await records.nth(99).focus();
   await page.keyboard.press("ArrowDown");
 
   await expect.poll(() => new URL(page.url()).searchParams.get("offset")).toBe("100");
   await expect(page.locator(".opportunity-pager")).toContainText("101–125 / 125");
-  await expect(buttons).toHaveCount(25);
-  await expect(buttons.first()).toHaveAttribute("aria-pressed", "true");
-  await expect(buttons.first()).toBeFocused();
+  await expect(records).toHaveCount(25);
+  await expect(records.nth(0)).toHaveAttribute("aria-current", "true");
+  await expect(records.nth(0)).toBeFocused();
 
   await page.keyboard.press("ArrowUp");
   // 첫 페이지의 offset은 페이저와 같은 방식으로 `0`을 그대로 적는다.
   await expect.poll(() => new URL(page.url()).searchParams.get("offset")).toBe("0");
-  await expect(buttons).toHaveCount(100);
+  await expect(records).toHaveCount(100);
   // ↑로 넘어온 사람이 서야 하는 자리는 앞 페이지의 마지막 행이다.
-  await expect(buttons.nth(99)).toHaveAttribute("aria-pressed", "true");
-  await expect(buttons.nth(99)).toBeFocused();
+  await expect(records.nth(99)).toHaveAttribute("aria-current", "true");
+  await expect(records.nth(99)).toBeFocused();
   await expect.poll(() => new URL(page.url()).searchParams.get("selected")).toBe(lastOfFirstPage);
 });
 
@@ -581,13 +607,13 @@ test("저장하지 않은 입력이 있으면 ↓ 이동도 확인을 거치고 
   await mockOpportunities(page);
   await page.goto("/opportunities?selected=202");
 
-  const buttons = page.locator(".opportunity-row-business");
-  await expect(buttons.nth(1)).toHaveAttribute("aria-pressed", "true");
+  const records = page.locator("tr.opportunity-row");
+  await expect(records.nth(1)).toHaveAttribute("aria-current", "true");
   await page.getByRole("tab", { name: /확인 사항/ }).click();
   const card = page.locator(".opportunity-recheck-item");
   await card.getByLabel(/확인 메모/).fill("정정 내용과 기존 검토를 비교함");
 
-  await buttons.nth(1).focus();
+  await records.nth(1).focus();
   await page.keyboard.press("ArrowDown");
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
@@ -595,7 +621,7 @@ test("저장하지 않은 입력이 있으면 ↓ 이동도 확인을 거치고 
 
   await page.keyboard.press("Escape");
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
-  await expect(buttons.nth(1)).toHaveAttribute("aria-pressed", "true");
+  await expect(records.nth(1)).toHaveAttribute("aria-current", "true");
   expect(new URL(page.url()).searchParams.get("selected")).toBe("202");
   await expect(card.getByLabel(/확인 메모/)).toHaveValue("정정 내용과 기존 검토를 비교함");
 });
@@ -607,14 +633,14 @@ test("3단계 연결 현황은 확정·후보·검색 미확인·연결 미확�
   await mockOpportunities(page);
   await openDetail(page, 101);
 
-  const stages = page.locator(".opportunity-lifecycle li");
+  const stages = connectionSteps(page);
   await expect(stages).toHaveCount(3);
   await expect(stages.nth(0)).toContainText("발주계획");
   await expect(stages.nth(0)).toContainText("공식 연결");
-  await expect(stages.nth(0)).toHaveClass(/is-confirmed/);
+  await expect(stages.nth(0)).toHaveAttribute("data-step-state", "done");
   await expect(stages.nth(1)).toContainText("사전규격");
   await expect(stages.nth(1)).toContainText("후보 확인 대기");
-  await expect(stages.nth(1)).toHaveClass(/is-candidate/);
+  await expect(stages.nth(1)).toHaveAttribute("data-status", "warning");
   await expect(stages.nth(2)).toContainText("입찰공고");
   await expect(stages.nth(2)).toContainText("연결 미확인");
   // 체크는 연결 확정이며 분석 완료나 입찰 승인이 아니다.
@@ -624,9 +650,9 @@ test("3단계 연결 현황은 확정·후보·검색 미확인·연결 미확�
   // 검색 실패 연결에는 원천 레코드가 없어 계약상 단계를 알 수 없다. 화면이 단계를
   // 추정해 채우지 않고, 그 연결이 어디에 있는지 말한다.
   await openDetail(page, 505);
-  const unconfirmed = page.locator(".opportunity-lifecycle li").nth(1);
+  const unconfirmed = connectionSteps(page).nth(1);
   await expect(unconfirmed).toContainText("연결 미확인");
-  await expect(unconfirmed).not.toHaveClass(/is-confirmed/);
+  await expect(unconfirmed).toHaveAttribute("data-step-state", "unknown");
   await expect(page.locator(".opportunity-flow-section")).toContainText("단계를 알 수 없는 연결 1건");
 });
 
@@ -643,6 +669,30 @@ test("연결된 공고 행은 실제 원천 화면 route로 이동한다", async
   await openDetail(page, 404);
   await expect(page.locator(".opportunity-linked-row").getByRole("link", { name: "사전규격 상세 열기" }))
     .toHaveAttribute("href", "/pre-specs/61");
+});
+
+test("연결 공고 보기는 현재 탭과 관계없이 공고 목록으로 이동한다", async ({ page }) => {
+  await mockOpportunities(page);
+  const item = FIXTURES.find((fixture) => fixture.id === 202)!;
+  await page.route(/\/api\/opportunities\/202(?:\?.*)?$/, (route) => route.fulfill({
+    json: { ...item, action_reasons: [], recheck_signal: false, recheck_signal_at: null, recheck_signal_link_id: null },
+  }));
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openDetail(page, 202);
+
+  const action = page.getByRole("button", { name: "연결 공고 보기", exact: true });
+  const heading = page.getByRole("heading", { name: "연결된 공고", exact: true });
+  const flowTab = page.getByRole("tab", { name: "사업 흐름", exact: true });
+  await expect(flowTab).toHaveAttribute("aria-selected", "true");
+  await action.click();
+  await expect(heading).toBeFocused();
+  await expect(heading).toBeInViewport();
+
+  await page.getByRole("tab", { name: "추적 이력", exact: true }).click();
+  await action.click();
+  await expect(flowTab).toHaveAttribute("aria-selected", "true");
+  await expect(heading).toBeFocused();
+  await expect(heading).toBeInViewport();
 });
 
 test("검색 미확인 연결은 원천 레코드를 만들어 내지 않는다", async ({ page }) => {
@@ -682,7 +732,7 @@ test("검색 미확인 기록은 대상마다 가장 최근 것만 남기고 그
   }));
   await openDetail(page, 505);
 
-  const lifecycle = page.locator(".opportunity-lifecycle li");
+  const lifecycle = connectionSteps(page);
   await expect(lifecycle.nth(1)).toContainText("검색 미확인");
   await expect(lifecycle.nth(2)).toContainText("후보 확인 대기");
   await expect(page.locator(".opportunity-linked-row", { hasText: "검색 미확인" })).toHaveCount(1);
@@ -731,8 +781,8 @@ test("후보 연결은 사유·기록자 없이 저장되지 않고 수용하면
   expect(trace.linkDecisions[0].headers["x-bidops-actor-name-format"]).toBe("utf-8-percent-v1");
   // 연결 판정은 추적 상태를 바꾸지 않는다.
   expect(trace.patches).toHaveLength(0);
-  await expect(page.locator(".opportunity-lifecycle li").nth(1)).toContainText("사람 확인 완료");
-  await expect(page.locator(".opportunity-action-footer")).toContainText("계속 추적");
+  await expect(connectionSteps(page).nth(1)).toContainText("사람 확인 완료");
+  await expect(page.getByRole("group", { name: "결정 영역", exact: true })).toContainText("계속 추적");
 });
 
 test("기각한 후보는 확정으로 올라가지 않고 이력으로 남는다", async ({ page }) => {
@@ -750,9 +800,9 @@ test("기각한 후보는 확정으로 올라가지 않고 이력으로 남는�
 
   await expect(page.getByText("후보 연결을 기각으로 기록했어요.")).toBeVisible();
   expect(trace.linkDecisions[0].body.decision).toBe("rejected");
-  const preSpecStage = page.locator(".opportunity-lifecycle li").nth(1);
+  const preSpecStage = connectionSteps(page).nth(1);
   await expect(preSpecStage).toContainText("연결 미확인");
-  await expect(preSpecStage).not.toHaveClass(/is-confirmed/);
+  await expect(preSpecStage).toHaveAttribute("data-step-state", "unknown");
   await expect(page.locator(".opportunity-linked-row", { hasText: "DEMO-PS-001" })).toContainText("기각");
 });
 
@@ -800,7 +850,7 @@ test("추적 상태 변경은 사유 선택지와 기타 직접 입력을 갖고
   expect(trace.patches).toHaveLength(1);
   expect(trace.patches[0].body).toEqual({ tracking_status: "보류", reason: "요구 범위를 확인한 뒤 재검토" });
   expect(trace.patches[0].headers["x-bidops-actor-name"]).toBe("UTF-8''%ED%99%8D%EA%B8%B8%EB%8F%99");
-  await expect(page.locator(".opportunity-action-footer")).toContainText("보류");
+  await expect(page.getByRole("group", { name: "결정 영역", exact: true })).toContainText("보류");
   // 성공하면 사유 초안이 비워진다. 기록자 이름은 이 브라우저가 기억한다.
   await page.getByRole("button", { name: "추적 상태 변경" }).click();
   await expect(page.getByRole("dialog").getByRole("combobox", { name: "선택 사유" })).toContainText("사유를 선택하세요");
@@ -812,7 +862,7 @@ test("미선택 건은 화면이 대신 상태를 고르지 않고 미선택으�
 
   await page.getByRole("button", { name: "추적 여부 선택" }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText("아직 아무도 고르지 않았어요");
+  await expect(dialog).toContainText("현재 추적 상태 · 미선택");
   // 결정 버튼에 `미선택`은 없고, 아직 아무도 고르지 않았으므로 `계속 추적`의 이름은 `추적 시작`이다.
   await expect(dialog.getByRole("button", { name: "미선택" })).toHaveCount(0);
   await expect(dialog.getByRole("button", { name: "추적 시작하기", exact: true })).toBeVisible();
@@ -972,7 +1022,7 @@ test("새 공고 확인 완료는 보던 근거 연결과 메모를 보내고 �
   // 확인 완료는 추적 상태 저장이 아니다.
   expect(trace.patches).toHaveLength(0);
   await expect(page.locator(".opportunity-recheck-item")).toHaveCount(0);
-  await expect(page.locator(".opportunity-action-footer")).toContainText("계속 추적");
+  await expect(page.getByRole("group", { name: "결정 영역", exact: true })).toContainText("계속 추적");
   await expect.poll(() => trace.decisionGets.length).toBeGreaterThan(decisionsBefore);
 
   await page.getByRole("tab", { name: "추적 이력" }).click();
@@ -997,7 +1047,7 @@ test("확인 완료 전에 근거 연결이 바뀌면 최신 상태를 다시 �
   await expect(card).toContainText("시설관리 업무시스템 구축 정정공고 · DEMO-BN-002-1");
   expect(trace.acks).toHaveLength(1);
   expect(trace.acks[0].body).toEqual({ expected_link_id: 2002 });
-  await expect(page.locator(".opportunity-action-footer")).toContainText("계속 추적");
+  await expect(page.getByRole("group", { name: "결정 영역", exact: true })).toContainText("계속 추적");
 });
 
 test("재검토 신호가 있으면 추적 상태 대화상자가 저장 시 새 공고 확인도 처리된다고 알린다", async ({ page }) => {
@@ -1010,22 +1060,28 @@ test("재검토 신호가 있으면 추적 상태 대화상자가 저장 시 새
 
   await openDetail(page, 101);
   await page.getByRole("button", { name: "추적 상태 변경", exact: true }).click();
-  await expect(page.getByRole("dialog")).toContainText("추적 상태·선택 사유·담당자 이름을 함께 남겨요.");
+  await expect(page.getByRole("dialog").getByRole("combobox", {name:"선택 사유"})).toBeVisible();
   await expect(page.getByRole("dialog")).not.toContainText("새 공고 확인도 함께 처리돼요");
 });
 
 test("단계 줄 찾아보기는 기준 레코드가 있는 빈 단계에만 있고 결과 후보를 후보 대화상자로 연다", async ({ page }) => {
   const trace = await mockOpportunities(page);
-  const stageSearches = page.locator(".opportunity-lifecycle .opportunity-stage-search");
+  const stageSearches = page.getByRole("list", { name: "공고 연결 현황" }).getByRole("button", { name: /찾아보기/ });
 
   // 발주계획·입찰공고 확정 → 사전규격만 찾아본다.
   await openDetail(page, 202);
-  await expect(page.locator(".opportunity-lifecycle li").nth(1).getByRole("button", { name: "사전규격 찾아보기" })).toBeVisible();
+  await expect(connectionSteps(page).nth(1).getByRole("button", { name: "사전규격 찾아보기" })).toBeVisible();
   await expect(stageSearches).toHaveText(["사전규격 찾아보기"]);
   // 입찰공고만 있으면 기준 레코드가 없어 찾아보기가 없다.
   await openDetail(page, 303);
-  await expect(page.locator(".opportunity-lifecycle li")).toHaveCount(3);
+  await expect(connectionSteps(page)).toHaveCount(3);
   await expect(stageSearches).toHaveCount(0);
+  const bidOnlySteps = connectionSteps(page);
+  await expect(bidOnlySteps.nth(0)).toHaveAttribute("data-step-state", "unknown");
+  await expect(bidOnlySteps.nth(1)).toHaveAttribute("data-step-state", "unknown");
+  await expect(bidOnlySteps.nth(2)).toHaveAttribute("data-step-state", "done");
+  await expect(bidOnlySteps.nth(0).locator(".astryx-step-indicator svg.lucide-minus")).toBeVisible();
+  await expect(bidOnlySteps.nth(2).locator(".astryx-step-indicator svg.lucide-check")).toBeVisible();
   // 사전규격만 있으면 입찰공고만 찾아본다.
   await openDetail(page, 404);
   await expect(stageSearches).toHaveText(["입찰공고 찾아보기"]);
@@ -1053,8 +1109,8 @@ test("단계 줄 찾아보기는 기준 레코드가 있는 빈 단계에만 있
   expect(trace.searches[0].body).toEqual({ target: "pre_spec" });
   expect(trace.searches[0].headers["x-bidops-actor-name"]).toBe("UTF-8''%ED%99%8D%EA%B8%B8%EB%8F%99");
   // 후보가 생긴 단계는 다시 읽은 연결로 후보 확인 대기가 된다. 확정하지 않는다.
-  await expect(page.locator(".opportunity-lifecycle li").nth(1)).toContainText("후보 확인 대기");
-  await expect(page.locator(".opportunity-lifecycle li").nth(1)).not.toHaveClass(/is-confirmed/);
+  await expect(connectionSteps(page).nth(1)).toContainText("후보 확인 대기");
+  await expect(connectionSteps(page).nth(1)).toHaveAttribute("data-step-state", "unknown");
 
   await results.nth(0).getByRole("button", { name: "후보 확인" }).click();
   const dialog = page.getByRole("dialog");
@@ -1104,7 +1160,7 @@ test("양쪽에 사람 추적 상태가 있어 병합이 거절되면 두 사업
   const trace = await mockOpportunities(page, { linkDecisionMergeConflict: true });
   await openDetail(page, 909);
 
-  await page.locator(".opportunity-action-footer").getByRole("button", { name: "후보 연결 확인" }).click();
+  await page.getByRole("group", { name: "결정 영역", exact: true }).getByRole("button", { name: "후보 연결 확인" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("공식 번호로 이어진 병합 확인 후보");
   await dialog.getByRole("combobox", { name: "판단 사유" }).click();
@@ -1136,7 +1192,7 @@ test("병합이 막히면 각 사업을 미선택으로 되돌릴 수 있고 수
   const trace = await mockOpportunities(page, { linkDecisionMergeConflict: true });
   await openDetail(page, 909);
 
-  await page.locator(".opportunity-action-footer").getByRole("button", { name: "후보 연결 확인" }).click();
+  await page.getByRole("group", { name: "결정 영역", exact: true }).getByRole("button", { name: "후보 연결 확인" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("combobox", { name: "판단 사유" }).click();
   await page.getByRole("option", { name: "공식 식별자 관계를 별도로 확인" }).click();
@@ -1178,7 +1234,7 @@ test("추적 상태가 같아 서버가 병합한 수락은 사람 확인 병합
   const trace = await mockOpportunities(page, { linkDecisionMerged: true });
   await openDetail(page, 909);
 
-  await page.locator(".opportunity-action-footer").getByRole("button", { name: "후보 연결 확인" }).click();
+  await page.getByRole("group", { name: "결정 영역", exact: true }).getByRole("button", { name: "후보 연결 확인" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("combobox", { name: "판단 사유" }).click();
   await page.getByRole("option", { name: "공식 식별자 관계를 별도로 확인" }).click();
@@ -1240,7 +1296,7 @@ test("추적 이력은 현재 추적 결정 사실을 먼저 보여 주고 결�
   const panel = page.locator("#opportunity-panel-decision");
   await expect(panel).toContainText("참여 조건을 추가 확인한 뒤 다시 검토");
   await expect(panel).toContainText("시안 검토자");
-  await expect(panel.locator(".opportunity-decision-facts > div")).toHaveCount(3);
+  await expect(panel.locator(".opportunity-decision-facts dl > dt")).toHaveText(["선택 사유", "결정 기록자", "선택 시각"]);
   const items = panel.locator(".opportunity-history-item");
   await expect(items).toHaveCount(1);
   await expect(items).toContainText("계속 추적 → 보류");
@@ -1317,9 +1373,9 @@ test("두 지원 폭에서 가로로 넘치지 않고 상세 바닥 액션이 �
   for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport);
     await page.goto("/opportunities");
-    await expect(page.locator(".opportunity-action-footer")).toBeVisible();
+    await expect(page.getByRole("group", { name: "결정 영역", exact: true })).toBeVisible();
     const metrics = await page.evaluate(() => {
-      const footer = document.querySelector(".opportunity-action-footer") as HTMLElement;
+      const footer = document.querySelector(".workbench-decision") as HTMLElement;
       const pane = document.querySelector(".review-split-list") as HTMLElement;
       const parent = pane.parentElement as HTMLElement;
       return {
@@ -1330,7 +1386,7 @@ test("두 지원 폭에서 가로로 넘치지 않고 상세 바닥 액션이 �
     });
     expect(metrics.overflow, `${viewport.width}px 가로 넘침`).toBeLessThanOrEqual(1);
     expect(metrics.footerVisible, `${viewport.width}px 하단 액션`).toBe(true);
-    expect(metrics.ratio, `${viewport.width}px 목록 비율`).toBeCloseTo(0.38, 2);
+    expect(metrics.ratio, `${viewport.width}px 목록 비율`).toBeCloseTo(0.60, 2);
   }
 });
 
@@ -1364,9 +1420,7 @@ test("상세 본문을 끝까지 스크롤해도 상세 머리가 뷰포트 안�
   expect(after.y + after.height, "머리가 뷰포트 안에 있다").toBeLessThanOrEqual(800);
 });
 
-// 목록 첫 줄(사업명·발주기관)은 공용 `--review-list-primary`(14px)를, 메타 줄은
-// secondary(12px)를 읽는다 — 2026-11-18 조밀 목록 결정(설계고도화안 §4 B-4 결정 1).
-// 상세 제목은 상세 단(20px)이다. ×0.9 축척 때는 14.4px·12.6px·18px였다.
+// ADR-0076 결정 15의 목록 단과 기존 상세 제목을 함께 확인한다.
 test("목록의 글자 크기가 정수 척도의 14px·12px 단을 지킨다", async ({ page }) => {
   await mockOpportunities(page);
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -1379,17 +1433,22 @@ test("목록의 글자 크기가 정수 척도의 14px·12px 단을 지킨다", 
     return {
       title: size(".opportunity-row-title"),
       agency: size(".opportunity-row-agency"),
-      meta: size(".opportunity-row-meta .opportunity-caption"),
-      next: size(".opportunity-next-label"),
+      budget: size(".opportunity-row-budget"),
+      deadline: size(".opportunity-row-deadline .workbench-deadline"),
+      meta: size(".opportunity-row-meta"),
+      next: size(".opportunity-row-next-note"),
+      decisionNote: size(".workbench-decision-note"),
       detailTitle: size(".opportunity-detail-title"),
       detailAgency: size(".opportunity-agency-name"),
     };
   });
-  // 2026-11-20 4차(ADR-0076 결정 11): 패널 본문은 k 단(본문 16·보조 14·구역 18·상세 22, 단추 44)이다.
-  expect(sizes.title).toBe("16px");
-  expect(sizes.agency).toBe("16px");
-  expect(sizes.meta).toBe("14px");
-  expect(sizes.next).toBe("14px");
+  expect(sizes.title).toBe("14px");
+  expect(sizes.agency).toBe("14px");
+  expect(sizes.budget).toBe("14px");
+  expect(sizes.deadline).toBe("14px");
+  expect(sizes.decisionNote).toBe("12px");
+  expect(sizes.meta).toBe("12px");
+  expect(sizes.next).toBe("12px");
   // 상세 머리 제목은 발주계획과 같은 상세 단 22px이다(2026-11-20, ADR-0076 결정 10).
   expect(sizes.detailTitle).toBe("22px");
   // 상세 머리의 발주기관은 발주계획과 같은 보조 14px이다.

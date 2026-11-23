@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
-import { Token } from "@astryxdesign/core/Token";
 import { Button } from "@astryxdesign/core/Button";
 import { NumberInput } from "@astryxdesign/core/NumberInput";
 import { ToggleButton, ToggleButtonGroup } from "@astryxdesign/core/ToggleButton";
@@ -8,8 +7,8 @@ import { useEffect, useRef, useState } from "react";
 import { ApiError, api } from "../../lib/api";
 import { formatDateTime } from "../../lib/format";
 import { ActorField } from "../common/ActorField";
-import { Badge } from "../common/Badge";
-import { qualityStatusLabel, qualityStatusVariant } from "../../lib/qualityStatus";
+import { StatusMark } from "../common/Marks";
+import { qualityStatusLabel, qualityStatusMark } from "../../lib/qualityStatus";
 import type {
   PageOverviewCurrent,
   PageOverviewCurrentStatus,
@@ -221,7 +220,7 @@ export function PageOverviewResult({ review, anchor = true }: { review: PageOver
   return <section className="page-overview" aria-label="PDF 기반 개요 검토">
     <header className="page-overview-heading">
       <h3>개요 검토 결과</h3>
-      <Badge label={qualityStatusLabel(review.quality_status)} variant={qualityStatusVariant(review.quality_status)} />
+      <StatusMark mark={qualityStatusMark(review.quality_status)} />
     </header>
     <div className="page-overview-validation" role="status">
       <strong>{review.validation_status === "failed" ? "검증 실패 · 사람 확인 필요" : isVerifiedV4 ? "주장 검증 완료 · 운영 승인 아님" : "근거 검사 통과 · 이전 검증 기준"}</strong>
@@ -296,7 +295,7 @@ export function PageOverviewVerificationDetails({
   return <section className="page-overview-section page-overview-verification" aria-label="현재 주장 검증 진단">
     <header className="page-overview-heading">
       <h3>현재 주장 검증 진단</h3>
-      <Token label={VERIFICATION_STATUS_LABEL[verification.status]} size="sm" />
+      <StatusMark mark={{ label: VERIFICATION_STATUS_LABEL[verification.status], tone: "neutral" }} />
     </header>
     {verification.reason_codes.length ? <p>전체 사유 코드 · {verification.reason_codes.join(", ")}</p> : <p>전체 사유 코드 · 없음</p>}
     {verification.claims.length ? <ol className="page-overview-verification-claims">
@@ -328,7 +327,10 @@ export function PageOverviewCurrent({
     <section className="page-overview-section page-overview-current" aria-label="현재 개요 검토">
       <header className="page-overview-heading">
         <h3>현재 개요 검토</h3>
-        <Token label={isRangePending ? "입력 범위 확인 필요" : isInputCapacityExceeded ? "입력 용량 초과로 미실행" : CURRENT_STATUS_LABEL[current.status]} size="sm" />
+        <StatusMark mark={{
+          label: isRangePending ? "입력 범위 확인 필요" : isInputCapacityExceeded ? "입력 용량 초과로 미실행" : CURRENT_STATUS_LABEL[current.status],
+          tone: "neutral",
+        }} />
       </header>
       <div className="page-overview-validation" role={current.status === "failed" ? "alert" : "status"}>
         <strong>{isRangePending ? "입력 범위를 사람이 확정해야 해요. 주장 검증은 아직 시작하지 않았어요." : isInputCapacityExceeded ? "입력 용량을 초과했거나 안전 한도를 확인할 수 없어 이 요청을 실행하지 않았어요." : CURRENT_STATUS_DESCRIPTION[current.status]}</strong>
@@ -465,11 +467,11 @@ function rangeReasonLabel(reasonCode: string | null): string {
   return RANGE_REASON_LABEL[reasonCode] ?? reasonCode;
 }
 
-function RangeReviewHeading({ token }: { token: string }) {
+function RangeReviewHeading({ statusLabel }: { statusLabel: string }) {
   return (
     <header className="page-overview-heading">
       <h3>개요 입력 범위 확인</h3>
-      <Token label={token} size="sm" />
+      <StatusMark mark={{ label: statusLabel, tone: "neutral" }} />
     </header>
   );
 }
@@ -581,7 +583,7 @@ function RangeReviewPending({
   return (
     <section className={`page-overview-section page-overview-range${inNotice ? " is-notice" : ""}`} aria-label="개요 범위 확인">
       {inNotice ? null : <>
-        <RangeReviewHeading token={review.selection_status === "ready" ? "자동 선택됨 · 조정 가능" : "범위 확인 필요"} />
+        <RangeReviewHeading statusLabel={review.selection_status === "ready" ? "자동 선택됨 · 조정 가능" : "범위 확인 필요"} />
         <p className="page-overview-range-state">
           변환 완료 · {review.selection_status === "ready" ? "자동 선택" : "범위 미확정"} · 내용 검증 상태는 개요 상태에서 확인
         </p>
@@ -758,7 +760,7 @@ function RangeReviewConfirmed({
     : review.candidates.find((candidate) => candidate.index === index)?.title ?? "절 제목 확인 불가";
   return (
     <section className="page-overview-section page-overview-range" aria-label="개요 범위 확인">
-      <RangeReviewHeading token="범위 확정됨" />
+      <RangeReviewHeading statusLabel="범위 확정됨" />
       <p className="page-overview-range-state">변환 완료 · 범위 확정 · 내용 검증 상태는 개요 상태에서 확인</p>
       <a href={targetPdfUrl(noticeId)} target="_blank" rel="noreferrer">변환 PDF 열기 ↗</a>
       <dl className="page-overview-execution-meta">

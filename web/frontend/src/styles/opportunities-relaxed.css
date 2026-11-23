@@ -11,8 +11,6 @@
  */
 
 .opportunities-page {
-  --opportunity-step-size: var(--spacing-7);
-
   display: flex;
   flex-direction: column;
   gap: var(--spacing-3);
@@ -65,7 +63,7 @@
   border-radius: var(--radius-inner);
 }
 
-.opportunity-row {
+div.opportunity-row {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
@@ -109,190 +107,61 @@
 
 /* 상단바 슬롯에 들어가는 목록 화면의 액션. 슬롯 자체가 정렬·간격·4단 글자를 주므로
    여기서는 액션끼리의 간격만 정한다(`styles/shell-relaxed.css`). */
-.opportunity-header-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-
-/* --- 목록 38% : 상세 62% ---
- *
- * 카드 골격(`.review-split-workspace`)·목록과 상세 pane의 폭·머리 여백·선은 공용
- * primitive가 갖는다(ADR-0062, 시안 M1c A안). `--review-split-line`과
- * `--review-quiet-surface`도 거기서 정의되므로 이 화면이 다시 정의하지 않는다.
- * 화면 클래스(`.opportunity-workspace`·`.opportunity-list-pane`·
- * `.opportunity-detail-pane`·`.opportunity-list-head`)는 검사 selector로만 남는다. */
 
 .opportunity-list-title {
   margin: 0;
-  font-weight: 600;
 }
 
-.opportunity-table-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-}
-
-.opportunity-list-foot {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  gap: var(--spacing-0-5);
-  padding: var(--spacing-2) var(--spacing-4);
-  border-top: var(--border-width) solid var(--review-split-line);
-  background: var(--review-quiet-surface);
+.opportunity-list-notice {
+  padding: var(--spacing-2) var(--record-inset, var(--spacing-6));
+  border-top: 1px solid var(--bo-line-soft);
 }
 
 /* --- 목록 행 --- */
 
-/* 행 여백은 탐색 두 화면의 공용 목록 행과 같은 값이다(`.review-dense-list-row`의
-   실측 `spacing-2 spacing-4`, ADR-0062). 목록은 시안 M1c A안대로 표를 유지하므로
-   행의 구조는 그대로 두고 여백과 글자 단만 공용 값을 읽는다. */
-.opportunities-page .astryx-table-cell {
-  border-bottom-color: var(--review-split-line);
-  vertical-align: top;
+.opportunity-row-meta,
+.opportunity-row-reasons-line {
+  margin-block-start: var(--spacing-1);
 }
 
-/* 열 이름 줄 — 시안의 카드 안 조용한 면(spec §2.3). 좌우 여백은 행과 같은 줄에 맞춘다. */
-.opportunities-page .astryx-table-header-cell {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  border-bottom-color: var(--review-split-line);
-  background: var(--review-quiet-surface);
-  font-size: var(--bo-type-caption);
+.opportunity-row-meta .opportunity-row-milestone {
+  font-size: inherit;
+  line-height: inherit;
 }
 
-/* 선택 표시는 행의 선택 버튼이 진다. Astryx `Table`의 data 모드는 선택 상태를
-   갖지 않으므로 표가 아니라 `aria-pressed`를 그대로 읽는다 — 두 곳이 서로 다른
-   상태를 그리지 않게 표식은 하나만 둔다. */
-/* spec §2.3 — 선택 행은 `--color-accent-muted` 배경 하나로만 말한다. 좌측 inset 바는
-   두지 않는다(흰 카드 위에서 등급 레일과 겹쳐 서로를 지웠다). */
-.opportunities-page tbody tr:has(.opportunity-row-business[aria-pressed="true"]) {
-  background: var(--color-accent-muted);
-}
-
-.opportunity-row-business {
-  display: grid;
-  gap: var(--spacing-1);
+.app-shell .record-table .opportunity-row-action {
   width: 100%;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--color-text-primary);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
+  min-width: 0;
+  height: auto;
+  min-height: var(--bo-k-control-row);
+  padding-block: var(--spacing-1);
+  padding-inline: var(--spacing-1);
 }
 
-/* 목록 첫 줄(사업명·발주기관)은 네 목록이 같은 크기를 쓴다 — 목록 pane
-   (`.review-split-list`)이 소유한 공용 `--review-list-primary`(14px)다.
-   2026-09-21 M1c 승인: 사업 추적만 갖고 있던 13.5px 단(`--opportunity-row-primary`)을
-   없애고 공용 값에 맞췄다(명세 §2.4). 표 자체는 그대로 둔다(M1c A안). */
-.opportunity-row-business .opportunity-row-title,
-.opportunity-row-business .opportunity-row-agency {
-  font-size: var(--review-list-primary);
-  line-height: 1.5;
+.app-shell .record-table .opportunity-row-action,
+.app-shell .record-table .opportunity-row-action span {
   white-space: normal;
-  overflow-wrap: anywhere;
+  word-break: keep-all;
 }
 
-.opportunity-row-business .opportunity-row-title {
-  font-weight: 600;
-}
-
-.opportunity-row-business .opportunity-row-agency {
-  font-weight: 400;
-  color: var(--color-text-secondary);
-}
-
-.opportunity-row-business:hover .opportunity-row-title {
-  text-decoration: underline;
-}
-
-/* ↑↓로 옮겨 온 초점이 보여야 한다. 값은 최종 Go/No-Go 목록(`.gng-row:focus-visible`)과
-   같다 — 네 목록이 같은 초점 표시를 쓴다. 선택 행 배경은 `aria-pressed` 규칙이 따로 갖는다. */
-.opportunity-row-business:focus-visible {
-  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
-  outline-offset: var(--spacing-0-5);
-}
-
-.opportunity-row-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding-top: var(--spacing-1);
-  min-width: 0;
-  /* F3: 대표 링크의 예산·마감·발주 예정이 줄 끝에 붙으면 좁은 지원 폭(1280px)에서
-     한 줄에 다 안 들어갈 수 있다. 가로 스크롤 대신 줄바꿈으로 받는다. */
-  flex-wrap: wrap;
-  row-gap: 0;
-}
-
-/* 보조 줄(단계·추적 상태·다음 확인 설명)은 공용 목록의 둘째 단을 그대로 읽는다.
-   `--review-list-secondary`는 `.review-split-list`가 정의한다(ADR-0062). */
-.opportunity-row-meta .opportunity-caption {
-  font-size: var(--review-list-secondary, var(--bo-type-body));
-}
-
-.opportunity-next-cell {
-  display: grid;
-  gap: var(--spacing-2);
-  padding-top: var(--spacing-0-5);
-}
-
-.opportunity-next-cell > .opportunity-next-label {
-  font-size: var(--review-list-secondary, var(--bo-type-body));
-  line-height: 1.5;
-}
-
-.opportunity-next-cell > .opportunity-next-label.is-action {
-  font-weight: 600;
-}
-
-/* 행의 주 행동 하나(spec §11.1). 열 폭 안에서 줄을 바꾸지 않는다. */
-.opportunity-next-cell > .opportunity-row-action {
-  justify-self: start;
-  white-space: nowrap;
-}
-
-/* 첫 열은 선택 버튼(사업명·기관·단계 줄)과 그 아래 사유 칩 줄이다. 칩은 버튼 밖에
-   두어 버튼 안에 다른 조작이 들어가지 않게 한다. */
-.opportunity-row-cell {
-  display: grid;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-
+.opportunity-row-reasons-line,
 .opportunity-row-reasons {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-1);
+  min-width: 0;
+}
+
+.opportunity-row-reasons {
   margin: 0;
   padding: 0;
   list-style: none;
-  min-width: 0;
 }
 
 .opportunity-row-reasons > li {
   display: inline-flex;
   min-width: 0;
-}
-
-/* 사유 칩은 누르는 것이 아니다. 옆 열의 주 행동 단추와 같은 회색 면으로 보이지 않게
-   윤곽 칩(흰 바탕 + inset 1px 테두리)으로 그린다. */
-.opportunity-row-reasons .astryx-token {
-  color: var(--color-text-secondary);
-  background: var(--color-background-surface);
-  box-shadow: inset 0 0 0 var(--border-width) var(--color-border);
-}
-
-.opportunities-page .opportunity-row-reasons > li.opportunity-row-hold {
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
 }
 
 /* --- 조치 필요 사유 칩 필터 ---
@@ -373,12 +242,7 @@
   min-height: 0;
 }
 
-/* 상세의 발주기관은 목록보다 한 단 더 크다(시안의 `--bo-list-primary` 16px).
-   사용자가 15px로 낮춘 것은 목록의 사업명·기관뿐이다. 블록 자체(배경·여백)는
-   공용 `.review-agency-feature`가 소유하므로 글자 단만 여기서 올린다. */
 .opportunities-page .opportunity-agency-name {
-  font-size: calc(var(--bo-type-body) + var(--spacing-0-5));
-  font-weight: 600;
   overflow-wrap: anywhere;
   min-width: 0;
 }
@@ -391,18 +255,6 @@
   overflow-wrap: anywhere;
 }
 
-.opportunity-detail-tabs {
-  flex: 0 0 auto;
-  padding: 0 var(--spacing-4);
-  border-top: 0;
-  border-bottom: var(--border-width) solid var(--review-split-line);
-}
-
-.opportunity-detail-tabs .astryx-tab {
-  min-height: var(--spacing-10);
-  font-size: var(--bo-type-body);
-}
-
 .opportunity-detail-scroll {
   flex: 1 1 0;
   min-height: 0;
@@ -410,11 +262,7 @@
   padding: var(--spacing-3) var(--spacing-4) var(--spacing-2);
 }
 
-/* --- 사업 흐름 탭 ---
- *
- * 시안과 같은 순서·구성이되 세로 여백만 한 단 좁힌다. 제품 셸의 상단바(76px)가
- * 시안의 미리보기 바(40px)보다 높아 상세가 읽는 높이가 그만큼 짧기 때문이다.
- * 글자 크기·38% 비율·고정 액션·원천 상태는 그대로 두고 간격만 줄인다. */
+/* --- 사업 흐름 탭 --- */
 
 .opportunity-flow-section,
 .opportunity-linked-section,
@@ -423,79 +271,6 @@
   display: grid;
   gap: var(--spacing-2);
   padding-block: var(--spacing-2);
-}
-
-.opportunity-lifecycle {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-inner);
-  overflow: hidden;
-}
-
-.opportunity-lifecycle li {
-  display: grid;
-  gap: var(--spacing-1);
-  min-width: 0;
-  padding: var(--spacing-2) var(--spacing-3);
-  background: var(--color-background-body);
-}
-
-.opportunity-lifecycle li + li {
-  border-left: var(--border-width) solid var(--color-border);
-}
-
-.opportunity-lifecycle li.is-confirmed {
-  background: var(--color-background-surface);
-}
-
-.opportunity-lifecycle li.is-candidate {
-  background: var(--color-accent-muted);
-}
-
-.opportunity-step {
-  display: grid;
-  place-items: center;
-  width: var(--opportunity-step-size);
-  height: var(--opportunity-step-size);
-  flex-shrink: 0;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-full);
-  font-size: var(--bo-type-caption);
-}
-
-.opportunity-step > svg {
-  width: var(--spacing-4);
-  height: var(--spacing-4);
-}
-
-.is-confirmed .opportunity-step {
-  border-color: var(--color-accent);
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-}
-
-.is-candidate .opportunity-step {
-  border-style: dashed;
-  border-color: var(--color-text-accent);
-  color: var(--color-text-accent);
-}
-
-.opportunity-connection-label {
-  margin: 0;
-  padding-left: calc(var(--opportunity-step-size) + var(--spacing-2));
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-}
-
-/* 단계 칸 안의 찾아보기. 단계 이름·연결 상태와 같은 들여쓰기에 둔다. */
-.opportunity-lifecycle .opportunity-stage-search {
-  justify-self: start;
-  margin-left: var(--opportunity-step-size);
-  white-space: nowrap;
 }
 
 /* --- 찾아보기 결과 --- */
@@ -738,57 +513,13 @@
   min-width: 0;
 }
 
-.opportunity-deep-review-list {
-  display: grid;
-  gap: var(--spacing-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.opportunity-deep-review-item {
-  display: grid;
-  gap: var(--spacing-1);
-  padding: var(--spacing-3);
-  background: var(--color-background-body);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-inner);
-  min-width: 0;
-}
-
 .opportunity-linked-link {
   align-self: flex-start;
   color: var(--color-text-accent);
-  font-weight: 600;
 }
 
 /* --- 최근 추적 결정 탭 --- */
 
-.opportunity-decision-facts {
-  display: grid;
-  gap: var(--spacing-5);
-  margin: 0;
-  padding-block: var(--spacing-3);
-}
-
-.opportunity-decision-facts > div {
-  display: grid;
-  gap: var(--spacing-1);
-  min-width: 0;
-}
-
-.opportunity-decision-facts dt {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-}
-
-.opportunity-decision-facts dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-/* 추적 결정을 되돌리는 자리(ADR-0068). 같은 부품을 상세의 추적 결정 카드와 후보
-   대화상자의 병합 막힘 안내가 함께 쓰므로 자기 여백만 갖고 배경은 부모가 정한다. */
 .opportunity-decision-actions {
   display: flex;
   flex-wrap: wrap;
@@ -884,32 +615,6 @@
 .opportunity-history-item[data-history-kind="recheck"] .opportunity-history-kind {
   color: var(--color-text-accent);
   font-weight: 600;
-}
-
-/* --- 상세 바닥의 고정 액션 --- */
-
-/* 상세 바닥의 고정 액션. 좌우 여백은 상세 머리·스크롤과 같은 줄에 맞춘다
-   (기준: 발주계획 `.c2l-detail-actions`의 `spacing-3 spacing-4`). */
-.opportunity-action-footer {
-  display: grid;
-  flex: 0 0 auto;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
-  border-top: var(--border-width) solid var(--review-split-line);
-  background: var(--review-quiet-surface);
-}
-
-.opportunity-tracking-summary {
-  display: grid;
-  gap: var(--spacing-0-5);
-  min-width: 0;
-}
-
-.opportunity-footer-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  flex-shrink: 0;
 }
 
 /* --- 빈 상태·상태 표시 --- */
@@ -1032,18 +737,3 @@
 
 /* --- 단독 상세 route (`/opportunities/:id`) ---
  * 목록 없이 상세 하나만 열지만 골격·비율·고정 액션은 같은 컴포넌트를 쓴다. */
-
-.opportunity-standalone-pane {
-  --review-split-line: var(--color-background-muted);
-  --review-quiet-surface: color-mix(in srgb, var(--color-background-body) 50%, var(--color-background-surface));
-
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  min-height: 0;
-  border: 0;
-  border-radius: var(--radius-container);
-  background: var(--color-background-surface);
-  box-shadow: var(--shadow-low);
-  overflow: hidden;
-}

@@ -4,7 +4,8 @@ import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { EmptyState } from "../components/common/EmptyState";
 import { NoticeDetailPage } from "./NoticeDetailPage";
 import { QueuePage } from "./QueuePage";
-import "../styles/criteria-runstatus.css";
+import { PageHeaderTabs } from "../components/common/PageHeaderActions";
+import "../styles/review-workspace-relaxed.css";
 
 // docs/design/PLAN.md 2단계 · ADR-0041 결정 2: 공고 판정 이력(/judgments)과
 // 담당자 리뷰 기록(/reviews)을 검토 대기열의 탭으로 흡수한다. 같은 회차의 같은
@@ -13,10 +14,7 @@ import "../styles/criteria-runstatus.css";
 // 옛 경로를 리다이렉트하지 않고 각 탭의 정식 주소로 남긴다. /queue/:noticePk와
 // /judgments/:noticePk도 그대로 살아 있어 기존 링크가 404를 내지 않는다.
 //
-// 단계 E(ADR-0046 결정 2·7): 이 화면은 사이드바에서 내려오고 사업 추적이 여는
-// 화면이 됐다. 회차 축을 갖는 두 화면 중 하나가 `공고 판정 이력` 탭이므로 상단
-// 회차 선택기는 그 탭에만 나타난다. 세 탭은 같은 search를 그대로 넘기므로 회차를
-// 고른 뒤 다른 탭으로 옮겨도 회차가 유지된다.
+// 회차는 셸 위치 줄에서 고르고, 탭 이동은 현재 search를 넘긴다(ADR-0046 결정 7).
 
 export type ReviewTab = "queue" | "judgments" | "reviews";
 
@@ -70,7 +68,7 @@ function ReviewLogPanel() {
       <h3 className="visually-hidden" id="review-log-title">담당자 리뷰 기록</h3>
       <EmptyState
         title="담당자 리뷰 기록은 준비 중이에요"
-        description="회차별 리뷰 이력과 담당자별 처리량을 모아 보여 줄 화면이에요. 지금은 검토 대기열 탭에서 공고를 열면 그 공고의 리뷰를 확인하고 저장할 수 있어요."
+        description="회차별 리뷰 이력과 담당자별 처리량을 모아 보여 줄 화면이에요. 지금은 검토 대기열 탭에서 공고를 열면 그 공고에 저장된 리뷰를 볼 수 있어요."
         action={{ label: "검토 대기열 탭으로 이동", to: `/queue?${searchParams.toString()}` }}
       />
     </section>
@@ -87,53 +85,31 @@ export function ReviewWorkspacePage() {
   // `/judgments/:id`는 입찰공고 상세로 남는다(2026-11-19 사전규격 단계 수정안 §3 B·§5 #6). C-1
   // 공고 판정을 다시 돌리지 않으므로 이 주소에서는 판정 대기열(`/queue`·`/reviews`)로 가는 탭을
   // 그리지 않는다. 옛 대기열 주소 자체는 북마크가 404를 내지 않도록 남겨 둔다.
-  if (tab === "judgments") {
-    return (
-      <section aria-labelledby="review-workspace-title" className="ws-page" data-astryx-theme="bidops">
-        <h2 className="visually-hidden" id="review-workspace-title">입찰공고 상세</h2>
-        <div className="ws-body">
-          <div className="ws-panel" id={panelId} aria-label="입찰공고 상세">
-            <NoticeDetailPage />
-          </div>
-        </div>
-      </section>
-    );
-  }
+  if (tab === "judgments") return <NoticeDetailPage />;
 
   return (
-    <section aria-labelledby="review-workspace-title" className="ws-page" data-astryx-theme="bidops">
-      <h2 className="visually-hidden" id="review-workspace-title">
-        {TABS.find((item) => item.value === tab)?.label ?? "검토 대기열"}
-      </h2>
-      <div className="ws-tabs">
+    <>
+      <PageHeaderTabs>
         <TabList
           value={tab}
           onChange={(value) => {
             const next = TABS.find((item) => item.value === value);
-            // 회차 파라미터를 잃지 않는다. 세 탭 모두 회차 종속 화면이다.
             if (next) navigate({ pathname: next.path, search });
           }}
           role="tablist"
-          hasDivider
         >
           {TABS.map((item) => (
             <Tab key={item.value} label={item.label} panelId={`review-panel-${item.value}`} value={item.value} />
           ))}
         </TabList>
-      </div>
+      </PageHeaderTabs>
       {tab === "queue" ? (
-        /* 회차를 바꿀 자리를 알려 주는 실무 안내다. 이 탭에는 회차 선택기가 없고,
-           어디서 바꾸는지 모르면 다른 회차의 대기열을 볼 길이 없다. */
-        <p className="ws-run-note">
-          다른 회차를 보려면 <strong>공고 판정 이력</strong> 탭에서 회차를 골라요. 거기서 고른 회차를 이 탭도 함께 봐요.
-        </p>
+        <p className="notice-run-note">위치 줄에서 실행 회차를 바꿀 수 있어요.</p>
       ) : null}
-      <div className="ws-body">
-        <div className="ws-panel" id={panelId} role="tabpanel" aria-label={TABS.find((item) => item.value === tab)?.label}>
-          {tab === "queue" ? <QueuePage defaultSort={isDeadlineView(pathname) ? "deadline" : "grade"} /> : null}
-          {tab === "reviews" ? <ReviewLogPanel /> : null}
-        </div>
+      <div className={tab === "queue" ? "notice-queue-panel" : undefined} id={panelId} role="tabpanel" aria-label={TABS.find((item) => item.value === tab)?.label}>
+        {tab === "queue" ? <QueuePage defaultSort={isDeadlineView(pathname) ? "deadline" : "grade"} /> : null}
+        {tab === "reviews" ? <ReviewLogPanel /> : null}
       </div>
-    </section>
+    </>
   );
 }

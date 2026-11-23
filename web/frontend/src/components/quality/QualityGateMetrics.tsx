@@ -1,6 +1,7 @@
 import { Text } from "@astryxdesign/core/Text";
 import { DataTable, Note, Section, Small, StatLine, StatusToken } from "../criteria/CriteriaPrimitives";
 import type { QualityGateResultStatus, RuntimeJsonObject } from "../../lib/types";
+import type { Mark } from "../common/Marks";
 import { gateResultLabel } from "../../lib/glossary";
 
 interface MetricEntry {
@@ -114,17 +115,16 @@ function textValue(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
 }
 
-function metricStatus(value: unknown, available: boolean): string {
-  if (!available) return "미측정";
+function metricMark(value: unknown, available: boolean): Mark {
+  if (!available) return { label: "미측정", tone: "neutral" };
   const status = textValue(value);
-  if (status === "통과" || status === "pass") return "통과";
-  if (status === "미달" || status === "fail") return "미달";
-  if (status === "보류" || status === "held") return gateResultLabel("보류");
-  if (status === "미측정" || status === "unmeasured" || status === "pending") return "미측정";
-  if (status === "해당 없음") return "해당 없음";
-  if (status?.startsWith("계산 불가")) return status;
-  if (status === "측정 완료" || status === "measured") return "측정 완료";
-  return status ?? "계산 불가";
+  // 구버전 산출물의 한글 wire 값과 현재 pass/fail 토큰을 모두 읽는다.
+  if (status === "통과" || status === "pass") return { label: "통과", tone: "success" };
+  if (status === "미달" || status === "fail") return { label: "미달", tone: "error" };
+  if (status === "보류" || status === "held") return { label: gateResultLabel("보류"), tone: "neutral" };
+  if (status === "미측정" || status === "unmeasured" || status === "pending") return { label: "미측정", tone: "neutral" };
+  if (status === "measured") return { label: "측정 완료", tone: "neutral" };
+  return { label: status ?? "계산 불가", tone: "neutral" };
 }
 
 function percentLabel(value: unknown): string {
@@ -186,12 +186,12 @@ export function QualityGateMetrics({ metrics, resultStatus }: QualityGateMetrics
               return [
                 <code key="k">{key}</code>,
                 <Small key="v">하위 지표를 아래에서 확인해 주세요.</Small>,
-                <Small key="b">—</Small>,
+                <Small key="b">해당 없음</Small>,
                 <Small key="s">지표 묶음</Small>,
-                <Small key="t">—</Small>,
+                <Small key="t">해당 없음</Small>,
               ];
             }
-            const status = metricStatus(metric?.status, available);
+            const mark = metricMark(metric?.status, available);
             const numerator = numberValue(metric?.numerator);
             const denominator = numberValue(metric?.denominator);
             const context = metricContext(key, metric);
@@ -199,7 +199,7 @@ export function QualityGateMetrics({ metrics, resultStatus }: QualityGateMetrics
               <code key="k">{key}</code>,
               <Text key="v" weight="semibold">{percentLabel(metric?.percent)}</Text>,
               <Text key="b">{numerator === null || denominator === null ? "계산 불가" : `${numerator} / ${denominator}`}</Text>,
-              <StatusToken key="s" label={status} />,
+              <StatusToken key="s" {...mark} />,
               <span className="crit-cell-stack" key="t">
                 <Text>{thresholdLabel(key)}</Text>
                 {context ? <Small>{context}</Small> : null}

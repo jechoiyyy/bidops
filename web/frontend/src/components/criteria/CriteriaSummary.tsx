@@ -4,9 +4,10 @@ import { Text } from "@astryxdesign/core/Text";
 import { api } from "../../lib/api";
 import type { ProfileErrorCode, ProfileSectionsResponse, ProfileUnknownsResponse } from "../../lib/types";
 import { Small, StatusToken, shortIdentifier } from "./CriteriaPrimitives";
+import { useProfileSnapshotRegistration } from "./profileAvailability";
 
 /**
- * 네 탭 위에 한 줄로 남는 요약 (승인 시안 `.context-strip`).
+ * 공고 판정 탭이 공유하는 승인 프로필 사본과 운영 정책 요약.
  *
  * 옛 고정 2열 경계 패널을 대신하는 자리 가운데 하나다. 여기서 말하는 것은 셋뿐이다.
  *
@@ -64,16 +65,16 @@ export function CriteriaSummary({ onShowUnknowns }: { onShowUnknowns: () => void
     enabled: false,
     staleTime: 30_000,
   });
+  const snapshot = useProfileSnapshotRegistration(unknownsQuery.error ?? sectionsCache.error);
 
   const profileReadFailure = sectionsCache.isError
     || hasReadFailure(sectionsCache.data?.error_codes)
     || hasReadFailure(unknownsQuery.data?.error_codes);
   const unknownsUsable = hasUnknownsPayload(unknownsQuery.data) && !profileReadFailure;
-  const profileVersion = unknownsQuery.isPending
+  const profileVersion = unknownsUsable ? unknownsQuery.data?.profile_version ?? null : null;
+  const profileStatus = unknownsQuery.isPending || snapshot.checking
     ? "확인 중"
-    : unknownsUsable
-      ? unknownsQuery.data?.profile_version ?? "미확인"
-      : "미확인";
+    : snapshot.missing ? "승인 사본 미등록" : "미확인";
   const unknownTotal = unknownsUsable ? unknownsQuery.data?.total ?? null : null;
   const activePolicy = policiesQuery.isPending
     ? "확인 중"
@@ -82,27 +83,24 @@ export function CriteriaSummary({ onShowUnknowns }: { onShowUnknowns: () => void
       : "미확인";
 
   return (
-    <div className="crit-summary" aria-label="판정 기준 요약">
+    <div className="workbench-admin-summary crit-summary" aria-label="판정 기준 요약">
       <span className="crit-summary-item">
-        <Small>기준 프로필</Small>
+        <Small>판정용 프로필 사본</Small>
         {/* 전문은 title과 사본 정보 창에 그대로 있다. 요약 줄만 줄여 적는다. */}
-        <span title={profileVersion}>
-          <Text as="span" className="crit-summary-value crit-mono">{shortIdentifier(profileVersion)}</Text>
+        <span title={profileVersion ?? undefined}>
+          <Text as="span" className="crit-summary-value crit-mono">{profileVersion ? shortIdentifier(profileVersion) : profileStatus}</Text>
         </span>
         <StatusToken label="읽기 전용" />
       </span>
       <span className="crit-summary-item">
-        <Small>공고 판정 정책</Small>
+        <Small>공고 판정(C-1) 정책</Small>
         <Text as="span" className="crit-summary-value crit-mono">{activePolicy}</Text>
         {policiesQuery.isError ? <Small>정책 목록 조회 실패 · 활성 정책 없음을 뜻하지 않아요</Small> : null}
       </span>
       <span className="crit-summary-end">
-        <Button
-          label={unknownTotal === null ? "미확인 항목 · 확인 불가" : `미확인 항목 ${unknownTotal.toLocaleString("ko-KR")}`}
-          onClick={onShowUnknowns}
-          size="sm"
-          variant="ghost"
-        />
+        {unknownTotal === null ? <Small>미확인 항목 · 확인 불가</Small>
+          : unknownTotal === 0 ? <Small>미확인 항목 0건</Small>
+            : <Button label={`미확인 항목 ${unknownTotal.toLocaleString("ko-KR")}`} onClick={onShowUnknowns} size="sm" variant="ghost" />}
       </span>
     </div>
   );

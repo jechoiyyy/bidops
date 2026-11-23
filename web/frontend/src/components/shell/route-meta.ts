@@ -64,17 +64,16 @@ export interface RouteMetadata {
   /**
    * 본문 칸의 여백. 기본은 패널 헤더와 같은 좌우 32px 여백이고, `flush`는 화면이 목록|상세 두
    * 칸을 패널 끝까지 채울 때다(발주계획·사전규격 목록, 2026-11-19 최종 시안). 없으면 기본이다.
-   * 목록과 상세가 metadata를 공유하는 화면은 상세(식별자 칸이 있을 때)에서 기본 여백으로 돌아간다.
+   * 상세에서 목록과 같은 여백을 쓸 때는 `flush-with-detail`을 사용한다.
    */
-  canvas?: "flush";
+  canvas?: "flush" | "flush-with-detail";
   /**
    * 상세(식별자 칸이 있을 때)의 본문·패널 헤더 안쪽·패널 아래 고정 띠를 읽기 폭(1040px) 가운데에 맞춘다
    * (2026-11-21 사전규격 상세 시안 `docs/1121_prespec-detail/`). 목록에서는 쓰지 않는다. 없으면 지금처럼
    * 패널 왼쪽 여백에서 시작한다.
    */
   detailReadingWidth?: boolean;
-  /** 사이드바 묶음 라벨(`레코드`·`리스트`). 상단 경로의 첫 칸이다. 라벨 없는 묶음(대시보드)과
-   *  하단 항목(실행 상태·판정 기준)은 `null`이다(2026-11-18, ui-spec §1.2 메모). */
+  /** 사이드바 묶음 라벨. 라벨 없이 나열하는 항목은 `null`이다. */
   navGroup: string | null;
   /** 사이드바에서 활성으로 보일 항목의 경로. */
   navPath: string | null;
@@ -113,14 +112,14 @@ export const fallbackRouteMetadata: RouteMetadata = {
 };
 
 export const routeMetadata = {
-  // RL 브리핑(시안 v26, ui-spec §4.1). 화면 본문은 RL-01이 채우고 지금은 자리만 있다.
+  // 브리핑은 오늘 할 일에서 연다.
   briefing: {
     title: "오늘의 브리핑",
     dataScope: "cumulative",
     topbar: "title",
     runSelectorVisible: false,
-    navGroup: "리스트",
-    navPath: "/briefing",
+    navGroup: null,
+    navPath: "/",
     ancestors: [],
     listPath: null,
   },
@@ -132,13 +131,13 @@ export const routeMetadata = {
     dataScope: "cumulative",
     topbar: "title",
     runSelectorVisible: false,
-    navGroup: "레코드",
+    navGroup: "관리",
     navPath: "/company",
     ancestors: [],
     listPath: null,
   },
   dashboard: {
-    title: "대시보드",
+    title: "오늘 할 일",
     dataScope: "cumulative",
     runSelectorVisible: false,
     navGroup: null,
@@ -151,7 +150,8 @@ export const routeMetadata = {
     title: "공고 판정 이력",
     dataScope: "run",
     runSelectorVisible: true,
-    navGroup: "레코드",
+    canvas: "flush-with-detail",
+    navGroup: null,
     navPath: "/opportunities",
     ancestors: [{ label: "사업기회", path: "/opportunities" }],
     listPath: "/queue",
@@ -163,7 +163,8 @@ export const routeMetadata = {
     title: "입찰공고 상세",
     dataScope: "run",
     runSelectorVisible: true,
-    navGroup: "레코드",
+    canvas: "flush-with-detail",
+    navGroup: null,
     navPath: "/opportunities",
     ancestors: [{ label: "사업기회", path: "/opportunities" }],
     listPath: "/judgments",
@@ -182,7 +183,8 @@ export const routeMetadata = {
     topbar: "title",
     runSelectorVisible: false,
     canvas: "flush",
-    navGroup: "레코드",
+    detailReadingWidth: true,
+    navGroup: null,
     navPath: "/opportunities",
     ancestors: [],
     listPath: "/opportunities",
@@ -198,16 +200,16 @@ export const routeMetadata = {
     runSelectorVisible: false,
     // 목록|상세가 패널 끝까지 닿고 세로선 하나로 나뉜다(최종 시안).
     canvas: "flush",
-    navGroup: "레코드",
+    navGroup: "탐색",
     navPath: "/order-plans",
     ancestors: [],
     listPath: null,
   },
   bidDelta: {
-    title: "입찰 변경 비교",
+    title: "입찰 참여 결정",
     dataScope: "cumulative",
     runSelectorVisible: false,
-    navGroup: "레코드",
+    navGroup: null,
     navPath: "/opportunities",
     ancestors: [{ label: "사업기회", path: "/opportunities" }],
     listPath: null,
@@ -229,7 +231,7 @@ export const routeMetadata = {
     canvas: "flush",
     // 상세만: 본문·헤더 안쪽·하단 추적 결정 띠를 읽기 폭 1040px 가운데에 맞춘다(2026-11-21 시안).
     detailReadingWidth: true,
-    navGroup: "레코드",
+    navGroup: "탐색",
     navPath: "/pre-specs",
     ancestors: [],
     listPath: "/pre-specs",
@@ -241,7 +243,7 @@ export const routeMetadata = {
     topbar: "title",
     runSelectorVisible: false,
     canvas: "flush",
-    navGroup: "레코드",
+    navGroup: null,
     navPath: "/go-no-go",
     ancestors: [],
     listPath: null,
@@ -253,9 +255,10 @@ export const routeMetadata = {
   // cumulative로 통일한다.
   criteria: {
     title: "판정 기준",
+    canvas: "flush",
     dataScope: "cumulative",
     runSelectorVisible: false,
-    navGroup: null,
+    navGroup: "관리",
     navPath: "/criteria",
     ancestors: [],
     listPath: null,
@@ -266,9 +269,10 @@ export const routeMetadata = {
   // 상단 회차 선택기에 기대지 않는다.
   runStatus: {
     title: "실행 상태",
+    canvas: "flush",
     dataScope: "cumulative",
     runSelectorVisible: false,
-    navGroup: null,
+    navGroup: "관리",
     navPath: "/run-status",
     ancestors: [],
     listPath: null,
@@ -429,7 +433,7 @@ export function resolveRouteLocation(
     crumbs,
     topbarMode,
     title: metadata.title,
-    canvas: metadata.canvas === "flush" && record === null ? "flush" : "default",
+    canvas: metadata.canvas === "flush-with-detail" || (metadata.canvas === "flush" && record === null) ? "flush" : "default",
     readingWidth: metadata.detailReadingWidth === true && record !== null,
   };
 }

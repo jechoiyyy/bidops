@@ -20,6 +20,8 @@ interface AttentionListProps {
   facts: readonly CompanyProfileFact[];
   today: string;
   warningDays: number;
+  selectedKey: string | undefined;
+  onSelect: (key: string) => void;
 }
 
 function attentionSub(fact: CompanyProfileFact): string {
@@ -28,7 +30,7 @@ function attentionSub(fact: CompanyProfileFact): string {
   return `${groupLabel} · ${fact.status === "proposed" ? "제안값, 사람 확인 전" : "값 미입력"}`;
 }
 
-export function AttentionList({ facts, today, warningDays }: AttentionListProps) {
+export function AttentionList({ facts, today, warningDays, selectedKey, onSelect }: AttentionListProps) {
   return (
     <section aria-labelledby="co-attention-title" className="co-attention" data-testid="company-attention">
       <h2 className="co-block-title" id="co-attention-title">
@@ -42,9 +44,10 @@ export function AttentionList({ facts, today, warningDays }: AttentionListProps)
           {facts.filter(isDisplayedFact).map((fact) => {
             const expiry = expiryNote(fact, today, warningDays);
             return (
-              <li className="co-attention-row" data-fact-key={fact.fact_key} data-fact-status={fact.status} key={fact.fact_key}>
+              <li className="co-attention-row" data-selected={selectedKey === fact.fact_key} data-fact-key={fact.fact_key} data-fact-status={fact.status} key={fact.fact_key}>
                 <span className="co-attention-main">
-                  <span className="co-row-title">{fact.label}</span>
+                  <button className="co-row-title co-select-fact" type="button" aria-pressed={selectedKey === fact.fact_key}
+                  onClick={() => onSelect(fact.fact_key)}>{fact.label}</button>
                   <span className="co-row-sub">{attentionSub(fact)}</span>
                 </span>
                 <StatusPill status={fact.status} />

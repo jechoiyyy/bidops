@@ -1693,7 +1693,7 @@ export interface OpportunityListQuery {
 
 export interface TrackingStatusUpdateRequest {
   tracking_status: OpportunityTrackingStatus;
-  reason: string;
+  reason?: string | null;
 }
 
 /**
@@ -1767,7 +1767,7 @@ export interface OrderPlanBulkStartRequest {
   schema_version: "order-plan-bulk-start-request.v1";
   request_id: string;
   order_plan_ids: number[];
-  reason: string;
+  reason?: string | null;
 }
 
 export interface OrderPlanBulkStatusCount {
@@ -1951,6 +1951,13 @@ export interface OrderPlanListResponse {
   total: number;
   limit: number;
   offset: number;
+  review_page?: {
+    view_counts: Record<"relevant" | "uncertain" | "unjudged" | "all", number>;
+    previous_pk: number | null;
+    next_pk: number | null;
+    target_found: boolean | null;
+    target_filters_cleared: boolean;
+  };
 }
 
 /** Search-only missing is SQL NULL; response enums never contain missing. */
@@ -1991,7 +1998,12 @@ export interface OrderPlanListQuery {
   stage2_status?: MultiValueFilter<OrderPlanStage2Filter> | null;
   qwen_relevance?: MultiValueFilter<OrderPlanRelevanceFilter> | null;
   human_relevance?: MultiValueFilter<OrderPlanRelevanceFilter> | null;
-  tracking_status?: MultiValueFilter<OpportunityTrackingStatus> | null;
+  tracking_status?: MultiValueFilter<OpportunityTrackingStatus | MissingFilter> | null;
+  review_order?: "default" | "relevance" | "relevant" | "uncertain" | "unjudged";
+  feedback_present?: boolean;
+  unjudged?: boolean;
+  locate?: number | null;
+  retain?: number | null;
   issue?: boolean | null;
   /** `YYYY-MM-DD`(KST 일자). 그 일자 00:00 KST 이후에 **처음 관측된** 발주계획만
    *  남긴다. 상한은 없다(ADR-0067 결정 6, spec §7.3). */
@@ -2330,10 +2342,15 @@ export interface DailyCollectionStatusResponse {
   tracks: DailyCollectionTrackStatus[];
 }
 
+export type BidDecisionQueueView = "pending" | "recheck" | "notice_check" | "decided" | "all";
+export type BidDecisionReviewState = "undecided" | "recheck" | "notice_check" | "decided" | "waiting_notice";
+export type BidDecisionNoticeCheckReason = "bid_notice_missing" | "ordering_unknown" | "observation_unknown" | "decision_currentness_unknown";
+
 export interface BidDeltaDecisionQueueQuery {
-  status?: "pending" | "all" | null;
+  status?: BidDecisionQueueView | null;
   limit?: number | null;
   offset?: number | null;
+  q?: string | null;
 }
 export interface BidDeltaDecisionQueueItem {
   opportunity_id: number;
@@ -2346,6 +2363,8 @@ export interface BidDeltaDecisionQueueItem {
   comparison_count: number;
   latest_final_decision: { decision: "go" | "no_go"; decided_at: string; claimed_name: string } | null;
   decision_currentness: "current" | "stale" | "unknown";
+  review_state?: BidDecisionReviewState;
+  notice_check_reason?: BidDecisionNoticeCheckReason | null;
   /** 추가형 투영(spec §5). 선택된 입찰공고가 없으면 셋 다 `null`이며 발주계획·
    * 사전규격에서 추정하지 않는다. `budget`·`estimated_price`는 Decimal
    * 문자열이라 부동소수 반올림으로 값을 잃지 않는다(`BidConditionValues`와
@@ -2359,6 +2378,7 @@ export interface BidDeltaDecisionQueueResponse {
   total: number;
   limit: number;
   offset: number;
+  view_counts?: Record<BidDecisionQueueView, number>;
 }
 
 // Exact server request/response contracts: screening/schemas/order_plans.py.

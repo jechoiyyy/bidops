@@ -53,7 +53,7 @@ export function countByTab(items: readonly BriefingItemView[]): Record<BriefingT
   return counts;
 }
 
-export const BRIEFING_STAGE_LABEL: Record<BriefingStage, string> = {
+const BRIEFING_STAGE_LABEL: Record<BriefingStage, string> = {
   pre_spec: "사전규격",
   bid_notice: "입찰공고",
   order_plan: "발주계획",
@@ -63,16 +63,16 @@ export function stageLabel(stage: string): string {
   return (BRIEFING_STAGE_LABEL as Record<string, string>)[stage] ?? stage;
 }
 
-/** 판정 칸 pill의 색 의미. 모르는 값은 muted로 두고 글자는 그대로 보여 준다. */
-export type VerdictTone = "muted" | "warning" | "success" | "error";
+/** 판정 칸 pill의 색 의미. 모르는 값은 중립으로 두고 글자는 그대로 보여 준다. */
+export type VerdictTone = "neutral" | "warning" | "confirmed" | "error";
 
 export function verdictTone(verdict: BriefingVerdictDisplay | string): VerdictTone {
   // 판정 이름(RL-03 v2): 진행 가능 success · 조건부 진행 warning · 진행 어려움 error · 판단 불가 중립.
-  if (verdict === "진행 가능") return "success";
+  if (verdict === "진행 가능") return "confirmed";
   if (verdict === "진행 어려움") return "error";
   if (verdict === "조건부 진행") return "warning";
   // 재검토 중·마감 임박 = 사람이 먼저 봐야 하는 변화(warning), 그 밖은 중립이다.
-  return verdict === "재검토 중" || verdict === "마감 임박" ? "warning" : "muted";
+  return verdict === "재검토 중" || verdict === "마감 임박" ? "warning" : "neutral";
 }
 
 const CHANGE_FIELD_LABEL: Record<string, string> = {
@@ -123,13 +123,6 @@ function utcDay(value: string): Date {
   const match = DATE_ONLY.exec(value);
   if (!match) throw new Error("invalid ISO date");
   return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-}
-
-/** `2026-10-16` → `10월 16일 (금)`. 시각대 계산 없이 날짜 문자열만 쓴다. */
-export function formatBriefingDate(value: string): string {
-  if (!isIsoDate(value)) return value;
-  const day = utcDay(value);
-  return `${day.getUTCMonth() + 1}월 ${day.getUTCDate()}일 (${WEEKDAY[day.getUTCDay()]})`;
 }
 
 const WEEKDAY_LONG = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"] as const;
@@ -200,7 +193,7 @@ function longDateTime(value: Date): string {
 }
 
 /** `2026-11` → `11월 발주 예정`. 형식이 다르면 원문을 그대로 둔다. */
-export function plannedMonthLabel(plannedMonth: string | null): string {
+function plannedMonthLabel(plannedMonth: string | null): string {
   const match = /^(\d{4})-(\d{2})$/.exec(plannedMonth ?? "");
   if (!match) return plannedMonth ? `${plannedMonth} 발주 예정` : "발주 예정월 미확인";
   return `${Number(match[2])}월 발주 예정`;
@@ -293,10 +286,6 @@ export function amountText(amountKrw: number | null): string {
 
 export function agencyText(agency: string): string {
   return agency.trim() ? agency : "기관 미확인";
-}
-
-export function itemSubline(item: BriefingItemView): string {
-  return `${agencyText(item.agency)} · ${amountText(item.amount_krw)}`;
 }
 
 // ---------------------------------------------------------------------------

@@ -1,4 +1,3 @@
-import { usePageHeader } from "../components/shell/PageHeaderContext";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@astryxdesign/core/Button";
@@ -6,19 +5,21 @@ import { InternationalizationProvider } from "@astryxdesign/core/i18n";
 import koKR from "@astryxdesign/core/locales/ko-KR.json";
 import { Activity, RefreshCw } from "lucide-react";
 import { api } from "../lib/api";
+import { stageLabel } from "../lib/briefing";
 import type { WorkloadKey } from "../lib/types";
 import { formatNumber } from "../lib/format";
 import { DECISION_AXIS_LABEL, ORDER_PLAN_REVIEW_TIER_LABEL, PRE_SPEC_TERM, TERM_SENSE } from "../lib/glossary";
 import { PageHeaderActions } from "../components/common/PageHeaderActions";
 import { DailyCollectionStatus } from "../components/operations/DailyRunStatusLine";
+import { CollectionStatus } from "../components/dashboard/CollectionStatus";
 import {
-  goNoGoReviewTotalQuery, opportunityActionRequiredQuery, orderPlanViewTotalQuery, preSpecDefaultViewTotalQuery,
+  opportunityActionRequiredQuery, orderPlanViewTotalQuery, preSpecDefaultViewTotalQuery,
   preSpecNeedsCheckTotalQuery, preSpecRecentTotalQuery,
 } from "../lib/defaultViewCounts";
-import { CountStrip, DashboardBlock, LinkButton, Small, type DashCount } from "../components/dashboard/DashboardPrimitives";
+import { CountStrip, DashboardBlock, DashboardPanel, LinkButton, Small, type DashCount } from "../components/dashboard/DashboardPrimitives";
 import { HoldReviewPanel } from "../components/dashboard/HoldReviewPanel";
 import {
-  DeadlineImminentPanel, FinalDecisionPanel, HumanCheckPanel, NewPriorityOrderPlanPanel,
+  HumanCheckPanel, NewPriorityOrderPlanPanel, TodayDecisionTable, WorkRow,
 } from "../components/dashboard/WorkPanels";
 import {
   DEADLINE_IMMINENT_DAYS, HOLD_REVIEW_LIMIT, HOLD_REVIEW_LIST_PATH, WORK_PANEL_LIMIT, previousKstDate, snapshotTime,
@@ -32,27 +33,8 @@ const WORKLOAD_UNAVAILABLE_REASON: Record<string, string> = {
   sub_count_unavailable: "하위 건수 미확인",
 };
 
-/**
- * 실무자 대시보드(시안 M6 승인 2026-09-22, ADR-0067; 2026-11-19 설계고도화안 C-8 재편).
- *
- * 맨 위는 일일 수집 묶음(발주계획·공고 두 트랙)이고, 본문은 세 묶음이다.
- *
- * - **오늘 결정할 것**: 사람이 결정해야 넘어가는 일 — 필수 검토 발주계획의 추적 결정, 사전규격 검토할
- *   항목, 최종 Go/No-Go 검토 대상, 기한 지난 보류 재검토(판정 확인은 셀 수 있는 기록이 생기면 더한다).
- * - **확인할 것**: 실패·사람 확인·마감 임박처럼 눈으로 봐야 하는 일.
- * - **새로 볼 것**: 전일(KST) 이후 처음 수집된 것.
- *
- * 묶음마다 건수 띠가 있고, **건수 칸은 그 목록의 기본 보기가 정확히 그 건수를 보이도록** 목록 API의
- * `total`(또는 목록 화면과 같은 판정 함수)을 쓴다(설계고도화안 A-6·C-1). 옛 단계 바로가기 네 칸(01~04)의
- * 건수는 모두 이 띠로 옮겼다 — 같은 숫자를 두 번 적지 않고, 단계 이동은 사이드바가 같은 건수로 진다.
- * 묶음 아래 업무 패널은 그대로 상위 5건 목록과 `/api/workload` 바닥 건수를 짝지어 쓰며, **건수를 목록
- * 길이로 덮지 않고 목록이 비었다고 건수를 0으로 고치지 않는다.**
- */
+/** 업무 대기열과 원본 목록으로 연결하는 실무자 시작 화면이다. */
 export function DashboardPage() {
-  usePageHeader({
-    eyebrow: "대시보드",
-    title: "오늘 정하고 확인할 일을 모았어요",
-  });
   return <InternationalizationProvider locale="ko-KR" messages={{ "ko-KR": koKR }}><DashboardWorkspace /></InternationalizationProvider>;
 }
 
@@ -64,6 +46,11 @@ function DashboardWorkspace() {
 
   // 누적 업무 건수는 서버가 한 번에 준다. 브라우저에서 목록을 다시 세지 않는다.
   const workloadQuery = useQuery({ queryKey: ["workload"], queryFn: ({ signal }) => api.getWorkload({ signal }), staleTime: 60_000 });
+  const collectionQuery = useQuery({
+    queryKey: ["daily-collection-status"],
+    queryFn: ({ signal }) => api.getDailyCollectionStatus({ signal }),
+    staleTime: 30_000,
+  });
   const deadlineQuery = useQuery({
     queryKey: ["opportunities", "dashboard-deadline"],
     queryFn: ({ signal }) => api.getOpportunities({ deadline_within_days: DEADLINE_IMMINENT_DAYS, sort: "deadline", limit: WORK_PANEL_LIMIT }, { signal }),
@@ -110,7 +97,6 @@ function DashboardWorkspace() {
   const uncertainPlanQuery = useQuery(orderPlanViewTotalQuery("uncertain"));
   const preSpecViewQuery = useQuery(preSpecDefaultViewTotalQuery());
   const preSpecNeedsCheckQuery = useQuery(preSpecNeedsCheckTotalQuery());
-  const goNoGoViewQuery = useQuery(goNoGoReviewTotalQuery());
   const actionRequiredQuery = useQuery(opportunityActionRequiredQuery());
   const recentPreSpecQuery = useQuery(preSpecRecentTotalQuery(newSince));
 
@@ -133,9 +119,22 @@ function DashboardWorkspace() {
   };
   const workloadBasis = snapshotTime(workloadQuery.data?.generated_at, "Asia/Seoul");
 
+  const briefingQuery = useQuery({
+    queryKey: ["briefing", "latest"],
+    queryFn: ({ signal }) => api.getLatestBriefing({ signal }),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const briefing = briefingQuery.isSuccess ? briefingQuery.data : null;
+  const briefingChanges = briefing?.tracked_changes.slice(0, 2) ?? [];
+  const briefingPreview = briefing
+    ? [...briefing.items.slice(0, WORK_PANEL_LIMIT - briefingChanges.length), ...briefingChanges]
+    : [];
+
   const allQueries = [
+    briefingQuery, collectionQuery,
     workloadQuery, deadlineQuery, decisionQuery, overviewFailedQuery, overviewAttentionQuery, blockingQuery,
-    holdReviewQuery, newPlanQuery, relevantPlanQuery, uncertainPlanQuery, preSpecViewQuery, preSpecNeedsCheckQuery, goNoGoViewQuery,
+    holdReviewQuery, newPlanQuery, relevantPlanQuery, uncertainPlanQuery, preSpecViewQuery, preSpecNeedsCheckQuery,
     actionRequiredQuery, recentPreSpecQuery,
   ];
   const refresh = () => { for (const query of allQueries) void query.refetch(); };
@@ -146,37 +145,32 @@ function DashboardWorkspace() {
     (state.isPending ? "확인 중" : state.isError || value === undefined ? "미확인" : `${formatNumber(value)}건`);
   const listCount = (query: { isPending: boolean; isError: boolean; data?: number }) => countText(query, query.data);
 
-  const goNoGoNote = goNoGoViewQuery.isPending
-    ? "검토 대상 확인 중"
-    : goNoGoViewQuery.isError || !goNoGoViewQuery.data
-      ? "검토 대상 미확인"
-      : `검토 대상 ${formatNumber(goNoGoViewQuery.data.count)}건${goNoGoViewQuery.data.complete ? "" : " · 받은 범위 기준"}`;
+  const goNoGoNote = `검토 대상 ${countText(decisionQuery, decisionQuery.data?.total)}`;
   const actionData = actionRequiredQuery.data;
+  const actionCount: DashCount = { key: "action-required", label: "사업기회 조치 필요", value: countText(actionRequiredQuery, actionData?.total), basis: "새 연결·후보·확인 항목·보류 기한", to: "/opportunities" };
 
-  // 오늘 결정할 것: 사람이 정해야 다음으로 넘어가는 일.
-  const decideCounts: DashCount[] = [
-    { key: "order-plan-relevant", label: `${ORDER_PLAN_REVIEW_TIER_LABEL.relevant} 발주계획`, value: listCount(relevantPlanQuery), basis: "추적 결정 대기 · 모델 관련", to: "/order-plans" },
-    { key: "pre-spec-actionable", label: `사전규격 ${PRE_SPEC_TERM.actionable}`, value: listCount(preSpecViewQuery), basis: `${PRE_SPEC_TERM.reviewOverview}·추적 결정 · 마감 전·미확인`, to: "/pre-specs" },
-    {
-      key: "go-no-go",
-      label: DECISION_AXIS_LABEL.goNoGo,
-      value: countText(goNoGoViewQuery, goNoGoViewQuery.data?.count),
-      basis: `결정 없음·재검토 필요${goNoGoViewQuery.data && !goNoGoViewQuery.data.complete ? " · 받은 범위 기준" : ""}`,
-      to: "/go-no-go",
-    },
-    { key: "hold-overdue", label: "보류 재검토", value: countText(actionRequiredQuery, actionData?.action_reason_counts?.hold_overdue), basis: "기한 지남 · 14일", to: HOLD_REVIEW_LIST_PATH },
-    // 판정 확인은 셀 수 있는 기록이 아직 없어 칸을 두지 않는다(매일 같은 비숫자를 보이지 않는다). 판정 확인 기능이
-    // 생기면 이 자리에 돌아온다. 레코드 헤더의 결정 축 요약 줄에는 `판정 확인` 축이 그대로 있다.
-  ];
+  const finalCount: DashCount = {
+    key: "go-no-go",
+    label: DECISION_AXIS_LABEL.goNoGo,
+    value: countText(decisionQuery, decisionQuery.data?.total),
+    basis: "미결정·재검토·공고 확인 필요",
+    to: "/go-no-go",
+  };
+  const deadlinePath = `/opportunities?section=전체&deadline_within_days=${DEADLINE_IMMINENT_DAYS}&sort=deadline`;
+  const deadlineCount: DashCount = {
+    key: "deadline", label: "마감 임박 추적 건", value: countText(deadlineQuery, deadlineQuery.data?.total),
+    basis: `${DEADLINE_IMMINENT_DAYS}일 이내`, to: deadlinePath,
+  };
+  const orderPlanCount: DashCount = { key: "order-plan-relevant", label: `${ORDER_PLAN_REVIEW_TIER_LABEL.relevant} 발주계획`, value: listCount(relevantPlanQuery), basis: "추적 결정 대기 · 모델 관련", to: "/order-plans" };
+  const preSpecCount: DashCount = { key: "pre-spec-actionable", label: `사전규격 ${PRE_SPEC_TERM.actionable}`, value: listCount(preSpecViewQuery), basis: `${PRE_SPEC_TERM.reviewOverview}·추적 결정 · 마감 전·미확인`, to: "/pre-specs" };
+  const holdCount: DashCount = { key: "hold-overdue", label: "보류 재검토", value: countText(actionRequiredQuery, actionData?.action_reason_counts?.hold_overdue), basis: "기한 지남 · 14일", to: HOLD_REVIEW_LIST_PATH };
   // 확인할 것: 실패·사람 확인·마감 임박.
   const checkCounts: DashCount[] = [
-    { key: "action-required", label: "사업기회 조치 필요", value: countText(actionRequiredQuery, actionData?.total), basis: "새 연결·후보·확인 항목·보류 기한", to: "/opportunities" },
     // 사전규격 확인 필요(2026-11-19): 개요 실패·취소, 문서 준비 중단. 기본 보기와 같은 마감 구간이다.
     // 옛 `개요 실패`(누적) 칸을 대신한다 — 누적 실패 건수는 아래 사람 확인 패널 바닥이 그대로 적는다.
     { key: "pre-spec-needs-check", label: `사전규격 ${PRE_SPEC_TERM.needsCheck}`, value: listCount(preSpecNeedsCheckQuery), basis: "개요 실패·취소 · 문서 준비 중단 · 마감 전·미확인", to: "/pre-specs?workspace=needs_check" },
     { key: "overview-attention", label: "개요 사람 확인", value: countText(overviewAttentionQuery, overviewAttentionQuery.data?.total), basis: "사전규격 · 누적", to: "/pre-specs?workspace=all&sw_only=false&overview_view=attention" },
     { key: "blocking", label: "확인 항목 미답변", value: countText(actionRequiredQuery, actionData?.action_reason_counts?.blocking_item), basis: "조치 필요 사업", to: "/opportunities?section=조치 필요&reason=blocking_item" },
-    { key: "deadline", label: "마감 임박 추적 건", value: countText(deadlineQuery, deadlineQuery.data?.total), basis: `${DEADLINE_IMMINENT_DAYS}일 이내`, to: `/opportunities?section=전체&deadline_within_days=${DEADLINE_IMMINENT_DAYS}&sort=deadline` },
     { key: "order-plan-uncertain", label: `${ORDER_PLAN_REVIEW_TIER_LABEL.uncertain} 발주계획`, value: listCount(uncertainPlanQuery), basis: `모델 ${TERM_SENSE.modelUncertain} · 추적 미선택`, to: "/order-plans?qwen=uncertain&tracking=미선택" },
   ];
   // 새로 볼 것: 전일(KST) 이후 처음 수집된 것.
@@ -192,38 +186,73 @@ function DashboardWorkspace() {
     onRetry: () => { void overviewFailedQuery.refetch(); void overviewAttentionQuery.refetch(); void blockingQuery.refetch(); },
   };
 
-  return <section className="dash-page" aria-label="대시보드" data-astryx-theme="bidops">
+  return <section className="dash-page" aria-label="오늘 할 일" data-astryx-theme="bidops">
     <PageHeaderActions><div className="dash-header-actions">
       <Button label="새로고침" size="sm" variant="ghost" icon={<RefreshCw aria-hidden="true" />} isDisabled={isRefreshing} onClick={refresh} />
       <LinkButton label="실행 상태" to="/run-status" icon={<Activity aria-hidden="true" />} secondary />
     </div></PageHeaderActions>
-    {/* "어제 일일 실행이 돌았는가"(설계고도화안 A-5). 발주계획·공고 두 트랙의 마지막 실행 사실만 적는다. */}
-    <DailyCollectionStatus />
-
-    <DashboardBlock id="decide" title="오늘 결정할 것" caption="사람이 정해야 다음 단계로 넘어가요.">
-      <CountStrip label="오늘 결정할 것 건수" items={decideCounts} />
-      <div className="dash-work-grid">
-        <FinalDecisionPanel data={decisionQuery.data} now={now}
-          state={{ isPending: decisionQuery.isPending, isError: decisionQuery.isError, onRetry: () => { void decisionQuery.refetch(); } }}
-          footBasis="입찰 마감순" footCount={goNoGoNote} />
-        <HoldReviewPanel data={holdReviewQuery.data} isPending={holdReviewQuery.isPending} isError={holdReviewQuery.isError}
-          onRetry={() => { void holdReviewQuery.refetch(); }} overdueNote={workloadNote("tracking_hold_review_due", "기한 지남", "")} now={now} />
-      </div>
+    <DashboardBlock id="today" title="오늘 검토할 업무">
+      <CountStrip label="오늘 검토할 업무 건수" items={[deadlineCount, finalCount, actionCount, orderPlanCount, preSpecCount]} />
     </DashboardBlock>
+    <DashboardBlock id="decide" title="오늘 결정할 것" caption="마감순" actions={<>
+      <LinkButton label="사업기회" to={deadlinePath} />
+      <LinkButton label="최종 Go/No-Go" to="/go-no-go" />
+    </>}>
+      <TodayDecisionTable now={now}
+        tracking={{
+          data: deadlineQuery.data, isPending: deadlineQuery.isPending, isError: deadlineQuery.isError,
+          onRetry: () => { void deadlineQuery.refetch(); },
+        }}
+        final={{
+          data: decisionQuery.data, isPending: decisionQuery.isPending, isError: decisionQuery.isError,
+          onRetry: () => { void decisionQuery.refetch(); },
+        }}
+      />
+      <footer className="dash-decision-scope"><Small>
+        {`추적 중·보류 사업 중 ${DEADLINE_IMMINENT_DAYS}일 이내 · ${workloadBasis} 기준 · `}
+        {workloadNote("tracking_deadline_imminent", "마감 임박", "")}
+        {` · 최종 Go/No-Go ${goNoGoNote} · 입찰 마감순`}
+      </Small></footer>
+    </DashboardBlock>
+    {/* 발주계획·공고 두 트랙의 일일 수집과 실행 기록. */}
+    <DailyCollectionStatus collectionStatus={<CollectionStatus data={collectionQuery.data} failed={collectionQuery.isError} />} />
 
-    <DashboardBlock id="check" title="확인할 것" caption="실패·사람 확인·마감 임박을 봐요.">
-      <CountStrip label="확인할 것 건수" items={checkCounts} />
+    <DashboardBlock id="check" title="확인할 것">
+      <CountStrip label="확인할 것 건수" items={[holdCount, ...checkCounts]} />
       <div className="dash-work-grid">
         <HumanCheckPanel failed={overviewFailedQuery.data} attention={overviewAttentionQuery.data} blocking={blockingQuery.data}
           state={humanCheckState}
           footBasis={`개요 실패·확인 필요 ${workloadValue("overview_human_review")} · 공고별 확인 항목 ${workloadValue("blocking_items_open")}`}
           footCount={workloadNote("human_check_required", "사람 확인 필요", "")} />
-        <DeadlineImminentPanel data={deadlineQuery.data} now={now} windowDays={DEADLINE_IMMINENT_DAYS}
-          state={{ isPending: deadlineQuery.isPending, isError: deadlineQuery.isError, onRetry: () => { void deadlineQuery.refetch(); } }}
-          footBasis={`추적 중·보류 사업 중 ${DEADLINE_IMMINENT_DAYS}일 이내 · ${workloadBasis} 기준`}
-          footCount={workloadNote("tracking_deadline_imminent", "마감 임박", "")} />
+        {(!holdReviewQuery.isSuccess || holdReviewQuery.data.total > 0) && <HoldReviewPanel data={holdReviewQuery.data} isPending={holdReviewQuery.isPending} isError={holdReviewQuery.isError}
+          onRetry={() => { void holdReviewQuery.refetch(); }} overdueNote={workloadNote("tracking_hold_review_due", "기한 지남", "")} now={now} />}
+
       </div>
     </DashboardBlock>
+
+    {briefing ? (
+      <DashboardBlock id="briefing" title="오늘의 브리핑" caption={briefing.briefing_date}>
+        <DashboardPanel
+          action={<LinkButton label="브리핑과 반응 이력 열기" to="/briefing" />}
+          title="추천과 추적 변화"
+        >
+          {briefing.status === "collection_incomplete" ? <p>수집이 완료되지 않은 상태에서 만든 브리핑이에요.</p> : null}
+          {briefingPreview.length > 0 ? (
+            <ul className="dash-work-list">
+              {briefingPreview.map((item) => (
+                <WorkRow
+                  end={item.kind === "tracked_change" ? "추적 변화" : item.reaction ?? "반응 대기"}
+                  key={item.item_id}
+                  meta={[stageLabel(item.stage), item.agency].filter(Boolean).join(" · ")}
+                  title={item.title}
+                  to={`/briefing?date=${briefing.briefing_date}&selected=${encodeURIComponent(item.item_id)}`}
+                />
+              ))}
+            </ul>
+          ) : <p>추천이나 추적 변화가 없어요.</p>}
+        </DashboardPanel>
+      </DashboardBlock>
+    ) : null}
 
     <DashboardBlock id="new" title="새로 볼 것" caption={`${newSince.slice(5)} 이후 처음 수집된 것이에요.`}>
       <CountStrip label="새로 볼 것 건수" items={newCounts} />
@@ -234,6 +263,5 @@ function DashboardWorkspace() {
           footCount={workloadNote("order_plan_new_priority", "추적 미선택", ` 중 상위 ${WORK_PANEL_LIMIT}건`)} />
       </div>
     </DashboardBlock>
-    <footer className="dash-dashboard-foot"><Small>최종 참여 판단은 최종 Go/No-Go에서 진행해요.</Small></footer>
   </section>;
 }

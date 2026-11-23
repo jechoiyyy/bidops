@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { mockApi, mockWorkload } from "./api-mock";
+import { bidConditionsFixture } from "./go-no-go-fixtures";
 import type { BidDeltaDecisionQueueItem } from "../src/lib/types";
 
 const opportunity = {
@@ -152,7 +153,7 @@ test("UC-01은 키보드만으로 추적 저장 직전까지 이동하고 비활
   const trace = await mockOpportunity(page);
   await openOpportunityDetail(page);
 
-  const editorToggle = page.getByRole("button", { name: "추적 상태 변경", exact: true });
+  const editorToggle = page.getByRole("button", { name: "추적 여부 선택", exact: true });
   await tabTo(page, editorToggle);
   // 승인된 데스크톱 ERP 시안은 이 버튼에 Astryx sm(28px)을 쓴다.
   await expectKeyboardTarget(editorToggle, 28);
@@ -208,9 +209,9 @@ test("사업 추적 상세는 변경 비교로 이동하고 추적 저장과 최
     `/opportunities/501/bid-delta?section=${encodeURIComponent("전체")}&selected=501`,
   );
   await expect(page.getByRole("button", { name: "최종 결정 저장" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "추적 상태 변경", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "추적 여부 선택", exact: true })).toHaveCount(1);
   await expect(page.getByRole("dialog")).not.toBeVisible();
-  await expect(page.locator(".opportunity-action-footer")).toContainText("미선택");
+  await expect(page.getByRole("group", { name: "결정 영역", exact: true })).toContainText("미선택");
   await page.getByRole("tab", { name: "추적 이력", exact: true }).click();
   await expect(page.locator("#opportunity-panel-decision")).toContainText("미선택");
   await expect(page.locator("#opportunity-panel-decision")).toContainText("아직 선택하지 않았어요");
@@ -223,7 +224,7 @@ test("공통 unsaved guard가 옮겨간 예외 작업 입력을 지킨다", asyn
   await mockOpportunity(page);
   await openOpportunityDetail(page);
 
-  await page.getByRole("button", { name: "추적 상태 변경", exact: true }).click();
+  await page.getByRole("button", { name: "추적 여부 선택", exact: true }).click();
   await page.getByRole("combobox", { name: "선택 사유", exact: true }).click();
   await page.getByRole("option", { name: "기타 · 직접 입력", exact: true }).click();
   await page.getByLabel("선택 사유 직접 입력").fill("공통 guard 회귀 검증 초안");
@@ -241,32 +242,25 @@ test("공통 unsaved guard가 옮겨간 예외 작업 입력을 지킨다", asyn
 // docs/design/PLAN.md 단계 E 완료 게이트 (ADR-0046가 ADR-0041 결정 1·2를 개정)
 // ─────────────────────────────────────────────────────────────────────────
 
-// RL 사이드바(ui-spec §1.2, 시안 v26 + 2026-11-18 메모): 빠른 이동 / 레코드 / 리스트 / 하단.
-// 항목 이름은 여는 화면의 제목이다(리스트는 사업기회·브리핑의 이름 붙은 보기). 화면이 없는
-// 자리표시(노트·보고서·기관·새 리스트·팀원 초대·도움말·검색)는 그리지 않는다.
 const SIDEBAR_LINKS = [
-  { group: null, label: "대시보드", path: "/", title: "대시보드" },
-  { group: "레코드", label: "발주계획", path: "/order-plans", title: "발주계획" },
-  { group: "레코드", label: "사전규격", path: "/pre-specs", title: "사전규격" },
-  { group: "레코드", label: "사업기회", path: "/opportunities", title: "사업기회" },
-  { group: "레코드", label: "최종 Go/No-Go", path: "/go-no-go", title: "최종 Go/No-Go" },
-  // RL-00: 회사 근거는 읽기 전용 `/company`다. `/profile`은 판정 기준 화면의 탭으로 남는다.
-  { group: "레코드", label: "회사 근거", path: "/company", title: "회사 근거" },
-  { group: "리스트", label: "오늘의 브리핑", path: "/briefing", title: "오늘의 브리핑" },
-  { group: "리스트", label: "추적 중", path: "/opportunities", title: "사업기회" },
-  { group: "리스트", label: "마감 임박", path: "/opportunities", title: "사업기회" },
-  { group: "하단", label: "실행 상태", path: "/run-status", title: "실행 상태" },
-  { group: "하단", label: "판정 기준", path: "/criteria", title: "판정 기준" },
+  { label: "오늘 할 일", path: "/", title: "오늘 할 일" },
+  { label: "발주계획", path: "/order-plans", title: "발주계획" },
+  { label: "사전규격", path: "/pre-specs", title: "사전규격" },
+  { label: "사업기회", path: "/opportunities", title: "사업기회" },
+  { label: "최종 Go/No-Go", path: "/go-no-go", title: "최종 Go/No-Go" },
+  { label: "회사 근거", path: "/company", title: "회사 근거" },
+  { label: "판정 기준", path: "/criteria", title: "판정 기준" },
+  { label: "실행 상태", path: "/run-status", title: "실행 상태" },
 ];
-const SIDEBAR_REMOVED = ["알림", "다음 행동", "공고", "연차 예고", "노트", "보고서", "기관", "새 리스트", "팀원 초대", "도움말", "설정", "검색"];
+const SIDEBAR_REMOVED = ["오늘의 브리핑", "추적 중", "마감 임박", "알림", "다음 행동", "공고", "연차 예고", "노트", "보고서", "기관", "새 리스트", "팀원 초대", "도움말", "설정", "검색"];
 
-test("사이드바는 시안 v26 묶음을 유지하고 화면 없는 자리표시를 그리지 않는다", async ({ page }) => {
+test("사이드바는 탐색과 관리 메뉴를 묶고 사업기회 보기는 목록에 둔다", async ({ page }) => {
   await mockApi(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
 
   const sidebar = page.locator("aside.sidebar");
-  await expect(sidebar.locator(".sidebar-group-label")).toHaveText(["레코드", "리스트"]);
+  await expect(sidebar.locator(".sidebar-group-label")).toHaveText(["탐색", "관리"]);
   for (const item of SIDEBAR_LINKS) {
     await expect(sidebar.getByRole("link", { name: item.label, exact: true })).toHaveCount(1);
   }
@@ -274,7 +268,7 @@ test("사이드바는 시안 v26 묶음을 유지하고 화면 없는 자리표�
     await expect(sidebar.getByText(label, { exact: true })).toHaveCount(0);
   }
   await expect(sidebar.locator('[aria-disabled="true"]')).toHaveCount(0);
-  await expect(sidebar.locator(".sidebar-footer").getByRole("link")).toHaveText(["실행 상태", "판정 기준"]);
+  await expect(sidebar.locator(".sidebar-group").filter({ has: page.getByText("관리", { exact: true }) }).locator(".sidebar-item-label")).toHaveText(["회사 근거", "판정 기준", "실행 상태"]);
   await expect(sidebar.locator(".sidebar-external-link")).toHaveCount(1);
   await expect(sidebar.getByText("준비 중")).toHaveCount(0);
   await expect(sidebar.getByText("탐색과 추적")).toHaveCount(0);
@@ -302,20 +296,20 @@ test("사이드바 항목 이름은 여는 화면의 제목과 같다", async ({
 // 주소 하나에 활성 항목은 정확히 하나다(2026-11-18: `/opportunities`가 다음 행동, `/go-no-go`가
 // 사업기회, `/judgments`가 두 항목을 켜던 결함).
 const ACTIVE_CASES = [
-  { path: "/", active: "대시보드" },
+  { path: "/", active: "오늘 할 일" },
   { path: "/order-plans", active: "발주계획" },
   { path: "/pre-specs", active: "사전규격" },
   { path: "/pre-specs/991", active: "사전규격" },
   { path: "/opportunities", active: "사업기회" },
   { path: "/opportunities?section=전체", active: "사업기회" },
-  { path: "/opportunities?section=추적 중", active: "추적 중" },
-  { path: "/opportunities?section=전체&deadline_within_days=7&sort=deadline", active: "마감 임박" },
+  { path: "/opportunities?section=추적 중", active: "사업기회" },
+  { path: "/opportunities?section=전체&deadline_within_days=7&sort=deadline", active: "사업기회" },
   { path: "/opportunities/501/activity", active: "사업기회" },
   { path: "/go-no-go", active: "최종 Go/No-Go" },
   { path: "/judgments", active: "사업기회" },
   { path: "/queue", active: "사업기회" },
   { path: "/company", active: "회사 근거" },
-  { path: "/briefing", active: "오늘의 브리핑" },
+  { path: "/briefing", active: "오늘 할 일" },
   { path: "/run-status", active: "실행 상태" },
   { path: "/runs", active: "실행 상태" },
   { path: "/criteria", active: "판정 기준" },
@@ -412,22 +406,24 @@ test("누적 집계 미확인을 0으로 접지 않는다", async ({ page }) => 
   for (const item of await unmeasured.all()) await expect(item).not.toContainText("0건");
 });
 
-test("판정 기준은 모든 탭에 별도 판단과 소급 변경의 경계를 남긴다", async ({ page }) => {
+test("판정 기준은 선별과 공고 판정 트랙에 각 정책 상태를 제공한다", async ({ page }) => {
   await mockApi(page);
   await page.setViewportSize({ width: 1440, height: 900 });
 
-  for (const path of ["/criteria", "/profile", "/policies", "/quality-gates", "/metrics"]) {
+  for (const path of ["/criteria", "/order-plan-policies"]) {
     await page.goto(path);
-    // 승인 ERP 시안은 큰 경계 패널을 각주와 관련 조작 옆의 안내로 옮긴다.
-    // 별도 판단이라는 사실은 어느 탭에서도 읽혀야 한다.
-    const boundary = page.locator(".crit-boundary");
-    await expect(boundary).toBeVisible();
-    await expect(boundary).toContainText("적합성 등급");
-    await expect(boundary).toContainText("참여 준비");
-    await expect(boundary).toContainText("추적");
-    await expect(boundary).toContainText("Go/No-Go");
-    await expect(boundary).toContainText(/이후|소급/);
-    await expect(page.locator(".crit-summary")).toContainText("판정 정책");
+    await expect(page.locator(".crit-boundary")).toHaveCount(0);
+    const c2 = page.getByRole("group", { name: "발주계획 선별 (C-2)", exact: true });
+    await expect(c2.getByRole("link", { name: "선별 정책" })).toHaveAttribute("aria-current", "page");
+    const policy = page.getByRole("region", { name: "선택한 발주계획 선별 policy" });
+    await expect(policy.getByRole("heading", { name: "적재된 발주계획 선별 policy가 없어요" })).toBeVisible();
+  }
+  for (const path of ["/profile", "/policies", "/quality-gates", "/metrics"]) {
+    await page.goto(path);
+    await expect(page.locator(".crit-boundary")).toHaveCount(0);
+    const c1 = page.getByRole("group", { name: "공고 판정 (C-1)", exact: true });
+    await expect(c1.locator('a[aria-current="page"]')).toHaveCount(1);
+    await expect(page.locator(".crit-summary")).toContainText("공고 판정(C-1) 정책");
   }
 });
 
@@ -437,15 +433,12 @@ test("실행 상태는 모든 탭에서 운영 텔레메트리 위치와 상시 
 
   for (const path of ["/run-status", "/runs", "/attachments", "/operations", "/audit"]) {
     await page.goto(path);
-    const boundary = page.locator(".rs-boundary");
-    await expect(boundary).toBeVisible();
-    await expect(boundary).toContainText("진행 상태와 품질 표식은 별도");
-    await expect(boundary).toContainText("미확인·미측정");
+    await expect(page.locator(".rs-boundary")).toHaveCount(0);
     await page.getByRole("button", { name: "운영 조건", exact: true }).click();
     const conditions = page.getByRole("dialog", { name: "운영 조건과 경계" });
     await expect(conditions).toBeVisible();
     // 판정 화면에서 뺐지만 삭제하지 않았다(ADR-0041 결정 5).
-    await expect(conditions).toContainText("삭제하지 않았어요");
+    await conditions.getByText("판정 실행 기록 위치").click();
     await expect(conditions).toContainText("model_digest");
     await expect(conditions).toContainText("duration_ms");
     await expect(conditions).toContainText("거절 사유");
@@ -517,6 +510,10 @@ async function mockDecisionQueueList(page: Page, items: BidDeltaDecisionQueueIte
     const id = Number(/\/api\/opportunities\/(\d+)\/bid-delta$/.exec(new URL(route.request().url()).pathname)?.[1] ?? 0);
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(emptyWorkspace(id)) });
   });
+  await page.route(/\/api\/opportunities\/\d+\/bid-conditions$/, async (route) => {
+    const id = Number(new URL(route.request().url()).pathname.split("/")[3]);
+    await route.fulfill({ status: 200, json: bidConditionsFixture(id) });
+  });
   return trace;
 }
 
@@ -526,7 +523,7 @@ test("최종 Go/No-Go 목록은 사업 이름과 변경 비교 결과 없음을 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/go-no-go?show=all");
 
-  const rows = page.locator(".gng-row");
+  const rows = page.locator("tr.gng-row");
   await expect(rows).toHaveCount(1);
   // 식별자만 있는 행은 무슨 사업인지 알 수 없어 결국 하나씩 열어 봐야 한다.
   await expect(rows.nth(0)).toContainText("접근성 검증 입찰공고");
@@ -534,9 +531,9 @@ test("최종 Go/No-Go 목록은 사업 이름과 변경 비교 결과 없음을 
   // 비교 0건은 값이다. `비교 0건`으로 눌러 담아 "아직 안 봤다"와 섞지 않는다.
   await expect(rows.nth(0)).toContainText("변경 비교 결과 없음");
   // 선택한 사업의 상세가 그려진 뒤에 요청을 센다.
-  await expect(page.getByRole("heading", { name: "변경 비교 결과가 아직 없어요" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "직전 차수 변경" })).toBeVisible();
   // 대기열을 한 번에 다 받았으므로 요약은 전체 기준이라고 말한다.
-  await expect(page.locator(".gng-summary")).toHaveText("전체 1건 기준 · 1건 표시");
+  await expect(page.locator(".gng-pager .review-list-pager-summary")).toHaveText("전체 1건");
   expect(trace.queueQueries).toHaveLength(1);
   expect(trace.queueQueries[0]).toMatchObject({ status: "all", offset: "0" });
   expect(trace.opportunityListRequests).toBe(0);
@@ -555,14 +552,14 @@ test("최종 Go/No-Go 목록은 결정 대기열 한 번으로 그리고 행마�
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/go-no-go?show=all");
 
-  await expect(page.locator(".gng-row")).toHaveCount(30);
-  await expect(page.getByRole("heading", { name: "변경 비교 결과가 아직 없어요" })).toBeVisible();
+  await expect(page.locator("tr.gng-row")).toHaveCount(30);
+  await expect(page.getByRole("heading", { name: "직전 차수 변경" })).toBeVisible();
   expect(trace.queueQueries).toHaveLength(1);
   expect(trace.queueQueries[0]).toMatchObject({ status: "all", limit: "500", offset: "0" });
   expect(trace.opportunityListRequests).toBe(0);
   // 첫 행이 선택되고 그 사업 하나만 상세를 받는다.
   expect([...new Set(trace.workspaceIds)]).toEqual([600]);
-  await expect(page.locator(".gng-summary")).toHaveText("전체 30건 기준 · 30건 표시");
+  await expect(page.locator(".gng-pager .review-list-pager-summary")).toHaveText("전체 30건");
   // 공용 페이저는 한 쪽뿐이어도 항상 보이고 단추만 비활성이다(U3, 명세 §2.2).
   const pager = page.getByRole("navigation", { name: "결정 대기열 페이지" });
   await expect(pager).toBeVisible();
@@ -571,7 +568,7 @@ test("최종 Go/No-Go 목록은 결정 대기열 한 번으로 그리고 행마�
   await expect(pager.getByRole("button", { name: "다음" })).toBeDisabled();
 
   // 다른 행을 골라도 대기열은 다시 받지 않고 그 행 하나만 조회한다.
-  await page.locator(".gng-row").filter({ hasText: "결정 대기 사업 12" }).click();
+  await page.locator("tr.gng-row").filter({ hasText: "결정 대기 사업 12" }).click();
   await expect.poll(() => [...new Set(trace.workspaceIds)].sort()).toEqual([600, 611]);
   expect(trace.queueQueries).toHaveLength(1);
 });
@@ -584,7 +581,7 @@ test("UC-05 추적 종료 확인 단계는 취소에 초점이 오고 Esc로 요
   const trace = await mockOpportunity(page);
   await openOpportunityDetail(page);
 
-  await page.getByRole("button", { name: "추적 상태 변경", exact: true }).click();
+  await page.getByRole("button", { name: "추적 여부 선택", exact: true }).click();
   await page.getByRole("combobox", { name: "선택 사유", exact: true }).click();
   await page.getByRole("option", { name: "기타 · 직접 입력", exact: true }).click();
   await page.getByLabel("선택 사유 직접 입력").fill("현재 범위와 맞지 않아 능동 추적을 종료해요.");

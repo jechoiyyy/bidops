@@ -45,13 +45,12 @@ export default function CompanyWikiPage() {
     records.error.code === "company_wiki_ingest_disabled";
   const visibleTabs = tabs.filter(tab => tab.key !== "ingests" || (!disabled && !records.isPending));
   const counts = summary.data?.counts;
-  let title = "회사 근거 자료를 살펴봐요";
-  if (counts) {
-    title = summary.data?.work_units_available && counts.ingested_projects !== null
+  const description = counts
+    ? summary.data?.work_units_available && counts.ingested_projects !== null
       ? `실적 ${counts.portfolio_items}건 가운데 ${counts.ingested_projects}건이 업무별 근거 지도에 들어 있어요`
-      : `실적 ${counts.portfolio_items}건이 등록돼 있어요`;
-  }
-  usePageHeader({ eyebrow: "회사 근거", title });
+      : `실적 ${counts.portfolio_items}건이 등록돼 있어요`
+    : null;
+  usePageHeader({ description });
   if (disabled && view === "ingests") return <Navigate replace to={wikiUrl("portfolio")}/>;
   return <>
     <PageHeaderTabs><WorkspaceViewTabs label="회사 근거 보기" tabs={visibleTabs} value={view}

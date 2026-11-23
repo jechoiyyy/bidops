@@ -3,7 +3,7 @@
  *
  * AppShell이 bidops 테마의 경계를 소유한다. 2026-11-19부터 셸은 최종 시안
  * (docs/1119_kstyle-shell/mockups/, ADR 초안 승인 대기)을 따른다: 따뜻한 회색
- * 바탕(frame) 위에 면 없는 228px 사이드바 + 바깥 여백 8px의 흰 패널 하나(1px 경계,
+ * 바탕(frame) 위에 면 없는 216px 사이드바 + 바깥 여백 8px의 흰 패널 하나(1px 경계,
  * radius 12). 패널 맨 위가 패널 헤더(화면 이름·문장형 제목·설명·탭)이고 별도
  * 상단바는 없다. 바탕·활성 색은 brand.css의 `--bo-*` 프로젝트 토큰이다.
  * (이전: 2026-10-16 RL 시안 v26 — 회색 사이드바 240px + 흰 상단바 44px.)
@@ -105,12 +105,15 @@ body {
   /* 패널 헤더·본문 좌우 여백 32px(2026-11-19 최종 시안). 본문 위·아래는 24·32px다.
      화면별 캔버스 여백 재정의는 두지 않고, 목록|상세를 끝까지 채우는 화면만
      route metadata `canvas: "flush"`로 여백을 0으로 둔다. */
-  --shell-canvas-inline-padding: var(--spacing-8);
+  --shell-canvas-inline-padding: var(--spacing-6);
+  --shell-location-height: 44px;
+  --shell-tools-height: 44px;
+  --shell-list-width: 56%;
   --shell-sidebar-group-label-size: var(--bo-k-small);
   --shell-sidebar-item-size: var(--bo-k-meta);
   --shell-sidebar-icon-size: 16px;
 
-  /* 셸(최종 시안): 따뜻한 회색 바탕(frame) 위에 228px 사이드바가 면 없이 놓이고, 본문은
+  /* 셸(최종 시안): 따뜻한 회색 바탕(frame) 위에 216px 사이드바가 면 없이 놓이고, 본문은
      바깥 여백 8px의 흰 패널 하나로 뜬다. 별도 상단바는 없다. */
   display: flex;
   box-sizing: border-box;
@@ -127,21 +130,21 @@ body {
 }
 
 /* ---- 사이드바 ---------------------------------------------------------------
-   228px, 면 없음. 행 36px · 글자 14px/500 · 아이콘 16px, 비활성은 보조 글자색,
+   216px, 면 없음. 행 36px · 글자 14px/500 · 아이콘 16px, 비활성은 보조 글자색,
    활성은 채움 + 굵은 본문색 + 먹색 알약 건수(시안). */
 .app-shell[data-astryx-theme="bidops"] .sidebar {
   display: flex;
   position: sticky;
   top: 0;
   align-self: stretch;
-  flex: 0 0 228px;
+  flex: 0 0 216px;
   flex-direction: column;
   gap: 18px;
   box-sizing: border-box;
-  width: 228px;
+  width: 216px;
   height: 100%;
   min-height: 0;
-  padding: var(--spacing-3) 10px var(--spacing-2);
+  padding: 0 14px var(--spacing-2);
   overflow-x: hidden;
   overflow-y: auto;
   color: var(--color-text-secondary);
@@ -158,15 +161,26 @@ body {
 /* 워크스페이스 줄: 제품 이름(16px/800) + 회사 이름(12px/500 보조). */
 .app-shell[data-astryx-theme="bidops"] .sidebar-brand {
   display: flex;
-  align-items: baseline;
+  flex: 0 0 var(--shell-location-height);
+  align-items: center;
   gap: var(--spacing-2);
   margin: 0;
-  padding: var(--spacing-1) 10px 0;
+  padding: 0 6px;
   border: 0;
   border-radius: 6px;
   color: var(--color-text-primary);
   background: transparent;
   text-decoration: none;
+}
+
+.app-shell[data-astryx-theme="bidops"] .sidebar-brand-mark {
+  display: grid;
+  place-items: center;
+  flex: 0 0 25px;
+  height: 25px;
+  border-radius: 7px;
+  color: var(--color-on-accent);
+  background: var(--color-accent);
 }
 
 .app-shell[data-astryx-theme="bidops"] .sidebar-brand-product {
@@ -239,8 +253,8 @@ body {
   transition: background-color var(--duration-fast) ease, color var(--duration-fast) ease;
 }
 
-/* `리스트` 묶음 항목은 아이콘 없이 들여쓴다(아이콘 16 + 간격 10 = 36px). */
-.app-shell[data-astryx-theme="bidops"] .sidebar-item.is-list {
+/* 사업기회의 하위 메뉴를 상위 메뉴의 제목에 맞춰 들여쓴다. */
+.app-shell[data-astryx-theme="bidops"] .sidebar-item.is-nested {
   padding-left: 36px;
 }
 
@@ -423,47 +437,71 @@ body {
   background: var(--color-background-surface);
 }
 
-/* ---- 패널 헤더 --------------------------------------------------------------
-   작은 화면 이름(14px) + 문장형 제목 `<h1>`(24px/700) / 오른쪽 액션 / 아래 둥근 칸 탭(40px) / 아래 1px 경계.
-   별도 상단바는 없다. 2026-11-20 사용자 요청으로 압축했다: 위아래 16px, 제목과 탭 사이 12px, 고정 설명 줄 없음
-   (그 순간의 데이터를 말하는 문장만 설명 줄에 남는다). 탭 없는 헤더는 88px 안팎이다. */
+/* 위치 줄과 도구줄을 읽기 영역에서 분리한다. */
 .app-shell[data-astryx-theme="bidops"] .topbar {
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
   align-items: stretch;
-  gap: var(--spacing-3);
+  gap: 0;
   height: auto;
-  min-height: 0;
-  padding: var(--spacing-4) var(--shell-canvas-inline-padding);
-  overflow: visible;
+  min-width: 0;
+  padding: 0;
+  border: 0;
   color: var(--color-text-primary);
   background: var(--color-background-surface);
-  border-bottom: 1px solid var(--color-border);
-}
-
-/* 상세 배치는 맨 위 돌아갈 링크 줄이 있어 위 여백과 줄 간격이 작다. 돌아갈 곳이 없으면 목록과 같다. */
-.app-shell[data-astryx-theme="bidops"] .topbar[data-header-layout="page"]:has(> .topbar-back) {
-  gap: var(--spacing-1);
-  padding-top: var(--spacing-3);
 }
 
 .app-shell[data-astryx-theme="bidops"] .topbar-main {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: var(--spacing-4);
   min-width: 0;
+  flex: 0 0 var(--shell-location-height);
+  height: var(--shell-location-height);
+  padding-inline: var(--shell-canvas-inline-padding);
+  border-bottom: 1px solid var(--color-border);
 }
 
-.app-shell[data-astryx-theme="bidops"] .topbar-heading {
-  /* 문장형 제목은 낱말 가운데서 끊지 않는다(시안). 공백 없는 긴 낱말은 그래도 칸 안에서 끊는다. */
-  word-break: keep-all;
-  overflow-wrap: anywhere;
+.app-shell[data-astryx-theme="bidops"] .topbar-location,
+.app-shell[data-astryx-theme="bidops"] .topbar-back {
   display: flex;
-  flex: 0 1 auto;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  flex: 0 0 auto;
   min-width: 0;
+  gap: var(--spacing-2);
+}
+
+.app-shell[data-astryx-theme="bidops"] .topbar-location-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--color-icon-secondary);
+}
+
+.app-shell[data-astryx-theme="bidops"] .topbar-location-title {
+  margin: 0;
+  font-size: var(--bo-k-lead);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.app-shell[data-astryx-theme="bidops"] .topbar-location-date {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-small);
+}
+
+.app-shell[data-astryx-theme="bidops"] .topbar-record {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  width: 100%;
+  padding: var(--spacing-5) var(--shell-canvas-inline-padding) var(--spacing-3);
+}
+
+.app-shell[data-astryx-theme="bidops"] .topbar-view-note {
+  padding: var(--spacing-1) var(--shell-canvas-inline-padding);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .app-shell[data-astryx-theme="bidops"] .topbar-eyebrow-row {
@@ -482,13 +520,14 @@ body {
 }
 
 .app-shell[data-astryx-theme="bidops"] .topbar-title {
-  max-width: 820px;
+  max-width: 100%;
+  word-break: keep-all;
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--color-text-primary);
-  font-size: var(--bo-k-display);
+  font-size: 28px;
   font-weight: 700;
-  line-height: var(--bo-k-display-leading);
+  line-height: 1.3;
   letter-spacing: -0.03em;
   white-space: normal;
 }
@@ -531,7 +570,7 @@ body {
   display: flex;
   flex: 0 1 auto;
   min-width: 0;
-  min-height: var(--bo-k-control-row);
+  min-height: 0;
   align-items: center;
   justify-content: flex-end;
   gap: var(--spacing-4);
@@ -609,20 +648,15 @@ body {
   color: var(--color-warning);
 }
 
-.app-shell[data-astryx-theme="bidops"] .panel-header-status-link {
-  margin-left: var(--spacing-1);
-  color: var(--color-text-primary);
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
 /* 보기 탭·검색 줄 portal 슬롯. 비어 있으면 접는다. */
 .app-shell[data-astryx-theme="bidops"] .topbar-tabs {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-3);
+  justify-content: center;
+  min-height: var(--shell-tools-height);
   min-width: 0;
+  padding-inline: var(--shell-canvas-inline-padding);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .app-shell[data-astryx-theme="bidops"] .topbar-tabs:empty {
@@ -639,17 +673,19 @@ body {
 }
 
 .app-shell[data-astryx-theme="bidops"] .topbar-tabs [role="tab"] {
-  height: var(--bo-k-control-tab);
-  padding: 0 14px;
-  border-radius: var(--radius-element);
+  height: calc(var(--shell-tools-height) - 1px);
+  padding: 0 var(--spacing-2);
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
   color: var(--color-text-secondary);
-  font-size: var(--bo-k-lead);
+  font-size: var(--bo-k-meta);
   font-weight: 500;
 }
 
 .app-shell[data-astryx-theme="bidops"] .topbar-tabs [role="tab"][aria-selected="true"] {
   color: var(--color-text-primary);
-  background: var(--bo-sidebar-active);
+  background: transparent;
+  border-bottom-color: var(--color-accent);
   font-weight: 700;
 }
 
@@ -665,6 +701,7 @@ body {
   align-items: center;
   justify-content: flex-end;
   gap: var(--spacing-2);
+  margin-inline-start: auto;
 }
 
 .app-shell[data-astryx-theme="bidops"] .basis-popover-trigger {
@@ -765,10 +802,11 @@ body {
   --shell-reading-width: 1040px;
 }
 
-.app-shell[data-astryx-theme="bidops"] .app-content[data-reading-width="detail"] .topbar > * {
-  width: 100%;
+.app-shell[data-astryx-theme="bidops"] .app-content[data-reading-width="detail"] .topbar-record {
+  width: calc(100% - var(--shell-canvas-inline-padding) * 2);
   max-width: var(--shell-reading-width);
   margin-inline: auto;
+  padding-inline: 0;
 }
 
 /* ---- 공용 상태 표식(시안) ---------------------------------------------------
@@ -832,7 +870,7 @@ body {
   padding: var(--spacing-2) var(--spacing-3);
 }
 
-.app-shell[data-astryx-theme="bidops"] :is(.crit-page, .rs-page) .astryx-table-cell {
+.app-shell[data-astryx-theme="bidops"] :is(.crit-page, .rs-page) .astryx-table-cell:not(.record-table .astryx-table-cell) {
   padding: var(--spacing-3);
 }
 
@@ -892,13 +930,6 @@ body {
 }
 
 /* 목록 머리의 `현재 페이지 전체 선택` 체크박스(선택이 0건일 때만). */
-.app-shell .c2l-list-select-all {
-  flex: 0 0 18px;
-  width: 18px;
-  height: 18px;
-  margin: 0 var(--spacing-1) 0 0;
-  accent-color: var(--color-accent);
-}
 
 .app-shell .c2l-page .c2l-list-head {
   justify-content: flex-start;
@@ -920,6 +951,7 @@ body {
 .app-shell .c2l-page .c2l-list-heading .c2l-list-scope {
   display: inline;
   overflow: visible;
+  font-weight: 400; /* 범위·정렬은 4화면 모두 14/400(ADR-0076 결정 15) */
   white-space: nowrap;
 }
 
@@ -1008,7 +1040,7 @@ body {
   flex-direction: row;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--spacing-3) var(--spacing-2);
+  gap: var(--spacing-1) var(--spacing-2);
   padding: 0;
 }
 
@@ -1035,10 +1067,11 @@ body {
 }
 
 .app-shell .topbar-tabs .workspace-view-tabs .astryx-button {
-  height: var(--bo-k-control-tab);
-  min-height: var(--bo-k-control-tab);
-  padding: 0 14px;
-  border-radius: var(--radius-element);
+  height: calc(var(--shell-tools-height) - 1px);
+  min-height: calc(var(--shell-tools-height) - 1px);
+  padding: 0 var(--spacing-2);
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
   color: var(--color-text-secondary);
   box-shadow: none;
   font-weight: 500;
@@ -1046,7 +1079,8 @@ body {
 
 .app-shell .topbar-tabs .workspace-view-tabs .astryx-button[aria-pressed="true"] {
   color: var(--color-text-primary);
-  background: var(--bo-sidebar-active);
+  background: transparent;
+  border-bottom-color: var(--color-accent);
   box-shadow: none;
   font-weight: 700;
 }
@@ -1088,8 +1122,11 @@ body {
 
 
 /* ---- 목록|상세 화면(`canvas: "flush"`) 공통 ----
-   두 칸이 패널 가장자리까지 닿고 세로선 하나로 나뉜다(최종 시안). 그림자 카드·둥근 상자 없이 목록은 38%다
-   — 발주계획과 사전규격이 같은 폭(사용자 요청, `review-workspace-consistency`). */
+   검토 목록 네 화면은 목록 60%와 미리보기 40%를 사용한다. */
+.app-shell .page-canvas[data-canvas="flush"] > :is(.c2l-page, .pre-specs-page, .opportunities-page, .gng-page) {
+  --shell-list-width: 60%;
+}
+
 .app-shell .page-canvas[data-canvas="flush"] > section {
   flex: 1 1 auto;
   gap: 0;
@@ -1109,7 +1146,7 @@ body {
 }
 
 .app-shell .page-canvas[data-canvas="flush"] .review-split-list {
-  flex: 0 0 38%;
+  flex: 0 0 var(--shell-list-width);
   border-right: 1px solid var(--color-border);
 }
 
@@ -1128,11 +1165,6 @@ body {
   background: transparent;
 }
 
-.app-shell .page-canvas .review-dense-list-row.is-selected,
-.app-shell .page-canvas .review-dense-list-row[aria-current="true"] {
-  background: var(--color-background-muted);
-}
-
 /* 패널 헤더로 올라간 목록 머리의 보기 설명·건수 줄은 보조 글자 한 줄이다. */
 .app-shell .page-canvas[data-canvas="flush"] .review-list-head {
   padding: var(--spacing-4) var(--spacing-6) 10px;
@@ -1142,11 +1174,7 @@ body {
 /* 선택 행·눌린 필터 칩은 fill(#F6F5F3) 채움 + 굵은 글자로 말한다(최종 시안). 브랜드 옅은 채움은 `추적 중`
    표식과 채택 단추에만 쓴다 — 선택과 상태가 같은 색이면 둘을 헷갈린다. 화면의 선택 규칙은 그대로다. */
 .app-shell .page-canvas :is(
-  .crit-queue .astryx-table-row:has([aria-pressed="true"]),
-  .gng-page .astryx-table-row:has([aria-pressed="true"]),
-  .opportunities-page tbody tr:has(.opportunity-row-business[aria-pressed="true"]),
   .pre-specs-row[aria-current="true"],
-  .rs-record[aria-pressed="true"],
   .rs-exec-pick[aria-pressed="true"],
   .vd-row.is-selected,
   .pp-sentence.is-selected,
@@ -1156,17 +1184,7 @@ body {
 }
 
 .app-shell .page-canvas :is(
-  .crit-queue .astryx-table-row:has([aria-pressed="true"]),
-  .gng-page .astryx-table-row:has([aria-pressed="true"]),
-  .opportunities-page tbody tr:has(.opportunity-row-business[aria-pressed="true"])
-) :is(td, th) {
-  background: var(--color-background-muted);
-}
-
-.app-shell .page-canvas :is(
-  .crit-filters .astryx-button[aria-pressed="true"],
   .opportunity-reason-chips .astryx-button[aria-pressed="true"],
-  .rs-filter-pills .astryx-button[aria-pressed="true"],
   .rec-chip[aria-pressed="true"]
 ) {
   color: var(--color-text-primary);
@@ -1229,13 +1247,6 @@ body {
   gap: 0;
 }
 
-.app-shell .page-canvas .bid-delta-business {
-  padding: var(--spacing-3) var(--spacing-8);
-  border: 0;
-  border-bottom: 1px solid var(--color-border);
-  border-radius: 0;
-}
-
 .app-shell .page-canvas .bid-delta-workspace {
   border: 0;
   border-radius: 0;
@@ -1244,54 +1255,16 @@ body {
 /* 패널 헤더(문장형 제목·설명·탭 줄)가 옛 44px 상단바보다 높아, 옛 바닥 높이 604px(1280×800에서 남던 높이)를
    그대로 두면 노트북 폭에서 본문이 세로로 넘치고 바닥 고정 액션이 밀린다. pane 안 스크롤 골격은 그대로 두고
    바닥만 1280×800의 남는 높이 안으로 낮춘다(ADR-0076). */
-.app-shell .page-canvas :is(.crit-page, .rs-page, .bid-delta-page) {
+.app-shell .page-canvas .bid-delta-page {
   min-height: 520px;
 }
 
-/* ---- 사전규격 목록: 발주계획과 같은 행·머리 규칙(2026-11-20) ----
-   머리 한 줄(14px 보조), 행은 여백 16·radius 10·고른 행 채움, 사업명 16px(고른 행 700)·발주기관 14px.
-   열 이름 줄은 그리지 않는다(행 구조가 스스로 말한다). */
-.app-shell .pre-specs-page .pre-specs-list-head {
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-4) var(--spacing-6) 10px;
-  border-bottom: 0;
-}
-
-.app-shell .pre-specs-page .pre-specs-list-heading {
-  min-width: 0;
-  margin: 0;
-  overflow: hidden;
-  color: var(--color-text-secondary);
-  font-size: var(--bo-k-meta);
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.app-shell .pre-specs-page .pre-specs-list-scope {
-  font-weight: 400;
-}
-
-.app-shell .pre-specs-page .pre-specs-list-columns {
-  display: none;
-}
-
-.app-shell .pre-specs-page .pre-specs-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 0 0 var(--spacing-2);
-}
-
+/* 사전규격 행 배치. 글자 단은 ADR-0076 결정 15의 공용 목록 규칙이 맡는다. */
 .app-shell .pre-specs-page .pre-specs-row {
-  gap: var(--spacing-3);
-  margin: 0 var(--spacing-2);
-  padding: var(--spacing-4);
+  gap: var(--spacing-2);
   border: 0;
-  border-radius: 10px;
+  border-bottom: 1px solid var(--bo-line-soft);
+  border-radius: 0;
 }
 
 .app-shell .pre-specs-page .pre-specs-row:hover,
@@ -1299,27 +1272,11 @@ body {
   background: var(--color-background-muted);
 }
 
-.app-shell .pre-specs-page .pre-specs-row[data-selection-mode="multiple"] [type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  margin: 3px 0 0;
-  accent-color: var(--color-accent);
-}
-
 .app-shell .pre-specs-page .pre-specs-row-title {
-  font-size: var(--bo-k-body);
-  font-weight: 600;
   line-height: 1.45;
 }
 
-.app-shell .pre-specs-page .pre-specs-row[aria-current="true"] .pre-specs-row-title {
-  font-weight: 700;
-}
 
-.app-shell .pre-specs-page .pre-specs-row-agency {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-k-meta);
-}
 
 /* ---- 상세 머리: 사전규격·사업기회·최종 Go/No-Go를 발주계획과 같은 단으로(2026-11-20) ----
    위 28 · 옆 32, 기관은 14px 보조 글자(채움 상자 없음), 사업명은 상세 단 22px/700. */
@@ -1337,8 +1294,7 @@ body {
   font-size: var(--bo-k-meta);
 }
 
-/* 사전규격 상세 본문·바닥도 머리와 같은 옆 32px. 숫자 칸은 색 채움이 아니라 옅은 회색 채움이다
-   (브랜드 옅은 채움은 상태 표식 전용, ADR-0076 결정 7). */
+/* 사전규격 미리보기 본문과 바닥의 여백. */
 .app-shell .pre-specs-page .pre-specs-detail-scroll {
   gap: var(--spacing-5);
   padding: var(--spacing-2) var(--spacing-8) var(--spacing-6);
@@ -1350,11 +1306,6 @@ body {
   background: var(--color-background-surface);
 }
 
-.app-shell .pre-specs-page .pre-specs-detail-figures > div {
-  border-radius: 10px;
-  background: var(--color-background-muted);
-}
-
 .app-shell .page-canvas[data-canvas="flush"] :is(.pre-specs-detail-title :is(h1, h2, h3, h4), .opportunity-detail-title, .gng-detail-head > :is(h1, h2, h3, h4)) {
   margin: 0;
   color: var(--color-text-primary);
@@ -1364,28 +1315,14 @@ body {
   letter-spacing: -0.03em;
 }
 
-/* ---- 목록|상세 상세 칸의 본문·바닥·안쪽 탭(사업기회·최종 Go/No-Go, 2026-11-20) ----
-   머리와 같은 옆 32px. 안쪽 보기 전환은 밑줄 탭이 아니라 패널 헤더와 같은 둥근 칸(36px)이다. */
+/* 목록|상세 상세 칸의 본문은 머리와 같은 옆 여백을 둔다. */
 .app-shell .page-canvas[data-canvas="flush"] :is(.opportunity-detail-scroll, .gng-detail-scroll) {
   padding-right: var(--spacing-8);
   padding-left: var(--spacing-8);
 }
 
-.app-shell .page-canvas[data-canvas="flush"] :is(.opportunity-action-footer, .gng-action-footer) {
-  padding-right: var(--spacing-8);
-  padding-left: var(--spacing-8);
-  border-top: 1px solid var(--color-border);
-  background: var(--color-background-surface);
-}
-
-.app-shell .page-canvas[data-canvas="flush"] :is(.opportunity-detail-tabs, .gng-detail-tabs) {
-  gap: 2px;
-  padding: 0 var(--spacing-8) var(--spacing-2);
-  border-bottom: 0;
-}
-
-/* 본문 안 탭(Astryx TabList)과 눌림 단추 탭 줄을 둥근 칸으로. 선택은 채움 + 굵은 본문색이다. */
-.app-shell .page-canvas :is([role="tablist"] [role="tab"], .gng-detail-tabs .astryx-button) {
+/* 본문 안 탭(Astryx TabList)의 선택은 채움과 굵은 본문색으로 표시한다. */
+.app-shell .page-canvas [role="tablist"] [role="tab"] {
   height: var(--bo-k-control-nav);
   min-height: var(--bo-k-control-nav);
   padding: 0 12px;
@@ -1398,7 +1335,7 @@ body {
   font-weight: 500;
 }
 
-.app-shell .page-canvas :is([role="tablist"] [role="tab"][aria-selected="true"], .gng-detail-tabs [aria-pressed="true"]) {
+.app-shell .page-canvas [role="tablist"] [role="tab"][aria-selected="true"] {
   color: var(--color-text-primary);
   background: var(--bo-sidebar-active);
   font-weight: 700;
@@ -1424,4 +1361,13 @@ body {
   border-radius: 10px;
   background: var(--color-background-muted);
   box-shadow: none;
+}
+
+@media (min-width: 1680px) {
+  .app-shell[data-astryx-theme="bidops"] .app-content[data-reading-width="detail"] {
+    --shell-reading-width: 1200px;
+  }
+  .app-shell .page-canvas .rs-detail-pane .rs-table:has(th:nth-child(2):last-child) {
+    max-width: 80ch;
+  }
 }

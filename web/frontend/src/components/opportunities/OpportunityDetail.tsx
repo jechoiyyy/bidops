@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
-import { Tab, TabList } from "@astryxdesign/core/TabList";
-import { Token } from "@astryxdesign/core/Token";
+import { Tab } from "@astryxdesign/core/TabList";
 import { ArrowUpRight, Check, ChevronRight, CircleHelp, FileText } from "lucide-react";
 import { EmptyState } from "../common/EmptyState";
-import { AgencyFeature, StickyDecisionHeader } from "../common/ReviewPrimitives";
+import { SideFacts } from "../common/Facts";
+import { FlowSteps } from "../common/FlowSteps";
+import { StatusMark } from "../common/Marks";
+import { AgencyFeature, DecisionBar, DetailTabs, StickyDecisionHeader } from "../common/ReviewPrimitives";
 import { MutationFeedback } from "../common/MutationFeedback";
 import { api } from "../../lib/api";
 import {
@@ -40,6 +42,7 @@ import {
   nextCheckOf,
   pendingCandidateFor,
   primaryAgency,
+  primaryLinkFacts,
   primaryTitle,
   recordRoute,
   recordRouteLabel,
@@ -48,6 +51,7 @@ import {
   searchTargetLabel,
   stageOfLink,
   stageViews,
+  trackingMark,
   visibleUnconfirmedSearches,
   type LifecycleStage,
   type OpportunityDetailIntent,
@@ -128,6 +132,7 @@ export interface OpportunityDetailProps {
 
 export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, opportunityId, returnSearch }: OpportunityDetailProps) {
   const [tab, setTab] = useState<DetailTab>("flow");
+  const [linkedRecordsJump, setLinkedRecordsJump] = useState(0);
   const [dialog, setDialog] = useState<OpenDialog>(null);
   // 확인 사항 패널은 늘 그려 두지만(연결 화면으로 가는 길이 항상 DOM에 있어야
   // 한다) 연결된 공고를 읽는 것은 탭을 한 번 연 뒤부터다. 목록 전체를 미리 읽으면
@@ -138,6 +143,7 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
   const [searchResult, setSearchResult] = useState<OpportunitySearchResponse | null>(null);
   const [recheckNotice, setRecheckNotice] = useState<string | null>(null);
   const scroll = useRef<HTMLDivElement>(null);
+  const linkedRecordsHeading = useRef<HTMLHeadingElement>(null);
   const handledIntent = useRef<number | null>(null);
 
   const setSourceDirty = useCallback((key: string, dirty: boolean) => {
@@ -210,6 +216,13 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
     if (scroll.current) scroll.current.scrollTop = 0;
   }, [opportunityId, tab]);
 
+  useEffect(() => {
+    const heading = linkedRecordsHeading.current;
+    if (linkedRecordsJump === 0 || !heading) return;
+    heading.scrollIntoView({ block: "start" });
+    heading.focus({ preventScroll: true });
+  }, [linkedRecordsJump]);
+
   if (detail.isPending) {
     return <p className="opportunity-detail-status" role="status">불러오는 중…</p>;
   }
@@ -223,6 +236,7 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
   }
 
   const title = primaryTitle(item);
+  const linkFacts = primaryLinkFacts(item);
   const stages = stageViews(links);
   const nextCheck = nextCheckOf(item);
   const pendingCandidates = links.filter(isPendingCandidate);
@@ -276,7 +290,13 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
     if (nextCheck.key === "hold_reason" || nextCheck.key === "end_reason") {
       return { label: "추적 이력 보기", run: () => setTab("decision") };
     }
-    return { label: "연결 공고 보기", run: () => setTab("flow") };
+    return {
+      label: "연결 공고 보기",
+      run: () => {
+        setTab("flow");
+        setLinkedRecordsJump((count) => count + 1);
+      },
+    };
   };
   const action = primaryAction();
   const latestDecision = decisions.data?.items[0] ?? null;
@@ -300,23 +320,20 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
         />
         <h3 className="opportunity-detail-title">{title}</h3>
         <div className="opportunity-row opportunity-spread">
-          <p className="opportunity-caption">
-            사업 #{String(item.id).padStart(3, "0")} · {originDescription(item.first_registered_stage)}
+          <p className="opportunity-caption review-detail-identity">
+            사업 <code className="mono">#{String(item.id).padStart(3, "0")}</code> · {originDescription(item.first_registered_stage)}
           </p>
           {/* 목록 창과 레코드가 서로를 연다(설계고도화안 C-3). 활동·판정·제안서는 레코드에 있다. */}
           <Link className="opportunity-linked-link" to={`/opportunities/${item.id}/activity`}>레코드 열기 →</Link>
-          <Token label={item.tracking_status} size="sm" />
+          <StatusMark mark={trackingMark(item.tracking_status)} />
         </div>
       </StickyDecisionHeader>
 
-      <TabList
-        className="opportunity-detail-tabs"
-        hasDivider
+      <DetailTabs
         onChange={(value) => {
           if (value === "checks") setChecksOpened(true);
           setTab(value as DetailTab);
         }}
-        role="tablist"
         value={tab}
       >
         <Tab label="사업 흐름" panelId="opportunity-panel-flow" value="flow" />
@@ -326,44 +343,45 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
           value="checks"
         />
         <Tab label="추적 이력" panelId="opportunity-panel-decision" value="decision" />
-      </TabList>
+      </DetailTabs>
 
       <div className="opportunity-detail-scroll" ref={scroll}>
         <div aria-label="사업 흐름" hidden={tab !== "flow"} id="opportunity-panel-flow" role="tabpanel">
+          {linkFacts ? (
+            <SideFacts items={[
+              { label: "대표 연결 금액", value: linkFacts.budget },
+              ...(linkFacts.milestone ? [{ label: "대표 연결 일정", value: linkFacts.milestone }] : []),
+            ]} />
+          ) : null}
           <section className="opportunity-flow-section">
             <div className="opportunity-row opportunity-spread">
               <h4>공고 연결 현황</h4>
               <p className="opportunity-caption">확정된 최근 단계 · {latestConfirmedStage(links)}</p>
             </div>
-            <ol className="opportunity-lifecycle">
-              {stages.map((view, index) => {
+            <FlowSteps
+              active={stages.findIndex((view) => !view.confirmed)}
+              label="공고 연결 현황"
+              vertical
+              steps={stages.map((view) => {
                 const target = searchableTarget(view.stage);
-                return (
-                  <li
-                    className={view.confirmed ? "is-confirmed" : view.candidate ? "is-candidate" : "is-unknown"}
-                    key={view.stage}
-                  >
-                    <div className="opportunity-row">
-                      <span aria-hidden="true" className="opportunity-step">
-                        {view.confirmed ? <Check /> : index + 1}
-                      </span>
-                      <p><strong>{view.stage}</strong></p>
-                    </div>
-                    <p className="opportunity-connection-label">{view.connection}</p>
-                    {target ? (
-                      <Button
-                        aria-expanded={searchTarget === target}
-                        className="opportunity-stage-search"
-                        label={`${view.stage} 찾아보기`}
-                        onClick={() => setSearchTarget(searchTarget === target ? null : target)}
-                        size="sm"
-                        variant="ghost"
-                      />
-                    ) : null}
-                  </li>
-                );
+                return {
+                  label: view.stage,
+                  description: view.connection,
+                  state: view.confirmed ? "done" : "unknown",
+                  status: view.candidate ? "warning" : undefined,
+                  action: target ? (
+                    <Button
+                      aria-expanded={searchTarget === target}
+                      className="opportunity-stage-search"
+                      label={`${view.stage} 찾아보기`}
+                      onClick={() => setSearchTarget(searchTarget === target ? null : target)}
+                      size="sm"
+                      variant="ghost"
+                    />
+                  ) : undefined,
+                };
               })}
-            </ol>
+            />
             <p className="opportunity-caption">
               체크 = <strong>연결 확정</strong> · 분석 완료·입찰 참여 승인은 별도예요.
               {unstagedLinks.length > 0
@@ -393,7 +411,7 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
 
           <section className="opportunity-linked-section">
             <div className="opportunity-row opportunity-spread">
-              <h4>연결된 공고</h4>
+              <h4 ref={linkedRecordsHeading} tabIndex={-1}>연결된 공고</h4>
               <p className="opportunity-caption">후보·검색 기록 포함 {visibleLinks.length}건</p>
             </div>
             {visibleLinks.length === 0 ? (
@@ -412,7 +430,7 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
           <section className="opportunity-checks-panel">
             <div className="opportunity-row opportunity-spread">
               <h4>확인 사항</h4>
-              <Token label={openIssueCount > 0 ? `미해결 ${openIssueCount}건` : "등록된 신호 없음"} size="sm" />
+              <StatusMark mark={{ label: openIssueCount > 0 ? `미해결 ${openIssueCount}건` : "등록된 신호 없음", tone: openIssueCount > 0 ? "warning" : "neutral" }} />
             </div>
 
             {noticesLoading ? (
@@ -596,7 +614,7 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
           <section className="opportunity-decision-panel">
             <div className="opportunity-row opportunity-spread">
               <h4>현재 추적 결정</h4>
-              <Token label={item.tracking_status} size="sm" />
+              <StatusMark mark={trackingMark(item.tracking_status)} />
             </div>
             {decisions.isPending ? <p className="opportunity-detail-status" role="status">불러오는 중…</p> : null}
             {decisions.isError ? (
@@ -613,20 +631,18 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
                   : " 저장된 추적 상태는 있지만 이 화면이 읽는 결정 기록에는 남아 있지 않아요."}
               </p>
             ) : null}
-            <dl className="opportunity-decision-facts">
-              <div>
-                <dt>선택 사유</dt>
-                <dd>{latestDecision?.reason?.trim() || item.tracking_reason?.trim() || (item.tracking_status === "미선택" ? "아직 선택하지 않았어요" : "선택 사유 미확인")}</dd>
-              </div>
-              <div>
-                <dt>결정 기록자</dt>
-                <dd>{latestDecision?.claimed_name?.trim() || item.tracking_selected_by?.trim() || "미확인"}</dd>
-              </div>
-              <div>
-                <dt>선택 시각</dt>
-                <dd>{formatMoment(latestDecision?.decided_at ?? item.tracking_selected_at)}</dd>
-              </div>
-            </dl>
+            <SideFacts className="opportunity-decision-facts" items={[
+              {
+                label: "선택 사유",
+                value: latestDecision?.reason?.trim() || item.tracking_reason?.trim() || (
+                  item.tracking_status === "미선택" ? "아직 선택하지 않았어요"
+                    : latestDecision?.previous_tracking_status === "미선택" && latestDecision.tracking_status === "계속 추적"
+                      ? "입력된 사유 없음" : "선택 사유 미확인"
+                ),
+              },
+              { label: "결정 기록자", value: latestDecision?.claimed_name?.trim() || item.tracking_selected_by?.trim() || "미확인" },
+              { label: "선택 시각", value: formatMoment(latestDecision?.decided_at ?? item.tracking_selected_at) },
+            ]} />
             {holdText ? <p className="opportunity-caption">보류 재검토 기한 · {holdText} ({formatMoment(item.hold_review_due_at)})</p> : null}
             {/* 계속 추적·보류·종료는 `추적 상태 변경`이 고르고, 그 결정을 되돌리는
                 일만 여기서 한다(ADR-0068). 상태 드롭다운에 `미선택`을 넣지 않는
@@ -664,26 +680,19 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
         </div>
       </div>
 
-      <footer className="opportunity-action-footer">
-        <div className="opportunity-row opportunity-spread">
-          <div className="opportunity-tracking-summary">
-            <div className="opportunity-row">
-              <p><strong>추적 상태</strong></p>
-              <Token label={item.tracking_status} size="sm" />
-            </div>
-            <p className="opportunity-caption">
-              {item.tracking_selected_by?.trim()
-                ? `${item.tracking_selected_by} · ${formatMoment(item.tracking_selected_at)}`
-                : item.tracking_status === "미선택" ? "아직 사람이 선택하지 않음" : "결정 기록자 미확인"}
-            </p>
-          </div>
-          <div className="opportunity-footer-actions">
-            <Button label="추적 상태 변경" onClick={openTracking} size="sm" />
-            <Button icon={<ChevronRight />} label={action.label} onClick={action.run} size="sm" variant="primary" />
-          </div>
-        </div>
-        <p className="opportunity-caption">추적 선택과 최종 입찰 Go/No-Go는 별도의 결정이에요.</p>
-      </footer>
+      <DecisionBar
+        className="opportunity-action-footer"
+        stateClassName="opportunity-tracking-summary"
+        stateLabel="추적 상태"
+        state={trackingMark(item.tracking_status)}
+        note={item.tracking_status === "미선택" ? undefined : item.tracking_selected_by?.trim()
+          ? `${item.tracking_selected_by} · ${formatMoment(item.tracking_selected_at)}`
+          : "결정 기록자 미확인"}
+        secondaryActions={action.run !== openTracking
+          ? <Button label="추적 상태 변경" onClick={openTracking} size="md" variant="secondary" />
+          : undefined}
+        primaryAction={<Button icon={<ChevronRight aria-hidden="true" />} label={action.label} onClick={action.run} size="md" variant="primary" />}
+      />
 
       <TrackingStatusDialog
         key={`tracking:${item.id}:${item.tracking_selected_at ?? "unselected"}`}

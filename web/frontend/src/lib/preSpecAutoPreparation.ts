@@ -1,4 +1,3 @@
-import type { BadgeVariant } from "../components/common/Badge";
 import type { PreSpecAutoPreparationStatus } from "./types";
 
 // 자동 문서 준비 8값과 그 사유 코드의 표시 문구를 한곳에 둔다. 목록 행과 상세
@@ -26,7 +25,7 @@ export const PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL: Record<PreSpecAutoPreparati
  *
  * 화면 문구만 `회사 적합성`으로 통일한다(docs/0915_ui-redesign/spec.md §4 용어).
  * 사유 코드(`company_fit_*`)와 계약은 그대로다. */
-export const COMPANY_FIT_REASON_LABEL: Record<string, string> = {
+const COMPANY_FIT_REASON_LABEL: Record<string, string> = {
   company_fit_disabled: "회사 적합성 자동 판정이 비활성이에요.",
   company_fit_pending: "회사 적합성 판정이 필요해요.",
   company_fit_queued: "회사 적합성 판정을 기다리고 있어요.",
@@ -66,12 +65,4 @@ const REASON_LABEL: Record<string, string> = {
 export function preSpecAutoPreparationReasonLabel(reason: string | null | undefined): string | null {
   if (!reason) return null;
   return REASON_LABEL[reason] ?? reason;
-}
-
-export function preSpecAutoPreparationVariant(status: PreSpecAutoPreparationStatus): BadgeVariant {
-  // `blocked`는 자동 준비가 **멈춘** 상태다. 확인이 필요한 경고가 아니라
-  // 진행이 막힌 것이므로 오류 색을 쓴다.
-  if (status === "blocked") return "danger";
-  if (status === "deep_review_started" || status === "bundle_ready") return "evidence-confirmed";
-  return "neutral";
 }

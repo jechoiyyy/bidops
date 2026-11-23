@@ -61,8 +61,10 @@
   기준으로 하며, 개요 미시작과 실제 실행 대기는 구분한다.
 - 사전규격 목록도 발주계획과 같이 ↑↓로 행을 옮기고(경계에서 페이지를 넘긴다)
   `Ctrl/Cmd+Enter`로 상세 검토를 열며, 저장하지 않은 추적 입력이 있으면 이탈 확인이 먼저다.
-  행 컴포넌트는 `useRowKeyboardNavigation`의 `rowProps`(`data-row-key`·roving `tabIndex`)를
-  **그대로 행 요소까지 내려야** 한다. 내리지 않으면 선택만 움직이고 초점은 조용히 멈춰 있는다.
+  목록은 공용 `RecordTable`(`components/common/RecordTable.tsx`, Astryx `Table` 조합 방식)이 그리고,
+  표의 행 `<tr>`이 `useRowKeyboardNavigation`의 `rowProps`(`data-row-key`·roving `tabIndex`)와
+  `aria-current`를 **직접 받는다**(ADR-0077). 행까지 내리지 않으면 선택만 움직이고 초점은 조용히 멈춰 있는다.
+  화면이 목록 행을 따로 만들지 않는다.
 - 사전규격 상세의 자동 준비 단계·문서 준비 패널·처리 이력·기술 정보는 맨 아래 접힌 `처리 상태·기술 정보` 한 구역
   안에 있다(2026-11-21). 기본 열림은 `lib/preSpecProcessDefaultOpen.ts` 하나가 정하며 문제가 있으면 열린다. 문서 준비
   패널은 상태 요약 한 줄과 `문서 준비 열기/닫기` 토글이고 기본값은 `lib/documentPanelDefaultOpen.ts`가 정한다.
@@ -78,26 +80,38 @@
 - 심층 검토 실패 재시작은 기존 attempt를 덮지 않으며 새 attempt가 생긴다는 점을 확인시킨다.
 - 향후 opportunity 화면은 plan, pre-spec, bid의 공식 연결과 사람 확인 대기 후보를 시각적으로 구분한다.
 - 사전규격 보고서 뒤 `계속 추적|보류|종료`와 입찰공고 뒤 최종 `Go/No-Go`를 같은 버튼 집합으로 재사용하지 않는다. 사전규격 상세의 하단 결정 띠는 분석 전에는 `추적 시작`만 두고, 분석 결과를 보여 주는 화면(mock 빌드 전용)에서만 세 상태를 고른다(`docs/business-rules.md`).
-- 사업 추적·최종 Go/No-Go 목록도 같은 `useRowKeyboardNavigation`으로 ↑↓ 행 이동을 갖는다
-  (경계에서 페이지를 넘긴다). 두 화면은 Astryx `Table`을 그대로 쓰므로 `rowProps`는 표의
-  **첫 열 버튼**(`.opportunity-row-business`·`.gng-row`)이 받고 키 리스너는 표의 스크롤
-  영역(`.opportunity-table-scroll`·`.gng-table-scroll`)이 진다. 사업 추적은 저장하지 않은
-  입력이 있으면 이탈 확인이 먼저다. 두 화면에 `Ctrl/Cmd+Enter` 단축키는 없다.
+- 사업 추적·최종 Go/No-Go 목록도 같은 `RecordTable`과 `useRowKeyboardNavigation`으로 ↑↓ 행 이동을
+  갖는다(경계에서 페이지를 넘긴다). 2026-11-23까지 쓰던 "첫 열 버튼이 `rowProps`를 받는" 방식은
+  없앴고 네 목록이 모두 행(`tr.opportunity-row`·`tr.gng-row`·`tr.c2l-row`·`tr.pre-specs-row`) 방식이다(ADR-0077).
+  키 리스너는 표의 스크롤 영역이 진다. 사업 추적은 저장하지 않은 입력이 있으면 이탈 확인이 먼저다.
+  두 화면에 `Ctrl/Cmd+Enter` 단축키는 없다.
 - 발주계획 목록은 ↑↓로 행을 옮기고(경계에서 페이지를 넘긴다) `Ctrl/Cmd+Enter`로 추적을 시작한다. 준비되지 않았으면 저장하지 않고 무엇이 빠졌는지 안내한다. `직전 사유 다시 쓰기`는 사유 입력을 채워 줄 뿐이며, 드롭다운은 여전히 빈 값에서 시작하고 저장에 성공하면 초기화한다(사유를 자동으로 채워 저장하지 않는다).
 
 ## UI 패턴
 
+- **공용 틀 먼저(ADR-0077).** 화면은 `components/common`의 틀에 내용만 넘기고 같은 기능의 모양을 화면 CSS에서 다시 정하지 않는다.
+  목록은 `RecordTable`(관리 화면은 `AdminRecordTable` 어댑터), 목록|미리보기 틀은 `SplitWorkspace`, 결정 띠는 `DecisionBar`,
+  상태·분류·마감은 `Marks`의 `StatusMark`·`ClassTag`·`DeadlineText`, 라벨-값은 `Facts`, 단계는 `FlowSteps`, 관리 화면의 구역 이동은
+  `SectionNav`, 읽기 상세는 `RecordFrame`, 빈 상태는 `EmptyState`다. 배치 규칙은 `styles/workbench.css` 한곳에 있다.
+  - 표: 사업명 열이 남는 폭을 먼저 갖고 그다음 발주기관 열이 120~200px로 늘어난다. 값 칸은 14px 먹색이고 줄바꿈하지 않는다.
+    12px 보조 회색은 보조 줄에만 쓴다. 긴 사업명은 한 줄로 자르고 전체를 `title`로 준다.
+  - 결정 띠: 왼쪽에 현재 상태(라벨 + 표식 + 보조 문구, 담당자 이름 안내), 오른쪽에 보조 행동들과 주 행동 1개. 화면의 주 버튼은
+    결정 행동 하나다.
+  - 상태 표식의 색은 표시 문구가 아니라 상태 값에서 정한다. 단계 표시는 현재 단계 앞에 미확인 단계가 있으면 완료 체크로 그리지 않는다.
+  - 왼쪽에 목록이 있는 상세(입찰공고 상세)는 오른쪽 정보 열을 쓰지 않는다. 정보 열은 사전규격 상세·사업기회 레코드만 쓴다.
+  - 판정 기준·실행 상태는 탭이 아니라 본문 왼쪽 `SectionNav`로 구역을 옮기고, 열한 주소가 각 구역을 직접 연다.
 - TanStack Query로 서버 상태를 조회하고 mutation 성공 뒤 영향 query만 무효화한다.
 - 색은 `bidops` 테마(무드보드 파생, ADR-0048 → ADR-0073·ADR-0076 개정)가 정본이다. 화면은 토큰만 읽고 `:root`나 화면 CSS에서 `--color-*`를 재정의하지 않는다. 유일한 예외는 `styles/shell-relaxed.css`의 이행용 token bridge이며 새 색 값을 만들지 않는다. 색을 바꾸려면 `src/themes/bidops/bidopsTheme.ts`를 고치고 `astryx theme build`를 다시 돌린다.
 - 셸(ADR-0076, 2026-11-19): 바탕 위 흰 패널 한 장이고 화면 제목은 패널 헤더가 그린다. 화면은 `usePageHeader`
   (`components/shell/PageHeaderContext.tsx`)로 화면 이름·문장형 제목·설명(·상태 표식·사실 줄)을 **문자열로만** 올리고,
-  액션은 `PageHeaderActions`, 보기 탭·검색 줄은 `PageHeaderTabs` portal로, 패널 아래 결정 입력은 `PageFooterBar` portal(셸의 고정 슬롯 `#page-footer`)로 보낸다. 슬롯이 비면 자리를 차지하지 않는다. **슬롯은 추적 결정 전용이며 개요 범위 확정 같은 다른 할 일을 넣지 않는다.** 페이지에 `<h1>`이나 제목 줄을 다시
+  액션은 `PageHeaderActions`, 보기 탭·검색 줄은 `PageHeaderTabs` portal로, 패널 아래 결정 입력은 `PageFooterBar` portal(셸의 고정 슬롯 `#page-footer`)로 보낸다. 슬롯이 비면 자리를 차지하지 않는다. **슬롯은 추적 결정 전용이며 개요 범위 확정 같은 다른 할 일을 넣지 않는다**(사전규격 상세와 사업기회 레코드가 쓴다). 목록·관리 화면의 미리보기 칸 바닥에 있는 결정 띠(`DecisionBar`)는 이 슬롯과 별개 부품이다. 페이지에 `<h1>`이나 제목 줄을 다시
   두지 않는다. 설명에는 고정 설명·주의 문구를 넣지 않고 그 순간의 데이터를 말하는 문장만 넣는다(2026-11-20 사용자
   요청, ADR-0076 결정 12 — 경계 문장은 본문 결정 영역의 보조 문구가 진다). 문장의 숫자는 이미 받은 값(목록 total·탭 건수)으로만 만들고, 없으면 숫자 없는 문장을 쓴다. 목록|상세
-  화면은 route metadata `canvas: "flush"`로 패널 끝까지 채우고 목록은 38%다.
-- 패널 안에 그림자 카드·카드 속 카드·밑줄 탭·옛 강조색(초록 띠) 상자를 새로 두지 않는다. 구분은 여백, 옅은 선
-  (`--bo-line-soft`), fill 채움(`--color-background-muted`)으로 한다. 선택 행은 fill 채움이고 브랜드 옅은 채움은 `추적 중`
-  같은 상태 표식 전용이다. 마감·단계·건수는 표식이 아니라 글자, 숫자는 먹색, 화면당 주 버튼 하나. 재구성 화면의 글자·조작
+  화면은 route metadata `canvas: "flush"`로 패널 끝까지 채우고 목록은 60%, 미리보기는 40%다(ADR-0077, `--shell-list-width`).
+  2026-11-23부터 셸은 **레코드 칸이 있는 상세 화면에서만** `title`·`eyebrow`·`tag`·`facts`를 그린다. 목록·관리 화면의 `<h1>`은
+  화면 이름이고 `description`만 설명 줄로 나온다 — 그 순간의 데이터를 말하는 문장은 `description`이나 목록 머리에 둔다.
+- 패널 안에 그림자 카드·카드 속 카드·옛 강조색(초록 띠) 상자를 새로 두지 않는다. 구분은 여백, 옅은 선
+  (`--bo-line-soft`), fill 채움(`--color-background-muted`)으로 한다. 선택 행은 브랜드 옅은 채움 + 왼쪽 2px 브랜드 선이다(ADR-0077). 마감·단계·건수는 표식이 아니라 글자, 숫자는 먹색, 화면당 주 버튼 하나. 재구성 화면의 글자·조작
   높이는 `--bo-k-*` 단(typography.css)을 쓴다. 사용자 문구는 해요체이되 값 없음/미확인/계산 불가/0과 사람 결정 경계의 뜻은
   바꾸지 않는다.
 - 담당자 이름은 사이드바 담당자 칸과 같은 한 값(`bidops.actorName`, `useRememberedActorName`)을 쓴다. 화면별로 따로 기억하지

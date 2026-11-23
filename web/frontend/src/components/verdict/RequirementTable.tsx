@@ -2,6 +2,7 @@ import { useMemo, useState, type HTMLAttributes, type MouseEvent as ReactMouseEv
 import { Button } from "@astryxdesign/core/Button";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Table, pixel, proportional, type TableColumn, type TablePlugin } from "@astryxdesign/core/Table";
+import { StatusMark } from "../common/Marks";
 import type { VerdictMatrixRow } from "../../lib/types";
 import {
   FIT_FILTER_OPTIONS,
@@ -48,10 +49,6 @@ interface RequirementTableProps {
   note?: string | null;
 }
 
-function FitPill({ row }: { row: VerdictMatrixRow }) {
-  return <span className={`vd-pill is-${FIT_TONE[row.fit_status] ?? "muted"}`}>{FIT_LABEL[row.fit_status] ?? row.fit_status}</span>;
-}
-
 export function RequirementTable({ rows, selectedUnitId, onSelect, note = null }: RequirementTableProps) {
   const [fit, setFit] = useState<FitFilter>("default");
   const [mandatoryOnly, setMandatoryOnly] = useState(false);
@@ -88,7 +85,14 @@ export function RequirementTable({ rows, selectedUnitId, onSelect, note = null }
         </button>
       ),
     },
-    { key: "fit", header: "대조", width: pixel(76), renderCell: ({ row }) => <FitPill row={row} /> },
+    {
+      key: "fit",
+      header: "대조",
+      width: pixel(76),
+      renderCell: ({ row }) => (
+        <StatusMark mark={{ label: FIT_LABEL[row.fit_status] ?? row.fit_status, tone: FIT_TONE[row.fit_status] ?? "neutral" }} />
+      ),
+    },
     {
       key: "company",
       header: "회사 근거",

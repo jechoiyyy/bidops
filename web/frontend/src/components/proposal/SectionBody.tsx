@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { TriangleAlert } from "lucide-react";
+import { StatusMark } from "../common/Marks";
 import { HintedButton } from "./HintedButton";
 import { SentenceEditor } from "./SentenceEditor";
 import type { ApiErrorDescription } from "../../lib/apiErrors";
@@ -50,17 +51,19 @@ function SentenceMarks({ sentence }: { sentence: ProposalSentence }) {
   return (
     <>
       {sentence.kind === "proposed_figure" ? (
-        <span className="pp-mark" data-mark="figure">
-          <TriangleAlert aria-hidden="true" />
-          제안 수치
-        </span>
+        <StatusMark
+          className="pp-mark"
+          data-mark="figure"
+          icon={<TriangleAlert aria-hidden="true" />}
+          mark={{ label: "제안 수치", tone: "warning" }}
+        />
       ) : null}
       {sentence.kind !== "placeholder" && sentence.sources.length > 0 ? (
         <sup className="pp-src" data-mark="source">
           출처<span className="visually-hidden"> {sentence.sources.length}건</span>
         </sup>
       ) : null}
-      {sentence.edited ? <span className="pp-edited" data-mark="edited">수정됨</span> : null}
+      {sentence.edited ? <StatusMark className="pp-edited" data-mark="edited" mark={{ label: "수정됨", tone: "neutral" }} /> : null}
     </>
   );
 }
@@ -133,9 +136,10 @@ export function SectionBody({
   }
 
   const statusPill = (
-    <span className={`vd-pill is-${sectionStatusTone(section.status)}`} data-testid="section-status">
-      {sectionStatusLabel(section.status)}
-    </span>
+    <StatusMark
+      data-testid="section-status"
+      mark={{ label: sectionStatusLabel(section.status), tone: sectionStatusTone(section.status) }}
+    />
   );
   const head = (
     <header className="pp-card-head">

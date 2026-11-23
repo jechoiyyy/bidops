@@ -5,6 +5,8 @@ import { Button } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { EmptyState } from "../components/common/EmptyState";
+import { RecordFrame } from "../components/common/RecordFrame";
+import { DecisionBar } from "../components/common/ReviewPrimitives";
 import { Toast } from "../components/common/Toast";
 import { useToast } from "../components/common/useToast";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
@@ -23,8 +25,8 @@ import { RecordHeader, type RecordMenuAction, type VerdictMenuAction } from "../
 import { StageBar } from "../components/record/StageBar";
 import { getBidDelta } from "../components/bid-delta/api";
 import { usePublishRecordTitle } from "../components/shell/RecordTitleContext";
-import { usePageHeader, type PageHeaderFactTone, type PageHeaderTagTone } from "../components/shell/PageHeaderContext";
-import { PageHeaderTabs } from "../components/common/PageHeaderActions";
+import { type PageHeaderFactTone, type PageHeaderTagTone } from "../components/shell/PageHeaderContext";
+import { PageFooterBar, PageHeaderTabs } from "../components/common/PageHeaderActions";
 import { FeedbackDialog } from "../components/verdict/FeedbackDialog";
 import { RunInfoDialog } from "../components/verdict/RunInfoDialog";
 import { VerdictRequestDialog } from "../components/verdict/VerdictRequestDialog";
@@ -263,7 +265,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
       ? ` ${pendingStage ?? "다른 단계"} 후보 ${pending.length}건이 같은 사업인지 확인해 주세요.`
       : "";
     // 예전 상태 줄의 값(단계·마감·판정 pill과 판정 확인·최종 Go/No-Go 축)을 이름 붙은 짝으로 헤더에 남긴다.
-    // 추적 결정은 태그와 오른쪽 `추적 상태` 블록이 진다. 서로 다른 결정을 한 값으로 합치지 않는다.
+    // 추적 결정은 태그와 하단 결정 띠가 진다. 서로 다른 결정을 한 값으로 합치지 않는다.
     const headerPills = recordPills(record, reps, new Date(), headerVerdictPill(verdictView));
     const headerAxes = recordDecisionAxes(
       record,
@@ -302,7 +304,6 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
       facts,
     };
   })();
-  usePageHeader(headerContent);
 
   // 발주계획 화면 알림의 `추적 되돌리기`(`?reset=1`)는 이 레코드의 기존 되돌리기 확인(사유·담당자 입력)을 연다.
   // 여기서 사유를 지어 저장하지 않는다. 한 번 연 뒤에는 주소에서 지워 새로고침이 다시 열지 않게 한다.
@@ -524,7 +525,6 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
   const now = new Date();
   const title = firstPage?.title ?? `#${opportunityId}`;
   const latest = latestAuthority(reps);
-  const pills = recordPills(item, reps, now, headerVerdictPill(verdictView));
   const axes = recordDecisionAxes(
     item,
     {
@@ -553,6 +553,23 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
   const candidateStage = pendingCandidate ? stageOfLink(pendingCandidate) : null;
   const candidateRoute = pendingCandidate ? recordRoute(pendingCandidate) : null;
   const candidateDeadline = pendingCandidate ? formatKstDay(pendingCandidate.deadline_at) : null;
+
+  const bidLink = reps?.["입찰공고"] ?? null;
+  const bidSourcePath = bidLink ? recordRoute(bidLink) : null;
+  const reviewFinal = bidDeltaQuery.data?.decision_currentness === "stale";
+  const recordActionLinks = (
+    <section aria-labelledby="rec-pane-links-title" className="rec-side-block" data-testid="record-pane-links">
+      <h3 className="rec-side-title" id="rec-pane-links-title">검토 바로가기</h3>
+      <ul className="rec-side-links">
+        {pendingCandidate && tab !== "activity" ? (
+          <li><button className="rec-tracking-change" onClick={() => setDialog({ kind: "candidate", linkId: pendingCandidate.id })} type="button">후보 연결 확인</button></li>
+        ) : null}
+        {bidSourcePath ? <li><Link to={bidSourcePath}>입찰공고 원문 보기 →</Link></li> : null}
+        <li><Link to={`/opportunities?section=전체&selected=${opportunityId}&detail=checks`}>확인 항목 답변 →</Link></li>
+        {tab === "verdict" && !rlOff ? <li><Link to="/company">회사 근거 확인 →</Link></li> : null}
+      </ul>
+    </section>
+  );
 
   const onMenuSelect = (action: RecordMenuAction) => {
     if (action === "candidate") {
@@ -593,15 +610,12 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
   return (
     <section aria-label="사업기회 레코드" className="rec-page" data-opportunity-id={opportunityId}>
       <RecordHeader
-        agency={attributes.find((attribute) => attribute.key === "agency")?.value ?? null}
         menu={{
           resetBlockedReason: item.tracking_status === "미선택" ? "이미 미선택이에요" : null,
           signalBlockedReason: item.recheck_signal ? null : "확인할 신호가 없어요",
           candidateBlockedReason: pendingCandidate ? null : "확인할 후보가 없어요",
           onSelect: onMenuSelect,
         }}
-        pills={pills}
-        axes={axes}
         title={title}
         verdict={{
           onVerdictTab: tab === "verdict",
@@ -659,49 +673,69 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
       </TabList>
       </PageHeaderTabs>
 
-      <div className={`rec-body${tab === "activity" ? " is-activity" : ""}`}>
-        {tab === "verdict" && verdictView?.availability === "completed" && verdictView.result ? (
-          <aside aria-label="판정 요약" className="rec-side">
-            <VerdictSummary result={verdictView.result} />
-          </aside>
-        ) : tab === "proposal" && proposal.draft ? (
-          <aside aria-label="초안 상태" className="rec-side">
-            <ProposalSidebar draft={proposal.draft} />
-          </aside>
-        ) : tab === "activity" ? null : (
-          <aside aria-label="사업 정보" className="rec-side">
-            <AttributeList attributes={attributes} />
-            <NextActions
-              actions={open}
-              failed={actionEvents.isError}
-              hasHistory={hasActionHistory}
-              loading={actionEvents.isPending}
-              onComplete={(noteId) => { void onCompleteAction(noteId); }}
-              onShowAll={() => {
-                setFilter("action");
-                goTab("activity");
-              }}
-              pendingNoteId={pendingNoteId}
-            />
-            {/* 목록 창에만 있는 조작으로 가는 길(설계고도화안 C-3). 두 화면을 합치기 전까지 서로를 연다. */}
-            <section aria-labelledby="rec-pane-links-title" className="rec-side-block" data-testid="record-pane-links">
-              <h3 className="rec-side-title" id="rec-pane-links-title">다른 화면에서 하는 일</h3>
-              <ul className="rec-side-links">
-                <li><Link to={`/opportunities?selected=${opportunityId}&detail=checks`}>확인 항목 답변 →</Link></li>
-                <li>
-                  {reps?.["입찰공고"]
-                    ? <Link to={`/opportunities/${opportunityId}/bid-delta`}>변경 비교·Go/No-Go →</Link>
-                    : <span className="rec-side-note">변경 비교·Go/No-Go는 입찰공고가 연결되면 열 수 있어요</span>}
-                </li>
-              </ul>
+      <RecordFrame
+        heading={headerContent}
+        railLabel={tab === "verdict" && verdictView?.availability === "completed" && verdictView.result
+          ? "판정 요약" : tab === "proposal" && proposal.draft ? "초안 상태" : "사업 정보"}
+        rail={
+          <>
+            {tab === "verdict" && verdictView?.availability === "completed" && verdictView.result ? (
+              <VerdictSummary result={verdictView.result} />
+            ) : tab === "proposal" && proposal.draft ? (
+              <ProposalSidebar draft={proposal.draft} />
+            ) : (
+              <>
+                {tab === "activity" && pendingCandidate ? (
+                  <section aria-labelledby="rec-todo-title" className="rec-todo" data-testid="record-todo">
+                    <h2 className="rec-todo-title" id="rec-todo-title">이 {withSubject(candidateStage ?? "후보")} 같은 사업인가요?</h2>
+                    <div className="rec-todo-candidate">
+                      <p className="rec-todo-candidate-title">{pendingCandidate.title?.trim() || "제목 미확인"}</p>
+                      <p className="rec-todo-meta">{pendingCandidate.agency?.trim() || "기관 미확인"}</p>
+                      {candidateDeadline ? (
+                        <p className="rec-todo-meta is-primary">{candidateDeadline} {candidateStage === "사전규격" ? "의견 마감" : "마감"}</p>
+                      ) : null}
+                      <p className="rec-todo-meta">
+                        {searchStrategyLabel(pendingCandidate.search_strategy)} · {agencyMatchLabel(pendingCandidate.agency_match)}
+                      </p>
+                    </div>
+                    <p className="rec-todo-note">공식 통합번호가 아니라 이름 검색으로 찾은 후보예요. 같은 사업인지는 사람이 정해요.</p>
+                    <div className="rec-todo-actions">
+                      <button className="rec-todo-secondary" onClick={() => setDialog({ kind: "candidate", linkId: pendingCandidate.id, decision: "수용" })} type="button">같은 사업으로 연결하기</button>
+                      <button className="rec-todo-secondary" onClick={() => setDialog({ kind: "candidate", linkId: pendingCandidate.id, decision: "기각" })} type="button">다른 사업이에요</button>
+                    </div>
+                    {candidateRoute ? (
+                      <Link className="rec-todo-link" to={candidateRoute}>{recordRouteLabel(pendingCandidate)}</Link>
+                    ) : null}
+                  </section>
+                ) : null}
+                <AttributeList attributes={attributes} />
+                <NextActions
+                  actions={open}
+                  failed={actionEvents.isError}
+                  hasHistory={hasActionHistory}
+                  loading={actionEvents.isPending}
+                  onComplete={(noteId) => { void onCompleteAction(noteId); }}
+                  onShowAll={() => {
+                    setFilter("action");
+                    goTab("activity");
+                  }}
+                  pendingNoteId={pendingNoteId}
+                />
+                {recordActionLinks}
+              </>
+            )}
+            <section aria-labelledby="rec-tracking-title" className="workbench-record-section" data-testid="record-tracking">
+              <h2 className="workbench-record-section-title" id="rec-tracking-title">추적 상태</h2>
+              <p className="rec-tracking-sentence">{trackingSentence(item.tracking_status, item.tracking_selected_at)}</p>
+              {item.tracking_selected_by || item.tracking_reason ? (
+                <p className="rec-side-note">
+                  {[item.tracking_selected_by, item.tracking_reason ? `사유: ${item.tracking_reason}` : null].filter(Boolean).join(" · ")}
+                </p>
+              ) : null}
             </section>
-            <section aria-labelledby="rec-docs-title" className="rec-side-block">
-              <h3 className="rec-side-title" id="rec-docs-title">제출 서류</h3>
-              <p aria-disabled="true" className="rec-side-note is-disabled">제출 서류 체크는 준비 중이에요</p>
-            </section>
-          </aside>
-        )}
-
+          </>
+        }
+      >
         <div aria-labelledby={`record-tab-${tab}`} className="rec-main" id="record-panel" role="tabpanel">
           {tab === "activity" ? (
             <>
@@ -753,7 +787,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
           ) : null}
 
           {tab === "proposal" && rlOff ? (
-            <EmptyState compact description="제안서 초안은 참여 판정(RL 분석)이 켜진 환경에서만 만들 수 있어요. 이 환경에서는 꺼져 있어요." title={`제안서 초안 · ${FEATURE_OFF_LABEL}`} />
+            <EmptyState compact description="참여 판정을 활성화한 뒤 초안을 만들 수 있어요." title={`제안서 초안 · ${FEATURE_OFF_LABEL}`} />
           ) : tab === "proposal" ? (
             <OpportunityProposalTab
               actorMissing={proposalActorMissing}
@@ -824,75 +858,31 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
           ) : null}
         </div>
 
-        {tab === "activity" ? (
-          <aside aria-label="사업 정보" className="rec-side is-right">
-            {/* 지금 할 일(최종 시안): 사람 확인 대기 후보가 있으면 그 판단이 먼저다. 버튼은 기존 후보 연결
-                확인 대화상자를 연다 — 저장은 거기서 사유·기록자를 받은 뒤이며 이 칸이 연결을 확정하지 않는다. */}
-            {pendingCandidate ? (
-              <section aria-labelledby="rec-todo-title" className="rec-todo" data-testid="record-todo">
-                <h2 className="rec-todo-title" id="rec-todo-title">이 {withSubject(candidateStage ?? "후보")} 같은 사업인가요?</h2>
-                <div className="rec-todo-candidate">
-                  <p className="rec-todo-candidate-title">{pendingCandidate.title?.trim() || "제목 미확인"}</p>
-                  <p className="rec-todo-meta">{pendingCandidate.agency?.trim() || "기관 미확인"}</p>
-                  {candidateDeadline ? (
-                    <p className="rec-todo-meta is-primary">{candidateDeadline} {candidateStage === "사전규격" ? "의견 마감" : "마감"}</p>
-                  ) : null}
-                  <p className="rec-todo-meta">
-                    {searchStrategyLabel(pendingCandidate.search_strategy)} · {agencyMatchLabel(pendingCandidate.agency_match)}
-                  </p>
-                </div>
-                <p className="rec-todo-note">공식 통합번호가 아니라 이름 검색으로 찾은 후보예요. 같은 사업인지는 사람이 정해요.</p>
-                <div className="rec-todo-actions">
-                  <button className="rec-todo-primary" onClick={() => setDialog({ kind: "candidate", linkId: pendingCandidate.id, decision: "수용" })} type="button">같은 사업으로 연결하기</button>
-                  <button className="rec-todo-secondary" onClick={() => setDialog({ kind: "candidate", linkId: pendingCandidate.id, decision: "기각" })} type="button">다른 사업이에요</button>
-                </div>
-                {candidateRoute ? (
-                  <Link className="rec-todo-link" to={candidateRoute}>{recordRouteLabel(pendingCandidate)}</Link>
-                ) : null}
-              </section>
-            ) : null}
-            <section aria-labelledby="rec-tracking-title" className="rec-side-block rec-tracking-block" data-testid="record-tracking">
-              <h2 className="rec-side-title" id="rec-tracking-title">추적 상태</h2>
-              <p className="rec-tracking-sentence">{trackingSentence(item.tracking_status, item.tracking_selected_at)}</p>
-              {item.tracking_selected_by || item.tracking_reason ? (
-                <p className="rec-side-note">
-                  {[item.tracking_selected_by, item.tracking_reason ? `사유: ${item.tracking_reason}` : null].filter(Boolean).join(" · ")}
-                </p>
-              ) : null}
-              <button className="rec-tracking-change" onClick={() => setDialog("tracking")} type="button">추적 상태 바꾸기</button>
-            </section>
-            <AttributeList attributes={attributes} />
-            <NextActions
-              actions={open}
-              failed={actionEvents.isError}
-              hasHistory={hasActionHistory}
-              loading={actionEvents.isPending}
-              onComplete={(noteId) => { void onCompleteAction(noteId); }}
-              onShowAll={() => {
-                setFilter("action");
-                goTab("activity");
-              }}
-              pendingNoteId={pendingNoteId}
-            />
-            {/* 목록 창에만 있는 조작으로 가는 길(설계고도화안 C-3). 두 화면을 합치기 전까지 서로를 연다. */}
-            <section aria-labelledby="rec-pane-links-title" className="rec-side-block" data-testid="record-pane-links">
-              <h3 className="rec-side-title" id="rec-pane-links-title">다른 화면에서 하는 일</h3>
-              <ul className="rec-side-links">
-                <li><Link to={`/opportunities?selected=${opportunityId}&detail=checks`}>확인 항목 답변 →</Link></li>
-                <li>
-                  {reps?.["입찰공고"]
-                    ? <Link to={`/opportunities/${opportunityId}/bid-delta`}>변경 비교·Go/No-Go →</Link>
-                    : <span className="rec-side-note">변경 비교·Go/No-Go는 입찰공고가 연결되면 열 수 있어요</span>}
-                </li>
-              </ul>
-            </section>
-            <section aria-labelledby="rec-docs-title" className="rec-side-block">
-              <h3 className="rec-side-title" id="rec-docs-title">제출 서류</h3>
-              <p aria-disabled="true" className="rec-side-note is-disabled">제출 서류 체크는 준비 중이에요</p>
-            </section>
-          </aside>
-        ) : null}
-      </div>
+      </RecordFrame>
+
+      <PageFooterBar>
+        <DecisionBar
+          className="workbench-record-decision"
+          label="추적 결정"
+          stateLabel="추적 상태"
+          state={{
+            label: trackingTag(item.tracking_status).label,
+            tone: item.tracking_status === "계속 추적" ? "accent" : "neutral",
+          }}
+          note={[
+            item.tracking_selected_by,
+            item.tracking_selected_at ? formatMoment(item.tracking_selected_at) : null,
+          ].filter(Boolean).join(" · ")}
+          secondaryActions={bidLink ? (
+            <Button label="추적 상태 바꾸기" onClick={() => setDialog("tracking")} size="sm" variant="secondary" />
+          ) : null}
+          primaryAction={bidLink ? (
+            <Link className="rec-footer-primary" to={`/opportunities/${opportunityId}/bid-delta?from=opportunity`}>
+              {reviewFinal ? "최종 결정 재검토 →" : "공고 조건 검토·결정 →"}
+            </Link>
+          ) : <Button label="추적 상태 바꾸기" onClick={() => setDialog("tracking")} size="sm" variant="primary" />}
+        />
+      </PageFooterBar>
 
       <TrackingStatusDialog
         key={`tracking:${item.id}:${item.tracking_selected_at ?? "unselected"}`}

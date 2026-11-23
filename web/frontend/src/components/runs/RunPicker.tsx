@@ -84,6 +84,7 @@ export function RunPickerField({
     <div className="rs-field">
       <Selector
         label={label}
+        isLabelHidden
         size="sm"
         options={runs.map((run) => ({
           // 라벨은 공용 회차 표기(U3)를 쓰고, 회차 식별자 원문은 설명으로 내린다

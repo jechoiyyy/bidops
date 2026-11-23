@@ -1,3 +1,7 @@
+import { StatusMark } from "../components/common/Marks";
+import { gateResultMark } from "../components/quality/gateResultMark";
+import { executionStatusTone } from "../components/runs/runStatusData";
+import { DecisionBar, ReviewPreviewHeader, SplitWorkspace } from "../components/common/ReviewPrimitives";
 import { DailyRunStatusLine } from "../components/operations/DailyRunStatusLine";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,9 +16,9 @@ import {
   CancelButton,
   CriteriaDialog,
   DataTable,
-  DetailFooter,
   DetailHeader,
   DialogActions,
+  DialogFacts,
   Facts,
   Note,
   Queue,
@@ -27,7 +31,6 @@ import { ApiError, api } from "../lib/api";
 import { describeApiError } from "../lib/apiErrors";
 import { formatMoment as formatMomentBase } from "../lib/format";
 import { generateRequestId } from "../lib/requestId";
-import { gateResultLabel } from "../lib/glossary";
 import type {
   C2DailyTriggerReason,
   C2DailyTriggerStateResponse,
@@ -269,7 +272,7 @@ function ConfirmDialog({ snapshot, busy, error, onClose, onConfirm }: {
     <CriteriaDialog onClose={close} open={snapshot !== null} title={snapshot?.title ?? ""}>
       {snapshot ? (
         <>
-          <Facts items={snapshot.facts.map(([term, value]) => [term, <span className="crit-mono" key={term}>{value}</span>])} />
+          <DialogFacts items={snapshot.facts.map(([term, value]) => [term, <span className="crit-mono" key={term}>{value}</span>])} />
           {snapshot.notes.map((note) => (
             <Note key={note.title} role={note.tone === "warning" ? "alert" : "note"} title={note.title} tone={note.tone}>{note.body}</Note>
           ))}
@@ -315,21 +318,24 @@ function GateSurface({ gate }: { gate: C2QualityGateListItem }) {
   if (!evaluation) {
     return (
       <div className="opp-gate-surface" data-gate-result="none" data-tone="neutral">
-        <span className="opp-gate-surface-head"><StatusToken label="평가 없음" /><Text weight="semibold">아직 평가가 기록되지 않았어요</Text></span>
+        <span className="opp-gate-surface-head">
+          <StatusMark mark={{ label: "평가 없음", tone: "neutral" }} />
+          <Text weight="semibold">아직 평가가 기록되지 않았어요</Text>
+        </span>
         <Small>측정 스크립트가 evaluation을 기록하면 여기에 나타나요. 평가 없음은 미달이 아니에요.</Small>
       </div>
     );
   }
   const status: C2QualityGateResultStatus = evaluation.result_status;
   const reasons = evaluation.reasons.filter((reason) => reason !== "not_product_pipeline_result");
-  const tone = status === "통과" ? "success" : status === "미달" ? "error" : "neutral";
+  const mark = gateResultMark(status);
   const headline = status === "미측정"
     ? "미측정 · 임계값 미정"
     : status === "보류"
       ? "측정 미완 · 측정이 끝나지 않았어요"
       : status === "미달"
         ? "미달 · 임계값을 채우지 못한 지표가 있어요"
-        : "통과 · 두 pass 모두 네 지표를 충족했어요";
+        : "통과 · 두 번의 측정에서 모두 네 기준을 충족했어요";
   const body = status === "미측정"
     ? "임계값 4개 중 정해지지 않은 값이 있어 판정하지 않았어요. 미측정은 미달이 아니에요."
     : status === "보류"
@@ -338,11 +344,11 @@ function GateSurface({ gate }: { gate: C2QualityGateListItem }) {
         ? "미달 지표:"
         : reference
           ? "수치는 통과지만 참조 산출물 재채점이라 활성화 근거가 아니에요."
-          : "이 평가의 artifact digest로 활성화를 요청할 수 있어요.";
+          : "이 평가를 운영 활성화 근거로 사용할 수 있어요.";
   return (
-    <div className="opp-gate-surface" data-gate-result={status} data-tone={tone}>
+    <div className="opp-gate-surface" data-gate-result={status} data-tone={mark.tone}>
       <span className="opp-gate-surface-head">
-        <StatusToken label={gateResultLabel(status)} />
+        <StatusMark mark={mark} />
         <Text weight="semibold">{headline}</Text>
       </span>
       <Small>{body}</Small>
@@ -353,28 +359,24 @@ function GateSurface({ gate }: { gate: C2QualityGateListItem }) {
   );
 }
 
-function metricRows(gate: C2QualityGateListItem): ReactNode[][] {
+function gateMetrics(gate: C2QualityGateListItem) {
   const evaluation = gate.latest_evaluation;
   const pass1: C2QualityGatePassMetrics | null = evaluation?.metrics.pass_1 ?? null;
   const pass2: C2QualityGatePassMetrics | null = evaluation?.metrics.pass_2 ?? null;
-  const threshold = (value: number | null, format: (v: number | null) => string, sign: string) =>
-    value === null ? "미정" : `${sign} ${format(value)}`;
-  const rows: [string, string, (m: C2QualityGatePassMetrics | null) => string, string][] = [
-    ["재현율", threshold(gate.thresholds.recall_pct, pct, "≥"), (m) => (m ? pct(m.recall_pct) : "pass 없음"), pct(evaluation?.measured_recall_pct)],
-    ["정밀도", threshold(gate.thresholds.precision_pct, pct, "≥"), (m) => (m ? pct(m.precision_pct) : "pass 없음"), pct(evaluation?.measured_precision_pct)],
-    ["중요 누락", threshold(gate.thresholds.important_missed_max, count, "≤"), (m) => (m ? count(m.important_missed) : "pass 없음"), count(evaluation?.measured_important_missed)],
-    ["하루 검토량", threshold(gate.thresholds.review_load_max, count, "≤"), (m) => (m ? count(m.review_load) : "pass 없음"), count(evaluation?.measured_review_load)],
+  const threshold = (value: number | null, format: (v: number | null) => string, bound: string) =>
+    value === null ? "미정" : `${format(value)} ${bound}`;
+  const rows: [string, string, string, (m: C2QualityGatePassMetrics) => string, string][] = [
+    ["재현율", "관련 발주계획을 얼마나 찾아냈는지", threshold(gate.thresholds.recall_pct, pct, "이상"), (m) => pct(m.recall_pct), pct(evaluation?.measured_recall_pct)],
+    ["정밀도", "검토 후보 중 실제 관련 발주계획의 비율", threshold(gate.thresholds.precision_pct, pct, "이상"), (m) => pct(m.precision_pct), pct(evaluation?.measured_precision_pct)],
+    ["중요 누락", "우선순위가 높은 관련 발주계획 중 놓친 건수", threshold(gate.thresholds.important_missed_max, count, "이하"), (m) => count(m.important_missed), count(evaluation?.measured_important_missed)],
+    ["하루 검토량", "측정 기간 중 하루 검토 후보가 가장 많았던 날의 건수", threshold(gate.thresholds.review_load_max, count, "이하"), (m) => count(m.review_load), count(evaluation?.measured_review_load)],
   ];
-  // 상세 폭(1280px에서 약 590px)에 표가 넘치지 않도록 지표와 임계값을 한 칸에 쌓는다.
-  return rows.map(([label, limit, read, worst]) => [
-    <span className="crit-cell-stack" key="l">
-      <Text weight="semibold">{label}</Text>
-      <Small>{`임계값 ${limit}`}</Small>
-    </span>,
-    <Text key="p1">{evaluation ? read(pass1) : "평가 없음"}</Text>,
-    <Text key="p2">{evaluation ? read(pass2) : "평가 없음"}</Text>,
-    <Text key="w" weight="semibold">{evaluation ? worst : "평가 없음"}</Text>,
-  ]);
+  return rows.map(([label, description, limit, read, worst]) => ({
+    label, description, limit,
+    first: pass1 ? read(pass1) : "측정 없음",
+    second: pass2 ? read(pass2) : "측정 없음",
+    result: evaluation ? worst : "평가 없음",
+  }));
 }
 
 /** 4일치 일괄 채점은 참고값이다. 판정 규칙은 두 pass만 본다. */
@@ -386,6 +388,7 @@ function fullWindowText(metrics: C2QualityGatePassMetrics | null): string {
 function GateResult({ gate, selectedGateId }: { gate: C2QualityGateListItem; selectedGateId: string | null }) {
   const evaluation = gate.latest_evaluation;
   const reference = gate.evaluation_basis === "reference_artifact_rescore";
+  const metrics = gateMetrics(gate);
   return (
     <>
       {reference ? (
@@ -396,17 +399,30 @@ function GateResult({ gate, selectedGateId }: { gate: C2QualityGateListItem; sel
       <GateSurface gate={gate} />
       <DataTable
         caption="임계값 대 측정값"
-        headings={["지표 · 임계값", "pass 1", "pass 2", "나쁜 쪽"]}
-        rows={metricRows(gate)}
+        firstColumnWeight={1.8}
+        headings={["확인 항목", "통과 기준", "측정 결과"]}
+        rows={metrics.map((metric) => [
+          <span className="crit-cell-stack" key="check"><Text weight="semibold">{metric.label}</Text><Small>{metric.description}</Small></span>,
+          metric.limit, metric.result,
+        ])}
       />
-      <Facts items={[
-        ["두 pass 일치율", pct(evaluation?.metrics.agreement_pct)],
-        ["4일치 일괄 참고값", fullWindowText(evaluation?.metrics.reference_full_window ?? null)],
-        ["게이트", <span className="crit-mono" key="g">{`${gate.gate_id}${gate.gate_id === selectedGateId ? " · 서버가 고른 게이트" : ""}`}</span>],
-        ["평가 근거", reference ? "참조 산출물 재채점 (활성화 근거 아님)" : "제품 재실행"],
-        ["최신 평가", evaluation ? `revision ${evaluation.revision} · ${moment(evaluation.evaluated_at)} · ${evaluation.evaluated_by}` : "없음"],
-        ["평가 artifact digest", evaluation ? <code key="a">{evaluation.artifact_sha256}</code> : "없음"],
-      ]} />
+      <Small>사람이 확인한 표본으로 평가해요. 측정 결과에는 두 번 중 기준에 더 불리한 값을 표시해요.</Small>
+      <details className="crit-disclosure">
+        <summary>1·2차 측정값과 평가 정보</summary>
+        <DataTable
+          caption="회차별 품질 측정값"
+          headings={["확인 항목", "1차 측정", "2차 측정"]}
+          rows={metrics.map((metric) => [metric.label, metric.first, metric.second])}
+        />
+        <Facts items={[
+          ["1·2차 측정 일치율", pct(evaluation?.metrics.agreement_pct)],
+          ["4일치 일괄 참고값", fullWindowText(evaluation?.metrics.reference_full_window ?? null)],
+          ["게이트", <span className="crit-mono" key="g">{`${gate.gate_id}${gate.gate_id === selectedGateId ? " · 서버가 고른 게이트" : ""}`}</span>],
+          ["평가 근거", reference ? "참조 산출물 재채점 (활성화 근거 아님)" : "제품 재실행"],
+          ["최신 평가", evaluation ? `revision ${evaluation.revision} · ${moment(evaluation.evaluated_at)} · ${evaluation.evaluated_by}` : "없음"],
+          ["평가 artifact digest", evaluation ? <code key="a">{evaluation.artifact_sha256}</code> : "없음"],
+        ]} />
+      </details>
     </>
   );
 }
@@ -442,7 +458,9 @@ export function OrderPlanPolicyPage() {
 
   const policies: C2PolicySummary[] = policiesQuery.data?.items ?? [];
   const selectedVersion = searchParams.get("c2policy");
-  const selected = policies.find((policy) => policy.policy_version === selectedVersion) ?? policies[0] ?? null;
+  const selected = policies.find((policy) => policy.policy_version === selectedVersion)
+    ?? policies.find((policy) => policy.policy_status === "active")
+    ?? policies[0] ?? null;
   const version = selected?.policy_version ?? null;
 
   const inspectQuery = useQuery({
@@ -486,7 +504,7 @@ export function OrderPlanPolicyPage() {
 
   if (policiesQuery.isPending) {
     return (
-      <div className="crit-workspace" id="criteria-panel-order-plan-policies" role="tabpanel">
+      <div className="workbench-admin-state">
         <StateView description="발주계획 선별 policy 목록을 확인하는 중이에요." kind="loading" title="발주계획 선별 정책을 불러오는 중이에요" />
       </div>
     );
@@ -494,7 +512,7 @@ export function OrderPlanPolicyPage() {
   if (policiesQuery.error) {
     const description = describeApiError(policiesQuery.error, "policy 목록을 불러오지 못했어요.");
     return (
-      <div className="crit-workspace" id="criteria-panel-order-plan-policies" role="tabpanel">
+      <div className="workbench-admin-state">
         <StateView
           action={<Button label="다시 조회" onClick={() => { void policiesQuery.refetch(); }} />}
           description={`${description.title} ${description.detail}`}
@@ -688,7 +706,7 @@ export function OrderPlanPolicyPage() {
   })();
 
   return (
-    <div className="crit-workspace" id="criteria-panel-order-plan-policies" role="tabpanel">
+    <SplitWorkspace className="workbench-admin-workspace" aria-label="선별 정책">
       <Queue
         count={policies.length}
         emptyText="적재된 발주계획 선별 policy가 없어요."
@@ -697,16 +715,18 @@ export function OrderPlanPolicyPage() {
           id: policy.policy_version,
           title: policy.policy_version,
           subtitle: `policy ${shortDigest(policy.policy_sha256)} · binding ${shortDigest(policy.binding_sha256)}`,
-          status: STATUS_LABELS[policy.policy_status],
+          status: { label: STATUS_LABELS[policy.policy_status], tone: "neutral" },
           meta: policy.activated_at
             ? `${policy.policy_status === "active" ? "활성화" : "활성화 이력"} ${moment(policy.activated_at)} · ${policy.activated_by ?? "담당자 기록 없음"}`
             : `활성화 기록 없음 · 적재 ${moment(policy.created_at)}`,
         }))}
         onSelect={selectPolicy}
         selectedId={selected?.policy_version ?? null}
-        title="발주계획 선별 policy"
+        title="발주계획 선별 정책"
+        identifierWidth={208}
       />
-      <section aria-label="선택한 발주계획 선별 policy" className="crit-detail">
+      <section aria-label="선택한 발주계획 선별 policy" className="review-split-detail crit-detail">
+        <ReviewPreviewHeader />
         {!selected ? (
           <StateView
             description="policy는 적재 CLI(`python -m app.screening.c2_policy load`)가 draft로 만들어요. 이 화면은 승인과 스위치만 다뤄요."
@@ -717,16 +737,22 @@ export function OrderPlanPolicyPage() {
           <>
             <DetailHeader
               eyebrow={selected.policy_status === "active" ? "발주계획 선별 정책 · 운영 활성" : "발주계획 선별 정책 · 운영 승인 전"}
-              status={STATUS_LABELS[selected.policy_status]}
+              status={{ label: STATUS_LABELS[selected.policy_status], tone: "neutral" }}
               title={selected.policy_version}
             >
               <Small>{`policy ${shortDigest(selected.policy_sha256)} · 적재 ${moment(selected.created_at)} · ${selected.created_by}`}</Small>
             </DetailHeader>
-            <div className="crit-detail-scroll" id="criteria-order-plan-policy-detail">
+            <div className="workbench-admin-detail-scroll crit-detail-scroll" id="criteria-order-plan-policy-detail">
               {notice ? (
                 <Note action={<Button label="닫기" onClick={() => setNotice(null)} size="sm" />} role="status" title={notice} />
               ) : null}
               {copyMessage ? <Small><span role="status">{copyMessage}</span></Small> : null}
+              {!inspect ? (
+                <Facts items={[
+                  ["binding digest", <code key="binding">{selected.binding_sha256}</code>],
+                  ["활성화", selected.activated_at ? `${moment(selected.activated_at)} · ${selected.activated_by ?? "담당자 기록 없음"}` : "기록 없음"],
+                ]} />
+              ) : null}
 
               {selected.policy_status === "active" ? (
                 <Section title="일일 자동 실행">
@@ -746,24 +772,21 @@ export function OrderPlanPolicyPage() {
                   ) : null}
                   {trigger && triggerForSelected ? (
                     <div className="opp-switch-row" data-testid="daily-trigger-row">
-                      <Switch
-                        description={trigger.switch ? `${trigger.switch.enabled ? "켬" : "끔"} · ${trigger.switch.set_by} · ${moment(trigger.switch.set_at)}` : "이 버전에는 아직 기록이 없어요"}
-                        isDisabled={busy}
-                        label="이 버전의 일일 자동 실행 스위치"
-                        onChange={(next) => openTrigger(next)}
-                        value={trigger.switch?.enabled === true}
-                      />
+                      <div className="opp-switch-controls">
+                        <Switch
+                          description={trigger.switch ? `${trigger.switch.enabled ? "켬" : "끔"} · ${trigger.switch.set_by} · ${moment(trigger.switch.set_at)}` : "이 버전에는 아직 기록이 없어요"}
+                          isDisabled={busy}
+                          label="이 버전의 일일 자동 실행 스위치"
+                          onChange={(next) => openTrigger(next)}
+                          value={trigger.switch?.enabled === true}
+                        />
+                        <StatusMark mark={{ label: trigger.effective_enabled ? "자동 실행 켜짐" : "자동 실행 꺼짐", tone: "neutral" }} />
+                      </div>
+                      <DailyRunStatusLine showLink={false} />
                       <div className="opp-switch-guide">
-                        <span className="opp-gate-surface-head">
-                          <StatusToken label={trigger.effective_enabled ? "자동 실행 켜짐" : "자동 실행 꺼짐"} />
-                        </span>
-                        {/* 앞날을 약속하지 않는다(설계고도화안 A-5). 스위치는 예약된 일일 스크립트의
-                            실행을 허용할 뿐이며 cron이 있는지는 이 화면이 알 수 없다. */}
-                        <Text weight="semibold">{trigger.effective_enabled
-                          ? "스위치는 예약된 일일 스크립트가 이 버전으로 실행하는 것을 허용할 뿐이에요. 일정이 있는지는 이 화면이 확인하지 않아요."
-                          : "일일 스크립트가 실행되어도 이 버전으로 판정하지 않아요."}</Text>
-                        {/* 마지막으로 실제로 돈 일일 실행의 사실(날짜·C-2 상태). */}
-                        <DailyRunStatusLine showLink={false} />
+                        <Small>{trigger.effective_enabled
+                          ? "일일 스크립트가 실행되면 이 버전으로 판정해요."
+                          : "일일 스크립트가 실행되어도 이 버전으로 판정하지 않아요."}</Small>
                         {trigger.reasons.length > 0 ? (
                           <ul className="opp-list" aria-label="자동 실행이 꺼진 이유">
                             {trigger.reasons.map((reason) => <li key={reason}>{triggerReasonText(reason)}</li>)}
@@ -801,11 +824,12 @@ export function OrderPlanPolicyPage() {
                         </ul>
                       </>
                     ) : (
-                      <Small>서버가 계산한 런타임 blocker가 없어요.</Small>
+                      <Small>현재 확인된 실행 차단 조건이 없어요.</Small>
                     )}
                   </Section>
 
-                  <Section title="게이트 결과">
+                  <Section title="선별 품질 기준과 결과">
+                    <Small>발주계획 선별에서 ‘관련’은 우선 검토, ‘불확실’은 훑어보기 대상이에요. 두 분류를 합해 검토 후보로 세어요.</Small>
                     {gatesQuery.isPending ? <Small>게이트 목록을 확인하는 중이에요.</Small> : null}
                     {gatesQuery.error ? (
                       <Note
@@ -826,47 +850,51 @@ export function OrderPlanPolicyPage() {
                         rows={gates.map((gate) => [
                           <code key="g">{gate.gate_id}</code>,
                           <Text key="b">{gate.evaluation_basis === "reference_artifact_rescore" ? "참조 재채점 · 활성화 근거 아님" : "제품 재실행"}</Text>,
-                          <StatusToken key="r" label={gate.latest_evaluation ? gateResultLabel(gate.latest_evaluation.result_status) : "평가 없음"} />,
+                          <StatusToken key="r" {...(gate.latest_evaluation ? gateResultMark(gate.latest_evaluation.result_status) : { label: "평가 없음" })} />,
                           <Text key="c">{`${moment(gate.created_at)} · ${gate.created_by}`}</Text>,
                         ])}
                       />
                     ) : null}
                   </Section>
 
-                  <Section title="선택한 policy">
-                    <Facts items={[
-                      ["policy digest", <DigestLine key="p" label="policy digest" onCopied={setCopyMessage} value={inspect.policy_sha256} />],
-                      ["binding digest", <DigestLine key="b" label="binding digest" onCopied={setCopyMessage} value={inspect.binding_sha256} />],
-                      ["binding 상태", inspect.binding_status ?? "값 없음"],
-                      ["policy 파일", inspect.policy_file_present ? "운영 컨테이너에 있음 (digest 일치)" : "없음 또는 digest 불일치"],
-                      ["binding 파일", inspect.binding_file_present ? "운영 컨테이너에 있음 (digest 일치)" : "없음 또는 digest 불일치"],
-                      ["품질 게이트 상태(행)", inspect.quality_gate_status ? QUALITY_GATE_STATUS_LABELS[inspect.quality_gate_status] ?? inspect.quality_gate_status : "값 없음"],
-                      ["활성화", inspect.activated_at ? `${moment(inspect.activated_at)} · ${inspect.activated_by ?? "담당자 기록 없음"}` : "기록 없음"],
-                    ]} />
-                  </Section>
-                  <Section title="전송 승인 (binding)">
-                    {inspect.external_transport ? (
+                  <details className="crit-disclosure">
+                    <summary>정책 파일·전송 승인·감사 표본</summary>
+                    <Section title="정책 버전 정보">
                       <Facts items={[
-                        ["실행 허용", yesNo(inspect.external_transport.execution_allowed, "허용", "허용 안 함")],
-                        ["승인 범위", inspect.external_transport.approval_scope ?? "값 없음"],
-                        ["승인자", inspect.external_transport.approved_by ?? "값 없음"],
-                        ["승인 시각", inspect.external_transport.approved_at ? moment(inspect.external_transport.approved_at) : "값 없음"],
+                        ["policy digest", <DigestLine key="p" label="policy digest" onCopied={setCopyMessage} value={inspect.policy_sha256} />],
+                        ["binding digest", <DigestLine key="b" label="binding digest" onCopied={setCopyMessage} value={inspect.binding_sha256} />],
+                        ["binding 상태", inspect.binding_status ?? "값 없음"],
+                        ["policy 파일", inspect.policy_file_present ? "운영 컨테이너에 있음 (digest 일치)" : "없음 또는 digest 불일치"],
+                        ["binding 파일", inspect.binding_file_present ? "운영 컨테이너에 있음 (digest 일치)" : "없음 또는 digest 불일치"],
+                        ["품질 게이트 상태(행)", inspect.quality_gate_status ? QUALITY_GATE_STATUS_LABELS[inspect.quality_gate_status] ?? inspect.quality_gate_status : "값 없음"],
+                        ["활성화", inspect.activated_at ? `${moment(inspect.activated_at)} · ${inspect.activated_by ?? "담당자 기록 없음"}` : "기록 없음"],
                       ]} />
-                    ) : <Small>binding에 전송 승인 항목이 없어요.</Small>}
-                  </Section>
-                  <Section title="감사 표본 설정 (policy)">
-                    {inspect.audit_sample ? (
-                      <Facts items={[
-                        ["사용", yesNo(inspect.audit_sample.enabled, "사용", "사용 안 함")],
-                        ["실행당 상한", count(inspect.audit_sample.max_per_execution)],
-                        ["검토 주기", inspect.audit_sample.review_cadence ?? "값 없음"],
-                      ]} />
-                    ) : <Small>policy에 감사 표본 설정이 없어요.</Small>}
-                  </Section>
+                    </Section>
+                    <Section title="전송 승인 (binding)">
+                      {inspect.external_transport ? (
+                        <Facts items={[
+                          ["실행 허용", yesNo(inspect.external_transport.execution_allowed, "허용", "허용 안 함")],
+                          ["승인 범위", inspect.external_transport.approval_scope ?? "값 없음"],
+                          ["승인자", inspect.external_transport.approved_by ?? "값 없음"],
+                          ["승인 시각", inspect.external_transport.approved_at ? moment(inspect.external_transport.approved_at) : "값 없음"],
+                        ]} />
+                      ) : <Small>binding에 전송 승인 항목이 없어요.</Small>}
+                    </Section>
+                    <Section title="감사 표본 설정 (policy)">
+                      {inspect.audit_sample ? (
+                        <Facts items={[
+                          ["사용", yesNo(inspect.audit_sample.enabled, "사용", "사용 안 함")],
+                          ["실행당 상한", count(inspect.audit_sample.max_per_execution)],
+                          ["검토 주기", inspect.audit_sample.review_cadence ?? "값 없음"],
+                        ]} />
+                      ) : <Small>policy에 감사 표본 설정이 없어요.</Small>}
+                    </Section>
+                  </details>
                 </>
               ) : null}
 
-              <Section title={`측정 실행 · ${measurementRows.length}건`}>
+              <details className="crit-disclosure">
+                <summary>{`측정 실행 기록 · ${measurementRows.length}건`}</summary>
                 {measurementRows.length > 0 ? (
                   <DataTable
                     caption="게이트 측정 실행 목록"
@@ -874,7 +902,7 @@ export function OrderPlanPolicyPage() {
                     rows={measurementRows.map(({ execution }) => [
                       <code key="e">{execution.execution_id}</code>,
                       <span className="crit-mono" key="r">{execution.source_run_id}</span>,
-                      <StatusToken key="s" label={execution.status} />,
+                      <StatusToken key="s" label={execution.status} tone={executionStatusTone(execution.status)} />,
                       <span className="crit-cell-stack" key="t">
                         <Text>{moment(execution.queued_at)}</Text>
                         <Small>{execution.finished_at ? moment(execution.finished_at) : "끝나지 않음"}</Small>
@@ -883,23 +911,26 @@ export function OrderPlanPolicyPage() {
                   />
                 ) : <Small>{gatesQuery.data ? "측정 실행이 없어요." : "게이트를 확인한 뒤 표시해요."}</Small>}
                 <Small>읽기 전용이에요. 게이트 생성·evaluation 기록·측정 실행은 측정 스크립트가 해요.</Small>
-              </Section>
+              </details>
             </div>
-            <DetailFooter note={footerNote}>
-              {selected.policy_status === "draft" ? (
-                <Button label="후보로 지정" onClick={() => openCandidate(selected)} size="sm" />
-              ) : null}
-              {selected.policy_status === "activation_candidate" ? (
-                <Button
-                  isDisabled={!canActivate || busy}
-                  label="활성화"
-                  onClick={() => { if (inspect) openActivate(inspect); }}
-                  size="sm"
-                  variant="primary"
-                />
-              ) : null}
-              {selected.policy_status === "active" ? <StatusToken label="운영 활성" size="md" /> : null}
-            </DetailFooter>
+            <DecisionBar
+              stateLabel="정책 상태"
+              state={{ label: STATUS_LABELS[selected.policy_status], tone: "neutral" }}
+              note={footerNote}
+              primaryAction={
+                selected.policy_status === "draft" ? (
+                  <Button label="후보로 지정" onClick={() => openCandidate(selected)} size="sm" />
+                ) : selected.policy_status === "activation_candidate" ? (
+                  <Button
+                    isDisabled={!canActivate || busy}
+                    label="활성화"
+                    onClick={() => { if (inspect) openActivate(inspect); }}
+                    size="sm"
+                    variant="primary"
+                  />
+                ) : null
+              }
+            />
           </>
         )}
       </section>
@@ -910,6 +941,6 @@ export function OrderPlanPolicyPage() {
         onConfirm={runConfirm}
         snapshot={pending}
       />
-    </div>
+    </SplitWorkspace>
   );
 }

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
+import type { MarkTone } from "../common/Marks";
 import { api } from "../../lib/api";
-import type { ScreeningExecutionResponse, ScreeningStatus, ValidationMetric } from "../../lib/types";
+import type { OrderPlanScreeningStatus, QualityGateExecutionStatus, ScheduleStatus, ScreeningExecutionResponse, ScreeningStatus, ValidationMetric } from "../../lib/types";
 
 /**
  * 실행 상태 화면이 공유하는 조회와 표시 규칙.
@@ -23,6 +24,30 @@ export function isScreeningTerminal(status: ScreeningStatus | undefined | null):
 /** 확인이 필요한 종결 상태. 성공은 여기 들어가지 않는다. */
 export function needsAttention(status: ScreeningStatus): boolean {
   return status === "부분 성공" || status === "실패" || status === "중단됨";
+}
+
+/** 실행 API의 원본 상태 값. 표식 문구와 독립적으로 의미색을 정한다. */
+export function executionStatusTone(status: ScreeningStatus | OrderPlanScreeningStatus | ScheduleStatus | QualityGateExecutionStatus | null | undefined): MarkTone {
+  switch (status) {
+    case "성공":
+    case "완료":
+      return "success";
+    case "실패":
+      return "error";
+    case "중지 요청":
+    case "부분 성공":
+    case "중단됨":
+    case "건너뜀":
+      return "warning";
+    default:
+      return "neutral";
+  }
+}
+
+export function validationMetricTone(status: ValidationMetric["status"]): MarkTone {
+  if (status === "pass") return "success";
+  if (status === "fail") return "error";
+  return "neutral";
 }
 
 /**

@@ -14,7 +14,7 @@ import {
  * T2/T3의 폭 의존 부분(관계 행·근거 패널이 들어가는가, 3사 비교 표가 비교 상태 열을 숨기지 않는가).
  *
  * 이 파일은 `playwright.config.ts`의 LAYOUT_SPECS라서 layout-laptop(1280x800)과
- * layout-desktop(1440x900)에서 돈다. 의미(업무 상태가 맞는가)는 폭과 무관한 앞 단계 spec이 본다:
+ * 작은 데스크톱(1440×900)·기본 데스크톱(1920×1080)에서 돈다. 의미(업무 상태가 맞는가)는 폭과 무관한 앞 단계 spec이 본다:
  *   T1 company-workspace · T2 company-graph · T3 company-prespecs/company-comparison ·
  *   T4/T5 company-review. 여기는 "지원 폭 안에 들어가는가"만 잰다.
  *

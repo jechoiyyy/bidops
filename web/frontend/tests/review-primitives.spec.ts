@@ -5,25 +5,38 @@ test.beforeEach(async ({ page }) => {
   await mockApi(page);
 });
 
-test("검토 대기열은 공통 필터·밀집 행·sticky 결정 헤더를 사용한다", async ({ page }) => {
+test("검토 대기열은 공통 필터·회차 표·읽기 상세를 사용한다", async ({ page }) => {
   await page.goto("/queue");
 
   const filterBar = page.locator('[data-review-primitive="filter-bar"]');
   await expect(filterBar).toBeVisible();
   await expect(filterBar.locator('[data-review-primitive="filter-selector"]')).toHaveCount(5);
   await expect(filterBar.locator('[data-review-primitive="text-input"]')).toHaveCount(1);
-  await expect(page.locator('[data-review-primitive="dense-list"]')).toBeVisible();
-  await expect(page.locator('[data-review-primitive="dense-list-row"]')).not.toHaveCount(0);
-  await expect(page.locator('[data-review-primitive="sticky-decision-header"]')).toBeVisible();
+  const table = page.getByRole("table", { name: "검토 대기 공고 목록", exact: true });
+  await expect(table).toBeVisible();
+  await expect(table.getByRole("columnheader")).toHaveText(["사업명", "상태", "마감"]);
+  const rows = table.locator("tbody tr");
+  await expect(rows).not.toHaveCount(0);
+  await expect(page.locator("#page-header-tabs").getByRole("tab", { name: "검토 대기열" })).toBeVisible();
+  const frame = page.locator(".notice-read-detail .workbench-record");
+  await expect(frame.locator(".workbench-record-main")).toBeVisible();
+  await expect(frame.locator(".workbench-record-rail")).toHaveCount(0);
+  await expect(frame.getByRole("region", { name: "공고 요약" }).locator("dt"))
+    .toHaveText(["입찰 마감", "추정가격", "판정 등급", "등급 출처", "다음 행동 안내", "첨부"]);
+  await expect(frame.getByRole("region", { name: "원문·판정 자료" }).getByRole("link", { name: "판정 상세" })).toBeVisible();
+  const heading = page.locator("header.topbar .topbar-record h1");
+  await expect(heading).toBeVisible();
   // 단계 E 작업 4 이후 이 화면에는 입력이 없다. 리뷰 입력이 쓰던 segmented
   // control도 함께 사라졌고, 남은 것은 저장된 리뷰를 읽는 자리다.
   await expect(page.locator('[data-review-primitive="segmented-control"]')).toHaveCount(0);
   await expect(page.locator(".review-record")).toBeVisible();
 
-  const headerPosition = await page.locator('[data-review-primitive="sticky-decision-header"]').evaluate((element) => getComputedStyle(element).position);
-  expect(headerPosition).toBe("sticky");
-
-  const rows = page.locator('[data-review-primitive="dense-list-row"]');
+  const detailScroll = page.getByRole("region", { name: "공고 상세" });
+  const before = (await heading.boundingBox())!.y;
+  await detailScroll.evaluate((element) => element.scrollTo({ top: element.scrollHeight, behavior: "instant" }));
+  await expect.poll(() => detailScroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  expect((await heading.boundingBox())!.y).toBeCloseTo(before, 0);
+  await detailScroll.evaluate((element) => element.scrollTo({ top: 0, behavior: "instant" }));
   await rows.nth(1).focus();
   await page.keyboard.press("Enter");
   await expect(rows.nth(1)).toHaveAttribute("aria-current", "true");
@@ -44,8 +57,10 @@ test("발주계획 C-2는 공통 필터·목록·상세·상태·결정 action�
 
   await expect(page.locator('[data-review-primitive="filter-bar"]')).toBeVisible();
   await expect(page.locator('[data-review-primitive="text-input"]')).not.toHaveCount(0);
-  await expect(page.locator('[data-review-primitive="dense-list"]')).toBeVisible();
-  await expect(page.locator('[data-review-primitive="dense-list-row"]')).toHaveCount(2);
+  const table = page.getByRole("table", { name: "발주계획 검토 목록", exact: true });
+  await expect(table).toBeVisible();
+  await expect(table.getByRole("row").and(page.locator("tbody > tr.c2l-row"))).toHaveCount(1);
+  await expect(page.locator(".c2l-row-title")).toHaveText(/공공데이터 통합/);
   await expect(page.locator('[data-review-primitive="split-workspace"]')).toBeVisible();
   await expect(page.locator('[data-review-primitive="sticky-decision-header"]')).toBeVisible();
   // R2(0921 명세 §3.1): 이 화면의 공용 `status` 부품은 실행 상태 표시 하나였고, 그것은
@@ -56,14 +71,23 @@ test("발주계획 C-2는 공통 필터·목록·상세·상태·결정 action�
   // pane 바닥의 결정은 추적 결정 넷이다(ADR-0046 결정 4). 사람 판단 수정의 저장은
   // 접힌 보조 입력 영역이 소유하므로 이 바에 없다.
   await expect(page.locator('[data-review-primitive="decision-bar"] [data-review-primitive="decision-action"]')).toHaveCount(4);
-  // 같은 사유로 함께 막힌 세 결정이 문구를 한 번만 그린다. 사유·담당자가 모두 비어 있는
-  // 첫 상태에서는 둘을 한 문장으로 합쳐 말한다.
-  await expect(page.getByText("선택 사유와 담당자 이름을 입력하면 추적 결정을 기록할 수 있어요.", { exact: true })).toHaveCount(1);
-  for (const label of ["추적 시작하기", "보류", "추적 종료"]) {
-    await expect(page.getByRole("button", { name: label, exact: true })).toHaveAttribute("aria-describedby", "c2l-tracking-decision-reason");
-  }
+  const start = page.getByRole("button", { name: "추적 시작하기", exact: true });
+  await expect(start).toBeDisabled();
+  await expect(start).toHaveAttribute("aria-describedby", "c2l-start-disabled-reason");
+  await expect(start).toHaveAccessibleDescription("사이드바에서 담당자 이름을 입력해 주세요.");
   // 저장하지 않는 넘기기에는 사유가 붙지 않는다.
   await expect(page.getByRole("button", { name: "넘기기", exact: true })).not.toHaveAttribute("aria-describedby", /.+/);
+  // 보류와 종료는 각각 사유 입력을 열고, 해당 저장 조작만 입력 조건으로 막힌다.
+  const reason = "선택 사유와 담당자 이름을 입력하면 추적 결정을 기록할 수 있어요.";
+  for (const label of ["보류", "추적 종료"]) {
+    await page.getByRole("button", { name: label, exact: true }).click();
+    const confirm = page.getByRole("button", { name: `${label} 확인`, exact: true });
+    await expect(confirm).toBeDisabled();
+    await expect(confirm).toHaveAttribute("aria-describedby", "c2l-tracking-decision-reason");
+    await expect(confirm).toHaveAccessibleDescription(reason);
+    await expect(page.getByText(reason, { exact: true })).toHaveCount(1);
+    await page.locator(".c2l-detail-actions").getByRole("button", { name: "취소", exact: true }).click();
+  }
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
@@ -74,7 +98,7 @@ test("발주계획 C-2는 공통 필터·목록·상세·상태·결정 action�
 // 화면마다 찾지 않게 하려는 것이다.
 test("공용 페이저는 한 쪽뿐인 목록에서도 전체 건수와 범위를 남기고 단추만 끈다", async ({ page }) => {
   for (const [path, listPane, total] of [
-    ["/order-plans", ".c2l-list-pane", "전체 2건"],
+    ["/order-plans?qwen=relevant,uncertain&tracking=미선택", ".c2l-list-pane", "전체 2건"],
     ["/pre-specs?workspace=all&sw_only=false", ".pre-specs-list-pane", "전체 3건"],
   ] as const) {
     if (path.startsWith("/order-plans")) await mockOrderPlans(page);
@@ -200,25 +224,41 @@ test("LS-06 Ctrl/Cmd+Enter keeps the existing single-record detail meaning", asy
 // 이력, 등급 4단 스케일.
 
 test("분할 화면의 결정 액션 바는 상세 pane 바닥에 남아 스크롤 위치와 무관하게 보인다", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
   await mockOrderPlans(page, "large");
   await page.goto("/order-plans");
 
+  const pane = page.locator(".c2l-detail-pane");
+  const scroll = pane.locator(".c2l-detail-scroll");
   const bar = page.locator('[data-review-primitive="decision-bar"]');
   await expect(bar).toBeVisible();
-  await expect(bar).toHaveCSS("position", "sticky");
+  await expect(bar).toBeInViewport({ ratio: 1 });
   // 상세 pane의 sticky 헤더에는 결정 action을 복제하지 않는다.
   await expect(page.locator('[data-review-primitive="sticky-decision-header"] [data-review-primitive="decision-action"]')).toHaveCount(0);
 
   const start = page.getByRole("button", { name: "추적 시작하기", exact: true });
   await expect(start).toBeInViewport();
+  await page.evaluate(() => document.fonts.ready);
+  const before = (await bar.boundingBox())!;
+  expect(before.y + before.height).toBeCloseTo(await pane.evaluate((element) => element.getBoundingClientRect().bottom), 0);
 
   // 상세 pane 본문을 끝까지 내려도 결정 액션은 제자리에 남는다.
-  await page.locator(".c2l-detail-scroll").evaluate((element) => element.scrollTo({ top: element.scrollHeight, behavior: "instant" }));
+  const end = await scroll.evaluate((element) => {
+    element.scrollTo({ top: element.scrollHeight, behavior: "instant" });
+    return { top: element.scrollTop, remaining: element.scrollHeight - element.clientHeight - element.scrollTop };
+  });
+  expect(end.top).toBeGreaterThan(0);
+  expect(Math.abs(end.remaining)).toBeLessThanOrEqual(1);
+  await expect(bar).toBeInViewport({ ratio: 1 });
+  const after = (await bar.boundingBox())!;
+  expect(after.x).toBeCloseTo(before.x, 0);
+  expect(after.y).toBeCloseTo(before.y, 0);
+  expect(after.height).toBeCloseTo(before.height, 0);
   for (const label of ["추적 시작하기", "보류", "추적 종료", "넘기기"]) {
     await expect(page.getByRole("button", { name: label, exact: true })).toBeInViewport();
   }
 
-  const geometry = await page.locator(".c2l-detail-pane").evaluate((pane) => {
+  const geometry = await pane.evaluate((pane) => {
     const actions = pane.querySelector<HTMLElement>('[data-review-primitive="decision-bar"]');
     const scroll = pane.querySelector<HTMLElement>(".c2l-detail-scroll");
     if (!actions || !scroll) throw new Error("결정 액션 바 또는 상세 스크롤 영역을 찾을 수 없어요.");
@@ -230,7 +270,7 @@ test("분할 화면의 결정 액션 바는 상세 pane 바닥에 남아 스크�
       scrollHeight: scroll.getBoundingClientRect().height,
     };
   });
-  expect(geometry.barBottom).toBeLessThanOrEqual(geometry.paneBottom + 1);
+  expect(Math.abs(geometry.barBottom - geometry.paneBottom)).toBeLessThanOrEqual(1);
 
   // 바 안에서 액션과 안내가 좁아지면 줄을 바꿔야 한다. 한쪽이 0에 가깝게 눌리면 긴 한글이
   // 한 글자씩 세로로 쌓여 바가 pane 전체를 덮고 본문이 사라진다. 실제로 겪은 회귀다.
@@ -249,17 +289,28 @@ test("추적 입력 창은 키보드로 열고 닫으며 현재 추적 값과 �
   const summary = footer.locator(".opportunity-tracking-summary");
   await expect(summary).toBeVisible();
   const before = await summary.innerText();
+  const writes: string[] = [];
+  page.on("request", (request) => {
+    if (["PATCH", "POST", "PUT", "DELETE"].includes(request.method())) {
+      writes.push(new URL(request.url()).pathname);
+    }
+  });
   const open = footer.getByRole("button", { name: "추적 상태 변경", exact: true });
   await open.focus();
   await page.keyboard.press("Enter");
 
   const dialog = page.getByRole("dialog", { name: "추적 상태 변경", exact: true });
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("적합성 등급·참여 준비 상태·심층 검토 승인·최종 입찰 Go/No-Go는 바뀌지 않아요.");
+  await expect(dialog).toContainText("현재 추적 상태 · 종료");
+  await expect(dialog.getByRole("button")).toHaveCount(5);
+  for (const name of ["닫기", "계속 추적", "보류", "추적 종료", "취소"]) {
+    await expect(dialog.getByRole("button", { name, exact: true })).toBeVisible();
+  }
   await expect(dialog.getByRole("combobox", { name: "선택 사유" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
   await expect(summary).toHaveText(before, { useInnerText: true });
+  expect(writes).toEqual([]);
 });
 
 test("append-only revision 이력은 건수와 append-only 표식을 함께 보여주고 revision을 덮어쓰지 않는다", async ({ page }) => {

@@ -209,24 +209,6 @@
 }
 
 /* 상세 필터: 축 n개 + 오른쪽 끝의 초기화 버튼. 열 수는 화면이 `columns`로 정한다. */
-.workspace-filter-advanced {
-  display: grid;
-  grid-template-columns: repeat(var(--workspace-advanced-columns, 2), minmax(0, 1fr)) auto;
-  align-items: end;
-  gap: var(--spacing-3) var(--spacing-4);
-  min-width: 0;
-  padding-top: var(--spacing-2);
-  border-top: var(--border-width) solid var(--color-border);
-}
-
-.workspace-filter-advanced > * {
-  min-width: 0;
-}
-
-.workspace-filter-reset {
-  justify-self: end;
-}
-
 /* --- 수집 회차 선택기 ---
  *
  * 두 화면이 같은 컨트롤을 쓰므로 규칙도 한 벌이다(`components/common/SourceRunFilter.tsx`).
@@ -285,4 +267,55 @@
 .workspace-filters :where(.astryx-field-label, .astryx-badge, .astryx-toggle-button) {
   font-size: var(--bo-type-caption);
   line-height: var(--bo-type-caption-leading);
+}
+
+/* 열린 필터는 도구줄의 다음 행을 차지한다. 목록과 미리보기에 조작 공간을 남긴다. */
+.workspace-filter-panel {
+  min-width: 0;
+  padding: var(--spacing-3) var(--spacing-6);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-background-surface);
+}
+
+.workspace-filter-advanced {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--spacing-5);
+  max-height: 30vh;
+  overflow: auto;
+}
+
+.workspace-filter-group {
+  display: grid;
+  align-content: start;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.workspace-filter-group + .workspace-filter-group {
+  padding-inline-start: var(--spacing-5);
+  border-inline-start: 1px solid var(--bo-line-soft);
+}
+
+.workspace-filter-group h3 {
+  margin: 0;
+  font-size: var(--bo-k-meta);
+}
+
+.workspace-filter-group > * { min-width: 0; }
+
+.workspace-filter-panel-actions {
+  display: flex;
+  justify-content: space-between;
+  padding-top: var(--spacing-2);
+  margin-top: var(--spacing-2);
+  border-top: 1px solid var(--bo-line-soft);
+}
+
+.workspace-filter-panel .pre-specs-filter-context-range:empty { display: none; }
+
+/* 펼친 필터 아래에서 목록과 미리보기가 남은 높이를 나눠 쓴다. */
+.app-shell:has(.workspace-filter-panel) .page-canvas[data-canvas="flush"] > :is(.c2l-page, .pre-specs-page, .opportunities-page) {
+  min-height: 0;
 }

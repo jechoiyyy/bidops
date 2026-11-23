@@ -27,7 +27,7 @@
 .page-overview-evidence-list a{color:var(--color-text-accent);font-size:var(--bo-type-caption);text-decoration:underline;text-underline-offset:var(--spacing-0-5)}
 .page-overview-history summary{cursor:pointer;font-weight:600}
 .page-overview-note{color:var(--color-text-secondary);font-size:var(--bo-type-caption);font-weight:400}
-.page-overview summary{cursor:pointer;font-weight:600}.page-overview-legacy{margin-top:var(--spacing-6);font-size:var(--bo-type-section-title)}
+.page-overview summary{cursor:pointer;font-weight:600}
 .page-overview-section>h4{margin:0;font-size:var(--bo-type-section-title);font-weight:600}
 .page-overview-section details>summary{cursor:pointer;color:var(--color-text-primary);font-weight:600}
 .page-overview-section details{min-width:0;overflow-wrap:anywhere}

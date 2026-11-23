@@ -8,7 +8,7 @@
  *   옛 단(typography.css)            → k 단
  *   caption 12 · Astryx sm/xs 12     → meta 14   (보조·메타. 12px은 시안이 쓰는 자리에만 남는다)
  *   body 14 · Astryx base 14         → body 16
- *   list-title 14                    → body 16   (목록 첫 줄)
+ *   list-title 14                    → body 16   (목록|상세 4화면 목록은 결정 15의 공용 단)
  *   section-title 14/600             → section 18/700
  *   page-title 16                    → section 18
  *   detail-title 20                  → detail 22
@@ -47,12 +47,8 @@
    의미색 경고·오류 알림(`mutation-feedback-*`, `rs-inline-error` 등)과 표의 칸·행 선은 그대로 둔다. */
 .app-shell .page-canvas :is(
   .daily-collection,
-  .dash-count-strip,
-  .rs-summary,
-  .crit-summary,
-  .rs-stage-track,
+  .dash-count-strip:where(:not([data-block="today"] *)),
   .co-attention,
-  .opportunity-lifecycle,
   .gng-delta-counts,
   .bid-delta-basis,
   .bid-delta-round,
@@ -72,8 +68,6 @@
 
 .app-shell .page-canvas :is(
   .dash-panel,
-  .rs-workspace,
-  .crit-workspace,
   .crit-verification-requests,
   .bid-delta-comparison-list-panel,
   .document-preparation,
@@ -89,15 +83,10 @@
   box-shadow: none;
 }
 
-/* 요약 줄과 작업 영역이 이어 붙던 자리(옛 seam)는 채움 블록 아래 여백으로 띄운다. */
-.app-shell .page-canvas :is(.rs-summary, .crit-summary) {
-  margin-bottom: var(--spacing-2);
-}
-
 /* ---- 조작 높이(대화상자 밖) ----
    안쪽 보기 전환(탭)은 40px 둥근 칸. 행·보조 단추는 44px, 입력은 48px(Astryx sm/md 단추·입력은 위 토큰이 44로
    올린다). 메타 줄 안의 글자형 단추(번호 복사·원문 링크·접힌 기술 정보)도 클릭 대상 44px를 갖는다. */
-.app-shell .page-canvas > :not(.c2l-page, .briefing-page, .rec-page) :is([role="tablist"] [role="tab"], :is(.gng-detail-tabs, .rs-detail-tabs) .astryx-button) {
+.app-shell .page-canvas > :not(.c2l-page, .briefing-page, .rec-page) [role="tablist"] [role="tab"] {
   height: var(--bo-k-control-tab);
   min-height: var(--bo-k-control-tab);
   padding: 0 12px;
@@ -110,17 +99,10 @@
   font-weight: 500;
 }
 
-.app-shell .page-canvas > :not(.c2l-page, .briefing-page, .rec-page) :is([role="tablist"] [role="tab"][aria-selected="true"], :is(.gng-detail-tabs, .rs-detail-tabs) [aria-pressed="true"]) {
+.app-shell .page-canvas > :not(.c2l-page, .briefing-page, .rec-page) [role="tablist"] [role="tab"][aria-selected="true"] {
   color: var(--color-text-primary);
   background: var(--bo-sidebar-active);
   font-weight: 700;
-}
-
-.app-shell .page-canvas .rs-detail-tabs {
-  gap: 2px;
-  padding-block: var(--spacing-2);
-  border-top: 0;
-  border-bottom: 0;
 }
 
 /* 상태 표식(Token)은 조작이 아니라 글자 표식이다 — 단추 높이 토큰을 따라 커지지 않게 13px 칩으로 둔다. */
@@ -128,38 +110,30 @@
   height: auto;
   min-height: 0;
   padding: 2px 8px;
-  font-size: var(--bo-k-tag);
   line-height: 1.5;
+}
+
+.app-shell .page-canvas > :not(.c2l-page, .briefing-page, .rec-page) .astryx-token:where(:not(.review-split-list *)) {
+  font-size: var(--bo-k-tag);
 }
 
 .app-shell .page-canvas > :not(.c2l-page, .briefing-page, .rec-page) :is(.astryx-text-input, .astryx-selector.input, .actor-field input):not(:is(dialog, [role="dialog"], [role="alertdialog"]) *) {
   min-height: var(--bo-k-control-input);
 }
 
-/* 추적 결정 입력 한 벌의 조작 높이는 화면이 변수로 정한다(사전규격 미리보기·상세). 그 변수를 k 단으로 올린다. */
-.app-shell .page-canvas .pre-spec-tracking-decision {
-  --tdc-inline-control: var(--bo-k-control-row);
-}
-
-.app-shell .page-canvas .pre-spec-tracking-decision.is-inline .pre-spec-tracking-save {
-  font-size: var(--bo-k-lead);
-}
-
 .app-shell .page-canvas > :not(.c2l-page, .briefing-page, .rec-page) :is(.astryx-button, .astryx-collapsible-trigger, .interaction-control, .document-preparation button:not([role="tab"])):not(:is(dialog, [role="dialog"], [role="alertdialog"]) *) {
   min-height: var(--bo-k-control-row);
 }
 
-/* 화면의 주 CTA 하나(56px): 입찰 변경 비교 `결정 확인`, 최종 Go/No-Go 미리보기 `변경 검토·결정 열기`.
-   화면당 하나만 이 크기다. 사전규격 목록 미리보기는 바닥 결정 칸이 커지면 본문 미리보기가 첫 화면에서 사라져
-   44px로 둔다(`추적 시작하기`·`상세 페이지 열기`). */
-.app-shell .page-canvas :is(.bid-delta-decision-footer, .gng-action-footer) .astryx-button.primary {
+/* 입찰 변경 비교의 주 CTA(56px). 목록|상세 결정 띠는 결정 15의 중간 단을 쓴다. */
+.app-shell .page-canvas .bid-delta-decision-footer .astryx-button.primary {
   min-height: var(--bo-k-control-primary);
   font-size: var(--bo-k-button-lg);
   font-weight: 700;
 }
 
 /* 숫자는 잉크색(브랜드색 아님). */
-.app-shell .page-canvas :is(.dash-count-value, .gng-delta-count-value, .rs-summary-value, .crit-summary-value) {
+.app-shell .page-canvas :is(.dash-count-value:where(:not([data-block="today"] *)), .gng-delta-count-value, .rs-summary-value, .crit-summary-value) {
   color: var(--color-text-primary);
 }
 
@@ -186,13 +160,7 @@
   --size-element-md: var(--bo-k-control-nav);
 }
 
-/* 요약 줄(채움 블록)은 한 줄 높이만 쓴다. */
-.app-shell .page-canvas :is(.crit-summary, .rs-summary) {
-  padding-top: var(--spacing-2);
-  padding-bottom: var(--spacing-2);
-}
-
-/* 판정 기준 상세 머리·바닥은 노트북 폭에서 긴 절 제목(두 줄)이 와도 바닥 액션이 작업 영역 안에 남도록 여백을 줄인다. */
+/* 긴 절 제목의 세로 공간을 확보한다. */
 .app-shell .page-canvas .crit-page .crit-detail-head {
   gap: var(--spacing-1);
   padding-top: var(--spacing-3);
@@ -201,17 +169,6 @@
 
 .app-shell .page-canvas .crit-page .crit-detail-head :is(h2, h3, .astryx-heading) {
   line-height: 1.35;
-}
-
-.app-shell .page-canvas .crit-page .crit-detail-foot {
-  padding-top: var(--spacing-2);
-  padding-bottom: var(--spacing-2);
-}
-
-/* 판정 기준·실행 상태는 요약 줄 + 작업 영역 + 경계 문장이 패널 높이를 다 쓴다. 바닥 여백을 16px로 줄여 작업 영역에
-   그만큼 높이를 돌려준다(경계 문장은 빼지 않는다). */
-.app-shell[data-astryx-theme="bidops"] .page-canvas:has(> :is(.crit-page, .rs-page)) {
-  padding-bottom: var(--spacing-4);
 }
 
 /* 입찰 변경 비교의 결정 칸: 노트북 폭(1280×800)에서도 결정 이유·기록자 칸과 `결정 확인`이 첫 화면에 남아야 한다
@@ -264,7 +221,8 @@
 
 /* 레코드 목록은 같은 분할선과 조작 높이를 사용한다. */
 .app-shell :is(.c2l-page, .pre-specs-page, .opportunities-page, .gng-page),
-.app-shell:has(:is(.c2l-page, .pre-specs-page, .opportunities-page, .gng-page)) .workspace-filters {
+.app-shell:has(:is(.c2l-page, .pre-specs-page, .opportunities-page, .gng-page)) .workspace-filters,
+.app-shell .workbench-admin-list-tools {
   --bo-k-control-row: 32px;
   --bo-k-control-input: 32px;
   --bo-k-control-tab: 32px;
@@ -272,11 +230,11 @@
 }
 
 .app-shell .page-canvas[data-canvas="flush"] :is(.c2l-page, .pre-specs-page, .opportunities-page, .gng-page) {
-  --record-inset: var(--spacing-4);
+  --record-inset: var(--spacing-6);
 }
 
 .app-shell .page-canvas[data-canvas="flush"] :is(.c2l-page, .pre-specs-page, .opportunities-page, .gng-page) .review-split-list {
-  flex: 0 0 38%;
+  flex: 0 0 var(--shell-list-width);
   min-width: 0;
 }
 
@@ -288,59 +246,29 @@
   padding: var(--spacing-3) var(--record-inset) var(--spacing-2);
 }
 
-.app-shell .page-canvas[data-canvas="flush"] :is(.c2l-detail-scroll, .pre-specs-detail-scroll, .opportunity-detail-scroll, .gng-detail-scroll, .pre-specs-detail-actions, .opportunity-action-footer, .gng-action-footer, .c2l-detail-actions) {
+.app-shell .page-canvas[data-canvas="flush"] :is(.c2l-detail-scroll, .pre-specs-detail-scroll, .opportunity-detail-scroll, .gng-detail-scroll) {
   padding-inline: var(--record-inset);
 }
 
 .app-shell .page-canvas :is(.c2l-page, .pre-specs-page) .review-selection-toolbar {
   gap: var(--spacing-1);
-  padding: 0 var(--record-inset) var(--spacing-2);
-  border: 0;
+  padding: 6px var(--record-inset);
+  border-top: 1px solid var(--bo-line-soft);
+  border-bottom: 1px solid var(--bo-line-soft);
 }
 
 .app-shell .page-canvas :is(.c2l-page, .pre-specs-page) .review-selection-toolbar :is(.astryx-button, .interaction-control) {
   height: 32px;
   min-height: 32px;
   padding-inline: var(--spacing-2);
-  font-size: 13px;
 }
 
 .review-selection-reason:empty {
   display: none;
 }
 
-.app-shell .page-canvas .pre-specs-page .pre-specs-detail-actions {
-  flex-flow: row wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--spacing-1) var(--spacing-2);
-}
-
-.pre-specs-detail-actions > .pre-spec-tracking-decision {
-  flex: 1 1 320px;
-}
-
-.pre-specs-detail-actions .pre-spec-tracking-form.is-inline {
-  grid-template-columns: minmax(120px, 1fr) auto auto;
-}
-
-.pre-specs-detail-actions .ps-decision-bar-actor {
-  justify-self: end;
-}
-
 .app-shell .page-canvas :is(.c2l-page, .pre-specs-page) .review-selection-count {
   min-width: 0;
-  font-size: var(--bo-k-meta);
-}
-
-.c2l-detail-actions .review-decision-bar-hint:has(.visually-hidden):not(:has([role="status"])) {
-  position: absolute;
-}
-
-
-.app-shell .c2l-page .c2l-detail-actions {
-  padding-block: var(--spacing-2);
-  gap: var(--spacing-2);
 }
 
 .app-shell .c2l-page .c2l-tracking {
@@ -358,4 +286,113 @@
 
 .app-shell:has(:is(.c2l-page, .pre-specs-page, .opportunities-page, .gng-page)) .topbar-tabs .workspace-view-tabs .astryx-button {
   padding-inline: var(--spacing-2);
+}
+
+.app-shell .page-canvas[data-canvas="flush"] :is(.pre-specs-page, .c2l-page, .opportunities-page, .gng-page) .review-list-head {
+  min-height: 34px;
+  padding-block: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-background-muted);
+}
+
+.app-shell .page-canvas :is(.c2l-list-head, .pre-specs-list-head) > p {
+  flex: 1;
+  text-align: left;
+}
+
+/* 발주계획·사전규격 목록의 같은 정보는 같은 읽기 축에 놓는다. */
+.app-shell .page-canvas .c2l-page .c2l-detail-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.app-shell .page-canvas[data-canvas="flush"] :is(.c2l-detail-scroll, .pre-specs-detail-scroll) {
+  padding-block-start: var(--spacing-4);
+}
+
+.app-shell .page-canvas .pre-specs-detail-deadline > span:first-child {
+  font-size: inherit;
+}
+
+body:has(.c2l-detail-actions) .toast {
+  top: var(--space-3);
+  bottom: auto;
+}
+
+/* ADR-0076 결정 15. 일반 본문 재지정과 Astryx 안쪽 label을 포함해 목록 단을 한 곳에서 맞춘다. */
+.review-split-list .review-list-head > :is(p, select),
+.review-split-list .review-list-head > p span {
+  font-size: var(--review-list-primary);
+}
+
+.review-split-list .review-list-head > p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-weight: 400;
+}
+
+.review-split-list .review-list-head :is(.c2l-list-count, .pre-specs-list-count, .opportunity-list-title, .gng-list-title) {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+}
+
+.app-shell .page-canvas .review-split-list :is(
+  .review-selection-toolbar :is(.astryx-button, .interaction-control),
+  .opportunity-row-action
+),
+.app-shell .page-canvas .review-split-list :is(.review-selection-toolbar, .opportunity-next-cell) .astryx-button span {
+  font-size: var(--bo-k-tag);
+}
+
+.app-shell .page-canvas .review-split-list .review-list-pager :is(.astryx-text, .astryx-button, .astryx-button span) {
+  font-size: var(--review-list-secondary);
+  font-weight: 400;
+}
+
+/* 상세 머리의 상태·식별 줄은 발주계획 읽기 단을 공유한다. */
+.review-split-detail .review-detail-head :is(.astryx-token, .bo-tag),
+.review-split-detail .review-detail-head .astryx-token span {
+  font-size: var(--bo-k-tag);
+  font-weight: 700;
+}
+
+.review-split-detail .review-detail-identity,
+.review-split-detail .review-detail-identity :is(p, span, code) {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+  font-weight: 400;
+}
+
+.review-split-detail :is(.c2l-detail-scroll, .pre-specs-detail-scroll, .opportunity-detail-scroll, .gng-detail-scroll) :is(h3, h4) {
+  font-size: var(--bo-k-section);
+  font-weight: 700;
+}
+
+.review-split-detail :is(.c2l-detail-opportunity, .pre-specs-detail-caution-link, .opportunity-linked-link) {
+  font-size: var(--bo-k-body);
+  font-weight: 600;
+}
+
+/* Astryx의 외부 단추와 내부 텍스트가 같은 글자 단을 읽는다. */
+
+.app-shell .page-canvas .review-split-detail :is(.c2l-actor-change, .ps-decision-bar-actor) {
+  width: auto;
+  min-width: 0;
+  height: 32px; /* 발주계획 담당자 버튼의 기존 높이 */
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  color: var(--color-text-secondary);
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--bo-k-meta);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.review-split-detail .ps-decision-bar-actor > span {
+  font-size: inherit;
 }

@@ -22,7 +22,7 @@
  * 크기는 12·14·16·20 네 가지뿐이다. 예전에는 목록 첫 줄만 쓰는 다섯째 크기
  * (13.5px·14.4px)가 화면마다 다른 이름(`--crit-type-list`·`--rs-list-title`·
  * `--review-list-primary`·`--bo-type-list`)으로 있었다. 지금은 모두 list-title을
- * 가리킨다.
+ * 읽으며, 목록|상세 4화면의 목록 칸은 결정 15에 따라 사업명 14px, 기관·메타·날짜·칩 12px를 쓴다.
  *
  * **값이 px인 이유.** Astryx의 `--font-size-*`는 rem이고 이 앱의 root는 14px다
  * (`theme.css`의 `:root { font-size: 14px }`). 화면 글자는 root에 기대지 않고

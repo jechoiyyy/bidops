@@ -17,6 +17,7 @@ import "./styles/workspace-filters.css";
 import "./styles/quality-policy.css";
 import "./styles/operations.css";
 import "./styles/panel-density.css";
+import "./styles/workbench.css";
 import App from "./App";
 
 const queryClient = new QueryClient({

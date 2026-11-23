@@ -1,18 +1,19 @@
+import { DecisionBar, ReviewFilterSegmentedControl, ReviewPreviewHeader, SplitWorkspace } from "../components/common/ReviewPrimitives";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
-import { LockKeyhole, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import {
   CancelButton,
   CriteriaDialog,
   DataTable,
-  DetailFooter,
   DetailHeader,
   DialogActions,
   Disclosure,
+  DialogFacts,
   Facts,
   Note,
   Queue,
@@ -23,6 +24,7 @@ import {
   shortIdentifier,
 } from "../components/criteria/CriteriaPrimitives";
 import { VerificationRequestsPanel } from "../components/criteria/VerificationRequestsPanel";
+import { useProfileSnapshotRegistration } from "../components/criteria/profileAvailability";
 import { api } from "../lib/api";
 import { formatNumber } from "../lib/format";
 import type {
@@ -323,6 +325,7 @@ export function ProfilePage() {
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   const sectionsQuery = useQuery({ queryKey: ["profile-sections"], queryFn: api.getProfileSections, staleTime: 30_000 });
   const unknownsQuery = useQuery({ queryKey: ["profile-unknowns"], queryFn: api.getProfileUnknowns, staleTime: 30_000 });
+  const snapshot = useProfileSnapshotRegistration(sectionsQuery.error);
 
   const rawFilter = searchParams.get("pstatus");
   const filter: ProfileFilter = rawFilter === "confirmed" || rawFilter === "inferred" || rawFilter === "unknown" ? rawFilter : "all";
@@ -356,31 +359,43 @@ export function ProfilePage() {
   const selectedId = searchParams.get("psection");
   const selected = visibleSections.find((section) => section.id === selectedId) ?? visibleSections[0] ?? null;
 
-  if (sectionsQuery.isPending || unknownsQuery.isPending) {
+  if (sectionsQuery.isPending || unknownsQuery.isPending || snapshot.checking) {
     return (
-      <div className="crit-profile-page" id="criteria-panel-profile" role="tabpanel">
-        <VerificationRequestsPanel />
-        <div className="crit-workspace">
+      <div className="crit-profile-page">
+        <div className="workbench-admin-state">
           <StateView
             description="확인되지 않은 항목 수와 상태는 조회가 끝난 뒤 표시해요."
             kind="loading"
-            title="회사 프로필을 읽는 중이에요"
+            title="판정용 프로필 사본을 확인하는 중이에요"
           />
         </div>
       </div>
     );
   }
-  if (sectionsQuery.error || unknownsQuery.error) {
+  if (snapshot.missing || sectionsQuery.error || unknownsQuery.error) {
+    function retryProfile() {
+      void snapshot.refetch?.();
+      void sectionsQuery.refetch();
+      void unknownsQuery.refetch();
+    }
     return (
-      <div className="crit-profile-page" id="criteria-panel-profile" role="tabpanel">
-        <VerificationRequestsPanel />
-        <div className="crit-workspace">
-          <StateView
-            action={<Button label="다시 조회" onClick={() => { void sectionsQuery.refetch(); void unknownsQuery.refetch(); }} />}
-            description="승인된 프로필 사본과 구조화 상태를 확인할 수 없어요. 조회 실패를 0건이나 정상 상태로 표시하지 않아요."
-            kind="error"
-            title="회사 프로필을 불러오지 못했어요"
-          />
+      <div className="crit-profile-page">
+        <div className="workbench-admin-state">
+          {snapshot.missing ? (
+            <StateView
+              action={<Button label="등록 상태 다시 확인" onClick={retryProfile} />}
+              description="운영 담당자가 공고 판정(C-1)에 사용할 승인 사본을 등록하면 항목과 미확인 건수를 볼 수 있어요."
+              kind="empty"
+              title="승인된 판정용 프로필 사본이 없어요"
+            />
+          ) : (
+            <StateView
+              action={<Button label="다시 조회" onClick={retryProfile} />}
+              description="프로필 사본의 구조화 항목과 미확인 건수를 조회할 수 없어요."
+              kind="error"
+              title="판정용 프로필 사본을 불러오지 못했어요"
+            />
+          )}
         </div>
       </div>
     );
@@ -402,11 +417,12 @@ export function ProfilePage() {
   const referenceFields = Array.isArray(unknownsResponse?.reference_fields) ? unknownsResponse.reference_fields : [];
   const unknownTotal = !readFailure && unknownsPayloadAvailable ? unknownsResponse?.total ?? null : null;
   const selectedCounts = selected ? countSection(selected) : null;
+  const selectedHeading = selected ? distinctHeading(selected) : undefined;
 
   return (
-    <div className="crit-profile-page" id="criteria-panel-profile" role="tabpanel">
+    <div className="crit-profile-page">
       <VerificationRequestsPanel />
-      <div className="crit-workspace">
+      <SplitWorkspace className="workbench-admin-workspace" aria-label="판정용 프로필 사본">
       <Queue
         count={!readFailure && sectionsPayloadAvailable ? visibleSections.length : null}
         emptyText={readFailure ? "프로필 응답을 확인할 수 없어요." : sections.length === 0 ? "표시할 프로필 절이 없어요." : "검색·필터 조건에 맞는 절이 없어요."}
@@ -426,8 +442,8 @@ export function ProfilePage() {
           return {
             id: section.id,
             title: section.number ? `${section.number} ${section.title}` : section.title,
-            subtitle: distinctHeading(section),
-            status: STATE_LABELS[section.state] ?? "상태 미기록",
+            subtitle: distinctHeading(section) ?? "별도 머리말 없음",
+            status: { label: STATE_LABELS[section.state] ?? "상태 미기록", tone: "neutral" },
             meta: `${counts.items}개 항목 · 하위 절 ${counts.children}개 · 미확인 ${counts.unknown}개${counts.errors > 0 ? ` · 구조화 실패 ${counts.errors}건` : ""}`,
           };
         })}
@@ -436,6 +452,13 @@ export function ProfilePage() {
         title="기준 항목"
         tools={
           <>
+            <ReviewFilterSegmentedControl
+              label="확인 상태 필터"
+              layout="hug"
+              value={filter}
+              onChange={(value) => updateParams({ pstatus: value === "all" ? null : value, psection: null })}
+              options={Object.entries(FILTER_LABELS).map(([value, label]) => ({ value, label }))}
+            />
             <TextInput
               hasClear
               isLabelHidden
@@ -446,21 +469,11 @@ export function ProfilePage() {
               startIcon={Search}
               value={query}
             />
-            <div aria-label="확인 상태 필터" className="crit-filters" role="group">
-              {(Object.keys(FILTER_LABELS) as ProfileFilter[]).map((value) => (
-                <Button
-                  aria-pressed={filter === value}
-                  key={value}
-                  label={FILTER_LABELS[value]}
-                  onClick={() => updateParams({ pstatus: value === "all" ? null : value, psection: null })}
-                  size="sm"
-                />
-              ))}
-            </div>
           </>
         }
       />
-      <section aria-label="선택한 프로필 항목" className="crit-detail">
+      <section aria-label="선택한 프로필 항목" className="review-split-detail crit-detail">
+        <ReviewPreviewHeader />
         {/* 응답이 깨진 사실은 고를 절이 하나도 없을 때에도 사라지면 안 된다.
           * 빈 목록과 읽기 실패는 다른 상태다. */}
         {readFailure && selected ? (
@@ -474,14 +487,18 @@ export function ProfilePage() {
           <>
             <DetailHeader
               eyebrow="회사 프로필 · 승인 사본"
-              status="읽기 전용"
+              status={{ label: "읽기 전용", tone: "neutral" }}
               title={selected.number ? `${selected.number} ${selected.title}` : selected.title}
             >
               {/* 상세 제목 밑줄은 시안처럼 짧게 둔다. 사본 버전과 식별 해시
                 * 전문은 "사본 정보" 창에 있고 여기서 되풀이하지 않는다. */}
               <Small>{`구조화 항목 ${selectedCounts.items}개 · 미확인 ${selectedCounts.unknown}개`}</Small>
             </DetailHeader>
-            <div className="crit-detail-scroll" id="criteria-profile-detail">
+            <div className="workbench-admin-detail-scroll crit-detail-scroll" id="criteria-profile-detail">
+              {selectedHeading ? <Small>{selectedHeading}</Small> : null}
+              <Facts items={[
+                ["절 구조", `하위 절 ${selectedCounts.children}개${selectedCounts.errors > 0 ? ` · 구조화 실패 ${selectedCounts.errors}건` : ""}`],
+              ]} />
               <ul className="crit-tree">
                 <SectionTree depth={0} filter={filter} query={query} section={selected} unknowns={unknowns} />
               </ul>
@@ -505,9 +522,14 @@ export function ProfilePage() {
                 ) : null}
               </Section>
             </div>
-            <DetailFooter note={<><LockKeyhole aria-hidden="true" /> 승인 사본은 이 화면에서 편집할 수 없어요.</>}>
-              <Button label="사본 정보" onClick={() => setSnapshotOpen(true)} size="sm" />
-            </DetailFooter>
+            <DecisionBar
+              stateLabel="프로필 상태"
+              state={{ label: "읽기 전용", tone: "neutral" }}
+              note={"승인 사본은 이 화면에서 편집할 수 없어요."}
+              primaryAction={
+                <Button label="사본 정보" onClick={() => setSnapshotOpen(true)} size="sm" />
+              }
+            />
           </>
         ) : (
           <StateView
@@ -524,9 +546,9 @@ export function ProfilePage() {
           />
         )}
       </section>
-      </div>
+      </SplitWorkspace>
       <CriteriaDialog onClose={() => setSnapshotOpen(false)} open={snapshotOpen} title="승인 사본 정보">
-        <Facts items={[
+        <DialogFacts items={[
           ["프로필 버전", <span className="crit-mono" key="v">{profileVersion ?? "사본 미확인"}</span>],
           ["식별 해시", <code key="d">{profileDigest ?? "미확인"}</code>],
           ["응답 규격", <code key="s">{sectionsResponse?.schema_version ?? "미확인"}</code>],

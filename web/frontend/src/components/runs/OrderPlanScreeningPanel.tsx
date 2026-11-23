@@ -1,3 +1,4 @@
+import { executionStatusTone } from "./runStatusData";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -216,6 +217,7 @@ export function OrderPlanScreeningPanel({
                   <StatusToken
                     key="status"
                     label={execution.status}
+                    tone={executionStatusTone(execution.status)}
                     description="발주계획 선별 실행의 상태예요. 수집 회차의 상태와 달라요."
                   />,
                   mono(execution.policy_version, "policy"),
@@ -357,7 +359,10 @@ export function OrderPlanScreeningPanel({
                         <span className="rs-row-sub">{mono(attempt.generation_config_sha256, "generation-sha")}</span>
                       </span>,
                       <span className="rs-cell" key="status">
-                        <StatusToken label={ATTEMPT_STATUS_LABEL[attempt.attempt_status]} />
+                        <StatusToken
+                          label={ATTEMPT_STATUS_LABEL[attempt.attempt_status]}
+                          tone={attempt.attempt_status === "failed" ? "error" : attempt.attempt_status === "success" ? "success" : "neutral"}
+                        />
                         <span className="rs-row-sub">{mono(attempt.attempt_status, "status-token")}</span>
                       </span>,
                       <span className="rs-cell" key="failure">
@@ -411,7 +416,10 @@ export function OrderPlanScreeningPanel({
                       <span className="rs-row-sub">{`${artifact.artifact_schema_version} · 객체 버전 ${textValue(artifact.object_version, "미제공")} · ${moment(artifact.created_at)}`}</span>
                     </span>,
                     <span className="rs-cell" key="validation">
-                      <StatusToken label={VALIDATION_LABEL[artifact.validation_status]} />
+                      <StatusToken
+                        label={VALIDATION_LABEL[artifact.validation_status]}
+                        tone={artifact.validation_status === "invalid" ? "error" : artifact.validation_status === "valid" ? "success" : "neutral"}
+                      />
                       <span className="rs-row-sub">{mono(artifact.validation_status, "validation-token")}</span>
                     </span>,
                     <span className="rs-mono" key="bytes">{formatNumber(artifact.byte_count)}</span>,

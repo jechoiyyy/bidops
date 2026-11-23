@@ -173,8 +173,8 @@ test("demo가 켜져 있으면 /companies/:id/profile은 세 회사 모두 /comp
     await page.goto(`/companies/${companyId(slug)}/profile`);
     // replace 이동이라 주소가 /company이고(위키 개요는 쿼리 없이 열린다) 뒤로 가기가 옛 주소로 돌아가지 않는다.
     await expect(page).toHaveURL(/\/company$/);
-    // 화면 이름은 패널 헤더의 작은 글자다(ADR-0076). `<h1>`은 문장형 제목이다.
-    await expect(page.locator("header.topbar").getByTestId("page-header-eyebrow")).toHaveText("회사 근거");
+    // 위치 줄의 화면 이름이 `<h1>`이고, 실적 건수 문장은 설명 줄에 표시한다.
+    await expect(page.locator("header.topbar h1")).toHaveText("회사 근거");
     await expect(page.getByRole("group", { name: "회사 근거 보기" })).toBeVisible();
     await expect(page.getByTestId("company-header")).toHaveCount(0);
     await expect(page.locator("main")).not.toContainText(COMPANY_BY_SLUG[slug].name);

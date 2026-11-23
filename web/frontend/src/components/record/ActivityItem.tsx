@@ -14,6 +14,7 @@ import {
   StickyNote,
 } from "lucide-react";
 import { activityDateTimeAttr, activityTimeLabel, initialOf, safeActivityLink, splitActor } from "../../lib/record";
+import { StatusMark } from "../common/Marks";
 import type { OpportunityActivityItem } from "../../lib/types";
 
 /*
@@ -53,7 +54,7 @@ export function ActivityItem({ item, now }: { item: OpportunityActivityItem; now
         <p className="rec-activity-title">
           {lead ? <strong>{lead}</strong> : null}
           {rest}
-          {item.status_pill ? <span className="rec-activity-pill">{item.status_pill}</span> : null}
+          {item.status_pill ? <StatusMark className="rec-activity-pill" mark={{ label: item.status_pill, tone: "neutral" }} /> : null}
         </p>
         {item.detail ? <p className="rec-activity-detail">{item.detail}</p> : null}
         <p className="rec-activity-meta">

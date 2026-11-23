@@ -4,18 +4,13 @@ import { DialogHeader } from "@astryxdesign/core/Dialog";
 import { Dialog } from "../common/WorkspaceDialog";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Table, proportional, type TableColumn } from "@astryxdesign/core/Table";
-import { Tab, TabList } from "@astryxdesign/core/TabList";
+import { Tab } from "@astryxdesign/core/TabList";
 import { Text } from "@astryxdesign/core/Text";
-import { Token } from "@astryxdesign/core/Token";
+import { AdminListHeader, AdminRecordTable, type AdminRecord } from "../common/AdminRecordTable";
+import { SideFacts } from "../common/Facts";
+import { StatusMark, type Mark, type MarkTone } from "../common/Marks";
+import { DetailTabs as WorkbenchDetailTabs } from "../common/ReviewPrimitives";
 import { AlertCircle, LoaderCircle, Search } from "lucide-react";
-
-/**
- * 판정 기준 화면 네 탭이 함께 쓰는 조각.
- *
- * 승인된 시안(`design-previews/bidops-criteria-runstatus-erp-20260907/source/shared.tsx`)의
- * 구조·정보 순서를 그대로 옮기고 이름만 이 저장소 규칙으로 바꿨다. 값은 넣지 않고
- * 표시만 한다 — 어떤 상태를 무슨 말로 부를지는 각 탭이 API 응답에서 정한다.
- */
 
 export function Small({ children, className }: { children: ReactNode; className?: string }) {
   return <Text as="span" className={`crit-small${className ? ` ${className}` : ""}`} color="secondary">{children}</Text>;
@@ -33,23 +28,8 @@ export function shortIdentifier(value: string): string {
   return value.length <= 34 ? value : `${value.slice(0, 26)}…${value.slice(-6)}`;
 }
 
-/**
- * 상태 표식.
- *
- * 성공·실패 의미색은 서버가 실제로 통과/미달을 말한 값에만 붙인다. 미측정·보류·
- * 계산 불가·미확인·참조 실행은 성공도 실패도 아니므로 중립색으로 두고
- * (`web/frontend/AGENTS.md` "상태 표현"), 색이 아니라 글자가 상태를 말한다.
- */
-// 승인 시안 `shared.tsx`의 `Status`와 같은 배정이다. 프로필의 `확정`·`추정`은
-// 판정의 성공·실패가 아니라 자료의 확인 단계이므로 의미색을 붙이지 않는다 —
-// 초록 `확정`은 "게이트를 통과했다"로 잘못 읽힌다.
-const POSITIVE = new Set(["통과", "성공", "측정 통과"]);
-const NEGATIVE = new Set(["실패", "미달"]);
-const CAUTION = new Set(["부분 성공", "확인 필요"]);
-
-export function StatusToken({ label, size = "sm" }: { label: string; size?: "sm" | "md" }) {
-  const color = POSITIVE.has(label) ? "green" : NEGATIVE.has(label) ? "red" : CAUTION.has(label) ? "orange" : "gray";
-  return <Token color={color} label={label} size={size} />;
+export function StatusToken({ label, tone = "neutral" }: { label: string; tone?: MarkTone }) {
+  return <StatusMark mark={{ label, tone }} />;
 }
 
 export function Section({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
@@ -65,6 +45,10 @@ export function Section({ title, children, action }: { title: string; children: 
 }
 
 export function Facts({ items }: { items: [string, ReactNode][] }) {
+  return <SideFacts items={items.map(([label, value]) => ({ label, value }))} />;
+}
+
+export function DialogFacts({ items }: { items: [string, ReactNode][] }) {
   return (
     <dl className="crit-facts">
       {items.map(([term, value]) => <div key={term}><dt>{term}</dt><dd>{value}</dd></div>)}
@@ -112,58 +96,36 @@ export function Disclosure({ summary, children }: { summary: string; children: R
   );
 }
 
-export interface QueueItem extends Record<string, unknown> {
-  id: string;
-  title: string;
-  subtitle?: ReactNode;
-  meta?: ReactNode;
-  status?: string;
-}
-
-export function Queue({ title, count, items, selectedId, onSelect, footer, tools, emptyText }: {
+export function Queue({ title, count, items, selectedId, onSelect, footer, tools, emptyText, identifierWidth }: {
   title: string;
   /** 목록 머리의 건수. 조회 실패·미확인은 `null`로 넘겨 0건으로 접지 않는다. */
   count: number | null;
-  items: QueueItem[];
+  items: AdminRecord<string>[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   footer: ReactNode;
   tools?: ReactNode;
   emptyText: string;
+  identifierWidth?: number;
 }) {
-  const columns: TableColumn<QueueItem>[] = [{
-    key: "record",
-    header: title,
-    width: proportional(1),
-    renderCell: (item) => (
-      <button aria-pressed={selectedId === item.id} className="crit-record" onClick={() => onSelect(item.id)} type="button">
-        <span className="crit-record-line">
-          <Text as="span" className="crit-record-title">{item.title}</Text>
-          {item.status ? <StatusToken label={item.status} /> : null}
-        </span>
-        {item.subtitle ? <Text as="span" className="crit-record-subtitle">{item.subtitle}</Text> : null}
-        {item.meta ? <Small>{item.meta}</Small> : null}
-      </button>
-    ),
-  }];
   return (
-    <section aria-label={title} className="crit-queue">
-      <header className="crit-pane-head">
-        <Text weight="semibold">{title}</Text>
-        <Small>{count === null ? "건수 미확인" : `${count.toLocaleString("ko-KR")}건`}</Small>
-      </header>
-      {tools ? <div className="crit-queue-tools">{tools}</div> : null}
-      <div className="crit-queue-scroll">
-        {items.length > 0 ? (
-          <Table columns={columns} data={items} density="compact" dividers="rows" hasHover idKey="id" verticalAlign="top" />
-        ) : (
-          <div className="crit-empty-inline">
-            <Search aria-hidden="true" />
-            <Text as="p">{emptyText}</Text>
-          </div>
-        )}
-      </div>
-      <footer className="crit-pane-foot"><Small>{footer}</Small></footer>
+    <section aria-label={title} className="review-split-list">
+      <AdminListHeader
+        title={title}
+        count={count === null ? "건수 미확인" : `${count.toLocaleString("ko-KR")}건`}
+        toolsClassName="crit-queue-tools"
+      >
+        {tools}
+      </AdminListHeader>
+      <AdminRecordTable
+        label={title}
+        identifierWidth={identifierWidth}
+        onSelect={onSelect}
+        rows={items}
+        selectedId={selectedId}
+        state={{ kind: "empty", message: { title: emptyText } }}
+      />
+      <footer className="workbench-admin-list-foot crit-pane-foot"><Small>{footer}</Small></footer>
     </section>
   );
 }
@@ -171,14 +133,14 @@ export function Queue({ title, count, items, selectedId, onSelect, footer, tools
 export function DetailHeader({ eyebrow, title, status, children }: {
   eyebrow: ReactNode;
   title: string;
-  status?: string;
+  status?: Mark;
   children?: ReactNode;
 }) {
   return (
     <header className="crit-detail-head">
       <div className="crit-detail-eyebrow-row">
         <Small>{eyebrow}</Small>
-        {status ? <StatusToken label={status} /> : null}
+        {status ? <StatusMark mark={status} /> : null}
       </div>
       <Heading level={2}>{title}</Heading>
       {children}
@@ -193,30 +155,24 @@ export function DetailTabs({ id, value, onChange, items }: {
   items: [string, string][];
 }) {
   return (
-    <div className="crit-detail-tabs">
-      <TabList hasDivider onChange={onChange} role="tablist" size="md" value={value}>
-        {items.map(([tabValue, label]) => <Tab key={tabValue} label={label} panelId={`${id}-${tabValue}`} value={tabValue} />)}
-      </TabList>
-    </div>
-  );
-}
-
-export function DetailFooter({ note, children }: { note: ReactNode; children?: ReactNode }) {
-  return (
-    <footer className="crit-detail-foot">
-      <span className="crit-detail-foot-note"><Small>{note}</Small></span>
-      {children ? <div className="crit-detail-foot-actions">{children}</div> : null}
-    </footer>
+    <WorkbenchDetailTabs onChange={onChange} value={value}>
+      {items.map(([tabValue, label]) => <Tab key={tabValue} label={label} panelId={`${id}-${tabValue}`} value={tabValue} />)}
+    </WorkbenchDetailTabs>
   );
 }
 
 /** 표 한 벌. 머리글과 셀만 받는다 — 셀의 의미는 부르는 쪽이 정한다. */
-export function DataTable({ headings, rows, caption }: { headings: string[]; rows: ReactNode[][]; caption?: string }) {
+export function DataTable({ headings, rows, caption, firstColumnWeight = 0.8 }: {
+  headings: string[];
+  rows: ReactNode[][];
+  caption?: string;
+  firstColumnWeight?: number;
+}) {
   interface Row extends Record<string, unknown> { id: number; cells: ReactNode[] }
   const columns: TableColumn<Row>[] = headings.map((header, index) => ({
     key: `col${index}`,
     header,
-    width: proportional(index === 0 ? 0.8 : 1),
+    width: proportional(index === 0 ? firstColumnWeight : 1),
     renderCell: (row: Row) => row.cells[index],
   }));
   return (

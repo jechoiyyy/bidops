@@ -291,7 +291,7 @@ test("운영 번들의 사전규격 상세에는 분석 엔진 mock 패널을 �
   await mockPreSpecs(page);
   await mockRealCompany(page, { notRegistered: true });
   await page.goto("/pre-specs/991");
-  await expect(page.locator(".pre-spec-detail-header")).toBeVisible();
+  await expect(page.locator("#ps-summary")).toBeVisible();
   await expect(page.getByText("분석 엔진 · mock 참조")).toHaveCount(0);
   await expect(page.getByTestId("engine-analysis-panel")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "mock 참조 실행" })).toHaveCount(0);

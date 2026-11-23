@@ -3,7 +3,7 @@
  * 이 파일은 승인된 시안(`design-previews/bidops-go-no-go-erp-20260907/`)의 두 번째
  * 화면(`decision-review-*`) 중 **페이지가 소유한 부분만** 옮긴 것이다. 시안의
  * 바깥 셸(preview bar·sidebar)은 제품 공통 셸이 이미 갖고 있으므로 옮기지 않는다.
- * 읽기 62% : 결정 입력 38%, 결정 확인 액션은 오른쪽 아래에 고정한다.
+ * 읽기 60% : 결정 입력 40%, 결정 확인 액션은 오른쪽 아래에 고정한다.
  *
  * 색은 `bidops` 테마 토큰만 읽는다(ADR-0048). 값은 전부 토큰이며 raw hex·px를 두지
  * 않는다(이전 판의 `--space-*`·`--color-muted`·px 값은 이 시안 구현에서 사라졌다).
@@ -80,7 +80,6 @@
 .bid-delta-help,
 .bid-delta-selection-note,
 .bid-delta-form-note,
-.bid-delta-footer-note,
 .bid-delta-interpretation,
 .bid-delta-counts-line,
 .bid-delta-currentness-reasons {
@@ -109,24 +108,23 @@
   padding: var(--spacing-2) 0;
 }
 
-.bid-delta-head-line {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  min-width: 0;
-}
-
-.bid-delta-head-line h2 {
-  font-size: var(--bo-type-detail-title);
-  line-height: var(--bo-type-page-title-leading);
-  font-weight: var(--bo-type-page-title-weight);
-  overflow-wrap: anywhere;
-}
-
 .bid-delta-head-actions {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
+}
+
+.bid-delta-head-actions > .interaction-control {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1-5);
+}
+
+.bid-delta-head-actions > .interaction-control > svg,
+.bid-delta-section-nav a > svg {
+  flex: 0 0 var(--spacing-4);
+  width: var(--spacing-4);
+  height: var(--spacing-4);
 }
 
 .bid-delta-back-link,
@@ -151,46 +149,12 @@
 
 /* --- 결정 대상 사업 --- */
 
-.bid-delta-business {
-  display: grid;
-  flex: 0 0 auto;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-element) var(--radius-element) 0 0;
-  background: var(--color-background-surface);
-}
-
-.bid-delta-business-line {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-3);
-  min-width: 0;
-}
-
-.bid-delta-business-line h3 {
-  font-size: var(--bo-type-section-title);
-  line-height: var(--bo-type-page-title-leading);
-  font-weight: var(--bo-type-page-title-weight);
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.bid-delta-business-meta {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
-  overflow-wrap: anywhere;
-}
-
-/* --- 읽기 62% : 결정 입력 38% --- */
+/* --- 읽기 60% : 결정 입력 40% --- */
 
 .bid-delta-workspace {
-  display: flex;
+  display: grid;
   flex: 1 1 0;
-  flex-direction: row;
-  align-items: stretch;
+  grid-template-columns: minmax(0, 60%) minmax(0, 1fr);
   min-height: 0;
   border: var(--border-width) solid var(--color-border);
   border-top: 0;
@@ -201,7 +165,6 @@
 
 .bid-delta-reading {
   display: flex;
-  flex: 1 1 auto;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
@@ -209,9 +172,7 @@
 
 .bid-delta-decision-pane {
   display: flex;
-  flex: 0 0 38%;
   flex-direction: column;
-  width: 38%;
   min-width: 0;
   min-height: 0;
   border-left: var(--border-width) solid var(--color-border);
@@ -316,10 +277,7 @@
   justify-self: start;
 }
 
-/* --- 왼쪽: 공고 조건 요약 (spec §11.3) ---
- * 최신 차수 표는 항목·값 두 쌍을 한 줄에 둔다. 15개 항목이 한 열이면 읽기 칸의 첫
- * 화면을 표 하나가 다 차지한다. 상태는 색이 아니라 `변경`·`변경 없음`·`미확인`
- * 문자 토큰으로 전달하고, 변경만 테두리로 한 번 더 강조한다. */
+/* --- 왼쪽: 공고 조건 요약 (spec §11.3) --- */
 
 .bid-delta-conditions,
 .bid-delta-conditions-sub {
@@ -334,26 +292,8 @@
   border-bottom: var(--border-width) solid var(--color-border);
 }
 
-.bid-delta-conditions-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
-
-.bid-delta-conditions-table th,
-.bid-delta-conditions-table td {
-  padding: var(--spacing-2) var(--spacing-3);
-  border: var(--border-width) solid var(--color-border);
-  text-align: left;
-  vertical-align: top;
-  overflow-wrap: anywhere;
-}
-
-.bid-delta-conditions-table th {
-  width: 18%;
-  color: var(--color-text-secondary);
-  font-weight: var(--bo-type-section-title-weight);
-  background: var(--color-background-body);
+.bid-delta-conditions .workbench-facts {
+  margin-block: var(--spacing-2);
 }
 
 .bid-delta-round-stack {
@@ -520,8 +460,7 @@
   gap: var(--spacing-3);
 }
 
-.bid-delta-request-preview,
-.bid-delta-form-fence {
+.bid-delta-request-preview {
   display: grid;
   gap: var(--spacing-2);
   min-width: 0;
@@ -531,16 +470,14 @@
   background: var(--color-background-surface);
 }
 
-.bid-delta-request-preview > div,
-.bid-delta-form-fence > div {
+.bid-delta-request-preview > div {
   display: grid;
   gap: var(--spacing-0-5);
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.bid-delta-request-preview span,
-.bid-delta-form-fence span {
+.bid-delta-request-preview span {
   color: var(--color-text-secondary);
   font-size: var(--bo-type-caption);
 }
@@ -718,52 +655,29 @@
   background: var(--color-background-body);
 }
 
-.bid-delta-save-conditions {
+.bid-delta-save-checks {
   display: grid;
   gap: var(--spacing-1);
-  padding-left: var(--spacing-4);
 }
 
-.bid-delta-save-conditions > li {
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
-  color: var(--color-text-secondary);
-}
-
-.bid-delta-save-conditions > li[data-met="true"] {
-  color: var(--color-text-primary);
-}
-
-/* 체크리스트는 한 줄에 흘려 쓴다. 세 줄로 세우면 결정 칸 첫 화면에서 담당자 입력이 밀린다. */
-.bid-delta-save-conditions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-1) var(--spacing-3);
-  list-style: none;
-  padding-left: 0;
-}
-
-.bid-delta-save-conditions > li {
-  display: flex;
-  align-items: baseline;
+.bid-delta-checklist {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--spacing-1);
-  min-width: 0;
-  overflow-wrap: anywhere;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-/* 충족 여부는 색만이 아니라 `확인됨`·`필요` 문자로 먼저 말한다. */
-.bid-delta-check-state {
-  flex: 0 0 auto;
-  padding: 0 var(--spacing-1);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-inner);
-  text-align: center;
-  font-size: var(--bo-type-caption);
+.bid-delta-checklist > li {
+  display: grid;
+  justify-items: start;
+  gap: var(--spacing-0-5);
 }
 
-.bid-delta-save-conditions > li[data-met="true"] .bid-delta-check-state {
-  border-color: var(--color-accent);
-  color: var(--color-text-accent);
+.bid-delta-checklist .bid-delta-check-label {
+  font-size: var(--bo-k-small);
+  white-space: nowrap;
 }
 
 .bid-delta-decision-basis {
@@ -779,12 +693,20 @@
 }
 
 .bid-delta-decision-footer {
-  display: grid;
+  flex-wrap: nowrap;
+}
+
+.bid-delta-decision-footer .workbench-decision-note {
+  flex-basis: 100%;
+}
+
+.bid-delta-decision-footer .workbench-decision-note span {
+  display: block;
+  font-size: inherit;
+}
+
+.bid-delta-decision-footer .workbench-decision-actions {
   flex: 0 0 auto;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-5);
-  border-top: var(--border-width) solid var(--color-border);
-  background: var(--color-background-body);
 }
 
 .bid-delta-decision-history,
@@ -815,19 +737,6 @@
   justify-content: space-between;
   gap: var(--spacing-2);
   min-width: 0;
-}
-
-.bid-delta-availability {
-  display: grid;
-  justify-items: start;
-  gap: var(--spacing-3);
-  padding: var(--spacing-4) 0;
-}
-
-.bid-delta-availability > svg {
-  width: var(--spacing-6);
-  height: var(--spacing-6);
-  color: var(--color-text-accent);
 }
 
 .bid-delta-page-status,
@@ -896,4 +805,26 @@
   display: flex;
   justify-content: flex-end;
   gap: var(--spacing-2);
+}
+
+.bid-delta-section-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.bid-delta-section-nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1-5);
+  min-height: calc(var(--shell-tools-height) - 1px);
+  padding-inline: var(--spacing-2);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.bid-delta-section-nav a:hover,
+.bid-delta-section-nav a:focus-visible {
+  color: var(--color-text-accent);
 }

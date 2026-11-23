@@ -1,3 +1,4 @@
+import { executionStatusTone } from "../runs/runStatusData";
 import { Text } from "@astryxdesign/core/Text";
 import { DataTable, Section, Small, StatusToken } from "../criteria/CriteriaPrimitives";
 import type { ScreeningExecutionResponse } from "../../lib/types";
@@ -37,7 +38,7 @@ function runRow(label: string, run: ScreeningExecutionResponse) {
       <Text weight="semibold">{label}</Text>
       <Small><code>{run.execution_id}</code></Small>
     </span>,
-    <StatusToken key="status" label={run.status} />,
+    <StatusToken key="status" label={run.status} tone={executionStatusTone(run.status)} />,
     <span className="crit-cell-stack" key="progress">
       <Text>{stateDescription(run)}</Text>
       <Small>{`표본 ${run.candidate_count}건 · 완료 ${run.completed_count}건 · 실패 ${run.failure_count}건`}</Small>

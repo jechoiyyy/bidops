@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@astryxdesign/core/Button";
-import { StatusBadge } from "../common/StatusBadge";
+import { StatusMark } from "../common/Marks";
 import { api } from "../../lib/api";
 import { formatNumber } from "../../lib/format";
 import { orderPlanReviewTierSummary } from "../../lib/glossary";
@@ -16,7 +16,7 @@ import { BASIS_RULE_TEXT, dailyNoticeStatus, dailyRunStatus, latestDailyRun, typ
  * 돈 사실만 적는다. 마지막 실행이 1일보다 오래됐거나 C-2 실행이 성공·부분 성공이 아니면
  * `확인 필요` 상태다. 조회 실패는 "돌았다"로 읽지 않는다.
  */
-export function useDailyRunStatus() {
+function useDailyRunStatus() {
   const runsQuery = useQuery({ queryKey: ["runs"], queryFn: api.getRuns, staleTime: 30_000 });
   const latestRunId = useMemo(() => {
     const status = dailyRunStatus(runsQuery.data?.items ?? [], [], Date.now());
@@ -97,44 +97,48 @@ function problemSentence(status: DailyRunStatus): string | null {
   return sentences.length ? sentences.join(" ") : null;
 }
 
-const STATE_BADGE = {
+const STATE_MARK = {
   ok: { label: "정상", tone: "neutral" },
   in_progress: { label: "진행 중", tone: "neutral" },
   warning: { label: "확인 필요", tone: "warning" },
 } as const;
+
+function DailyRunFacts({ title, parts }: { title: string; parts: string[] }) {
+  // 앞 단어와 가운뎃점 사이를 묶어서 다음 줄은 항상 사실 문구로 시작한다.
+  const facts = parts.join(" · ").replaceAll(" · ", "\u00a0· ");
+  return <span className="daily-run-facts"><span className="daily-run-title">{title}</span>{`\u00a0· ${facts}`}</span>;
+}
 
 /**
  * `embedded`: 대시보드 `일일 수집` 묶음 안의 한 행이다. 테두리 없이 그리고 행 제목은 트랙 이름이다.
  */
 export function DailyRunStatusLine({ className = "", showLink = true, embedded = false }: { className?: string; showLink?: boolean; embedded?: boolean }) {
   const { status, isPending, isError, refetch } = useDailyRunStatus();
+  const lineClassName = `daily-run-line${embedded ? " is-row" : ""}${className ? ` ${className}` : ""}`;
   if (isPending) {
-    return <p className={`daily-run-line ${className}`.trim()} data-testid="daily-run-status" role="status">발주계획 일일 실행 · 기록을 확인하는 중이에요.</p>;
+    return <p className={lineClassName} data-testid="daily-run-status" role="status">발주계획 일일 실행&nbsp;· 기록을 확인하는 중이에요.</p>;
   }
   if (isError) {
     return (
-      <div className={`daily-run-line is-warning ${className}`.trim()} data-testid="daily-run-status" data-state="error" role="status">
-        <StatusBadge label="확인 불가" tone="warning" />
+      <div className={`${lineClassName} is-warning`} data-testid="daily-run-status" data-state="error" role="status">
+        <StatusMark mark={{ label: "확인 불가", tone: "warning" }} />
         <span>발주계획 일일 실행 기록을 불러오지 못했어요. 돌았다고 가정하지 않아요.</span>
         <Button label="다시 조회" onClick={refetch} size="sm" variant="ghost" />
       </div>
     );
   }
   const problem = problemSentence(status);
-  const badge = STATE_BADGE[status.state];
+  const mark = STATE_MARK[status.state];
   return (
     <div
-      className={`daily-run-line${embedded ? " is-row" : ""}${status.state === "warning" ? " is-warning" : ""} ${className}`.trim()}
+      className={`${lineClassName}${status.state === "warning" ? " is-warning" : ""}`}
       data-state={status.state}
       data-testid="daily-run-status"
       role="status"
       title={BASIS_RULE_TEXT}
     >
-      <StatusBadge label={badge.label} tone={badge.tone} />
-      <span className="daily-run-facts">
-        <span className="daily-run-title">{embedded ? "발주계획" : "발주계획 일일 실행"}</span>
-        {factParts(status).map((part) => <span className="daily-run-fact" key={part}>{part}</span>)}
-      </span>
+      <StatusMark mark={mark} />
+      <DailyRunFacts title={embedded ? "발주계획" : "발주계획 일일 실행"} parts={factParts(status)} />
       {problem ? <span className="daily-run-problem">{problem}</span> : null}
       {showLink ? <Link className="daily-run-link" to="/runs">회차 기록 →</Link> : null}
     </div>
@@ -146,7 +150,7 @@ export function DailyRunStatusLine({ className = "", showLink = true, embedded =
  * 기준일이 가장 늦은 `lifecycle-<기준일>-notices` 회차를 고르고(목록에 있으면 적재된 회차다), 그 회차
  * 하나의 `/api/runs/<id>/warnings` 건수를 붙인다(추가 호출은 그 하나뿐이다).
  */
-export function DailyNoticeStatusLine() {
+function DailyNoticeStatusLine() {
   const runsQuery = useQuery({ queryKey: ["runs"], queryFn: api.getRuns, staleTime: 30_000 });
   const latestId = useMemo(() => latestDailyRun(runsQuery.data?.items ?? [], "notices")?.run.run_id ?? null, [runsQuery.data]);
   const warningsQuery = useQuery({
@@ -157,17 +161,17 @@ export function DailyNoticeStatusLine() {
     retry: false,
   });
   const now = useMemo(() => Date.now(), []);
-  if (runsQuery.isPending) return <p className="daily-run-line is-row" data-testid="daily-notice-status" role="status">공고 · 기록을 확인하는 중이에요.</p>;
+  if (runsQuery.isPending) return <p className="daily-run-line is-row" data-testid="daily-notice-status" role="status">공고&nbsp;· 기록을 확인하는 중이에요.</p>;
   if (runsQuery.isError) {
     return (
       <div className="daily-run-line is-row is-warning" data-state="error" data-testid="daily-notice-status" role="status">
-        <StatusBadge label="확인 불가" tone="warning" />
+        <StatusMark mark={{ label: "확인 불가", tone: "warning" }} />
         <span>공고 일일 수집 기록을 불러오지 못했어요. 돌았다고 가정하지 않아요.</span>
       </div>
     );
   }
   const status = dailyNoticeStatus(runsQuery.data.items, warningsQuery.isSuccess ? warningsQuery.data.total : null, now);
-  const badge = STATE_BADGE[status.state];
+  const mark = STATE_MARK[status.state];
   return (
     <div
       className={`daily-run-line is-row${status.state === "warning" ? " is-warning" : ""}`}
@@ -176,11 +180,8 @@ export function DailyNoticeStatusLine() {
       role="status"
       title={BASIS_RULE_TEXT}
     >
-      <StatusBadge label={status.state === "ok" ? "수집 완료" : badge.label} tone={badge.tone} />
-      <span className="daily-run-facts">
-        <span className="daily-run-title">공고(사전규격·입찰공고)</span>
-        {noticeFactParts(status, warningsQuery.isError).map((part) => <span className="daily-run-fact" key={part}>{part}</span>)}
-      </span>
+      <StatusMark mark={mark} />
+      <DailyRunFacts title="공고(사전규격·입찰공고)" parts={noticeFactParts(status, warningsQuery.isError)} />
       {latestId && status.warningCount !== null && status.warningCount > 0 ? (
         <Link className="daily-run-link" to={`/audit?run=${encodeURIComponent(latestId)}#run-warnings`}>적재 경고 보기 →</Link>
       ) : null}
@@ -201,7 +202,7 @@ function noticeFactParts(status: DailyNoticeStatus, warningsFailed: boolean): st
 }
 
 /** 대시보드의 `일일 수집` 묶음: 발주계획·공고 두 트랙을 한 덩어리 두 행으로 그린다(G1). */
-export function DailyCollectionStatus() {
+export function DailyCollectionStatus({ collectionStatus }: { collectionStatus: ReactNode }) {
   return (
     <section aria-label="일일 수집" className="daily-collection" data-testid="daily-collection">
       <header className="daily-collection-head">
@@ -209,6 +210,7 @@ export function DailyCollectionStatus() {
         <span className="daily-collection-aux">오늘 기준일은 아직 수집 전일 수 있어요 · 정오 전에는 그저께 기준일까지를 정상으로 봐요</span>
         <Link className="daily-run-link" to="/runs">회차 기록 →</Link>
       </header>
+      {collectionStatus}
       <DailyRunStatusLine embedded showLink={false} />
       <DailyNoticeStatusLine />
     </section>

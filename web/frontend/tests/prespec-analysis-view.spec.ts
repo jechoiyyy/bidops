@@ -74,12 +74,11 @@ test("분석 완료 화면: 구역 순서·건수 줄·충족 접힘·점수 없
   await openAnalysis(page);
   const analysis = completed.analysis!;
 
-  // 사실 줄 → 분석 결과 요약 → 자격 조건 → 확인할 일 → 요구사항 대응 → 리스크 → 인력·계약 → 개요 → 원문 → 처리 상태.
-  // 회사 관련성 참고 구역은 이 화면 구성에 없다.
-  const ids = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".ps-record > [id]")].map((element) => element.id));
-  expect(ids).toEqual(["ps-summary", "pa-summary", "pa-gates", "pa-todos", "pa-reqs", "pa-risks", "pa-terms", "ps-tasks", "ps-evidence", "ps-process"]);
-  // 사실 줄에 추적 상태가 더해진다. 헤더 탭 자리의 구역 이동 링크는 숨기지 않는 링크다(탭이 아니다).
-  await expect(page.locator("#ps-summary dt", { hasText: "추적 상태" })).toBeVisible();
+  // 분석 결과 구역과 후속 구역의 순서를 확인한다. 사실은 오른쪽 정보 열에 있다.
+  const ids = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".ps-record .workbench-record-main > section[id]")].map((element) => element.id));
+  expect(ids).toEqual(["pa-summary", "pa-gates", "pa-todos", "pa-reqs", "pa-risks", "pa-terms", "ps-tasks", "ps-evidence", "ps-process"]);
+  // 헤더 탭 자리의 구역 이동 링크는 숨기지 않는 링크다(탭이 아니다).
+  await expect(page.locator(".workbench-record-rail #ps-summary dt", { hasText: "추적 상태" })).toBeVisible();
   const nav = page.getByRole("navigation", { name: "구역 이동" });
   await expect(nav.getByRole("link")).toHaveCount(7);
   await expect(page.getByRole("tab", { name: /요약|자격 조건/ })).toHaveCount(0);
@@ -268,7 +267,7 @@ test("분석 완료 화면: 계속 추적·보류·종료를 고르고 종료는
   const choices = bar.getByRole("group", { name: "추적 결정" });
   await expect(choices.getByRole("button")).toHaveText(["계속 추적", "보류", "종료"]);
   await expect(choices.locator("[aria-pressed=true]")).toHaveCount(0);
-  await expect(bar).not.toContainText("입찰 참여는 최종 Go/No-Go에서 정해요.");
+  await expect(bar).not.toContainText("최종 Go/No-Go");
   // 분석 전 화면의 단추(`추적 시작하기`)는 이 화면에 없고, 화면의 주 버튼은 이 띠 하나다.
   await expect(bar.getByRole("button", { name: "추적 시작하기" })).toHaveCount(0);
   const save = bar.getByRole("button", { name: "추적 결정 저장하기" });
@@ -328,19 +327,19 @@ test("부분 결과 화면: 읽지 못한 범위를 알리고 판정 건수·차
   await expect(page.locator("#pa-reqs [data-pa-ev]").filter({ hasText: /^\d+쪽$/ }).first()).toBeVisible();
 });
 
-// 사실 줄은 5칸(추적 상태 칸이 더해짐)이어도 각 값이 한 줄이고, 하단 띠는 분석 전 띠와 같은 높이다(1280·1440).
+// 정보 열의 5개 사실(추적 상태 포함)에서도 각 값이 한 줄이고, 하단 띠 높이는 분석 전과 같다.
 for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
-  test(`분석 완료 화면 ${viewport.width}: 사실 줄 값이 한 줄이고 하단 띠 높이가 분석 전과 같다`, async ({ page }) => {
+  test(`분석 완료 화면 ${viewport.width}: 정보 열 값이 한 줄이고 하단 띠 높이가 분석 전과 같다`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await openAnalysis(page);
-    const facts = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>("#ps-summary .ps-fact-cell")].map((cell) => {
-      const dd = cell.querySelector("dd")!;
+    const facts = await page.locator(".workbench-record-rail #ps-summary dt:nth-of-type(-n+5)").evaluateAll((labels) => labels.map((label) => {
+      const dd = label.nextElementSibling!;
       const text = [...dd.childNodes].find((node) => node.nodeType === Node.TEXT_NODE && (node.textContent ?? "").trim() !== "");
       const range = document.createRange();
       range.selectNodeContents(text!);
-      return { label: cell.querySelector("dt")!.textContent, lines: new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size, text: text!.textContent };
+      return { label: label.textContent, lines: new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size, text: text!.textContent };
     }));
-    expect(facts).toHaveLength(5);
+    expect(facts.map((fact) => fact.label)).toEqual(["의견 마감", "사업 예산", "구분", "게시", "추적 상태"]);
     for (const fact of facts) expect(fact.lines, `${fact.label}: ${fact.text}`).toBe(1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
@@ -356,7 +355,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     const beforeHeight = await before.locator("#page-footer .ps-decision-bar").evaluate((element) => Math.round(element.getBoundingClientRect().height));
     await before.close();
     expect(afterHeight).toBe(beforeHeight);
-    expect(afterHeight).toBeLessThanOrEqual(73);
+    expect(afterHeight).toBeLessThanOrEqual(56);
     // 안내 문장은 화면 글줄이 아니라 저장 단추의 비활성 사유(낭독기)로 남는다.
     await expect(page.locator("#page-footer #pre-spec-tracking-save-disabled")).toHaveText("추적 상태(계속 추적·보류·종료)를 골라 주세요.");
     await expect(page.locator("#page-footer").getByRole("button", { name: "추적 결정 저장하기" })).toHaveAttribute("aria-describedby", "pre-spec-tracking-save-disabled");

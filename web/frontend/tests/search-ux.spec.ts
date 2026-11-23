@@ -36,11 +36,11 @@ test.beforeEach(async ({ page }) => {
 
 test("[search-ux] 발주계획 검색은 Enter 전 draft를 보존하고 raw q를 적용한다", async ({ page }) => {
   await mockOrderPlans(page);
-  await page.goto("/order-plans");
-  await expect(page.locator(".c2l-row").first()).toBeVisible();
+  await page.goto("/order-plans?qwen=relevant,uncertain&tracking=미선택");
+  const rows = page.locator(".c2l-row");
+  await expect(rows).toHaveCount(2);
 
   const input = page.getByRole("textbox", { name: "사업명·발주기관·계획번호 검색", exact: true });
-  const initialRows = await page.locator(".c2l-row").count();
   await input.fill("  공공 데이터  ");
 
   await expect.poll(() => new URL(page.url()).searchParams.get("q")).toBeNull();
@@ -48,11 +48,17 @@ test("[search-ux] 발주계획 검색은 Enter 전 draft를 보존하고 raw q�
   // 입력칸의 접근 설명으로 남아 보조기술에는 그대로 읽힌다.
   await expect(page.locator(".workspace-search-help")).toHaveCount(0);
   await expect(input).toHaveAccessibleDescription("Enter로 적용 · 띄어쓰기 무시");
-  await expect(page.locator(".c2l-row")).toHaveCount(initialRows);
+  await expect(rows).toHaveCount(2);
 
+  const searchResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname === "/api/order-plans" && url.searchParams.get("q") === "  공공 데이터  ";
+  });
   await input.press("Enter");
   await expect.poll(() => new URL(page.url()).searchParams.get("q")).toBe("  공공 데이터  ");
-  await expect(page.locator(".c2l-row").filter({ hasText: "공공데이터" })).toHaveCount(1);
+  expect((await searchResponse).ok()).toBe(true);
+  await expect(rows).toHaveCount(1);
+  await expect(rows).toContainText("공공데이터");
   await expect(input).toHaveAccessibleDescription("Enter로 검색 · 띄어쓰기 무시");
 });
 

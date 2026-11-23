@@ -1,21 +1,5 @@
-/* 검토 대기열·판정 이력 전용 여유형 계층.
-   기존 theme의 업무 상태·색·계약은 유지하고, 이 파일에서는 두 화면의
-   목록/상세 경계와 폭별 배치만 조정한다. */
+/* 회차 공고와 읽기 상세에서 쓰는 필터, 이력, 자료 표. */
 
-.queue-page,
-.judgment-page {
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  min-height: 0;
-  margin: 0;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--surface-app);
-  overflow: hidden;
-}
-
-.document-preparation-guidance,
 .attachment-safe-guidance {
   padding: var(--spacing-3) var(--spacing-4);
   border: 1px solid var(--color-border);
@@ -26,12 +10,10 @@
   line-height: 1.55;
 }
 
-.document-preparation-guidance strong,
 .attachment-safe-guidance strong {
   font-weight: 600;
 }
 
-.document-preparation-guidance p,
 .attachment-safe-guidance p {
   margin: var(--spacing-1) 0 0;
   color: var(--color-muted);
@@ -54,14 +36,6 @@
   font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 2px;
-}
-
-.queue-page {
-  height: calc(var(--bo-ui-viewport-height) - 82px);
-}
-
-.judgment-page {
-  height: calc(var(--bo-ui-viewport-height) - 82px);
 }
 
 .queue-filters {
@@ -100,230 +74,6 @@
   margin-left: auto;
 }
 
-.queue-workspace,
-.judgment-workspace,
-.queue-list-pane,
-.judgment-notice-list,
-.queue-detail-pane,
-.judgment-detail-pane,
-.queue-detail-scroll,
-.judgment-detail-scroll,
-.review-workspace-section {
-  min-width: 0;
-  max-width: 100%;
-}
-
-.queue-workspace,
-.judgment-workspace {
-  flex-direction: row;
-  overflow: hidden;
-}
-
-.queue-list-pane {
-  flex-basis: min(390px, 34%);
-  width: min(390px, 34%);
-}
-
-.judgment-notice-list {
-  flex-basis: min(360px, 32%);
-  width: min(360px, 32%);
-}
-
-.queue-list-header,
-.judgment-list-header {
-  padding: var(--spacing-4) var(--spacing-5) var(--spacing-3);
-}
-
-.queue-list-progress {
-  height: 5px;
-  margin-top: var(--spacing-2);
-}
-
-.queue-list-scroll,
-.judgment-list-scroll {
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-}
-
-.queue-group-header {
-  height: 34px;
-  padding-right: var(--spacing-5);
-  padding-left: var(--spacing-5);
-  font-size: var(--bo-type-caption);
-}
-
-.queue-list-item,
-.judgment-notice-item {
-  padding: var(--spacing-4) var(--spacing-5) var(--spacing-4);
-}
-
-.queue-list-item {
-  min-height: 124px;
-}
-
-.queue-list-title,
-.judgment-notice-title {
-  font-size: var(--bo-type-body);
-  line-height: 1.5;
-}
-
-.queue-list-badges,
-.judgment-notice-badges {
-  gap: var(--spacing-1);
-  margin-top: var(--spacing-2);
-}
-
-.queue-list-meta,
-.judgment-notice-meta {
-  margin-top: var(--spacing-2);
-  font-size: var(--bo-type-caption);
-}
-
-.queue-detail-header,
-.judgment-page-header {
-  gap: var(--spacing-6);
-  padding: var(--spacing-5) var(--spacing-6) var(--spacing-5);
-  flex-direction: row;
-}
-
-.queue-detail-heading,
-.judgment-page-header > div:first-child {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.queue-detail-badges,
-.judgment-page-heading-meta,
-.judgment-detail-badges {
-  align-items: center;
-  gap: var(--spacing-2);
-}
-
-.queue-detail-badges {
-  margin-bottom: var(--spacing-2);
-}
-
-.queue-detail-header h2,
-.judgment-page-header h2 {
-  max-width: none;
-  overflow-wrap: anywhere;
-  font-size: var(--bo-type-detail-title);
-  font-weight: var(--bo-type-page-title-weight);
-  line-height: var(--bo-type-page-title-leading);
-}
-
-.queue-detail-subline,
-.judgment-page-subline {
-  gap: var(--spacing-2);
-  margin-top: var(--spacing-2);
-  font-size: var(--bo-type-caption);
-}
-
-.judgment-page-heading-meta {
-  display: flex;
-  flex-wrap: wrap;
-  margin-top: var(--spacing-3);
-}
-
-.queue-detail-actions,
-.judgment-page-actions {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  align-self: flex-start;
-  gap: var(--spacing-2);
-}
-
-.notice-source-link {
-  min-height: 40px;
-  padding: 0 var(--spacing-3);
-  font-size: var(--bo-type-caption);
-}
-
-.queue-detail-scroll,
-.judgment-detail-scroll {
-  gap: var(--spacing-6);
-  padding: var(--spacing-6);
-  overscroll-behavior: contain;
-}
-
-.queue-detail-scroll > *,
-.judgment-detail-scroll > * {
-  flex: 0 0 auto;
-}
-
-.review-workspace-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-4);
-}
-
-.review-section-heading {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--spacing-4);
-  min-width: 0;
-  padding: 0 2px;
-}
-
-.review-section-heading > div {
-  min-width: 0;
-}
-
-.review-section-heading h3 {
-  margin: 2px 0 0;
-  color: var(--color-deep);
-  font-size: var(--bo-type-section-title);
-  font-weight: var(--bo-type-section-title-weight);
-  line-height: var(--bo-type-section-title-leading);
-}
-
-.review-section-heading > span {
-  flex: 0 0 auto;
-  color: var(--color-muted);
-  font-size: var(--bo-type-caption);
-  line-height: 1.4;
-  text-align: right;
-}
-
-.review-section-eyebrow {
-  display: block;
-  color: var(--color-info);
-  font-size: var(--bo-type-caption);
-  font-weight: 600;
-  letter-spacing: 0.05em;
-}
-
-.notice-facts-grid,
-.judgment-summary-grid,
-.judgment-history-grid {
-  gap: var(--spacing-4);
-}
-
-.notice-facts-grid {
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-}
-
-.judgment-summary-grid {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-}
-
-.notice-review-grid {
-  gap: var(--spacing-4);
-}
-
-.notice-facts,
-.qualification-flags-list {
-  row-gap: var(--spacing-3);
-  font-size: var(--bo-type-caption);
-}
-
-/* `예산 (원문 제공 금액)`처럼 자격을 함께 적는 라벨이 생겨(F2, spec §6.3) 라벨
-   열을 넓힌다. 값 열은 여전히 `minmax(0, 1fr)`이라 긴 금액도 줄바꿈된다. */
-.notice-facts {
-  grid-template-columns: 136px minmax(0, 1fr);
-}
-
 /* 유사 실적 — 캡션 한 줄, 두 출처의 표, 표 사이 간격. 표가 폭을 넘으면
    `.table-wrap`의 지역 가로 스크롤이 받는다(이 화면의 기존 규칙). */
 .performance-matches-note {
@@ -355,31 +105,6 @@
 
 .performance-matches-table td {
   line-height: 1.6;
-}
-
-:where(.queue-page, .judgment-page) .table-wrap,
-:where(.queue-page, .judgment-page) .lifecycle-panel .panel-body {
-  max-width: 100%;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-}
-
-.perspective-table {
-  min-width: 720px;
-}
-
-.perspective-table th,
-.perspective-table td {
-  padding-right: var(--spacing-4);
-}
-
-.perspective-table td {
-  line-height: 1.6;
-}
-
-.judgment-detail-badges {
-  display: flex;
-  flex-wrap: wrap;
 }
 
 .judgment-history-details {
@@ -464,58 +189,11 @@
  * ADR-0046 결정 3으로 이 화면의 리뷰 저장이 사업 추적의 예외 작업으로 옮겨간
  * 뒤, 남은 것은 무엇이 저장돼 있는지 읽는 일이다. 입력이 없으므로 pane 바닥에
  * 고정하지 않고 본문 마지막 블록으로 둔다. */
-.review-record {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-3);
-  min-width: 0;
-  padding: var(--spacing-4);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-container);
-  background: var(--color-background-card);
-}
-
 .review-record-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-2);
-}
-
-.review-record-head h3 {
-  margin: 0;
-}
-
-.review-record-badge {
-  padding: var(--spacing-0-5) var(--spacing-2);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-inner);
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-}
-
-.review-record-facts {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  gap: var(--spacing-1) var(--spacing-4);
-  margin: 0;
-  min-width: 0;
-}
-
-/* 감싸는 div가 grid 항목이 되면 첫 열의 max-content가 행 전체로 계산된다. */
-.review-record-facts > div {
-  display: contents;
-}
-
-.review-record-facts dt {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-}
-
-.review-record-facts dd {
-  margin: 0;
-  min-width: 0;
-  overflow-wrap: anywhere;
 }
 
 .review-record-answers {
@@ -547,4 +225,124 @@
   min-height: var(--control-height);
   display: inline-flex;
   align-items: center;
+}
+
+.notice-queue-panel,
+.notice-queue {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.notice-queue .queue-filters {
+  padding-inline: var(--shell-canvas-inline-padding);
+}
+
+.notice-run-note {
+  flex: 0 0 auto;
+  margin: var(--spacing-2) var(--shell-canvas-inline-padding) 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+}
+
+.notice-read-workspace {
+  display: grid;
+  flex: 1 1 0;
+  grid-template-columns: minmax(0, 40%) minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
+
+.notice-read-workspace[data-empty="true"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.notice-read-workspace[data-empty="true"] .notice-run-list {
+  border-inline-end: 0;
+}
+
+.notice-run-list {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-inline-end: 1px solid var(--bo-line-soft);
+}
+
+.notice-run-list-head {
+  padding: var(--spacing-2) var(--spacing-3);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+}
+
+.notice-run-list-head > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.notice-run-list .record-table-viewport {
+  --record-inset: var(--spacing-3);
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.notice-read-detail {
+  min-width: 0;
+  min-height: 0;
+  padding: var(--spacing-6);
+  overflow: auto;
+}
+
+.notice-run-list .record-table .notice-run-agency {
+  white-space: nowrap;
+}
+
+.notice-run-list .record-table .notice-run-status :is(.workbench-mark, .workbench-mark span),
+.notice-run-list .record-table .workbench-deadline {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.notice-record-summary .workbench-facts dl {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.notice-read-detail .table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.notice-read-detail .panel {
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.notice-read-detail .panel-header {
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  padding-inline: 0;
+}
+
+.notice-read-detail .panel-body {
+  min-width: 0;
+  padding-inline: 0;
+}
+
+.notice-read-detail .mono {
+  font-family: inherit;
+}
+
+.notice-record-key,
+.notice-record-source {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
 }

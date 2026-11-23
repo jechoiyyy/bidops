@@ -249,9 +249,10 @@ async function open(page: Page, path: string, trigger: TriggerState = { switchEn
   return calls;
 }
 
-const queue = (page: Page) => page.getByRole("region", { name: "발주계획 선별 policy", exact: true });
+const queue = (page: Page) => page.getByRole("region", { name: "발주계획 선별 정책", exact: true });
 const detail = (page: Page) => page.getByRole("region", { name: "선택한 발주계획 선별 policy" });
-const footer = (page: Page) => page.locator(".crit-detail-foot");
+const footer = (page: Page) => detail(page).getByRole("group", { name: "결정 영역", exact: true });
+const criteriaNav = (page: Page) => page.getByRole("navigation", { name: "판정 기준 구역" });
 const surface = (page: Page) => page.locator(".opp-gate-surface");
 
 /** 목록·상세·게이트가 모두 도착한 뒤에만 단정한다. loading shell은 근거가 아니다. */
@@ -260,14 +261,37 @@ async function waitForDetail(page: Page, version: string) {
   await expect(surface(page)).toBeVisible();
 }
 
-test("탭 경로 /order-plan-policies로 바로 열리고 새 탭이 선택된다", async ({ page }) => {
+test("/order-plan-policies로 바로 열리고 선별 정책 구역이 선택된다", async ({ page }) => {
   await open(page, "/order-plan-policies");
-  await expect(page.getByRole("tab", { name: "발주계획 선별 정책", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator("#criteria-panel-order-plan-policies")).toBeVisible();
+  await expect(criteriaNav(page).getByRole("link", { name: "선별 정책", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(queue(page).getByRole("table")).toBeVisible();
   // 목록은 digest 앞 12자만, 승인 전 버전은 활성화 기록이 없다고 말한다.
   await expect(queue(page)).toContainText(`policy ${DIGEST[CANDIDATE_BLOCKED].policy.slice(0, 12)}`);
   await expect(queue(page)).not.toContainText(DIGEST[CANDIDATE_BLOCKED].policy);
-  await expect(queue(page).getByRole("button", { name: new RegExp(CANDIDATE_BLOCKED) })).toContainText("활성화 기록 없음");
+  await expect(queue(page).getByRole("row", { name: new RegExp(CANDIDATE_BLOCKED) })).toContainText("활성화 기록 없음");
+});
+
+test("판정 기준은 활성 C-2 버전부터 열고 C-1 조회는 해당 구역으로 미룬다", async ({ page }) => {
+  const c1Requests: string[] = [];
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (/^\/api\/(?:profile\/|policies$|quality-gates$)/.test(path)) c1Requests.push(path);
+  });
+  await open(page, "/criteria?run=run-0905-a", { switchEnabled: true, effective: true, reasons: [] });
+  await waitForDetail(page, ACTIVE);
+  await expect(detail(page)).toContainText("자동 실행 켜짐");
+  const noticeSections = criteriaNav(page).getByRole("group", { name: "공고 판정 (C-1)", exact: true });
+  await expect(noticeSections.getByRole("link")).toHaveCount(4);
+  await expect(page.locator(".crit-summary")).toHaveCount(0);
+  expect(c1Requests).toEqual([]);
+
+  const profile = noticeSections.getByRole("link", { name: "판정용 프로필 사본", exact: true });
+  await profile.click();
+  await expect(page).toHaveURL(/\/profile\?run=run-0905-a$/);
+  await expect(profile).toHaveAttribute("aria-current", "page");
+  await page.goBack();
+  await waitForDetail(page, ACTIVE);
+  await expect(page).toHaveURL(/\/criteria\?run=run-0905-a$/);
 });
 
 test("blocker가 있으면 활성화 단추가 닫히고 이유가 옆에 보인다", async ({ page }) => {
@@ -296,25 +320,39 @@ test("미측정 · 미달 · 통과는 서로 다른 표면이다", async ({ pag
   await expect(footer(page).getByRole("button", { name: "후보로 지정" })).toBeEnabled();
   await expect(footer(page).getByRole("button", { name: "활성화", exact: true })).toHaveCount(0);
 
-  await queue(page).getByRole("button", { name: new RegExp(CANDIDATE_BLOCKED) }).click();
+  await queue(page).getByRole("row", { name: new RegExp(CANDIDATE_BLOCKED) }).click();
   await waitForDetail(page, CANDIDATE_BLOCKED);
   await expect(surface(page)).toHaveAttribute("data-gate-result", "미달");
   await expect(surface(page)).toHaveAttribute("data-tone", "error");
   await expect(surface(page).getByRole("listitem")).toHaveText(["재현율 미달", "중요 누락 미달"]);
 
-  await queue(page).getByRole("button", { name: new RegExp(CANDIDATE_READY) }).click();
+  await queue(page).getByRole("row", { name: new RegExp(CANDIDATE_READY) }).click();
   await waitForDetail(page, CANDIDATE_READY);
   await expect(surface(page)).toHaveAttribute("data-gate-result", "통과");
   await expect(surface(page)).toHaveAttribute("data-tone", "success");
+  const quality = detail(page).getByRole("table", { name: "임계값 대 측정값" });
+  await expect(quality.getByRole("row", { name: /재현율/ })).toContainText("관련 발주계획을 얼마나 찾아냈는지");
+  await expect(quality.getByRole("columnheader", { name: "통과 기준" })).toBeVisible();
+  const measurements = detail(page).getByRole("table", { name: "회차별 품질 측정값" });
+  await expect(measurements).toHaveCount(0);
+  await detail(page).getByText("1·2차 측정값과 평가 정보", { exact: true }).click();
+  await expect(measurements).toBeVisible();
 
   // 세 표면의 테두리 색이 실제로 다르다(미측정 중립 ≠ 미달 실패 ≠ 통과 성공).
   const colors: string[] = [];
   for (const version of [DRAFT_UNMEASURED, CANDIDATE_BLOCKED, CANDIDATE_READY]) {
-    await queue(page).getByRole("button", { name: new RegExp(version) }).click();
+    await queue(page).getByRole("row", { name: new RegExp(version) }).click();
     await waitForDetail(page, version);
     colors.push(await surface(page).evaluate((node) => getComputedStyle(node).borderLeftColor));
   }
   expect(new Set(colors).size).toBe(3);
+
+  const passedMark = surface(page).locator(".workbench-mark").getByText("통과", { exact: true });
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }, { width: 1920, height: 1080 }]) {
+    await page.setViewportSize(viewport);
+    await expect(passedMark).toBeVisible();
+    await expect.poll(() => passedMark.evaluate((label) => label.scrollWidth - label.clientWidth)).toBe(0);
+  }
 });
 
 test("활성화 확인 창은 digest와 현재 버전의 자동 실행이 꺼진다는 문구를 보여 주고 명시 확인을 보낸다", async ({ page }) => {
@@ -348,7 +386,7 @@ test("스위치는 운영 활성 버전에만 있고 옆에 안내문구와 환�
   await waitForDetail(page, CANDIDATE_READY);
   await expect(page.getByTestId("daily-trigger-row")).toHaveCount(0);
 
-  await queue(page).getByRole("button", { name: new RegExp(ACTIVE) }).click();
+  await queue(page).getByRole("row", { name: new RegExp(ACTIVE) }).click();
   await waitForDetail(page, ACTIVE);
   const row = page.getByTestId("daily-trigger-row");
   await expect(row.getByRole("switch", { name: "이 버전의 일일 자동 실행 스위치" })).toBeChecked();
@@ -381,10 +419,12 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
   test.describe(`${viewport.width}x${viewport.height}`, () => {
     test.use({ viewport });
 
-    test(`탭 다섯 개와 상세 하단 액션이 ${viewport.width}px 안에 들어온다`, async ({ page }, testInfo) => {
+    test(`판정 기준 구역과 상세 하단 액션이 ${viewport.width}px 안에 들어온다`, async ({ page }, testInfo) => {
       await open(page, `/order-plan-policies?c2policy=${CANDIDATE_BLOCKED}`);
       await waitForDetail(page, CANDIDATE_BLOCKED);
-      await expect(page.locator(".crit-tabs [role=\"tab\"]")).toHaveCount(5);
+      await expect(criteriaNav(page).getByRole("group").getByRole("link")).toHaveCount(5);
+      await expect(queue(page).getByRole("columnheader")).toHaveText(["이름", "구분·식별", "상태"]);
+      await expect(queue(page).getByRole("row", { name: new RegExp(CANDIDATE_BLOCKED) })).toHaveAttribute("aria-current", "true");
       const action = footer(page).getByRole("button", { name: "활성화", exact: true });
       const box = await action.boundingBox();
       expect(box).not.toBeNull();
@@ -412,13 +452,17 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     await waitForDetail(page, ACTIVE);
     const row = page.getByTestId("daily-trigger-row");
     await expect(row).toContainText("자동 실행 켜짐");
-    await expect(row).toContainText("스위치는 예약된 일일 스크립트가 이 버전으로 실행하는 것을 허용할 뿐이에요");
+    await expect(row).toContainText("일일 스크립트가 실행되면 이 버전으로 판정해요");
     await expect(row).not.toContainText("다음 일일 스크립트가");
     const line = row.getByTestId("daily-run-status");
     await expect(line).toHaveAttribute("data-state", "ok");
     await expect(line).toContainText("최근 기준일 11-17");
     await expect(line).toContainText("수집 11월 18일 · 오늘");
     await expect(line).toContainText("C-2 성공");
+    const rowWidth = await row.evaluate((element) => element.clientWidth);
+    const lineWidth = await line.evaluate((element) => element.clientWidth);
+    expect(lineWidth).toBeGreaterThanOrEqual(rowWidth - 2);
+    await expect(line).toBeInViewport();
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
     await page.screenshot({ path: info.outputPath(`order-plan-policy-${viewport.width}.png`) });
   });

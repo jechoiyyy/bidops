@@ -1,183 +1,36 @@
 import type {
   HTMLAttributes,
-  KeyboardEvent as ReactKeyboardEvent,
-  MouseEvent as ReactMouseEvent,
   ReactNode,
   Ref,
 } from "react";
 import { useId } from "react";
+import { PanelRight } from "lucide-react";
 import { Badge as AstryxBadge } from "@astryxdesign/core/Badge";
 import { Button as AstryxButton, type ButtonProps } from "@astryxdesign/core/Button";
-import { List, ListItem, type ListItemProps } from "@astryxdesign/core/List";
+import { Kbd } from "@astryxdesign/core/Kbd";
+import { List, ListItem } from "@astryxdesign/core/List";
 import { Selector, type SelectorOptionData } from "@astryxdesign/core/Selector";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { StatusDot, type StatusDotVariant } from "@astryxdesign/core/StatusDot";
+import { TabList, type TabListProps } from "@astryxdesign/core/TabList";
 import { Text as AstryxText } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import { EmptyState } from "./EmptyState";
+import { StatusMark, type Mark } from "./Marks";
 
 function joinClassNames(...names: Array<string | undefined | false>): string {
   return names.filter(Boolean).join(" ");
 }
 
-/**
- * Dense list container shared by review screens.
- *
- * Records stay rows rather than individual cards. Astryx owns the list/item
- * interaction and density; the product only adds the domain class used for
- * its list-pane layout.
- */
-export interface DenseListProps extends Omit<HTMLAttributes<HTMLUListElement>, "children"> {
-  children: ReactNode;
-  /** 목록 `<ul>` 자체를 잡는 자리. 행 키보드 이동이 컨테이너에 리스너를 단다. */
-  ref?: Ref<HTMLUListElement>;
-}
-
-export function DenseList({ children, className, ref, ...props }: DenseListProps) {
-  return (
-    <List
-      {...props}
-      ref={ref}
-      className={joinClassNames("review-dense-list", className)}
-      data-review-primitive="dense-list"
-      density="compact"
-      hasDividers
-    >
-      {children}
-    </List>
-  );
-}
-
-export interface DenseListRowSelection {
-  /** Native checkbox state; row active state remains the separate `selected` prop. */
-  checked: boolean;
-  /** Called by the checkbox's native change event or row Space handling. */
-  onCheckedChange: (checked: boolean) => void;
-  /** The business-identifying accessible name announced for this checkbox. */
-  ariaLabel: string;
-}
-
-export interface DenseListRowProps extends Omit<
-  ListItemProps,
-  "description" | "endContent" | "isDisabled" | "isSelected" | "label" | "onClick" | "startContent"
-> {
-  description?: ReactNode;
-  endContent?: ReactNode;
-  label: ReactNode;
-  onSelect?: () => void;
-  selected?: boolean;
-  startContent?: ReactNode;
-  disabled?: boolean;
-  /** Opt in to an independent native checkbox for this row. */
-  selection?: DenseListRowSelection;
-  ref?: Ref<HTMLLIElement>;
-}
-
-/** A selected, keyboard-operable dense row for a master list. */
-export function DenseListRow({
-  className,
-  description,
-  disabled = false,
-  endContent,
-  label,
-  onSelect,
-  onKeyDown,
-  role,
-  ref,
-  selected = false,
-  selection,
-  startContent,
-  tabIndex,
-  ...props
-}: DenseListRowProps) {
-  // In selection mode the root stays a real list item.  Passing a role to
-  // Astryx ListItem suppresses its invisible button, leaving the checkbox and
-  // the row focus target as separate controls.
-  const rowRole = selection ? "listitem" : role ?? (onSelect ? "button" : undefined);
-  const handleClick = (event: ReactMouseEvent<Element>) => {
-    if (disabled || !onSelect) return;
-    const target = event.target;
-    if (target instanceof Element && target.closest("a,button,input,select,textarea")) return;
-    onSelect();
-  };
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLLIElement>) => {
-    const target = event.target;
-    const interactiveDescendant = target !== event.currentTarget
-      && target instanceof Element
-      && Boolean(target.closest("a,button,input,select,textarea,[contenteditable]"));
-    // A child checkbox/input owns its own keyboard contract. In particular,
-    // native checkbox Space must reach its onChange exactly once.
-    if (selection && interactiveDescendant) {
-      event.stopPropagation();
-      return;
-    }
-    onKeyDown?.(event);
-    if (event.defaultPrevented || disabled) return;
-    if (selection && event.key === " ") {
-      if (
-        target !== event.currentTarget
-        || !selected
-        || event.nativeEvent.isComposing
-        || event.ctrlKey
-        || event.altKey
-        || event.metaKey
-        || event.shiftKey
-      ) return;
-      event.preventDefault();
-      if (event.repeat) return;
-      selection.onCheckedChange(!selection.checked);
-      return;
-    }
-    if (!onSelect) return;
-    if (event.key === "Enter") {
-      // Ctrl/Cmd+Enter is owned by the page's existing single-record action.
-      // Let it bubble without consuming it here.
-      if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
-      event.preventDefault();
-      onSelect();
-      return;
-    }
-    if (event.key === " ") {
-      event.preventDefault();
-      onSelect();
-    }
-  };
-  const selectionControl = selection ? (
-    <input
-      aria-label={selection.ariaLabel}
-      checked={selection.checked}
-      data-checked={selection.checked ? "true" : "false"}
-      disabled={disabled}
-      type="checkbox"
-      onChange={(event) => selection.onCheckedChange(event.target.checked)}
-    />
-  ) : null;
-  return (
-    <ListItem
-      {...props}
-      aria-current={selected ? "true" : undefined}
-      className={joinClassNames("review-dense-list-row", selected && "is-selected", className)}
-      data-review-primitive="dense-list-row"
-      description={description}
-      endContent={endContent}
-      isDisabled={disabled}
-      isSelected={selected}
-      label={label}
-      onClick={onSelect ? handleClick : undefined}
-      onKeyDown={selection || onSelect ? handleKeyDown : onKeyDown}
-      ref={ref}
-      role={rowRole}
-      startContent={selection ? <>{selectionControl}{startContent}</> : startContent}
-      tabIndex={rowRole ? (disabled ? -1 : tabIndex ?? 0) : tabIndex}
-      data-selection-mode={selection ? "multiple" : undefined}
-    />
-  );
-}
-
-export interface SplitWorkspaceProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
+interface SplitWorkspaceProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
   /** Slot API for new screens. Existing workspaces may pass children directly. */
   detail?: ReactNode;
+  detailClassName?: string;
   detailLabel?: string;
   list?: ReactNode;
+  listClassName?: string;
+  listHeader?: ReactNode;
+  listFooter?: ReactNode;
   listLabel?: string;
   children?: ReactNode;
 }
@@ -192,8 +45,12 @@ export function SplitWorkspace({
   children,
   className,
   detail,
+  detailClassName,
   detailLabel = "상세",
   list,
+  listClassName,
+  listHeader,
+  listFooter,
   listLabel = "목록",
   ...props
 }: SplitWorkspaceProps) {
@@ -205,11 +62,20 @@ export function SplitWorkspace({
     >
       {children ?? (
         <>
-          <section aria-label={listLabel} className="review-split-list">
+          <section aria-label={listLabel} className={joinClassNames("review-split-list", listClassName)}>
+            {listHeader}
             {list}
+            {listFooter}
           </section>
-          <section aria-label={detailLabel} className="review-split-detail">
-            {detail}
+          <section aria-label={detailLabel} className={joinClassNames("review-split-detail", detailClassName)}>
+            <ReviewPreviewHeader />
+            {detail ?? (
+              <EmptyState
+                className="workbench-preview-empty"
+                description="목록에서 항목을 고르면 여기에서 자세히 볼 수 있어요."
+                title="고른 항목이 없어요"
+              />
+            )}
           </section>
         </>
       )}
@@ -217,7 +83,20 @@ export function SplitWorkspace({
   );
 }
 
-export interface AgencyFeatureProps {
+export function ReviewPreviewHeader({ position }: { position?: string }) {
+  return (
+    <div className="review-preview-header">
+      <span><PanelRight aria-hidden="true" size={14} />미리보기</span>
+      {position ? <span className="review-preview-position">{position}</span> : null}
+    </div>
+  );
+}
+
+export function DetailTabs({ className, ...props }: Omit<TabListProps, "hasDivider" | "role">) {
+  return <TabList {...props} className={joinClassNames("workbench-detail-tabs", className)} hasDivider role="tablist" />;
+}
+
+interface AgencyFeatureProps {
   className?: string;
   /** 값이 없을 때 적을 말. 기관명을 지어내지 않고 "미확인"으로 남긴다. */
   fallback?: string;
@@ -265,9 +144,11 @@ export function AgencyFeature({
   );
 }
 
-export interface SelectionToolbarProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
-  /** 선택 건수 뒤에 오는 조작들. 화면이 자기 단추를 그대로 넣는다. */
-  actions: ReactNode;
+interface SelectionToolbarProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
+  actions?: ReactNode;
+  selectPage: { disabled: boolean; onClick: () => void };
+  clearSelection: { disabled: boolean; onClick: () => void };
+  startTracking: { disabled: boolean; onClick: () => void };
   className?: string;
   count: number;
   countClassName?: string;
@@ -288,6 +169,9 @@ export interface SelectionToolbarProps extends Omit<HTMLAttributes<HTMLDivElemen
  */
 export function SelectionToolbar({
   actions,
+  selectPage,
+  clearSelection,
+  startTracking,
   className,
   count,
   countClassName,
@@ -302,13 +186,22 @@ export function SelectionToolbar({
     <div
       {...props}
       aria-label={label}
+      role="group"
       className={joinClassNames("review-selection-toolbar", className)}
       data-review-primitive="selection-toolbar"
     >
       <span aria-live="polite" className={joinClassNames("review-selection-count", countClassName)}>
         선택 {count.toLocaleString("ko-KR")}건
       </span>
+      <button aria-label="현재 페이지 전체 선택" className="interaction-control" type="button" {...selectPage}>전체 선택</button>
+      <button aria-label="선택 전체 해제" className="interaction-control" type="button" {...clearSelection}>전체 해제</button>
       {actions}
+      <button
+        aria-describedby={reasonId}
+        className="interaction-control interaction-control-primary"
+        type="button"
+        {...startTracking}
+      >일괄 추적 시작</button>
       {end}
       <span className={joinClassNames("review-selection-reason", reasonClassName)} id={reasonId}>
         {reason}
@@ -317,25 +210,12 @@ export function SelectionToolbar({
   );
 }
 
-export interface ListColumnsProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
-  children: ReactNode;
+/** 목록의 스크롤 소유자. 열 머리와 행이 같은 스크롤바 폭을 사용한다. */
+export function ReviewListViewport({ className, ref, ...props }: HTMLAttributes<HTMLDivElement> & { ref?: Ref<HTMLDivElement> }) {
+  return <div {...props} ref={ref} className={joinClassNames("review-list-viewport", className)} />;
 }
 
-/** 목록 행의 두 열이 무엇인지 적는 줄. 값이 아니라 이름이므로 보조 기술에는 숨긴다. */
-export function ListColumns({ children, className, ...props }: ListColumnsProps) {
-  return (
-    <div
-      {...props}
-      aria-hidden="true"
-      className={joinClassNames("review-list-columns", className)}
-      data-review-primitive="list-columns"
-    >
-      {children}
-    </div>
-  );
-}
-
-export interface ListPagerProps extends Omit<HTMLAttributes<HTMLElement>, "children"> {
+interface ListPagerProps extends Omit<HTMLAttributes<HTMLElement>, "children"> {
   children: ReactNode;
   label: string;
 }
@@ -346,7 +226,7 @@ export interface ListPagerProps extends Omit<HTMLAttributes<HTMLElement>, "child
  * 단추 자체는 화면이 갖는다(접근 가능한 이름과 조작 계약이 화면마다 이미 검사에
  * 걸려 있다). 이 primitive는 자리와 줄 배치만 소유한다.
  */
-export function ListPager({ children, className, label, ...props }: ListPagerProps) {
+function ListPager({ children, className, label, ...props }: ListPagerProps) {
   return (
     <nav
       {...props}
@@ -364,12 +244,18 @@ function formatPagerCount(value: number): string {
   return value.toLocaleString("ko-KR");
 }
 
-export interface ListPagerControlsProps {
+interface ListPagerControlsProps {
   className?: string;
+  keyboardAction?: string;
   /** 페이저 `<nav>`의 접근 이름. 화면 이름을 담는다. */
   label: string;
   /** 현재 조건의 전체 건수. */
   total: number;
+  summary?: {
+    /** 전체 보기와 페이지 범위의 집계 대상이 다를 때 사용한다. */
+    overallTotal?: number;
+    description?: string;
+  };
   /** 지금 페이지의 첫 행 index(0부터). */
   offset: number;
   /** 지금 그려진 행 수. 마지막 페이지는 한 쪽 크기보다 작을 수 있다. */
@@ -389,8 +275,10 @@ export interface ListPagerControlsProps {
  */
 export function ListPagerControls({
   className,
+  keyboardAction,
   label,
   total,
+  summary,
   offset,
   visibleCount,
   onPrevious,
@@ -401,7 +289,17 @@ export function ListPagerControls({
   const hasNext = offset + visibleCount < total;
   return (
     <ListPager className={className} label={label}>
-      <AstryxText type="supporting" color="secondary">전체 {formatPagerCount(total)}건</AstryxText>
+      <div className="review-list-pager-context">
+        <AstryxText className="review-list-pager-summary" type="supporting" color="secondary">
+          전체 {formatPagerCount(summary?.overallTotal ?? total)}건
+          {summary?.description ? ` · ${summary.description}` : null}
+        </AstryxText>
+        {keyboardAction ? (
+          <span className="review-list-pager-keys">
+            <Kbd keys="up" /> <Kbd keys="down" /> 행 이동 · <Kbd keys="mod+enter" /> {keyboardAction}
+          </span>
+        ) : null}
+      </div>
       <div className="review-list-pager-range">
         <AstryxButton
           isDisabled={isDisabled || !hasPrevious}
@@ -413,7 +311,7 @@ export function ListPagerControls({
         <AstryxText type="supporting" color="secondary">
           {visibleCount
             ? `${formatPagerCount(offset + 1)}–${formatPagerCount(Math.min(offset + visibleCount, total))} / ${formatPagerCount(total)}`
-            : "–"}
+            : "표시 범위 없음"}
         </AstryxText>
         <AstryxButton
           isDisabled={isDisabled || !hasNext}
@@ -427,7 +325,7 @@ export function ListPagerControls({
   );
 }
 
-export interface ReviewFilterBarProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
+interface ReviewFilterBarProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
   activeFilterCount?: number;
   children: ReactNode;
   onReset?: () => void;
@@ -466,14 +364,14 @@ export function ReviewFilterBar({
   );
 }
 
-export interface ReviewFilterOption {
+interface ReviewFilterOption {
   description?: ReactNode;
   disabled?: boolean;
   label: string;
   value: string;
 }
 
-export interface ReviewFilterSelectorProps {
+interface ReviewFilterSelectorProps {
   className?: string;
   clearable?: boolean;
   disabledMessage?: string;
@@ -539,13 +437,13 @@ export function ReviewFilterSelector({
   );
 }
 
-export interface ReviewFilterSegmentedOption {
+interface ReviewFilterSegmentedOption {
   disabled?: boolean;
   label: string;
   value: string;
 }
 
-export interface ReviewFilterSegmentedControlProps {
+interface ReviewFilterSegmentedControlProps {
   className?: string;
   disabledMessage?: string;
   isDisabled?: boolean;
@@ -597,7 +495,7 @@ export function ReviewFilterSegmentedControl({
   );
 }
 
-export interface ReviewFilterTextInputProps {
+interface ReviewFilterTextInputProps {
   className?: string;
   disabledMessage?: string;
   isDisabled?: boolean;
@@ -637,7 +535,7 @@ export function ReviewFilterTextInput({
   );
 }
 
-export interface ReviewStatusProps {
+interface ReviewStatusProps {
   className?: string;
   detail?: ReactNode;
   isPulsing?: boolean;
@@ -647,7 +545,7 @@ export interface ReviewStatusProps {
 }
 
 /** StatusDot paired with a visible label so status is never colour-only. */
-export function ReviewStatus({
+function ReviewStatus({
   className,
   detail,
   isPulsing = false,
@@ -664,9 +562,9 @@ export function ReviewStatus({
   );
 }
 
-export type ReviewValueState = "value" | "unknown" | "null";
+type ReviewValueState = "value" | "unknown" | "null";
 
-export interface ReviewValueProps {
+interface ReviewValueProps {
   className?: string;
   nullLabel?: string;
   state?: ReviewValueState;
@@ -697,7 +595,7 @@ export function ReviewValue({
   );
 }
 
-export interface StickyDecisionHeaderProps extends Omit<HTMLAttributes<HTMLElement>, "children"> {
+interface StickyDecisionHeaderProps extends Omit<HTMLAttributes<HTMLElement>, "children"> {
   actions?: ReactNode;
   children: ReactNode;
   label?: string;
@@ -725,50 +623,51 @@ export function StickyDecisionHeader({
   );
 }
 
-export interface ReviewDecisionBarProps extends Omit<HTMLAttributes<HTMLElement>, "children"> {
-  /** Decision buttons. Use {@link ReviewDecisionAction} so a disabled reason stays attached. */
-  actions: ReactNode;
-  /** Context that is not itself a decision (position in the list, what the buttons record). */
-  hint?: ReactNode;
-  label?: string;
-  /** Live region for save and error feedback. */
-  status?: ReactNode;
-}
-
-/**
- * Decision actions pinned to the bottom of a split workspace's detail pane.
- *
- * The two placements are deliberate and not interchangeable: a split screen
- * keeps its decisions at the bottom of the detail pane (this primitive), a
- * standalone detail screen keeps them in the sticky header
- * ({@link StickyDecisionHeader}). Either way the actions stay on the first
- * screen regardless of scroll position, so the bar sits outside the pane's
- * scroll container and sticks to its bottom edge.
- */
-export function ReviewDecisionBar({
-  actions,
-  className,
-  hint,
-  label = "결정 액션",
-  status,
-  ...props
-}: ReviewDecisionBarProps) {
+function DecisionBarFrame({ children, label, ...props }: HTMLAttributes<HTMLElement> & { label: string }) {
   return (
-    <footer
-      {...props}
-      aria-label={label}
-      className={joinClassNames("review-decision-bar", className)}
-      data-review-primitive="decision-bar"
-      role="group"
-    >
-      {status}
-      <span className="review-decision-bar-actions">{actions}</span>
-      {hint !== undefined && hint !== null ? <span className="review-decision-bar-hint">{hint}</span> : null}
+    <footer {...props} aria-label={label} data-review-primitive="decision-bar" role="group">
+      {children}
     </footer>
   );
 }
 
-export interface ReviewRevisionEntry {
+interface DecisionBarProps {
+  className?: string;
+  label?: string;
+  id?: string;
+  stateClassName?: string;
+  stateLabel: string;
+  state: Mark;
+  actorAction?: ReactNode;
+  note?: ReactNode;
+  secondaryActions?: ReactNode;
+  primaryAction?: ReactNode;
+  content?: ReactNode;
+}
+
+export function DecisionBar({ className, label = "결정 영역", id, stateClassName, stateLabel, state, actorAction, note, secondaryActions, primaryAction, content }: DecisionBarProps) {
+  return (
+    <DecisionBarFrame className={joinClassNames("workbench-decision", className)} id={id} label={label}>
+      {content ? <div className="workbench-decision-content">{content}</div> : null}
+      <div className={joinClassNames("workbench-decision-state", stateClassName)}>
+        <div className="workbench-decision-status">
+          <span>{stateLabel}</span>
+          <StatusMark mark={state} />
+        </div>
+        {actorAction}
+        {note ? <p className="workbench-decision-note">{note}</p> : null}
+      </div>
+      {secondaryActions || primaryAction ? (
+        <div className="workbench-decision-actions">
+          {secondaryActions}
+          {primaryAction}
+        </div>
+      ) : null}
+    </DecisionBarFrame>
+  );
+}
+
+interface ReviewRevisionEntry {
   /** Who claimed the change. An audit marker, never an authenticated identity. */
   actor?: ReactNode;
   at?: ReactNode;
@@ -779,7 +678,7 @@ export interface ReviewRevisionEntry {
   tags?: ReactNode;
 }
 
-export interface ReviewRevisionHistoryProps {
+interface ReviewRevisionHistoryProps {
   appendOnlyLabel?: string;
   className?: string;
   empty?: ReactNode;
@@ -852,7 +751,7 @@ export function ReviewRevisionHistory({
   );
 }
 
-export interface ReviewEvidenceItem {
+interface ReviewEvidenceItem {
   detail?: ReactNode;
   id: string | number;
   locator?: ReactNode;
@@ -861,7 +760,7 @@ export interface ReviewEvidenceItem {
   tone?: "neutral" | "warning" | "error" | "accent";
 }
 
-export interface ReviewEvidenceListProps {
+interface ReviewEvidenceListProps {
   className?: string;
   empty?: ReactNode;
   items: ReviewEvidenceItem[];
@@ -896,20 +795,20 @@ export function ReviewEvidenceList({ className, empty, items, label }: ReviewEvi
   );
 }
 
-export interface ReviewHistoryEntry {
+interface ReviewHistoryEntry {
   detail?: ReactNode;
   id: string | number;
   label: ReactNode;
   status?: { label: string; variant: StatusDotVariant };
 }
 
-export interface ReviewRailLink {
+interface ReviewRailLink {
   href: string;
   label: string;
   external?: boolean;
 }
 
-export interface ReviewHistorySection {
+interface ReviewHistorySection {
   className?: string;
   content?: ReactNode;
   empty?: ReactNode;
@@ -920,7 +819,7 @@ export interface ReviewHistorySection {
   showHeading?: boolean;
 }
 
-export interface ReviewHistoryLinkRailProps {
+interface ReviewHistoryLinkRailProps {
   className?: string;
   history?: ReviewHistoryEntry[];
   historySections?: ReviewHistorySection[];
@@ -993,7 +892,7 @@ export function ReviewHistoryLinkRail({
   );
 }
 
-export interface ReviewDecisionActionProps extends Omit<ButtonProps, "children" | "isDisabled" | "label"> {
+interface ReviewDecisionActionProps extends Omit<ButtonProps, "children" | "isDisabled" | "label"> {
   disabledReason?: ReactNode;
   disabledReasonId?: string;
   isDisabled?: boolean;

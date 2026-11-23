@@ -1,3 +1,5 @@
+import { validationMetricTone } from "../components/runs/runStatusData";
+import { DecisionBar, ReviewPreviewHeader, SplitWorkspace } from "../components/common/ReviewPrimitives";
 import { useState } from "react";
 import { useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
@@ -8,7 +10,6 @@ import {
   CancelButton,
   CriteriaDialog,
   DataTable,
-  DetailFooter,
   DetailHeader,
   DialogActions,
   Disclosure,
@@ -160,14 +161,14 @@ export function MetricsPage() {
 
   if (runsQuery.isPending || selectedPending) {
     return (
-      <div className="crit-workspace" id="criteria-panel-metrics" role="tabpanel">
+      <div className="workbench-admin-state">
         <StateView description="회차와 지표 계산 결과를 확인하는 중이에요." kind="loading" title="검증 지표를 불러오는 중이에요" />
       </div>
     );
   }
   if (runsQuery.error) {
     return (
-      <div className="crit-workspace" id="criteria-panel-metrics" role="tabpanel">
+      <div className="workbench-admin-state">
         <StateView
           action={<Button label="다시 조회" onClick={() => { void runsQuery.refetch(); }} />}
           description={queryErrorText(runsQuery.error, "회차 목록")}
@@ -179,7 +180,7 @@ export function MetricsPage() {
   }
   if (!selectedRun) {
     return (
-      <div className="crit-workspace" id="criteria-panel-metrics" role="tabpanel">
+      <div className="workbench-admin-state">
         <StateView
           description="판정이 적재된 회차가 생기면 검증 지표를 계산할 수 있어요. 회차가 없는 것과 계산 실패는 다른 상태예요."
           kind="empty"
@@ -194,7 +195,7 @@ export function MetricsPage() {
   const detailEntries = metric ? basisDetailEntries(metric) : [];
 
   return (
-    <div className="crit-workspace" id="criteria-panel-metrics" role="tabpanel">
+    <SplitWorkspace className="workbench-admin-workspace" aria-label="회차 검증 지표">
       <Queue
         count={selectedFailed ? null : metrics.length}
         emptyText={selectedFailed ? "지표를 불러오지 못했어요. 0건이 아니에요." : "이 회차에는 계산된 지표가 없어요."}
@@ -203,14 +204,15 @@ export function MetricsPage() {
           id: item.key,
           title: item.label,
           subtitle: valueLabel(item),
-          status: statusLabel(item.status),
+          status: { label: statusLabel(item.status), tone: validationMetricTone(item.status) },
           meta: `기준 · ${thresholdLabel(item.threshold)}`,
         }))}
         onSelect={(id) => updateParams({ metric: id })}
         selectedId={metric?.key ?? null}
         title="검증 지표 목록"
       />
-      <section aria-label="선택한 검증 지표" className="crit-detail">
+      <section aria-label="선택한 검증 지표" className="review-split-detail crit-detail">
+        <ReviewPreviewHeader />
         {selectedFailed ? (
           <StateView
             action={<Button label="다시 조회" onClick={refetchSelected} />}
@@ -222,12 +224,12 @@ export function MetricsPage() {
           <>
             <DetailHeader
               eyebrow={`검증 지표 · 선택 회차 ${runLabel(selectedRun)}`}
-              status={statusLabel(metric.status)}
+              status={{ label: statusLabel(metric.status), tone: validationMetricTone(metric.status) }}
               title={metric.label}
             >
               <Small><code>{metric.key}</code></Small>
             </DetailHeader>
-            <div className="crit-detail-scroll" id="criteria-metrics-detail">
+            <div className="workbench-admin-detail-scroll crit-detail-scroll" id="criteria-metrics-detail">
               <StatLine items={[
                 ["측정값", valueLabel(metric)],
                 ["통과 기준", thresholdLabel(metric.threshold)],
@@ -235,7 +237,7 @@ export function MetricsPage() {
               ]} />
               {metric.percentage === null ? (
                 <Note role="status" title={metric.status === "not_measurable" ? "계산 불가" : "측정값이 없어요"} tone="warning">
-                  {`${metric.reason ?? "사유 미기록"} · 0%로 표시하지 않아요.`}
+                  {metric.reason ?? "사유 미기록"}
                 </Note>
               ) : null}
               <Section title="계산 근거">
@@ -243,7 +245,7 @@ export function MetricsPage() {
                   ["분자", typeof metric.basis.numerator === "number" ? formatNumber(metric.basis.numerator) : "미확인"],
                   ["분모", typeof metric.basis.denominator === "number" ? formatNumber(metric.basis.denominator) : "미확인"],
                   ["임계값 충족", metric.meets_threshold === null ? "판정 없음" : metric.meets_threshold ? "충족" : "미충족"],
-                  ["설명", metric.reason ?? "설명 없음"],
+                  ...(metric.percentage !== null && metric.reason ? [["설명", metric.reason] as [string, string]] : []),
                 ]} />
                 {detailEntries.length > 0 ? (
                   <Disclosure summary="세부 근거">
@@ -286,9 +288,14 @@ export function MetricsPage() {
                 이 회차의 수치가 좋아도 승인용 품질 게이트 통과를 대신하지 않아요.
               </Note>
             </div>
-            <DetailFooter note="측정하지 않은 값과 실제 0을 구분해요. 조회 범위 밖은 미확인이에요.">
-              <Button label="회차 선택" onClick={() => setRunPickerOpen(true)} size="sm" />
-            </DetailFooter>
+            <DecisionBar
+              stateLabel="지표 상태"
+              state={{ label: statusLabel(metric.status), tone: validationMetricTone(metric.status) }}
+              note={"측정하지 않은 값과 실제 0을 구분해요. 조회 범위 밖은 미확인이에요."}
+              primaryAction={
+                <Button label="회차 선택" onClick={() => setRunPickerOpen(true)} size="sm" />
+              }
+            />
           </>
         ) : (
           <StateView
@@ -320,6 +327,6 @@ export function MetricsPage() {
           <CancelButton label="닫기" onClick={() => setRunPickerOpen(false)} />
         </DialogActions>
       </CriteriaDialog>
-    </div>
+    </SplitWorkspace>
   );
 }

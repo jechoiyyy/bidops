@@ -22,6 +22,22 @@ import type {
   ResultStatus,
 } from "./types";
 import { formatMoment as formatMomentBase } from "../../lib/format";
+import type { BidDecisionNoticeCheckReason, BidDecisionReviewState } from "../../lib/types";
+
+export const DECISION_REVIEW_LABELS: Record<BidDecisionReviewState, string> = {
+  undecided: "미결정",
+  recheck: "재검토 필요",
+  notice_check: "공고 확인 필요",
+  decided: "결정 기록",
+  waiting_notice: "입찰공고 미연결",
+};
+
+export const DECISION_NOTICE_CHECK_LABELS: Record<BidDecisionNoticeCheckReason, string> = {
+  bid_notice_missing: "확정 연결된 입찰공고를 확인할 수 없어요.",
+  ordering_unknown: "최신 입찰공고 차수를 확정할 수 없어요.",
+  observation_unknown: "최신 입찰공고의 수집 근거를 확인할 수 없어요.",
+  decision_currentness_unknown: "이전 결정의 효력을 확인할 수 없어요.",
+};
 
 /** 최종 결정의 근거 종류(ADR-0058). 목록·결정 화면·이력이 같은 낱말을 쓴다. */
 export const BASIS_LABELS: Record<FinalDecisionBasisKind, string> = {

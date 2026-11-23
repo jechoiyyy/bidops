@@ -1,5 +1,5 @@
+import { ReviewPreviewHeader } from "../components/common/ReviewPrimitives";
 import { PRE_SPEC_PAGE_SIZE as PAGE_SIZE, preSpecPageOptions } from "../lib/defaultViewCounts";
-import { SkeletonBlock } from "../components/common/Skeleton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -9,15 +9,17 @@ import type { ISODateString } from "@astryxdesign/core/Calendar";
 import { Selector } from "@astryxdesign/core/Selector";
 import { EmptyState } from "../components/common/EmptyState";
 import { PageHeaderTabs } from "../components/common/PageHeaderActions";
-import { usePageHeader } from "../components/shell/PageHeaderContext";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
 import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
-import { DenseList, ListColumns, ListPagerControls, ReviewFilterSegmentedControl, SelectionToolbar, SplitWorkspace } from "../components/common/ReviewPrimitives";
+import { ListPagerControls, ReviewFilterSegmentedControl, SelectionToolbar, SplitWorkspace } from "../components/common/ReviewPrimitives";
 import { SourceRunContextLine, SourceRunFilter } from "../components/common/SourceRunFilter";
 import {
+  AppliedFilterTokens,
   formatCount,
+  type AppliedFilter,
   WorkspaceAdvancedToggle,
   WorkspaceFilterAdvanced,
+  WorkspaceFilterGroup,
   WorkspaceFilterBar,
   WorkspaceFilterContext,
   WorkspaceFilterLine,
@@ -38,7 +40,8 @@ import {
 import { PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL } from "../lib/preSpecAutoPreparation";
 import { PreSpecBulkDialog, type PreSpecBulkAction } from "../components/pre-specs/PreSpecBulkDialog";
 import { PreSpecDetail } from "../components/pre-specs/PreSpecListDetailPane";
-import { PreSpecRow } from "../components/pre-specs/PreSpecListRow";
+import { preSpecColumns } from "../components/pre-specs/PreSpecListRow";
+import { RecordTable } from "../components/common/RecordTable";
 import { useListSelection } from "../components/common/useListSelection";
 import {
   PRE_SPECS_SELECTION_STORAGE_KEY,
@@ -86,8 +89,8 @@ const LEGACY_DASHBOARD_FILTER_KEYS = [
   "tracking_status",
 ] as const;
 /** 등급 필터는 2026-11-19에 화면에서 내려갔다(C-1 공고 판정 미가동). 옛 주소에 남은
- * 값은 보이지 않는 필터가 되지 않도록 첫 렌더에서 주소에서 지운다. */
-const RETIRED_GRADE_KEYS = ["grade", "display_grade"] as const;
+ * 값은 보이지 않는 필터가 되지 않도록 첫 렌더에서 주소에서 지운다. 표 전환으로 없어진 밀도 값도 지운다. */
+const RETIRED_LIST_KEYS = ["grade", "display_grade", "density"] as const;
 /** 마감 구간 전환을 쓰는 보기(ADR-0064 결정 2, 2026-11-19 확인 필요에도 적용). */
 function scopedWorkspace(value: WorkspaceKey): boolean {
   return value === "actionable" || value === "needs_check";
@@ -190,7 +193,9 @@ export function PreSpecsPage() {
   const requestedSort = validSort(searchParams.get("sort"));
   const sort = requestedSort || sortForWorkspace(workspace);
   const offset = readOffset(searchParams.get("offset"));
-  const listSearch = searchParams.toString();
+  const listParams = new URLSearchParams(searchParams);
+  for (const key of RETIRED_LIST_KEYS) listParams.delete(key);
+  const listSearch = listParams.toString();
   const selectionFingerprint = preSpecsFilterFingerprint({
     reviewExclusion,
     swOnly,
@@ -240,19 +245,15 @@ export function PreSpecsPage() {
 
   useEffect(() => setSearchText(queryText), [queryText]);
   useEffect(() => {
-    if (!RETIRED_GRADE_KEYS.some((key) => searchParams.has(key))) return;
+    const hasRetiredParams = RETIRED_LIST_KEYS.some((key) => searchParams.has(key));
+    if (!hasRetiredParams && !hasLegacyView && !hasLegacyDashboardFilter) return;
     const next = new URLSearchParams(searchParams);
-    for (const key of RETIRED_GRADE_KEYS) next.delete(key);
-    setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams]);
-  useEffect(() => {
-    if (!hasLegacyView && !hasLegacyDashboardFilter) return;
-    const next = new URLSearchParams(searchParams);
+    for (const key of RETIRED_LIST_KEYS) next.delete(key);
     if (hasLegacyView) {
       next.delete("view");
       next.set("overview_view", overviewView);
     }
-    next.set("workspace", "all");
+    if (hasLegacyView || hasLegacyDashboardFilter) next.set("workspace", "all");
     setSearchParams(next, { replace: true });
   }, [hasLegacyDashboardFilter, hasLegacyView, overviewView, searchParams, setSearchParams]);
   useEffect(() => {
@@ -333,7 +334,7 @@ export function PreSpecsPage() {
     return workspaceCounts?.[key] ?? (key === workspace ? total : null);
   };
   // 구간 적용 **전** 활성 보기(검토할 항목 또는 확인 필요)를 둘로 나눈 서버 건수다.
-  // 화면은 옮기기만 하고 다시 세지 않는다. 아직 응답이 없으면 `–`이며 0건으로 접지 않는다.
+  // 받은 건수만 표시하고 아직 응답이 없으면 구간 이름만 표시한다.
   const deadlineScopeCounts = workspace === "needs_check"
     ? result.data?.needs_check_deadline_scope_counts
     : result.data?.deadline_scope_counts;
@@ -607,6 +608,7 @@ export function PreSpecsPage() {
   function restoreDefaults() {
     updateSearchParams({
       sw_only: null,
+      review_exclusion: null,
       business_division: null,
       origin: null,
       grade: null,
@@ -670,14 +672,6 @@ export function PreSpecsPage() {
   }
 
   const activeWorkspace = workspaceOf(workspace);
-  // 패널 헤더(2026-11-19 최종 시안 패턴): 화면 이름 · 문장형 제목(목록 total) · 보기 설명. 읽기 전·실패면
-  // 올리지 않아 route 이름이 `<h1>`이다. 숫자는 서버 total 그대로다.
-  usePageHeader(result.isSuccess ? {
-    eyebrow: "사전규격",
-    title: activeWorkspace.key === "actionable"
-      ? (total > 0 ? `검토할 사전규격이 ${formatCount(total)}건 있어요` : "검토할 사전규격이 없어요")
-      : `${activeWorkspace.label} 사전규격 ${formatCount(total)}건을 보고 있어요`,
-  } : null);
   /**
    * 접힌 상세 필터에 걸려 있는 조건 수(명세 §2.1, U3). 상세 필터 안의 축 가운데
    * 기본값이 아닌 것을 센다 — `필터 초기화`(`기본값으로`)가 되돌리는 것과 같은
@@ -685,6 +679,11 @@ export function PreSpecsPage() {
    * 표시 순서(`sort`)도 세지 않는다 — 정렬은 결과 집합을 바꾸지 않는 필터가 아니다.
    */
   const activeFilterCount = [
+    !swOnly,
+    reviewExclusion !== "all",
+    deadlineScope !== "current",
+    Boolean(rawObservedFrom || rawObservedTo),
+    sort !== sortForWorkspace(workspace),
     overviewView !== "all",
     Boolean(businessDivision),
     Boolean(origin),
@@ -694,6 +693,30 @@ export function PreSpecsPage() {
     Boolean(trackingDecision),
     Boolean(sourceRunId),
   ].filter(Boolean).length;
+
+  const appliedFilters: AppliedFilter[] = [];
+  function addFilter(key: string, label: string) {
+    appliedFilters.push({ key, label, onRemove: () => updateSearchParams({ [key]: null }) });
+  }
+
+  if (!swOnly) addFilter("sw_only", "SW 중심 해제");
+  if (reviewExclusion !== "all") addFilter("review_exclusion", reviewExclusion === "excluded" ? "검토 제외만" : "검토 포함만");
+  if (deadlineScope === "passed") addFilter("deadline_scope", "마감 구간 · 마감 경과");
+  if (rawObservedFrom || rawObservedTo) {
+    appliedFilters.push({
+      key: "observed_range",
+      label: `관측 · ${observedFrom || "시작 제한 없음"}–${observedTo || "종료 제한 없음"}`,
+      onRemove: () => updateSearchParams({ observed_from: null, observed_to: null }),
+    });
+  }
+  if (overviewView !== "all") addFilter("overview_view", `개요 상태 · ${VIEWS.find((view) => view.key === overviewView)?.label ?? overviewView}`);
+  if (businessDivision) addFilter("business_division", `업무구분 · ${businessDivision}`);
+  if (origin) addFilter("origin", `발견 구분 · ${originLabel(origin)}`);
+  if (trackingStatus) addFilter("tracking_status", `추적 상태 · ${trackingStatus}`);
+  if (deadlineStatus) addFilter("deadline_status", `마감 상태 · ${DEADLINE_STATUS_OPTIONS.find((option) => option.value === deadlineStatus)?.label ?? deadlineStatus}`);
+  if (autoPreparationStatus) addFilter("auto_preparation_status", `자동 준비 · ${PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL[autoPreparationStatus]}`);
+  if (trackingDecision) addFilter("tracking_decision", "추적 결정 · 대기");
+  if (sourceRunId && selectedRunLabel) addFilter("source_run_id", `수집 회차 · ${selectedRunLabel}`);
 
   return (
     <section className="pre-specs-page" data-astryx-theme="bidops" aria-labelledby="page-title">
@@ -716,26 +739,10 @@ export function PreSpecsPage() {
               }))}
               value={workspace}
             />
-            {/* 범위 스위치는 필터가 아니라 "지금 무엇을 보고 있는가"다. 보기 탭 바로
-                옆에 두어 탭 선택과 한눈에 읽히게 한다. 검색은 아래 도구 행에 둔다. */}
-            <div className="pre-specs-filter-context-start">
-              <label className="pre-specs-switch">
-                <input
-                  checked={swOnly}
-                  type="checkbox"
-                  onChange={(event) => updateSearchParams({ sw_only: event.target.checked ? null : "false" })}
-                />
-                <span>SW 중심 · 추적 예외 포함</span>
-              </label>
-              <span className="pre-specs-filter-help">
-                {swOnly
-                  ? "일반·기술용역 / SW사업대상 Y + 추적 예외"
-                  : "SW사업대상과 무관한 사전규격까지 조회"}
-              </span>
-            </div>
           </WorkspaceFilterLine>
 
           <WorkspaceFilterTools className="pre-specs-filter-tools">
+            <AppliedFilterTokens filters={appliedFilters} />
             <WorkspaceAdvancedToggle
               visibleLabel="필터"
               activeCount={activeFilterCount}
@@ -753,73 +760,52 @@ export function PreSpecsPage() {
               onEnter={() => applySearch(searchText)}
               value={searchText}
             />
-            {/* 수집 회차는 상세 필터 안으로 옮겼다(ADR-0062 2026-09-21 재개정). 관측 날짜
-                범위는 `최근 수집` 보기의 시야라 도구 줄에 남는다. */}
-            <div className="pre-specs-filter-context-range">
-              {workspace === "recent" || rawObservedFrom || rawObservedTo ? (
-                <div className="pre-specs-observation-range" aria-label="관측 날짜 범위">
-                  <DateInput
-                    className="pre-specs-observation-date"
-                    label="관측 시작일"
-                    size="sm"
-                    value={dateInputValue(observedFrom)}
-                    onChange={(value) => updateSearchParams({ observed_from: value ?? null })}
-                  />
-                  <span aria-hidden="true">–</span>
-                  <DateInput
-                    className="pre-specs-observation-date"
-                    label="관측 종료일"
-                    size="sm"
-                    value={dateInputValue(observedTo)}
-                    onChange={(value) => updateSearchParams({ observed_to: value ?? null })}
-                  />
-                </div>
-              ) : null}
-            </div>
-            {/* 네 번째 칸 — 보기 전용 조회 조건 하나가 온다. 검토할 항목의 마감
-                구간과 전체 이력의 검토 포함 여부는 서로 배타적이라 같은 자리를
-                나눠 쓴다(ADR-0064 결정 7). 캡션은 별도 요소다 — Astryx
-                `SegmentedControl.label`은 aria 전용이라 화면에 뜨지 않는다. */}
-            {scopedWorkspace(workspace) ? (
-              <div className="pre-specs-deadline-scope">
-                {/* 접근 이름은 컨트롤의 `label`이 이미 갖는다. 이 캡션은 같은 말을
-                    눈으로 읽게 하는 자리이므로 보조기술에는 한 번만 들리게 한다. */}
-                <span aria-hidden="true" className="pre-specs-deadline-scope-caption">마감 구간</span>
-                <ReviewFilterSegmentedControl
-                  className="pre-specs-deadline-scope-control"
-                  label="마감 구간"
-                  layout="hug"
-                  onChange={(value) => updateSearchParams({ deadline_scope: value === "current" ? null : value })}
-                  options={DEADLINE_SCOPE_OPTIONS.map((option) => {
-                    const count = deadlineScopeCount(option.value);
-                    return {
-                      value: option.value,
-                      label: `${option.label} ${count === null ? "–" : formatCount(count)}`,
-                    };
-                  })}
-                  value={deadlineScope}
-                />
-              </div>
-            ) : null}
-            {workspace === "all" ? <Selector label="검토 포함 여부" size="sm"
-              options={[{ value: "all", label: "전체" }, { value: "included", label: "검토 포함" }, { value: "excluded", label: "검토 제외" }]}
-              value={reviewExclusion} onChange={(value) => updateSearchParams({ review_exclusion: value === "all" ? null : value })} /> : null}
           </WorkspaceFilterTools>
 
-          {advancedOpen ? (
-            <WorkspaceFilterAdvanced
-              columns={4}
-              id="pre-specs-advanced-filters"
-              onReset={restoreDefaults}
-              resetLabel="기본값으로"
-            >
-              <Selector
-                label="개요 상태"
-                size="sm"
-                options={VIEWS.map((definition) => ({ value: definition.key, label: definition.label }))}
-                value={overviewView}
-                onChange={(value) => updateSearchParams({ overview_view: value === "all" ? null : value })}
-              />
+          <WorkspaceFilterAdvanced
+            isOpen={advancedOpen}
+            onClose={() => setAdvancedOpen(false)}
+            id="pre-specs-advanced-filters"
+            onReset={restoreDefaults}
+            resetLabel="기본값으로"
+          >
+            <WorkspaceFilterGroup title="조회 범위">
+              <label
+                className="pre-specs-switch"
+                title={swOnly ? "일반·기술용역 / SW사업대상 Y + 추적 예외" : "SW사업대상과 무관한 사전규격까지 조회"}
+              >
+                <input
+                  aria-label="SW 중심 · 추적 예외 포함"
+                  checked={swOnly}
+                  type="checkbox"
+                  onChange={(event) => updateSearchParams({ sw_only: event.target.checked ? null : "false" })}
+                />
+                <span>SW 중심</span>
+              </label>
+              <div className="pre-specs-filter-context-range">
+                {workspace === "recent" || rawObservedFrom || rawObservedTo ? (
+                  <div className="pre-specs-observation-range" aria-label="관측 날짜 범위">
+                    <DateInput
+                      className="pre-specs-observation-date"
+                      label="관측 시작일"
+                      size="sm"
+                      value={dateInputValue(observedFrom)}
+                      onChange={(value) => updateSearchParams({ observed_from: value ?? null })}
+                    />
+                    <span aria-hidden="true">–</span>
+                    <DateInput
+                      className="pre-specs-observation-date"
+                      label="관측 종료일"
+                      size="sm"
+                      value={dateInputValue(observedTo)}
+                      onChange={(value) => updateSearchParams({ observed_to: value ?? null })}
+                    />
+                  </div>
+                ) : null}
+              </div>
+              {workspace === "all" ? <Selector label="검토 포함 여부" size="sm"
+                options={[{ value: "all", label: "전체" }, { value: "included", label: "검토 포함" }, { value: "excluded", label: "검토 제외" }]}
+                value={reviewExclusion} onChange={(value) => updateSearchParams({ review_exclusion: value === "all" ? null : value })} /> : null}
               <Selector
                 label="업무구분"
                 size="sm"
@@ -840,6 +826,60 @@ export function PreSpecsPage() {
                 value={origin || ALL_OPTION}
                 onChange={(value) => updateSearchParams({ origin: value === ALL_OPTION ? null : value })}
               />
+              {/* 회차는 다른 축과 같은 방식으로 **기존 조건에 더한다**(시안 M1 승인 결정 2). */}
+              <SourceRunFilter
+                allRunsDescription="관측 이력 전체"
+                isError={runsQuery.isError}
+                isPending={runsQuery.isPending}
+                onChange={(runId) => updateSearchParams({ source_run_id: runId })}
+                onRetry={() => { void runsQuery.refetch(); }}
+                runs={sourceRuns}
+                value={sourceRunId || null}
+              />
+            </WorkspaceFilterGroup>
+            <WorkspaceFilterGroup title="개요 검토">
+              <Selector
+                label="개요 상태"
+                size="sm"
+                options={VIEWS.map((definition) => ({ value: definition.key, label: definition.label }))}
+                value={overviewView}
+                onChange={(value) => updateSearchParams({ overview_view: value === "all" ? null : value })}
+              />
+              {/* 자동 준비는 서버 질의 인자다 — workspace 건수와 같은 전체 집합을 좁힌다. */}
+              <Selector
+                label="자동 준비 상태"
+                size="sm"
+                options={[
+                  { value: ALL_OPTION, label: "전체" },
+                  ...AUTO_PREPARATION_FILTER_VALUES.map((value) => ({
+                    value,
+                    label: PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL[value],
+                  })),
+                ]}
+                value={autoPreparationStatus || ALL_OPTION}
+                onChange={(value) => updateSearchParams({ auto_preparation_status: value === ALL_OPTION ? null : value })}
+              />
+            </WorkspaceFilterGroup>
+            <WorkspaceFilterGroup title="추적·일정">
+              {scopedWorkspace(workspace) ? (
+                <div className="pre-specs-deadline-scope">
+                  <span className="pre-specs-deadline-scope-caption">마감 구간</span>
+                  <ReviewFilterSegmentedControl
+                    className="pre-specs-deadline-scope-control"
+                    label="마감 구간"
+                    layout="hug"
+                    onChange={(value) => updateSearchParams({ deadline_scope: value === "current" ? null : value })}
+                    options={DEADLINE_SCOPE_OPTIONS.map((option) => {
+                      const count = deadlineScopeCount(option.value);
+                      return {
+                        value: option.value,
+                        label: count === null ? option.label : `${option.label} ${formatCount(count)}`,
+                      };
+                    })}
+                    value={deadlineScope}
+                  />
+                </div>
+              ) : null}
               <Selector
                 label="추적 상태"
                 size="sm"
@@ -865,20 +905,6 @@ export function PreSpecsPage() {
                   onChange={(value) => updateSearchParams({ deadline_status: value === ALL_OPTION ? null : value })}
                 />
               ) : null}
-              {/* 자동 준비는 서버 질의 인자다 — workspace 건수와 같은 전체 집합을 좁힌다. */}
-              <Selector
-                label="자동 준비 상태"
-                size="sm"
-                options={[
-                  { value: ALL_OPTION, label: "전체" },
-                  ...AUTO_PREPARATION_FILTER_VALUES.map((value) => ({
-                    value,
-                    label: PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL[value],
-                  })),
-                ]}
-                value={autoPreparationStatus || ALL_OPTION}
-                onChange={(value) => updateSearchParams({ auto_preparation_status: value === ALL_OPTION ? null : value })}
-              />
               <Selector
                 label="추적 결정"
                 size="sm"
@@ -896,18 +922,8 @@ export function PreSpecsPage() {
                 value={sort}
                 onChange={(value) => updateSearchParams({ sort: value === sortForWorkspace(workspace) ? null : value })}
               />
-              {/* 회차는 다른 축과 같은 방식으로 **기존 조건에 더한다**(시안 M1 승인 결정 2). */}
-              <SourceRunFilter
-                allRunsDescription="관측 이력 전체"
-                isError={runsQuery.isError}
-                isPending={runsQuery.isPending}
-                onChange={(runId) => updateSearchParams({ source_run_id: runId })}
-                onRetry={() => { void runsQuery.refetch(); }}
-                runs={sourceRuns}
-                value={sourceRunId || null}
-              />
-            </WorkspaceFilterAdvanced>
-          ) : null}
+            </WorkspaceFilterGroup>
+          </WorkspaceFilterAdvanced>
 
           {/* 회차 줄 — 상세 필터를 접었는지와 무관하게 그린다(명세 §2.1). */}
           {sourceRunId && selectedRunLabel ? (
@@ -954,36 +970,22 @@ export function PreSpecsPage() {
                   : selection.selectedIds.length > 0 && !selectedReviewIds
                       ? "선택 항목의 정렬 시각을 확인할 수 없어요."
                       : ""}
+                selectPage={{
+                  onClick: selectCurrentPage,
+                  disabled: !selection.hydrationReady || !selection.storageAvailable || items.length === 0 || pageFullySelected,
+                }}
+                clearSelection={{ onClick: selection.clear, disabled: selection.selectedIds.length === 0 }}
+                startTracking={{
+                  onClick: () => openBulk(selection.selectedIds, "track"),
+                  disabled: !selection.hydrationReady || !selection.storageAvailable || selection.selectedIds.length === 0 || selection.selectedIds.length > 200,
+                }}
                 actions={(
                   <>
-                    <button
-                      className="interaction-control"
-                      type="button"
-                      onClick={selectCurrentPage}
-                      disabled={!selection.hydrationReady || !selection.storageAvailable || items.length === 0 || pageFullySelected}
-                      aria-label="현재 페이지 전체 선택"
-                      title="현재 페이지 전체 선택"
-                    >
-                      전체 선택
-                    </button>
-                    <button
-                      className="interaction-control"
-                      type="button"
-                      onClick={() => selection.clear()}
-                      disabled={selection.selectedIds.length === 0}
-                      aria-label="선택 전체 해제"
-                      aria-describedby={selection.selectedIds.length === 0 ? "pre-specs-selection-disabled" : undefined}
-                    >
-                      전체 해제
-                    </button>
-                    <Button size="sm" variant="secondary" label="일괄 추적 시작"
-                      isDisabled={!selection.hydrationReady || !selection.storageAvailable || selection.selectedIds.length === 0 || selection.selectedIds.length > 200}
-                      onClick={() => openBulk(selection.selectedIds, "track")} />
                     <Button size="sm" variant="secondary" aria-label="검토 목록에서 제외" label="검토 제외"
                       isDisabled={!selection.hydrationReady || !selection.storageAvailable || selection.selectedIds.length === 0 || selection.selectedIds.length > 200}
                       onClick={() => openBulk(selection.selectedIds, "excluded")} />
                     <button
-                      className="interaction-control interaction-control-primary"
+                      className="interaction-control"
                       type="button"
                       onClick={reviewSelected}
                       disabled={!selection.hydrationReady || !selection.storageAvailable || selection.selectedIds.length === 0 || !selectedReviewIds}
@@ -997,76 +999,64 @@ export function PreSpecsPage() {
               />
               {selection.selectedIds.length > 200 ? <p role="alert">한 번에 200건까지 일괄 처리할 수 있어요. 선택을 줄여 주세요.</p> : null}
               {selectionMessage ? <p className="pre-specs-selection-message" role="alert">{selectionMessage}</p> : null}
-              <ListColumns className="pre-specs-list-columns">
-                <span>사업명 / 발주기관</span>
-                <span>의견 마감</span>
-              </ListColumns>
-              <div
+
+              <RecordTable
+                activeKey={selectedPk}
                 className="pre-specs-list-scroll"
-                ref={listRef}
+                columns={preSpecColumns(workspace === "actionable" || workspace === "needs_check")}
+                getKey={(item) => item.notice_pk}
+                getRowLabel={titleOf}
+                label="사전규격"
+                navigation={rowKeyboard}
+                onActivate={selectPk}
+                onRowKeyDown={(event, item) => {
+                  if (event.key !== "Enter" || !(event.ctrlKey || event.metaKey)) return;
+                  event.preventDefault();
+                  openDetail(item.notice_pk);
+                }}
                 onScroll={(event) => selection.setListScrollTop(event.currentTarget.scrollTop)}
-                onKeyDown={rowKeyboard.onKeyDown}
-                onPointerDownCapture={rowKeyboard.onPointerDownCapture}
-              >
-                {result.isPending ? (
-                  <div className="pre-specs-loading" role="status" aria-live="polite">사전규격 목록을 불러오는 중이에요.<SkeletonBlock label={null} lines={3} /></div>
-                ) : result.isError ? (
-                  <EmptyState
-                    compact
-                    tone="error"
-                    title="사전규격 목록을 불러오지 못했어요"
-                    description="사전규격 API 응답을 확인할 수 없어요."
-                    action={{ label: "다시 시도", onClick: () => { void result.refetch(); } }}
-                  />
-                ) : items.length === 0 ? (
-                  <EmptyState
-                    compact
-                    title="조건에 맞는 사전규격이 없어요"
-                    description={emptyDescription()}
-                    action={searchKey(queryText)
+                rowClassName="pre-specs-row"
+                rows={items}
+                selection={{
+                  getChecked: (item) => selection.selectedIdSet.has(item.notice_pk),
+                  getLabel: (item) => `사전규격 선택 · ${titleOf(item)}`,
+                  onCheckedChange: (item) => selection.toggle(item.notice_pk, {
+                    id: item.notice_pk,
+                    published_at: item.published_at,
+                    deadline_at: item.deadline_at,
+                    last_observed_at: item.last_observed_at ?? null,
+                  }),
+                }}
+                state={result.isPending ? {
+                  kind: "loading", label: "사전규격 목록을 불러오는 중이에요.", lines: 3, showLabel: true,
+                } : result.isError ? {
+                  kind: "error",
+                  message: {
+                    title: "사전규격 목록을 불러오지 못했어요",
+                    description: "사전규격 API 응답을 확인할 수 없어요.",
+                    action: { label: "다시 시도", onClick: () => { void result.refetch(); } },
+                  },
+                } : items.length === 0 ? {
+                  kind: "empty",
+                  message: {
+                    title: "조건에 맞는 사전규격이 없어요",
+                    description: emptyDescription(),
+                    action: searchKey(queryText)
                       ? { label: "검색어만 지우기", onClick: () => applySearch("") }
                       : isDefaultView
                       ? { label: "전체 사전규격 보기", onClick: showAllPreSpecs }
-                      : { label: "기본값으로", onClick: restoreDefaults }}
-                  />
-                ) : (
-                  <DenseList aria-label="사전규격" className="pre-specs-list">
-                    {items.map((item) => (
-                      <PreSpecRow
-                        key={item.notice_pk}
-                        item={item}
-                        isSelected={item.notice_pk === selectedPk}
-                        // 검토할 항목·확인 필요는 `추적 결정 없음`이 보기의 뜻이라 행의 `미선택`을 되풀이하지 않는다.
-                        hideUntracked={workspace === "actionable" || workspace === "needs_check"}
-                        onSelect={() => selectPk(item.notice_pk)}
-                        selection={{
-                          checked: selection.selectedIdSet.has(item.notice_pk),
-                          ariaLabel: `사전규격 선택 · ${titleOf(item)}`,
-                          onCheckedChange: () => selection.toggle(item.notice_pk, {
-                            id: item.notice_pk,
-                            published_at: item.published_at,
-                            deadline_at: item.deadline_at,
-                            last_observed_at: item.last_observed_at ?? null,
-                          }),
-                        }}
-                        // `Ctrl/Cmd+Enter`는 hook 밖에서 처리한다(발주계획과 같은 모양).
-                        onKeyDown={(event) => {
-                          if (event.key !== "Enter" || !(event.ctrlKey || event.metaKey)) return;
-                          event.preventDefault();
-                          openDetail(item.notice_pk);
-                        }}
-                        {...rowKeyboard.rowProps(item.notice_pk)}
-                      />
-                    ))}
-                  </DenseList>
-                )}
-              </div>
+                      : { label: "기본값으로", onClick: restoreDefaults },
+                  },
+                } : undefined}
+                viewportRef={listRef}
+              />
               {/* 페이저는 목록 pane 안쪽 바닥이고 네 화면이 같은 공용 부품을 쓴다
                   (명세 §2.2). 한 쪽에 다 들어오는 목록에서도 줄을 남기고 단추만 끈다 —
                   그래서 전체 건수를 적던 별도 바닥 줄(`pre-specs-list-foot`)은 없앴다. */}
               {result.isSuccess ? (
                 <ListPagerControls
                   className="pre-specs-pager"
+                  keyboardAction="상세 열기"
                   label="사전규격 목록 페이지"
                   offset={offset}
                   onNext={() => updateSearchParams({ offset: String(offset + PAGE_SIZE) })}
@@ -1080,6 +1070,7 @@ export function PreSpecsPage() {
             </section>
 
             <section className="review-split-detail pre-specs-detail-pane" aria-label="선택한 사전규격">
+              <ReviewPreviewHeader />
               {selectedItem ? (
                 <PreSpecDetail
                   key={`${selectedItem.notice_pk}-${trackingFormVersion}`}

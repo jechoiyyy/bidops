@@ -21,7 +21,7 @@ const REPRESENTATIVE = [
   "dashboard", // 셸 · 요약 · 퍼널
   "criteria", // 기준·운영 탭 화면
   "order-plans-list", // 목록·상세 split과 pane 바닥 결정 (2e232b7 이후 상세도 이 작업면 안에 있다)
-  "pre-specs-list", // 접이식 상태 그룹
+  "pre-specs-list", // 표와 미리보기
   "opportunities-list", // 사업 추적 구역
   // "deep-review-complete"는 2026-11-19에 route 등록이 내려가 빠졌다(기준 이미지는 승인 없이 지우지 않는다).
   "bid-delta-changed", // 비교 표
@@ -53,16 +53,20 @@ for (const target of simpleTargets) {
 for (const target of setupTargets) {
   test(`${target.name} 화면 스냅샷`, async ({ page }) => {
     await target.setup(page);
-    await page.goto(target.path);
+    const path = target.name === "pre-specs-list" ? "/pre-specs?workspace=all&sw_only=false" : target.path;
+    await page.goto(path);
     await expect(page.locator("h1").first()).toBeVisible();
     await page.waitForLoadState("networkidle");
     await settleFonts(page);
+    if (target.name === "order-plans-list" || target.name === "pre-specs-list") {
+      await expect(page.locator('.record-table tbody tr[aria-current="true"]')).toBeVisible();
+      await expect(page.locator(".workbench-decision")).toBeVisible();
+    }
     if (target.name === "opportunities-list") {
       // 재검토 신호와 후보 확인 대기를 가진 두 fixture만 기본 구역인 `조치 필요`에
       // 모인다. 미선택 fixture는 사람이 아직 고르지 않았을 뿐 할 일이 아니므로
-      // `미결정`으로 빠진다(spec §7.2). 목록은 Astryx `Table`이라 행은 `tbody tr`이다
-      // (옛 밀집 행 선택자 `.review-dense-list-row`는 더 이상 없다).
-      await expect(page.locator(".opportunity-table-scroll tbody tr")).toHaveCount(2);
+      // `미결정`으로 빠진다(spec §7.2). `RecordTable`의 두 사업 행을 기다린 뒤 캡처한다.
+      await expect(page.locator(".opportunity-table-scroll tbody tr.opportunity-row")).toHaveCount(2);
     }
     await expect(page).toHaveScreenshot(`${target.name}.png`, {
       fullPage: true,

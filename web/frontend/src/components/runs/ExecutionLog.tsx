@@ -64,7 +64,7 @@ export function ExecutionLog({ data, loading, error }: ExecutionLogProps) {
                   {execution.error ? ` · ${execution.error}` : ""}
                 </span>
               </span>,
-              <StatusToken key="status" label={statusLabel(execution.status)} />,
+              <StatusToken key="status" label={statusLabel(execution.status)} tone={execution.status === "failed" ? "error" : execution.status === "success" ? "success" : "neutral"} />,
             ],
           }))}
         />

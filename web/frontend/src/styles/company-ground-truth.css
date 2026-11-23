@@ -19,8 +19,7 @@
 
 .co-page.is-ready {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  gap: var(--spacing-5);
+  grid-template-columns: minmax(0, var(--shell-list-width)) minmax(0, 1fr);
   align-items: start;
 }
 
@@ -308,8 +307,7 @@
   pointer-events: none;
 }
 
-/* 상단바 슬롯(portal): 왼쪽 "㈜루트랩 · 마지막 저장 날짜", 오른쪽 "이전 버전".
-   슬롯은 셸 DOM이라 화면 CSS가 닿지 않으므로 슬롯 안 요소만 고른다. */
+/* 셸의 상단바에서 활성 근거 버전의 저장일을 표시한다. */
 .topbar-page-actions:has(.co-topbar-meta) {
   flex: 1 1 auto;
 }
@@ -325,14 +323,54 @@
   white-space: nowrap;
 }
 
-.co-version-line {
-  margin: 0;
-  font-size: var(--bo-type-body);
-  line-height: var(--bo-type-body-leading);
+.topbar-tabs .co-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
 }
 
-.co-version-line.is-secondary {
-  margin-top: var(--spacing-1);
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
+.topbar-tabs .co-nav-item {
+  min-height: calc(var(--shell-tools-height) - 1px);
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-size: var(--bo-k-meta);
 }
+
+.topbar-tabs .co-nav-item.is-active {
+  border-bottom-color: var(--color-accent);
+  background: transparent;
+}
+
+.co-page.is-ready .co-side {
+  padding-inline-end: var(--spacing-4);
+}
+
+.co-page.is-ready .co-main {
+  position: sticky;
+  top: 0;
+  min-width: 0;
+  border-inline-start: 1px solid var(--color-border);
+}
+
+.co-select-fact {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.co-page [data-selected="true"] {
+  background: var(--color-accent-muted);
+}
+
+.co-preview-body {
+  display: grid;
+  justify-items: start;
+  gap: var(--spacing-2);
+  padding: var(--spacing-4) var(--spacing-6);
+}
+
+.co-preview-body h2 { margin: 0; font-size: var(--bo-k-detail); }
+.co-preview-value { white-space: pre-wrap; overflow-wrap: anywhere; }

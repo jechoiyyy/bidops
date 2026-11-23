@@ -6,9 +6,11 @@ import type {
   OpportunityRecheckEventKind,
   OpportunitySearchStrategy,
   OpportunitySearchTarget,
+  OpportunityTrackingStatus,
 } from "../../lib/types";
 import { describeDeadlineCountdown, shortDateLabel } from "../../lib/deadline";
 import { formatNumber } from "../../lib/format";
+import type { Mark } from "../common/Marks";
 
 /**
  * 사업 추적 화면이 읽는 생애주기 사실.
@@ -441,7 +443,7 @@ export function nextCheckOf(item: TrackingFacts): NextCheck {
   };
 }
 
-/** 행 오른쪽 열의 보조 한 줄. 숫자는 서버가 센 값만 쓰고 주 행동과 같은 사유를 말한다. */
+/** 사업명 아래의 다음 확인 보조 문구. 숫자는 서버가 센 값만 쓰고 주 행동과 같은 사유를 말한다. */
 export function nextCheckNote(item: TrackingFacts & { id: number }): string {
   const reason = topActionReason(item);
   if (reason === "new_link") return "재검토 신호";
@@ -510,23 +512,29 @@ function deadlineSegment(kind: "의견 마감" | "입찰 마감", value: string 
   return `${kind} ${deadline.label}`;
 }
 
-/**
- * 사업 추적 행의 "사업명 / 발주기관" 줄 끝에 붙는 대표 링크 요약(F3, spec §6.3).
- * 대표 링크가 없으면 붙일 것이 없으므로 `null`이다. 발주계획 링크는 예산·발주
- * 예정을, 사전규격·입찰공고 링크는 예산·마감(의견 마감|입찰 마감)을 적는다.
- * 단계를 알 수 없는 링크(`stageOfLink`가 `null`)는 화면이 지어내지 않고 생략한다.
- */
-export function primaryLinkSummary(item: OpportunityListItem | OpportunityDetailResponse): string | null {
+export function trackingMark(status: OpportunityTrackingStatus): Mark {
+  return { label: status, tone: status === "계속 추적" ? "accent" : status === "보류" ? "warning" : "neutral" };
+}
+
+/** 제목과 같은 대표 연결에서 예산과 발주 예정·공고 마감의 표시 값을 얻는다. */
+export function primaryLinkFacts(item: OpportunityListItem | OpportunityDetailResponse): {
+  budget: string;
+  budgetAmount: number | null;
+  milestone: string | null;
+} | null {
   const link = primaryLink(item);
   if (!link) return null;
   const stage = stageOfLink(link);
   if (stage === "발주계획") {
-    const parts = [amountSegment(link.budget), orderPlanSegment(link.planned_order_year, link.planned_order_month)];
-    return parts.filter((part): part is string => part !== null).join(" · ");
+    return {
+      budget: amountSegment(link.budget),
+      budgetAmount: link.budget,
+      milestone: orderPlanSegment(link.planned_order_year, link.planned_order_month),
+    };
   }
   if (stage === "사전규격" || stage === "입찰공고") {
     const kind = stage === "사전규격" ? "의견 마감" : "입찰 마감";
-    return `${amountSegment(link.budget)} · ${deadlineSegment(kind, link.deadline_at)}`;
+    return { budget: amountSegment(link.budget), budgetAmount: link.budget, milestone: deadlineSegment(kind, link.deadline_at) };
   }
   return null;
 }

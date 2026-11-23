@@ -4,11 +4,8 @@ import type { KeyboardEvent as ReactKeyboardEvent, PointerEventHandler, RefObjec
 /**
  * 목록 행을 ↑↓로 오르내리는 키보드 이동.
  *
- * 검토 대기열(`QueuePage`)이 화면 안에 직접 들고 있던 패턴(`isTypingTarget`·
- * `moveSelection`·행의 `scrollIntoView`)을 화면 밖으로 뺀 것이다. 발주계획 검토 목록이
- * 먼저 쓰고, 사전규격(DenseList)·사업 추적·Go/No-Go(Astryx `Table`)도 같은 형태로 쓸 수
- * 있다 — `rowProps`가 DOM 형태를 가정하지 않고 `data-row-key`와 roving `tabIndex`만
- * 돌려주므로, `<li>`든 표의 첫 열 버튼이든 그 요소에 그대로 뿌리면 된다.
+ * 공용 표에서 스크롤 영역이 키 입력을 받고, 각 표 행이 rowProps의
+ * data-row-key와 roving tabIndex를 받는다.
  *
  * **왜 window 리스너가 아닌가.** 리스너는 목록 컨테이너에 단다. 전역으로 달면 같은
  * 화면의 상세 pane 입력, 목록 폭 리사이즈 손잡이의 `ArrowLeft/Right/Home/End`,

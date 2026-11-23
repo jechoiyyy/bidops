@@ -34,7 +34,7 @@ for (const width of WIDTHS) {
     await page.setViewportSize({ width: width.width, height: width.height });
 
     await open(page, "/profile");
-    await page.getByText("사업·기술 역량").first().click();
+    await page.getByRole("table", { name: "기준 항목", exact: true }).getByRole("row", { name: /사업·기술 역량/ }).click();
     await shot(page, "profile", width);
 
     await open(page, "/profile?pstatus=unknown");
@@ -65,7 +65,7 @@ for (const width of WIDTHS) {
     await open(page, `/policies?policy=${encodeURIComponent(POLICY_CANDIDATE)}&ptab=approval`);
     await page.getByLabel("통과한 최신 운영 evaluation").click();
     await page.getByRole("option", { name: new RegExp(BINDABLE_EVALUATION) }).click();
-    await page.locator(".crit-detail-foot").getByRole("button", { name: "정책 활성화 확인" }).click();
+    await page.getByRole("group", { name: "결정 영역", exact: true }).getByRole("button", { name: "정책 활성화 확인" }).click();
     await shot(page, "policy-activation-confirm", width);
 
     await open(page, `/policies?policy=${encodeURIComponent(POLICY_DRAFT)}&ptab=record`);
@@ -81,7 +81,7 @@ for (const width of WIDTHS) {
     await shot(page, "gate-binding", width);
 
     await open(page, "/quality-gates?gate=gate-operational-pass");
-    await page.locator(".crit-detail-foot").getByRole("button", { name: "근거 리뷰 작성" }).click();
+    await page.getByRole("group", { name: "결정 영역", exact: true }).getByRole("button", { name: "근거 리뷰 작성" }).click();
     await shot(page, "gate-review", width);
 
     await open(page, "/quality-gates");
@@ -102,7 +102,7 @@ for (const width of WIDTHS) {
     await shot(page, "metrics-history-partial", width);
 
     await open(page, "/metrics");
-    await page.locator(".crit-detail-foot").getByRole("button", { name: "회차 선택" }).click();
+    await page.getByRole("group", { name: "결정 영역", exact: true }).getByRole("button", { name: "회차 선택" }).click();
     await shot(page, "metrics-run-picker", width);
   });
 }

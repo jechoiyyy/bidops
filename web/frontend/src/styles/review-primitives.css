@@ -10,40 +10,14 @@
  * 두 pane을 함께 유지한다.
  */
 
-.review-dense-list {
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-}
-
 /* 행 사이 구분선은 Astryx `hasDividers`가 `--color-border`로 긋는다. 시안의 목록은
    카드 안이라 더 옅은 선을 쓴다(spec §2.3: 구분선은 전부 `--color-background-muted`). */
-.review-dense-list-row {
-  min-width: 0;
-  border-block-end-color: var(--color-background-muted);
-  overflow-wrap: anywhere;
-}
 
 /* 선택 행은 채운 배경 하나로만 말한다. 좌측 inset 바는 두지 않는다(spec §2.3) —
    등급 레일과 겹쳐 흰 카드 위에서 두 표식이 서로를 지웠다. */
-.review-dense-list-row.is-selected,
-.review-dense-list-row[aria-current="true"] {
-  background: var(--color-accent-muted);
-  box-shadow: none;
-}
-
-.review-dense-list-row :where(button, a) {
-  min-height: var(--size-element-lg);
-}
 
 /* 선택 체크박스는 16px, 체크됨은 `--bo-brand` 채움 + 흰 체크(spec §2.3). 라벨이 늘
    함께 있으므로 채움색이 글자를 지지 않는다. */
-.review-dense-list-row[data-selection-mode="multiple"] [type="checkbox"] {
-  width: var(--spacing-4);
-  height: var(--spacing-4);
-  flex: 0 0 auto;
-  accent-color: var(--bo-brand);
-}
 
 /* --- 분할 작업 영역 (docs/0915_ui-redesign/spec.md §2.3) ---
  *
@@ -82,24 +56,17 @@
 .review-split-list {
   flex: 0 0 38%;
   border-right: var(--border-width) solid var(--review-split-line);
-  /* 조밀 목록 네 화면이 같은 목록 글자 크기를 쓴다(ADR-0062 "목록 글자"). 2026-11-18
-     결정: 사업명 14/600, 발주기관 14/400(primary), 예산·상태·마감·칩은 12(secondary).
-     페이지가 아니라 목록 pane이 소유하는 토큰이며 `:root`와 테마는 그대로다. */
-  --review-list-primary: var(--bo-type-list-title);
-  --review-list-secondary: var(--bo-type-caption);
+  /* ADR-0076 결정 15. 사업명 14/600, 기관·메타·일반 날짜·칩 12.
+     목록 단은 패널 본문의 --bo-type-* 재지정과 독립이다. */
+  --review-list-primary: var(--bo-k-meta);
+  --review-list-secondary: var(--bo-k-small);
 }
 
-/* 목록 행 안의 상태 칩(Astryx Token·Badge)도 secondary 단이다. 화면마다 따로 덮지
-   않고 목록 pane 한 곳에서 준다. */
-.review-split-list :where(tbody, [data-row-key]) :is(.astryx-token, .astryx-badge),
-.review-split-list :where(tbody, [data-row-key]) :is(.astryx-token, .astryx-badge) * {
+/* 행 칩의 label span도 화면별 span 글자 규칙에서 벗어난다. */
+.app-shell .review-split-list :where(tbody, [data-row-key]) :is(.astryx-token, .astryx-badge, .bo-tag),
+.app-shell .review-split-list :where(tbody, [data-row-key]) :is(.astryx-token, .astryx-badge, .bo-tag) span {
   font-size: var(--review-list-secondary);
-}
-
-/* 목록 행의 보조 줄(메타·상태) 안 낱 span은 화면 root의 "span은 본문" 재적용을
-   받지 않고 그 줄의 secondary 크기를 잇는다. */
-.review-split-list :is(.c2l-row-meta, .c2l-row-state, .pre-specs-row-meta, .pre-specs-row-state) span {
-  font-size: inherit;
+  font-weight: 500;
 }
 
 .review-split-detail {
@@ -114,7 +81,7 @@
 .review-list-head {
   display: flex;
   flex: 0 0 auto;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-4);
@@ -136,21 +103,13 @@
 .review-list-head > :last-child {
   flex: 1 1 0;
   color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
   text-align: right;
 }
 
-.review-list-columns {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-  padding: var(--spacing-1) var(--spacing-4);
-  border-bottom: var(--border-width) solid var(--review-split-line);
+.review-split-list th.astryx-table-header-cell {
   color: var(--color-text-secondary);
-  background: var(--review-quiet-surface);
-  font-size: var(--review-list-secondary, var(--bo-type-caption));
+  font-size: var(--review-list-primary);
+  font-weight: 400;
 }
 
 /* 도구줄은 한 줄이다: 선택 건수 · 조작 단추들 · (보조 캡션). 비활성 사유는 글자가
@@ -204,12 +163,12 @@
 }
 
 /* 건수는 0→10→100 으로 바뀌어도 단추를 밀지 않도록 자리 폭을 잡아 둔다. */
-.review-selection-count {
+.review-split-list .review-selection-count {
   flex: 0 0 auto;
   min-width: 7ch;
   color: var(--color-text-primary);
-  font-size: var(--bo-type-body);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--bo-k-meta);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -235,7 +194,8 @@
   border-top: var(--border-width) solid var(--review-split-line);
   color: var(--color-text-secondary);
   background: var(--review-quiet-surface);
-  font-size: var(--bo-type-caption);
+  font-size: var(--bo-k-small);
+  font-weight: 400;
 }
 
 /* 페이저 줄의 오른쪽 묶음(이전·범위·다음). 왼쪽 `전체 N건`은 위 규칙의
@@ -292,6 +252,35 @@
   font-size: var(--bo-type-caption);
   line-height: var(--bo-type-caption-leading);
   overflow-wrap: anywhere;
+}
+
+/* 목록 미리보기 기관 줄(ADR-0076 결정 15). 단독 상세의 기관 블록과 배치를 구분한다. */
+.app-shell .page-canvas .review-split-detail .review-agency-feature {
+  gap: 0;
+}
+
+.review-split-detail .review-agency-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.review-split-detail .review-agency-sub {
+  flex: 0 1 auto;
+}
+
+.review-split-detail .review-agency-sub::before {
+  content: " · ";
+  white-space: pre;
+}
+
+.review-split-detail :is(.review-agency-name, .review-agency-sub) {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+  font-weight: 500;
 }
 
 .review-filter-bar {
@@ -528,52 +517,10 @@
  *
  * 단독 상세 화면은 .review-sticky-decision-header 를 쓴다. 두 배치 모두
  * 스크롤 위치와 무관하게 결정 액션을 첫 화면에 남기는 것이 목적이다. */
-.review-decision-bar {
-  display: flex;
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--spacing-2) var(--spacing-3);
-  min-width: 0;
-  padding: var(--spacing-3) var(--spacing-4);
-  /* 카드 안의 선과 조용한 면(spec §2.3). 바깥 canvas 색을 카드 안으로 들이지 않는다. */
-  border-top: var(--border-width) solid var(--review-split-line, var(--color-background-muted));
-  background: var(--review-quiet-surface, var(--color-background-card));
-}
 
 /* 액션과 안내는 좁아지면 **줄을 바꾼다.** 한쪽이 0에 가깝게 눌리면 긴 한글이 한 글자씩
    세로로 쌓여 바가 pane 전체를 덮는다(단계 C에서 실제로 겪었다). flex-basis 를 주고
    wrap 을 켜서 그 상태를 만들지 않는다. */
-.review-decision-bar-actions {
-  display: flex;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-
-.review-decision-bar-hint {
-  flex: 0 1 auto;
-  min-width: 0;
-  margin-left: auto;
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  text-align: right;
-  overflow-wrap: break-word;
-}
-
-.review-decision-bar .review-decision-action {
-  max-width: 100%;
-}
-
-.review-decision-bar .review-decision-action-reason {
-  max-width: 40ch;
-  text-align: right;
-}
 
 /* --- append-only revision 이력 --- */
 .review-revision-history {
@@ -632,4 +579,40 @@
   color: var(--color-text-red);
   font-size: var(--bo-type-caption);
   overflow-wrap: anywhere;
+}
+
+/* 미리보기 표제는 오른쪽 스크롤 영역 위에 놓인다. */
+.review-preview-header {
+  display: flex;
+  flex: 0 0 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  padding-inline: var(--spacing-6);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  background: var(--color-background-muted);
+  font-weight: 600;
+  font-size: var(--bo-k-meta);
+}
+
+.review-split-detail .review-preview-header > span {
+  font-size: inherit;
+}
+
+.review-preview-header > :first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.review-preview-position {
+  font-variant-numeric: tabular-nums;
+}
+
+.review-list-viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
 }

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { mockDailyCollectionStatus } from "./api-mock";
 import {
   C2_ARTIFACT_SHA256,
   C2_MEASUREMENT_EXECUTION_ID,
@@ -26,7 +27,7 @@ const DESKTOP = { width: 1440, height: 900 };
 
 async function gotoRuns(page: Page, search = ""): Promise<void> {
   await page.goto(`/runs${search}`);
-  await expect(page.getByRole("tab", { name: "수집 실행", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("navigation", { name: "실행 상태 구역" }).getByRole("link", { name: "수집 실행", exact: true })).toHaveAttribute("aria-current", "page");
 }
 
 /** 회차 상세 안의 한 구역. 같은 값이 여러 구역에 나오므로 이름으로 좁힌다. */
@@ -37,14 +38,48 @@ function section(page: Page, name: string | RegExp) {
 /** 발주계획 회차를 열고 `발주계획 선별` 탭으로 들어간다. */
 async function gotoOrderPlanScreeningTab(page: Page, search = ""): Promise<void> {
   await gotoRuns(page, `?run=${encodeURIComponent(ORDER_PLAN_RUN_ID)}${search}`);
-  const tab = page.getByRole("button", { name: "발주계획 선별", exact: true });
+  const tab = page.getByRole("tab", { name: "발주계획 선별", exact: true });
   await expect(tab).toBeVisible();
   await tab.click();
   await expect(page.getByRole("heading", { name: /이 회차의 선별 실행/ })).toBeVisible();
 }
 
 test.describe("실행 상태", () => {
-  test("네 탭이 각자의 경로로 열리고 활성 탭만 무거운 조회를 낸다", async ({ page }) => {
+  test("일일 수집은 트랙별 상태를 보여 주고 경고 회차의 감사 로그를 연다", async ({ page }) => {
+    await installRunStatusMock(page);
+    await mockDailyCollectionStatus(page, {
+      "order-plans": { state: "missing", run_id: null, warning_count: null, reasons: ["no_run"] },
+      notices: { state: "incomplete", run_id: RUN_ID, warning_count: 426, reasons: ["ingest_warnings"] },
+    });
+    await page.goto("/run-status");
+    const collection = page.getByRole("region", { name: "일일 수집 상태" });
+    const plans = collection.getByRole("listitem").filter({ hasText: "발주계획" });
+    const notices = collection.getByRole("listitem").filter({ hasText: "입찰공고" });
+    await expect(plans).toContainText("수집 기록 없음");
+    await expect(plans.getByRole("link")).toHaveCount(0);
+    await expect(notices).toContainText("적재 확인 필요");
+    await expect(notices).toContainText("적재 경고 426건");
+    await notices.getByRole("link", { name: /적재 경고 보기/ }).click();
+    await expect(page).toHaveURL(/\/audit\?run=.*#run-warnings$/);
+    expect(new URL(page.url()).searchParams.get("run")).toBe(RUN_ID);
+  });
+
+  test("일일 발주계획에서 해당 회차의 선별 실행으로 바로 이동한다", async ({ page }) => {
+    await installRunStatusMock(page);
+    await mockDailyCollectionStatus(page, { "order-plans": { run_id: ORDER_PLAN_RUN_ID } });
+    await page.goto("/run-status");
+    const link = page.getByRole("link", { name: "선별 실행 보기", exact: true });
+    await link.click();
+    await expect(page.getByRole("tab", { name: "발주계획 선별", exact: true })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("heading", { name: /이 회차의 선별 실행/ })).toBeVisible();
+    const row = page.getByRole("region", { name: "실행 회차 목록" }).getByText("선별 결과는 발주계획 선별 탭에서 확인", { exact: false });
+    await expect(row).toHaveCount(1);
+    await page.getByRole("tab", { name: "진행 현황", exact: true }).click();
+    await link.click();
+    await expect(page.getByRole("tab", { name: "발주계획 선별", exact: true })).toHaveAttribute("aria-selected", "true");
+  });
+
+  test("네 구역이 각자의 경로로 열리고 현재 구역만 무거운 조회를 낸다", async ({ page }) => {
     await installRunStatusMock(page);
     const requested: string[] = [];
     page.on("request", (request) => {
@@ -58,23 +93,23 @@ test.describe("실행 상태", () => {
     expect(requested).not.toContain("/api/attachments/queue");
     expect(requested).not.toContain("/api/schedule/settings");
 
-    await page.getByRole("tab", { name: "첨부 확보", exact: true }).click();
+    await page.getByRole("navigation", { name: "실행 상태 구역" }).getByRole("link", { name: "첨부 확보", exact: true }).click();
     await expect.poll(() => new URL(page.url()).pathname).toBe("/attachments");
     await expect.poll(() => requested.includes("/api/attachments/queue")).toBe(true);
 
-    await page.getByRole("tab", { name: "상시 운영", exact: true }).click();
+    await page.getByRole("navigation", { name: "실행 상태 구역" }).getByRole("link", { name: "상시 운영", exact: true }).click();
     await expect.poll(() => new URL(page.url()).pathname).toBe("/operations");
     await expect.poll(() => requested.includes("/api/schedule/settings")).toBe(true);
 
-    await page.getByRole("tab", { name: "산출물 감사 로그", exact: true }).click();
+    await page.getByRole("navigation", { name: "실행 상태 구역" }).getByRole("link", { name: "산출물 감사 로그", exact: true }).click();
     await expect.poll(() => new URL(page.url()).pathname).toBe("/audit");
     await expect(page.getByRole("heading", { name: "산출물 검증" })).toBeVisible();
   });
 
-  test("탭을 옮겨도 회차와 무관한 쿼리를 잃지 않는다", async ({ page }) => {
+  test("구역을 옮겨도 회차와 무관한 쿼리를 잃지 않는다", async ({ page }) => {
     await installRunStatusMock(page);
     await gotoRuns(page, `?run=${encodeURIComponent(RUN_ID)}&from=dashboard`);
-    await page.getByRole("tab", { name: "산출물 감사 로그", exact: true }).click();
+    await page.getByRole("navigation", { name: "실행 상태 구역" }).getByRole("link", { name: "산출물 감사 로그", exact: true }).click();
     await expect.poll(() => new URL(page.url()).pathname).toBe("/audit");
     const params = new URL(page.url()).searchParams;
     expect(params.get("run")).toBe(RUN_ID);
@@ -105,7 +140,7 @@ test.describe("실행 상태", () => {
     await gotoRuns(page);
     await page.getByRole("button", { name: "운영 조건" }).click();
     const dialog = page.getByRole("dialog");
-    await expect(dialog).toContainText("운영 텔레메트리는 삭제하지 않았어요");
+    await dialog.getByText("판정 실행 기록 위치").click();
     await expect(dialog).toContainText("model_digest");
     await expect(dialog).toContainText("duration_ms");
     await expect(dialog).toContainText("거절 사유");
@@ -116,22 +151,23 @@ test.describe("실행 상태", () => {
   test("회차 목록은 회차 상태와 판정 실행 상태를 구분하고 조회 범위를 적는다", async ({ page }) => {
     await installRunStatusMock(page);
     await gotoRuns(page);
-    const list = page.getByLabel("실행 회차 목록");
+    const list = page.getByRole("region", { name: "실행 회차 목록", exact: true });
     // 회차 자체 상태와 그 회차에 연결된 판정 실행 상태는 다른 값이다.
     await expect(list).toContainText("회차 완료");
     await expect(list).toContainText("판정 실행 실행 중");
-    // 조회 범위 안에 실행 기록이 없는 회차는 없음으로만 말한다.
-    await expect(list).toContainText("조회 범위 안 기록 없음");
+    // 발주계획 행에는 공고 판정 실행의 부재를 선별 실행 없음으로 표시하지 않는다.
+    await expect(list).toContainText("선별 결과는 발주계획 선별 탭에서 확인");
     await expect(list).toContainText("판정 실행 상태는 최근 3건 조회 범위 기준이며 범위 밖은 미확인이에요");
   });
 
   test("판정 실행 목록 조회가 실패하면 실행 상태를 0으로 바꾸지 않는다", async ({ page }) => {
     await installRunStatusMock(page, { executionsError: true });
     await gotoRuns(page);
-    const list = page.getByLabel("실행 회차 목록");
+    const list = page.getByRole("region", { name: "실행 회차 목록", exact: true });
     await expect(list).toContainText("판정 실행 미확인");
-    await expect(page.getByRole("button", { name: "실행 중 미확인" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "확인 필요 미확인" })).toBeVisible();
+    const views = list.getByRole("radiogroup", { name: "회차 보기" });
+    await expect(views.getByRole("radio", { name: "실행 중 미확인" })).toBeVisible();
+    await expect(views.getByRole("radio", { name: "확인 필요 미확인" })).toBeVisible();
     await expect(list).toContainText("판정 실행 상태는 미확인이에요");
   });
 
@@ -142,6 +178,9 @@ test.describe("실행 상태", () => {
     // 후보 40 · 완료 17 · 실패 1 → 처리 18건 = 45%
     await expect(progress).toHaveAttribute("aria-valuenow", "45");
     const detail = page.getByLabel("선택한 실행 회차");
+    const flow = detail.locator(".workbench-flow");
+    await expect(flow.locator('[data-step-state="current"]')).toContainText("공고 판정");
+    await expect(flow.locator('[data-step-state="unknown"]')).toContainText("보고 생성");
     await expect(detail).toContainText("18 / 40건 처리");
     await expect(detail).toContainText("남은 대상");
     await expect(detail).toContainText("22건");
@@ -196,7 +235,7 @@ test.describe("실행 상태", () => {
   test("실패 내역은 안전한 식별자·코드만 보여 주고 0건과 미확인을 구분한다", async ({ page }) => {
     await installRunStatusMock(page);
     await gotoRuns(page);
-    await page.getByRole("button", { name: /실패 내역/ }).click();
+    await page.getByRole("tab", { name: /실패 내역/ }).click();
     const detail = page.getByLabel("선택한 실행 회차");
     await expect(detail).toContainText("notice-031");
     await expect(detail).toContainText("모델 출력 잘림");
@@ -215,7 +254,7 @@ test.describe("실행 상태", () => {
   test("실패 0건인 실행은 0건으로, 목록이 없으면 미확인으로 적는다", async ({ page }) => {
     await installRunStatusMock(page, { successOnly: true });
     await gotoRuns(page);
-    await page.getByRole("button", { name: /실패 내역/ }).click();
+    await page.getByRole("tab", { name: /실패 내역/ }).click();
     await expect(page.getByText("실패한 항목이 없어요 · 0건")).toBeVisible();
     await expect(page.getByText("실행이 기록한 실패 건수가 실제로 0이에요.")).toBeVisible();
   });
@@ -343,13 +382,13 @@ test.describe("실행 상태", () => {
   test("실행 기준 탭은 고정 입력과 관측 위치를 남긴다", async ({ page }) => {
     await installRunStatusMock(page);
     await gotoRuns(page);
-    await page.getByRole("button", { name: "실행 기준" }).click();
+    await page.getByRole("tab", { name: "실행 기준" }).click();
     const detail = page.getByLabel("선택한 실행 회차");
     await expect(detail).toContainText("screening-policy.v1.20260825");
     await expect(detail).toContainText("sha256:합성모델");
     await expect(detail).toContainText("현재 판정 기준이 바뀌어도 이미 시작한 실행에 소급 적용하지 않아요");
 
-    await page.getByRole("button", { name: "실행 기록" }).click();
+    await page.getByRole("tab", { name: "실행 기록" }).click();
     await expect(detail).toContainText("model_digest · token 수 · duration_ms는 판정 화면의 기본 표시에서 뺐을 뿐 삭제하지 않았어요");
   });
 
@@ -370,18 +409,18 @@ test.describe("실행 상태", () => {
     await installRunStatusMock(page);
     await page.goto("/attachments");
     await expect(page.getByLabel("확인할 공고")).toContainText("등록된 조달시스템 없음");
-    await expect(page.getByLabel("첨부 미확보 목록")).toContainText("등록된 포털 1개");
+    await expect(page.getByRole("region", { name: "첨부 미확보 목록", exact: true })).toContainText("등록된 포털 1개");
 
     await installRunStatusMock(page, { portalsError: true });
     await page.goto("/attachments");
     await expect(page.getByLabel("확인할 공고")).toContainText("포털 조회 실패 · 미확인");
-    await expect(page.getByLabel("첨부 미확보 목록")).toContainText("등록된 포털은 조회 실패로 미확인");
+    await expect(page.getByRole("region", { name: "첨부 미확보 목록", exact: true })).toContainText("등록된 포털은 조회 실패로 미확인");
   });
 
   test("승인된 검색 주소만 열고 등록·수정 전체 양식을 유지한다", async ({ page }) => {
     const trace = await installRunStatusMock(page);
     await page.goto("/attachments");
-    await page.getByLabel("첨부 미확보 목록").getByRole("button", { name: /합성 공고 76/ }).click();
+    await page.getByRole("region", { name: "첨부 미확보 목록", exact: true }).getByRole("row", { name: /합성 공고 76/ }).click();
     const link = page.getByLabel("확인할 공고").getByRole("link", { name: "기관 검색 주소 열기" });
     await expect(link).toHaveAttribute("href", "https://example.invalid/?q=202676");
 
@@ -559,10 +598,10 @@ test.describe("실행 상태", () => {
   test("생성 전 산출물은 검증 미확인으로 남고 경고를 0으로 세지 않는다", async ({ page }) => {
     await installRunStatusMock(page);
     await page.goto("/audit");
-    const list = page.getByLabel("산출물 목록");
+    const list = page.getByRole("region", { name: "산출물 목록", exact: true });
     await expect(list).toContainText("screening-results.json");
     await expect(list).toContainText("미생성");
-    await list.getByRole("button", { name: /screening-results.json/ }).click();
+    await list.getByRole("row", { name: /screening-results.json/ }).click();
     const detail = page.getByLabel("선택한 산출물");
     await expect(detail).toContainText("생성 전");
     await expect(detail).toContainText("생성 전이므로 검증 경고를 셀 수 없어요");
@@ -587,7 +626,7 @@ test.describe("실행 상태", () => {
     await expect(logDialog).toContainText("파이프라인 실행 기록");
     await logDialog.getByRole("button", { name: "확인", exact: true }).click();
 
-    await page.getByRole("button", { name: "수집 실행 탭에서 보기" }).click();
+    await page.getByRole("button", { name: "수집 실행에서 보기" }).click();
     await expect.poll(() => new URL(page.url()).pathname).toBe("/runs");
     expect(new URL(page.url()).searchParams.get("run")).toBe(RUN_ID);
   });
@@ -598,12 +637,13 @@ test.describe("실행 상태", () => {
     for (const viewport of [LAPTOP, DESKTOP]) {
       await page.setViewportSize(viewport);
       await gotoRuns(page);
-      const footer = page.getByLabel("선택한 실행 회차").locator(".rs-detail-foot");
+      const footer = page.getByLabel("선택한 실행 회차").getByRole("group", { name: "결정 영역", exact: true });
       await expect(footer).toBeVisible();
       const box = await footer.boundingBox();
       expect(box).not.toBeNull();
       expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(viewport.height + 1);
-      await expect(page.getByRole("button", { name: "파이프라인 실행" })).toBeVisible();
+      await expect(footer.getByRole("button", { name: "파이프라인 실행" })).toBeInViewport({ ratio: 1 });
+      await expect(footer.getByRole("button", { name: "전량 판정 대기열에 넣기" })).toBeInViewport({ ratio: 1 });
     }
   });
 
@@ -644,13 +684,13 @@ test.describe("실행 상태", () => {
   test("발주계획 회차에만 다섯째 탭이 생기고 공고 회차는 네 탭 그대로다", async ({ page }) => {
     await installRunStatusMock(page);
     await gotoRuns(page);
-    const tabs = page.getByRole("navigation", { name: "선택한 회차 상세 보기" });
-    await expect(tabs.getByRole("button")).toHaveCount(4);
-    await expect(tabs.getByRole("button", { name: "발주계획 선별", exact: true })).toHaveCount(0);
+    const tabs = page.getByRole("tablist", { name: "선택한 회차 상세 보기" });
+    await expect(tabs.getByRole("tab")).toHaveCount(4);
+    await expect(tabs.getByRole("tab", { name: "발주계획 선별", exact: true })).toHaveCount(0);
 
     await gotoRuns(page, `?run=${encodeURIComponent(ORDER_PLAN_RUN_ID)}`);
-    await expect(tabs.getByRole("button")).toHaveCount(5);
-    await expect(tabs.getByRole("button", { name: "발주계획 선별", exact: true })).toBeVisible();
+    await expect(tabs.getByRole("tab")).toHaveCount(5);
+    await expect(tabs.getByRole("tab", { name: "발주계획 선별", exact: true })).toBeVisible();
   });
 
   test("회차의 선별 실행 둘 중 고른 실행이 상세와 주소에 남는다", async ({ page }) => {
@@ -677,7 +717,7 @@ test.describe("실행 상태", () => {
 
     // 새로고침해도 고른 실행이 복원된다.
     await page.reload();
-    await page.getByRole("button", { name: "발주계획 선별", exact: true }).click();
+    await page.getByRole("tab", { name: "발주계획 선별", exact: true }).click();
     await expect(section(page, "실행 기준")).toContainText(C2_OPERATIONAL_EXECUTION_ID);
   });
 
@@ -701,9 +741,9 @@ test.describe("실행 상태", () => {
     await installRunStatusMock(page);
     await gotoRuns(page, `?run=${encodeURIComponent(ORDER_PLAN_RUN_ID)}&execution=${C2_OPERATIONAL_EXECUTION_ID}`);
 
-    const tabs = page.getByRole("navigation", { name: "선택한 회차 상세 보기" });
-    await expect(tabs.getByRole("button", { name: "발주계획 선별", exact: true }))
-      .toHaveAttribute("aria-pressed", "true");
+    const tabs = page.getByRole("tablist", { name: "선택한 회차 상세 보기" });
+    await expect(tabs.getByRole("tab", { name: "발주계획 선별", exact: true }))
+      .toHaveAttribute("aria-selected", "true");
     // 가리킨 실행이 그대로 열린다 — 탭만 바꾸고 다른 실행을 보여 주지 않는다.
     await expect(section(page, "실행 기준")).toContainText(C2_OPERATIONAL_EXECUTION_ID);
   });

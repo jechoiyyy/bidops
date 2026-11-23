@@ -1,3 +1,4 @@
+import { executionStatusTone } from "../runs/runStatusData";
 import { Button } from "@astryxdesign/core/Button";
 import { formatNumber } from "../../lib/format";
 import type { ScheduleExecutionSummary, ScheduleStatus } from "../../lib/types";
@@ -43,7 +44,7 @@ export function ScheduleExecutionTable({ items, onRecover }: ScheduleExecutionTa
       <div className="rs-link-row" aria-label="정기 실행 상태 범례">
         {scheduleStatuses.map((status) => (
           <span className="rs-row" key={status}>
-            <StatusToken label={status} />
+            <StatusToken label={status} tone={executionStatusTone(status)} />
             <Caption as="span">{counts[status] ?? 0}건</Caption>
           </span>
         ))}
@@ -57,7 +58,7 @@ export function ScheduleExecutionTable({ items, onRecover }: ScheduleExecutionTa
           rows={items.map((item) => ({
             id: item.execution_id,
             cells: [
-              <StatusToken key="status" label={item.status} />,
+              <StatusToken key="status" label={item.status} tone={executionStatusTone(item.status)} />,
               <span key="window" id={executionAnchor(item.execution_id)}>
                 <span className="rs-mono">{item.window_from} ~ {item.window_to}</span>
                 <span className="rs-row-sub">{item.job_kind === "daily" ? "일간" : "주간"} · <span className="rs-mono">{item.run_key}</span></span>

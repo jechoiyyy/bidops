@@ -10,7 +10,7 @@ import { mockGoNoGo } from "./go-no-go-fixtures";
  * 상단바 제목 모드·필터 바 골격·목록 폭·머리 여백이 화면마다 조금씩 달라질 수 있다.
  * `admin-workspace-consistency.spec.ts`처럼 지원 폭 두 곳(1280×800·1440×900)에서
  * **실측**해 같은 값을 요구한다. 업무 값은 기존 fixture(`api-mock.ts` + 화면별 mock)로
- * 공급하며 운영 API에는 닿지 않는다. 업무 의미는 화면별 spec이 갖고 여기는 골격만 본다.
+ * 공급하며 운영 API에는 닿지 않는다. 업무 의미는 화면별 spec이 갖고 여기는 골격과 글자 단을 본다.
  *
  * 폭은 `page.setViewportSize`로 직접 준다. `playwright.config.ts`의 `LAYOUT_SPECS`에
  * 넣으면 project가 폭을 주지만 그 파일은 이 작업의 소유 밖이라, 본보기와 같은 방식으로
@@ -23,29 +23,6 @@ import { mockGoNoGo } from "./go-no-go-fixtures";
  * `unifiedListParts`를 더 켠다. 비어 있는 항목은 "비교를 줄였다"가 아니라 "그 화면은
  * 아직 그 부품을 쓰지 않는다"는 뜻이다.
  */
-
-interface RowTypeSpec {
-  /** 목록 행의 사업명·발주기관 자리. 행의 구조가 화면마다 달라 selector도 화면이 준다. */
-  title: string;
-  agency: string;
-  /**
-   * 그 두 줄의 물리 글자 크기. 네 화면이 모두 공용 `--review-list-primary`(목록 제목 단 14px)를
-   * 읽는다(2026-09-21 M1c 승인, 명세 §2.4). selector는 행 구조가 화면마다 달라
-   * 화면이 주지만 값은 하나다.
-   */
-  size: string;
-  /**
-   * 발주기관 줄이 사업명과 다른 크기일 때만 준다. 발주계획은 승인 최종 시안대로 사업명 16px · 발주기관 14px다
-   * (2026-11-19 ADR-0076, ADR-0062 ⓒ를 발주계획에서 바꿨다).
-   */
-  agencySize?: string;
-  /**
-   * 사업명(title)의 굵기. 발주계획·사전규격 두 화면은 같은 semibold를 읽는다
-   * (2026-09-22 M7 ② 승인 — `--font-weight-semibold`/`600`). 2026-11-19부터 발주계획은 승인 최종 시안대로
-   * 16px/700이다(ADR-0076). 값을 주지 않은 화면은 아직 비교하지 않는다.
-   */
-  titleWeight?: string;
-}
 
 interface ScreenSpec {
   path: string;
@@ -80,8 +57,13 @@ interface ScreenSpec {
    * 두기로 했고(시안 M1c A안) 묶음 선택 작업이 없어 이 두 부품 자체가 없다.
    */
   unifiedListParts?: boolean;
-  /** 목록 행 글자 단. 행 구조가 화면마다 다르므로 selector와 기대값을 화면이 준다. */
-  rowType?: RowTypeSpec;
+  /** 목록 구조와 결정 띠는 화면마다 다르며 글자 단은 공통이다. */
+  typography: {
+    listTitle: string;
+    rowTitle: string;
+    rowAgency: string;
+    footer: string;
+  };
   /** 화면별 추가 mock. `mockApi` 뒤에 걸어 같은 경로만 덮어쓴다. */
   mock?: (page: Page) => Promise<unknown>;
 }
@@ -97,10 +79,15 @@ const screens: ScreenSpec[] = [
     listPane: ".c2l-list-pane",
     listHead: ".c2l-list-head",
     detailHead: ".c2l-detail-head",
-    detailHeadPadding: "12px 16px 8px 16px",
+    detailHeadPadding: "12px 24px 8px 24px",
     unifiedFrame: true,
     unifiedListParts: true,
-    rowType: { title: ".c2l-row-title", agency: ".c2l-row-agency", size: "16px", agencySize: "14px", titleWeight: "700" },
+    typography: {
+      listTitle: ".c2l-list-count",
+      rowTitle: ".c2l-row-title",
+      rowAgency: ".c2l-row-agency",
+      footer: ".c2l-detail-actions",
+    },
   },
   {
     path: "/pre-specs?sw_only=false", // S3: 기본 보기 fixture는 추적 결정으로 0건
@@ -109,10 +96,15 @@ const screens: ScreenSpec[] = [
     listPane: ".pre-specs-list-pane",
     listHead: ".pre-specs-list-head",
     detailHead: ".pre-specs-detail-header",
-    detailHeadPadding: "12px 16px 8px 16px",
+    detailHeadPadding: "12px 24px 8px 24px",
     unifiedFrame: true,
     unifiedListParts: true,
-    rowType: { title: ".pre-specs-row-title", agency: ".pre-specs-row-agency", size: "16px", agencySize: "14px", titleWeight: "700" },
+    typography: {
+      listTitle: ".pre-specs-list-count",
+      rowTitle: ".pre-specs-row-title",
+      rowAgency: ".pre-specs-row-agency",
+      footer: ".pre-specs-detail-actions",
+    },
   },
   {
     // 사업 추적도 공용 분할 골격으로 옮겼다(시안 M1c A안). 여기 selector가 공용
@@ -125,11 +117,16 @@ const screens: ScreenSpec[] = [
     listPane: ".review-split-list",
     listHead: ".review-list-head",
     detailHead: ".review-detail-head",
-    detailHeadPadding: "12px 16px 8px 16px",
+    detailHeadPadding: "12px 24px 8px 24px",
     unifiedFrame: true,
     // 목록은 Astryx `Table`을 유지하고(M1c A안) 묶음 선택이 없어 열 이름 줄·선택
-    // 도구줄 부품이 없다. 행 글자 단은 아래 `rowType`이 따로 본다.
-    rowType: { title: ".opportunity-row-title", agency: ".opportunity-row-agency", size: "16px" },
+    // 도구줄 부품이 없다. 행 글자 단은 글자 교차 검사에서 본다.
+    typography: {
+      listTitle: ".opportunity-list-title",
+      rowTitle: ".opportunity-row-title",
+      rowAgency: ".opportunity-row-agency",
+      footer: ".workbench-decision",
+    },
     mock: (page) => mockOpportunities(page),
   },
   {
@@ -141,11 +138,16 @@ const screens: ScreenSpec[] = [
     listPane: ".review-split-list",
     listHead: ".review-list-head",
     detailHead: ".review-detail-head",
-    detailHeadPadding: "12px 16px 8px 16px",
+    detailHeadPadding: "12px 24px 8px 24px",
     unifiedFrame: true,
     // 목록은 Astryx `Table`을 유지하고(M1c A안) 묶음 선택이 없어 열 이름 줄·선택
     // 도구줄 부품이 없다 — `unifiedListParts`는 켜지 않는다.
-    rowType: { title: ".gng-row-title", agency: ".gng-row-agency", size: "16px" },
+    typography: {
+      listTitle: ".gng-list-title",
+      rowTitle: ".gng-row-title",
+      rowAgency: ".gng-row-agency",
+      footer: ".workbench-decision",
+    },
     // 조회가 느린 시나리오가 응답을 붙들고 있어도 목록·상세 골격은 그려진다.
     // `slowMs`는 **선택한 사업의 상세 조회**만 붙들고 대기열은 그대로 오므로
     // 행(`.gng-row-*`)과 상세 머리는 그려진다.
@@ -158,7 +160,6 @@ interface Selectors {
   listPane: string;
   listHead: string;
   detailHead: string;
-  rowType: { title: string; agency: string } | null;
 }
 
 /** 한 화면의 골격을 브라우저 안에서 한 번에 잰다. */
@@ -174,7 +175,7 @@ function measure(selectors: Selectors) {
   const detailHead = document.querySelector<HTMLElement>(selectors.detailHead)!;
 
   const topbarBox = topbar.getBoundingClientRect();
-  const topbarStyle = getComputedStyle(topbar);
+  const topbarStyle = getComputedStyle(topbar.querySelector(".topbar-main")!);
   const headingStyle = getComputedStyle(heading);
   const filtersStyle = getComputedStyle(filters);
   const padding = (element: Element) => {
@@ -215,6 +216,11 @@ function measure(selectors: Selectors) {
     // Native CSS coordinates are already the rendered coordinates.
     listRatio: listPane.getBoundingClientRect().width / workspace.getBoundingClientRect().width,
     listHeadPadding: padding(listHead),
+    listHeadCenterOffset: Math.max(...Array.from(listHead.children, (child) => {
+      const header = listHead.getBoundingClientRect();
+      const content = child.getBoundingClientRect();
+      return Math.abs((content.top + content.bottom - header.top - header.bottom) / 2);
+    })),
     detailHeadPadding: padding(detailHead),
 
     /* 상세 머리는 공용 `StickyDecisionHeader`다 — 본문을 스크롤해도 위에 붙는다. */
@@ -223,11 +229,9 @@ function measure(selectors: Selectors) {
 
     /* ADR-0062 — 목록 pane 안쪽 구성. 열 이름 줄·선택 도구줄은 목록 pane 안에 있고,
        페이저는 (있을 때) **목록 pane 안쪽 바닥**이다. */
-    listColumnCount: listPane.querySelectorAll('[data-review-primitive="list-columns"] > *').length,
-    listColumnsPadding: (() => {
-      const columns = listPane.querySelector('[data-review-primitive="list-columns"]');
-      return columns ? padding(columns) : null;
-    })(),
+    listColumnCount: listPane.querySelectorAll(".record-table thead th").length,
+    listColumnsUseStickyHeader: Array.from(listPane.querySelectorAll(".record-table thead th"))
+      .every((column) => getComputedStyle(column).position === "sticky"),
     toolbarCount: listPane.querySelectorAll('[data-review-primitive="selection-toolbar"]').length,
     /** WCAG 2.2 AA 2.5.8 — 렌더된 실제 클릭 대상 높이. */
     toolbarButtonMinHeight: Math.min(
@@ -252,21 +256,7 @@ function measure(selectors: Selectors) {
       const agency = detailHead.querySelector('[data-review-primitive="agency-feature"]');
       return agency ? padding(agency) : null;
     })(),
-    /** 목록 행의 사업명·발주기관 글자 크기. 자리는 화면이 알려 준다. */
-    rowType: (() => {
-      if (!selectors.rowType) return null;
-      const styleOf = (selector: string) => {
-        const element = listPane.querySelector<HTMLElement>(selector);
-        return element ? getComputedStyle(element).fontSize : null;
-      };
-      const titleElement = listPane.querySelector<HTMLElement>(selectors.rowType.title);
-      return {
-        title: styleOf(selectors.rowType.title),
-        agency: styleOf(selectors.rowType.agency),
-        titleWeight: titleElement ? getComputedStyle(titleElement).fontWeight : null,
-      };
-    })(),
-
+    tableTitleWidth: listPane.querySelector(".record-table .record-table-title")?.getBoundingClientRect().width ?? null,
     rootOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
   };
 }
@@ -299,12 +289,11 @@ test("탐색과 추적 목록 4화면은 세 지원 폭에서 같은 상단바·
         listPane: screen.listPane,
         listHead: screen.listHead,
         detailHead: screen.detailHead,
-        rowType: screen.rowType ? { title: screen.rowType.title, agency: screen.rowType.agency } : null,
       });
 
       // 패널 헤더 — `<h1>`은 24px/700 문장형 제목이고 경로·편집 범위 칩은 없다. 화면 액션은
       // 헤더 오른쪽 가장자리에 붙는다(떨어지는 것은 헤더 padding 만큼뿐이다). 2026-11-19 ADR-0076.
-      expect(metrics.titleFont, `${where} 제목 크기`).toBe("24px");
+      expect(metrics.titleFont, `${where} 제목 크기`).toBe("15px");
       expect(metrics.titleWeight, `${where} 제목 굵기`).toBe("700");
       expect(metrics.crumbCount, `${where} 제목 모드에는 경로 칸이 없다`).toBe(0);
       expect(metrics.statusCount, `${where} 제목 모드에는 편집 범위 칩이 없다`).toBe(0);
@@ -320,13 +309,17 @@ test("탐색과 추적 목록 4화면은 세 지원 폭에서 같은 상단바·
       expect(metrics.filterToolsCount, `${where} 보기 탭 뒤 조회 도구 행`).toBe(1);
       expect(metrics.filterToolsAfterLine, `${where} 조회 도구 행이 보기 탭 줄 뒤에 놓인다`).toBe(true);
 
-      // 프레임 — 목록|상세가 패널 헤더 바로 아래에서 여백 없이 시작하고(flush) 목록은 38%다. 화면 자체는
+      // 프레임 — 목록|상세가 패널 헤더 바로 아래에서 여백 없이 시작하고(flush) 목록은 60%다. 화면 자체는
       // 세로로 넘치지 않고 각 칸이 스크롤한다.
       expect(metrics.canvasPaddingTop, `${where} 본문 위 여백`).toBe("0px");
       expect(metrics.workspaceTop - metrics.canvasTop, `${where} 헤더와 workspace 사이 틈`).toBeCloseTo(0, 0);
       expect(metrics.canvasScroll, `${where} 본문 세로 넘침`).toBeLessThanOrEqual(1);
-      expect(metrics.listRatio, `${where} 목록 pane 비율`).toBeCloseTo(0.38, 2);
-      expect(metrics.listHeadPadding, `${where} 목록 머리 여백`).toBe("8px 16px 8px 16px");
+      expect(metrics.listRatio, `${where} 목록 pane 비율`).toBeCloseTo(0.60, 2);
+      if (viewport.width === 1280 && (screen.path === "/opportunities" || screen.path === "/go-no-go")) {
+        expect(metrics.tableTitleWidth, `${where} 사업명 열 폭`).toBeGreaterThanOrEqual(180);
+      }
+      expect(metrics.listHeadPadding, `${where} 목록 머리 여백`).toBe("0px 24px 0px 24px");
+      expect(metrics.listHeadCenterOffset, `${where} 목록 제목과 보조 문구의 세로 중앙 정렬`).toBeLessThanOrEqual(1);
       expect(metrics.detailHeadPadding, `${where} 상세 머리 여백`).toBe(screen.detailHeadPadding);
 
       // 공용 골격으로 옮긴 화면 — 상세 머리가 sticky 부품이고, 발주기관 강조 블록이
@@ -347,24 +340,85 @@ test("탐색과 추적 목록 4화면은 세 지원 폭에서 같은 상단바·
 
       // 목록 pane 안쪽 구성 — 열 이름 줄·선택 도구줄을 갖는 탐색 두 화면만(ADR-0062).
       if (screen.unifiedListParts) {
-        expect(metrics.listColumnCount, `${where} 열 이름 칸`).toBe(2);
-        expect(metrics.listColumnsPadding, `${where} 열 이름 줄 여백`).toBe("4px 16px 4px 16px");
+        expect(metrics.listColumnCount, `${where} 선택을 포함한 열 이름 칸`).toBe(6);
+        expect(metrics.listColumnsUseStickyHeader, `${where} 열 머리는 표 스크롤 위에 붙는다`).toBe(true);
         expect(metrics.toolbarCount, where).toBe(1);
         expect(metrics.toolbarButtonMinHeight, where).toBe(32);
         expect(metrics.toolbarReasonHeight, where).toBe(0);
       }
 
-      // 목록 행의 두 줄은 화면이 선언한 글자 단을 지킨다.
-      if (screen.rowType) {
-        expect(metrics.rowType?.title, `${where} 목록 사업명 크기`).toBe(screen.rowType.size);
-        expect(metrics.rowType?.agency, `${where} 목록 발주기관 크기`).toBe(screen.rowType.agencySize ?? screen.rowType.size);
-        if (screen.rowType.titleWeight) {
-          expect(metrics.rowType?.titleWeight, `${where} 목록 사업명 굵기`).toBe(screen.rowType.titleWeight);
-        }
-      }
-
       // 지원 폭 두 곳 모두에서 가로로 넘치지 않는다(ADR-0047).
       expect(metrics.rootOverflow, `${where} 가로 넘침`).toBeLessThanOrEqual(1);
+    }
+  }
+});
+
+
+// ADR-0076 결정 15. 페이지별 기본 본문 토큰이나 Astryx 라벨이 공용 단을 덮으면 실패한다.
+const typographyTarget = {
+  listTitle: ["14px", "600"],
+  column: ["14px", "400"],
+  rowTitle: ["14px", "600"],
+  activeRowTitle: ["14px", "700"],
+  rowAgency: ["14px", "400"],
+  pagerCount: ["12px", "400"],
+  pagerLabel: ["12px", "400"],
+  previewHeader: ["14px", "600"],
+  detailAgency: ["14px", "500"],
+  detailStatus: ["13px", "700"],
+  mainActionLabel: ["14px", "700"],
+} as const;
+
+test("목록과 상세 4화면은 공용 글자 단을 쓰고 표 값은 14px로 읽힌다", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await mockApi(page);
+  const baseline = new Map<keyof typeof typographyTarget, [string, string]>();
+  const active = ':is(.is-selected, [aria-current="true"], [aria-pressed="true"])';
+
+  for (const screen of screens) {
+    await screen.mock?.(page);
+    // 기본 필수 검토 mock에는 한 건만 있으므로, 이 글자 검사는 미선택 상태인 관련·불확실 행을 함께 연다.
+    const path = screen.path === "/order-plans" ? "/order-plans?qwen=relevant,uncertain&tracking=미선택"
+      : screen.path.startsWith("/pre-specs") ? "/pre-specs?workspace=all&sw_only=false" : screen.path;
+    await page.goto(path);
+
+    const list = page.locator(screen.listPane);
+    const head = page.locator(screen.detailHead);
+    const type = screen.typography;
+    if (path.startsWith("/pre-specs")) {
+      // 미선택이고 사업기회가 연결된 표본에서 실제 추적 버튼을 잰다.
+      await list.locator(type.rowTitle).filter({ hasText: /^신규 지능형 행정 지원 사전규격$/ }).click();
+    }
+    const mainAction = page.locator(type.footer).getByRole("button")
+      .and(page.locator(".astryx-button.primary"));
+
+    const targets = {
+      listTitle: list.locator(type.listTitle),
+      column: list.getByRole("columnheader", { name: "사업명", exact: true }),
+      rowTitle: list.locator(`${type.rowTitle}:not(${active} *)`).first(),
+      activeRowTitle: list.locator(`${active} ${type.rowTitle}`),
+      rowAgency: list.locator(`${active} ${type.rowAgency}`),
+      pagerCount: list.locator(".review-list-pager .review-list-pager-summary"),
+      pagerLabel: list.locator(".review-list-pager").getByRole("button", { name: "이전" }).getByText("이전", { exact: true }),
+      previewHeader: page.locator(".review-preview-header").getByText("미리보기", { exact: true }),
+      detailAgency: head.locator(".review-agency-name"),
+      detailStatus: head.locator(".workbench-mark[data-tone]"),
+      mainActionLabel: mainAction.locator(":scope > span > span:last-child"),
+    } satisfies Record<keyof typeof typographyTarget, ReturnType<Page["locator"]>>;
+
+    for (const role of Object.keys(typographyTarget) as (keyof typeof typographyTarget)[]) {
+      const where = `${path} ${role}`;
+      await expect(targets[role], where).toBeVisible();
+      const actual = await targets[role].evaluate((element): [string, string] => {
+        const style = getComputedStyle(element);
+        return [style.fontSize, style.fontWeight];
+      });
+      expect(actual, where).toEqual(typographyTarget[role]);
+      if (baseline.has(role)) {
+        expect(actual, `${where} 발주계획과 비교`).toEqual(baseline.get(role));
+      } else {
+        baseline.set(role, actual);
+      }
     }
   }
 });

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { Text } from "@astryxdesign/core/Text";
-import { Caption, Facts, Note } from "../runs/RunStatusPrimitives";
+import { Caption, DialogFacts, Note } from "../runs/RunStatusPrimitives";
 import type { ScheduleExecutionCreateRequest, ScheduleExecutionSummary, ScheduleJobKind } from "../../lib/types";
 
 interface ManualExecutionDialogProps {
@@ -140,7 +140,7 @@ export function ManualExecutionDialog({
         <div className="rs-dialog-scroll">
           {recoveryTarget ? (
             <>
-              <Facts
+              <DialogFacts
                 items={[
                   ["복구 대상 실행", <span className="rs-mono" key="exec">{recoveryTarget.execution_id}</span>],
                   ["대상 상태", recoveryTarget.status],

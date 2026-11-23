@@ -54,11 +54,13 @@ function formatShortDate(date: Date): string {
     .replace(/\.\s/, ".");
 }
 
-/** 억·만 단위로 줄여 목록 한 줄에 들어가게 만든다. */
+/** 조·억·만 단위로 줄여 목록 한 줄에 들어가게 만든다. */
 export function formatCompactPrice(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "추정가격 미확인";
   const number = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1 });
-  if (value >= 100_000_000) return `${number.format(value / 100_000_000)}억원`;
-  if (value >= 10_000) return `${number.format(value / 10_000)}만원`;
+  const magnitude = Math.abs(value);
+  if (magnitude >= 1_000_000_000_000) return `${number.format(value / 1_000_000_000_000)}조원`;
+  if (magnitude >= 100_000_000) return `${number.format(value / 100_000_000)}억원`;
+  if (magnitude >= 10_000) return `${number.format(value / 10_000)}만원`;
   return `${number.format(value)}원`;
 }

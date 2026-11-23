@@ -22,7 +22,6 @@ import type {
   OrderPlanBulkReceipt,
   OrderPlanBulkSummary,
 } from "../../lib/types";
-import { TRACKING_REASONS } from "./orderPlanFormat";
 import "../../styles/order-plans.css";
 import "../../styles/bulk-dialog.css";
 
@@ -56,16 +55,13 @@ type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
  */
 type BulkPhase = "idle" | "previewing" | "ready" | "pending" | "result" | "unknown" | "error";
 
-interface PendingBulkRequest {
+type PendingBulkRequest = {
   request_id: string;
   order_plan_ids: number[];
   actor: string;
-  reason: string;
   selection_generation: number;
   filter_fingerprint: string;
-  /** ADR-0063: 저장된 요청이 어느 endpoint로 가는지. 열린 다이얼로그의 `mode`보다 우선한다. */
-  action: OrderPlanBulkTrackingMode;
-}
+} & ({ action: "start"; reason: string | null } | { action: "end"; reason: string });
 
 interface PreviewBinding {
   ids: number[];
@@ -81,9 +77,6 @@ interface BulkDialogCopy {
   summaryVerb: string;
   /** 저장 단추: `M건 추적 종료`, `M건 추적 시작`. */
   saveVerb: string;
-  reasonLabel: string;
-  reasonOptions: readonly string[];
-  reasonRequiredError: string;
   eligibleLabel: string;
   cannotStartMessage: string;
   storageUnavailableTitle: string;
@@ -105,9 +98,6 @@ const COPY: Record<OrderPlanBulkTrackingMode, BulkDialogCopy> = {
     rule: "미선택 상태인 계획만 계속 추적으로 저장해요. 이미 결정된 상태와 소유권을 확인할 수 없는 항목은 바꾸지 않아요.",
     summaryVerb: "추적 시작",
     saveVerb: "추적 시작",
-    reasonLabel: "추적 사유 (필수)",
-    reasonOptions: TRACKING_REASONS,
-    reasonRequiredError: "추적 사유를 선택해 주세요.",
     eligibleLabel: "미선택 · 실행 가능",
     cannotStartMessage: "일괄 추적을 시작할 수 없어요. 선택 저장소를 사용할 수 없어 단건 추적 경로를 사용해 주세요.",
     storageUnavailableTitle: "일괄 추적을 사용할 수 없어요.",
@@ -126,9 +116,6 @@ const COPY: Record<OrderPlanBulkTrackingMode, BulkDialogCopy> = {
     rule: "추적을 아직 정하지 않은 계획만 추적 종료로 저장해요. 이미 결정된 상태와 소유권을 확인할 수 없는 항목은 바꾸지 않아요.",
     summaryVerb: "종료",
     saveVerb: "추적 종료",
-    reasonLabel: "종료 사유 (필수)",
-    reasonOptions: BULK_EXCLUSION_REASONS,
-    reasonRequiredError: "종료 사유를 선택해 주세요.",
     eligibleLabel: "미선택 · 종료 가능",
     cannotStartMessage: "일괄 추적 종료를 시작할 수 없어요. 선택 저장소를 사용할 수 없어 단건 추적 경로를 사용해 주세요.",
     storageUnavailableTitle: "일괄 추적 종료를 사용할 수 없어요.",
@@ -179,7 +166,8 @@ const LEGACY_PENDING_KEYS_V1 = [
 function validPendingCore(record: Record<string, unknown>): boolean {
   if (typeof record.request_id !== "string" || !UUID_PATTERN.test(record.request_id)
     || typeof record.actor !== "string" || validateActor(record.actor) !== null
-    || typeof record.reason !== "string" || !record.reason.trim()
+    || (!(record.action === "start" && record.reason === null)
+      && (typeof record.reason !== "string" || !record.reason.trim()))
     || typeof record.filter_fingerprint !== "string"
     || !record.filter_fingerprint
     || !Number.isSafeInteger(record.selection_generation) || (record.selection_generation as number) < 0
@@ -407,7 +395,7 @@ export function OrderPlanBulkTrackingDialog({
   storageError = null,
 }: OrderPlanBulkTrackingDialogProps) {
   const [phase, setPhase] = useState<BulkPhase>("idle");
-  const [reasonDraft, setReasonDraft] = useState<BulkReasonDraft>(() => emptyBulkReason(COPY[mode].reasonOptions));
+  const [reasonDraft, setReasonDraft] = useState<BulkReasonDraft>(() => emptyBulkReason(BULK_EXCLUSION_REASONS));
   const [bulkActor, setBulkActor] = useState(actorName);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [preview, setPreview] = useState<OrderPlanBulkPreviewResponse | null>(null);
@@ -453,9 +441,8 @@ export function OrderPlanBulkTrackingDialog({
   const storageBlocked = !storageAvailable || Boolean(storageError) || Boolean(storageMessage) || Boolean(pendingStorageError) || Boolean(cleanupError);
   const retryBlocked = Boolean(pendingStorageError);
   const actor = bulkActor.trim();
-  const trimmedReason = bulkReasonText(reasonDraft);
   const actorError = validateActor(bulkActor);
-  const reasonError = bulkReasonError(reasonDraft, copy.reasonRequiredError);
+  const reasonError = effectiveMode === "end" ? bulkReasonError(reasonDraft, "종료 사유를 선택해 주세요.") : null;
   const previewContextMatches = previewBinding !== null
     && previewBinding.selection_generation === selectionGeneration
     && previewBinding.filter_fingerprint === filterFingerprint
@@ -477,9 +464,8 @@ export function OrderPlanBulkTrackingDialog({
             ?? (storageBlocked ? "일괄 요청 저장소를 확인할 수 없어 새 요청을 만들 수 없어요." : null);
   const retryContextMatches = request === null
     || (request.selection_generation === selectionGeneration && request.filter_fingerprint === filterFingerprint);
-  const canConfirm = phase === "ready" && saveBlocker === null && Boolean(actor) && Boolean(trimmedReason)
-    && !actorError && !reasonError && Boolean(preview?.selected_plan_count) && !inFlightRef.current
-    && !storageBlocked && !previewContextChanged && !overSelectionLimit;
+  const canConfirm = phase === "ready" && saveBlocker === null
+    && Boolean(preview?.selected_plan_count) && !inFlightRef.current;
   const canRecheck = !storageBlocked && currentIds.length > 0 && phase !== "previewing";
 
   useEffect(() => {
@@ -510,7 +496,9 @@ export function OrderPlanBulkTrackingDialog({
       setRecovery(stored.value);
       setRequest(stored.value);
       requestRef.current = stored.value;
-      setReasonDraft(bulkReasonDraftFromText(stored.value.reason, COPY[stored.value.action].reasonOptions));
+      if (stored.value.action === "end") {
+        setReasonDraft(bulkReasonDraftFromText(stored.value.reason, BULK_EXCLUSION_REASONS));
+      }
       setBulkActor(stored.value.actor);
       setPhase("unknown");
     } else {
@@ -522,7 +510,7 @@ export function OrderPlanBulkTrackingDialog({
       setPreviewIds(currentIds);
       setPreviewBinding(null);
       setPreviewContextError(null);
-      setReasonDraft(emptyBulkReason(COPY[mode].reasonOptions));
+      setReasonDraft(emptyBulkReason(BULK_EXCLUSION_REASONS));
       setBulkActor(actorRef.current);
       setPhase("idle");
       // 한 창 흐름: 복구할 요청이 없고 선택이 있으면 열자마자 대상을 확인한다.
@@ -647,7 +635,7 @@ export function OrderPlanBulkTrackingDialog({
           schema_version: "order-plan-bulk-start-request.v1",
           request_id: savedRequest.request_id,
           order_plan_ids: savedRequest.order_plan_ids,
-          reason: savedRequest.reason,
+          reason: savedRequest.reason ?? undefined,
         }, savedRequest.actor);
       if (!resultMatchesRequest(response, savedRequest)) {
         throw new OrderPlanBulkTrackingResultUnconfirmedError();
@@ -697,15 +685,16 @@ export function OrderPlanBulkTrackingDialog({
       return;
     }
     const ids = normalizeIds(previewIds);
-    if (!ids.length || !actor || !trimmedReason || actorError || reasonError || storageBlocked || overSelectionLimit) return;
+    if (!ids.length || !actor || actorError || reasonError || storageBlocked || overSelectionLimit) return;
     const savedRequest: PendingBulkRequest = {
       request_id: request?.request_id ?? generateRequestId(),
       order_plan_ids: ids,
       actor,
-      reason: trimmedReason,
       selection_generation: selectionGeneration,
       filter_fingerprint: filterFingerprint,
-      action: effectiveMode,
+      ...(effectiveMode === "end"
+        ? { action: "end", reason: bulkReasonText(reasonDraft) }
+        : { action: "start", reason: null }),
     };
     const selectionWrite = onPersistSelection?.();
     if (selectionWrite && !selectionWrite.ok) {
@@ -869,12 +858,14 @@ export function OrderPlanBulkTrackingDialog({
             {formPhase ? (
               <>
                 <div className="bulk-dialog-fields">
-                  <BulkReasonField
-                    label={copy.reasonLabel}
-                    options={copy.reasonOptions}
-                    value={reasonDraft}
-                    onChange={setReasonDraft}
-                  />
+                  {effectiveMode === "end" && (
+                    <BulkReasonField
+                      label="종료 사유 (필수)"
+                      options={BULK_EXCLUSION_REASONS}
+                      value={reasonDraft}
+                      onChange={setReasonDraft}
+                    />
+                  )}
                   <ActorField
                     label="담당자 이름 · 감사 표식 (필수)"
                     description={ACTOR_DESCRIPTION}

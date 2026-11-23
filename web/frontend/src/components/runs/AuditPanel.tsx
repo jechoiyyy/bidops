@@ -1,3 +1,7 @@
+import { AdminListHeader, AdminRecordTable } from "../common/AdminRecordTable";
+import type { Mark } from "../common/Marks";
+import type { RecordTableState } from "../common/RecordTable";
+import { DecisionBar, ReviewPreviewHeader, SplitWorkspace } from "../common/ReviewPrimitives";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
@@ -13,10 +17,8 @@ import { RunPickerField, useSelectedRun } from "./RunPicker";
 import {
   Caption,
   DataTable,
-  DetailFooter,
   DetailHeader,
   Facts,
-  ListRecord,
   Note,
   Section,
 } from "./RunStatusPrimitives";
@@ -31,12 +33,12 @@ import { screeningStatusLabel } from "./ScreeningRunPanel";
  * 여부를 추정하지 않고, 부분 산출물을 완전한 성공 결과로 발행하지 않는다.
  */
 
-function artifactStatus(artifact: ArtifactValidationResponse): string {
-  if (!artifact.present) return "미생성";
-  if (artifact.valid === null) return "검증 미확인";
-  if (artifact.valid === false) return "검증 실패";
-  if (artifact.warnings.length > 0) return `경고 ${artifact.warnings.length}건`;
-  return "검증 통과";
+function artifactMark(artifact: ArtifactValidationResponse): Mark {
+  if (!artifact.present) return { label: "미생성", tone: "neutral" };
+  if (artifact.valid === null) return { label: "검증 미확인", tone: "neutral" };
+  if (!artifact.valid) return { label: "검증 실패", tone: "error" };
+  if (artifact.warnings.length > 0) return { label: `경고 ${artifact.warnings.length}건`, tone: "warning" };
+  return { label: "검증 통과", tone: "success" };
 }
 
 function schemaLabel(artifact: ArtifactValidationResponse): string {
@@ -44,7 +46,7 @@ function schemaLabel(artifact: ArtifactValidationResponse): string {
   return present(artifact.schema_version, "스키마 미확인");
 }
 
-export function AuditPanel({ panelId }: { panelId: string }) {
+export function AuditPanel() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { hash } = useLocation();
@@ -87,14 +89,25 @@ export function AuditPanel({ panelId }: { panelId: string }) {
   const activeExecution = runExecutions.find((item) => !isScreeningTerminal(item.status)) ?? null;
   const executionScopeKnown = Boolean(executionsQuery.data) && !executionsQuery.error;
 
+  let listState: RecordTableState | undefined;
+  if (isPending || (detailQuery.isPending && selectedRunId)) {
+    listState = { kind: "loading", label: "산출물 목록을 불러오는 중이에요.", showLabel: true };
+  } else if (detailQuery.isError) {
+    listState = { kind: "error", message: {
+      title: "산출물 목록을 불러오지 못했어요.",
+      description: "조회 실패는 산출물 0건이 아니에요.",
+      action: { label: "다시 시도", onClick: () => { void detailQuery.refetch(); } },
+    } };
+  } else if (artifacts.length === 0) {
+    listState = { kind: "empty", message: {
+      title: selectedRunId ? "이 회차에 연결된 산출물이 없어요." : "회차를 먼저 골라 주세요.",
+      description: selectedRunId ? "없음을 검증 통과로 읽지 않아요." : undefined,
+    } };
+  }
   return (
-    <div className="rs-workspace" id={panelId} role="tabpanel" aria-label="산출물 감사 로그">
-      <section className="rs-list-pane" aria-label="산출물 목록">
-        <header className="rs-list-head">
-          <Text className="rs-list-title" as="p">산출물 목록</Text>
-          <Caption as="span">{detailQuery.isError ? "미확인" : `${artifacts.length}건`}</Caption>
-        </header>
-        <div className="rs-list-filters">
+    <SplitWorkspace className="workbench-admin-workspace" aria-label="산출물 감사 로그">
+      <section className="review-split-list" aria-label="산출물 목록">
+        <AdminListHeader title="산출물 목록" count={detailQuery.isError ? "미확인" : `${artifacts.length}건`}>
           <RunPickerField
             label="감사 대상 회차"
             runs={runs}
@@ -104,40 +117,21 @@ export function AuditPanel({ panelId }: { panelId: string }) {
             isError={isError}
             onRetry={refetch}
           />
-        </div>
-        <div className="rs-list-scroll">
-          {detailQuery.isPending && selectedRunId ? <div className="rs-list-empty"><Caption>산출물 목록을 불러오는 중이에요.</Caption></div> : null}
-          {detailQuery.isError ? (
-            <div className="rs-list-empty">
-              <FileSearch aria-hidden="true" />
-              <Text as="p">산출물 목록을 불러오지 못했어요.</Text>
-              <Caption>조회 실패는 산출물 0건이 아니에요.</Caption>
-              <Button label="다시 시도" size="sm" onClick={() => void detailQuery.refetch()} />
-            </div>
-          ) : null}
-          {!detailQuery.isPending && !detailQuery.isError && artifacts.length === 0 ? (
-            <div className="rs-list-empty">
-              <FileSearch aria-hidden="true" />
-              <Text as="p">이 회차에 연결된 산출물이 없어요.</Text>
-              <Caption>없음을 검증 통과로 읽지 않아요.</Caption>
-            </div>
-          ) : null}
-          {artifacts.map((item) => (
-            <ListRecord
-              key={item.name}
-              selected={artifact?.name === item.name}
-              onSelect={() => setSelectedArtifact(item.name)}
-              item={{
-                id: item.name,
-                title: item.name,
-                subtitle: schemaLabel(item),
-                meta: item.warnings.length ? `경고 ${item.warnings.length}건` : item.present ? "경고 없음" : "생성 전",
-                status: artifactStatus(item),
-              }}
-            />
-          ))}
-        </div>
-        <footer className="rs-list-foot">
+        </AdminListHeader>
+        <AdminRecordTable
+          label="산출물 목록"
+          selectedId={artifact?.name ?? null}
+          onSelect={setSelectedArtifact}
+          state={listState}
+          rows={artifacts.map((item) => ({
+            id: item.name,
+            title: item.name,
+            subtitle: schemaLabel(item),
+            meta: item.warnings.length ? `경고 ${item.warnings.length}건` : item.present ? "경고 없음" : "생성 전",
+            status: artifactMark(item),
+          }))}
+        />
+        <footer className="workbench-admin-list-foot">
           <Caption>
             {selectedRunId ? `회차 ${selectedRunId} 기준` : "회차를 먼저 골라요"}
             {detail ? ` · 경고 합계 ${warningTotal}건` : ""}
@@ -145,19 +139,20 @@ export function AuditPanel({ panelId }: { panelId: string }) {
         </footer>
       </section>
 
-      <section className="rs-detail-pane" aria-label="선택한 산출물">
+      <section className="review-split-detail rs-detail-pane" aria-label="선택한 산출물">
+        <ReviewPreviewHeader />
         {artifact && detail ? (
           <>
             <DetailHeader
               eyebrow={`산출물 감사 · ${detail.run_id}`}
               title={artifact.name}
-              status={artifactStatus(artifact)}
+              status={artifactMark(artifact)}
             >
               <Caption>
                 {formatRunRange(detail.run_id, detail.window_from, detail.window_to)} · 생성 {formatDateTime(detail.generated_at)}
               </Caption>
             </DetailHeader>
-            <div className="rs-detail-scroll">
+            <div className="workbench-admin-detail-scroll rs-detail-scroll">
               <Section title="산출물 검증">
                 <Facts
                   items={[
@@ -218,7 +213,6 @@ export function AuditPanel({ panelId }: { panelId: string }) {
                 />
               </Section>
 
-              <Caption>내부 경로와 원문·모델 응답 본문은 이 화면에 노출하지 않아요.</Caption>
 
               <details className="rs-disclosure" id="run-warnings" ref={warningDisclosure}>
                 <summary>회차 전체 경고 집계</summary>
@@ -233,20 +227,25 @@ export function AuditPanel({ panelId }: { panelId: string }) {
                 )}
               </details>
             </div>
-            <DetailFooter note="내부 경로·원문 비노출">
-              <Button label="실행 기록 열기" size="sm" onClick={() => setLogsOpen(true)} />
-              <Button
-                label="수집 실행 탭에서 보기"
-                size="sm"
-                variant="primary"
-                onClick={() => {
-                  // 무관한 쿼리를 지우지 않고 회차만 맞춰 옮긴다.
-                  const next = new URLSearchParams(searchParams);
-                  next.set("run", detail.run_id);
-                  navigate({ pathname: "/runs", search: next.toString() });
-                }}
-              />
-            </DetailFooter>
+            <DecisionBar
+              stateLabel="산출물 검증"
+              state={artifactMark(artifact)}
+              note="내부 경로와 원문은 표시하지 않아요."
+              secondaryActions={<Button label="실행 기록 열기" size="sm" onClick={() => setLogsOpen(true)} />}
+              primaryAction={(
+                <Button
+                  label="수집 실행에서 보기"
+                  size="sm"
+                  variant="primary"
+                  onClick={() => {
+                    // 무관한 쿼리를 지우지 않고 회차만 맞춰 옮긴다.
+                    const next = new URLSearchParams(searchParams);
+                    next.set("run", detail.run_id);
+                    navigate({ pathname: "/runs", search: next.toString() });
+                  }}
+                />
+              )}
+            />
           </>
         ) : (
           <div className="rs-detail-empty">
@@ -274,6 +273,6 @@ export function AuditPanel({ panelId }: { panelId: string }) {
           </div>
         </div>
       </Dialog>
-    </div>
+    </SplitWorkspace>
   );
 }

@@ -4,6 +4,7 @@ import { expect, test } from "@playwright/test";
 import {
   mockApi,
   mockFeatureFlags,
+  mockOpportunityRecord,
   mockPreSpecAutoDetail,
   openProcessSection,
   settleProcessSection,
@@ -30,7 +31,7 @@ test("처리 상태·기술 정보는 정상 건에서 닫혀 있고 토글로 �
   expect(heading.length).toBeGreaterThan(0);
   await expect(page).toHaveTitle(`${heading} · BidOps`);
   // 발견 경로는 값만 두지 않고 이름을 붙인다.
-  await expect(page.locator(".ps-ident")).toContainText(/발견 경로 (독립 발견|발주계획 연계|구분 미확인)/);
+  await expect(page.locator("#ps-summary dt:text-is('발견 경로') + dd")).toHaveText(/^(독립 발견|발주계획 연계|구분 미확인)$/);
   // 접혀 있어도 요약 한 줄이 상태와 꺼짐을 말한다(안내를 지우지 않았다).
   const summary = page.getByTestId("pre-spec-process-summary");
   await expect(summary).toContainText("원문 묶음 확정 완료");
@@ -65,14 +66,18 @@ test("문제가 있는 건은 처리 상태·기술 정보가 열려 들어온�
   await expect(page.getByTestId("pre-spec-process-summary")).toContainText("원문 묶음 없음");
 });
 
-test("본문 구역 순서와 요소: 사실 줄 → 개요 → 원문·첨부 → 처리 상태, 하단 띠는 본문 밖", async ({ page }) => {
+test("본문은 개요 → 원문·첨부 → 처리 상태 순이고 사실 목록과 원문 요약은 오른쪽 열에 있다", async ({ page }) => {
   await page.goto("/pre-specs/991");
   await openProcessSection(page);
   const order = await page.evaluate(() => {
     const top = (selector: string) => document.querySelector(selector)!.getBoundingClientRect().top;
-    return ["#ps-summary", "#ps-tasks", "#ps-evidence", "#ps-process"].map(top);
+    return ["#ps-tasks", "#ps-evidence", "#ps-process"].map(top);
   });
   expect([...order].sort((left, right) => left - right)).toEqual(order);
+  const rail = page.locator(".workbench-record-rail");
+  await expect(rail.locator("#ps-summary dt:nth-of-type(-n+5)")).toHaveText(["의견 마감", "사업 예산", "구분", "게시", "본공고"]);
+  await expect(rail.getByRole("link", { name: /첨부 \d+건 보기/ })).toHaveAttribute("href", "#ps-evidence");
+  await expect(page.locator(".workbench-record-main #ps-summary")).toHaveCount(0);
   // 결정 띠는 `.ps-record` 본문의 구역이 아니라 패널 아래 고정 슬롯 안에 있다.
   await expect(page.locator(".ps-record #ps-tracking-bar")).toHaveCount(0);
   await expect(page.locator("#page-footer #ps-tracking-bar")).toBeVisible();
@@ -89,8 +94,8 @@ test("본문 구역 순서와 요소: 사실 줄 → 개요 → 원문·첨부 �
   expect(pinned.footerBottom).toBeLessThanOrEqual(pinned.contentBottom);
 });
 
-test("고정 슬롯 #page-footer는 사전규격 상세가 아닌 화면에서 높이 0이고 읽기 폭 표식도 없다", async ({ page }) => {
-  for (const route of ["/opportunities/202", "/order-plans", "/pre-specs", "/"]) {
+test("읽기 폭은 상세에 표시되고 고정 슬롯 #page-footer는 추적 결정 띠가 있을 때만 높이를 가진다", async ({ page }) => {
+  for (const route of ["/order-plans", "/pre-specs", "/"]) {
     await page.goto(route, { waitUntil: "domcontentloaded" });
     await expect(page.locator("header.topbar h1")).toBeVisible();
     const slot = page.locator("#page-footer");
@@ -100,11 +105,18 @@ test("고정 슬롯 #page-footer는 사전규격 상세가 아닌 화면에서 �
     expect(height, route).toBe(0);
     await expect(page.locator(".app-content[data-reading-width]"), route).toHaveCount(0);
   }
+  await mockOpportunityRecord(page);
+  await page.goto("/opportunities/7101/activity");
+  await expect(page.locator(".app-content")).toHaveAttribute("data-reading-width", "detail");
+  const decision = page.locator("#page-footer").getByRole("group", { name: "추적 결정" });
+  await expect(decision.getByRole("button", { name: "추적 상태 바꾸기", exact: true })).toBeVisible();
   // 사전규격 상세로 가면 슬롯에 띠가 생기고 읽기 폭 표식이 붙는다. 다른 화면으로 돌아오면 다시 0이다.
   await page.goto("/pre-specs/991");
   await expect(page.locator(".app-content")).toHaveAttribute("data-reading-width", "detail");
   await expect(page.locator("#page-footer .ps-decision-bar")).toBeVisible();
-  await page.getByRole("link", { name: "오늘의 브리핑", exact: true }).first().click();
+  await page.locator("header.topbar").getByRole("navigation", { name: "현재 위치" })
+    .getByRole("link", { name: "사전규격", exact: true }).click();
+  await expect(page).toHaveURL(/\/pre-specs$/);
   await expect(page.locator("#page-footer .ps-decision-bar")).toHaveCount(0);
   expect(await page.locator("#page-footer").evaluate((element) => element.getBoundingClientRect().height)).toBe(0);
 });
@@ -137,12 +149,13 @@ test("운영 번들의 사전규격 상세에는 분석 완료 구역이 없다"
   await expect(page.locator("#page-footer .ps-decision-bar-choices")).toHaveCount(0);
 });
 
-test("분석 전 하단 결정 띠는 1280·1440 모두 73px이다", async ({ page }) => {
+test("추적을 이어받은 상세의 하단 띠는 두 폭에서 56px 이내이고 상태 관리로 연결한다", async ({ page }) => {
   for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
     await page.setViewportSize(viewport);
     await page.goto("/pre-specs/991");
     const bar = page.locator("#page-footer .ps-decision-bar");
     await expect(bar).toBeVisible();
-    expect(await bar.evaluate((element) => Math.round(element.getBoundingClientRect().height)), `${viewport.width}`).toBe(73);
+    await expect(bar.getByRole("link", { name: /사업 추적에서 상태 관리/ })).toBeVisible();
+    expect(await bar.evaluate((element) => Math.round(element.getBoundingClientRect().height)), `${viewport.width}`).toBeLessThanOrEqual(56);
   }
 });

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mockApi, mockOrderPlanBulkTracking, mockOrderPlans } from "./api-mock";
+import { mockApi, mockOrderPlanBulkTracking, mockOrderPlans, orderPlanListFixture } from "./api-mock";
 import {
   ApiError,
   OrderPlanBulkTrackingResultUnconfirmedError,
@@ -38,9 +38,17 @@ test.beforeEach(async ({ page }) => {
   await mockApi(page);
 });
 
-/** 추적 사유는 초기값이 비어 있는 드롭다운이다. 저장하려면 사람이 골라야 한다. */
+function trackingActions(page: import("@playwright/test").Page) {
+  return page.locator(".c2l-detail-actions");
+}
+
+function trackingReasonField(page: import("@playwright/test").Page) {
+  return trackingActions(page).getByRole("combobox", { name: /^(보류·종료 )?선택 사유$/ });
+}
+
+/** 사유가 필요한 추적 결정을 연 뒤 사람이 빈 드롭다운에서 값을 고른다. */
 async function selectReason(page: import("@playwright/test").Page, label: string) {
-  await page.getByRole("combobox", { name: "선택 사유" }).click();
+  await trackingReasonField(page).click();
   await page.getByRole("option", { name: label, exact: true }).click();
 }
 
@@ -205,7 +213,9 @@ async function mockOrderPlanDetail(
 
 /** 상세의 사실 칸 하나. 라벨(`dt`)로 찾고 같은 묶음의 값(`dd`)을 돌려준다. */
 function detailFact(page: import("@playwright/test").Page, label: string) {
-  return page.locator(".c2l-detail-facts > div").filter({ has: page.getByText(label, { exact: true }) }).locator("dd");
+  return page.locator(".c2l-detail-facts dt")
+    .and(page.getByText(label, { exact: true }))
+    .locator("xpath=following-sibling::dd[1]");
 }
 
 /** 공용 mock의 최신 완료 운영 실행(부분 성공)과 그보다 앞선 성공 실행. */
@@ -251,7 +261,7 @@ function testOrderPlanItem(orderPlanPk: number, relevance: "relevant" | "uncerta
   };
 }
 
-/** The browser fetches all pages, so this keeps API order deliberately different from relevance order. */
+/** Supply the underlying population so the list mock orders before slicing. */
 async function mockReorderedOrderPlanList(
   page: import("@playwright/test").Page,
   items: ReturnType<typeof testOrderPlanItem>[],
@@ -264,32 +274,9 @@ async function mockReorderedOrderPlanList(
       await route.fallback();
       return;
     }
-    const limit = Number(url.searchParams.get("limit") ?? 100);
-    const offset = Number(url.searchParams.get("offset") ?? 0);
-    const stages = url.searchParams.get("stage1_status")?.split(",");
-    const relevance = url.searchParams.get("qwen_relevance");
-    const tracking = url.searchParams.get("tracking_status");
-    const filtered = items.filter(item =>
-      (!stages || stages.includes(item.stage1_status ?? "missing"))
-      && (!relevance || item.qwen_relevance === relevance)
-      && (!tracking || item.tracking?.tracking_status === tracking)
-      && (url.searchParams.get("issue") !== "true"
-        || [item.stage1_status, item.stage2_status].some(status => status === "failed" || status === "rejected")),
-    );
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        schema_version: "order-plan-list-response.v5",
-        producer: "order-plan-review-api",
-        consumer: "order-plan-review-client",
-        scope: { mode: "cumulative", policy_versions: ["c2-policy.v1"], activated_policy_versions: ["c2-policy.v1"] },
-        items: filtered.slice(offset, offset + limit),
-        total: filtered.length,
-        limit,
-        offset,
-      }),
-    });
+    await route.fulfill({ json: orderPlanListFixture(items, url.searchParams, {
+      mode: "cumulative", policy_versions: ["c2-policy.v1"], activated_policy_versions: ["c2-policy.v1"],
+    }, await page.evaluate(() => Date.now())) });
   });
   return trace;
 }
@@ -302,7 +289,7 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
   await page.goto(REVIEW_SET_URL);
 
   // 화면 제목은 패널 헤더의 h1 하나다(최종 시안: 화면 이름 줄 + 문장형 제목). 페이지는 같은 이름을 다시 그리지 않는다.
-  await expect(page.getByTestId("page-header-eyebrow")).toHaveText("발주계획");
+  await expect(page.locator("header.topbar h1")).toHaveText("발주계획");
   await expect(page.locator("header.topbar h1")).toHaveText(/발주계획/);
   // ADR-0062 ⓓ + 2026-09-21 재개정 — 회차 선택은 상단바도 도구 줄도 아니고 `상세 필터`
   // 안이다(사전규격과 같은 자리·같은 공용 컴포넌트).
@@ -327,9 +314,7 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
   await expect(page.locator(".c2l-row").first().getByTitle("예산 125,000,000원", { exact: true })).toBeVisible();
   await expect(page.locator(".c2l-row").first()).not.toContainText("nearest capability");
 
-  // 사업명이 행의 첫 줄이고 발주기관은 metadata 줄의 첫 항목이다. 순서를 뒤집지 않는다.
-  // 강조는 사업명 하나만 갖는다: 본문보다 한 단 큰 굵은 글자이고, 발주기관은 같은 본문
-  // 크기의 보통 굵기다(사용자 정정).
+  // 사업명 다음에 발주기관 열이 오고 두 값은 같은 글자 크기로 읽힌다.
   const firstRow = page.locator(".c2l-row").first();
   await expect(firstRow.locator(".c2l-row-title")).toContainText("공공데이터 통합");
   await expect(firstRow.locator(".c2l-row-agency")).toHaveText("서울특별시 디지털정책관");
@@ -338,21 +323,18 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
     const agency = row.querySelector<HTMLElement>(".c2l-row-agency");
     if (!title || !agency) throw new Error("행의 사업명·발주기관을 찾을 수 없어요.");
     return {
-      titleTop: title.getBoundingClientRect().top,
-      agencyTop: agency.getBoundingClientRect().top,
+      titleRight: title.closest("td")!.getBoundingClientRect().right,
+      agencyLeft: agency.getBoundingClientRect().left,
       titleFontSize: Number.parseFloat(getComputedStyle(title).fontSize),
       titleWeight: Number(getComputedStyle(title).fontWeight),
       agencyFontSize: Number.parseFloat(getComputedStyle(agency).fontSize),
       agencyWeight: Number(getComputedStyle(agency).fontWeight),
     };
   });
-  expect(geometry.titleTop).toBeLessThan(geometry.agencyTop);
-  // 2026-11-19 최종 시안(ADR 초안 승인 대기): 발주계획 행은 사업명 16px · 발주기관 14px이다.
-  // ADR-0062 ⓒ(사업명과 발주기관이 같은 크기)를 이 화면에서는 시안이 바꾼다 — 사전규격은 그대로다.
-  expect(geometry.titleFontSize).toBeCloseTo(16, 1);
+  expect(geometry.titleRight).toBeCloseTo(geometry.agencyLeft, 0);
+  expect(geometry.titleFontSize).toBeCloseTo(14, 1);
   expect(geometry.agencyFontSize).toBeCloseTo(14, 1);
   expect(geometry.titleWeight).toBeGreaterThanOrEqual(600);
-  expect(geometry.agencyFontSize).toBeGreaterThan(12.6);
   expect(geometry.agencyWeight).toBeLessThan(600);
 
   // 상세 pane은 행을 고른 뒤에 채워진다.
@@ -627,7 +609,7 @@ test("상세 조회가 실패하면 목록 값은 남고 오류와 다시 시도
 
 // F1 시안 M5 ① — 행에 추적 상태 칩을 둔다. **판단 근거 한 줄은 행에 싣지 않는다**
 // (M5 승인 — 근거는 상세에서만). 판정 변화 표도 만들지 않는다.
-test("행의 추적 상태 칩은 모델 판단 옆에 있고 판단 근거는 상세에만 남는다", async ({ page }) => {
+test("행의 추적 상태 칩은 모델 판단과 같은 열에 있고 판단 근거는 상세에만 남는다", async ({ page }) => {
   const decided = testOrderPlanItem(103, "relevant", "이미 계속 추적 중인 관련 사업");
   decided.tracking.tracking_status = "계속 추적";
   const held = testOrderPlanItem(104, "relevant", "보류로 정한 관련 사업");
@@ -647,26 +629,10 @@ test("행의 추적 상태 칩은 모델 판단 옆에 있고 판단 근거는 �
   await expect(rows.filter({ hasText: "이미 계속 추적 중인 관련 사업" }).locator(".c2l-row-tracking")).toHaveText("계속 추적");
   await expect(rows.filter({ hasText: "보류로 정한 관련 사업" }).locator(".c2l-row-tracking")).toHaveText("보류");
 
-  // 칩은 상태 칩 줄 안에서 모델 판단 바로 옆이고, 1차 선별·사람 판단 배지 묶음
-  // (`.c2l-row-badges`)에는 들어가지 않는다 — 그 묶음은 비면 줄 자체가 없어야 한다.
-  const geometry = await untracked.evaluate((row) => {
-    const box = (selector: string) => {
-      const element = row.querySelector<HTMLElement>(selector);
-      if (!element) throw new Error(`${selector} 를 찾을 수 없어요.`);
-      return element.getBoundingClientRect();
-    };
-    const model = box(".c2l-row-state .c2l-row-model");
-    const tracking = box(".c2l-row-state .c2l-row-tracking");
-    return {
-      modelRight: model.right,
-      trackingLeft: tracking.left,
-      sameLine: Math.abs(model.top - tracking.top) <= 1,
-      insideBadgeGroup: row.querySelectorAll(".c2l-row-badges .c2l-row-tracking").length,
-    };
-  });
-  expect(geometry.trackingLeft).toBeGreaterThanOrEqual(geometry.modelRight);
-  expect(geometry.sameLine).toBe(true);
-  expect(geometry.insideBadgeGroup).toBe(0);
+  const status = untracked.locator("td:has(> .c2l-row-state)");
+  await expect(status.locator(".c2l-row-model, .c2l-row-tracking")).toHaveText(["모델 · 관련", "추적 미선택"]);
+  await expect(status.locator(".c2l-row-badges .c2l-row-tracking")).toHaveCount(0);
+  await expect(status.locator(".c2l-row-model, .c2l-row-tracking")).toHaveCount(2);
 
   // 행에는 판단 근거가 없다. 근거는 상세 본문에만 있다.
   await untracked.click();
@@ -764,7 +730,7 @@ test("검토 목록은 relevance 우선순위로 정렬하고 선택 순서와 �
   await expect(rows.nth(1)).toContainText("API 순서 불확실 사업");
 });
 
-test("relevance 정렬은 500건 페이지를 자르기 전에 적용되고 페이지 끝 키보드 이동도 이어진다", async ({ page }) => {
+test("relevance 정렬은 100건 페이지를 자르기 전에 적용되고 페이지 끝 키보드 이동도 이어진다", async ({ page }) => {
   const items = [
     ...Array.from({ length: 200 }, (_, index) => testOrderPlanItem(102 + index, null, `대량 값 없음 ${index + 1}`)),
     ...Array.from({ length: 100 }, (_, index) => testOrderPlanItem(302 + index, "not_relevant", `대량 비관련 ${index + 1}`)),
@@ -777,54 +743,73 @@ test("relevance 정렬은 500건 페이지를 자르기 전에 적용되고 페�
   await clickPreset(page, "전체");
 
   await expect(page.locator(".c2l-list-head")).toContainText("전체 600건");
-  await expect(page.locator(".c2l-pager")).toContainText("1–500 / 600");
+  await expect(page.locator(".c2l-pager")).toContainText("1–100 / 600");
   const rows = page.locator(".c2l-row");
-  await expect(rows).toHaveCount(500);
+  await expect(rows).toHaveCount(100);
   await expect(rows.first()).toContainText("대량 관련 1");
   await expect(rows.nth(99)).toContainText("대량 관련 100");
-  await expect(rows.nth(100)).toContainText("대량 판단 보류 1");
-  await expect(rows.nth(399)).toContainText("대량 비관련 100");
-  await expect(rows.nth(400)).toContainText("대량 값 없음 1");
-
-  await rows.nth(499).click();
-  await expect(rows.nth(499)).toHaveAttribute("aria-current", "true");
-  await rows.nth(499).focus();
+  await rows.nth(99).click();
+  await expect(rows.nth(99)).toHaveAttribute("aria-current", "true");
+  await rows.nth(99).focus();
   await page.keyboard.press("ArrowDown");
-  await expect(page.locator(".c2l-pager")).toContainText("501–600 / 600");
+  await expect(page.locator(".c2l-pager")).toContainText("101–200 / 600");
   await expect(rows).toHaveCount(100);
-  await expect(rows.first()).toContainText("대량 값 없음 101");
-  await expect(rows.first().locator(".c2l-row-model")).toHaveText("모델 상태 미확인");
+  await expect(rows.first()).toContainText("대량 판단 보류 1");
+  await expect(rows.first().locator(".c2l-row-model")).toHaveText("모델 · 불확실");
 });
 
 test("1200건 결과에서 기본 review 필터·실패·거부 필터와 페이지 경계를 전체 모집단 기준으로 계산한다", async ({ page }) => {
   await mockOrderPlans(page, "large");
+  const requests = recordListRequests(page);
   await page.goto("/order-plans");
 
-  // 기본(review) 필터는 서버가 돌려준 첫 페이지(500건)가 아니라 전체 1,200건 모집단 위에서
+  // 기본(review) 필터는 서버가 돌려준 첫 페이지(100건)가 아니라 전체 1,200건 모집단 위에서
   // relevant를 계산한다: index<900은 relevant, 나머지 300은 Qwen 단계 실패라 900건만 남는다.
   // 페이지 하나만 세는 회귀였다면 이 900이라는 숫자가 나오지 않는다.
-  await expect(page.locator(".c2l-row")).toHaveCount(500);
+  await expect(page.locator(".c2l-row")).toHaveCount(100);
   await expect(page.locator(".c2l-list-head")).toContainText("관련 900건 · 추적을 정하지 않은 건");
-  await expect(page.locator(".c2l-pager")).toContainText("1–500 / 900");
+  await expect(page.locator(".c2l-pager")).toContainText("1–100 / 900");
+
+  expect(requests.map((params) => [params.get("review_order"), params.get("limit")])).toEqual([["default", "100"]]);
 
   await clickPreset(page, "전체");
-  await expect(page.locator(".c2l-row")).toHaveCount(500);
+  await expect(page.locator(".c2l-row")).toHaveCount(100);
   await expect(page.locator(".c2l-list-head")).toContainText("1,200건");
-  await expect(page.locator(".c2l-pager")).toContainText("1–500 / 1,200");
+  await expect(page.locator(".c2l-pager")).toContainText("1–100 / 1,200");
+  expect(requests.map((params) => params.get("offset"))).toEqual(["0", "0"]);
   await page.getByRole("button", { name: "다음", exact: true }).click();
-  await expect(page.locator(".c2l-row")).toHaveCount(500);
-  await expect(page.locator(".c2l-pager")).toContainText("501–1,000 / 1,200");
+  await expect(page.locator(".c2l-row")).toHaveCount(100);
+  await expect(page.locator(".c2l-pager")).toContainText("101–200 / 1,200");
 
   // 판정 실패 300건은 `모델 미판정`에 든다. 같은 수집일이므로 1차 순위(901위부터)순이다.
   await clickPreset(page, "모델 미판정");
-  await expect(page.locator(".c2l-row")).toHaveCount(300);
+  await expect(page.locator(".c2l-row")).toHaveCount(100);
   await expect(page.locator(".c2l-row").first()).toContainText("대규모 페이지네이션 회귀 발주계획 901");
-  // B3(0920 검수): 페이저 줄은 한 페이지뿐이어도 "전체 N건"과 범위를 보이며,
-  // 이전/다음만 비활성이다(더 이상 여러 페이지일 때만 나타나지 않는다).
   await expect(page.locator(".c2l-pager")).toContainText("전체 300건");
-  await expect(page.locator(".c2l-pager")).toContainText("1–300 / 300");
+  await expect(page.locator(".c2l-pager")).toContainText("1–100 / 300");
   await expect(page.getByRole("button", { name: "이전", exact: true })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "다음", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "다음", exact: true })).toBeEnabled();
+
+  const search = page.getByPlaceholder("사업명·발주기관·계획번호 검색");
+  await search.fill("발주계획 1200");
+  await search.press("Enter");
+  await expect(page.locator(".c2l-row")).toHaveCount(1);
+  await expect(page.locator(".c2l-row")).toContainText("발주계획 1200");
+  expect(requests).toHaveLength(5);
+  expect(requests.at(-1)?.get("q")).toBe("발주계획 1200");
+});
+
+test("직접 링크는 숨겨진 발주계획의 페이지를 한 번 조회하고 그 행을 선택한다", async ({ page }) => {
+  await mockOrderPlans(page, "large");
+  const requests = recordListRequests(page);
+  await page.goto("/order-plans?selected=2198");
+  await expect(page.locator(".c2l-row[aria-current=true]")).toContainText("발주계획 1199");
+  await expect(page).toHaveURL(/offset=1100/);
+  const url = new URL(page.url());
+  expect(url.searchParams.get("qwen")).toBe("");
+  expect(url.searchParams.get("offset")).toBe("1100");
+  expect(requests).toHaveLength(1);
+  expect(requests[0].get("locate")).toBe("2198");
 });
 
 test("검토 목록은 고정 높이 안에서 스크롤되고 상세와 같은 높이로 저장 액션을 노출한다", async ({ page }) => {
@@ -917,11 +902,11 @@ test("사람 판단 수정은 접힌 영역에서 새 revision만 저장하고 �
 
   // 추적 결정 경로로는 아무것도 가지 않았다. 두 결정은 서로 다른 요청이다.
   expect(trace.trackingPatches).toHaveLength(0);
-  await expect(page.locator(".c2l-tracking")).toContainText("추적 결정 없음");
+  await expect(page.getByTestId("order-plan-detail-tag")).toHaveText("결정 필요");
 
   // 페이지 이동 0회이고, 사람 판단 저장은 다음 건으로 이동하지 않는다.
   expect(new URL(page.url()).pathname).toBe(pathnameBefore);
-  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("공공데이터 통합");
+  await expect(page.locator(".c2l-row[aria-current=true]")).toContainText("공공데이터 통합");
 });
 
 // ADR-0046 결정 4·5: 결정 1은 추적 결정이고 사람 판단 수정과 저장 경로를 공유하지 않는다.
@@ -933,16 +918,12 @@ test("추적 결정은 별도 요청으로 저장되고 선택 즉시 다음 발
   const pathnameBefore = new URL(page.url()).pathname;
 
   await page.locator(".c2l-row").first().click();
-  await expect(page.locator(".c2l-tracking")).toContainText("추적 결정 없음");
+  await expect(page.getByTestId("order-plan-detail-tag")).toHaveText("결정 필요");
 
-  // 사유는 자동으로 고르지 않는다. 사유와 담당자가 모두 있어야 저장 액션이 열린다.
+  // 담당자를 확인하면 사유 없이 시작할 수 있다.
   const start = page.getByRole("button", { name: "추적 시작하기", exact: true });
   await expect(start).toBeDisabled();
-  await expect(page.getByText("선택 사유와 담당자 이름을 입력하면 추적 결정을 기록할 수 있어요.")).toBeVisible();
-
-  await selectReason(page, "후속 사전규격·공고 확인");
-  await expect(start).toBeDisabled();
-  await expect(page.getByText("담당자 이름을 입력하면 추적 결정을 기록할 수 있어요.")).toBeVisible();
+  await expect(page.locator("#c2l-start-disabled-reason")).toHaveText("사이드바에서 담당자 이름을 입력해 주세요.");
 
   await setSidebarActor(page, "홍길동");
   await expect(start).toBeEnabled();
@@ -951,10 +932,7 @@ test("추적 결정은 별도 요청으로 저장되고 선택 즉시 다음 발
   await expect(page.getByText("추적 상태를 계속 추적(으)로 기록했어요. 다음 발주계획으로 이동해요.")).toBeVisible();
   expect(trace.trackingPatches).toHaveLength(1);
   expect(trace.trackingPatches[0].opportunityId).toBe(5101);
-  expect(trace.trackingPatches[0].body).toMatchObject({
-    tracking_status: "계속 추적",
-    reason: "후속 사전규격·공고 확인",
-  });
+  expect(trace.trackingPatches[0].body).toEqual({ tracking_status: "계속 추적" });
   // 한글 담당자 이름은 RFC 5987 로 인코딩해 보낸다(기존 actor header 규칙).
   expect(trace.trackingPatches[0].headers["x-bidops-actor-name"]).toBe("UTF-8''%ED%99%8D%EA%B8%B8%EB%8F%99");
   expect(trace.trackingPatches[0].headers["x-bidops-actor-name-format"]).toBe("utf-8-percent-v1");
@@ -964,7 +942,7 @@ test("추적 결정은 별도 요청으로 저장되고 선택 즉시 다음 발
 
   // 페이지 이동 0회이고 다음 건이 선택된다.
   expect(new URL(page.url()).pathname).toBe(pathnameBefore);
-  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("지방공기업");
+  await expect(page.locator(".c2l-row[aria-current=true]")).toContainText("지방공기업");
 });
 
 // 추적 `종료`는 되돌릴 수 없는 결정이므로 확인 단계를 거쳐야 요청이 나간다. 확인 문구는
@@ -973,10 +951,12 @@ test("발주계획 추적 종료는 확인 없이는 요청이 나가지 않고 
   const trace = await mockOrderPlans(page);
   await page.goto(REVIEW_SET_URL);
   await page.locator(".c2l-row").first().click();
+  await page.locator(".c2l-detail-actions").getByRole("button", { name: "추적 종료", exact: true }).click();
+  await expect(page.getByRole("button", { name: "추적 종료 확인" })).toBeDisabled();
   await selectReason(page, "후속 사전규격·공고 확인");
   await setSidebarActor(page, "홍길동");
 
-  await page.getByRole("button", { name: "추적 종료", exact: true }).click();
+  await page.getByRole("button", { name: "추적 종료 확인", exact: true }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("되돌릴 수 없어요");
@@ -990,28 +970,40 @@ test("발주계획 추적 종료는 확인 없이는 요청이 나가지 않고 
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
   expect(trace.trackingPatches).toHaveLength(0);
   await expect(page.locator(".c2l-tracking-position")).toContainText("홍길동 이름으로 기록해요");
-  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("공공데이터 통합");
+  await expect(page.locator(".c2l-row[aria-current=true]")).toContainText("공공데이터 통합");
 
-  await page.getByRole("button", { name: "추적 종료", exact: true }).click();
+  await page.getByRole("button", { name: "추적 종료 확인", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "종료 상태로 저장", exact: true }).click();
   await expect(page.getByText("추적 상태를 종료(으)로 기록했어요. 다음 발주계획으로 이동해요.")).toBeVisible();
   expect(trace.trackingPatches).toHaveLength(1);
   expect(trace.trackingPatches[0].body).toMatchObject({ tracking_status: "종료", reason: "후속 사전규격·공고 확인" });
 });
 
-// 되돌릴 수 있는 `계속 추적`·`보류`는 확인 단계를 두지 않는다. 확인을 모든 결정에 걸면
-// 확인이 뜻을 잃는다.
-test("계속 추적과 보류는 확인 단계 없이 그대로 저장된다", async ({ page }) => {
+// 보류는 사유 입력을 연 뒤 그 자리에서 저장한다. 추적 시작은 사유가 필요 없다.
+test("추적 시작과 보류는 별도 확인 대화상자 없이 저장된다", async ({ page }) => {
   const trace = await mockOrderPlans(page);
   await page.goto(REVIEW_SET_URL);
-  await page.locator(".c2l-row").first().click();
-  await selectReason(page, "후속 사전규격·공고 확인");
+  const actions = trackingActions(page);
   await setSidebarActor(page, "홍길동");
 
-  await page.getByRole("button", { name: "보류", exact: true }).click();
+  await actions.getByRole("button", { name: "보류", exact: true }).click();
+  await selectReason(page, "후속 사전규격·공고 확인");
+  expect(trace.trackingPatches).toHaveLength(0);
+  await actions.getByRole("button", { name: "보류 확인", exact: true }).click();
   await expect(page.getByText("추적 상태를 보류(으)로 기록했어요. 다음 발주계획으로 이동해요.")).toBeVisible();
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
-  expect(trace.trackingPatches).toHaveLength(1);
+  expect(trace.trackingPatches.map(({ body }) => body)).toEqual([
+    { tracking_status: "보류", reason: "후속 사전규격·공고 확인" },
+  ]);
+  await expect(page.locator(".c2l-row[aria-current=true]")).toContainText("지방공기업");
+
+  await actions.getByRole("button", { name: "추적 시작하기", exact: true }).click();
+  await expect(page.getByText("추적 상태를 계속 추적(으)로 기록했어요. 현재 목록의 마지막 발주계획이라 이동하지 않아요.")).toBeVisible();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  expect(trace.trackingPatches.map(({ body }) => body)).toEqual([
+    { tracking_status: "보류", reason: "후속 사전규격·공고 확인" },
+    { tracking_status: "계속 추적" },
+  ]);
 });
 
 // P1: 행이 바뀌면 사람 판단 수정 입력이 초기화된다. 초기화 자체는 유지하되 사람이
@@ -1036,14 +1028,14 @@ test("행을 바꾸기 전에 저장하지 않은 사람 판단 입력을 확인
 
   await dialog.getByRole("button", { name: "계속 편집", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
-  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("공공데이터 통합");
+  await expect(page.locator(".c2l-row[aria-current=true]")).toContainText("공공데이터 통합");
   await page.getByRole("button", { name: "사람 판단 수정 열기" }).click();
   await expect(page.getByLabel("메모")).toHaveValue("아직 저장하지 않은 검토 근거");
   await page.keyboard.press("Escape");
 
   await page.locator(".c2l-row").nth(1).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "저장하지 않고 이동", exact: true }).click();
-  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("지방공기업");
+  await expect(page.locator(".c2l-row[aria-current=true]")).toContainText("지방공기업");
   // 초기화되는 것은 입력값이다.
   await page.getByRole("button", { name: "사람 판단 수정 열기" }).click();
   await expect(page.getByLabel("메모")).toHaveValue("");
@@ -1087,6 +1079,7 @@ test("화면을 떠나기 전에 저장하지 않은 입력을 화면 다이얼�
     return event.defaultPrevented;
   })).toBe(false);
 
+  await trackingActions(page).getByRole("button", { name: "보류", exact: true }).click();
   await selectReason(page, "후속 사전규격·공고 확인");
 
   // 브라우저 종료·새로고침은 native 경고만 가능하므로 beforeunload는 그대로다.
@@ -1106,6 +1099,7 @@ test("화면을 떠나기 전에 저장하지 않은 입력을 화면 다이얼�
   await dialog.getByRole("button", { name: "계속 편집", exact: true }).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe("/order-plans");
   await expect(page.locator(".c2l-tracking-position")).toContainText("홍길동 이름으로 기록해요");
+  await expect(trackingReasonField(page)).toContainText("후속 사전규격·공고 확인");
 
   await leave().click();
   await page.getByRole("alertdialog").getByRole("button", { name: "저장하지 않고 이동", exact: true }).click();
@@ -1123,8 +1117,8 @@ test("이번 건 넘기기는 아무것도 저장하지 않고 미선택을 종�
   await expect(page.getByText("추적 상태를 바꾸지 않고 다음 발주계획으로 이동했어요. 미선택은 추적 종료가 아니에요.")).toBeVisible();
   expect(trace.trackingPatches).toHaveLength(0);
   expect(trace.feedbackPosts).toHaveLength(0);
-  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("지방공기업");
-  await expect(page.locator(".c2l-tracking")).toContainText("추적 결정 없음");
+  await expect(page.locator(".c2l-row[aria-current=true]")).toContainText("지방공기업");
+  await expect(page.getByTestId("order-plan-detail-tag")).toHaveText("결정 필요");
 });
 
 // 요청안 §7 규칙 2·3. 계약이 없는 현재 서버에서 결정을 눌러도 저장된 것처럼 보이지 않는다.
@@ -1134,12 +1128,12 @@ test("추적 결정 계약이 없으면 추적 기록 미지원으로 표시하�
   await page.goto("/order-plans?qwen=relevant,uncertain");
   await page.locator(".c2l-row").first().click();
 
-  const tracking = page.locator(".c2l-tracking");
+  const tracking = page.getByTestId("order-plan-detail-tag");
   // `계약`은 이 화면에서 조달 계약을 가리키므로 실무 결과로 적는다(뜻은 그대로다).
-  await expect(tracking).toContainText("추적 기록 미지원");
-  await expect(tracking).not.toContainText("추적 결정 없음");
+  await expect(tracking).toHaveText("추적 기록 미지원");
+  await expect(tracking).not.toHaveText("결정 필요");
   // 왜 저장할 수 없는지는 결정 줄 아래 한 문장이 진다(버튼마다 되풀이하지 않는다).
-  await expect(page.locator(".c2l-detail-actions")).toContainText("이 발주계획은 추적 결정을 기록하는 기능이 아직 제공되지 않아요.");
+  await expect(page.getByRole("button", { name: "추적 시작하기", exact: true })).toHaveAccessibleDescription("이 발주계획은 추적 결정을 기록하는 기능이 아직 제공되지 않아요.");
 
   for (const label of ["추적 시작하기", "보류", "추적 종료"]) {
     await expect(page.getByRole("button", { name: label, exact: true })).toBeDisabled();
@@ -1159,14 +1153,14 @@ test("소유 사업기회를 확인하지 못하면 저장을 시도하지 않�
   await page.goto("/order-plans?qwen=relevant,uncertain");
   await page.locator(".c2l-row").first().click();
 
-  const tracking = page.locator(".c2l-tracking");
-  await expect(tracking).toContainText("사업기회 미연결");
-  await expect(tracking).not.toContainText("추적 결정 없음");
+  const tracking = page.getByTestId("order-plan-detail-tag");
+  await expect(tracking).toHaveText("사업기회 미연결");
+  await expect(tracking).not.toHaveText("결정 필요");
   await expect(page.getByRole("button", { name: "추적 시작하기", exact: true })).toBeDisabled();
-  await expect(page.locator(".c2l-detail-actions")).toContainText("이 발주계획을 소유한 사업기회를 확인하지 못해 추적 결정을 기록할 수 없어요.");
+  await expect(page.getByRole("button", { name: "추적 시작하기", exact: true })).toHaveAccessibleDescription("이 발주계획을 소유한 사업기회를 확인하지 못해 추적 결정을 기록할 수 없어요.");
 
   expect(trace.trackingPatches).toHaveLength(0);
-  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("공공데이터 통합");
+  await expect(page.locator(".c2l-row[aria-current=true]")).toContainText("공공데이터 통합");
 });
 
 test("filtered_out·not_relevant·unknown·null이 서로 바뀌어 표시되지 않는다", async ({ page }) => {
@@ -1256,9 +1250,9 @@ test("판정 실행이 성공이고 부분 산출물이 없으면 상세에 경�
   await expect(page.locator(".c2l-detail-warn")).toHaveCount(0);
 });
 
-// ADR-0062 ⓐ — 목록 폭 드래그 리사이저는 제거했다(38% 고정, 사전규격과 같은 값).
+// 표 작업대는 사전규격과 같은 60% 목록 폭을 사용한다.
 // 폭을 기억하던 localStorage 키도 더 쓰지 않는다.
-test("목록 폭은 두 지원 폭에서 38% 고정이고 폭 조절 손잡이가 없다", async ({ page }) => {
+test("목록 폭은 두 지원 폭에서 60% 고정이고 폭 조절 손잡이가 없다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
 
@@ -1267,12 +1261,11 @@ test("목록 폭은 두 지원 폭에서 38% 고정이고 폭 조절 손잡이�
   for (const width of [1280, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     await page.reload();
-    // 최종 시안의 460px은 1440px 패널에서 38%와 같다. 사전규격과 같은 38%를 지킨다.
     const ratio = await page.locator(".c2l-workspace").evaluate((workspace) => {
       const listPane = workspace.querySelector<HTMLElement>(".c2l-list-pane")!;
       return listPane.getBoundingClientRect().width / workspace.getBoundingClientRect().width;
     });
-    expect(ratio, `${width}px 목록 pane 비율`).toBeCloseTo(0.38, 2);
+    expect(ratio, `${width}px 목록 pane 비율`).toBeCloseTo(0.60, 2);
     expect(await page.evaluate(() => window.localStorage.getItem("bidops.order-plans.listWidth"))).toBeNull();
   }
 });
@@ -1327,7 +1320,7 @@ test("지원 폭 전체에서 목록과 상세 두 pane이 함께 남고 행 선
 
   const pathnameBefore = new URL(page.url()).pathname;
   await page.locator(".c2l-row").nth(1).click();
-  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("지방공기업");
+  await expect(page.locator(".c2l-row[aria-current=true]")).toContainText("지방공기업");
   await expect(page.locator(".c2l-detail-pane")).toContainText("지방공기업");
   // 제자리 pane 교체다. /order-plans/:pk 로 이동하지 않는다.
   expect(new URL(page.url()).pathname).toBe(pathnameBefore);
@@ -1363,11 +1356,11 @@ test("legacy 발주계획 URL은 누적 목록의 선택 행으로 들어간다"
 
   await expect(page).toHaveURL(/\/order-plans\?.*selected=101/);
   // 누적 목록 안에서 그 행을 고른다. 회차를 골라 URL에 박지 않는다.
-  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("공공데이터 통합");
+  await expect(page.locator(".c2l-row[aria-current=true]")).toContainText("공공데이터 통합");
   expect(new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
-  await expect(page.getByTestId("page-header-eyebrow")).toHaveText("발주계획");
+  await expect(page.locator("header.topbar h1")).toHaveText("발주계획");
   await expect(page.locator(".c2l-page-header")).toHaveCount(0);
-  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("공공데이터 통합");
+  await expect(page.locator(".c2l-row[aria-current=true]")).toContainText("공공데이터 통합");
   await expect(page.locator(".c2l-detail-pane")).toContainText("공공데이터 통합");
   await expect(page.getByRole("link", { name: "전체 상세 열기", exact: true })).toHaveCount(0);
 });
@@ -1379,7 +1372,7 @@ test("legacy URL은 필터에 가려진 not_relevant 대상의 선택을 보존�
   await expect(page).toHaveURL(/\/order-plans\?.*selected=103/);
   await expect.poll(() => new URL(page.url()).searchParams.get("qwen")).toBe("");
   expect(new URL(page.url()).searchParams.has("source_run_id")).toBe(false);
-  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("시설관리 용역");
+  await expect(page.locator(".c2l-row[aria-current=true]")).toContainText("시설관리 용역");
   await expect(page.locator(".c2l-detail-pane")).toContainText("시설관리 용역");
 });
 
@@ -1389,7 +1382,7 @@ test("legacy URL의 알 수 없는 발주계획은 첫 행으로 대체하지 �
 
   await expect(page).toHaveURL(/\/order-plans\?.*selected=9999/);
   await expect(page.getByText("요청한 발주계획을 누적 목록에서 찾을 수 없어요.", { exact: true })).toBeVisible();
-  await expect(page.locator(".c2l-row-wrap.is-selected")).toHaveCount(0);
+  await expect(page.locator(".c2l-row[aria-current=true]")).toHaveCount(0);
 });
 
 test("선별 전 수집 회차도 전체 원본을 조회하고 URL의 회차를 새로고침 후 유지한다", async ({ page }) => {
@@ -1417,20 +1410,29 @@ test("추적 사유는 초기값이 비어 있고 공백만 있는 직접 입력
   await page.locator(".c2l-row").first().click();
   await setSidebarActor(page, "홍길동");
 
-  const reason = page.getByRole("combobox", { name: "선택 사유" });
+  const actions = trackingActions(page);
+  const hold = actions.getByRole("button", { name: "보류", exact: true });
+  const confirmHold = actions.getByRole("button", { name: "보류 확인", exact: true });
+  const end = actions.getByRole("button", { name: "추적 종료", exact: true });
+  const confirmEnd = actions.getByRole("button", { name: "추적 종료 확인", exact: true });
+  const reason = trackingReasonField(page);
+  await end.click();
   await expect(reason).toContainText("사유를 선택하세요");
-  for (const label of ["추적 시작하기", "보류", "추적 종료"]) {
-    await expect(page.getByRole("button", { name: label, exact: true })).toBeDisabled();
-  }
-  await expect(page.locator(".c2l-detail-actions")).toContainText("선택 사유를 고르면 추적 결정을 기록할 수 있어요.");
+  await expect(confirmEnd).toBeDisabled();
+  await actions.getByRole("button", { name: "취소", exact: true }).click();
+  await hold.click();
+  await expect(reason).toContainText("사유를 선택하세요");
+  await expect(confirmHold).toBeDisabled();
+  await expect(confirmHold).toHaveAccessibleDescription("선택 사유를 고르면 추적 결정을 기록할 수 있어요.");
 
   // `기타`는 값이 아니라 자유 입력을 여는 표식이다. 공백만으로는 여전히 막힌다.
   await selectReason(page, "기타 · 직접 입력");
   const custom = page.getByLabel("선택 사유 직접 입력");
   await expect(custom).toBeVisible();
   await custom.fill("   ");
-  await expect(page.getByRole("button", { name: "추적 시작하기", exact: true })).toBeDisabled();
-  await expect(page.locator(".c2l-detail-actions")).toContainText("선택 사유를 직접 입력하면 추적 결정을 기록할 수 있어요.");
+  await expect(confirmHold).toBeDisabled();
+  expect(trace.trackingPatches).toHaveLength(0);
+  await expect(confirmHold).toHaveAccessibleDescription("선택 사유를 직접 입력하면 추적 결정을 기록할 수 있어요.");
 
   // 같은 건 안에서 선택지를 왕복해도 적어 둔 문구는 남는다.
   await custom.fill("기존 사업과의 연계 범위를 사전규격에서 확인");
@@ -1439,18 +1441,20 @@ test("추적 사유는 초기값이 비어 있고 공백만 있는 직접 입력
   await selectReason(page, "기타 · 직접 입력");
   await expect(page.getByLabel("선택 사유 직접 입력")).toHaveValue("기존 사업과의 연계 범위를 사전규격에서 확인");
 
-  await page.getByRole("button", { name: "추적 시작하기", exact: true }).click();
-  await expect(page.getByText(/추적 상태를 계속 추적\(으\)로 기록했어요/)).toBeVisible();
+  await confirmHold.click();
+  await expect(page.getByText(/추적 상태를 보류\(으\)로 기록했어요/)).toBeVisible();
   expect(trace.trackingPatches).toHaveLength(1);
   // 계약에 실리는 것은 `기타`라는 표식이 아니라 사람이 적은 문장이다.
   expect(trace.trackingPatches[0].body).toMatchObject({
-    tracking_status: "계속 추적",
+    tracking_status: "보류",
     reason: "기존 사업과의 연계 범위를 사전규격에서 확인",
   });
 
   // 다음 건으로 옮겨 가면 사유는 비고 담당자 이름은 남는다.
-  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("지방공기업");
-  await expect(page.getByRole("combobox", { name: "선택 사유" })).toContainText("사유를 선택하세요");
+  await expect(page.locator(".c2l-row[aria-current=true]")).toContainText("지방공기업");
+  await expect(reason).toHaveCount(0);
+  await hold.click();
+  await expect(reason).toContainText("사유를 선택하세요");
   await expect(page.locator(".c2l-tracking-position")).toContainText("홍길동 이름으로 기록해요");
 });
 
@@ -1464,11 +1468,12 @@ test("목록의 마지막 건을 저장하면 사유를 비우고 이동하지 �
   // 기본 보기는 두 건이다. 두 번째(마지막) 건을 고른다.
   await expect(page.locator(".c2l-row")).toHaveCount(2);
   await page.locator(".c2l-row").nth(1).click();
-  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("지방공기업");
+  await expect(page.locator(".c2l-row[aria-current=true]")).toContainText("지방공기업");
 
+  await page.getByRole("button", { name: "보류", exact: true }).click();
   await selectReason(page, "예산·시기 추가 확인 필요");
   await setSidebarActor(page, "홍길동");
-  await page.getByRole("button", { name: "보류", exact: true }).click();
+  await page.getByRole("button", { name: "보류 확인", exact: true }).click();
 
   await expect(page.getByText("추적 상태를 보류(으)로 기록했어요. 현재 목록의 마지막 발주계획이라 이동하지 않아요.")).toBeVisible();
   await expect(page.getByText(/다음 발주계획으로 이동해요/)).toHaveCount(0);
@@ -1476,11 +1481,12 @@ test("목록의 마지막 건을 저장하면 사유를 비우고 이동하지 �
   expect(trace.trackingPatches[0].body).toMatchObject({ tracking_status: "보류", reason: "예산·시기 추가 확인 필요" });
 
   // 선택은 그대로 남고 사유만 비었다. 담당자는 감사 표식이라 남는다.
-  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("지방공기업");
+  await expect(page.locator(".c2l-row[aria-current=true]")).toContainText("지방공기업");
+  await expect(page.getByRole("combobox", { name: "선택 사유" })).toHaveCount(0);
+  await page.getByRole("button", { name: "계속 추적", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "선택 사유" })).toContainText("사유를 선택하세요");
   await expect(page.locator(".c2l-tracking-position")).toContainText("홍길동 이름으로 기록해요");
-  // 이 건은 이제 `보류`라 `계속 추적` 결정의 이름은 `추적 시작`이 아니라 `계속 추적`이다(C-7 버튼 이름 규칙).
-  await expect(page.getByRole("button", { name: "계속 추적", exact: true })).toBeDisabled();
+  await page.locator(".c2l-detail-actions").getByRole("button", { name: "취소", exact: true }).click();
 
   // 저장이 끝났으므로 화면을 떠나도 "저장되지 않은 입력" 확인이 뜨지 않는다.
   await page.locator("aside.sidebar").getByRole("link", { name: "실행 상태", exact: true }).click();
@@ -1492,32 +1498,38 @@ test("목록의 마지막 건을 저장하면 사유를 비우고 이동하지 �
 
 // 결정 줄은 시안처럼 한 가로 줄이다. 버튼마다 다른 높이를 갖거나 줄이 갈라지면
 // 어느 버튼이 주 결정인지 화면이 말해 주지 못한다.
-test("결정 버튼은 같은 높이의 한 줄이고 비활성 사유는 그 줄 아래 한 번만 나온다", async ({ page }) => {
+test("결정 버튼은 한 줄이고 비활성 사유는 해당 동작에 연결된다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
-  await page.locator(".c2l-row").first().click();
 
-  const layout = await page.locator(".c2l-detail-actions").evaluate((bar) => {
-    const buttons = Array.from(bar.querySelectorAll<HTMLElement>(".review-decision-bar-actions button"));
+  const actions = trackingActions(page);
+  const buttons = actions.locator(".workbench-decision-actions").getByRole("button");
+  await expect(buttons).toHaveCount(4);
+  await expect(buttons).toHaveText(["넘기기", "추적 종료", "보류", "추적 시작하기"]);
+  const actor = actions.locator(".workbench-decision-state").getByRole("button", { name: "담당자 이름 입력" });
+  await expect(actor).toBeVisible();
+  const [actorBox, actionsBox] = await Promise.all([actor.boundingBox(), buttons.nth(0).boundingBox()]);
+  expect(actorBox!.x).toBeLessThan(actionsBox!.x);
+  const rects = await buttons.evaluateAll((elements) => elements.map((element) => {
+    const { top, height } = element.getBoundingClientRect();
+    return { top: Math.round(top), height: Math.round(height) };
+  }));
+  const layout = await actions.evaluate((bar) => {
     const hint = bar.querySelector<HTMLElement>("#c2l-tracking-decision-reason");
     if (!hint) throw new Error("결정 안내 문장을 찾을 수 없어요.");
-    const rects = buttons.map((button) => button.getBoundingClientRect());
-    return {
-      count: buttons.length,
-      tops: rects.map((rect) => Math.round(rect.top)),
-      heights: rects.map((rect) => Math.round(rect.height)),
-      primaryWidth: Math.round(rects[0].width),
-      secondaryWidth: Math.round(rects[1].width),
-      hintHeight: hint.getBoundingClientRect().height,
-    };
+    return { hintHeight: hint.getBoundingClientRect().height };
   });
-  expect(layout.count).toBe(4);
-  expect(new Set(layout.tops).size).toBe(1);
-  expect(new Set(layout.heights).size).toBe(1);
-  // 주 결정은 남는 폭을 차지하고 나머지는 최소 폭이다.
-  expect(layout.primaryWidth).toBeGreaterThan(layout.secondaryWidth);
+  expect(new Set(rects.map(({ top }) => top)).size).toBe(1);
+  expect(new Set(rects.map(({ height }) => height)).size).toBe(1);
+  const start = actions.getByRole("button", { name: "추적 시작하기", exact: true });
+  await expect(actions.locator("button.primary")).toHaveCount(1);
+  await expect(start).toHaveClass(/\bprimary\b/);
+  await expect(start).toHaveAccessibleDescription("사이드바에서 담당자 이름을 입력해 주세요.");
   expect(layout.hintHeight).toBeLessThanOrEqual(1);
-  await expect(page.getByText("선택 사유와 담당자 이름을 입력하면 추적 결정을 기록할 수 있어요.", { exact: true })).toHaveCount(1);
+  await actions.getByRole("button", { name: "보류", exact: true }).click();
+  const reason = "선택 사유와 담당자 이름을 입력하면 추적 결정을 기록할 수 있어요.";
+  await expect(actions.getByText(reason, { exact: true })).toHaveCount(1);
+  await expect(actions.getByRole("button", { name: "보류 확인", exact: true })).toHaveAccessibleDescription(reason);
 });
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -1547,13 +1559,14 @@ test("검토 목록에서 ↑↓로 행을 옮기면 선택·초점·URL이 함�
   expect(await rows.first().evaluate((row) => row === document.activeElement)).toBe(true);
 
   // 목록 밖(상세 pane)의 방향키는 목록을 움직이지 않는다. 리스너가 목록 컨테이너에만 있다.
-  await page.getByRole("combobox", { name: "선택 사유" }).focus();
+  await trackingActions(page).getByRole("button", { name: "보류", exact: true }).click();
+  await trackingReasonField(page).focus();
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Escape");
   await expect(rows.first()).toHaveAttribute("aria-current", "true");
 });
 
-// 페이지 경계는 hook이 모른다(화면만 offset을 안다). ↓가 페이지 끝에서 멈추면 500건마다
+// 페이지 경계는 hook이 모른다(화면만 offset을 안다). ↓가 페이지 끝에서 멈추면 100건마다
 // 사람이 `다음` 버튼을 찾아 마우스로 돌아가야 한다.
 test("페이지 끝에서 ↓를 누르면 다음 페이지 첫 행으로 이어진다", async ({ page }) => {
   await mockOrderPlans(page, "large");
@@ -1563,14 +1576,14 @@ test("페이지 끝에서 ↓를 누르면 다음 페이지 첫 행으로 이어
   await expect(page.locator(".c2l-list-head")).toContainText("1,200건");
 
   const rows = page.locator(".c2l-row");
-  await expect(rows).toHaveCount(500);
-  await rows.nth(499).click();
+  await expect(rows).toHaveCount(100);
+  await rows.nth(99).click();
   // 선택이 실제로 옮겨진 뒤에 눌러야 한다 — 이동은 URL(선택)이 정본이고 키 입력은 그 위에서 센다.
-  await expect(rows.nth(499)).toHaveAttribute("aria-current", "true");
-  await rows.nth(499).focus();
+  await expect(rows.nth(99)).toHaveAttribute("aria-current", "true");
+  await rows.nth(99).focus();
   await page.keyboard.press("ArrowDown");
 
-  await expect(page.locator(".c2l-pager")).toContainText("501–1,000 / 1,200");
+  await expect(page.locator(".c2l-pager")).toContainText("101–200 / 1,200");
   await expect(rows.first()).toHaveAttribute("aria-current", "true");
   expect(await rows.first().evaluate((row) => row === document.activeElement)).toBe(true);
 });
@@ -1579,13 +1592,16 @@ test("페이지 끝에서 ↓를 누르면 다음 페이지 첫 행으로 이어
 // 키보드로만 조용히 사라진다.
 test("저장하지 않은 사유가 있으면 ↓ 이동도 확인을 거치고 취소하면 선택이 남는다", async ({ page }) => {
   await mockOrderPlans(page);
-  await page.goto("/order-plans");
+  await page.goto(REVIEW_SET_URL);
 
   const rows = page.locator(".c2l-row");
-  await rows.first().click();
+  const current = rows.filter({ hasText: "인공지능 기반 공공데이터" });
+  await expect(rows).toHaveCount(2);
+  await current.click();
+  await trackingActions(page).getByRole("button", { name: "보류", exact: true }).click();
   await selectReason(page, "예산·시기 추가 확인 필요");
 
-  await rows.first().focus();
+  await current.focus();
   await page.keyboard.press("ArrowDown");
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
@@ -1593,61 +1609,42 @@ test("저장하지 않은 사유가 있으면 ↓ 이동도 확인을 거치고 
 
   await page.keyboard.press("Escape");
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
-  await expect(rows.first()).toHaveAttribute("aria-current", "true");
-  await expect(page.getByRole("combobox", { name: "선택 사유" })).toContainText("예산·시기 추가 확인 필요");
+  await expect(current).toHaveAttribute("aria-current", "true");
+  await expect(trackingReasonField(page)).toContainText("예산·시기 추가 확인 필요");
 });
 
 // 1차 선별의 기본값 둘(`선정`·`제외`)은 배지로 그리면 아무것도 구분하지 못한다. 숨기는
 // 것은 그 둘뿐이고 실패·거부·값 없음은 그대로 보인다(0921 명세 §3.1).
-test("행 배지는 모델 판단을 상태 칩 줄에 두고 1차 선별 기본값을 감춘다", async ({ page }) => {
+test("행 배지는 모델 판단을 상태 칩 열에 두고 1차 선별 기본값을 감춘다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
   // 관련 보기는 보기가 말하는 `모델 · 관련`을 행마다 반복하지 않는다(최종 시안). 전체 보기에서 배지 자리를 본다.
   await expect(page.locator(".c2l-row .c2l-row-model")).toHaveCount(0);
   await clickPreset(page, "전체");
 
-  const first = page.locator(".c2l-row").first();
-  // ADR-0062 — 모델 판단 배지는 사전규격 행과 같이 상태 칩 줄에 있고, 사람 판정으로
+  const relevant = page.locator(".c2l-row").filter({ hasText: "인공지능 기반 공공데이터" });
+  // ADR-0062 — 모델 판단 배지는 사전규격 행과 같이 상태 칩 열에 있고, 사람 판정으로
   // 읽히지 않도록 `모델 ·` 머리말을 둔다(시안 M3 결정 1 승인).
-  await expect(first.locator(".c2l-row-state .c2l-row-model")).toHaveText("모델 · 관련");
-  await expect(first.locator(".c2l-row-badges")).not.toContainText("BM25");
-  await expect(first.locator(".c2l-row-badges")).not.toContainText("1차 선별");
+  await expect(relevant.locator(".c2l-row-state .c2l-row-model")).toHaveText("모델 · 관련");
+  await expect(relevant.locator(".c2l-row-badges")).not.toContainText("BM25");
+  await expect(relevant.locator(".c2l-row-badges")).not.toContainText("1차 선별");
   // 사람 피드백이 있는 행은 그 사실만 배지 줄에 남는다.
-  await expect(first.locator(".c2l-row-badges")).toHaveText("사람 판단 수정 1회");
+  await expect(relevant.locator(".c2l-row-badges")).toHaveText("사람 판단 수정 1회");
   // 그릴 배지가 하나도 없으면 줄 자체를 만들지 않는다(빈 줄이 행 높이를 흔든다).
   await expect(page.locator(".c2l-row").nth(1).locator(".c2l-row-badges")).toHaveCount(0);
 
-  // ADR-0062 — 행의 차례는 사업명 → 발주기관 → metadata → 상태 칩이고, 발주 예정은
-  // 오른쪽 열이다(사전규격 행과 같다).
-  const geometry = await first.evaluate((row) => {
-    const box = (selector: string) => {
-      const element = row.querySelector<HTMLElement>(selector);
-      if (!element) throw new Error(`${selector} 를 찾을 수 없어요.`);
-      return element.getBoundingClientRect();
-    };
-    const title = box(".c2l-row-title");
-    const agency = box(".c2l-row-agency");
-    const meta = box(".c2l-row-meta");
-    const badge = box(".c2l-row-state .c2l-row-model");
-    const planned = box(".c2l-row-planned");
-    return {
-      titleTop: title.top,
-      agencyTop: agency.top,
-      metaTop: meta.top,
-      badgeTop: badge.top,
-      badgeLeft: badge.left,
-      titleLeft: title.left,
-      plannedLeft: planned.left,
-      titleRight: title.right,
-    };
-  });
-  expect(geometry.titleTop).toBeLessThan(geometry.agencyTop);
-  expect(geometry.agencyTop).toBeLessThan(geometry.metaTop);
-  expect(geometry.metaTop).toBeLessThan(geometry.badgeTop);
-  // 상태 칩 줄은 왼쪽 열 안에서 시작한다(제목과 같은 왼쪽 정렬).
-  expect(Math.abs(geometry.badgeLeft - geometry.titleLeft)).toBeLessThanOrEqual(2);
-  // 발주 예정은 오른쪽 열이다.
-  expect(geometry.plannedLeft).toBeGreaterThan(geometry.titleRight);
+  const columns = await relevant.locator("td").evaluateAll((cells) =>
+    cells.map((cell) => cell.textContent?.trim()));
+  expect(columns).toEqual([
+    "",
+    expect.stringContaining("인공지능 기반 공공데이터"),
+    "서울특별시 디지털정책관",
+    "1.3억원",
+    expect.stringContaining("모델 · 관련"),
+    "2026년 11월",
+  ]);
+  await expect(relevant.locator("td.c2l-row-budget")).toHaveCSS("white-space", "nowrap");
+  await expect(relevant.locator("td.c2l-row-planned")).toHaveCSS("white-space", "nowrap");
 
   // 순위 밖 건은 1차 선별 배지를 갖지 않는다. 대신 그 행의 모델 상태는 그대로 남는다 —
   // 값 없음과 실패를 감추는 것이 아니다.
@@ -1663,8 +1660,7 @@ test("행 배지는 모델 판단을 상태 칩 줄에 두고 1차 선별 기본
   await expect(failedRow.locator(".c2l-row-badges")).toContainText("모델 미판정(판정 실패)");
 });
 
-// 방안 1의 한 손 동선: [↓] → [직전 사유 다시 쓰기] → [Ctrl+Enter]. 준비되지 않은 상태에서
-// 한 키가 사유를 지어내면 감사 기록이 사람의 판단이 아니게 되므로, 그때는 안내만 한다.
+// Ctrl+Enter는 사이드바 담당자가 있는 미선택 건의 추적을 시작한다.
 test("목록 행의 Ctrl+Enter는 준비됐을 때만 추적을 시작한다", async ({ page }) => {
   const trace = await mockOrderPlans(page);
   await page.goto(REVIEW_SET_URL);
@@ -1673,21 +1669,22 @@ test("목록 행의 Ctrl+Enter는 준비됐을 때만 추적을 시작한다", a
   await rows.first().focus();
   await page.keyboard.press("Control+Enter");
 
-  await expect(page.getByText("사유와 담당자를 입력하면 Ctrl+Enter로 추적을 시작해요.")).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "사이드바에서 담당자 이름을 입력해 주세요." })).toBeVisible();
   expect(trace.trackingPatches).toHaveLength(0);
   // 무엇이 비었는지 말하고 그 자리로 초점을 옮긴다. 값은 채우지 않는다.
-  await expect(page.getByRole("combobox", { name: "선택 사유" })).toBeFocused();
-  await expect(page.getByRole("combobox", { name: "선택 사유" })).toContainText("사유를 선택하세요");
+  await expect(page.locator("#sidebar-actor-input")).toBeFocused();
+  await expect(page.locator("#sidebar-actor-input")).toHaveValue("");
+  await expect(trackingReasonField(page)).toHaveCount(0);
 
-  await selectReason(page, "후속 사전규격·공고 확인");
-  await setSidebarActor(page, "홍길동");
+  await page.locator("#sidebar-actor-input").fill("홍길동");
+  await page.locator(".sidebar-actor-done").click();
   await rows.first().focus();
   await page.keyboard.press("Control+Enter");
 
   await expect(page.getByText("추적 상태를 계속 추적(으)로 기록했어요. 다음 발주계획으로 이동해요.")).toBeVisible();
   expect(trace.trackingPatches).toHaveLength(1);
-  expect(trace.trackingPatches[0].body).toMatchObject({ tracking_status: "계속 추적", reason: "후속 사전규격·공고 확인" });
-  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("지방공기업");
+  expect(trace.trackingPatches[0].body).toEqual({ tracking_status: "계속 추적" });
+  await expect(page.locator(".c2l-row[aria-current=true]")).toContainText("지방공기업");
 });
 
 // 사유는 건마다 다시 고르는 값이라 저장에 성공하면 비운다(PRD §3.3). 그래도 연속 검토에서
@@ -1696,18 +1693,22 @@ test("저장한 뒤에는 직전 사유를 한 번에 다시 쓸 수 있다", as
   const trace = await mockOrderPlans(page);
   await page.goto(REVIEW_SET_URL);
 
-  await page.locator(".c2l-row").first().click();
+  const actions = trackingActions(page);
+  const hold = actions.getByRole("button", { name: "보류", exact: true });
+  await hold.click();
   await selectReason(page, "후속 사전규격·공고 확인");
   await setSidebarActor(page, "홍길동");
-  await page.getByRole("button", { name: "추적 시작하기", exact: true }).click();
-  await expect(page.locator(".c2l-row-wrap.is-selected")).toContainText("지방공기업");
+  await actions.getByRole("button", { name: "보류 확인", exact: true }).click();
+  await expect(page.locator(".c2l-row[aria-current=true]")).toContainText("지방공기업");
 
+  await expect(trackingReasonField(page)).toHaveCount(0);
+  await hold.click();
   // 드롭다운은 여전히 빈 값에서 시작한다. 다시 쓰기는 단추 하나로만 열린다.
-  await expect(page.getByRole("combobox", { name: "선택 사유" })).toContainText("사유를 선택하세요");
+  await expect(trackingReasonField(page)).toContainText("사유를 선택하세요");
   const reuse = page.getByRole("button", { name: "직전 사유 다시 쓰기 · 후속 사전규격·공고 확인" });
   await expect(reuse).toBeVisible();
   await reuse.click();
-  await expect(page.getByRole("combobox", { name: "선택 사유" })).toContainText("후속 사전규격·공고 확인");
+  await expect(trackingReasonField(page)).toContainText("후속 사전규격·공고 확인");
   await expect(reuse).toHaveCount(0);
 
   expect(await page.evaluate(() => window.sessionStorage.getItem("bidops.order-plans.lastTrackingReason")))
@@ -1715,29 +1716,29 @@ test("저장한 뒤에는 직전 사유를 한 번에 다시 쓸 수 있다", as
   expect(trace.trackingPatches).toHaveLength(1);
 });
 
-// 담당자 이름은 감사 표식이고 여러 건에 다시 쓰는 값이다. 탭 세션 동안만 남으며
-// (localStorage가 아니다) 인증도 계정도 아니다.
+// 담당자 이름은 감사 표식이고 여러 건에 다시 쓰는 값이다. 사이드바와 목록이 같은 브라우저 값을 쓴다.
 test("담당자 이름은 사이드바와 같은 한 값이고 새로고침 뒤에도 남는다", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
-  await page.locator(".c2l-row").first().click();
+  const actions = trackingActions(page);
 
   // 이름이 비면 결정 영역에는 입력 칸이 없고, 사이드바 담당자 칸을 여는 안내만 있다(2026-11-20).
-  const missing = page.getByTestId("order-plan-actor-missing");
-  await expect(missing.getByRole("button", { name: "사이드바에서 이름 입력하기" })).toBeVisible();
-  await expect(page.locator(".c2l-tracking").getByRole("textbox")).toHaveCount(0);
-  await missing.getByRole("button", { name: "사이드바에서 이름 입력하기" }).click();
+  const missing = actions.getByRole("button", { name: "담당자 이름 입력", exact: true });
+  await expect(missing).toBeVisible();
+  await expect(actions.getByRole("textbox")).toHaveCount(0);
+  await missing.click();
   await expect(page.locator("#sidebar-actor-input")).toBeFocused();
   await page.locator("#sidebar-actor-input").fill("홍길동");
   // 담당자 이름은 사이드바 담당자 칸과 같은 한 값(`bidops.actorName`)이다.
   expect(await page.evaluate(() => window.localStorage.getItem("bidops.actorName"))).toBe("홍길동");
-  await expect(page.locator(".c2l-tracking-position")).toContainText("홍길동 이름으로 기록해요");
+  const start = actions.getByRole("button", { name: "추적 시작하기", exact: true });
+  await expect(start).toBeEnabled();
 
   await page.reload();
-  await expect(page.locator(".c2l-tracking-position")).toContainText("홍길동 이름으로 기록해요");
+  await expect(start).toBeEnabled();
   await expect(page.locator("aside.sidebar .sidebar-actor-trigger strong")).toHaveText("홍길동");
-  // `이름 바꾸기`도 본문이 아니라 사이드바 칸을 연다.
-  await page.getByRole("button", { name: "이름 바꾸기" }).click();
+  // `이름 변경`도 본문이 아니라 사이드바 칸을 연다.
+  await actions.getByRole("button", { name: "이름 변경", exact: true }).click();
   await expect(page.locator("#sidebar-actor-input")).toHaveValue("홍길동");
   await expect(page.locator("#sidebar-actor-input")).toBeFocused();
 });
@@ -2060,12 +2061,12 @@ test("BT-client-transport-unconfirmed-and-conflict-messages-never-suggest-a-new-
 test("LS-cross-page-selection-survives-refresh-and-clears-on-applied-filter-change", async ({ page }) => {
   await mockOrderPlans(page, "large");
   await page.goto("/order-plans");
-  await expect(page.locator(".c2l-row")).toHaveCount(500);
+  await expect(page.locator(".c2l-row")).toHaveCount(100);
 
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
   await page.getByRole("button", { name: "다음", exact: true }).click();
-  await expect(page).toHaveURL(/offset=500/);
-  await expect(page.locator(".c2l-row")).toHaveCount(400);
+  await expect(page).toHaveURL(/offset=100/);
+  await expect(page.locator(".c2l-row")).toHaveCount(100);
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 2건");
 
@@ -2085,35 +2086,33 @@ test("LS-cross-page-selection-survives-refresh-and-clears-on-applied-filter-chan
 test("LS-select-current-page-only-adds-visible-rows-and-disables-once-page-is-fully-selected", async ({ page }) => {
   await mockOrderPlans(page, "large");
   await page.goto("/order-plans");
-  await expect(page.locator(".c2l-row")).toHaveCount(500);
+  await expect(page.locator(".c2l-row")).toHaveCount(100);
 
   await page.getByRole("button", { name: "현재 페이지 전체 선택", exact: true }).click();
   const selectPage = page.getByRole("button", { name: "현재 페이지 전체 선택", exact: true });
-  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 500건");
-  await expect(page.locator('.c2l-row input[type="checkbox"][data-checked="true"]')).toHaveCount(500);
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 100건");
+  await expect(page.locator('.c2l-row input[type="checkbox"][data-checked="true"]')).toHaveCount(100);
   await expect(selectPage).toBeDisabled();
 
   await page.getByRole("button", { name: "다음", exact: true }).click();
-  await expect(page).toHaveURL(/offset=500/);
-  await expect(page.locator(".c2l-row")).toHaveCount(400);
-  // 이전 페이지 500건은 화면 밖에서도 그대로 선택돼 있고, 새 페이지는 아직
+  await expect(page).toHaveURL(/offset=100/);
+  await expect(page.locator(".c2l-row")).toHaveCount(100);
+  // 이전 페이지 100건은 화면 밖에서도 그대로 선택돼 있고, 새 페이지는 아직
   // 선택되지 않았으므로 단추가 다시 활성이다.
   await expect(selectPage).toBeEnabled();
   await expect(page.locator('.c2l-row input[type="checkbox"][data-checked="true"]')).toHaveCount(0);
 
   await selectPage.click();
-  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 900건");
-  await expect(page.locator('.c2l-row input[type="checkbox"][data-checked="true"]')).toHaveCount(400);
+  await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 200건");
+  await expect(page.locator('.c2l-row input[type="checkbox"][data-checked="true"]')).toHaveCount(100);
   await expect(selectPage).toBeDisabled();
 });
 
-// M7 ②: 선택 도구는 사전규격과 같은 이름·순서 4개뿐이다 — 전체 선택 · 전체 해제 ·
-// 선택한 계획 추적 종료 · 선택 항목 추적 시작(primary). 아무것도 선택하지 않은 초기
-// 상태에서 해제·제외·시작은 비활성이고 전체 선택만 쓸 수 있다.
+// 선택 도구는 0건에도 자리를 유지한다. 목록 전체 선택과 해제, 발주계획 종료,
+// 일괄 추적 시작 순서로 제공한다.
 test("LS-selection-toolbar-has-four-tools-in-the-pre-specs-order-and-names", async ({ page }) => {
   await mockOrderPlans(page);
   await page.goto("/order-plans");
-  // 최종 시안: 선택이 0건이면 바가 없다. 한 건을 고르면 네 도구가 같은 이름·순서로 선다.
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 0건");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
   const toolbar = page.getByTestId("order-plan-selection-toolbar");
@@ -2122,8 +2121,8 @@ test("LS-selection-toolbar-has-four-tools-in-the-pre-specs-order-and-names", asy
   await expect(buttons.nth(0)).toHaveText("전체 선택");
   await expect(buttons.nth(1)).toHaveText("전체 해제");
   await expect(buttons.nth(2)).toHaveText("추적 종료");
-  await expect(buttons.nth(3)).toHaveText("추적 시작");
-  // 한 건이 고른 상태라 해제·제외·시작이 쓸 수 있다. 전체 선택은 페이지가 다 차기 전까지 켜져 있다.
+  await expect(buttons.nth(3)).toHaveText("일괄 추적 시작");
+  // 한 건을 고르면 해제·종료·시작을 쓸 수 있다.
   await expect(buttons.nth(1)).toBeEnabled();
   await expect(buttons.nth(2)).toBeEnabled();
   await expect(buttons.nth(3)).toBeEnabled();
@@ -2137,14 +2136,15 @@ test("LS-checkbox-space-and-input-events-remain-independent-from-active-row", as
   const firstCheckbox = rows.first().locator('input[type="checkbox"]');
   await firstCheckbox.press("Space");
   await expect(firstCheckbox).toBeChecked();
-  await expect(rows.nth(1)).toHaveClass(/is-selected/);
-  await expect(rows.first()).not.toHaveClass(/is-selected/);
+  await expect(rows.nth(1)).toHaveAttribute("aria-current", "true");
+  await expect(rows.first()).not.toHaveAttribute("aria-current", "true");
 
   const firstRow = rows.first();
   await firstRow.click();
   await firstRow.focus();
   await firstRow.press("Space");
   await expect(firstCheckbox).not.toBeChecked();
+  await expect(firstRow).toHaveAttribute("aria-current", "true");
   // A held/repeated row Space must not toggle a second time.
   await firstRow.dispatchEvent("keydown", { key: " ", code: "Space", repeat: true, bubbles: true });
   await expect(firstCheckbox).not.toBeChecked();
@@ -2152,11 +2152,11 @@ test("LS-checkbox-space-and-input-events-remain-independent-from-active-row", as
   await setSidebarActor(page, "키보드 담당자", { keepOpen: true });
   await page.locator("#sidebar-actor-input").press("Space");
   await expect(firstCheckbox).not.toBeChecked();
+  await expect(firstRow).toHaveAttribute("aria-current", "true");
 });
 
 // ---- 일괄 창 한 창 흐름(2026-09-23 시안 ①·④) ----
-// 창이 열리면 대상 확인(preview)이 자동으로 돈다. 입력은 사유 Selector(또는 `기타 · 직접 입력`)와
-// 담당자 한 번, 저장은 `M건 추적 시작|종료` 단추 하나다.
+// 창이 열리면 대상 확인(preview)이 자동으로 돈다. 시작은 담당자만, 종료는 담당자와 사유를 확인한다.
 
 type BulkDialog = import("@playwright/test").Locator;
 
@@ -2200,10 +2200,14 @@ test("BT-confirmation-shows-owner-and-status-exclusions-and-does-not-run-single-
   await rows.filter({ hasText: "청사 시설관리" }).locator('input[type="checkbox"]').check();
   await rows.filter({ hasText: "복지서비스 운영" }).locator('input[type="checkbox"]').check();
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 3건");
+  const current = rows.filter({ hasText: "인공지능 기반 공공데이터" });
+  await current.locator(".c2l-row-title").click();
+  await expect(current).toHaveAttribute("aria-current", "true");
+  await trackingActions(page).getByRole("button", { name: "보류", exact: true }).click();
   await selectReason(page, "후속 사전규격·공고 확인");
   await setSidebarActor(page, "일괄 담당자");
 
-  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
+  await page.getByRole("button", { name: "일괄 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   // 열자마자 대상을 확인하고 한 줄로 요약한다. 두 단계 입력·미리보기 단추는 없다.
   await waitBulkTargets(dialog);
@@ -2226,9 +2230,8 @@ test("BT-confirmation-shows-owner-and-status-exclusions-and-does-not-run-single-
   await expect(bulkActorInput(dialog)).toHaveValue("일괄 담당자");
   const save = bulkSaveButton(dialog, "start");
   await expect(save).toHaveText("1건 추적 시작");
-  await expect(save).toBeDisabled();
-  await expect(dialog).toContainText("추적 사유를 선택해 주세요.");
-  await pickBulkReason(page, dialog, "추적 사유 (필수)", "사업 방향이 관심 분야와 맞음");
+  await expect(save).toBeEnabled();
+  await expect(dialog.getByRole("combobox")).toHaveCount(0);
   await expect(dialog).toContainText("건수가 달라질 수 있어요");
 
   const confirm = bulkSaveButton(dialog, "start");
@@ -2239,8 +2242,9 @@ test("BT-confirmation-shows-owner-and-status-exclusions-and-does-not-run-single-
   await expect(dialog).toContainText("일괄 추적 결과를 확인했어요");
   await expect(dialog).toContainText("상태 제외");
   expect(singleTrace.trackingPatches).toHaveLength(0);
+  await bulkFooterClose(dialog).click();
   expect(await page.locator(".c2l-detail-head .c2l-detail-title").textContent()).toContain("인공지능 기반");
-  await expect(page.getByRole("combobox", { name: "선택 사유" })).toContainText("후속 사전규격·공고 확인");
+  await expect(trackingReasonField(page)).toContainText("후속 사전규격·공고 확인");
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 0건");
 });
 
@@ -2261,21 +2265,21 @@ test("BT-lost-response-keeps-identical-request-through-reload-and-manual-recover
   });
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
+  await page.getByRole("button", { name: "일괄 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await waitBulkTargets(dialog);
   await bulkActorInput(dialog).fill("응답 복구 담당자");
-  await writeBulkReason(page, dialog, "추적 사유 (필수)", "응답 유실 확인");
   await bulkSaveButton(dialog, "start").click();
   await expect(dialog).toContainText("결과를 확인할 수 없어요");
   await page.reload();
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 1건");
-  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
+  await page.getByRole("button", { name: "일괄 추적 시작", exact: true }).click();
   const recovered = page.getByTestId("order-plan-bulk-tracking-dialog");
   await expect(recovered).toContainText("저장된 요청 결과");
   await recovered.getByRole("button", { name: "저장된 요청 결과 확인", exact: true }).click();
   await expect(recovered).toContainText("일괄 추적 결과를 확인했어요");
   expect(lostRequests).toHaveLength(2);
+  expect(lostRequests[0].body).not.toHaveProperty("reason");
   expect(lostRequests[0].body).toEqual(lostRequests[1].body);
   expect(lostRequests[0].headers["x-bidops-actor-name"]).toBe(lostRequests[1].headers["x-bidops-actor-name"]);
   expect(trace.startPosts).toHaveLength(1);
@@ -2286,11 +2290,10 @@ test("BT-malformed-receipt-is-unconfirmed-and-preserves-selection", async ({ pag
   await mockOrderPlanBulkTracking(page, "malformed-start");
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
+  await page.getByRole("button", { name: "일괄 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await waitBulkTargets(dialog);
   await bulkActorInput(dialog).fill("검증 담당자");
-  await writeBulkReason(page, dialog, "추적 사유 (필수)", "receipt 형식 확인");
   await bulkSaveButton(dialog, "start").click();
   await expect(dialog).toContainText("일괄 추적 결과를 확인할 수 없어요");
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 1건");
@@ -2307,11 +2310,10 @@ test("BT-gateway-error-preserves-unknown-request-identity", async ({ page }) => 
   });
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().getByRole("checkbox").check();
-  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
+  await page.getByRole("button", { name: "일괄 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await waitBulkTargets(dialog);
   await bulkActorInput(dialog).fill("검증 담당자");
-  await writeBulkReason(page, dialog, "추적 사유 (필수)", "응답 유실 확인");
   await bulkSaveButton(dialog, "start").click();
   const retry = dialog.getByRole("button", { name: "같은 요청 결과 확인", exact: true });
   await expect(retry).toBeVisible();
@@ -2348,11 +2350,10 @@ test("BT-failed-only-retry-mints-a-new-key-only-after-human-confirmation", async
   });
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
+  await page.getByRole("button", { name: "일괄 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await waitBulkTargets(dialog);
   await bulkActorInput(dialog).fill("실패 재시도 담당자");
-  await writeBulkReason(page, dialog, "추적 사유 (필수)", "실패 건을 다시 확인");
   await bulkSaveButton(dialog, "start").click();
   await expect(dialog).toContainText("실패 1건");
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 1건");
@@ -2380,45 +2381,32 @@ test("BT-storage-quota-refusal-does-not-send-bulk-request", async ({ page }) => 
   const trace = await mockOrderPlanBulkTracking(page, "all-eligible");
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
+  await page.getByRole("button", { name: "일괄 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await waitBulkTargets(dialog);
   await bulkActorInput(dialog).fill("저장 실패 담당자");
-  await writeBulkReason(page, dialog, "추적 사유 (필수)", "저장소 제한 확인");
   await bulkSaveButton(dialog, "start").click();
   await expect(dialog).toContainText("일괄 요청을 저장하지 못했어요");
   await expect(dialog).toContainText("단건 추적 경로를 사용해 주세요");
   expect(trace.startPosts).toHaveLength(0);
 });
 
-test("BT-confirmation-invalid-actor-or-reason-is-disabled-without-start-request", async ({ page }) => {
+test("BT-confirmation-invalid-actor-is-disabled-without-start-request", async ({ page }) => {
   await mockOrderPlans(page);
   const trace = await mockOrderPlanBulkTracking(page, "all-eligible");
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
+  await page.getByRole("button", { name: "일괄 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   // 대상 확인은 담당자·사유 없이도 창이 열리자마자 한 번 돈다.
   await waitBulkTargets(dialog);
   const confirm = bulkSaveButton(dialog, "start");
   await bulkActorInput(dialog).fill("system");
-  await writeBulkReason(page, dialog, "추적 사유 (필수)", "유효한 사유");
   await expect(confirm).toBeDisabled();
   await expect(dialog).toContainText("system을 사용할 수 없어요");
   await bulkActorInput(dialog).fill("정상 담당자");
   await expect(confirm).toBeEnabled();
-  await writeBulkReason(page, dialog, "추적 사유 (필수)", "   ");
-  await expect(confirm).toBeDisabled();
-  await expect(dialog).toContainText("사유를 직접 입력해 주세요.");
-  // × 는 고른 값과 적어 둔 기타 문장을 함께 비운다(시안 ⑥).
-  await dialog.getByRole("textbox", { name: "사유 직접 입력" }).fill("지울 문장");
-  await expect(confirm).toBeEnabled();
-  await dialog.getByRole("button", { name: "추적 사유 (필수) 지우기" }).click();
-  await expect(dialog.getByRole("textbox", { name: "사유 직접 입력" })).toHaveCount(0);
-  await expect(confirm).toBeDisabled();
-  await expect(dialog).toContainText("추적 사유를 선택해 주세요.");
-  await pickBulkReason(page, dialog, "추적 사유 (필수)", "기타 · 직접 입력");
-  await expect(dialog.getByRole("textbox", { name: "사유 직접 입력" })).toHaveValue("");
+  await expect(dialog.getByRole("combobox")).toHaveCount(0);
   expect(trace.previewPosts).toHaveLength(1);
   expect(trace.startPosts).toHaveLength(0);
 });
@@ -2441,11 +2429,10 @@ test("BT-same-frame-double-confirm-keeps-one-persisted-request-identity", async 
   });
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
+  await page.getByRole("button", { name: "일괄 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await waitBulkTargets(dialog);
   await bulkActorInput(dialog).fill("중복 확인 담당자");
-  await writeBulkReason(page, dialog, "추적 사유 (필수)", "같은 프레임 중복 확인");
   const confirm = bulkSaveButton(dialog, "start");
   await confirm.evaluate((button) => {
     button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -2475,11 +2462,10 @@ test("BT-unknown-request-recovery-remains-reachable-after-filter-generation-clea
   });
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
+  await page.getByRole("button", { name: "일괄 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await waitBulkTargets(dialog);
   await bulkActorInput(dialog).fill("복구 담당자");
-  await writeBulkReason(page, dialog, "추적 사유 (필수)", "필터 전환 뒤 결과 확인");
   await bulkSaveButton(dialog, "start").click();
   await expect(dialog).toContainText("결과를 확인할 수 없어요");
   await bulkFooterClose(dialog).click();
@@ -2506,7 +2492,7 @@ test("BT-late-preview-from-closed-dialog-cannot-overwrite-reopened-binding", asy
   await page.goto(REVIEW_SET_URL);
   const rows = page.locator(".c2l-row");
   await rows.nth(0).locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
+  await page.getByRole("button", { name: "일괄 추적 시작", exact: true }).click();
   let dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   // 창을 열자마자 대상 확인이 시작되고, 첫 응답은 붙잡혀 있다.
   await expect(dialog.getByTestId("order-plan-bulk-summary")).toContainText("대상 확인 중…");
@@ -2515,7 +2501,7 @@ test("BT-late-preview-from-closed-dialog-cannot-overwrite-reopened-binding", asy
   await dialog.getByRole("button", { name: "취소", exact: true }).click();
   await rows.nth(0).locator('input[type="checkbox"]').uncheck();
   await rows.nth(1).locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
+  await page.getByRole("button", { name: "일괄 추적 시작", exact: true }).click();
   dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await waitBulkTargets(dialog);
   await dialog.getByRole("button", { name: "세부", exact: true }).click();
@@ -2530,7 +2516,7 @@ test("BT-preview-binding-refuses-confirm-after-browser-filter-generation-change"
   const trace = await mockOrderPlanBulkTracking(page, "all-eligible");
   await page.goto("/order-plans");
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
+  await page.getByRole("button", { name: "일괄 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await waitBulkTargets(dialog);
   await page.evaluate(() => {
@@ -2548,17 +2534,19 @@ test("BT-bulk-actor-and-reason-drafts-do-not-mutate-single-drafts", async ({ pag
   await mockOrderPlans(page);
   await mockOrderPlanBulkTracking(page, "all-eligible");
   await page.goto("/order-plans");
-  await page.locator(".c2l-row").first().click();
+  const current = page.locator(".c2l-row").filter({ hasText: "인공지능 기반 공공데이터" });
+  await current.locator(".c2l-row-title").click();
+  await trackingActions(page).getByRole("button", { name: "보류", exact: true }).click();
   await selectReason(page, "후속 사전규격·공고 확인");
   await setSidebarActor(page, "단건 담당자");
-  await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
+  await current.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "일괄 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
+  await waitBulkTargets(dialog);
   await bulkActorInput(dialog).fill("일괄 담당자");
-  await writeBulkReason(page, dialog, "추적 사유 (필수)", "일괄 전용 사유");
   await dialog.getByRole("button", { name: "취소", exact: true }).click();
   await expect(page.locator(".c2l-tracking-position")).toContainText("단건 담당자 이름으로 기록해요");
-  await expect(page.getByRole("combobox", { name: "선택 사유" })).toContainText("후속 사전규격·공고 확인");
+  await expect(trackingReasonField(page)).toContainText("후속 사전규격·공고 확인");
 });
 
 test("BT-valid-receipt-stays-definitive-when-post-result-invalidation-fails", async ({ page }) => {
@@ -2584,11 +2572,10 @@ test("BT-valid-receipt-stays-definitive-when-post-result-invalidation-fails", as
   });
   await page.goto(REVIEW_SET_URL);
   await page.locator(".c2l-row").first().locator('input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
+  await page.getByRole("button", { name: "일괄 추적 시작", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await waitBulkTargets(dialog);
   await bulkActorInput(dialog).fill("결과 담당자");
-  await writeBulkReason(page, dialog, "추적 사유 (필수)", "결과 확정 후 목록 갱신");
   await bulkSaveButton(dialog, "start").click();
   await expect(dialog).toContainText("일괄 추적 결과를 확인했어요");
   await expect(dialog).not.toContainText("일괄 추적 결과를 확인할 수 없어요");
@@ -2652,7 +2639,7 @@ test("BE-select-three-end-tracking-confirm-and-result-hides-ended-plans-from-def
   // 진입(빈 URL)으로 다시 들어가 확인한다.
   await page.goto("/order-plans");
   // 최종 시안(FinalOrderPlansDone): 두 칸 대신 다 했다는 사실과 다음 길을 보인다.
-  await expect(page.locator("header.topbar h1")).toHaveText("관련 발주계획을 모두 정했어요");
+  await expect(page.locator("header.topbar h1")).toHaveText("발주계획");
   const done = page.getByTestId("order-plan-relevant-done");
   await expect(done.getByRole("heading", { name: "추적을 정하지 않은 관련 건이 없어요" })).toBeVisible();
   await expect(page.locator(".c2l-list-pane")).toHaveCount(0);
@@ -2724,7 +2711,7 @@ test("BE-over-200-selection-disables-end-but-keeps-start-enabled", async ({ page
   await page.reload();
   await expect(page.getByTestId("order-plan-selection-toolbar")).toContainText("선택 201건");
   await expect(page.getByRole("button", { name: "선택한 계획 추적 종료", exact: true })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "선택 항목 추적 시작", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "일괄 추적 시작", exact: true })).toBeEnabled();
   await expect(page.locator("#c2l-selection-action-reason"))
     .toContainText("한 번에 200건까지 종료할 수 있어요. 선택을 줄여 주세요.");
 });
@@ -2755,11 +2742,12 @@ test("BE-legacy-v1-pending-request-migrates-and-recovers-through-start-endpoint-
   await page.getByRole("button", { name: "저장된 일괄 요청 확인", exact: true }).click();
   const dialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await expect(dialog.getByRole("heading", { name: "선택한 발주계획 추적 시작" })).toBeVisible();
-  // 복구 화면은 새 대상 확인을 돌리지 않고 저장된 사유를 그대로 보인다.
+  // 복구는 원래 요청의 사유를 그대로 보낸다.
   await expect(dialog.getByTestId("order-plan-bulk-summary")).toHaveCount(0);
   await dialog.getByRole("button", { name: "저장된 요청 결과 확인", exact: true }).click();
   await expect(dialog).toContainText("일괄 추적 결과를 확인했어요");
   expect(trace.startPosts).toHaveLength(1);
+  expect(trace.startPosts[0].body.reason).toBe("레거시 사유");
   expect(trace.endPosts).toHaveLength(0);
 });
 
@@ -2787,7 +2775,7 @@ test("BE-pending-end-request-recovers-through-end-endpoint-even-when-start-dialo
   await bulkFooterClose(endDialog).click();
 
   // 같은 선택 상태에서 시작 단추를 눌러도, 저장된 요청의 action(종료)이 이긴다.
-  await page.getByRole("button", { name: "선택 항목 추적 시작", exact: true }).click();
+  await page.getByRole("button", { name: "일괄 추적 시작", exact: true }).click();
   const startDialog = page.getByTestId("order-plan-bulk-tracking-dialog");
   await expect(startDialog.getByRole("heading", { name: "선택한 발주계획 추적 종료" })).toBeVisible();
   await expect(startDialog).toContainText("저장된 요청 결과를 아직 확인하지 않았어요");
@@ -2864,12 +2852,12 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       await expect(page.locator(".c2l-list-heading")).toHaveAttribute("title", "기본 보기 · 필수 검토 · 모델이 관련으로 판단 · 추적 미선택");
       await expect(page.locator(".c2l-list-heading")).toContainText("관련");
       await expect(presetTab(page, "관련")).toHaveAttribute("aria-pressed", "true");
-      // 행에는 첫 수집일만 남는다(한국 날짜 2026-08-31T16:30Z → 09-01, 올해라 연도 생략).
-      // 판정한 policy 이름은 운영 화면이 지고, 판정이 있는 행에는 `판정 없음`도 없다.
-      const verdict = page.locator(".c2l-row").first().locator(".c2l-row-verdict");
-      await expect(verdict).toHaveText("첫 수집 09-01");
-      await expect(verdict).not.toContainText("판정 policy");
-      await expect(verdict).not.toContainText("판정 없음");
+      // 한국 날짜 2026-08-31T16:30Z → 09-01은 선택한 건의 미리보기에서 읽는다.
+      const row = page.locator(".c2l-row");
+      await expect(row).not.toContainText("첫 수집");
+      await expect(row).not.toContainText("판정 policy");
+      await expect(row.locator(".c2l-row-verdict")).toHaveCount(0);
+      await expect(page.locator(".c2l-detail-identity")).toContainText("첫 수집 09-01");
       expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
 
       // 회차 선택기는 `상세 필터` 안이다(ADR-0062 2026-09-21 재개정). 누적 옵션 하나만 있고
@@ -3240,9 +3228,10 @@ test("누적 기본 보기는 추적을 이미 정한 건을 숨기고, 결과 �
   await clickPreset(page, "전체");
   await expect(page.locator(".c2l-row")).toHaveCount(3);
   const noResult = page.locator(".c2l-row").filter({ hasText: "판정 결과가 없는 사업" });
-  await expect(noResult.locator(".c2l-row-verdict")).toHaveText("판정 없음 · 첫 수집 09-01");
+  await expect(noResult.locator(".c2l-row-verdict")).toHaveText("판정 없음");
 
   await noResult.click();
+  await expect(page.locator(".c2l-detail-identity")).toContainText("첫 수집 09-01");
   await page.getByRole("button", { name: "사람 판단 수정 열기" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("이 발주계획에는 판정 결과가 없어 모델 판단에 대한 수정본을 저장할 수 없어요.");
@@ -3363,7 +3352,7 @@ test("3B-모델 판정이 없는 건은 전체 보기에서 '모델 판정 없�
   await expect(page.locator(".c2l-row .c2l-row-no-judgment")).toHaveText(Array(4).fill("모델 판정 없음 — 사람 확인"));
   await expect(page.locator(".c2l-row").filter({ hasText: "모델 · 관련" }).locator(".c2l-row-no-judgment")).toHaveCount(0);
   await expect(page.locator(".c2l-row").filter({ hasText: "복지서비스 운영 지원 발주계획" }).locator(".c2l-row-no-judgment")).toHaveCount(0);
-  // 순위·가까운 역량 metadata는 모델 미판정 보기에서만 싣는다.
+  // 1차 순위 보조 줄은 모델 미판정 보기에서만 싣는다.
   await expect(page.locator(".c2l-row .c2l-row-rank")).toHaveCount(0);
 
   const failed = page.locator(".c2l-row").filter({ hasText: "모델 판정 실패" });
@@ -3377,7 +3366,7 @@ test("3B-모델 판정이 없는 건은 전체 보기에서 '모델 판정 없�
   await expect(rows.locator(".c2l-row-no-judgment")).toHaveCount(0);
   await expect(rows.locator(".c2l-row-unjudged")).toHaveCount(4);
   // 행마다 갈래 칩 하나와 추적 칩만 선다. 모델 상태 배지·1차 선별 실패 배지는 같은 사실이라 겹쳐 그리지 않는다.
-  const chips = async (title: string) => (await rows.filter({ hasText: title }).locator(".c2l-row-state .astryx-badge").allTextContents()).map((text) => text.trim());
+  const chips = async (title: string) => (await rows.filter({ hasText: title }).locator(".c2l-row-state .workbench-mark").allTextContents()).map((text) => text.trim());
   expect(await chips("복지서비스 운영 지원 발주계획")).toEqual(["순위 밖", "추적 미선택"]);
   expect(await chips("공공기관 업무시스템 개선 검토")).toEqual(["판정 실패", "추적 미선택"]);
   expect(await chips("지역 데이터 활용 사업 사전 조사")).toEqual(["판정 실패", "추적 미선택"]);
@@ -3501,7 +3490,7 @@ test("3B-불확실은 지난 건을 뒤로 보낸 뒤 수집일 최신 → 그�
   await expect(rows.locator(".c2l-row-title")).toHaveText(["관련 건은 이 보기 밖"]);
 });
 
-test("3B-모델 미판정은 순위 밖과 판정 실패를 함께 보이고 수집일 최신 → 그날 1차 순위순이며 순위·가까운 역량을 싣는다", async ({ page }) => {
+test("3B-모델 미판정은 순위 밖과 판정 실패를 함께 보이고 수집일 최신 → 그날 1차 순위순이며 가까운 역량은 미리보기에 둔다", async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-11-18T03:00:00Z"));
   const items = [
     tierItem(501, "관련 건", { relevance: "relevant", observed: "2026-11-17T01:00:00Z", rank: 1 }),
@@ -3529,7 +3518,14 @@ test("3B-모델 미판정은 순위 밖과 판정 실패를 함께 보이고 수
   await expect(rows.locator(".c2l-row-rank")).toHaveText(["1차 순위 7위", "1차 순위 160위", "1차 순위 미제공", "1차 순위 20위", "1차 순위 151위"]);
   // 실무 화면에는 알고리즘 이름을 쓰지 않는다(0921 명세 §3.1).
   await expect(page.locator(".c2l-list-pane")).not.toContainText("BM25");
-  // 가까운 회사 역량은 값이 있을 때만 싣는다.
-  await expect(rows.locator(".c2l-row-capability")).toHaveText([/가까운 역량 웹 서비스 구축·운영$/]);
-  await expect(rows.nth(1).locator(".c2l-row-capability")).toBeVisible();
+  // 가까운 회사 역량은 미리보기에서 실제 값과 미제공을 구분해요.
+  await expect(rows.filter({ hasText: "웹 서비스 구축·운영" })).toHaveCount(0);
+  const capability = page.locator(".c2l-evidence-capability");
+  await rows.nth(1).locator(".c2l-row-title").click();
+  await expect(capability).toHaveText("웹 서비스 구축·운영");
+  await expect(capability).toBeVisible();
+  for (const index of [0, 2, 3, 4]) {
+    await rows.nth(index).locator(".c2l-row-title").click();
+    await expect(capability).toHaveText("미제공");
+  }
 });

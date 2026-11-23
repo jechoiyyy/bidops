@@ -105,18 +105,6 @@
   min-width: 0;
 }
 
-/* 경고 색은 문장·링크와 함께 쓴다 — 색만으로 뜻을 전달하지 않는다(ADR-0004). */
-.c2l-status-chip.is-problem {
-  padding: var(--spacing-0-5) var(--spacing-2);
-  border: var(--border-width) solid var(--color-error-edge);
-  border-radius: var(--radius-sm);
-  color: var(--color-error);
-  white-space: nowrap;
-}
-
-.c2l-status-chip.is-problem .c2l-scope-link {
-  color: inherit;
-}
 
 .c2l-header-actions .astryx-selector {
   display: flex;
@@ -158,19 +146,10 @@
   grid-column: 1 / -1;
 }
 
-/* 상세 필터 grid의 마지막 자리는 초기화 버튼이다(공용). 저장된 뷰가 한 행을 다 쓰므로
- * 버튼이 세 번째 행으로 밀리지 않게 첫 행 오른쪽 끝에 못 박는다. */
-.c2l-filters .workspace-filter-reset {
-  grid-row: 1;
-  grid-column: -2 / -1;
-}
-
-.c2l-filters .workspace-filter-advanced { align-items: start; }
-.c2l-secondary-filters { grid-column: 1 / -1; }
 .c2l-secondary-filters summary { cursor: pointer; width: fit-content; }
 .c2l-secondary-fields {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: var(--spacing-2);
   margin-top: var(--spacing-2);
@@ -394,14 +373,7 @@ header.c2l-list-head .c2l-list-scope {
   min-width: 0;
 }
 
-.c2l-list-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-}
-
 /* 빈 상태는 시안처럼 pane 가운데에 놓인다. */
-.c2l-list-empty,
 .c2l-detail-empty {
   display: flex;
   flex: 1 1 auto;
@@ -412,166 +384,11 @@ header.c2l-list-head .c2l-list-scope {
   text-align: center;
 }
 
-/* 목록 행 — 시안 `Opportunities`·`PreSpecs`의 밀집 행과 같은 골격이다.
- *
- * Astryx Item 은 행을 `align-items: center` 인 가로 flex 로 그린다. 이 화면은
- * 세로 배치로 바꾸면서 그 정렬을 함께 바꾸지 않아, 내용이 행 가운데에 놓이고
- * 폭이 max-content 로 부풀어 제목과 배지가 좌우로 잘려 나갔다. 세로 배치에서
- * 필요한 정렬은 `stretch` 다.
- *
- * `.c2l-row-wrap`과 `.c2l-row`는 같은 요소에 함께 붙는 클래스다. 두 벌로
- * 나누어 두면 뒤에 오는 `border: 0`이 앞의 구분선을 지우므로 한 벌로 둔다. */
-.c2l-row-wrap {
-  align-items: flex-start;
-  min-width: 0;
-  padding: var(--spacing-2) var(--spacing-4);
-  border-bottom: var(--border-width) solid var(--review-split-line);
-  text-align: left;
-  cursor: pointer;
-}
-
-.c2l-row-wrap[data-selection-mode="multiple"] [type="checkbox"] {
-  width: var(--spacing-4);
-  height: var(--spacing-4);
-  flex: 0 0 auto;
-  margin: var(--spacing-0-5) var(--spacing-2) 0 0;
-  /* spec §2.3 — 체크됨은 포인트 초록 채움 + 흰 체크. 라벨이 늘 함께 있다. */
-  accent-color: var(--bo-brand);
-}
-
-.c2l-row-wrap[data-selection-mode="multiple"] [type="checkbox"]:focus-visible {
-  outline: var(--focus-outline-width) solid var(--color-accent);
-  outline-offset: var(--spacing-0-5);
-}
-
-/* spec §2.3 — 선택 행은 `--color-accent-muted` 배경 하나로만 말한다(좌측 바 없음). */
-.c2l-row-wrap.is-selected {
-  background: var(--color-accent-muted);
-}
-
-.c2l-row:hover {
-  background: var(--color-overlay-hover);
-}
-
-.c2l-row:focus-visible {
-  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
-  outline-offset: calc(-1 * var(--focus-outline-width));
-}
-
-/* 행의 차례는 사전규격 행과 같다(ADR-0062): 사업명 → 발주기관 → metadata(예산 ·
- * 판정 policy · 첫 관측) → 상태 칩. 사업명과 발주기관은 같은 크기(`--review-list-primary`)
- * 이고 굵기만 다르며, metadata·칩 줄은 `--review-list-secondary`다. 긴 한글 제목은
- * 두 줄까지 보이고 그 뒤를 말줄임한다. */
-.c2l-page .c2l-row-title {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  min-width: 0;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  color: var(--color-text-primary);
-  font-size: var(--review-list-primary);
-  font-weight: var(--font-weight-semibold);
-  line-height: 1.4;
-}
-
-.c2l-page .c2l-row-agency {
-  display: block;
-  min-width: 0;
-  margin-top: var(--spacing-0-5);
-  color: var(--color-text-primary);
-  font-size: var(--review-list-primary);
-  font-weight: var(--font-weight-regular);
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-
-.c2l-page .c2l-row-meta,
-.c2l-page .c2l-row-state {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-1);
-  min-width: 0;
-  margin-top: var(--spacing-1);
-  color: var(--color-text-secondary);
-  font-size: var(--review-list-secondary);
-}
-
-/* 행 메타 줄의 항목 하나(예산·판정 policy·첫 관측). 항목 안은 줄바꿈하지 않는다 —
-   `overflow-wrap: anywhere`를 통짜 문자열에 걸면 날짜 숫자 중간이 끊긴다. 줄바꿈은
-   항목 사이(`.c2l-row-meta`·`.c2l-row-verdict`의 flex-wrap)에서만 일어난다. */
-.c2l-row-meta-item {
-  white-space: nowrap;
-}
-
-/* 구분점 + 뒤 항목을 한 덩어리로 묶는다(0920 검수 후속). budget 다음 구분점이
-   앞 항목 끝에 붙는 것과 `.c2l-row-verdict` 안 구분점이 뒤 항목 앞에 붙는 것이
-   서로 달랐던 것을 없앤다 — 모든 구분점을 뒤 항목 앞에 고정한다. `inline-flex`로
-   구분점 텍스트와 `.c2l-row-verdict`(자체 flex 컨테이너)를 한 줄에 두되, 줄
-   전체는 `.c2l-row-meta`의 flex-wrap을 따라 budget과 분리될 수 있다. */
-.c2l-row-meta-group {
-  display: inline-flex;
-  min-width: 0;
-  flex-wrap: nowrap;
-  align-items: baseline;
-}
-
-/* `모델 미판정` 행의 가까운 회사 역량(수정안 3B). 역량 문장은 길 수 있어 묶음 하나로 두고 그 안에서
-   줄바꿈한다(말줄임하지 않는다 — 판단에 쓰는 값이다). 구분점은 같은 묶음의 앞에 붙는다. */
-.c2l-row-capability {
-  min-width: 0;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-/* 누적 목록의 행별 판정 표식(policy 버전·첫 관측일). B2(0920 검수): 항목 두 개를
-   자체 flex-wrap 컨테이너로 두어 항목 사이에서만 줄바꿈되게 한다. */
-.c2l-row-verdict {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: baseline;
-}
-
-/* 오른쪽 열은 발주 예정 하나다(사전규격의 의견 마감 자리와 같다). */
-.c2l-row-end {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  min-width: 0;
-  text-align: right;
-}
-
-.c2l-page .c2l-row-planned {
-  color: var(--color-text-secondary);
-  font-size: var(--review-list-secondary);
-  white-space: nowrap;
-}
-
 .c2l-row-badges {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-1);
-}
-
-/* 배지의 좌우 여백도 전역 preflight 가 지운다(위 필터 주석 참조). 여백이 없으면
- * 라벨이 배지 테두리에 닿아 마지막 글자가 잘려 보인다. */
-.c2l-row-badges .astryx-badge {
-  padding-inline: var(--spacing-2);
-}
-
-.c2l-row-detail-link {
-  align-self: flex-start;
-  color: var(--color-text-accent);
-  font-size: var(--bo-type-caption);
-  text-decoration: none;
-}
-
-.c2l-row-detail-link:hover {
-  text-decoration: underline;
 }
 
 /* --- 상세 pane ---
@@ -613,40 +430,6 @@ header.c2l-list-head .c2l-list-scope {
    `.review-agency-sub`가 가지므로 여기서 다시 정하지 않는다. */
 .c2l-detail-head .c2l-agency-supervising {
   margin: 0;
-}
-
-/* 계약 조건 일곱 칸(M5 ①): 예산·발주 예정·사업 분야·계약방법 / 조달방식·공고 게시·
-   연결된 사업기회. 네 칸 격자이므로 두 줄의 칸 너비가 서로 맞는다. */
-.c2l-detail-facts {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--spacing-3);
-  margin: 0;
-  padding-bottom: var(--spacing-3);
-  border-bottom: var(--border-width) solid var(--color-border);
-}
-
-.c2l-detail-facts dt {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-}
-
-.c2l-detail-facts dd {
-  margin: var(--spacing-0-5) 0 0;
-  min-width: 0;
-  font-weight: var(--font-weight-semibold);
-  overflow-wrap: anywhere;
-}
-
-/* 연관 공고번호처럼 같은 칸에 붙는 보조 사실. 수집 원문 문자열 그대로이므로
-   길어도 칸 안에서 접힌다. */
-.c2l-detail-facts-sub {
-  display: block;
-  margin-top: var(--spacing-0-5);
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  font-weight: var(--font-weight-regular);
-  overflow-wrap: anywhere;
 }
 
 /* 추적을 시작한 건은 사업 추적 상세로 바로 간다(시안 M5 ① — 결정 3). */
@@ -808,7 +591,7 @@ header.c2l-list-head .c2l-list-scope {
   overflow-wrap: anywhere;
 }
 
-.c2l-feedback-dialog .astryx-badge {
+.c2l-feedback-dialog .workbench-mark {
   align-self: flex-start;
 }
 
@@ -842,57 +625,10 @@ header.c2l-list-head .c2l-list-scope {
   overflow-wrap: anywhere;
 }
 
-/* 상세 pane 바닥의 결정 블록. 시안처럼 상태·사유·담당자·버튼이 한 덩어리로 늘 보이며
- * 본문이 아무리 길어도 이 블록은 스크롤 밖에 남는다. `.review-decision-bar`는 기본이
- * 가로 flex 이므로 이 화면에서만 세로로 쌓는다. */
-.c2l-page .c2l-detail-actions {
-  flex-direction: column;
-  flex-wrap: nowrap;
-  align-items: stretch;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
-  /* 카드 안의 조용한 면(spec §2.3). canvas 색을 카드 안에 끌어들이지 않는다. */
-  background: var(--review-quiet-surface);
-}
-
-.c2l-page .c2l-detail-actions .review-decision-bar-actions {
-  align-items: center;
-  justify-content: flex-start;
-}
-
-.c2l-page .c2l-detail-actions .review-decision-bar-hint {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  gap: var(--spacing-1);
-  margin-left: 0;
-  text-align: left;
-}
-
 .c2l-decision-message {
   min-width: 0;
   font-size: var(--bo-type-body);
   overflow-wrap: anywhere;
-}
-
-.c2l-decision-hint {
-  min-width: 0;
-  font-size: var(--bo-type-caption);
-  overflow-wrap: anywhere;
-}
-
-/* 시안의 버튼 줄: 주 결정이 남는 폭을 차지하고 나머지는 최소 폭이며 높이는 같다.
- * 넘기기는 저장하지 않는 이탈이므로 저장하는 세 결정과 떨어뜨려 둔다. */
-.c2l-page .c2l-detail-actions .review-decision-bar-actions > .review-decision-action:first-child {
-  flex: 1 1 auto;
-}
-
-.c2l-page .c2l-detail-actions .review-decision-bar-actions > .review-decision-action:first-child .astryx-button {
-  width: 100%;
-}
-
-.c2l-page .c2l-detail-actions .review-decision-bar-actions > .review-decision-action:last-child {
-  margin-left: auto;
 }
 
 .c2l-tracking {
@@ -1136,8 +872,6 @@ header.c2l-list-head .c2l-list-scope {
   /* 시안의 460px은 1440px 패널에서 38%와 같다. 사전규격과 같은 목록 폭(38%, 사용자 요청)을 지킨다. */
   flex: 0 0 38%;
   border-right: 1px solid var(--color-border);
-  --review-list-primary: var(--bo-k-body);
-  --review-list-secondary: var(--bo-k-meta);
 }
 
 .app-shell .c2l-page .c2l-list-head {
@@ -1145,15 +879,7 @@ header.c2l-list-head .c2l-list-scope {
   border-bottom: 0;
 }
 
-.app-shell .c2l-page .c2l-list-head :where(p, span) {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-k-meta);
-  font-weight: 600;
-}
 
-.app-shell .c2l-page .c2l-list-head .c2l-list-scope :where(span) {
-  font-weight: 400;
-}
 
 .app-shell .c2l-page .c2l-selection-toolbar {
   padding: 0 var(--spacing-6) 10px;
@@ -1161,64 +887,11 @@ header.c2l-list-head .c2l-list-scope {
   font-size: var(--bo-k-tag);
 }
 
-.app-shell .c2l-page .c2l-list-columns {
-  display: none;
-}
-
-.app-shell .c2l-page .c2l-list-scroll {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 0 0 var(--spacing-2);
-}
-
-/* 행: 체크 18px + 제목 16px(고른 행 700) + 기관·금액 14px + 상태 줄. 여백 16, 고른 행은 채움(radius 10). */
-.app-shell .c2l-page .c2l-row-wrap {
-  gap: var(--spacing-3);
-  margin: 0 var(--spacing-2);
-  padding: var(--spacing-4);
-  border: 0;
-  border-radius: 10px;
-}
-
-.app-shell .c2l-page .c2l-row-wrap.is-selected {
-  background: var(--color-background-muted);
-}
-
-.app-shell .c2l-page .c2l-row:hover {
-  background: var(--color-background-muted);
-}
-
-.app-shell .c2l-page .c2l-row-wrap[data-selection-mode="multiple"] [type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  margin: 3px 0 0;
-  accent-color: var(--color-accent);
-}
-
-.app-shell .c2l-page .c2l-row-title {
-  font-size: var(--bo-k-body);
-  font-weight: 600;
-  line-height: 1.45;
-}
-
-.app-shell .c2l-page .c2l-row-wrap.is-selected .c2l-row-title {
-  font-weight: 700;
-}
-
-.app-shell .c2l-page :is(.c2l-row-agency, .c2l-row-meta, .c2l-row-planned) {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-k-meta);
-  font-weight: 400;
-}
-
-.app-shell .c2l-page .c2l-list-foot,
-.app-shell .c2l-page .c2l-pager {
+.app-shell .c2l-page .c2l-list-foot {
   padding: 14px var(--spacing-6);
   border-top: 0;
   background: transparent;
   color: var(--color-text-secondary);
-  font-size: var(--bo-k-meta);
 }
 
 /* ---- 상세 ---- */
@@ -1235,41 +908,6 @@ header.c2l-list-head .c2l-list-scope {
   border: 0;
   background: var(--color-background-surface);
   box-shadow: none;
-}
-
-/* 머리 첫 줄: `기관 · 총괄기관 X`(14px 보조) + 오른쪽 상태 표식. 기관 라벨은 낭독기만 읽는다. */
-.app-shell .c2l-page .c2l-agency-feature {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
-
-.app-shell .c2l-page .c2l-agency-label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-}
-
-.app-shell .c2l-page :is(.c2l-agency-name, .c2l-agency-supervising) {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-k-meta);
-  font-weight: 500;
-}
-
-.app-shell .c2l-page .c2l-agency-supervising {
-  flex: 0 1 auto;
-}
-
-.app-shell .c2l-page .c2l-agency-supervising::before {
-  content: " · ";
-  white-space: pre;
 }
 
 .app-shell .c2l-page .c2l-detail-tag {
@@ -1291,52 +929,12 @@ header.c2l-list-head .c2l-list-scope {
   grid-column: 1 / -1;
 }
 
-.app-shell .c2l-page .c2l-detail-identity p {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-k-meta);
-}
 
 .app-shell .c2l-page .c2l-detail-scroll {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-6);
   padding: var(--spacing-6) var(--spacing-8);
-}
-
-.app-shell .c2l-page .c2l-detail-facts {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--spacing-5) var(--spacing-4);
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
-
-.app-shell .c2l-page .c2l-detail-facts > div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 0;
-  border: 0;
-}
-
-.app-shell .c2l-page .c2l-detail-facts dt {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-k-tag);
-  font-weight: 500;
-}
-
-.app-shell .c2l-page .c2l-detail-facts dd {
-  margin: 0;
-  color: var(--color-text-primary);
-  font-size: var(--bo-k-body);
-  font-weight: 600;
-  line-height: 1.45;
-}
-
-/* 예산·발주 예정은 시안의 큰 숫자(20px/700). 숫자는 먹색이며 브랜드 색을 쓰지 않는다. */
-.app-shell .c2l-page .c2l-detail-facts > div:nth-child(-n + 2) dd {
-  font-size: var(--bo-k-figure);
-  font-weight: 700;
 }
 
 .app-shell .c2l-page .c2l-evidence {
@@ -1470,16 +1068,8 @@ header.c2l-list-head .c2l-list-scope {
 }
 
 /* ---- 추적 결정(상세 바닥) ---- */
-.app-shell .c2l-page .c2l-detail-actions {
-  gap: var(--spacing-4);
-  margin-top: auto;
-  padding: var(--spacing-6) var(--spacing-8) 28px;
-  border-top: 1px solid var(--color-border);
-  background: var(--color-background-surface);
-}
-
 .app-shell .c2l-page .c2l-tracking {
-  gap: var(--spacing-4);
+  gap: var(--spacing-2);
 }
 
 .app-shell .c2l-page .c2l-tracking-head {
@@ -1530,19 +1120,6 @@ header.c2l-list-head .c2l-list-scope {
   margin: 0;
 }
 
-.app-shell .c2l-page .c2l-actor-change {
-  height: 32px;
-  padding: 0;
-  border: 0;
-  color: var(--color-text-secondary);
-  background: transparent;
-  font: inherit;
-  font-size: var(--bo-k-meta);
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
 
 /* 담당자 이름이 비었을 때: 본문 입력 칸 대신 안내 한 줄과 사이드바 칸을 여는 단추(2026-11-20). */
 .app-shell .c2l-page .c2l-actor-line.is-missing {
@@ -1554,56 +1131,6 @@ header.c2l-list-head .c2l-list-scope {
 
 .app-shell .c2l-page .c2l-actor-line.is-missing .c2l-actor-change {
   color: var(--color-text-primary);
-}
-
-/* 버튼 줄: 추적 시작(56, 남는 폭, 브랜드) · 보류(56, 테두리) · 추적 종료(오류색 글자) · 넘기기(보조 글자). */
-.app-shell .c2l-page .c2l-detail-actions .review-decision-bar-actions {
-  gap: var(--spacing-2);
-}
-
-.app-shell .c2l-page .c2l-detail-actions .astryx-button {
-  height: var(--bo-k-control-primary);
-  padding: 0 var(--spacing-6);
-  border-radius: var(--radius-element);
-  font-size: var(--bo-k-body);
-  font-weight: 600;
-}
-
-.app-shell .c2l-page .c2l-detail-actions .tracking-action.is-continue {
-  font-size: var(--bo-k-button-lg);
-  font-weight: 700;
-}
-
-.app-shell .c2l-page .c2l-detail-actions .tracking-action.is-hold {
-  border: 1px solid var(--color-border);
-  background: var(--color-background-surface);
-}
-
-.app-shell .c2l-page .c2l-detail-actions .tracking-action.is-end {
-  padding: 0 var(--spacing-5);
-  border: 0;
-  color: var(--color-error);
-  background: transparent;
-}
-
-.app-shell .c2l-page .c2l-detail-actions .review-decision-bar-actions > .review-decision-action:last-child {
-  margin-left: 0;
-}
-
-.app-shell .c2l-page .c2l-detail-actions .review-decision-bar-actions > .review-decision-action:last-child .astryx-button,
-.app-shell .c2l-page .c2l-detail-actions .review-decision-bar-actions > .review-decision-action:last-child .astryx-button * {
-  padding: 0 var(--spacing-3);
-  color: var(--color-text-secondary);
-}
-
-.app-shell .c2l-page .c2l-detail-actions .tracking-action.is-end * {
-  color: var(--color-error);
-}
-
-.app-shell .c2l-page .c2l-detail-actions .review-decision-bar-hint,
-.app-shell .c2l-page .c2l-decision-hint {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-k-meta);
 }
 
 /* ---- 관련 보기를 다 정한 날(최종 시안 FinalOrderPlansDone) ---- */

@@ -1,111 +1,145 @@
 import { expect, test } from "@playwright/test";
-import { mockApi } from "./api-mock";
 import { installRunStatusMock } from "./run-status-fixtures";
 
-// 두 병렬 구현이 각각 통과해도 탭 모양·시작 위치·목록 폭이 서로 달라질 수 있다.
-// 승인 HTML의 치수를 두 페이지의 여덟 탭에 적용한다. 2026-11-18 ×0.9 compact
-// 축척을 없애 시안 치수가 그대로 렌더되므로 UI_SCALE은 1이다.
-const UI_SCALE = 1;
-const physical = (logical: number) => logical * UI_SCALE;
-// 업무 값은 기존 API fixture로 공급하며 운영 API에는 접근하지 않는다.
-const tabs = [
-  { path: "/profile", prefix: "crit" },
-  { path: "/policies", prefix: "crit" },
-  { path: "/quality-gates", prefix: "crit" },
-  { path: "/metrics", prefix: "crit" },
-  { path: "/runs", prefix: "rs" },
-  { path: "/attachments", prefix: "rs" },
-  { path: "/operations", prefix: "rs" },
-  { path: "/audit", prefix: "rs" },
+const sections = [
+  { path: "/profile", label: "판정용 프로필 사본", nav: "판정 기준 구역" },
+  { path: "/policies", label: "판정 정책", nav: "판정 기준 구역" },
+  { path: "/quality-gates", label: "품질 게이트", nav: "판정 기준 구역" },
+  { path: "/metrics", label: "회차 검증 지표", nav: "판정 기준 구역" },
+  { path: "/runs", label: "수집 실행", nav: "실행 상태 구역" },
+  { path: "/attachments", label: "첨부 확보", nav: "실행 상태 구역" },
+  { path: "/operations", label: "상시 운영", nav: "실행 상태 구역" },
+  { path: "/audit", label: "산출물 감사 로그", nav: "실행 상태 구역" },
 ];
 
-for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
-  test(`판정 기준과 실행 상태의 8개 탭은 ${viewport.width}px에서 같은 ERP 골격을 쓴다`, async ({ page }, testInfo) => {
+for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }, { width: 1920, height: 1080 }]) {
+  test(`판정 기준과 실행 상태가 ${viewport.width}px에서 같은 구역 메뉴와 표 작업대를 쓴다`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
-    await mockApi(page);
+    await installRunStatusMock(page);
     const measurements: Array<Record<string, unknown>> = [];
-    let firstWidth: number | undefined;
-    let firstLeft: number | undefined;
+    let reference: { listWidth: number; left: number } | undefined;
 
-    for (const { path, prefix } of tabs) {
+    for (const { path, label, nav: navName } of sections) {
       await page.goto(path);
-      const workspace = page.locator(`.${prefix}-workspace`);
-      const queueSelector = prefix === "rs" ? ".rs-list-pane" : ".crit-queue";
-      const queue = page.locator(queueSelector);
-      const title = queue.locator(`.${prefix}-record-title`).first();
-      const footer = page.locator(`.${prefix}-detail-foot`);
-      await expect(title, `${path}의 API 목록`).toBeVisible();
-      await expect(footer, `${path}의 고정 하단 영역`).toBeVisible();
+      const nav = page.getByRole("navigation", { name: navName });
+      await expect(nav.getByRole("link")).toHaveCount(navName === "판정 기준 구역" ? 5 : 4);
+      await expect(nav.locator('a[aria-current="page"]')).toHaveText(label);
+      await expect(page.locator("header.topbar").getByRole("tab")).toHaveCount(0);
+
+      const collection = page.getByRole("region", { name: "일일 수집 상태" });
+      if (path === "/runs") {
+        await expect(collection.getByRole("listitem")).toHaveText([
+          /발주계획.*수집 완료/,
+          /공고\(사전규격·입찰공고\).*수집 완료/,
+        ]);
+      } else {
+        await expect(collection).toHaveCount(0);
+      }
+
+      const workspace = page.locator(".workbench-admin-workspace");
+      const list = workspace.locator(".review-split-list");
+      if (path === "/runs") {
+        const listHead = list.locator(".workbench-admin-list-head");
+        const views = listHead.getByRole("radiogroup", { name: "회차 보기" });
+        const search = listHead.getByRole("textbox", { name: "실행 회차 검색" });
+        await expect(views.getByRole("radio", { name: /^전체 / })).toBeChecked();
+        await expect(search).toBeVisible();
+        await expect(listHead.locator(".astryx-text-input")).toHaveCSS("height", "32px");
+        const [viewsBox, searchBox] = await Promise.all([views.boundingBox(), search.boundingBox()]);
+        expect(viewsBox!.y + viewsBox!.height / 2).toBeCloseTo(searchBox!.y + searchBox!.height / 2, 0);
+        const overview = page.locator(".rs-overview");
+        await expect(overview.locator(".rs-summary-label", { hasText: "발주계획" })).toHaveCSS("font-size", "12px");
+        await expect(overview.locator(".rs-summary-item", { hasText: "스케줄러" }).locator(".rs-summary-value")).toHaveCSS("font-size", "14px");
+      }
+      const table = list.getByRole("table");
+      await expect(table.getByRole("columnheader")).toHaveText(["이름", "구분·식별", "상태"]);
+      const title = table.locator('[aria-current="true"] .record-table-title');
+      await expect(title, `${path}의 선택된 행`).toBeVisible();
+      await expect(title).toHaveCSS("font-size", "14px");
+      await expect(title).toHaveCSS("font-weight", "700");
+
+      const preview = workspace.locator(".review-split-detail");
+      const footer = preview.getByRole("group", { name: "결정 영역", exact: true });
+      await expect(footer).toBeInViewport({ ratio: 1 });
       await page.evaluate(() => document.fonts.ready);
 
-      const metrics = await workspace.evaluate((element, pagePrefix) => {
-        const root = element.closest(`.${pagePrefix}-page`)!;
-        const list = root.querySelector(pagePrefix === "rs" ? ".rs-list-pane" : ".crit-queue")!;
-        const heading = list.querySelector(`.${pagePrefix}-record-title`)!;
-        // 탭 줄은 패널 헤더(`#page-header-tabs`)로 올라갔다(ADR-0076). 페이지 root 밖이다.
-        const tabBar = document.querySelector(`header.topbar .${pagePrefix}-tabs [role="tablist"]`)!;
-        const canvas = document.querySelector(".page-canvas")!;
-        const strip = root.querySelector(`.${pagePrefix}-summary`)!;
-        const actions = root.querySelector(`.${pagePrefix}-detail-foot`)!;
-        const body = root.querySelector(`.${pagePrefix}-detail-scroll`);
-        const bounds = element.getBoundingClientRect();
-        const listBounds = list.getBoundingClientRect();
-        const button = actions.querySelector("button");
+      const metrics = await workspace.evaluate((element) => {
+        const main = element.closest(".workbench-admin-main")!;
+        const menu = main.previousElementSibling!.getBoundingClientRect();
+        const listBox = element.querySelector(".review-split-list")!.getBoundingClientRect();
+        const previewBox = element.querySelector(".review-split-detail")!.getBoundingClientRect();
+        const footerBox = element.querySelector(".workbench-decision")!.getBoundingClientRect();
+        const strip = main.querySelector(".workbench-admin-summary")!.getBoundingClientRect();
+        const collectionBox = main.querySelector(".rs-collection")?.getBoundingClientRect();
+        const previousBox = (main.querySelector(".crit-verification-requests") ?? main.querySelector(".workbench-admin-summary"))!.getBoundingClientRect();
+        const canvas = main.closest(".page-canvas")!.getBoundingClientRect();
+        const box = element.getBoundingClientRect();
         return {
-          x: bounds.x,
-          y: bounds.y,
-          width: bounds.width,
-          listWidth: listBounds.width,
-          // getBoundingClientRect()는 물리 폭, clientWidth는 논리 폭이다. 두
-          // 페이지의 목록 비율은 같은 좌표계의 물리 폭으로 비교한다.
-          ratio: listBounds.width / bounds.width,
-          titleFont: getComputedStyle(heading).fontSize,
-          titleWeight: getComputedStyle(heading).fontWeight,
-          tabsHeight: tabBar.getBoundingClientRect().height,
-          summaryHeight: strip.getBoundingClientRect().height,
-          summaryTopFromCanvas: strip.getBoundingClientRect().top - canvas.getBoundingClientRect().top,
-          summaryBottom: strip.getBoundingClientRect().bottom,
-          footerHeight: actions.getBoundingClientRect().height,
-          footerTop: actions.getBoundingClientRect().top,
-          footerBottom: actions.getBoundingClientRect().bottom,
-          buttonFont: button ? getComputedStyle(button).fontSize : null,
-          bodyOverflow: body ? getComputedStyle(body).overflowY : null,
+          left: box.left,
+          right: box.right,
+          bottom: box.bottom,
+          top: box.top,
+          listWidth: listBox.width,
+          listRatio: listBox.width / box.width,
+          previewRatio: previewBox.width / box.width,
+          previewLeft: previewBox.left,
+          listRight: listBox.right,
+          navLeft: menu.left,
+          navRight: menu.right,
+          navWidth: menu.width,
+          navTop: menu.top,
+          navBottom: menu.bottom,
+          canvasLeft: canvas.left,
+          canvasRight: canvas.right,
+          canvasTop: canvas.top,
+          canvasBottom: canvas.bottom,
+          stripLeft: strip.left,
+          stripRight: strip.right,
+          stripTop: strip.top,
+          collectionLeft: collectionBox?.left,
+          collectionTop: collectionBox?.top,
+          collectionBottom: collectionBox?.bottom,
+          stripBottom: strip.bottom,
+          previousBottom: previousBox.bottom,
+          footerTop: footerBox.top,
+          footerBottom: footerBox.bottom,
           rootOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
         };
-      }, prefix);
+      });
       measurements.push({ path, ...metrics });
 
       expect(metrics.rootOverflow, path).toBeLessThanOrEqual(1);
-      expect(metrics.ratio, `${path} 목록 비율`).toBeCloseTo(0.38, 2);
-      // 2026-11-20 4차(ADR-0076 결정 11): 목록 첫 줄은 16px, 요약 줄은 채움 블록(60)이고 작업 영역과 8px 띄운다. 상세 바닥 60, 캔버스 바닥 여백 16.
-      expect(metrics.titleFont, `${path} 목록 제목 크기`).toBe("16px");
-      expect(metrics.titleWeight, `${path} 목록 제목 굵기`).toBe("600");
-      // 패널 헤더의 둥근 칸 탭 한 줄(40px, ADR-0076)이다.
-      expect(metrics.tabsHeight, `${path} 패널 헤더 탭 줄`).toBeCloseTo(40, 0);
-      expect(metrics.summaryHeight, `${path} 요약 한 줄`).toBeCloseTo(60, 0);
-      // 패널 헤더 아래 본문 위 여백 24px(ADR-0076) + 숨긴 화면 이름 자리(기존 골격의 8px)에서 요약 줄이 시작한다.
-      // 여덟 탭이 같은 값이다.
-      expect(metrics.summaryTopFromCanvas, `${path} 본문 위 여백`).toBeCloseTo(32, 0);
-      expect(Math.abs(metrics.y - metrics.summaryBottom - 8), `${path} 요약과 본문 사이 틈`).toBeLessThanOrEqual(1);
-      expect(metrics.footerHeight, `${path} 하단 액션 높이`).toBeCloseTo(60, 0);
-      // 흰 패널의 바깥 여백 8 + 테두리 1, 캔버스 하단 여백 32px(ADR-0076). 판정 기준 spec과 같은 바닥이다.
-      expect(metrics.footerBottom, `${path} 하단 버튼 위치`).toBeCloseTo(viewport.height - physical(37) - 8 - 1 - 16, 0);
-      if (metrics.buttonFont) expect(metrics.buttonFont, `${path} 하단 버튼 크기`).toBe("14px");
-      if (metrics.bodyOverflow) expect(metrics.bodyOverflow, path).toBe("auto");
+      expect(metrics.navWidth, path).toBeCloseTo(200, 0);
+      expect(metrics.navLeft, path).toBeCloseTo(metrics.canvasLeft, 0);
+      expect(metrics.navRight, path).toBeCloseTo(metrics.left, 0);
+      expect(metrics.navTop, path).toBeCloseTo(metrics.canvasTop, 0);
+      expect(metrics.navBottom, path).toBeCloseTo(metrics.canvasBottom, 0);
+      expect(metrics.right, path).toBeCloseTo(metrics.canvasRight, 0);
+      expect(metrics.bottom, path).toBeCloseTo(metrics.canvasBottom, 0);
+      expect(metrics.listRatio, path).toBeCloseTo(0.60, 2);
+      expect(metrics.previewRatio, path).toBeCloseTo(0.40, 2);
+      expect(metrics.listRight, path).toBeCloseTo(metrics.previewLeft, 0);
+      expect(metrics.stripLeft, path).toBeCloseTo(metrics.left, 0);
+      expect(metrics.stripRight, path).toBeCloseTo(metrics.right, 0);
+      expect(metrics.stripTop, path).toBeCloseTo(metrics.canvasTop, 0);
+      if (path === "/runs") {
+        expect(metrics.collectionLeft!, path).toBeGreaterThanOrEqual(metrics.stripLeft);
+        expect(metrics.collectionTop!, path).toBeGreaterThanOrEqual(metrics.stripTop);
+        expect(metrics.collectionBottom!, path).toBeLessThanOrEqual(metrics.stripBottom);
+      }
+      expect(metrics.top - metrics.previousBottom, path).toBeGreaterThanOrEqual(0);
+      expect(metrics.top - metrics.previousBottom, path).toBeLessThanOrEqual(12);
+      expect(metrics.footerBottom, path).toBeCloseTo(metrics.bottom, 0);
 
-      firstWidth ??= metrics.listWidth;
-      firstLeft ??= metrics.x;
-      expect(Math.abs(metrics.listWidth - firstWidth), `${path} 두 페이지 목록 폭 일치`).toBeLessThanOrEqual(1);
-      expect(Math.abs(metrics.x - firstLeft), `${path} 두 페이지 왼쪽 정렬`).toBeLessThanOrEqual(1);
+      reference ??= { listWidth: metrics.listWidth, left: metrics.left };
+      expect(metrics.listWidth, path).toBeCloseTo(reference.listWidth, 0);
+      expect(metrics.left, path).toBeCloseTo(reference.left, 0);
 
-      // 긴 본문을 끝까지 내려도 하단 액션은 이동하지 않아야 한다.
-      await page.locator(`.${prefix}-detail-scroll`).evaluateAll((elements) => {
-        for (const element of elements) element.scrollTop = element.scrollHeight;
-      });
+      const scroll = preview.locator(".workbench-admin-detail-scroll");
+      await expect(scroll).toHaveCSS("overflow-y", "auto");
+      await scroll.evaluate((element) => { element.scrollTop = element.scrollHeight; });
       const afterScroll = await footer.boundingBox();
-      expect(Math.abs(afterScroll!.y - metrics.footerTop), `${path} 본문 스크롤과 하단 액션 분리`).toBeLessThanOrEqual(1);
-      // 판정 기준은 발주계획 선별 정책 탭까지 5개, 실행 상태는 4개다. 새 탭은 이 골격 비교 대상에 넣지 않는다.
-      await expect(page.locator(`.${prefix}-tabs [role="tab"]`)).toHaveCount(prefix === "crit" ? 5 : 4);
+      expect(afterScroll!.y, `${path} 본문 스크롤과 결정 띠 분리`).toBeCloseTo(metrics.footerTop, 0);
       await page.screenshot({ path: testInfo.outputPath(`${path.slice(1)}-${viewport.width}.png`), animations: "disabled" });
     }
     await testInfo.attach("admin-workspace-geometry", {
@@ -118,7 +152,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
 test("상시 운영 변경은 상세와 상단 요약에 함께 반영된다", async ({ page }) => {
   const trace = await installRunStatusMock(page, { activationReady: true });
   await page.goto("/operations");
-  const summaryValue = page.locator(".rs-summary-item").first().locator(".rs-summary-value");
+  const summaryValue = page.locator(".rs-summary-item").filter({ hasText: "공고 판정(C-1) 스케줄러" }).locator(".rs-summary-value");
   await expect(summaryValue).toHaveText("꺼짐");
   await page.getByRole("button", { name: "상시 운영 켜기", exact: true }).click();
   const dialog = page.getByRole("alertdialog");
@@ -139,10 +173,10 @@ test("실행 상태 새로고침은 현재 목록과 상세를 갱신하고 닫�
     if (request.method() === "GET") reads.push(new URL(request.url()).pathname);
   });
   await page.goto("/operations");
-  await expect(page.locator(".rs-detail-foot")).toBeVisible();
-  await page.getByRole("tab", { name: "수집 실행", exact: true }).click();
-  await expect(page.locator(".rs-record-title").first()).toBeVisible();
-  const refresh = page.locator(".rs-summary").getByRole("button", { name: "새로고침", exact: true });
+  await expect(page.getByRole("group", { name: "결정 영역", exact: true })).toBeVisible();
+  await page.getByRole("navigation", { name: "실행 상태 구역" }).getByRole("link", { name: "수집 실행", exact: true }).click();
+  await expect(page.getByRole("table", { name: "실행 회차 목록", exact: true }).locator('[aria-current="true"] .record-table-title')).toBeVisible();
+  const refresh = page.locator("header.topbar").getByRole("button", { name: "새로고침", exact: true });
   await expect(refresh).toBeEnabled();
   reads.length = 0;
   await refresh.click();

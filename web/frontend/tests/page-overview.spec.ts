@@ -80,8 +80,10 @@ for (const width of [1280, 1440]) {
     await expect(tasks.getByText('주장 검증 완료 · 운영 승인 아님')).toBeVisible();
     await expect(tasks.getByText('참조 실행 · 품질 미측정')).toBeVisible();
     // 2026-11-21: 머리의 `사업 요약` 블록은 없앴다. 같은 문장은 개요 구역에 한 번만 나온다.
-    await expect(page.locator('#ps-summary')).not.toContainText('사업 요약');
-    await expect(page.locator('#ps-summary')).not.toContainText(currentFactText);
+    for (const selector of ['header.topbar', '#ps-summary']) {
+      await expect(page.locator(selector)).not.toContainText('사업 요약');
+      await expect(page.locator(selector)).not.toContainText(currentFactText);
+    }
     await expect(review).toContainText(currentFactText);
     await expect(page.getByText(currentFactText, { exact: true })).toHaveCount(1);
     // 주장마다 그 줄에 쪽 링크가 붙는다(옛 `주장별 원문 위치` 목록을 흡수). 링크가 가리키는 run·쪽은 그대로다.
@@ -339,7 +341,9 @@ test('current body keeps long text and limitations without client truncation', a
   const currentRegion = page.getByRole('region', { name: 'PDF 기반 개요 검토' });
   await expect(currentRegion).toContainText(longText);
   await expect(page.locator('#ps-tasks .ps-claims').first()).toContainText(longText);
-  await expect(page.locator('#ps-summary')).not.toContainText(longText);
+  for (const selector of ['header.topbar', '#ps-summary']) {
+    await expect(page.locator(selector)).not.toContainText(longText);
+  }
   await expect(page.locator('#ps-tasks .ps-claims').getByRole('link', { name: 'PDF 3페이지 ↗' }).first()).toHaveAttribute(
     'href',
     new RegExp(`${longRun.id}/pdf#page=3$`),

@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
 import { EmptyState } from "../common/EmptyState";
+import { SideFacts } from "../common/Facts";
+import { StatusMark } from "../common/Marks";
 import { present } from "../../lib/format";
 import type { ReviewResponse } from "../../lib/types";
 
@@ -16,10 +18,10 @@ import type { ReviewResponse } from "../../lib/types";
  */
 export function ReviewRecord({ review, correctionSearch }: { review: ReviewResponse | undefined; correctionSearch: string }) {
   return (
-    <section className="review-record" aria-labelledby="review-record-title">
+    <section className="workbench-record-section review-record" aria-labelledby="review-record-title">
       <div className="review-record-head">
-        <h3 id="review-record-title">담당자 리뷰</h3>
-        <span className="review-record-badge">읽기 전용 이력</span>
+        <h2 className="workbench-record-section-title" id="review-record-title">담당자 리뷰</h2>
+        <StatusMark mark={{ label: "읽기 전용 이력", tone: "neutral" }} />
       </div>
 
       {review === undefined ? (
@@ -30,40 +32,16 @@ export function ReviewRecord({ review, correctionSearch }: { review: ReviewRespo
         />
       ) : (
         <>
-          <dl className="review-record-facts">
-            <div>
-              <dt>시스템 판정 검토</dt>
-              <dd>{present(review.system_judgment_review, "기록 없음")}</dd>
-            </div>
-            <div>
-              <dt>최종 처리</dt>
-              <dd>{present(review.disposition, "기록 없음")}</dd>
-            </div>
-            <div>
-              <dt>수정 등급</dt>
-              <dd>{present(review.corrected_grade, "수정 없음")}</dd>
-            </div>
-            <div>
-              <dt>수정 참여 준비 상태</dt>
-              <dd>{present(review.corrected_readiness, "수정 없음")}</dd>
-            </div>
-            <div>
-              <dt>가장 약한 관점</dt>
-              <dd>{present(review.weakest_perspective, "기록 없음")}</dd>
-            </div>
-            <div>
-              <dt>사유</dt>
-              <dd>{present(review.reason, "기록 없음")}</dd>
-            </div>
-            <div>
-              <dt>담당자 감사 표식</dt>
-              <dd>{present(review.reviewer, "작성자 미확인")}</dd>
-            </div>
-            <div>
-              <dt>최종 수정</dt>
-              <dd className="mono">{present(review.updated_at ?? review.created_at, "시각 미확인")}</dd>
-            </div>
-          </dl>
+          <SideFacts items={[
+            { label: "시스템 판정 검토", value: present(review.system_judgment_review, "기록 없음") },
+            { label: "최종 처리", value: present(review.disposition, "기록 없음") },
+            { label: "수정 등급", value: present(review.corrected_grade, "수정 없음") },
+            { label: "수정 참여 준비 상태", value: present(review.corrected_readiness, "수정 없음") },
+            { label: "가장 약한 관점", value: present(review.weakest_perspective, "기록 없음") },
+            { label: "사유", value: present(review.reason, "기록 없음") },
+            { label: "담당자 감사 표식", value: present(review.reviewer, "작성자 미확인") },
+            { label: "최종 수정", value: present(review.updated_at ?? review.created_at, "시각 미확인") },
+          ]} />
           {review.answers.length > 0 ? (
             <ul className="review-record-answers">
               {review.answers.map((answer) => (

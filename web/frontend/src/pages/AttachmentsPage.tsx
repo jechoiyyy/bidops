@@ -1,3 +1,6 @@
+import { AdminListHeader, AdminRecordTable } from "../components/common/AdminRecordTable";
+import type { RecordTableState } from "../components/common/RecordTable";
+import { DecisionBar, ReviewPreviewHeader, SplitWorkspace } from "../components/common/ReviewPrimitives";
 import { FormEvent, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -11,10 +14,8 @@ import { RunPickerField, useSelectedRun } from "../components/runs/RunPicker";
 import {
   Caption,
   DataTable,
-  DetailFooter,
   DetailHeader,
   Facts,
-  ListRecord,
   Note,
   Section,
   StatusToken,
@@ -235,7 +236,10 @@ function PortalManagerDialog({
   );
 }
 
-export function AttachmentsPage({ panelId = "run-status-panel-attachments" }: { panelId?: string }) {
+// 첨부 미확보 큐의 항목에는 공통 큐 상태 외에 별도 처리 상태 코드가 없어요.
+const missingAttachmentMark = { label: "미확보", tone: "neutral" } as const;
+
+export function AttachmentsPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { runs, selectedRunId, selectRun, isPending, isError, refetch } = useSelectedRun(true);
@@ -261,14 +265,41 @@ export function AttachmentsPage({ panelId = "run-status-panel-attachments" }: { 
 
   const portalCount = portalsQuery.data?.length ?? null;
 
+  let listState: RecordTableState | undefined;
+  if (queueQuery.error) {
+    listState = { kind: "error", message: {
+      title: "첨부 확보 큐를 불러오지 못했어요.",
+      description: "조회 실패는 미확보 0건이 아니에요.",
+      action: { label: "다시 시도", onClick: () => { void queueQuery.refetch(); } },
+    } };
+  } else if (isPending || (queueQuery.isPending && selectedRunId)) {
+    listState = { kind: "loading", label: "첨부 미확보 공고를 불러오는 중이에요.", showLabel: true };
+  } else if (!selectedRunId) {
+    listState = { kind: "empty", message: {
+      title: "선택된 회차가 없어요.",
+      description: "회차를 고르면 그 회차의 첨부 미확보 공고를 확인할 수 있어요.",
+    } };
+  } else if (items.length === 0) {
+    const orderPlansOnly = selectedRun?.kind === "order_plans";
+    listState = { kind: "empty", message: {
+      title: "첨부 미확보 공고가 0건이에요.",
+      description: orderPlansOnly
+        ? "이 회차는 발주계획 수집 회차예요."
+        : "선택한 회차에서 첨부 확보가 필요한 공고를 찾지 못했어요.",
+      action: orderPlansOnly && recentNotices
+        ? { label: "최근 공고 회차 보기", onClick: () => selectRun(recentNotices.run_id) }
+        : undefined,
+    } };
+  } else if (visible.length === 0) {
+    listState = { kind: "empty", message: {
+      title: "조건에 맞는 공고가 없어요.",
+      action: { label: "검색 초기화", onClick: () => setListQuery("") },
+    } };
+  }
   return (
-    <div className="rs-workspace" id={panelId} role="tabpanel" aria-label="첨부 확보">
-      <section className="rs-list-pane" aria-label="첨부 미확보 목록">
-        <header className="rs-list-head">
-          <Text className="rs-list-title" as="p">첨부 미확보 목록</Text>
-          <Caption as="span">{queueQuery.isError ? "미확인" : `${(queueQuery.data?.total ?? items.length).toLocaleString("ko-KR")}건`}</Caption>
-        </header>
-        <div className="rs-list-filters">
+    <SplitWorkspace className="workbench-admin-workspace" aria-label="첨부 확보">
+      <section className="review-split-list" aria-label="첨부 미확보 목록">
+        <AdminListHeader title="첨부 미확보 목록" count={queueQuery.isError ? "미확인" : `${(queueQuery.data?.total ?? items.length).toLocaleString("ko-KR")}건`}>
           <RunPickerField
             label="첨부 확보 대상 회차"
             runs={runs}
@@ -288,57 +319,21 @@ export function AttachmentsPage({ panelId = "run-status-panel-attachments" }: { 
             hasClear
             size="sm"
           />
-        </div>
-        <div className="rs-list-scroll">
-          {!selectedRunId && !isPending ? (
-            <div className="rs-list-empty">
-              <Paperclip aria-hidden="true" />
-              <Text as="p">선택된 회차가 없어요.</Text>
-              <Caption>회차를 고르면 그 회차의 첨부 미확보 공고를 확인할 수 있어요.</Caption>
-            </div>
-          ) : null}
-          {queueQuery.isPending && selectedRunId ? <div className="rs-list-empty"><Caption>첨부 미확보 공고를 불러오는 중이에요.</Caption></div> : null}
-          {queueQuery.error ? (
-            <div className="rs-list-empty" role="alert">
-              <Paperclip aria-hidden="true" />
-              <Text as="p">첨부 확보 큐를 불러오지 못했어요.</Text>
-              <Caption>조회 실패는 미확보 0건이 아니에요.</Caption>
-              <Button label="다시 시도" size="sm" onClick={() => void queueQuery.refetch()} />
-            </div>
-          ) : null}
-          {!queueQuery.isPending && !queueQuery.error && items.length === 0 && selectedRunId ? (
-            <div className="rs-list-empty">
-              <Paperclip aria-hidden="true" />
-              <Text as="p">첨부 미확보 공고가 0건이에요.</Text>
-              <Caption>{selectedRun?.kind === "order_plans" ? "이 회차는 발주계획 수집 회차예요." : "선택한 회차에서 첨부 확보가 필요한 공고를 찾지 못했어요."}</Caption>
-              {selectedRun?.kind === "order_plans" && recentNotices ? (
-                <Button label="최근 공고 회차 보기" onClick={() => selectRun(recentNotices.run_id)} size="sm" />
-              ) : null}
-            </div>
-          ) : null}
-          {!queueQuery.isPending && items.length > 0 && visible.length === 0 ? (
-            <div className="rs-list-empty">
-              <Search aria-hidden="true" />
-              <Text as="p">조건에 맞는 공고가 없어요.</Text>
-              <Button label="검색 초기화" size="sm" onClick={() => setListQuery("")} />
-            </div>
-          ) : null}
-          {visible.map((item) => (
-            <ListRecord
-              key={item.id}
-              selected={selected?.id === item.id}
-              onSelect={() => setSelectedNoticeId(item.id)}
-              item={{
-                id: String(item.id),
-                title: present(item.title, "공고명 미확인"),
-                subtitle: present(item.agency, "발주기관 미확인"),
-                meta: `${present(item.grade, "등급 미확인")} · ${present(item.readiness, "준비 상태 미확인")} · ${formatDeadline(item.deadline_at)}`,
-                status: "미확보",
-              }}
-            />
-          ))}
-        </div>
-        <footer className="rs-list-foot">
+        </AdminListHeader>
+        <AdminRecordTable
+          label="첨부 미확보 목록"
+          selectedId={selected?.id ?? null}
+          onSelect={setSelectedNoticeId}
+          state={listState}
+          rows={visible.map((item) => ({
+            id: item.id,
+            title: present(item.title, "공고명 미확인"),
+            subtitle: present(item.agency, "발주기관 미확인"),
+            meta: `${present(item.grade, "등급 미확인")} · ${present(item.readiness, "준비 상태 미확인")} · ${formatDeadline(item.deadline_at)}`,
+            status: missingAttachmentMark,
+          }))}
+        />
+        <footer className="workbench-admin-list-foot">
           <Caption>
             {selectedRunId ? `회차 ${selectedRunId}` : "회차 미선택"} · 미확보 {queueQuery.isError ? "미확인" : `${(queueQuery.data?.total ?? 0).toLocaleString("ko-KR")}건`}
             {" · "}
@@ -349,13 +344,14 @@ export function AttachmentsPage({ panelId = "run-status-panel-attachments" }: { 
         </footer>
       </section>
 
-      <section className="rs-detail-pane" aria-label="확인할 공고">
+      <section className="review-split-detail rs-detail-pane" aria-label="확인할 공고">
+        <ReviewPreviewHeader />
         {selected ? (
           <>
             <DetailHeader
               eyebrow="첨부 확보 · 확인할 공고"
               title={present(selected.title, "공고명 미확인")}
-              status="미확보"
+              status={missingAttachmentMark}
               statusDescription="첨부 원문을 아직 확보하지 못한 상태예요."
             >
               <div className="rs-row rs-spread">
@@ -368,7 +364,7 @@ export function AttachmentsPage({ panelId = "run-status-panel-attachments" }: { 
               </div>
             </DetailHeader>
 
-            <div className="rs-detail-scroll">
+            <div className="workbench-admin-detail-scroll rs-detail-scroll">
               <Section title="확보 상태">
                 <Facts
                   items={[
@@ -425,10 +421,6 @@ export function AttachmentsPage({ panelId = "run-status-panel-attachments" }: { 
                     ["수집 층", present(selected.collection_bucket, "기록 없음")],
                   ]}
                 />
-                <Caption>
-                  적합성 등급·참여 준비 상태·추적 선택·최종 Go/No-Go는 각각 별도 판단이에요. 첨부 확보가
-                  그중 어느 것도 대신하지 않아요.
-                </Caption>
               </Section>
 
               <Section title="확보 기준">
@@ -445,18 +437,22 @@ export function AttachmentsPage({ panelId = "run-status-panel-attachments" }: { 
               </Section>
             </div>
 
-            <DetailFooter note="원문 확보와 추적 결정은 별도">
-              <Button
-                label="공고 판정 열기"
-                size="sm"
-                onClick={() => {
-                  const next = new URLSearchParams(searchParams);
-                  if (selectedRunId) next.set("run", selectedRunId);
-                  navigate({ pathname: `/judgments/${selected.id}`, search: next.toString() });
-                }}
-              />
-              <Button label="기관 포털 관리" size="sm" variant="primary" onClick={() => setPortalDialogOpen(true)} />
-            </DetailFooter>
+            <DecisionBar
+              stateLabel="첨부 상태"
+              state={missingAttachmentMark}
+              secondaryActions={(
+                <Button
+                  label="공고 판정 열기"
+                  size="sm"
+                  onClick={() => {
+                    const next = new URLSearchParams(searchParams);
+                    if (selectedRunId) next.set("run", selectedRunId);
+                    navigate({ pathname: `/judgments/${selected.id}`, search: next.toString() });
+                  }}
+                />
+              )}
+              primaryAction={<Button label="기관 포털 관리" size="sm" variant="primary" onClick={() => setPortalDialogOpen(true)} />}
+            />
           </>
         ) : (
           <div className="rs-detail-empty">
@@ -469,6 +465,6 @@ export function AttachmentsPage({ panelId = "run-status-panel-attachments" }: { 
       </section>
 
       <PortalManagerDialog open={portalDialogOpen} onClose={() => setPortalDialogOpen(false)} runId={selectedRunId} />
-    </div>
+    </SplitWorkspace>
   );
 }

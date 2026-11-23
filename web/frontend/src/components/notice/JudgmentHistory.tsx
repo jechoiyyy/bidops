@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { Badge } from "../common/Badge";
+import { StatusMark } from "../common/Marks";
+import { NoticeGradeMark } from "./NoticeMarks";
 import { EmptyState } from "../common/EmptyState";
 import { Panel } from "../common/Panel";
 import { api } from "../../lib/api";
 import { formatDateTime, formatRunRange, present } from "../../lib/format";
 import type { HistoryItemResponse } from "../../lib/types";
-import { gradeVariant } from "../../lib/grade";
 
 interface JudgmentHistoryProps {
   noticePk: number;
@@ -43,8 +43,8 @@ export function JudgmentHistory({ noticePk }: JudgmentHistoryProps) {
                   <summary className="judgment-history-summary">
                     <span className="judgment-history-heading">
                       <span className="mono tabular-nums">{formatDateTime(item.generated_at)}</span>
-                      <Badge label={item.grade} variant={gradeVariant(item.grade)} />
-                      <Badge label={item.readiness} variant="readiness" />
+                      <NoticeGradeMark grade={item.grade} />
+                      <StatusMark mark={{ label: present(item.readiness, "준비 상태 미확인"), tone: "neutral" }} />
                     </span>
                   </summary>
                   <div className="judgment-history-content">

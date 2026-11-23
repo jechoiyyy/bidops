@@ -42,8 +42,8 @@ export const FIT_LABEL: Record<VerdictFit, string> = {
 };
 
 /** `unknown`은 부족이 아니다(HP §7). 색은 의미를 거들 뿐이고 글자가 항상 상태 이름이다. */
-export const FIT_TONE: Record<VerdictFit, "success" | "error" | "warning"> = {
-  met: "success",
+export const FIT_TONE: Record<VerdictFit, "confirmed" | "error" | "warning"> = {
+  met: "confirmed",
   gap: "error",
   unknown: "warning",
 };

@@ -1,20 +1,15 @@
 /*
  * 사업기회 레코드 `/opportunities/:id/*`(RL-02 STEP-006, ui-spec §3·§4.3).
  *
- * 레이아웃은 프로젝트가 소유한다(ADR-0040). 색·간격·모서리는 테마 토큰만 읽고 `--color-*`를 다시
- * 정의하지 않는다(ADR-0048). 글자는 4단 스케일만 쓴다(`styles/typography.css`): 제목은 page-title
- * 단(18px = 20px × ui-scale 0.9)에 700 굵기를 준다. 지원 폭은 1280~1920px이다(ADR-0047).
- *
- * pill 색(ui-spec §3): 단계=teal, 추적 중=success, 보류·마감 임박=warning, 그 밖은 muted. blue 계열은
- * 쓰지 않는다(`npm run test:contrast`가 막는다). 글자는 항상 상태 이름이다.
+ * 읽기 틀과 정보 열은 workbench.css가 정한다. 여기서는 활동, 노트, 후보 확인을 배치한다.
  */
 
 .rec-page {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  font-size: var(--bo-type-body);
-  line-height: var(--bo-type-body-leading);
+  font-size: var(--bo-k-body);
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 
@@ -24,128 +19,15 @@
   margin: 0;
 }
 
+.app-content[data-reading-width="detail"] .rec-page {
+  width: 100%;
+  max-width: var(--shell-reading-width);
+  margin-inline: auto;
+}
+
 .rec-status {
   padding: var(--spacing-3) 0;
   color: var(--color-text-secondary);
-}
-
-/* 헤더: 아이콘 40px · 제목 + pill · 액션 */
-.rec-header {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  padding-bottom: var(--spacing-3);
-}
-
-.rec-icon {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-element);
-  color: var(--color-text-teal);
-  background: var(--color-background-teal);
-  font-size: var(--bo-type-page-title);
-  font-weight: 600;
-  line-height: 1;
-}
-
-.rec-heading {
-  display: grid;
-  flex: 1 1 auto;
-  gap: var(--spacing-1);
-  min-width: 0;
-}
-
-.rec-title {
-  font-size: var(--bo-type-detail-title);
-  font-weight: 600;
-  line-height: var(--bo-type-page-title-leading);
-}
-
-.rec-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.rec-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: calc(var(--spacing-4) + var(--spacing-0-5));
-  padding: var(--spacing-0-5) var(--spacing-2);
-  border-radius: var(--radius-full);
-  color: var(--color-text-secondary);
-  background: var(--color-background-muted);
-  font-size: var(--bo-type-caption);
-  font-weight: 500;
-  line-height: var(--bo-type-caption-leading);
-  white-space: nowrap;
-}
-
-/* 결정 축 요약 줄(설계고도화안 C-6): `축 이름 상태` 셋을 한 줄에 · 로 잇는다. 축 이름은 보조색,
- * 상태는 본문색이며 보류·재검토 같은 주의 상태만 경고색을 함께 쓴다(글자가 상태를 말한다). */
-.rec-axes {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--spacing-1) var(--spacing-3);
-  margin: 0;
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
-}
-
-.rec-axis {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--spacing-1);
-  min-width: 0;
-}
-
-.rec-axis + .rec-axis::before {
-  content: "·";
-  margin-right: var(--spacing-2);
-  color: var(--color-text-secondary);
-}
-
-.rec-axis dt {
-  color: var(--color-text-secondary);
-  font-weight: 400;
-}
-
-.rec-axis dd {
-  margin: 0;
-  color: var(--color-text-primary);
-  font-weight: 500;
-}
-
-.rec-axis.is-warning dd {
-  color: var(--color-warning);
-}
-
-.rec-pill.is-stage {
-  color: var(--color-text-teal);
-  background: var(--color-background-teal);
-}
-
-.rec-pill.is-warning {
-  color: var(--color-warning);
-  background: var(--color-warning-muted);
-}
-
-.rec-pill.is-success {
-  color: var(--color-success);
-  background: var(--color-success-muted);
-}
-
-.rec-pill.is-error {
-  color: var(--color-error);
-  background: var(--color-error-muted);
 }
 
 .rec-actions {
@@ -162,23 +44,6 @@
 /* 탭 줄 */
 .rec-tabs {
   flex: 0 0 auto;
-}
-
-/* 본문: 좌측 정보 280px(우측 1px 경계) + 중앙 가변 */
-.rec-body {
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  align-items: start;
-  min-width: 0;
-}
-
-.rec-side {
-  display: grid;
-  align-content: start;
-  gap: var(--spacing-4);
-  min-width: 0;
-  padding: var(--spacing-3) var(--spacing-4) var(--spacing-4) 0;
-  border-right: 1px solid var(--color-border);
 }
 
 .rec-side-block {
@@ -218,42 +83,6 @@
   color: var(--color-accent);
 }
 
-/* 속성 목록: 2열 grid(라벨 96px 보조색 / 값), 행 높이 34, 하단 1px */
-.rec-attributes {
-  display: grid;
-  margin: 0;
-}
-
-.rec-attribute {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  align-items: center;
-  gap: var(--spacing-2);
-  min-height: 34px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.rec-attribute dt {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
-}
-
-.rec-attribute dd {
-  margin: 0;
-  min-width: 0;
-  padding: var(--spacing-1) 0;
-}
-
-.rec-attribute dd.is-empty,
-.rec-attribute-note {
-  color: var(--color-text-secondary);
-}
-
-.rec-attribute-note {
-  font-size: var(--bo-type-caption);
-}
-
 /* 다음 행동 */
 .rec-next-list {
   display: grid;
@@ -288,125 +117,6 @@
   font-size: var(--bo-type-caption);
   font-weight: 600;
   line-height: 1;
-}
-
-/* 중앙 */
-.rec-main {
-  display: grid;
-  align-content: start;
-  gap: var(--spacing-4);
-  min-width: 0;
-  padding: var(--spacing-3) 0 var(--spacing-4) var(--spacing-4);
-}
-
-/* 단계 바: 완료=✓ 채움, 현재=채움+링, 다가오는 마감=warning 테두리, 대기·미확인=회색 테두리 */
-.rec-stagebar {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.rec-stage {
-  position: relative;
-  display: grid;
-  justify-items: start;
-  gap: var(--spacing-1);
-  min-width: 0;
-  padding-right: var(--spacing-2);
-}
-
-.rec-stage::before {
-  content: "";
-  position: absolute;
-  top: calc(var(--spacing-2) + var(--spacing-0-5));
-  left: calc(var(--spacing-5) + var(--spacing-1));
-  right: var(--spacing-1);
-  height: 2px;
-  background: var(--color-border);
-}
-
-.rec-stage:last-child::before {
-  display: none;
-}
-
-.rec-stage[data-state="done"]::before {
-  background: var(--color-accent);
-}
-
-.rec-stage-marker {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  width: calc(var(--spacing-5) + var(--spacing-0-5));
-  height: calc(var(--spacing-5) + var(--spacing-0-5));
-  border: 2px solid var(--color-border-emphasized);
-  border-radius: var(--radius-full);
-  color: var(--color-on-accent);
-  background: var(--color-background-surface);
-}
-
-.rec-stage-marker svg {
-  width: 12px;
-  height: 12px;
-}
-
-.rec-stage[data-state="done"] .rec-stage-marker {
-  border-color: var(--color-accent);
-  background: var(--color-accent);
-}
-
-.rec-stage[data-state="current"] .rec-stage-marker {
-  border-color: var(--color-accent);
-  background: var(--color-accent);
-  box-shadow: 0 0 0 3px var(--color-accent-muted);
-}
-
-.rec-stage[data-state="upcoming_deadline"] .rec-stage-marker {
-  border-color: var(--color-warning);
-}
-
-.rec-stage-label {
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
-}
-
-.rec-stage[data-state="current"] .rec-stage-label {
-  font-weight: 600;
-}
-
-.rec-stage[data-state="pending"] .rec-stage-label,
-.rec-stage[data-state="unknown"] .rec-stage-label {
-  color: var(--color-text-secondary);
-}
-
-.rec-stage[data-state="upcoming_deadline"] .rec-stage-label {
-  color: var(--color-warning);
-  font-weight: 600;
-}
-
-.rec-stage-unknown {
-  color: var(--color-text-secondary);
-}
-
-/* 연결이 있는 단계 칸은 원천 화면 링크다(설계고도화안 C-3). 상태 색은 그대로 두고 밑줄로만 구분한다. */
-.rec-stage-link {
-  color: inherit;
-  text-decoration: underline;
-  text-underline-offset: var(--spacing-0-5);
-}
-
-.rec-stage-link:focus-visible {
-  outline: var(--focus-outline-width) solid var(--color-accent);
-  outline-offset: var(--spacing-0-5);
-}
-
-.rec-stage-day {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-type-caption);
-  line-height: var(--bo-type-caption-leading);
 }
 
 /* 작성기 */
@@ -579,16 +289,7 @@
 }
 
 .rec-activity-pill {
-  display: inline-flex;
-  align-items: center;
   margin-left: var(--spacing-1);
-  padding: 0 var(--spacing-2);
-  border-radius: var(--radius-full);
-  color: var(--color-text-secondary);
-  background: var(--color-background-muted);
-  font-size: var(--bo-type-caption);
-  font-weight: 500;
-  line-height: var(--bo-type-caption-leading);
   vertical-align: middle;
 }
 
@@ -627,56 +328,6 @@
   text-align: center;
 }
 
-/* ============================================================================
- * 2026-11-19 최종 시안(docs/1119_kstyle-shell/mockups/FinalOpportunity.dc.html, ADR 초안 승인 대기).
- *
- * 레코드 제목·화면 이름 줄·추적 상태 표식·연결 상태 문장·탭은 셸 패널 헤더가 그린다. 이 화면의 머리
- * (`.rec-header`)는 상태 요약(pill·결정 축)과 탭별 액션만 남은 한 줄이다. 활동 탭은 왼쪽 `사업 흐름`
- * (세로 단계 흐름 → 활동) + 오른쪽 420px(`지금 할 일` 채움 블록 · `추적 상태` · 사업 정보)이다.
- * 다른 탭(판정·제안서·서류·원문·비슷한 공고)은 이전 배치(왼쪽 정보 280px)를 그대로 쓴다.
- * ==========================================================================*/
-.app-shell .rec-page {
-  font-size: var(--bo-k-body);
-  line-height: 1.5;
-}
-
-.app-shell .rec-header {
-  align-items: center;
-  padding: 0 0 var(--spacing-5);
-}
-
-.app-shell .rec-heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-2) var(--spacing-4);
-}
-
-.app-shell .rec-pill {
-  font-size: var(--bo-k-tag);
-}
-
-.app-shell .rec-axes {
-  font-size: var(--bo-k-meta);
-}
-
-/* 활동 탭: 왼쪽 흐름 + 오른쪽 420px(시안의 바깥 여백 24 사이). */
-.app-shell .rec-body.is-activity {
-  grid-template-columns: minmax(0, 1fr) 420px;
-  gap: var(--spacing-6);
-}
-
-.app-shell .rec-body.is-activity .rec-main {
-  gap: var(--spacing-5);
-  padding: 0;
-}
-
-.app-shell .rec-side.is-right {
-  gap: var(--spacing-3);
-  padding: 0;
-  border-right: 0;
-}
-
 .app-shell .rec-section-title {
   margin: 0;
   font-size: var(--bo-k-section);
@@ -687,156 +338,10 @@
   margin-top: var(--spacing-3);
 }
 
-/* ---- 사업 흐름(세로) ---- */
-.app-shell .rec-flow {
-  display: flex;
-  flex-direction: column;
-}
-
-.app-shell .rec-stagebar {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.app-shell .rec-stage,
-.app-shell .rec-flow-final {
-  position: relative;
-  display: flex;
-  justify-items: initial;
-  gap: var(--spacing-4);
-  padding: 0;
-}
-
-.app-shell .rec-stage::before {
-  display: none;
-}
-
-.app-shell .rec-stage-rail {
-  display: flex;
-  flex: 0 0 28px;
-  flex-direction: column;
-  align-items: center;
-}
-
-.app-shell .rec-stage-marker {
-  flex: 0 0 auto;
-  width: 28px;
-  height: 28px;
-  border: 2px solid var(--color-border);
-  border-radius: var(--radius-full);
-  color: var(--color-on-dark);
-  background: var(--color-background-surface);
-  box-shadow: none;
-}
-
-.app-shell .rec-stage-marker svg {
-  width: 16px;
-  height: 16px;
-}
-
-.app-shell .rec-stage[data-state="done"] .rec-stage-marker {
-  border-color: var(--color-text-primary);
-  background: var(--color-text-primary);
-}
-
-.app-shell .rec-stage[data-state="current"] .rec-stage-marker {
-  border: 3px solid var(--color-text-primary);
-  background: var(--color-background-surface);
-  box-shadow: none;
-}
-
-.app-shell .rec-stage[data-state="upcoming_deadline"] .rec-stage-marker {
-  border: 3px solid var(--color-warning);
-}
-
-.app-shell .rec-stage-line {
-  flex: 1 1 auto;
-  width: 2px;
-  min-height: var(--spacing-4);
-  background: var(--color-border);
-}
-
-.app-shell .rec-stage[data-state="done"] .rec-stage-line {
-  background: var(--color-text-primary);
-}
-
-.app-shell .rec-stage-body {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  gap: var(--spacing-1);
-  min-width: 0;
-  padding-bottom: 28px;
-}
-
-.app-shell .rec-stage.is-minor .rec-stage-body {
-  padding-bottom: var(--spacing-4);
-}
-
-.app-shell .rec-flow-final .rec-stage-body {
-  padding-bottom: 0;
-}
-
-.app-shell .rec-stage-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  min-height: 28px;
-}
-
-.app-shell .rec-stage-label {
-  color: var(--color-text-primary);
-  font-size: 17px;
-  font-weight: 700;
-  line-height: 1.4;
-}
-
-.app-shell .rec-stage.is-minor .rec-stage-label {
-  font-size: var(--bo-k-lead);
-  font-weight: 600;
-}
-
-.app-shell .rec-stage[data-state="pending"] .rec-stage-label,
-.app-shell .rec-stage[data-state="unknown"] .rec-stage-label {
-  color: var(--color-text-primary);
-}
-
-.app-shell .rec-stage[data-state="upcoming_deadline"] .rec-stage-label {
-  color: var(--color-warning);
-}
-
-.app-shell .rec-stage-status,
-.app-shell .rec-stage-unknown {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-k-meta);
-  font-weight: 600;
-}
-
-.app-shell .rec-stage-day {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-k-meta);
-}
-
-.app-shell .rec-stage-fact {
-  color: var(--color-text-primary);
-  font-size: var(--bo-k-lead);
-}
-
-.app-shell .rec-stage-sub {
-  color: var(--color-text-secondary);
-  font-size: var(--bo-k-meta);
-}
-
-/* ---- 지금 할 일(채움 블록) ---- */
 .app-shell .rec-todo {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-4);
-  padding: var(--spacing-6);
-  border-radius: var(--bo-panel-radius);
-  background: var(--color-background-muted);
+  gap: var(--spacing-3);
 }
 
 .app-shell .rec-todo-title {
@@ -848,11 +353,7 @@
 .app-shell .rec-todo-candidate {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: var(--spacing-4) 18px;
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  background: var(--color-background-surface);
+  gap: var(--spacing-1);
 }
 
 .app-shell .rec-todo-candidate-title {
@@ -877,20 +378,11 @@
   gap: var(--spacing-2);
 }
 
-.app-shell .rec-todo-primary,
 .app-shell .rec-todo-secondary {
   height: var(--bo-k-control-primary);
   border-radius: var(--radius-element);
   font: inherit;
   cursor: pointer;
-}
-
-.app-shell .rec-todo-primary {
-  border: 0;
-  color: var(--color-on-accent);
-  background: var(--color-accent);
-  font-size: var(--bo-k-button-lg);
-  font-weight: 700;
 }
 
 .app-shell .rec-todo-secondary {
@@ -906,7 +398,7 @@
   align-self: center;
   display: inline-flex;
   align-items: center;
-  height: 40px;
+  min-height: var(--bo-k-control-nav);
   padding: 0;
   border: 0;
   color: var(--color-text-primary);
@@ -919,33 +411,73 @@
   cursor: pointer;
 }
 
-/* ---- 추적 상태(테두리 블록) ---- */
-.app-shell .rec-tracking-block {
+/* Activity, verdict and proposal all read against the same information rail. */
+.rec-main {
+  display: grid;
+  align-content: start;
+  gap: var(--spacing-5);
+  min-width: 0;
+}
+
+.rec-stage-details,
+.rec-flow-decision {
+  display: grid;
   gap: var(--spacing-1);
-  padding: var(--spacing-5) var(--spacing-6);
-  border: 1px solid var(--color-border);
-  border-radius: var(--bo-panel-radius);
+  min-width: 0;
 }
 
-.app-shell .rec-tracking-block .rec-side-title {
-  margin-bottom: var(--spacing-1);
-  font-size: var(--bo-k-body);
-  font-weight: 700;
+.rec-stage-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
 }
 
-.app-shell .rec-tracking-sentence {
-  font-size: var(--bo-k-lead);
-}
-
-.app-shell .rec-tracking-block .rec-side-note {
+.rec-stage-meta,
+.rec-stage-details small,
+.rec-flow-decision small {
   font-size: var(--bo-k-meta);
+  color: var(--color-text-secondary);
 }
 
-.app-shell .rec-tracking-change {
-  align-self: flex-start;
+.rec-stage-link,
+.rec-side-links a {
+  color: var(--color-text-accent);
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-0-5);
 }
 
-/* 오른쪽 열의 나머지(사업 정보·다음 행동·다른 화면·제출 서류)는 위 블록과 같은 안쪽 여백으로 맞춘다. */
-.app-shell .rec-side.is-right > :not(.rec-todo, .rec-tracking-block) {
-  padding: var(--spacing-2) var(--spacing-6) 0;
+.rec-flow-decision {
+  padding-block-start: var(--spacing-3);
+  border-block-start: 1px solid var(--bo-line-soft);
+}
+
+.rec-todo {
+  padding-block-end: var(--spacing-5);
+  border-block-end: 1px solid var(--bo-line-soft);
+}
+
+.rec-stage-details [data-tone="warning"] {
+  max-width: 100%;
+}
+
+.rec-page [data-attribute][data-empty="true"] {
+  color: var(--color-text-secondary);
+}
+
+.rec-page [data-attribute] small {
+  display: inline;
+}
+
+.page-footer .rec-footer-primary {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--bo-k-control-nav);
+  padding-inline: var(--spacing-3);
+  border-radius: var(--radius-element);
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  font-size: var(--bo-k-meta);
+  font-weight: 700;
+  text-decoration: none;
 }

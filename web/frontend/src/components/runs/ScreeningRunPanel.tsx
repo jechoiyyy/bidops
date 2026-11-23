@@ -10,6 +10,7 @@ import { formatDateTime, present } from "../../lib/format";
 import { Caption, DataTable, Facts, Note, Section, StatusToken } from "./RunStatusPrimitives";
 import {
   countLabel,
+  executionStatusTone,
   isScreeningTerminal,
   progressPercent,
   remainingCount,
@@ -98,7 +99,7 @@ export function ScreeningRunPanel({
   return (
     <Section
       title="전체 후보 판정 실행"
-      action={current ? <StatusToken label={screeningStatusLabel(status)} /> : <Caption as="span">실행 기록 없음</Caption>}
+      action={current ? <StatusToken label={screeningStatusLabel(status)} tone={executionStatusTone(status)} /> : <Caption as="span">실행 기록 없음</Caption>}
     >
       {listLoading ? (
         <Caption>이 회차의 판정 실행 목록을 불러오는 중이에요. 목록 확인 전에는 새 실행을 시작할 수 없어요.</Caption>

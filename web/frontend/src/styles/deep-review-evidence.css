@@ -88,23 +88,6 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.deep-review-decision-summary {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--spacing-2);
-  margin-block-start: var(--spacing-3);
-}
-
-.deep-review-decision-row {
-  border-block-start: var(--border-width) solid var(--border-strong);
-  padding-block-start: var(--spacing-2);
-}
-
-.deep-review-decision-row-value {
-  margin-block: var(--spacing-1) 0;
-  white-space: pre-wrap;
-}
-
 .deep-review-evidence-actions {
   display: flex;
   flex-wrap: wrap;
@@ -183,15 +166,10 @@
   margin-block-start: var(--spacing-1);
 }
 
-.deep-review-form-textarea,
-.deep-review-evidence-input {
+.deep-review-form-textarea {
   box-sizing: border-box;
   width: 100%;
   padding: var(--spacing-2);
-}
-
-.deep-review-evidence-input {
-  font-family: var(--font-mono);
 }
 
 .deep-review-form-action {
@@ -393,7 +371,7 @@
 }
 
 .evidence-page {
-  background: #fbfcfb;
+  background: var(--color-background-muted);
 }
 
 .evidence-page > header {

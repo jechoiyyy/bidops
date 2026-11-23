@@ -39,8 +39,8 @@ test("C-1 판정·정정 사유는 그리지 않고 본공고와 품명을 읽�
   await expect(page.getByText("회차 판정은 데이터 연계 역량과의 부합을 확인했어요.", { exact: true })).toHaveCount(0);
   await expect(page.getByText("사람이 기존 수행 범위를 대조했어요.", { exact: true })).toHaveCount(0);
   await expect(page.getByText("연계 범위는 추가 확인이 필요해요.", { exact: true })).toHaveCount(0);
-  await expect(page.locator(".pre-spec-detail-header")).toContainText("본공고 R26BD000001,R26BD000002");
-  await expect(page.locator(".pre-spec-detail-header")).toContainText("정보시스템개발서비스");
+  await expect(page.locator("#ps-summary dt:text-is('본공고') + dd")).toHaveText("R26BD000001,R26BD000002");
+  await expect(page.locator("#ps-summary dt:text-is('품명 분류') + dd")).toHaveText("정보시스템개발서비스");
 });
 
 test("판정 없음과 본공고 미확인을 부재나 임의 번호로 바꾸지 않는다", async ({ page }) => {
@@ -56,9 +56,9 @@ test("판정 없음과 본공고 미확인을 부재나 임의 번호로 바꾸�
   await expect(page.locator("#ps-conditions")).toHaveCount(0);
   await openProcessSection(page);
   await expect(page.locator("#ps-process").getByText("판정 없음 — 추적 후 요청")).toBeVisible();
-  await expect(page.getByText("본공고 미확인", { exact: true })).toBeVisible();
-  await expect(page.locator(".pre-spec-detail-header")).not.toContainText("malformed-number");
-  await expect(page.locator(".pre-spec-detail-header")).not.toContainText("[object Object]");
+  await expect(page.locator("#ps-summary dt:text-is('본공고') + dd")).toHaveText("미확인");
+  await expect(page.locator("#ps-summary")).not.toContainText("malformed-number");
+  await expect(page.locator("#ps-summary")).not.toContainText("[object Object]");
 });
 
 test("첨부 이름은 서버가 실제 파일명을 알 때만 그 이름으로 보이고, 모르면 목록 값 그대로다", async ({ page }) => {
@@ -168,12 +168,22 @@ test("승계 사유와 담당자를 읽되 조회 오류는 미확인으로 남�
 // 순회는 상단바 액션 슬롯이 가지며, 등급 라벨은 없다. 값이 없으면 회사 관련성 참고 구역은 그리지 않는다.
 test("상세 본문이 시안 순서대로 있고 순회는 상단바가 가지며 등급은 없고 추적 결정은 하단 띠에만 있다", async ({ page }) => {
   await mockApi(page);
-  await page.goto("/pre-specs/991");
+  const reviewId = "11111111-1111-4111-8111-111111111111";
+  await page.addInitScript(({ key, snapshot }) => {
+    sessionStorage.setItem(key, JSON.stringify(snapshot));
+  }, {
+    key: `bidops.pre-specs.review.v1.${reviewId}`,
+    snapshot: {
+      version: 1, reviewId, orderedNoticeIds: [991, 992], listSearch: "",
+      filterFingerprint: "prespec-briefing-layout", selectionGeneration: 1, entryNoticeId: 991,
+    },
+  });
+  await page.goto(`/pre-specs/991?selection_review=${reviewId}`);
   await expect(page.locator("#ps-process")).toBeVisible();
 
-  const cards = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".ps-record > [id]")].map(element => element.id));
+  const cards = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".ps-record .workbench-record-main > section[id]")].map(element => element.id));
   // 값이 없는 건은 `회사 관련성 참고` 구역을 그리지 않는다(판정·회사 적합성·예비 판단 근거 모두 없음).
-  expect(cards).toEqual(["ps-summary", "ps-tasks", "ps-evidence", "ps-process"]);
+  expect(cards).toEqual(["ps-tasks", "ps-evidence", "ps-process"]);
   expect(await page.locator("#ps-tasks h2").innerText()).toContain("사업 개요와 주요 과업");
   expect(await page.locator("#ps-evidence h2").innerText()).toContain("원문·첨부");
   expect(await page.locator("#ps-process h2").innerText()).toContain("처리 상태·기술 정보");
@@ -185,8 +195,9 @@ test("상세 본문이 시안 순서대로 있고 순회는 상단바가 가지�
   const navigation = page.getByRole("navigation", { name: "사전규격 선택 순회" });
   await expect(page.locator("header.topbar").getByRole("navigation", { name: "사전규격 선택 순회" })).toHaveCount(1);
   await expect(page.locator(".ps-record").getByRole("navigation", { name: "사전규격 선택 순회" })).toHaveCount(0);
-  await expect(navigation.getByRole("button", { name: "이전 선택 사전규격" })).toBeVisible();
-  await expect(navigation.getByRole("button", { name: "다음 선택 사전규격" })).toBeVisible();
+  await expect(navigation.getByText("1 / 2", { exact: true })).toBeVisible();
+  await expect(navigation.getByRole("button", { name: "이전 선택 사전규격" })).toBeDisabled();
+  await expect(navigation.getByRole("button", { name: "다음 선택 사전규격" })).toBeEnabled();
 
   // 2026-11-19: 등급 라벨은 사전규격 상세 어디에도 없다(C-1 미가동, 사전규격 단계 수정안 §3 B).
   const gradeTexts = await page.evaluate(() => {
@@ -198,9 +209,11 @@ test("상세 본문이 시안 순서대로 있고 순회는 상단바가 가지�
   });
   expect(gradeTexts).toEqual([]);
   await expect(page.locator(".pre-spec-detail-grade-row")).toHaveCount(0);
-  // 현재 추적 상태 글자는 화면에 한 번만 나온다 — 하단 띠가 그 자리다.
-  await expect(page.getByText("현재 추적 상태", { exact: false })).toHaveCount(1);
-  await expect(page.locator("#page-footer").getByText("현재 추적 상태", { exact: false })).toHaveCount(1);
+  // 991의 종료 결정은 발주계획에서 승계한 것이며 현재 추적 상태는 하단 띠에 한 번만 표시한다.
+  const trackingStatus = page.getByText(/^현재 추적 상태/);
+  await expect(trackingStatus).toHaveCount(1);
+  await expect(page.locator("#page-footer .ps-decision-bar")
+    .getByText("현재 추적 상태 종료 · 발주계획에서 승계", { exact: true })).toBeVisible();
 });
 
 // 값이 있으면(RL 판정 요약) `회사 관련성 참고`가 개요 바로 다음, 원문·첨부 앞에 온다.
@@ -210,8 +223,8 @@ test("회사 관련성 참고는 값이 있을 때만 개요 다음 구역으로
   await page.route("**/api/opportunities/202/verdict", (route) => route.fulfill({ json: view }));
   await page.goto("/pre-specs/991");
   await expect(page.locator("#ps-conditions")).toBeVisible();
-  const cards = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".ps-record > [id]")].map(element => element.id));
-  expect(cards).toEqual(["ps-summary", "ps-tasks", "ps-conditions", "ps-evidence", "ps-process"]);
+  const cards = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".ps-record .workbench-record-main > section[id]")].map(element => element.id));
+  expect(cards).toEqual(["ps-tasks", "ps-conditions", "ps-evidence", "ps-process"]);
   expect(await page.locator("#ps-conditions h2").innerText()).toContain("회사 관련성 참고");
 });
 

@@ -1,11 +1,16 @@
+import { AdminListHeader, AdminRecordTable } from "../components/common/AdminRecordTable";
+import type { RecordTableState } from "../components/common/RecordTable";
+import { DecisionBar, DetailTabs, ReviewFilterSegmentedControl, ReviewPreviewHeader, SplitWorkspace } from "../components/common/ReviewPrimitives";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
+import { Tab } from "@astryxdesign/core/TabList";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { Pause, Play, Search, SlidersHorizontal } from "lucide-react";
-import { Badge } from "../components/common/Badge";
+import { StatusMark } from "../components/common/Marks";
+import { NoticeGradeMark } from "../components/notice/NoticeMarks";
 import { ExecutionLog } from "../components/runs/ExecutionLog";
 import { FailurePanel, TelemetrySummary } from "../components/runs/FailurePanel";
 import { JudgmentStartDialog, JudgmentStopDialog } from "../components/runs/JudgmentDialogs";
@@ -15,13 +20,10 @@ import { PipelineStageTrack } from "../components/runs/PipelineStages";
 import {
   Caption,
   DataTable,
-  DetailFooter,
   DetailHeader,
   Facts,
-  ListRecord,
   Note,
   Section,
-  StatusToken,
 } from "../components/runs/RunStatusPrimitives";
 import { ScreeningRunPanel, screeningStatusLabel } from "../components/runs/ScreeningRunPanel";
 import {
@@ -31,11 +33,12 @@ import {
   useRecentScreeningExecutions,
   validationMetricBasisLabel,
   validationMetricStatusLabel,
+  validationMetricTone,
+  executionStatusTone,
   validationMetricValueLabel,
 } from "../components/runs/runStatusData";
 import { api } from "../lib/api";
 import { formatDateTime, formatNumber, formatRunRange, present, runStatusLabel } from "../lib/format";
-import { gradeVariant } from "../lib/grade";
 import type {
   CompanyProfileSnapshotResponse,
   PolicyVersionResponse,
@@ -171,8 +174,9 @@ function useScreeningExecutionPoll(executionId: string | null) {
   return { data, error, loading };
 }
 
-export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: string }) {
+export function RunsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { key: locationKey } = useLocation();
   const queryClient = useQueryClient();
 
   const runsQuery = useQuery({ queryKey: ["runs"], queryFn: api.getRuns, staleTime: 5_000 });
@@ -185,6 +189,7 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
    * 실행을 고른다 — 조용히 다른 회차의 실행을 보여주지 않는다.
    */
   const orderPlanExecutionId = searchParams.get("execution")?.trim() || null;
+  const requestedOrderPlanView = searchParams.get("view") === "order-plan-screening";
 
   const detailQuery = useQuery({
     queryKey: ["run", selectedRunId],
@@ -407,23 +412,20 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
   }, [selectedRunId]);
 
   /**
-   * 실무 화면에서 실행 하나를 가리켜 들어온 진입(`/runs?run=…&execution=…`,
-   * 명세 §4)은 `발주계획 선별` 탭에서 시작한다. 발주계획 화면의 문제 칩이 보내는
-   * 주소이고, `진행 현황`에서 시작하면 사람이 탭을 한 번 더 찾아야 한다.
+   * 해당 회차의 선별 보기 또는 실행을 가리키는 링크는 발주계획 선별 탭에서 시작한다.
    *
    * 회차 종류는 회차 상세를 받은 뒤에야 알 수 있으므로 초기 상태가 아니라 효과에서
-   * 한 번만 옮긴다. 회차마다 한 번이며(`orderPlanTabOpenedFor`), 사람이 다른 탭으로
-   * 옮긴 뒤에는 다시 끌어오지 않는다. 회차를 바꾸면 주소의 `execution`도 지워진다
-   * (`selectRun`).
+   * 한 번만 옮긴다. 직접 누른 링크는 탐색마다, 실행을 고른 주소는 회차마다 한 번이다.
    */
   useEffect(() => {
-    if (!orderPlanExecutionId || !selectedRunId) return;
+    if ((!orderPlanExecutionId && !requestedOrderPlanView) || !selectedRunId || selectedRunId !== queryRunId) return;
     const kind = detailQuery.data?.kind;
     if (!kind || !hasOrderPlans(kind)) return;
-    if (orderPlanTabOpenedFor.current === selectedRunId) return;
-    orderPlanTabOpenedFor.current = selectedRunId;
+    const entry = requestedOrderPlanView ? locationKey : selectedRunId;
+    if (orderPlanTabOpenedFor.current === entry) return;
+    orderPlanTabOpenedFor.current = entry;
     setDetailTab("order_plan_screening");
-  }, [detailQuery.data, orderPlanExecutionId, selectedRunId]);
+  }, [detailQuery.data, locationKey, orderPlanExecutionId, queryRunId, requestedOrderPlanView, selectedRunId]);
 
   useEffect(() => {
     const execution = logsQuery.data?.executions.find((item) => item.execution_id === activeExecutionId);
@@ -445,6 +447,7 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
       next.set("run", runId);
       // 고른 C-2 실행은 회차에 묶인다. 회차를 바꾸면 주소에서도 지운다.
       next.delete("execution");
+      next.delete("view");
       return next;
     }, { replace: true });
   };
@@ -659,19 +662,63 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
     && currentStatus !== "중지 요청"
     && !screeningStopBusy;
 
+  const screeningState = {
+    label: detail?.kind === "order_plans" ? "발주계획 선별" : currentScreeningExecution
+      ? screeningStatusLabel(currentStatus)
+      : screeningListReady ? "판정 실행 없음" : "판정 실행 미확인",
+    tone: executionStatusTone(detail?.kind === "order_plans" ? null : currentStatus),
+  };
+
+  function listExecutionSummary(run: RunSummary): string {
+    if (run.kind === "order_plans") return "선별 결과는 발주계획 선별 탭에서 확인";
+    const execution = executionByRun.get(run.run_id);
+    return `공고 판정 실행 ${executionScopeKnown ? (execution ? screeningStatusLabel(execution.status) : "조회 범위 안 기록 없음") : "미확인"}`;
+  }
+
   const listFooter = `받은 회차 ${runs.length.toLocaleString("ko-KR")}건 · 표시 ${visibleRuns.length.toLocaleString("ko-KR")}건`
     + (executionScopeKnown
       ? ` · 판정 실행 상태는 최근 ${(recentExecutionsQuery.data?.items.length ?? 0).toLocaleString("ko-KR")}건 조회 범위 기준이며 범위 밖은 미확인이에요`
       : " · 판정 실행 상태는 미확인이에요");
 
+  let listState: RecordTableState | undefined;
+  if (runsQuery.isPending) {
+    listState = { kind: "loading", label: "실행 회차를 불러오는 중이에요.", showLabel: true };
+  } else if (runsQuery.error) {
+    listState = { kind: "error", message: {
+      title: "실행 회차를 불러오지 못했어요.",
+      description: "조회 실패는 회차 0건이 아니에요.",
+      action: { label: "다시 시도", onClick: () => { void runsQuery.refetch(); } },
+    } };
+  } else if (runs.length === 0) {
+    listState = { kind: "empty", message: {
+      title: "적재된 실행 회차가 없어요.",
+      description: "회차가 적재되면 이곳에서 파이프라인과 판정 실행을 확인할 수 있어요.",
+    } };
+  } else if (visibleRuns.length === 0) {
+    listState = { kind: "empty", message: {
+      title: "조건에 맞는 회차가 없어요.",
+      description: "받은 목록 안에 없을 뿐, 전체에 없다는 뜻은 아니에요.",
+      action: { label: "필터 초기화", onClick: () => { setListQuery(""); setListFilter("all"); } },
+    } };
+  }
   return (
-    <div className="rs-workspace" id={panelId} role="tabpanel" aria-label="수집 실행">
-      <section className="rs-list-pane" aria-label="실행 회차 목록">
-        <header className="rs-list-head">
-          <Text className="rs-list-title" as="p">실행 회차 목록</Text>
-          <Caption as="span">{runsQuery.isError ? "미확인" : `${runs.length.toLocaleString("ko-KR")}건`}</Caption>
-        </header>
-        <div className="rs-list-filters">
+    <SplitWorkspace className="workbench-admin-workspace" aria-label="수집 실행">
+      <section className="review-split-list" aria-label="실행 회차 목록">
+        <AdminListHeader
+          title="실행 회차 목록"
+          count={runsQuery.isError ? "미확인" : `${runs.length.toLocaleString("ko-KR")}건`}
+        >
+          <ReviewFilterSegmentedControl
+            label="회차 보기"
+            layout="hug"
+            value={listFilter}
+            onChange={(value) => setListFilter(value as ListFilter)}
+            options={[
+              { value: "all", label: `전체 ${runs.length}` },
+              { value: "running", label: executionScopeKnown ? `실행 중 ${runningCount}` : "실행 중 미확인" },
+              { value: "issue", label: executionScopeKnown ? `확인 필요 ${attentionCount}` : "확인 필요 미확인" },
+            ]}
+          />
           <TextInput
             label="실행 회차 검색"
             isLabelHidden
@@ -682,74 +729,39 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
             hasClear
             size="sm"
           />
-          <div className="rs-filter-pills">
-            <Button label={`전체 ${runs.length}`} size="sm" aria-pressed={listFilter === "all"} onClick={() => setListFilter("all")} />
-            <Button
-              label={executionScopeKnown ? `실행 중 ${runningCount}` : "실행 중 미확인"}
-              size="sm"
-              aria-pressed={listFilter === "running"}
-              onClick={() => setListFilter("running")}
-            />
-            <Button
-              label={executionScopeKnown ? `확인 필요 ${attentionCount}` : "확인 필요 미확인"}
-              size="sm"
-              aria-pressed={listFilter === "issue"}
-              onClick={() => setListFilter("issue")}
-            />
-          </div>
-        </div>
-        <div className="rs-list-scroll">
-          {runsQuery.isPending ? <div className="rs-list-empty"><Caption>실행 회차를 불러오는 중이에요.</Caption></div> : null}
-          {runsQuery.error ? (
-            <div className="rs-list-empty" role="alert">
-              <Search aria-hidden="true" />
-              <Text as="p">실행 회차를 불러오지 못했어요.</Text>
-              <Caption>조회 실패는 회차 0건이 아니에요.</Caption>
-              <Button label="다시 시도" size="sm" onClick={() => void runsQuery.refetch()} />
-            </div>
-          ) : null}
-          {!runsQuery.isPending && !runsQuery.error && runs.length === 0 ? (
-            <div className="rs-list-empty">
-              <Search aria-hidden="true" />
-              <Text as="p">적재된 실행 회차가 없어요.</Text>
-              <Caption>회차가 적재되면 이곳에서 파이프라인과 판정 실행을 확인할 수 있어요.</Caption>
-            </div>
-          ) : null}
-          {!runsQuery.isPending && runs.length > 0 && visibleRuns.length === 0 ? (
-            <div className="rs-list-empty">
-              <Search aria-hidden="true" />
-              <Text as="p">조건에 맞는 회차가 없어요.</Text>
-              <Caption>받은 목록 안에 없을 뿐, 전체에 없다는 뜻은 아니에요.</Caption>
-              <Button label="필터 초기화" size="sm" onClick={() => { setListQuery(""); setListFilter("all"); }} />
-            </div>
-          ) : null}
-          {visibleRuns.map((run) => {
+        </AdminListHeader>
+        <AdminRecordTable
+          label="실행 회차 목록"
+          identifierWidth={186}
+          selectedId={selectedRunId}
+          onSelect={selectRun}
+          state={listState}
+          rows={visibleRuns.map((run) => {
             const execution = executionByRun.get(run.run_id);
-            return (
-              <ListRecord
-                key={run.run_id}
-                selected={run.run_id === selectedRunId}
-                onSelect={() => selectRun(run.run_id)}
-                item={{
-                  // 시안과 같은 정보 순서: 업무 종류가 제목, 기간이 보조줄이다.
-                  // 종류는 서버가 준 `kind`뿐이며 사업명을 지어내지 않는다.
-                  title: RUN_KIND_LABELS[run.kind] ?? "회차 종류 미확인",
-                  id: run.run_id,
-                  subtitle: formatRunRange(run.run_id, run.window_from, run.window_to),
-                  meta: `${formatDateTime(run.generated_at)} · 수집 ${formatNumber(countFromCollection(run, "total"))} · 회차 ${runStatusLabel(run.status)} · 판정 실행 ${executionScopeKnown ? (execution ? screeningStatusLabel(execution.status) : "조회 범위 안 기록 없음") : "미확인"}`,
-                  status: execution ? screeningStatusLabel(execution.status) : executionScopeKnown ? "판정 실행 없음" : "판정 실행 미확인",
-                  statusDescription: "회차 상태가 아니라 이 회차와 연결된 판정 실행 상태예요.",
-                }}
-              />
-            );
+            const orderPlansOnly = run.kind === "order_plans";
+            return {
+              title: RUN_KIND_LABELS[run.kind] ?? "회차 종류 미확인",
+              id: run.run_id,
+              subtitle: formatRunRange(run.run_id, run.window_from, run.window_to),
+              meta: `${formatDateTime(run.generated_at)} · 수집 ${formatNumber(countFromCollection(run, "total"))} · 회차 ${runStatusLabel(run.status)} · ${listExecutionSummary(run)}`,
+              status: {
+                label: orderPlansOnly ? "발주계획 선별"
+                  : execution ? screeningStatusLabel(execution.status) : executionScopeKnown ? "판정 실행 없음" : "판정 실행 미확인",
+                tone: executionStatusTone(orderPlansOnly ? null : execution?.status),
+              },
+              statusDescription: orderPlansOnly
+                ? "이 회차의 실행 결과는 발주계획 선별 탭에 있어요."
+                : "이 회차에 연결된 공고 판정 실행의 상태예요.",
+            };
           })}
-        </div>
-        <footer className="rs-list-foot">
+        />
+        <footer className="workbench-admin-list-foot">
           <Caption>{listFooter}</Caption>
         </footer>
       </section>
 
-      <section className="rs-detail-pane" aria-label="선택한 실행 회차">
+      <section className="review-split-detail rs-detail-pane" aria-label="선택한 실행 회차">
+        <ReviewPreviewHeader />
         {detailQuery.isError ? (
           <div className="rs-detail-empty" role="alert">
             <Text as="p">회차 상세를 불러오지 못했어요.</Text>
@@ -770,10 +782,10 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
               // 머리의 주 상태는 **지금 고른 판정 실행**의 상태다. 수집 회차가
               // 끝났다는 사실을 초록 완료로 크게 걸어 두면 진행 중인 판정을
               // 끝난 것으로 읽는다(시안도 실행 상태를 건다).
-              status={currentScreeningExecution
-                ? screeningStatusLabel(currentStatus)
-                : screeningListReady ? "판정 실행 없음" : "판정 실행 미확인"}
-              statusDescription="이 회차에 연결된 판정 실행의 상태예요. 수집 회차 자체의 상태와 달라요."
+              status={screeningState}
+              statusDescription={detail.kind === "order_plans"
+                ? "이 회차의 실행 결과는 발주계획 선별 탭에 있어요."
+                : "이 회차에 연결된 공고 판정 실행의 상태예요."}
             >
               <div className="rs-row rs-spread">
                 <Caption as="span">
@@ -783,28 +795,41 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
                 {/* 이 API(ScreeningExecutionResponse·RunSummary)에는 quality_status가
                   * 없다. 측정 통과·참조 실행·mock 참조 중 무엇도 주장하지 않고
                   * 표식이 제공되지 않는다는 사실만 중립으로 적는다. */}
-                <StatusToken
-                  label="품질 표식 미제공"
+                <StatusMark
+                  mark={{ label: "품질 표식 미제공", tone: "neutral" }}
                   description="이 실행 API는 품질 표식을 제공하지 않아 측정 통과·참조 실행·mock 참조 여부를 확인할 수 없어요."
                 />
               </div>
             </DetailHeader>
 
-            <nav className="rs-detail-tabs" aria-label="선택한 회차 상세 보기">
+            <DetailTabs
+              aria-label="선택한 회차 상세 보기"
+              onChange={(value) => setDetailTab(value as DetailTab)}
+              value={detailTab}
+            >
               {detailTabs.map((item) => (
-                <Button
+                <Tab
                   key={item.key}
+                  id={`run-tab-${item.key}`}
                   label={item.key === "failures"
                     ? `${item.label} ${currentScreeningExecution ? currentScreeningExecution.failure_count.toLocaleString("ko-KR") : "미확인"}`
                     : item.label}
-                  size="sm"
-                  aria-pressed={detailTab === item.key}
-                  onClick={() => setDetailTab(item.key)}
+                  panelId={`run-panel-${item.key}`}
+                  value={item.key}
                 />
               ))}
-            </nav>
+            </DetailTabs>
 
-            <div className="rs-detail-scroll">
+            {detailTabs.filter(({ key }) => key !== detailTab).map(({ key }) => (
+              <div key={key} id={`run-panel-${key}`} role="tabpanel" aria-labelledby={`run-tab-${key}`} hidden />
+            ))}
+            <div
+              aria-labelledby={`run-tab-${detailTab}`}
+              className="workbench-admin-detail-scroll rs-detail-scroll"
+              id={`run-panel-${detailTab}`}
+              role="tabpanel"
+              tabIndex={0}
+            >
               {detailTab === "summary" ? (
                 <>
                   <PipelineStageTrack stages={detail.pipeline} counts={selectedSummary.counts} />
@@ -837,6 +862,7 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
                     <Facts
                       items={[
                         ["수집", `${formatNumber(countFromCollection(selectedSummary, "total"))}건`],
+                        ["목록의 실행 기록", listExecutionSummary(selectedSummary)],
                         ["판정 후보", `${formatNumber(countFromCollection(selectedSummary, "candidate_pool"))}건`],
                         ["감사 층", `${formatNumber(countFromCollection(selectedSummary, "audit_pool"))}건`],
                         ["표본", `${formatNumber(selectedSummary.counts.notices)}건`],
@@ -867,7 +893,7 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
                         rows={runStatsQuery.data.grade_distribution.map((item) => ({
                           id: item.key,
                           cells: [
-                            <Badge key="grade" variant={gradeVariant(item.key)} label={item.label || item.key} />,
+                            <NoticeGradeMark key="grade" grade={item.key} label={item.label || item.key} />,
                             // 판정 대기열(`/queue`)로 가는 링크는 2026-11-19에 내렸다 — C-1 공고 판정을
                             // 다시 돌리지 않는다(사전규격 단계 수정안 §3 B). 건수는 그대로 적는다.
                             <span key="count">{formatNumber(item.count)}건</span>,
@@ -929,7 +955,7 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
                               </div>,
                               <div className="rs-cell-stack rs-align-end" key="result">
                                 {value !== status ? <Text weight="semibold">{value}</Text> : null}
-                                <StatusToken label={status} />
+                                <StatusMark mark={{ label: status, tone: validationMetricTone(item.status) }} />
                               </div>,
                             ],
                           };
@@ -1022,66 +1048,71 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
                   onSelectExecution={selectOrderPlanExecution}
                 />
               ) : null}
+              {/* 관련 화면 링크. 이 회차가 실무 화면 어디에 걸리는지로 이어 준다.
+                * 발주계획은 `전체` 보기로 연다(시안 M1 승인) — 기본 보기는 검토 대상만
+                * 남기므로 회차 전체가 0건처럼 보인다. 사전규격도 같은 이유로
+                * `workspace=all&sw_only=false`로 연다. */}
+              {hasOrderPlans(detail.kind) || hasNotices(detail.kind) ? (
+                <div className="rs-detail-links">
+                  {hasOrderPlans(detail.kind) ? (
+                    <Link
+                      className="rs-inline-link"
+                      to={`/order-plans?qwen=&source_run_id=${encodeURIComponent(detail.run_id)}`}
+                    >
+                      이 회차의 발주계획 보기 →
+                    </Link>
+                  ) : null}
+                  {hasNotices(detail.kind) ? (
+                    <Link
+                      className="rs-inline-link"
+                      to={`/pre-specs?workspace=all&sw_only=false&source_run_id=${encodeURIComponent(detail.run_id)}`}
+                    >
+                      이 회차의 사전규격 보기 →
+                    </Link>
+                  ) : null}
+                  <Caption as="span">실무 화면이 `전체` 보기로 이 회차에 걸린 채 열려요.</Caption>
+                </div>
+              ) : null}
             </div>
 
-            {/* 회차 상세 바닥 링크. 이 회차가 실무 화면 어디에 걸리는지로 이어 준다.
-              * 발주계획은 `전체` 보기로 연다(시안 M1 승인) — 기본 보기는 검토 대상만
-              * 남기므로 회차 전체가 0건처럼 보인다. 사전규격도 같은 이유로
-              * `workspace=all&sw_only=false`로 연다. */}
-            {hasOrderPlans(detail.kind) || hasNotices(detail.kind) ? (
-              <div className="rs-detail-links">
-                {hasOrderPlans(detail.kind) ? (
-                  <Link
-                    className="rs-inline-link"
-                    to={`/order-plans?qwen=&source_run_id=${encodeURIComponent(detail.run_id)}`}
-                  >
-                    이 회차의 발주계획 보기 →
-                  </Link>
-                ) : null}
-                {hasNotices(detail.kind) ? (
-                  <Link
-                    className="rs-inline-link"
-                    to={`/pre-specs?workspace=all&sw_only=false&source_run_id=${encodeURIComponent(detail.run_id)}`}
-                  >
-                    이 회차의 사전규격 보기 →
-                  </Link>
-                ) : null}
-                <Caption as="span">실무 화면이 `전체` 보기로 이 회차에 걸린 채 열려요.</Caption>
-              </div>
-            ) : null}
-
-            <DetailFooter
-              /* 바닥 한 줄은 짧게 둔다. 실행 상태는 상세 머리와 진행 현황이,
-                 막힌 이유는 진행 현황의 주석이 말한다. */
-              note={`결과 게시 ${currentScreeningExecution?.published_run_id ? "있음" : "전"}`}
-            >
-              <Button
-                label="파이프라인 실행"
-                size="sm"
-                icon={<SlidersHorizontal aria-hidden="true" />}
-                onClick={() => { setActionError(null); setPipelineDialogOpen(true); }}
-              />
-              {canStop ? (
+            <DecisionBar
+              stateLabel="판정 실행"
+              state={screeningState}
+              note={currentScreeningExecution?.published_run_id ? "게시 완료" : "게시 전"}
+              secondaryActions={(
+                <>
+                  <Button
+                    label="파이프라인 실행"
+                    size="sm"
+                    icon={<SlidersHorizontal aria-hidden="true" />}
+                    onClick={() => { setActionError(null); setPipelineDialogOpen(true); }}
+                  />
+                  {canStop ? (
+                    <Button
+                      label="실행 중단"
+                      size="sm"
+                      icon={<Pause aria-hidden="true" />}
+                      onClick={() => {
+                        setStopTarget(currentScreeningExecution ?? null);
+                        setStopActionError(null);
+                        setStopDialogOpen(true);
+                      }}
+                    />
+                  ) : null}
+                </>
+              )}
+              primaryAction={(
                 <Button
-                  label="실행 중단"
+                  aria-label="전량 판정 대기열에 넣기"
+                  label="전량 판정 등록"
                   size="sm"
-                  icon={<Pause aria-hidden="true" />}
-                  onClick={() => {
-                    setStopTarget(currentScreeningExecution ?? null);
-                    setStopActionError(null);
-                    setStopDialogOpen(true);
-                  }}
+                  variant="primary"
+                  icon={<Play aria-hidden="true" />}
+                  isDisabled={startDisabled}
+                  onClick={() => { setScreeningActionError(null); setStartDialogOpen(true); }}
                 />
-              ) : null}
-              <Button
-                label="전량 판정 대기열에 넣기"
-                size="sm"
-                variant="primary"
-                icon={<Play aria-hidden="true" />}
-                isDisabled={startDisabled}
-                onClick={() => { setScreeningActionError(null); setStartDialogOpen(true); }}
-              />
-            </DetailFooter>
+              )}
+            />
           </>
         ) : null}
       </section>
@@ -1139,6 +1170,6 @@ export function RunsPage({ panelId = "run-status-panel-runs" }: { panelId?: stri
           />
         </>
       ) : null}
-    </div>
+    </SplitWorkspace>
   );
 }

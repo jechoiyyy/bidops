@@ -6,29 +6,32 @@ import { Button } from "@astryxdesign/core/Button";
 import { DialogHeader } from "@astryxdesign/core/Dialog";
 import { Dialog } from "../components/common/WorkspaceDialog";
 import { Heading } from "@astryxdesign/core/Heading";
+import { Tab } from "@astryxdesign/core/TabList";
 import { Selector } from "@astryxdesign/core/Selector";
-import { Table, pixel, proportional } from "@astryxdesign/core/Table";
 import { Text } from "@astryxdesign/core/Text";
-import { Token } from "@astryxdesign/core/Token";
 import {
   Activity,
   ArrowRight,
   Check,
   ChevronRight,
+  ClipboardList,
   Clock,
+  Files,
+  History,
   RefreshCw,
 } from "lucide-react";
-import { EmptyState } from "../components/common/EmptyState";
+import { DeadlineText, StatusMark } from "../components/common/Marks";
+import { RecordTable, type RecordTableColumn } from "../components/common/RecordTable";
 import { PageHeaderTabs } from "../components/common/PageHeaderActions";
-import { usePageHeader } from "../components/shell/PageHeaderContext";
 
 import {
   AgencyFeature,
+  DecisionBar,
+  DetailTabs,
   ListPagerControls,
   SplitWorkspace,
   StickyDecisionHeader,
 } from "../components/common/ReviewPrimitives";
-import { SkeletonPanel } from "../components/common/Skeleton";
 import { TechnicalFacts, TechnicalInfo } from "../components/common/TechnicalInfo";
 import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
 import {
@@ -41,10 +44,13 @@ import {
   WorkspaceViewTabs,
   formatCount,
 } from "../components/common/WorkspaceFilters";
-import { getBidDelta, getBidDeltaComparison } from "../components/bid-delta/api";
+import { BidConditionOverview } from "../components/bid-delta/BidConditionsSection";
+import { getBidConditions, getBidDelta, getBidDeltaComparison } from "../components/bid-delta/api";
 import {
   BASIS_LABELS,
   CATEGORY_LABELS,
+  DECISION_NOTICE_CHECK_LABELS,
+  DECISION_REVIEW_LABELS,
   countDeltaItems,
   decisionRelevantItems,
   defaultComparison,
@@ -62,7 +68,7 @@ import type {
 } from "../components/bid-delta/types";
 import { api } from "../lib/api";
 import { describeDeadlineCountdown, shortDateLabel, type DeadlineUrgency } from "../lib/deadline";
-import { formatPrice } from "../lib/format";
+import { formatListPrice, formatPrice } from "../lib/format";
 import { searchKey, searchMatches } from "../lib/search";
 import { apiErrorRecoveryAction, describeApiError } from "../lib/apiErrors";
 import type { BidDeltaDecisionQueueItem } from "../lib/types";
@@ -86,22 +92,23 @@ import "../styles/go-no-go.css";
 // workspace를 조회하지 않는다. 선택한 사업 하나의 비교·결정 상세만 따로 받는다.
 
 /** 시안의 네 보기. `review`가 기본이고 URL의 `show`와 동기화한다. */
-type DecisionView = "review" | "recheck" | "decided" | "all";
+type DecisionView = "review" | "recheck" | "notice_check" | "decided" | "all";
 
 const VIEWS: Array<{ key: DecisionView; label: string }> = [
   { key: "review", label: "검토 대상" },
   { key: "recheck", label: "재검토" },
+  { key: "notice_check", label: "공고 확인 필요" },
   { key: "decided", label: "결정 기록" },
   { key: "all", label: "전체" },
 ];
 
 type DetailTab = "summary" | "documents" | "decision";
 
-const DETAIL_TABS: Array<{ key: DetailTab; label: string }> = [
-  { key: "summary", label: "검토 요약" },
-  { key: "documents", label: "비교 문서" },
-  { key: "decision", label: "결정 기록" },
-];
+const DETAIL_TABS = [
+  { key: "summary", label: "검토 요약", icon: ClipboardList },
+  { key: "documents", label: "비교 문서", icon: Files },
+  { key: "decision", label: "결정 기록", icon: History },
+] as const;
 
 // 결정 대기열이 한 번에 줄 수 있는 최대 건수(서버 `limit` 상한 500). 계속 추적 중인
 // 사업은 대개 이보다 적어 보기 건수가 전체 기준이 된다. 넘치면 받은 범위 기준이라고
@@ -127,32 +134,19 @@ function opportunityAgency(item: BidDeltaDecisionQueueItem): string {
   return item.agency?.trim() || "발주기관 미확인";
 }
 
-/** 발주기관 줄 끝의 추정가격 한 마디(M5 ④, spec §6.3). 대기열의 `estimated_price`는
- *  반올림 없는 Decimal 문자열이라 표시 직전에만 숫자로 바꾼다(§3.10).
- *  `formatPrice`의 null 표기(`추정가격 미제공`)는 이미 "추정가격" 단어를
- *  포함하므로, 이 줄이 앞에 붙이는 라벨과 겹치지 않게 값이 있을 때만 부른다. */
-function estimatedPriceText(item: BidDeltaDecisionQueueItem): string {
-  return item.estimated_price === null ? "미제공" : formatPrice(Number(item.estimated_price));
-}
-
-/**
- * 입찰 마감 셀(M5 ④, spec §6.3). `describeDeadline`(`lib/deadline.ts`)이 이미
- * 계산한 긴급도·지남 판정을 그대로 쓴다. `describeDeadline`은 목록 두 줄 표시용
- * 이라 7일을 넘으면 D-n 없이 날짜만 주지만, 이 대기열 열은 항상 `D-n · MM-DD`를
- * 적으므로 그 구간의 n은 같은 계산식으로 여기서 마저 구한다 — 새 마감 판정
- * 규칙을 만드는 것이 아니라 이미 쓰는 계산을 한 줄 표기에 맞춰 펼치는 것이다.
- * `null`은 서버가 값을 안 준 것이므로(spec §1.1) `describeDeadline`의
- * `마감 미확인`이 아니라 `마감 미제공`으로 적는다.
- */
-function deadlineCellLabel(value: string | null): { text: string; urgency: DeadlineUrgency } {
+/** 입찰 마감 셀은 전체 날짜 대신 남은 일수와 짧은 날짜를 함께 표시한다. */
+function deadlineCellLabel(value: string | null): { text: string; urgency: DeadlineUrgency; dateNote?: string } {
   const deadline = describeDeadlineCountdown(value);
   if (!value || !deadline) return { text: "마감 미제공", urgency: "none" };
   if (deadline.urgency === "passed") return { text: `마감 지남 · ${shortDateLabel(value)}`, urgency: "passed" };
   const shortDate = shortDateLabel(value);
+  if (shortDate && deadline.label.startsWith("오늘 ")) {
+    return { text: deadline.label, urgency: deadline.urgency, dateNote: shortDate };
+  }
   return { text: shortDate ? `${deadline.label} · ${shortDate}` : deadline.label, urgency: deadline.urgency };
 }
 
-interface DecisionRow extends Record<string, unknown> {
+interface DecisionRow {
   item: BidDeltaDecisionQueueItem;
   id: number;
 }
@@ -172,14 +166,16 @@ function hasDecisionRecord(row: DecisionRow): boolean {
 function matchesView(row: DecisionRow, view: DecisionView): boolean {
   if (view === "all") return true;
   if (view === "review") return isReviewTarget(row);
-  if (view === "recheck") return isRecheckTarget(row);
+  if (view === "notice_check") return row.item.review_state === "notice_check";
+  if (view === "recheck") return row.item.review_state ? row.item.review_state === "recheck" : isRecheckTarget(row);
   return hasDecisionRecord(row);
 }
 
 /** 사람 결정 한 줄. 서버 대기열이 준 마지막 결정과 현재성만 옮긴다. */
 function decisionStateLabel(item: BidDeltaDecisionQueueItem): string {
   const decision = item.latest_final_decision;
-  if (!decision) return "미결정";
+  if (item.review_state === "notice_check") return DECISION_REVIEW_LABELS.notice_check;
+  if (!decision) return item.review_state ? DECISION_REVIEW_LABELS[item.review_state] : "미결정";
   const value = decision.decision === "go" ? "Go" : "No-Go";
   if (item.decision_currentness === "stale") return `${value} · 재검토`;
   if (item.decision_currentness === "unknown") return `${value} · 효력 미확인`;
@@ -189,6 +185,10 @@ function decisionStateLabel(item: BidDeltaDecisionQueueItem): string {
 function decisionSubLabel(item: BidDeltaDecisionQueueItem): string {
   // 결정이 없으면 현재성은 말할 것이 없다. 기록 없음에 `현재성 미확인`을 덧붙이면
   // 없는 결정이 확인 대기 중인 것처럼 읽힌다.
+  if (item.review_state === "notice_check") {
+    const previous = item.latest_final_decision;
+    return previous ? `이전 ${previous.decision === "go" ? "Go" : "No-Go"}` : "기록 없음";
+  }
   if (!item.latest_final_decision) return item.bid_notice_external_id ? "기록 없음" : "입찰공고 미연결";
   if (item.decision_currentness === "stale") return "재검토 필요";
   if (item.decision_currentness === "unknown") return "현재성 미확인";
@@ -249,31 +249,31 @@ export function GoNoGoPage() {
   const listRef = useRef<HTMLDivElement>(null);
   const boundaryLandingRef = useRef<{ offset: number; direction: "next" | "previous" } | null>(null);
 
-  // 최종 Go/No-Go까지 가는 것은 계속 추적하기로 한 사업기회다. 서버의 결정 대기열
-  // `status=all`이 그 모집단(계속 추적)을 준다. 보기 탭은 받은 행의 결정 필드로 나눈다.
+  const status = view === "review" ? "pending" : view;
+  const trimmedQuery = searchKey(query);
+  const invalidQuery = Array.from(trimmedQuery).length > 100;
   const queueQuery = useQuery({
-    queryKey: ["bid-delta-decision-queue", "all", offset],
-    queryFn: ({ signal }) => api.getBidDeltaDecisionQueue({ status: "all", limit: PAGE_SIZE, offset }, { signal }),
+    queryKey: ["bid-delta-decision-queue", status, trimmedQuery, offset],
+    queryFn: ({ signal }) => api.getBidDeltaDecisionQueue({ status, q: trimmedQuery, limit: PAGE_SIZE, offset }, { signal }),
+    enabled: !invalidQuery,
     staleTime: 30_000,
   });
   const queueItems = queueQuery.data?.items ?? [];
   const total = queueQuery.data?.total ?? queueItems.length;
-  // 패널 헤더(최종 시안 패턴). 숫자는 이미 받은 대기열 total 그대로다.
-  usePageHeader(queueQuery.isSuccess ? {
-    eyebrow: "최종 Go/No-Go",
-    title: total > 0 ? `최종 결정을 볼 사업이 ${total.toLocaleString("ko-KR")}건 있어요` : "최종 결정을 볼 사업이 없어요",
-  } : null);
-  // 받은 범위가 전체인지. 넘치면 보기 건수와 검색은 받은 범위 기준이라고 밝힌다.
+  const viewCounts = queueQuery.data?.view_counts;
   const receivedAll = offset === 0 && queueItems.length >= total;
   const returnSearch = searchParams.toString();
-
   const rows: DecisionRow[] = queueItems.map((item) => ({ id: item.opportunity_id, item }));
-
-  const trimmedQuery = searchKey(query);
-  const scope = trimmedQuery
+  const scope = !viewCounts && trimmedQuery
     ? rows.filter((row) => searchMatches(query, row.item.title, row.item.agency))
     : rows;
-  const visibleRows = scope.filter((row) => matchesView(row, view));
+  const visibleRows = viewCounts ? rows : scope.filter((row) => matchesView(row, view));
+  const overallTotal = viewCounts?.all ?? total;
+  const pagerDescription = viewCounts
+    ? (total !== overallTotal ? `현재 보기 ${formatCount(total)}건` : undefined)
+    : receivedAll
+      ? (visibleRows.length !== total ? `현재 보기 ${formatCount(visibleRows.length)}건` : undefined)
+      : `받은 ${formatCount(rows.length)}건 중 ${formatCount(visibleRows.length)}건을 표시해요.`;
 
   const selectedRow = visibleRows.find((row) => row.id === selectedParam) ?? visibleRows[0];
 
@@ -305,6 +305,13 @@ export function GoNoGoPage() {
   const relevantItems = comparisonView ? decisionRelevantItems(comparisonView.items) : [];
   const latestDecision = selectedWorkspace?.latest_final_decision ?? null;
   const selectedItem = selectedRow?.item ?? null;
+  const conditions = useQuery({
+    queryKey: ["bid-conditions", selectedRow?.id ?? 0],
+    queryFn: () => getBidConditions(selectedRow!.id),
+    enabled: Boolean(selectedRow && (selectedItem?.bid_notice_external_id
+      || selectedItem?.notice_check_reason === "ordering_unknown")),
+    staleTime: 30_000,
+  });
   const currentness = selectedItem?.decision_currentness ?? "unknown";
   // 결정 화면의 근거 규칙 그대로다: 완료된 비교(분석 실패 아님)가 있으면 그 결과로,
   // 없으면 연결된 최신 입찰공고의 조건으로 기록한다. 여기서 저장하지 않는다.
@@ -334,7 +341,7 @@ export function GoNoGoPage() {
 
   function setView(next: DecisionView) {
     // 보는 범위가 달라진다. 옛 선택을 그대로 두면 목록에 없는 행의 상세가 남는다.
-    patchParams({ show: next === "review" ? null : next, selected: null, comparison: null });
+    patchParams({ show: next === "review" ? null : next, offset: null, selected: null, comparison: null });
     setTab("summary");
   }
 
@@ -354,7 +361,7 @@ export function GoNoGoPage() {
   }
 
   /**
-   * ↑↓ 목록 이동. 리스너는 표의 스크롤 영역이 지고 `rowProps`는 첫 열 버튼이 받는다
+   * ↑↓ 목록 이동. 리스너는 표의 스크롤 영역이 지고 `rowProps`는 행이 받는다
    * (발주계획·사전규격·사업 추적과 같은 hook).
    *
    * 이 화면은 저장하는 자리가 없어 이탈 확인이 없다. 경계에서는 대기열 페이지를 넘기고,
@@ -403,57 +410,65 @@ export function GoNoGoPage() {
     ? describeApiError(queueQuery.error, "최종 결정 대기열을 확인할 수 없어요.")
     : null;
 
-  const columns = [
+  const columns: RecordTableColumn<DecisionRow>[] = [
     {
       key: "business",
-      header: "사업명 / 발주기관",
-      width: proportional(1),
-      renderCell: (row: DecisionRow) => (
-        <button
-          type="button"
-          className="gng-row"
-          aria-pressed={selectedRow?.id === row.id}
-          onClick={() => selectRow(row.id)}
-          {...rowNavigation.rowProps(row.id)}
-        >
-          <Text className="gng-row-title" as="span">{opportunityTitle(row.item)}</Text>
-          <Text className="gng-row-agency" as="span">
-            {opportunityAgency(row.item)} · 추정가격 {estimatedPriceText(row.item)}
-          </Text>
-          <Text className="gng-caption" type="supporting" color="secondary" as="span">
-            {comparisonCountLabel(row.item)} · 사업기회 {row.id}
-          </Text>
-        </button>
+      header: "사업명",
+      title: (row) => opportunityTitle(row.item),
+      titleClassName: "gng-row-title",
+      renderBelow: (row) => (
+        <p className="record-table-note">{comparisonCountLabel(row.item)} · 사업기회 {row.id}</p>
       ),
     },
     {
-      key: "deadline",
-      header: "입찰 마감",
-      // "마감 지남 · 09.20"(12px 본문 글꼴, tabular-nums) 약 85px + 좌우 12px.
-      // 104px·mono 글꼴에서는 날짜가 잘렸다(2026-11-18).
-      width: pixel(112),
-      renderCell: (row: DecisionRow) => {
-        const deadline = deadlineCellLabel(row.item.deadline_at);
-        return (
-          <Text
-            className={`gng-deadline-cell tabular-nums${deadline.urgency === "critical" ? " gng-deadline-critical" : ""}`}
-            as="span"
-          >
-            {deadline.text}
-          </Text>
-        );
+      key: "agency",
+      header: "발주기관",
+      width: 64,
+      grow: true,
+      ellipsis: true,
+      className: "gng-row-agency",
+      renderCell: (row) => opportunityAgency(row.item),
+    },
+    {
+      key: "estimatedPrice",
+      header: "추정가격",
+      width: 108,
+      numeric: true,
+      className: "gng-row-price",
+      renderCell: ({ item }) => {
+        if (item.estimated_price === null) return formatPrice(null);
+        const price = formatListPrice(Number(item.estimated_price));
+        return <span title={price.exact}>{price.label}</span>;
       },
     },
     {
       key: "decision",
       header: "사람 결정",
-      width: pixel(112),
-      renderCell: (row: DecisionRow) => (
+      width: 114,
+      renderCell: ({ item }) => (
         <div className="gng-decision-cell">
-          <Text className="gng-decision-state" as="span">{decisionStateLabel(row.item)}</Text>
-          <Text className="gng-caption" type="supporting" color="secondary" as="span">{decisionSubLabel(row.item)}</Text>
+          <StatusMark mark={{
+            label: decisionStateLabel(item),
+            tone: item.review_state === "notice_check" || item.decision_currentness === "stale" ? "warning" : "neutral",
+          }} />
+          <span className="record-table-note">{decisionSubLabel(item)}</span>
         </div>
       ),
+    },
+    {
+      key: "deadline",
+      header: "입찰 마감",
+      width: 117,
+      className: "gng-deadline-cell",
+      renderCell: ({ item }) => {
+        const deadline = deadlineCellLabel(item.deadline_at);
+        return (
+          <>
+            <DeadlineText text={deadline.text} urgency={deadline.urgency} />
+            {deadline.dateNote ? <span className="record-table-note record-table-subline"> · {deadline.dateNote}</span> : null}
+          </>
+        );
+      },
     },
   ];
 
@@ -470,7 +485,7 @@ export function GoNoGoPage() {
       {/* 비교가 만들어지지 않는 **이유**(계산 프로그램 미구현)는 `목록 기준`
           다이얼로그 한 곳에서만 말한다(ADR-0066 §3.3). 여기 남는 것은 상태 표식과
           "비교 없음 ≠ 변경 없음"이라는 경고 ④다. */}
-      {workspaceLoaded && !activeComparison ? <Token size="sm" label="비교 불가" /> : null}
+      {workspaceLoaded && !activeComparison ? <StatusMark mark={{ label: "비교 불가", tone: "neutral" }} /> : null}
       <Text as="p">
         {!workspaceLoaded
           ? "조회가 끝나기 전에는 변경 없음으로 표시하지 않아요. 사람 결정은 목록의 대기열 값 그대로예요."
@@ -497,9 +512,11 @@ export function GoNoGoPage() {
     ? null
     : comparisonBasisReady
       ? { label: "변경 검토·결정 열기", note: null }
-      : selectedItem.bid_notice_external_id
-        ? { label: "공고 조건 검토·결정 열기", note: null }
-        : { label: "결정 화면 열기", note: "연결된 입찰공고가 없어 최종 결정을 기록할 수 없어요. 결정 화면에서 공고 연결 상태를 확인해요." };
+      : selectedItem.review_state === "notice_check"
+        ? { label: "공고 확인 열기", note: selectedItem.notice_check_reason ? DECISION_NOTICE_CHECK_LABELS[selectedItem.notice_check_reason] : null }
+        : selectedItem.bid_notice_external_id
+          ? { label: "공고 조건 검토·결정 열기", note: null }
+          : { label: "공고 연결 확인", note: "연결된 입찰공고가 없어 최종 결정을 기록할 수 없어요." };
 
   return (
     <section aria-labelledby="go-no-go-title" className="gng-page" data-astryx-theme="bidops">
@@ -522,7 +539,8 @@ export function GoNoGoPage() {
               tabs={VIEWS.map((item) => ({
                 key: item.key,
                 label: item.label,
-                count: scope.filter((row) => matchesView(row, item.key)).length,
+                count: viewCounts?.[item.key === "review" ? "pending" : item.key]
+                  ?? (queueQuery.isSuccess ? scope.filter((row) => matchesView(row, item.key)).length : undefined),
               }))}
               value={view}
             />
@@ -530,6 +548,7 @@ export function GoNoGoPage() {
           <WorkspaceFilterTools className="gng-filter-tools">
             <WorkspaceSearch
               appliedValue={query}
+              errorMessage={invalidQuery ? "검색어는 공백 제외 100자 이하여야 해요." : null}
               label="사업명·발주기관 검색"
               onChange={setDraft}
               onClear={() => applySearch("")}
@@ -537,10 +556,9 @@ export function GoNoGoPage() {
               value={draft}
             />
           </WorkspaceFilterTools>
-          {queueQuery.isSuccess && !receivedAll ? (
+          {queueQuery.isSuccess && !receivedAll && !viewCounts && trimmedQuery ? (
             <WorkspaceFilterContext className="gng-filter-context">
-              받은 {formatCount(rows.length)}건 기준 · 전체 {formatCount(total)}건
-              {trimmedQuery ? " · 검색은 받은 범위 안에서만 좁혀요" : ""}
+              검색은 받은 범위 안에서만 좁혀요
             </WorkspaceFilterContext>
           ) : null}
         </WorkspaceFilterBar>
@@ -553,100 +571,88 @@ export function GoNoGoPage() {
         <SplitWorkspace
           aria-label="최종 결정 목록과 상세"
           className="gng-workspace"
-        >
-          <section className="review-split-list gng-list-pane" aria-label="최종 결정 검토 목록">
+          listClassName="gng-list-pane"
+          listLabel="최종 결정 검토 목록"
+          listHeader={(
             <header className="review-list-head gng-list-head">
               {/* 대기열을 못 읽었으면 건수는 0이 아니라 확인 불가다. 조회 중도 0건이 아니다. */}
               <Text className="gng-list-title" as="p">최종 결정 목록 · {queueQuery.isError
                 ? "건수 확인 불가"
                 : queueQuery.isPending
                   ? "불러오는 중"
-                  : `${formatCount(visibleRows.length)}건`}</Text>
+                  : `${formatCount(viewCounts ? total : visibleRows.length)}건`}</Text>
               <Text className="gng-caption" type="supporting" color="secondary" as="p">사람 결정 기준</Text>
             </header>
-            <div
+          )}
+          list={(
+            <RecordTable
+              activeKey={selectedRow?.id ?? null}
               className="gng-table-scroll"
-              onKeyDown={rowNavigation.onKeyDown}
-              onPointerDownCapture={rowNavigation.onPointerDownCapture}
-              ref={listRef}
-            >
-              {queueQuery.isPending ? (
-                <SkeletonPanel label="최종 결정 대기열을 불러오는 중" lines={5} />
-              ) : queueQuery.isError ? (
-                <div className="gng-list-empty">
-                  <EmptyState
-                    compact
-                    tone="error"
-                    title="최종 결정 대기열을 불러오지 못했어요"
-                    description="조회 실패를 결정 대기 없음으로 해석하지 않아요."
-                    problem={queueProblem ?? undefined}
-                    action={queueProblem
-                      ? apiErrorRecoveryAction(queueProblem, () => { void queueQuery.refetch(); })
-                      : undefined}
-                  />
-                </div>
-              ) : visibleRows.length > 0 ? (
-                <Table
-                  data={visibleRows}
-                  columns={columns}
-                  idKey="id"
-                  density="compact"
-                  dividers="rows"
-                  hasHover
-                  verticalAlign="top"
-                />
-              ) : (
-                <div className="gng-list-empty">
-                  <EmptyState
-                    compact
-                    title={total === 0 ? "결정할 사업이 아직 없어요" : "조건에 맞는 사업이 없어요"}
-                    description={total === 0 ? "사업기회에서 계속 추적 중인 사업에 입찰공고가 연결되면 검토할 수 있어요." : trimmedQuery
-                      ? receivedAll
-                        ? `적용된 검색어 "${query}"와 다른 활성 보기 조건에 맞는 사업이 없어요. 계속 추적 중인 사업 전체에서 찾았어요.`
-                        : `적용된 검색어 "${query}"와 다른 활성 보기 조건에 맞는 사업이 받은 범위에 없어요. 전체에 없다는 뜻은 아니에요.`
-                      : receivedAll
-                        ? "계속 추적 중인 사업 전체에서 찾았어요. 보기를 바꿔 보세요."
-                        : "받은 범위 안에 없을 뿐, 전체에 없다는 뜻은 아니에요."}
-                    action={total === 0 ? { label: "사업기회 보기", onClick: () => navigate("/opportunities") } : {
-                      label: trimmedQuery ? "검색어만 지우기" : "필터 초기화",
-                      onClick: trimmedQuery ? () => applySearch("") : resetFilters,
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-            {/* 범위 요약과 페이저는 대기열을 읽은 뒤에만 말할 수 있다. 조회 중·실패에
-                0건이나 1–0/0을 적으면 "없다"와 "모른다"가 같아진다. */}
-            {queueQuery.isPending || queueQuery.isError ? null : (
-              <footer className="gng-list-foot">
-                {/* 보기 건수는 받은 대기열에서 센 값이다. 한 번에 다 받았으면 전체 기준이고,
-                    넘쳐서 나눠 받았으면 그 사실을 여기서 밝힌다. */}
-                <p className="gng-summary">
-                  {receivedAll
-                    ? `전체 ${formatCount(total)}건 기준 · ${formatCount(visibleRows.length)}건 표시`
-                    : `받은 ${formatCount(rows.length)}건 기준 · ${formatCount(visibleRows.length)}건 표시 · 전체 ${formatCount(total)}건 중 일부예요`}
-                </p>
-                {/* 페이저는 이 범위의 모든 행이 보기 조건에 걸러졌을 때도 남는다.
-                    다음 범위로 갈 길까지 사라지면 "없다"와 "이 범위에 없다"가
-                    같아진다(발주계획·사전규격과 같은 공용 부품, 명세 §2.2, U3).
-                    `total`·`offset`은 서버 페이지 기준이고 `queueItems.length`는
-                    받은 페이지의 원본 건수다(view로 좁힌 `visibleRows.length`가
-                    아니다) — 대기열 페이지 이동은 view와 무관하기 때문이다. */}
-                <ListPagerControls
-                  className="gng-pager"
-                  label="결정 대기열 페이지"
-                  offset={offset}
-                  onNext={() => goToOffset(offset + PAGE_SIZE)}
-                  onPrevious={() => goToOffset(Math.max(0, offset - PAGE_SIZE))}
-                  total={total}
-                  visibleCount={queueItems.length}
-                />
-              </footer>
-            )}
-          </section>
-
-          <section className="review-split-detail gng-detail-pane" aria-label="선택한 결정 검토 사업">
-            {queueQuery.isPending || queueQuery.isError ? (
+              columns={columns}
+              getKey={(row) => row.id}
+              label="최종 결정 대기열"
+              navigation={rowNavigation}
+              onActivate={selectRow}
+              rowClassName="gng-row"
+              rows={visibleRows}
+              state={invalidQuery ? {
+                kind: "empty",
+                message: { title: "검색어를 줄여 주세요", action: { label: "검색어 지우기", onClick: () => applySearch("") } },
+              } : queueQuery.isPending ? {
+                kind: "loading", label: "최종 결정 대기열을 불러오는 중",
+              } : queueQuery.isError ? {
+                kind: "error",
+                message: {
+                  className: "gng-list-empty",
+                  title: "최종 결정 대기열을 불러오지 못했어요",
+                  description: "조회 실패를 결정 대기 없음으로 해석하지 않아요.",
+                  problem: queueProblem ?? undefined,
+                  action: queueProblem
+                    ? apiErrorRecoveryAction(queueProblem, () => { void queueQuery.refetch(); })
+                    : undefined,
+                },
+              } : visibleRows.length === 0 ? {
+                kind: "empty",
+                message: {
+                  className: "gng-list-empty",
+                  title: !trimmedQuery && (viewCounts?.all ?? total) === 0 ? "결정할 사업이 아직 없어요" : "조건에 맞는 사업이 없어요",
+                  description: !trimmedQuery && (viewCounts?.all ?? total) === 0 ? "사업기회에서 계속 추적 중인 사업에 입찰공고가 연결되면 검토할 수 있어요." : trimmedQuery
+                    ? receivedAll
+                      ? `적용된 검색어 "${query}"와 다른 활성 보기 조건에 맞는 사업이 없어요. 계속 추적 중인 사업 전체에서 찾았어요.`
+                      : `적용된 검색어 "${query}"와 다른 활성 보기 조건에 맞는 사업이 받은 범위에 없어요. 전체에 없다는 뜻은 아니에요.`
+                    : receivedAll
+                      ? "계속 추적 중인 사업 전체에서 찾았어요. 보기를 바꿔 보세요."
+                      : "받은 범위 안에 없을 뿐, 전체에 없다는 뜻은 아니에요.",
+                  action: !trimmedQuery && (viewCounts?.all ?? total) === 0 ? { label: "사업기회 보기", onClick: () => navigate("/opportunities") } : {
+                    label: trimmedQuery ? "검색어만 지우기" : "필터 초기화",
+                    onClick: trimmedQuery ? () => applySearch("") : resetFilters,
+                  },
+                },
+              } : undefined}
+              viewportRef={listRef}
+            />
+          )}
+          listFooter={(
+            // 페이저는 서버가 보낸 범위를 이동하므로 화면에 표시된 행 수와 별개다.
+            queueQuery.isSuccess && (overallTotal > 0 || offset > 0) ? (
+              <ListPagerControls
+                className="gng-pager"
+                label="결정 대기열 페이지"
+                offset={offset}
+                onNext={() => goToOffset(offset + PAGE_SIZE)}
+                onPrevious={() => goToOffset(Math.max(0, offset - PAGE_SIZE))}
+                summary={{ overallTotal, description: pagerDescription }}
+                total={total}
+                visibleCount={queueItems.length}
+              />
+            ) : null
+          )}
+          detailClassName="gng-detail-pane"
+          detailLabel="선택한 결정 검토 사업"
+          detail={(
+            invalidQuery ? (
+              <div className="gng-detail-empty"><Text color="secondary" as="p">검색어를 줄이면 사업을 선택할 수 있어요.</Text></div>
+            ) : queueQuery.isPending || queueQuery.isError ? (
               <div className="gng-detail-empty">
                 <Text color="secondary" as="p">
                   {queueQuery.isPending
@@ -662,322 +668,342 @@ export function GoNoGoPage() {
                   <AgencyFeature fallback="발주기관 미확인" name={selectedItem.agency} />
                   <Heading level={2}>{opportunityTitle(selectedItem)}</Heading>
                   <div className="gng-row-line gng-spread">
-                    <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                      사업기회 {selectedRow.id} · {selectedItem.tracking_status}
-                      {" · "}입찰공고 {selectedItem.bid_notice_external_id ?? "미연결"}
+                    <Text className="gng-caption review-detail-identity" type="supporting" color="secondary" as="p">
+                      사업기회 <code className="mono">{selectedRow.id}</code> · {selectedItem.tracking_status}
+                      {" · "}입찰공고 {selectedItem.bid_notice_external_id != null
+                        ? <code className="mono">{selectedItem.bid_notice_external_id}</code>
+                        : selectedItem.notice_check_reason === "ordering_unknown" ? "최신 차수 미확인" : "미연결"}
                       {selectedItem.recheck_signal ? " · 재확인 신호 있음" : ""}
                     </Text>
-                    <Token size="sm" label={decisionStateLabel(selectedItem)} />
+                    <StatusMark mark={{
+                      label: selectedItem.review_state === "notice_check" ? DECISION_REVIEW_LABELS.notice_check
+                        : currentness === "stale" ? "재검토"
+                          : selectedItem.latest_final_decision && currentness === "unknown" ? "효력 미확인" : decisionStateLabel(selectedItem),
+                      tone: selectedItem.review_state === "notice_check" || currentness === "stale" ? "warning" : "neutral",
+                    }} />
                   </div>
                 </StickyDecisionHeader>
 
-                <nav className="gng-detail-tabs" aria-label="선택한 사업 상세 보기">
+                <DetailTabs
+                  aria-label="선택한 사업 상세 보기"
+                  className="gng-detail-tabs"
+                  onChange={(value) => setTab(value as DetailTab)}
+                  value={tab}
+                >
                   {DETAIL_TABS.map((item) => (
-                    <Button
+                    <Tab
                       key={item.key}
+                      id={`gng-tab-${item.key}`}
+                      icon={<item.icon aria-hidden="true" />}
                       label={item.label}
-                      size="sm"
-                      aria-pressed={tab === item.key}
-                      onClick={() => setTab(item.key)}
+                      panelId={`gng-panel-${item.key}`}
+                      value={item.key}
                     />
                   ))}
-                </nav>
+                </DetailTabs>
 
                 <div className="gng-detail-scroll">
-                  {tab === "summary" ? (
-                    <>
-                      {selectedItem.latest_final_decision && currentness !== "current" ? (
-                        <div className="gng-review-notice">
-                          <RefreshCw aria-hidden="true" />
-                          <div>
-                            <Text weight="semibold" as="p">
-                              기존 {selectedItem.latest_final_decision.decision === "go" ? "Go" : "No-Go"} 결정을 다시 검토해야 해요
-                            </Text>
-                            <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                              {currentness === "stale" ? "결정 이후 결정의 근거가 달라졌어요." : "결정의 현재성을 확인하지 못했어요."}
-                              {" "}이전 결정 기록은 보존되며 새 결정은 덮어쓰지 않고 추가돼요.
-                            </Text>
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {comparisonView && counts ? (
-                        <>
-                          <section className="gng-delta-overview" aria-label="입찰 변경 비교 집계">
-                            <div className="gng-row-line gng-spread">
-                              <Heading level={3}>입찰 변경 비교</Heading>
+                  <div role="tabpanel" id="gng-panel-summary" aria-labelledby="gng-tab-summary" hidden={tab !== "summary"}>
+                    {tab === "summary" ? (
+                      <>
+                        {selectedItem.latest_final_decision && currentness !== "current" ? (
+                          <div className="gng-review-notice">
+                            <RefreshCw aria-hidden="true" />
+                            <div>
+                              <Text weight="semibold" as="p">
+                                기존 {selectedItem.latest_final_decision.decision === "go" ? "Go" : "No-Go"} 결정을 다시 검토해야 해요
+                              </Text>
                               <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                비교 #{comparisonView.sequence} · 버전 {comparisonView.version}
+                                {currentness === "stale" ? "결정 이후 결정의 근거가 달라졌어요." : "결정의 현재성을 확인하지 못했어요."}
+                                {" "}이전 결정 기록은 보존되며 새 결정은 덮어쓰지 않고 추가돼요.
                               </Text>
                             </div>
-                            <div className="gng-delta-counts">
-                              <div>
-                                <Text className="gng-caption" type="supporting" color="secondary" as="p">중요 변경</Text>
-                                <span className="gng-count-value">
-                                  {counts.material}
-                                  <span className="gng-caption">건</span>
-                                </span>
-                              </div>
-                              <div>
-                                <Text className="gng-caption" type="supporting" color="secondary" as="p">비중요 변경</Text>
-                                <span className="gng-count-value">
-                                  {counts.nonMaterial}
-                                  <span className="gng-caption">건</span>
-                                </span>
-                              </div>
-                              <div>
-                                <Text className="gng-caption" type="supporting" color="secondary" as="p">확인 필요</Text>
-                                <span className="gng-count-value">
-                                  {counts.unresolved}
-                                  <span className="gng-caption">건</span>
-                                </span>
-                                <Text className="gng-caption" type="supporting" color="secondary" as="p">unknown·분석 실패</Text>
-                              </div>
-                            </div>
-                            <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                              변경 없음 {counts.unchanged}건 · 확인 필요를 변경 없음으로 읽지 않아요.
-                            </Text>
-                          </section>
+                          </div>
+                        ) : null}
 
-                          <section className="gng-key-changes" aria-label="결정 전에 볼 항목">
-                            <div className="gng-row-line gng-spread">
-                              <Heading level={3}>결정 전에 볼 항목</Heading>
-                              <Text className="gng-caption" type="supporting" color="secondary" as="p">양쪽 문서 비교 결과</Text>
-                            </div>
-                            {relevantItems.length > 0 ? relevantItems.map((item) => {
-                              const page = item.baseline_evidence[0] ?? item.comparison_evidence[0] ?? null;
-                              return (
-                                <button
-                                  type="button"
-                                  className="gng-delta-row"
-                                  key={item.id}
-                                  onClick={() => { setEvidenceItem(item); setDialog("evidence"); }}
-                                >
-                                  <span className="gng-row-line gng-spread">
-                                    <Text weight="semibold" as="span">{CATEGORY_LABELS[item.category]}</Text>
-                                    <Text className="gng-caption" type="supporting" color="secondary" as="span">{itemKindLabel(item)}</Text>
-                                  </span>
-                                  <span className="gng-delta-values">
-                                    {item.before_value ?? "기준 원문 미확인"}
-                                    <ArrowRight aria-hidden="true" />
-                                    {item.after_value ?? "비교 원문 미확인"}
-                                  </span>
-                                  <Text className="gng-caption" type="supporting" color="secondary" as="span">
-                                    {page
-                                      ? `근거 ${evidenceLocationLabel(page)} · 원문 비교`
-                                      : "양쪽 근거가 갖춰지지 않아 변경 여부를 확정하지 못했어요"}
-                                  </Text>
-                                </button>
-                              );
-                            }) : (
-                              <div className="gng-quiet">
-                                <Check aria-hidden="true" />
-                                <Text as="p">양쪽 근거로 확인한 범위에서 결정 전에 볼 변경 항목이 없어요.</Text>
+                        {selectedItem.notice_check_reason ? (
+                          <p className="gng-caption" role="status">{DECISION_NOTICE_CHECK_LABELS[selectedItem.notice_check_reason]}</p>
+                        ) : null}
+                        {conditions.data ? <BidConditionOverview compact view={conditions.data} />
+                          : conditions.isError ? <p className="gng-caption">공고 조건을 불러오지 못했어요.</p>
+                          : conditions.isFetching ? <p className="gng-caption" role="status">공고 조건을 확인하고 있어요.</p>
+                          : null}
+                        {comparisonView && counts ? (
+                          <>
+                            <section className="gng-delta-overview" aria-label="입찰 변경 비교 집계">
+                              <div className="gng-row-line gng-spread">
+                                <Heading level={3}>입찰 변경 비교</Heading>
                                 <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                  변경 없음은 입찰 참여에 대한 추천이 아니에요.
+                                  비교 #{comparisonView.sequence} · 버전 {comparisonView.version}
                                 </Text>
                               </div>
-                            )}
-                          </section>
-                        </>
-                      ) : comparisonView ? (
-                        <div className="gng-availability">
-                          <Clock aria-hidden="true" />
-                          <Heading level={3}>
-                            {comparisonView.calculation_status === "failed"
-                              ? "변경 비교 계산이 실패했어요"
-                              : "변경 비교 계산을 기다리고 있어요"}
-                          </Heading>
-                          {/* 경고 ④는 운영 코드와 한 요소에 두지 않는다 — 코드가
-                              접히면서 문장까지 따라 접히면 실패가 조용해진다. */}
-                          <Text as="p">
-                            {comparisonView.calculation_status === "failed"
-                              ? "실패를 변경 없음으로 처리하지 않아요."
-                              : "비교 결과가 나올 때까지 중요 변경과 확인 필요 건수는 미확인으로 남아요."}
+                              <div className="gng-delta-counts">
+                                <div>
+                                  <Text className="gng-caption" type="supporting" color="secondary" as="p">중요 변경</Text>
+                                  <span className="gng-count-value">
+                                    {counts.material}
+                                    <span className="gng-caption">건</span>
+                                  </span>
+                                </div>
+                                <div>
+                                  <Text className="gng-caption" type="supporting" color="secondary" as="p">비중요 변경</Text>
+                                  <span className="gng-count-value">
+                                    {counts.nonMaterial}
+                                    <span className="gng-caption">건</span>
+                                  </span>
+                                </div>
+                                <div>
+                                  <Text className="gng-caption" type="supporting" color="secondary" as="p">확인 필요</Text>
+                                  <span className="gng-count-value">
+                                    {counts.unresolved}
+                                    <span className="gng-caption">건</span>
+                                  </span>
+                                  <Text className="gng-caption" type="supporting" color="secondary" as="p">unknown·분석 실패</Text>
+                                </div>
+                              </div>
+                              <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                변경 없음 {counts.unchanged}건 · 확인 필요를 변경 없음으로 읽지 않아요.
+                              </Text>
+                            </section>
+
+                            <section className="gng-key-changes" aria-label="결정 전에 볼 항목">
+                              <div className="gng-row-line gng-spread">
+                                <Heading level={3}>결정 전에 볼 항목</Heading>
+                                <Text className="gng-caption" type="supporting" color="secondary" as="p">양쪽 문서 비교 결과</Text>
+                              </div>
+                              {relevantItems.length > 0 ? relevantItems.map((item) => {
+                                const page = item.baseline_evidence[0] ?? item.comparison_evidence[0] ?? null;
+                                return (
+                                  <button
+                                    type="button"
+                                    className="gng-delta-row"
+                                    key={item.id}
+                                    onClick={() => { setEvidenceItem(item); setDialog("evidence"); }}
+                                  >
+                                    <span className="gng-row-line gng-spread">
+                                      <Text weight="semibold" as="span">{CATEGORY_LABELS[item.category]}</Text>
+                                      <Text className="gng-caption" type="supporting" color="secondary" as="span">{itemKindLabel(item)}</Text>
+                                    </span>
+                                    <span className="gng-delta-values">
+                                      {item.before_value ?? "기준 원문 미확인"}
+                                      <ArrowRight aria-hidden="true" />
+                                      {item.after_value ?? "비교 원문 미확인"}
+                                    </span>
+                                    <Text className="gng-caption" type="supporting" color="secondary" as="span">
+                                      {page
+                                        ? `근거 ${evidenceLocationLabel(page)} · 원문 비교`
+                                        : "양쪽 근거가 갖춰지지 않아 변경 여부를 확정하지 못했어요"}
+                                    </Text>
+                                  </button>
+                                );
+                              }) : (
+                                <div className="gng-quiet">
+                                  <Check aria-hidden="true" />
+                                  <Text as="p">양쪽 근거로 확인한 범위에서 결정 전에 볼 변경 항목이 없어요.</Text>
+                                  <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                    변경 없음은 입찰 참여에 대한 추천이 아니에요.
+                                  </Text>
+                                </div>
+                              )}
+                            </section>
+                          </>
+                        ) : comparisonView ? (
+                          <div className="gng-availability">
+                            <Clock aria-hidden="true" />
+                            <Heading level={3}>
+                              {comparisonView.calculation_status === "failed"
+                                ? "변경 비교 계산이 실패했어요"
+                                : "변경 비교 계산을 기다리고 있어요"}
+                            </Heading>
+                            {/* 경고 ④는 운영 코드와 한 요소에 두지 않는다 — 코드가
+                                접히면서 문장까지 따라 접히면 실패가 조용해진다. */}
+                            <Text as="p">
+                              {comparisonView.calculation_status === "failed"
+                                ? "실패를 변경 없음으로 처리하지 않아요."
+                                : "비교 결과가 나올 때까지 중요 변경과 확인 필요 건수는 미확인으로 남아요."}
+                            </Text>
+                            <StatusMark mark={{ label: "비교 불가", tone: "neutral" }} />
+                            {comparisonView.last_error_code ? (
+                              <TechnicalInfo summary="기술 정보 · 오류 코드">
+                                <TechnicalFacts
+                                  facts={[{ label: "오류 코드", value: comparisonView.last_error_code }]}
+                                  label="변경 비교 오류 코드"
+                                />
+                              </TechnicalInfo>
+                            ) : null}
+                          </div>
+                        ) : !workspaceLoaded || activeComparison || selectedItem.review_state === "waiting_notice"
+                          ? availability
+                          : null}
+                      </>
+                    ) : null}
+                  </div>
+
+                  <div role="tabpanel" id="gng-panel-documents" aria-labelledby="gng-tab-documents" hidden={tab !== "documents"}>
+                    {tab === "documents" ? (
+                      <section className="gng-documents" aria-label="이번 비교의 기준 문서">
+                        <div className="gng-row-line gng-spread">
+                          <Heading level={3}>이번 비교의 기준 문서</Heading>
+                          <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                            {workspaceLoaded ? `${comparisons.length}건의 비교` : `대기열 기준 ${selectedItem.comparison_count}건의 비교`}
                           </Text>
-                          <Token size="sm" label="비교 불가" />
-                          {comparisonView.last_error_code ? (
-                            <TechnicalInfo summary="기술 정보 · 오류 코드">
+                        </div>
+                        {comparisons.length > 1 ? (
+                          <div className="gng-comparison-picker">
+                            <Selector
+                              label="표시할 비교"
+                              size="sm"
+                              value={activeComparison?.id ?? ""}
+                              options={comparisons.map((item) => ({
+                                value: item.id,
+                                label: `비교 #${item.sequence} · 버전 ${item.version}`,
+                              }))}
+                              onChange={(value) => patchParams({ comparison: value })}
+                            />
+                            <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                              기본값은 요청 순서가 가장 늦은 비교예요.
+                            </Text>
+                          </div>
+                        ) : null}
+                        {comparisonView ? (
+                          <>
+                            <div className="gng-document-pair">
+                              <div>
+                                <Text className="gng-caption" type="supporting" color="secondary" as="p">기준 · 사전규격</Text>
+                                <Text weight="semibold" as="p">{comparisonView.baseline.notice_external_id}</Text>
+                                <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                  문서 버전 {comparisonView.baseline.document_version_version} · 문서 역할 {comparisonView.baseline.document_role || "값 없음"}
+                                </Text>
+                                <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                  공개 {formatMoment(comparisonView.baseline.published_at)}
+                                </Text>
+                              </div>
+                              <ArrowRight aria-hidden="true" />
+                              <div>
+                                <Text className="gng-caption" type="supporting" color="secondary" as="p">대상 · 입찰공고</Text>
+                                <Text weight="semibold" as="p">{comparisonView.comparison.notice_external_id}</Text>
+                                <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                  문서 버전 {comparisonView.comparison.document_version_version} · 차수 {comparisonView.comparison.bid_ordinal ?? "값 없음"}
+                                </Text>
+                                <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                  공개 {formatMoment(comparisonView.comparison.published_at)}
+                                </Text>
+                              </div>
+                            </div>
+                            {/* 문서 버전·공개 일시·문서 역할은 밖에, 해시는 접힌 곳에
+                                **전문**으로 둔다(ADR-0066 결정 2, 시안 M4 ③). 같은 문서인지
+                                눈으로 대조할 때 펴서 읽는다. */}
+                            <TechnicalInfo summary="기술 정보 · 비교 문서 식별자와 해시">
                               <TechnicalFacts
-                                facts={[{ label: "오류 코드", value: comparisonView.last_error_code }]}
-                                label="변경 비교 오류 코드"
+                                facts={[
+                                  { label: "기준 문서 버전 ID", value: comparisonView.baseline.document_version_id },
+                                  { label: "기준 원문 해시 SHA-256", value: comparisonView.baseline.source_sha256 },
+                                  { label: "대상 문서 버전 ID", value: comparisonView.comparison.document_version_id },
+                                  { label: "대상 원문 해시 SHA-256", value: comparisonView.comparison.source_sha256 },
+                                ]}
+                                label="비교 문서 식별자와 해시"
                               />
                             </TechnicalInfo>
-                          ) : null}
-                        </div>
-                      ) : availability}
-                    </>
-                  ) : null}
-
-                  {tab === "documents" ? (
-                    <section className="gng-documents" aria-label="이번 비교의 기준 문서">
-                      <div className="gng-row-line gng-spread">
-                        <Heading level={3}>이번 비교의 기준 문서</Heading>
-                        <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                          {workspaceLoaded ? `${comparisons.length}건의 비교` : `대기열 기준 ${selectedItem.comparison_count}건의 비교`}
-                        </Text>
-                      </div>
-                      {comparisons.length > 1 ? (
-                        <div className="gng-comparison-picker">
-                          <Selector
-                            label="표시할 비교"
-                            size="sm"
-                            value={activeComparison?.id ?? ""}
-                            options={comparisons.map((item) => ({
-                              value: item.id,
-                              label: `비교 #${item.sequence} · 버전 ${item.version}`,
-                            }))}
-                            onChange={(value) => patchParams({ comparison: value })}
-                          />
-                          <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                            기본값은 요청 순서가 가장 늦은 비교예요.
-                          </Text>
-                        </div>
-                      ) : null}
-                      {comparisonView ? (
-                        <>
-                          <div className="gng-document-pair">
-                            <div>
-                              <Text className="gng-caption" type="supporting" color="secondary" as="p">기준 · 사전규격</Text>
-                              <Text weight="semibold" as="p">{comparisonView.baseline.notice_external_id}</Text>
-                              <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                문서 버전 {comparisonView.baseline.document_version_version} · 문서 역할 {comparisonView.baseline.document_role || "값 없음"}
-                              </Text>
-                              <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                공개 {formatMoment(comparisonView.baseline.published_at)}
-                              </Text>
-                            </div>
-                            <ArrowRight aria-hidden="true" />
-                            <div>
-                              <Text className="gng-caption" type="supporting" color="secondary" as="p">대상 · 입찰공고</Text>
-                              <Text weight="semibold" as="p">{comparisonView.comparison.notice_external_id}</Text>
-                              <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                문서 버전 {comparisonView.comparison.document_version_version} · 차수 {comparisonView.comparison.bid_ordinal ?? "값 없음"}
-                              </Text>
-                              <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                                공개 {formatMoment(comparisonView.comparison.published_at)}
-                              </Text>
-                            </div>
-                          </div>
-                          {/* 문서 버전·공개 일시·문서 역할은 밖에, 해시는 접힌 곳에
-                              **전문**으로 둔다(ADR-0066 결정 2, 시안 M4 ③). 같은 문서인지
-                              눈으로 대조할 때 펴서 읽는다. */}
-                          <TechnicalInfo summary="기술 정보 · 비교 문서 식별자와 해시">
-                            <TechnicalFacts
-                              facts={[
-                                { label: "기준 문서 버전 ID", value: comparisonView.baseline.document_version_id },
-                                { label: "기준 원문 해시 SHA-256", value: comparisonView.baseline.source_sha256 },
-                                { label: "대상 문서 버전 ID", value: comparisonView.comparison.document_version_id },
-                                { label: "대상 원문 해시 SHA-256", value: comparisonView.comparison.source_sha256 },
-                              ]}
-                              label="비교 문서 식별자와 해시"
-                            />
-                          </TechnicalInfo>
-                          <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                            비교 결과 기준 결정은 여기 있는 양쪽 문서 버전과 비교 결과에 연결돼요. 문서 쌍은 화면이 고르지 않아요.
-                          </Text>
-                        </>
-                      ) : (
-                        <div className="gng-quiet">
-                          <Text as="p">아직 선택된 비교 문서가 없어요.</Text>
-                          <Token size="sm" label="비교 불가" />
-                          <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                            문서가 없다는 뜻은 아니에요.
-                          </Text>
-                        </div>
-                      )}
-                    </section>
-                  ) : null}
-
-                  {tab === "decision" ? (
-                    <section className="gng-decision-history" aria-label="사람의 최종 결정">
-                      <Heading level={3}>사람의 최종 결정</Heading>
-                      {latestDecision ? (
-                        <>
-                          <div className="gng-history-entry">
-                            <div className="gng-row-line gng-spread">
-                              <Text weight="semibold" as="span">
-                                {latestDecision.decision === "go" ? "Go · 참여" : "No-Go · 불참"}
-                              </Text>
-                              <Token
-                                size="sm"
-                                label={currentness === "stale" ? "재검토 필요" : currentness === "unknown" ? "효력 미확인" : "현재 결정"}
-                              />
-                            </div>
-                            <Text as="p">{latestDecision.reason}</Text>
                             <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                              {latestDecision.claimed_name} · {formatMoment(latestDecision.created_at)} · {latestDecision.sequence}번째 결정
+                              비교 결과 기준 결정은 여기 있는 양쪽 문서 버전과 비교 결과에 연결돼요. 문서 쌍은 화면이 고르지 않아요.
                             </Text>
-                            <Text className="gng-caption gng-decision-basis" type="supporting" color="secondary" as="p">
-                              {BASIS_LABELS[latestDecision.basis_kind]} · {decisionBasisDetail(latestDecision)}
+                          </>
+                        ) : (
+                          <div className="gng-quiet">
+                            <Text as="p">아직 선택된 비교 문서가 없어요.</Text>
+                            <StatusMark mark={{ label: "비교 불가", tone: "neutral" }} />
+                            <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                              문서가 없다는 뜻은 아니에요.
                             </Text>
                           </div>
-                          {selectedWorkspace && selectedWorkspace.currentness_reasons.length > 0 ? (
+                        )}
+                      </section>
+                    ) : null}
+                  </div>
+
+                  <div role="tabpanel" id="gng-panel-decision" aria-labelledby="gng-tab-decision" hidden={tab !== "decision"}>
+                    {tab === "decision" ? (
+                      <section className="gng-decision-history" aria-label="사람의 최종 결정">
+                        <Heading level={3}>사람의 최종 결정</Heading>
+                        {latestDecision ? (
+                          <>
+                            <div className="gng-history-entry">
+                              <div className="gng-row-line gng-spread">
+                                <Text weight="semibold" as="span">
+                                  {latestDecision.decision === "go" ? "Go · 참여" : "No-Go · 불참"}
+                                </Text>
+                                <StatusMark mark={{
+                                  label: currentness === "stale" ? "재검토 필요" : currentness === "unknown" ? "효력 미확인" : "현재 결정",
+                                  tone: currentness === "stale" ? "warning" : "neutral",
+                                }} />
+                              </div>
+                              <Text as="p">{latestDecision.reason}</Text>
+                              <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                {latestDecision.claimed_name} · {formatMoment(latestDecision.created_at)} · {latestDecision.sequence}번째 결정
+                              </Text>
+                              <Text className="gng-caption gng-decision-basis" type="supporting" color="secondary" as="p">
+                                {BASIS_LABELS[latestDecision.basis_kind]} · {decisionBasisDetail(latestDecision)}
+                              </Text>
+                            </div>
+                            {selectedWorkspace && selectedWorkspace.currentness_reasons.length > 0 ? (
+                              <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                                현재성 근거 · {selectedWorkspace.currentness_reasons.join(" · ")}
+                              </Text>
+                            ) : null}
                             <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                              현재성 근거 · {selectedWorkspace.currentness_reasons.join(" · ")}
+                              이 목록은 사업기회의 마지막 결정만 보여 줘요. 이전 기록은 결정 화면에서 확인해요.
                             </Text>
-                          ) : null}
-                          <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                            이 목록은 사업기회의 마지막 결정만 보여 줘요. 이전 기록은 결정 화면에서 확인해요.
-                          </Text>
-                        </>
-                      ) : selectedItem.latest_final_decision ? (
-                        <div className="gng-quiet">
-                          <Text as="p">
-                            {selectedItem.latest_final_decision.decision === "go" ? "Go" : "No-Go"} · {selectedItem.latest_final_decision.claimed_name} · {formatMoment(selectedItem.latest_final_decision.decided_at)}
-                          </Text>
-                          <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                            {workspaceQuery.isError
-                              ? "결정 사유와 근거를 불러오지 못했어요. 검토 요약에서 다시 조회해 주세요."
-                              : "결정 사유와 근거를 불러오는 중이에요."}
-                          </Text>
-                        </div>
-                      ) : (
-                        <div className="gng-quiet">
-                          <Text as="p">아직 기록된 최종 결정이 없어요.</Text>
-                          <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                            추적 상태 ‘계속 추적’은 입찰 참여를 결정했다는 뜻이 아니에요.
-                          </Text>
-                        </div>
-                      )}
-                    </section>
-                  ) : null}
+                          </>
+                        ) : selectedItem.latest_final_decision ? (
+                          <div className="gng-quiet">
+                            <Text as="p">
+                              {selectedItem.latest_final_decision.decision === "go" ? "Go" : "No-Go"} · {selectedItem.latest_final_decision.claimed_name} · {formatMoment(selectedItem.latest_final_decision.decided_at)}
+                            </Text>
+                            <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                              {workspaceQuery.isError
+                                ? "결정 사유와 근거를 불러오지 못했어요. 검토 요약에서 다시 조회해 주세요."
+                                : "결정 사유와 근거를 불러오는 중이에요."}
+                            </Text>
+                          </div>
+                        ) : (
+                          <div className="gng-quiet">
+                            <Text as="p">아직 기록된 최종 결정이 없어요.</Text>
+                            <Text className="gng-caption" type="supporting" color="secondary" as="p">
+                              추적 상태 ‘계속 추적’은 입찰 참여를 결정했다는 뜻이 아니에요.
+                            </Text>
+                          </div>
+                        )}
+                      </section>
+                    ) : null}
+                  </div>
                 </div>
 
-                <footer className="gng-action-footer">
-                  <div className="gng-row-line gng-spread">
-                    <div className="gng-tracking-summary">
-                      <Text className="gng-caption" type="supporting" color="secondary" as="p">현재 사람 결정</Text>
-                      <p className="gng-caption">
-                        {selectedItem.latest_final_decision
-                          ? `${selectedItem.latest_final_decision.decision === "go" ? "Go" : "No-Go"} · ${currentness === "current" ? "기록 있음" : currentness === "stale" ? "재검토 필요" : "효력 미확인"}`
-                          : "아직 결정하지 않음"}
-                      </p>
-                    </div>
-                    {footerAction ? (
+                {footerAction ? (
+                  <DecisionBar
+                    className="gng-action-footer"
+                    stateLabel="현재 사람 결정"
+                    state={{
+                      label: selectedItem.latest_final_decision
+                        ? `${selectedItem.latest_final_decision.decision === "go" ? "Go" : "No-Go"} · ${currentness === "current" ? "기록 있음" : currentness === "stale" ? "재검토 필요" : "효력 미확인"}`
+                        : "아직 결정하지 않음",
+                      tone: currentness === "stale" ? "warning" : "neutral",
+                    }}
+                    note={footerAction.note}
+                    primaryAction={(
                       <Button
                         label={footerAction.label}
                         variant="primary"
-                        size="sm"
+                        size="md"
                         icon={<ChevronRight aria-hidden="true" />}
                         onClick={openReview}
                       />
-                    ) : null}
-                  </div>
-                  {footerAction?.note ? (
-                    <Text className="gng-caption" type="supporting" color="secondary" as="p">
-                      {footerAction.note}
-                    </Text>
-                  ) : null}
-                </footer>
+                    )}
+                  />
+                ) : null}
               </>
-            ) : (
-              <div className="gng-detail-empty">
-                <Text color="secondary" as="p">선택할 사업이 없어요.</Text>
-              </div>
-            )}
-          </section>
-        </SplitWorkspace>
+            ) : null
+          )}
+        />
       </WorkspaceFrame>
 
       <Dialog isOpen={dialog === "evidence" && evidenceItem !== null} onOpenChange={(open) => { if (!open) setDialog(null); }} purpose="info" width={880}>

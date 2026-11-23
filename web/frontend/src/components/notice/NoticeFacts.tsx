@@ -1,4 +1,4 @@
-import { Panel } from "../common/Panel";
+import { SideFacts } from "../common/Facts";
 import type { NoticeDetailResponse } from "../../lib/types";
 import { formatDate, formatDateTime, formatPrice, formatTime, present } from "../../lib/format";
 
@@ -66,28 +66,15 @@ export function NoticeFacts({ notice }: NoticeFactsProps) {
     .filter((value) => typeof value === "string" && value.trim())
     .join(" · ");
 
-  return (
-    <Panel className="notice-facts-panel" title="공고 정보" action={<span className="panel-note">나라장터 제공 값</span>}>
-      <dl className="notice-facts">
-        <dt>입찰공고번호</dt>
-        <dd className="mono tabular-nums">{present(bidIdentifier, "식별자 미확인")}</dd>
-        <dt>공고명</dt>
-        <dd>{present(notice.title, "공고명 미확인")}</dd>
-        <dt>발주기관</dt>
-        <dd>{present(notice.agency, "발주기관 미확인")}</dd>
-        <dt>예산 (원문 제공 금액)</dt>
-        <dd className="mono tabular-nums">{budgetLabel(notice.budget)}</dd>
-        <dt>추정가격</dt>
-        <dd className="mono tabular-nums">{formatPrice(notice.estimated_price)}</dd>
-        <dt>개찰</dt>
-        <dd className="mono tabular-nums">{openingLabel(lifecycle)}</dd>
-        <dt>공고일</dt>
-        <dd className="mono tabular-nums">{notice.published_at ? `${formatDate(notice.published_at)} · ${formatTime(notice.published_at).split(" ").pop()}` : "일자 미확인"}</dd>
-        <dt>입찰방식</dt>
-        <dd>{method || "입찰방식 미확인"}</dd>
-        <dt>지역·참가제한</dt>
-        <dd>{restriction}</dd>
-      </dl>
-    </Panel>
-  );
+  return <SideFacts className="notice-record-facts" items={[
+    { label: "입찰공고번호", value: present(bidIdentifier, "식별자 미확인") },
+    { label: "공고명", value: present(notice.title, "공고명 미확인") },
+    { label: "발주기관", value: present(notice.agency, "발주기관 미확인") },
+    { label: "예산 (원문 제공 금액)", value: budgetLabel(notice.budget) },
+    { label: "추정가격", value: formatPrice(notice.estimated_price) },
+    { label: "개찰", value: openingLabel(lifecycle) },
+    { label: "공고일", value: notice.published_at ? `${formatDate(notice.published_at)} · ${formatTime(notice.published_at).split(" ").pop()}` : "일자 미확인" },
+    { label: "입찰방식", value: method || "입찰방식 미확인" },
+    { label: "지역·참가제한", value: restriction },
+  ]} />;
 }

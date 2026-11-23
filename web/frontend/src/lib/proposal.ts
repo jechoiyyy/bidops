@@ -64,19 +64,19 @@ export function sectionStatusLabel(status: string): string {
   return (SECTION_STATUS_LABEL as Record<string, string>)[status] ?? status;
 }
 
-export type PillTone = "success" | "warning" | "error" | "muted";
+type SectionStatusTone = "confirmed" | "error" | "neutral";
 
-/** 검토 전·대기·생성 중은 중립이다. 실패만 error, 검토 완료만 success다. 글자가 항상 상태 이름이다. */
-export const SECTION_STATUS_TONE: Record<ProposalSectionStatus, PillTone> = {
-  queued: "muted",
-  running: "muted",
-  completed: "muted",
+/** 검토 전·대기·생성 중은 중립이다. 실패만 error, 검토 완료만 확인 색을 쓴다. 글자가 항상 상태 이름이다. */
+export const SECTION_STATUS_TONE: Record<ProposalSectionStatus, SectionStatusTone> = {
+  queued: "neutral",
+  running: "neutral",
+  completed: "neutral",
   failed: "error",
-  reviewed: "success",
+  reviewed: "confirmed",
 };
 
-export function sectionStatusTone(status: string): PillTone {
-  return (SECTION_STATUS_TONE as Record<string, PillTone>)[status] ?? "muted";
+export function sectionStatusTone(status: string): SectionStatusTone {
+  return (SECTION_STATUS_TONE as Record<string, SectionStatusTone>)[status] ?? "neutral";
 }
 
 export function isSectionActive(section: ProposalSection | null): boolean {

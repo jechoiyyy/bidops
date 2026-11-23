@@ -1,3 +1,4 @@
+import { DecisionBar, ReviewPreviewHeader, SplitWorkspace } from "../components/common/ReviewPrimitives";
 import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
@@ -7,7 +8,6 @@ import { Text } from "@astryxdesign/core/Text";
 import { Plus } from "lucide-react";
 import {
   DataTable,
-  DetailFooter,
   DetailHeader,
   DetailTabs,
   Disclosure,
@@ -162,14 +162,14 @@ export function PoliciesPage() {
 
   if (policiesQuery.isPending || gatesQuery.isPending) {
     return (
-      <div className="crit-workspace" id="criteria-panel-policies" role="tabpanel">
+      <div className="workbench-admin-state">
         <StateView description="정책 목록과 운영 승인 게이트를 확인하는 중이에요." kind="loading" title="판정 정책을 불러오는 중이에요" />
       </div>
     );
   }
   if (policiesQuery.error || gatesQuery.error) {
     return (
-      <div className="crit-workspace" id="criteria-panel-policies" role="tabpanel">
+      <div className="workbench-admin-state">
         <StateView
           action={<Button label="다시 조회" onClick={() => { void policiesQuery.refetch(); void gatesQuery.refetch(); }} />}
           description={queryErrorText(policiesQuery.error ?? gatesQuery.error, "정책 화면")}
@@ -208,8 +208,10 @@ export function PoliciesPage() {
       });
   }
 
+  const promptCompatible = bindableGates.some((gate) => gate.prompt_version === selected?.prompt_version);
+
   return (
-    <div className="crit-workspace" id="criteria-panel-policies" role="tabpanel">
+    <SplitWorkspace className="workbench-admin-workspace" aria-label="판정 정책">
       <Queue
         count={policies.length}
         emptyText="생성된 정책이 없어요."
@@ -218,18 +220,19 @@ export function PoliciesPage() {
           id: policy.policy_version,
           title: policy.policy_version,
           subtitle: `프롬프트 ${policy.prompt_version}`,
-          status: STATUS_LABELS[policy.status],
+          status: { label: STATUS_LABELS[policy.status], tone: "neutral" },
           meta: `${moment(policy.created_at)} · ${policy.created_by}`,
         }))}
         onSelect={(id) => updateParams({ policy: id })}
         selectedId={selected?.policy_version ?? null}
         title="정책 버전"
-        tools={<Button icon={<Plus aria-hidden="true" />} label="새 정책 버전" onClick={() => setCreateOpen(true)} size="sm" width="100%" />}
+        tools={<Button icon={<Plus aria-hidden="true" />} label="새 정책 버전" onClick={() => setCreateOpen(true)} size="sm" />}
       />
-      <section aria-label="선택한 정책" className="crit-detail">
+      <section aria-label="선택한 정책" className="review-split-detail crit-detail">
+        <ReviewPreviewHeader />
         {selected ? (
           <>
-            <DetailHeader eyebrow="판정 정책 · 불변 버전" status={STATUS_LABELS[selected.status]} title={selected.policy_version}>
+            <DetailHeader eyebrow="판정 정책 · 불변 버전" status={{ label: STATUS_LABELS[selected.status], tone: "neutral" }} title={selected.policy_version}>
               <Small>{`프롬프트 ${selected.prompt_version} · 생성 ${moment(selected.created_at)} · ${selected.created_by}`}</Small>
             </DetailHeader>
             <DetailTabs
@@ -238,7 +241,7 @@ export function PoliciesPage() {
               onChange={(value) => updateParams({ ptab: value === "content" ? null : value })}
               value={detailTab}
             />
-            <div className="crit-detail-scroll" id={`criteria-policy-${detailTab}`} role="tabpanel">
+            <div className="workbench-admin-detail-scroll crit-detail-scroll" id={`criteria-policy-${detailTab}`} role="tabpanel">
               {activationNotice ? (
                 <Note
                   action={<Button label="닫기" onClick={() => setActivationNotice(null)} size="sm" />}
@@ -311,7 +314,7 @@ export function PoliciesPage() {
                         [
                           <Text key="l">프롬프트 결합</Text>,
                           <span className="crit-mono" key="v">{selected.prompt_version}</span>,
-                          <StatusToken key="s" label={bindableGates.some((gate) => gate.prompt_version === selected.prompt_version) ? "일치" : "확인 필요"} />,
+                          <StatusToken key="s" label={promptCompatible ? "일치" : "확인 필요"} tone={promptCompatible ? "neutral" : "warning"} />,
                         ],
                         [
                           <Text key="l">통과한 최신 운영 평가</Text>,
@@ -383,59 +386,61 @@ export function PoliciesPage() {
                 </>
               ) : null}
             </div>
-            <DetailFooter note={blockReason(selected)}>
-              {selected.status === "draft" ? (
-                <Button
-                  label="활성화 후보 지정"
-                  onClick={() => {
-                    setConfirmError(null);
-                    setPending({
-                      kind: "candidate",
-                      policyVersion: selected.policy_version,
-                      evaluationId: null,
-                      facts: [
-                        ["대상 정책", selected.policy_version],
-                        ["정책 식별 해시", selected.content_digest],
-                        ["프롬프트", selected.prompt_version],
-                        ["바뀌는 것", "draft → activation_candidate · 본문은 바뀌지 않아요"],
-                      ],
-                    });
-                  }}
-                  size="sm"
-                />
-              ) : null}
-              {selected.status === "activation_candidate" ? (
-                <Button
-                  isDisabled={!canActivate}
-                  label="정책 활성화 확인"
-                  onClick={() => {
-                    if (!selectedGate) return;
-                    setConfirmError(null);
-                    setPending({
-                      kind: "activate",
-                      policyVersion: selected.policy_version,
-                      evaluationId: selectedGate.latest_evaluation_id,
-                      facts: [
-                        ["대상 정책", selected.policy_version],
-                        ["정책 식별 해시", selected.content_digest],
-                        ["근거 게이트 평가", `${selectedGate.latest_evaluation_id} · ${selectedGate.result_status}`],
-                        ["프롬프트", selectedGate.prompt_version],
-                        ["모델", `${selectedGate.model_name} · ${selectedGate.model_digest}`],
-                        ["회사 프로필", `${selectedGate.company_profile_version} · ${selectedGate.company_profile_digest}`],
-                        ["바뀌는 것", "activation_candidate → active · 이후 시작하는 실행에만 적용"],
-                      ],
-                    });
-                  }}
-                  size="sm"
-                  variant="primary"
-                />
-              ) : null}
-              {selected.status === "active" ? <StatusToken label="운영 활성" size="md" /> : null}
-            </DetailFooter>
+            <DecisionBar
+              stateLabel="정책 상태"
+              state={{ label: STATUS_LABELS[selected.status], tone: "neutral" }}
+              note={blockReason(selected)}
+              primaryAction={
+                selected.status === "draft" ? (
+                  <Button
+                    label="활성화 후보 지정"
+                    onClick={() => {
+                      setConfirmError(null);
+                      setPending({
+                        kind: "candidate",
+                        policyVersion: selected.policy_version,
+                        evaluationId: null,
+                        facts: [
+                          ["대상 정책", selected.policy_version],
+                          ["정책 식별 해시", selected.content_digest],
+                          ["프롬프트", selected.prompt_version],
+                          ["바뀌는 것", "draft → activation_candidate · 본문은 바뀌지 않아요"],
+                        ],
+                      });
+                    }}
+                    size="sm"
+                  />
+                ) : selected.status === "activation_candidate" ? (
+                  <Button
+                    isDisabled={!canActivate}
+                    label="정책 활성화 확인"
+                    onClick={() => {
+                      if (!selectedGate) return;
+                      setConfirmError(null);
+                      setPending({
+                        kind: "activate",
+                        policyVersion: selected.policy_version,
+                        evaluationId: selectedGate.latest_evaluation_id,
+                        facts: [
+                          ["대상 정책", selected.policy_version],
+                          ["정책 식별 해시", selected.content_digest],
+                          ["근거 게이트 평가", `${selectedGate.latest_evaluation_id} · ${selectedGate.result_status}`],
+                          ["프롬프트", selectedGate.prompt_version],
+                          ["모델", `${selectedGate.model_name} · ${selectedGate.model_digest}`],
+                          ["회사 프로필", `${selectedGate.company_profile_version} · ${selectedGate.company_profile_digest}`],
+                          ["바뀌는 것", "activation_candidate → active · 이후 시작하는 실행에만 적용"],
+                        ],
+                      });
+                    }}
+                    size="sm"
+                    variant="primary"
+                  />
+                ) : null
+              }
+            />
           </>
         ) : (
           <StateView
-            action={<Button icon={<Plus aria-hidden="true" />} label="새 정책 버전" onClick={() => setCreateOpen(true)} />}
             description="정책을 만들면 목록과 상세에서 불변 본문과 활성화 조건을 확인할 수 있어요."
             kind="empty"
             title="생성된 정책이 없어요"
@@ -458,6 +463,6 @@ export function PoliciesPage() {
         onConfirm={runConfirm}
         snapshot={pending}
       />
-    </div>
+    </SplitWorkspace>
   );
 }

@@ -128,24 +128,7 @@ export function opportunityActionRequiredQuery() {
  * 검토 대상에 올리지 않고 전체 보기에 남긴다.
  */
 export function isGoNoGoReviewTarget(item: BidDeltaDecisionQueueItem): boolean {
+  if (item.review_state) return ["undecided", "recheck", "notice_check"].includes(item.review_state);
   if (!item.latest_final_decision) return item.bid_notice_external_id !== null;
   return item.decision_currentness !== "current";
-}
-
-/** Go/No-Go 목록이 한 번에 받는 범위(서버 상한 500). 넘치면 받은 범위 기준이다. */
-export const GO_NO_GO_PAGE_SIZE = 500;
-
-export function goNoGoReviewTotalQuery() {
-  return {
-    queryKey: ["bid-delta-decision-queue", "default-view-total"] as const,
-    queryFn: async ({ signal }: { signal: AbortSignal }) => {
-      const response = await api.getBidDeltaDecisionQueue({ status: "all", limit: GO_NO_GO_PAGE_SIZE, offset: 0 }, { signal });
-      return {
-        count: response.items.filter(isGoNoGoReviewTarget).length,
-        /** 받은 범위가 전체인지. 아니면 건수는 받은 범위 기준이다(목록 화면과 같은 규칙). */
-        complete: response.items.length >= response.total,
-      };
-    },
-    staleTime: 60_000,
-  };
 }

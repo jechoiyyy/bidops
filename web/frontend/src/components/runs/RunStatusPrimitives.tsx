@@ -1,19 +1,9 @@
 import type { ReactNode } from "react";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
-import { Token } from "@astryxdesign/core/Token";
+import { SideFacts } from "../common/Facts";
+import { StatusMark, type Mark, type MarkTone } from "../common/Marks";
 
-/**
- * 실행 상태 화면(수집 실행·첨부 확보·상시 운영·산출물 감사 로그)이 공유하는
- * 표시 조각. 승인된 시안 `source/shared.tsx`의 Small·Status·Notice·Facts·
- * Section·Queue·DetailHeader·Footer·DataTable를 이 저장소의 규칙에 맞춰 옮긴
- * 것이다. 값은 만들지 않고 받은 것만 그린다.
- *
- * 이 화면 안에서만 쓰며 `components/common`에 올리지 않는다. 다른 화면이 같은
- * 이름을 쓰면 그때 공용으로 승격할지 판단한다(파일 소유 경계).
- */
-
-/** 12px 보조 문구. 이보다 작은 글자는 두지 않는다(`styles/typography.css`). */
 export function Caption({ children, as = "p" }: { children: ReactNode; as?: "p" | "span" }) {
   return (
     <Text className="rs-caption" as={as} type="supporting" color="secondary">
@@ -22,24 +12,8 @@ export function Caption({ children, as = "p" }: { children: ReactNode; as?: "p" 
   );
 }
 
-/** 상태 표식의 의미색.
- *
- * 성공·실패 의미색은 **종결된 처리 상태에만** 붙인다. 참조 실행·품질 미측정·
- * mock 참조 같은 비측정 표식과 "미확인"에는 붙이지 않는다(ADR-0050,
- * IMPLEMENTATION-CONTRACT §상태와 행동). */
-const TONE_RED = ["실패", "미달", "차단", "거절"];
-const TONE_ORANGE = ["부분 성공", "확인 필요", "중단됨", "중단", "건너뜀", "중지 요청"];
-const TONE_GREEN = ["성공", "통과", "완료"];
-
-export function StatusToken({ label, description }: { label: string; description?: string }) {
-  const color = TONE_RED.includes(label)
-    ? "red"
-    : TONE_ORANGE.includes(label)
-      ? "orange"
-      : TONE_GREEN.includes(label)
-        ? "green"
-        : "gray";
-  return <Token size="sm" label={label} color={color} description={description} />;
+export function StatusToken({ label, tone = "neutral", description }: { label: string; tone?: MarkTone; description?: string }) {
+  return <StatusMark mark={{ label, tone }} description={description} />;
 }
 
 export function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
@@ -55,6 +29,10 @@ export function Section({ title, action, children }: { title: string; action?: R
 }
 
 export function Facts({ items }: { items: Array<[string, ReactNode]> }) {
+  return <SideFacts items={items.map(([label, value]) => ({ label, value }))} />;
+}
+
+export function DialogFacts({ items }: { items: Array<[string, ReactNode]> }) {
   return (
     <dl className="rs-facts">
       {items.map(([term, value]) => (
@@ -93,37 +71,6 @@ export function Note({
   );
 }
 
-export interface RecordItem {
-  id: string;
-  title: string;
-  subtitle: ReactNode;
-  meta?: ReactNode;
-  status?: string;
-  statusDescription?: string;
-}
-
-/** 목록 행. 제목 15px semibold · 보조 14px · 캡션 12px (시안 고정 기준). */
-export function ListRecord({
-  item,
-  selected,
-  onSelect,
-}: {
-  item: RecordItem;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button className="rs-record" type="button" aria-pressed={selected} onClick={onSelect}>
-      <span className="rs-row rs-spread">
-        <Text className="rs-record-title" as="span" weight="semibold">{item.title}</Text>
-        {item.status ? <StatusToken label={item.status} description={item.statusDescription} /> : null}
-      </span>
-      <Text className="rs-record-subtitle" as="span">{item.subtitle}</Text>
-      {item.meta ? <Caption as="span">{item.meta}</Caption> : null}
-    </button>
-  );
-}
-
 export function DetailHeader({
   eyebrow,
   title,
@@ -133,7 +80,7 @@ export function DetailHeader({
 }: {
   eyebrow: ReactNode;
   title: string;
-  status?: string;
+  status?: Mark;
   statusDescription?: string;
   children?: ReactNode;
 }) {
@@ -141,21 +88,11 @@ export function DetailHeader({
     <header className="rs-detail-head">
       <div className="rs-row rs-spread">
         <Caption as="span">{eyebrow}</Caption>
-        {status ? <StatusToken label={status} description={statusDescription} /> : null}
+        {status ? <StatusMark mark={status} description={statusDescription} /> : null}
       </div>
       <Heading level={2}>{title}</Heading>
       {children}
     </header>
-  );
-}
-
-/** 상세 바닥의 고정 액션. 본문 스크롤과 분리된다. */
-export function DetailFooter({ note, children }: { note: ReactNode; children?: ReactNode }) {
-  return (
-    <footer className="rs-detail-foot">
-      <Caption>{note}</Caption>
-      {children ? <div className="rs-detail-actions">{children}</div> : null}
-    </footer>
   );
 }
 

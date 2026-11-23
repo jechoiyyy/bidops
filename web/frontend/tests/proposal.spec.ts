@@ -81,12 +81,12 @@ async function assertClean(page: Page, context: string) {
   const html = await page.locator(".page-canvas").evaluate((node) => node.innerHTML);
   for (const value of [...FORBIDDEN_VALUES, ...PROPOSAL_FORBIDDEN_VALUES]) expect(html, `${context}: ${value}`).not.toContain(value);
   expect(html, context).not.toMatch(forbiddenText);
-  // 최종 입찰 결정 표현은 이 탭의 본문·좌측에 없다(레코드의 다른 대화상자 문구는 이 검사 밖이다).
-  const tab = await page.locator(".rec-body").evaluate((node) => node.innerHTML);
+  // 최종 입찰 결정 표현은 이 탭의 본문·오른쪽 열에 없다(레코드의 다른 대화상자 문구는 이 검사 밖이다).
+  const tab = await page.locator(".workbench-record").evaluate((node) => node.innerHTML);
   expect(tab, context).not.toMatch(/Go\/No-Go|입찰 참여|최종 결정/i);
 }
 
-test("초안이 없고 판정도 없으면 안내 문장과 비활성 초안 만들기를 보이고 좌측은 사업 정보를 유지한다", async ({ page }) => {
+test("초안이 없고 판정도 없으면 안내 문장과 비활성 초안 만들기를 보이고 오른쪽 열은 사업 정보를 유지한다", async ({ page }) => {
   const trace = await openProposal(page);
   const empty = page.getByTestId("proposal-empty");
   await expect(empty.getByText("제안서 초안은 판정 뒤 만들 수 있어요", { exact: true })).toBeVisible();
@@ -98,7 +98,7 @@ test("초안이 없고 판정도 없으면 안내 문장과 비활성 초안 만
   await expect(header(page).getByRole("button", { name: "PDF로 내보내기", exact: true })).toHaveCount(0);
   await expect(header(page).getByRole("button", { name: "다시 만들기", exact: true })).toHaveCount(0);
   await expect(page.locator('.rec-action-hint[title="아직 만든 초안이 없어요"]')).toHaveCount(0);
-  await expect(page.locator(".rec-attribute")).toHaveCount(8);
+  await expect(page.locator(".workbench-record-rail [data-attribute]")).toHaveCount(8);
   await expect(page.getByTestId("proposal-status")).toHaveCount(0);
   expect(trace.proposalGets.length).toBeGreaterThan(0);
   expect(trace.proposalRequests).toEqual([]);
@@ -226,7 +226,7 @@ test("완료 초안 좌측은 단계 4·숫자·채워야 할 것·범례를 서
   await expect(page.getByTestId("proposal-legend")).toContainText("가격·투입 인력·전략은 초안에 넣지 않으며");
   await expect(side.getByText("확인할 문장", { exact: true })).toBeVisible();
   // 사업 정보 열은 초안이 있는 제안서 탭에서 이 열로 바뀐다.
-  await expect(page.locator(".rec-attribute")).toHaveCount(0);
+  await expect(page.locator(".workbench-record-rail [data-attribute]")).toHaveCount(0);
   // 참조 실행 표식은 문구로만 말하고 값 원문은 DOM에 없다.
   await expect(page.getByTestId("proposal-reference-badge")).toHaveText("참조 실행 · 품질 미측정");
   await assertClean(page, "완료 초안");
@@ -304,17 +304,17 @@ test("요구사항 수행방안 우측 표는 판정 표의 문장·근거와 �
   const first = table.locator("tbody tr").nth(0);
   await expect(first).toContainText("클라우드 기반 통합 인증 체계를 제공해야 한다");
   await expect(first).toContainText("근거: 인증 구축 실적");
-  await expect(first.locator(".vd-pill")).toHaveText("충족");
-  await expect(first.locator(".vd-pill")).toHaveClass(/is-success/);
+  await expect(first.locator(".workbench-mark")).toHaveText("충족");
+  await expect(first.locator(".workbench-mark")).toHaveAttribute("data-tone", "confirmed");
   const third = table.locator("tbody tr").nth(2);
   await expect(third).toContainText("직접생산 확인증명서(소프트웨어)를 보유해야 한다");
-  await expect(third.locator(".vd-pill")).toHaveText("부족");
-  await expect(third.locator(".vd-pill")).toHaveClass(/is-error/);
+  await expect(third.locator(".workbench-mark")).toHaveText("부족");
+  await expect(third.locator(".workbench-mark")).toHaveAttribute("data-tone", "error");
   // unknown은 부족이 아니라 확인 필요다.
   const second = table.locator("tbody tr").nth(1);
-  await expect(second.locator(".vd-pill")).toHaveText("확인 필요");
-  await expect(second.locator(".vd-pill")).toHaveClass(/is-warning/);
-  await expect(second.locator(".vd-pill")).not.toHaveClass(/is-error/);
+  await expect(second.locator(".workbench-mark")).toHaveText("확인 필요");
+  await expect(second.locator(".workbench-mark")).toHaveAttribute("data-tone", "warning");
+  await expect(second.locator(".workbench-mark")).not.toHaveAttribute("data-tone", "error");
   expect(sampleMatrix().length).toBe(7);
 
   // 문단으로 이동: 그 문단이 표시된다.
@@ -334,7 +334,7 @@ test("판정 표가 없으면 요구사항 문장을 지어내지 않고 서버 
   const rows = page.getByTestId("requirement-links").locator("tbody tr");
   await expect(rows).toHaveCount(7);
   await expect(rows.nth(0)).toContainText("요구사항 문장 없음");
-  await expect(rows.nth(0).locator(".vd-pill")).toHaveText("충족");
+  await expect(rows.nth(0).locator(".workbench-mark")).toHaveText("충족");
   await assertClean(page, "판정 표 없음");
 });
 
@@ -598,7 +598,7 @@ test("일부 절이 실패한 초안은 실패 카드에 사유·다시 쓰기�
   await expect(failed).toContainText("자동으로 고치지 않아요");
   await expect(failed).toContainText("오류 코드 proposal_forbidden_content");
   await expect(page.getByTestId("section-status")).toHaveText("생성 실패");
-  await expect(page.getByTestId("section-status")).toHaveClass(/is-error/);
+  await expect(page.getByTestId("section-status")).toHaveAttribute("data-tone", "error");
   // 실패 절에는 검토·문장 수정 도구가 없고 카드의 "다시 쓰기"만 있다.
   await expect(page.getByTestId("section-toolbar")).toHaveCount(0);
   // PDF는 partial에서도 열린다.
@@ -819,14 +819,14 @@ test("제안서 탭은 최종 입찰 결정·가격·투입 인력 입력을 두
 });
 
 for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
-  test(`${viewport.width}px에서 가로로 넘치지 않고 좌측이 280px이며 본문 카드는 620px를 넘지 않는다`, async ({ page }) => {
+  test(`${viewport.width}px에서 가로로 넘치지 않고 오른쪽 열이 320px이며 본문 카드는 620px를 넘지 않는다`, async ({ page }) => {
     await openProposal(page, { verdict: completedView(), drafts: completedDraft(), viewport });
     await waitDraft(page);
     await pickSection(page, "요구사항 수행방안");
     await expect(page.getByTestId("requirement-links").locator("tbody tr")).toHaveCount(7);
     const metrics = await page.evaluate(() => {
       const canvas = document.querySelector(".page-canvas") as HTMLElement;
-      const side = document.querySelector(".rec-side") as HTMLElement;
+      const side = document.querySelector(".workbench-record-rail") as HTMLElement;
       const body = document.querySelector(".pp-card") as HTMLElement;
       const req = document.querySelector(".pp-req") as HTMLElement;
       const styles = getComputedStyle(body);
@@ -847,7 +847,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     });
     expect(metrics.pageOverflow).toBeLessThanOrEqual(0);
     expect(metrics.canvasOverflow).toBeLessThanOrEqual(0);
-    expect(Math.round(metrics.side)).toBe(280);
+    expect(Math.round(metrics.side)).toBe(320);
     expect(metrics.card).toBeLessThanOrEqual(621);
     expect(metrics.reqRight).toBeLessThanOrEqual(metrics.canvasRight + 1);
     expect(metrics.fontFamily.toLowerCase()).toContain("serif");

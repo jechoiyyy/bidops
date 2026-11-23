@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
 import { Text } from "@astryxdesign/core/Text";
-import { Token } from "@astryxdesign/core/Token";
+import { StatusMark } from "../common/Marks";
 import { CircleAlert, LoaderCircle, Search } from "lucide-react";
 
 export function Small({ children, className = "" }: { children: ReactNode; className?: string }) {
@@ -11,7 +11,7 @@ export function Small({ children, className = "" }: { children: ReactNode; class
 }
 
 export function Tag({ label, tone = "neutral" }: { label: string; tone?: "neutral" | "error" | "success" | "warning" }) {
-  return <Token label={label} color={tone === "error" ? "red" : tone === "success" ? "green" : tone === "warning" ? "orange" : "gray"} size="sm" />;
+  return <StatusMark mark={{ label, tone: tone === "success" ? "confirmed" : tone }} />;
 }
 
 function RouterAnchor({ href = "", ...props }: AnchorHTMLAttributes<HTMLAnchorElement>) {
@@ -26,10 +26,16 @@ export function LinkButton({ to, label, icon, secondary = false }: { to: string;
  * 대시보드의 큰 묶음(설계고도화안 C-8): 오늘 결정할 것 · 확인할 것 · 새로 볼 것. 묶음 제목이 h2이고
  * 안의 업무 패널 제목은 h3이다.
  */
-export function DashboardBlock({ id, title, caption, children }: { id: string; title: string; caption: ReactNode; children: ReactNode }) {
+export function DashboardBlock({ id, title, caption, actions, children }: {
+  id: string; title: string; caption?: ReactNode; actions?: ReactNode; children: ReactNode;
+}) {
   const headingId = `dash-block-${id}`;
   return <section className="dash-block" aria-labelledby={headingId} data-block={id}>
-    <header className="dash-block-head"><Heading level={2} id={headingId}>{title}</Heading><Small>{caption}</Small></header>
+    <header className="dash-block-head">
+      <Heading level={2} id={headingId}>{title}</Heading>
+      {caption && <Small>{caption}</Small>}
+      {actions && <div className="dash-block-actions">{actions}</div>}
+    </header>
     {children}
   </section>;
 }

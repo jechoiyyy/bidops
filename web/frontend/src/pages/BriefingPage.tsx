@@ -4,9 +4,11 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { BriefingTable } from "../components/briefing/BriefingTable";
 import { PeekPanel } from "../components/briefing/PeekPanel";
-import { useRememberedActorName } from "../components/common/ActorField";
+import { requestActorInput, useRememberedActorName } from "../components/common/ActorField";
 import { EmptyState } from "../components/common/EmptyState";
 import { PageHeaderActions, PageHeaderTabs } from "../components/common/PageHeaderActions";
+import { SplitWorkspace } from "../components/common/ReviewPrimitives";
+import { WorkspaceFrame } from "../components/common/WorkspaceFilters";
 import { usePageHeader } from "../components/shell/PageHeaderContext";
 import { Toast, type ToastVariant } from "../components/common/Toast";
 import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
@@ -96,7 +98,7 @@ function NotFound({ invalidDate, dated }: { invalidDate: boolean; dated: boolean
       description={
         invalidDate
           ? "주소의 날짜 형식이 올바르지 않아요(YYYY-MM-DD). 최신 브리핑을 열거나 날짜를 고쳐 다시 열어 주세요."
-          : "브리핑은 일일 브리핑 스크립트가 실행되어야 만들어져요. 이 화면은 그 일정이 있는지 알 수 없으며, 지금까지 만들어진 브리핑이 없어요. 사전규격·발주계획 목록에서 공고를 확인하세요."
+          : "사전규격과 발주계획 목록에서 오늘의 공고를 확인하세요."
       }
       secondaryAction={dated || invalidDate ? { label: "최신 브리핑 열기", to: "/briefing" } : { label: "발주계획 열기", to: "/order-plans" }}
       title={NOT_FOUND_TITLE}
@@ -160,9 +162,14 @@ export function BriefingPage() {
     () => (activeTab === "pending" ? trackedChanges : []),
     [activeTab, trackedChanges],
   );
+  const grouped = useMemo(() => {
+    const result: Record<RowGroup, BriefingItemView[]> = { open: [], undated: [], closed: [] };
+    for (const item of visibleRecommendations) result[deadlineGroup(item)].push(item);
+    return result;
+  }, [visibleRecommendations]);
   const keys = useMemo(
-    () => [...visibleRecommendations, ...visibleTracked].map((item) => item.item_id),
-    [visibleRecommendations, visibleTracked],
+    () => [...GROUP_ORDER.flatMap((group) => grouped[group]), ...visibleTracked].map((item) => item.item_id),
+    [grouped, visibleTracked],
   );
 
   const select = useCallback(
@@ -212,6 +219,12 @@ export function BriefingPage() {
     onSelect: select,
   });
 
+  const openItem = useCallback((item: BriefingItemView, selected: string | null) => {
+    const path = safeRecordPath(item.record_path);
+    if (selected === item.item_id && path) navigate(path);
+    else select(item.item_id);
+  }, [navigate, select]);
+
   // 키 처리기와 비동기 저장이 최신 값을 읽도록 렌더마다 갱신하는 참조다.
   const live = useRef({ byId, selectedId, keys, activeTab, actorName, notice, ready: false });
   live.current = { byId, selectedId, keys, activeTab, actorName, notice, ready: briefing !== undefined };
@@ -231,9 +244,7 @@ export function BriefingPage() {
       if (!state.actorName.trim()) {
         showNotice("담당자 이름을 입력한 뒤 다시 눌러 주세요. 사이드바 담당자 칸의 이름이 기록에 남아요(인증이 아니에요).", "warning");
         // 이름은 사이드바 담당자 칸에서 받는다. 칸이 닫혀 있으면 열어 입력에 초점을 둔다.
-        const field = document.getElementById("sidebar-actor-input");
-        if (field) field.focus();
-        else document.querySelector<HTMLButtonElement>(".sidebar-actor-trigger")?.click();
+        requestActorInput();
         return;
       }
       // 이미 선택된 반응을 다시 누르면 `대기`로 돌아간다(토글). 되돌리기는 이전 값 그대로다.
@@ -327,7 +338,7 @@ export function BriefingPage() {
       if (!inPage || !live.current.ready) return;
       const state = live.current;
       const focusedRow = target instanceof HTMLElement
-        ? target.closest<HTMLElement>("[data-row-key]")?.getAttribute("data-row-key") ?? null
+        ? target.getAttribute("data-row-key")
         : null;
       // 반응 단축키는 피크가 보여 주는 선택 항목에 걸린다. 선택이 없을 때만 초점이 있는 행이다.
       const reactTargetId = state.selectedId ?? focusedRow;
@@ -340,16 +351,12 @@ export function BriefingPage() {
         return;
       }
       if (event.key === "Enter") {
-        // 링크·버튼 위의 Enter는 그 요소의 동작이다. 행 버튼(또는 아무 초점이 없을 때)만 가로챈다.
-        const enterId = focusedRow ?? state.selectedId;
-        if (!(target === document.body || focusedRow !== null) || enterId === null) return;
-        const item = state.byId.get(enterId);
+        // 표 안에서는 행이 Enter를 처리한다. 버튼·링크는 기본 동작을 쓴다.
+        if (target !== document.body || state.selectedId === null) return;
+        const item = state.byId.get(state.selectedId);
         if (!item) return;
         event.preventDefault();
-        const path = safeRecordPath(item.record_path);
-        // 피크가 이미 열린 행에서 한 번 더 Enter면 레코드로 간다.
-        if (state.selectedId === item.item_id && path) navigate(path);
-        else select(item.item_id);
+        openItem(item, state.selectedId);
         return;
       }
       if (event.repeat) return;
@@ -374,7 +381,7 @@ export function BriefingPage() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [navigate, react, select, undo]);
+  }, [openItem, react, select, undo]);
 
   // ---- 패널 헤더 ------------------------------------------------------------
   const notFound = invalidDate || (query.isError && query.error instanceof ApiError && query.error.status === 404);
@@ -406,11 +413,6 @@ export function BriefingPage() {
   })() : null;
   usePageHeader(headerContent);
   const basis = briefing ? collectionBasisLabel(briefing.briefing_date) : null;
-  const grouped = useMemo(() => {
-    const result: Record<RowGroup, BriefingItemView[]> = { open: [], undated: [], closed: [] };
-    for (const item of visibleRecommendations) result[deadlineGroup(item)].push(item);
-    return result;
-  }, [visibleRecommendations]);
 
   let body;
   if (notFound) {
@@ -454,74 +456,73 @@ export function BriefingPage() {
           </section>
         ) : null}
 
-        <div className={`briefing-workspace${selectedItem ? " has-peek" : ""}`}>
-          <div
-            aria-label={`${BRIEFING_TAB_LABEL[activeTab]} 목록`}
-            className="briefing-list"
-            id={PANEL_ID}
-            onKeyDown={rowNavigation.onKeyDown}
-            onPointerDownCapture={rowNavigation.onPointerDownCapture}
-            ref={listRef}
-            role="tabpanel"
-            tabIndex={-1}
-          >
-            {emptyBriefing ? (
-              <EmptyState compact title={EMPTY_TITLE} />
-            ) : tabEmpty ? (
-              <EmptyState
-                compact
-                description={activeTab === "pending" ? "모든 추천에 반응했어요." : "이 반응을 남긴 추천이 없어요."}
-                title={`${BRIEFING_TAB_LABEL[activeTab]} 항목이 없어요`}
-              />
-            ) : (
-              GROUP_ORDER.map((group) => {
-                const items = grouped[group];
-                if (items.length === 0) return null;
-                const titleId = `briefing-group-${group}`;
-                const heading = groupTitle(group, items);
-                return (
-                  <section aria-labelledby={titleId} className={`briefing-group is-${group}`} key={group}>
+        <WorkspaceFrame id={PANEL_ID} role="tabpanel" aria-label={`${BRIEFING_TAB_LABEL[activeTab]} 목록`}>
+          <SplitWorkspace
+            className="briefing-workspace"
+            listLabel={`${BRIEFING_TAB_LABEL[activeTab]} 추천과 추적 변화`}
+            detailLabel="브리핑 미리보기"
+            detail={selectedItem
+              ? <PeekPanel item={selectedItem} onClose={() => select(null)} />
+              : <p className="briefing-preview-empty">사업을 고르면 미리보기를 열 수 있어요.</p>}
+            list={(
+              <div className="briefing-list" onKeyDown={rowNavigation.onKeyDown} ref={listRef} tabIndex={-1}>
+                {emptyBriefing ? (
+                  <EmptyState compact title={EMPTY_TITLE} />
+                ) : tabEmpty ? (
+                  <EmptyState
+                    compact
+                    description={activeTab === "pending" ? "모든 추천에 반응했어요." : "이 반응을 남긴 추천이 없어요."}
+                    title={`${BRIEFING_TAB_LABEL[activeTab]} 항목이 없어요`}
+                  />
+                ) : (
+                  GROUP_ORDER.map((group) => {
+                    const items = grouped[group];
+                    if (items.length === 0) return null;
+                    const titleId = `briefing-group-${group}`;
+                    const heading = groupTitle(group, items);
+                    return (
+                      <section aria-labelledby={titleId} className={`briefing-group is-${group}`} key={group}>
+                        <div className="briefing-group-head">
+                          <h2 className="briefing-group-title" id={titleId}>{heading}</h2>
+                          <span className="briefing-count" data-testid={`briefing-group-count-${group}`}>{items.length.toLocaleString("ko-KR")}건</span>
+                        </div>
+                        <BriefingTable
+                          busy={busy}
+                          emphasis={group === "open"}
+                          items={items}
+                          label={`${heading} 추천`}
+                          navigation={rowNavigation}
+                          onOpen={(item) => openItem(item, selectedId)}
+                          onReact={onReactPointer}
+                          onSelect={select}
+                          selectedId={selectedId}
+                        />
+                      </section>
+                    );
+                  })
+                )}
+                {visibleTracked.length > 0 ? (
+                  <section aria-labelledby="briefing-tracked-title" className="briefing-group is-tracked">
                     <div className="briefing-group-head">
-                      <h2 className="briefing-group-title" id={titleId}>{heading}</h2>
-                      <span className="briefing-count" data-testid={`briefing-group-count-${group}`}>{items.length.toLocaleString("ko-KR")}건</span>
+                      <h2 className="briefing-group-title" id="briefing-tracked-title">추적 중인 사업의 변화</h2>
+                      <span className="briefing-count" data-testid="briefing-tracked-count">{visibleTracked.length}</span>
                     </div>
                     <BriefingTable
                       busy={busy}
-                      emphasis={group === "open"}
-                      items={items}
-                      label={`${heading} 추천`}
+                      items={visibleTracked}
+                      label="추적 중인 사업의 변화"
+                      navigation={rowNavigation}
+                      onOpen={(item) => openItem(item, selectedId)}
                       onReact={onReactPointer}
                       onSelect={select}
-                      rowProps={rowNavigation.rowProps}
                       selectedId={selectedId}
                     />
                   </section>
-                );
-              })
+                ) : null}
+              </div>
             )}
-            {visibleTracked.length > 0 ? (
-              <section aria-labelledby="briefing-tracked-title" className="briefing-group is-tracked">
-                <div className="briefing-group-head">
-                  <h2 className="briefing-group-title" id="briefing-tracked-title">추적 중인 사업의 변화</h2>
-                  <span className="briefing-count" data-testid="briefing-tracked-count">{visibleTracked.length}</span>
-                </div>
-                <BriefingTable
-                  busy={busy}
-                  items={visibleTracked}
-                  label="추적 중인 사업의 변화"
-                  onReact={onReactPointer}
-                  onSelect={select}
-                  rowProps={rowNavigation.rowProps}
-                  selectedId={selectedId}
-                  tracked
-                />
-              </section>
-            ) : null}
-          </div>
-          {selectedItem ? (
-            <PeekPanel item={selectedItem} onClose={() => select(null)} />
-          ) : null}
-        </div>
+          />
+        </WorkspaceFrame>
       </>
     );
   }

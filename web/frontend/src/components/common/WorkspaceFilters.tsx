@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type ReactNode } from "react";
+import { useEffect, useRef, useState, type HTMLAttributes, type ReactNode } from "react";
 import { Button } from "@astryxdesign/core/Button";
+import { OverflowList } from "@astryxdesign/core/OverflowList";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import { Token } from "@astryxdesign/core/Token";
 import { ListFilter, Search } from "lucide-react";
 import { formatCount } from "../../lib/format";
 
@@ -107,8 +109,7 @@ export interface WorkspaceViewTab<K extends string> {
   key: K;
   label: string;
   /**
-   * 탭 옆 건수. `undefined`면 건수를 아예 표시하지 않고, `null`이면 `–`로 그린다
-   * (아직 못 불러온 상태와 0건은 서로 다른 사실이다).
+   * 탭 옆 건수. 숫자를 받았을 때만 표시하며 0도 그대로 그린다.
    */
   count?: number | null;
 }
@@ -146,9 +147,7 @@ export function WorkspaceViewTabs<K extends string>({
   return (
     <div aria-label={label} className={joinClassNames("workspace-view-tabs", className)} role="group">
       {tabs.map((tab) => {
-        const countText = tab.count === undefined
-          ? null
-          : tab.count === null ? "–" : formatCount(tab.count);
+        const countText = tab.count == null ? null : formatCount(tab.count);
         return (
           <Button
             aria-pressed={value === tab.key}
@@ -181,6 +180,31 @@ export function WorkspaceFilterTools({ children, className, role, "aria-label": 
       role={role ?? "group"}
     >
       {children}
+    </div>
+  );
+}
+
+export interface AppliedFilter {
+  key: string;
+  label: string;
+  onRemove: () => void;
+}
+
+export function AppliedFilterTokens({ filters, isDisabled }: { filters: AppliedFilter[]; isDisabled?: boolean }) {
+  if (filters.length === 0) return null;
+  return (
+    <div className="workbench-filter-tokens">
+      <OverflowList
+        aria-label="적용한 필터"
+        role="group"
+        overflowRenderer={() => <span className="workbench-filter-count">필터 {formatCount(filters.length)}개</span>}
+      >
+        <div className="workbench-filter-token-group">
+          {filters.map(({ key, label, onRemove }) => (
+            <Token key={key} size="sm" label={label} isDisabled={isDisabled} onRemove={onRemove} />
+          ))}
+        </div>
+      </OverflowList>
     </div>
   );
 }
@@ -311,6 +335,7 @@ export function WorkspaceAdvancedToggle({
     <span className={joinClassNames("workspace-advanced-toggle", className)}>
       {visibleLabel ? (
         <Button
+          id={`${controlsId}-toggle`}
           aria-controls={controlsId}
           aria-expanded={isOpen}
           className="workspace-advanced-toggle-labelled"
@@ -323,6 +348,7 @@ export function WorkspaceAdvancedToggle({
         </Button>
       ) : (
         <Button
+          id={`${controlsId}-toggle`}
           aria-controls={controlsId}
           aria-expanded={isOpen}
           icon={<ListFilter aria-hidden="true" />}
@@ -360,14 +386,10 @@ export function WorkspaceFilterContext({ children, className, ...props }: Worksp
 
 export interface WorkspaceFilterAdvancedProps extends Omit<HTMLAttributes<HTMLDivElement>, "children" | "id"> {
   children: ReactNode;
-  /**
-   * 열 수. `--workspace-advanced-columns`로 내려가 grid가
-   * `repeat(n, minmax(0,1fr)) auto`가 된다(마지막 `auto`는 초기화 버튼 자리).
-   * @default 2
-   */
-  columns?: number;
   /** {@link WorkspaceAdvancedToggle}의 `controlsId`와 같아야 한다. */
   id: string;
+  isOpen: boolean;
+  onClose: () => void;
   onReset: () => void;
   /**
    * 초기화 버튼 라벨. 화면이 "기본값"이라고 부르는 상태로 되돌리는 경우
@@ -377,35 +399,36 @@ export interface WorkspaceFilterAdvancedProps extends Omit<HTMLAttributes<HTMLDi
   resetLabel?: string;
 }
 
-/**
- * 접혔다 펴지는 상세 필터 영역.
- *
- * 접혀 있어도 URL 동기화와 축의 AND/OR 의미는 그대로다 — 접는 것은 보이는 정도이지
- * 걸린 필터를 없애는 일이 아니다. 그래서 토글이 활성 필터 수를 옆에 그린다.
- * 초기화 버튼은 항상 마지막 자리(오른쪽 끝)에 있으므로 화면이 따로 그리지 않는다.
- *
- * 열 하나를 통째로 쓰는 자식(발주계획의 저장된 뷰)은 화면 CSS에서
- * `grid-column: 1 / -1`을 준다.
- */
+export function WorkspaceFilterGroup({ title, children }: { title: string; children: ReactNode }) {
+  return <section className="workspace-filter-group">
+    <h3>{title}</h3>
+    {children}
+  </section>;
+}
+
 export function WorkspaceFilterAdvanced({
-  children,
-  className,
-  columns = 2,
-  id,
-  onReset,
-  resetLabel = "필터 초기화",
-  style,
-  ...props
+  children, className, isOpen, onClose, id, onReset, resetLabel = "필터 초기화", ...props
 }: WorkspaceFilterAdvancedProps) {
+  function close() {
+    onClose();
+    document.getElementById(`${id}-toggle`)?.focus();
+  }
+  if (!isOpen) return null;
   return (
-    <div
-      {...props}
-      className={joinClassNames("workspace-filter-advanced", className)}
-      id={id}
-      style={{ ...style, "--workspace-advanced-columns": columns } as CSSProperties}
+    <div {...props} id={id} role="region" aria-label="상세 필터" className={joinClassNames("workspace-filter-panel", className)}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && !event.defaultPrevented && !event.nativeEvent.isComposing
+          && !event.currentTarget.querySelector('[aria-expanded="true"]')) {
+          event.stopPropagation();
+          close();
+        }
+      }}
     >
-      {children}
-      <Button className="workspace-filter-reset" label={resetLabel} onClick={onReset} size="sm" />
+      <div className="workspace-filter-advanced">{children}</div>
+      <div className="workspace-filter-panel-actions">
+        <Button label={resetLabel} onClick={onReset} size="sm" />
+        <Button label="필터 접기" onClick={close} size="sm" />
+      </div>
     </div>
   );
 }

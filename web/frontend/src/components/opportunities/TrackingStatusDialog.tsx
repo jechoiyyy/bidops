@@ -16,7 +16,6 @@ import {
 } from "../common/TrackingDecisionForm";
 import { api } from "../../lib/api";
 import { describeApiError, type ApiErrorDescription } from "../../lib/apiErrors";
-import { trackingDescription } from "../../lib/opportunity";
 import type { OpportunityDetailResponse } from "../../lib/types";
 
 /**
@@ -182,9 +181,7 @@ export function TrackingStatusDialog({
             <>
               <p className="opportunity-dialog-target"><strong>{title}</strong></p>
               <p className="opportunity-caption">
-                현재 추적 상태 · {opportunity.tracking_status} — {opportunity.tracking_status === "미선택"
-                  ? "아직 아무도 고르지 않았어요. 화면이 대신 고르지 않아요."
-                  : trackingDescription(opportunity.tracking_status)}
+                현재 추적 상태 · {opportunity.tracking_status}
               </p>
               <TrackingDecisionInputs
                 presets={OPPORTUNITY_TRACKING_REASONS}
@@ -197,10 +194,6 @@ export function TrackingStatusDialog({
                 isDisabled={mutation.isPending}
                 size="md"
               />
-              <p className="opportunity-caption">
-                추적 상태·선택 사유·담당자 이름을 함께 남겨요. 추적 종료는 능동 추적을 끝내는 선택이며 영구 배제가 아니에요.{" "}
-                적합성 등급·참여 준비 상태·심층 검토 승인·최종 입찰 Go/No-Go는 바뀌지 않아요.
-              </p>
               {/* 추적 상태 저장은 재검토 신호를 해제한다(spec §6.2). 따로 확인할 필요가 없음을 먼저 알린다. */}
               {opportunity.recheck_signal ? (
                 <p className="opportunity-caption opportunity-tracking-signal-note">저장하면 새 공고 확인도 함께 처리돼요.</p>

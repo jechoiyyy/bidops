@@ -31,6 +31,7 @@ interface NextActionsProps {
 
 export function NextActions({ actions, hasHistory, loading, failed, pendingNoteId, onComplete, onShowAll }: NextActionsProps) {
   const shown = actions.slice(0, NEXT_ACTION_LIMIT);
+  if (!loading && !failed && !hasHistory && shown.length === 0) return null;
   return (
     <section aria-labelledby="rec-next-title" className="rec-side-block" data-testid="next-actions">
       <h3 className="rec-side-title" id="rec-next-title">{TERM_SENSE.nextActionNote}</h3>

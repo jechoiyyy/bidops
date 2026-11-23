@@ -1,4 +1,5 @@
-import { useId } from "react";
+import { useId, type ComponentProps } from "react";
+import { Button } from "@astryxdesign/core/Button";
 import { Link } from "react-router-dom";
 import type { ApiErrorDescription } from "../../lib/apiErrors";
 
@@ -24,10 +25,13 @@ interface EmptyStateProps {
   problem?: ApiErrorDescription;
 }
 
+function ActionLink({ href, ...props }: Omit<ComponentProps<typeof Link>, "to"> & { href: string }) {
+  return <Link {...props} to={href} />;
+}
+
 function ActionControl({ action, variant }: { action: EmptyStateAction; variant: "primary" | "secondary" }) {
-  const className = `empty-state-action empty-state-action-${variant}`;
-  if (action.to) return <Link className={className} to={action.to}>{action.label}</Link>;
-  return <button className={className} type="button" onClick={action.onClick}>{action.label}</button>;
+  if (action.to) return <Button as={ActionLink} href={action.to} label={action.label} size="sm" variant={variant} />;
+  return <Button label={action.label} onClick={action.onClick} size="sm" variant={variant} />;
 }
 
 export function EmptyState({

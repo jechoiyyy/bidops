@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Badge, type BadgeVariant } from "../common/Badge";
+import { StatusMark } from "../common/Marks";
 import { EmptyState } from "../common/EmptyState";
 import { Panel } from "../common/Panel";
 import type { ReviewAnswerInput, VerificationItemResponse } from "../../lib/types";
@@ -9,12 +9,6 @@ interface VerificationItemTableProps {
   items: VerificationItemResponse[];
   answers: ReviewAnswerInput[];
   onAnswerChange?: (item: string, answer: string) => void;
-}
-
-function statusVariant(status: string | null): BadgeVariant {
-  if (status === "확인 완료") return "evidence-confirmed";
-  if (status === "미확인") return "evidence-unknown";
-  return "neutral";
 }
 
 export function VerificationItemTable({ items, answers, onAnswerChange }: VerificationItemTableProps) {
@@ -41,12 +35,12 @@ export function VerificationItemTable({ items, answers, onAnswerChange }: Verifi
             return (
               <div className={`verification-row ${item.blocking ? "is-blocking" : ""}`.trim()} key={item.id}>
                 <div className="verification-row-main">
-                  {item.blocking ? <Badge label="차단" variant="danger" /> : null}
+                  {item.blocking ? <StatusMark mark={{ label: "차단", tone: "error" }} /> : null}
                   <div>
                     <strong>{present(item.item, "확인 항목 미확인")}</strong>
                     <p>{present(item.why, "확인 사유 미확인")}</p>
                   </div>
-                  <Badge label={present(item.status, "미확인")} variant={statusVariant(item.status)} />
+                  <StatusMark mark={{ label: present(item.status, "미확인"), tone: item.status === "확인 완료" ? "accent" : "neutral" }} />
                 </div>
                 {onAnswerChange ? (
                   <input

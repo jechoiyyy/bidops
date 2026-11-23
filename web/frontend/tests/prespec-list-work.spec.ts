@@ -162,14 +162,13 @@ test("최근 workspace는 KST 관측 범위 기본값과 수집 회차를 API에
   // bounds let the server apply that default only to the recent bucket.
   expect(query?.has("observed_from")).toBe(false);
   expect(query?.has("observed_to")).toBe(false);
-  // 회차 선택기는 `상세 필터` 안으로 옮겼고(ADR-0062 2026-09-21 재개정) 관측 날짜
-  // 범위는 `최근 수집` 보기의 시야라 도구 줄에 남는다.
+  // 관측 범위와 회차는 상세 필터의 조회 범위에 있다.
   await expect(page.locator(".pre-specs-filter-tools").getByRole("button", { name: "수집 회차" })).toHaveCount(0);
-  await expect(page.getByRole("combobox", { name: "관측 시작일" })).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "관측 종료일" })).toBeVisible();
-
   await page.getByRole("button", { name: "상세 필터", exact: true }).click();
-  await page.locator("#pre-specs-advanced-filters").getByRole("button", { name: "수집 회차" }).click();
+  const filters = page.getByRole("region", { name: "상세 필터", exact: true });
+  await expect(filters.getByRole("combobox", { name: "관측 시작일" })).toBeVisible();
+  await expect(filters.getByRole("combobox", { name: "관측 종료일" })).toBeVisible();
+  await filters.getByRole("button", { name: "수집 회차" }).click();
   const sourceRun = page.getByRole("option", { name: /09-14~09-15 수집/ });
   await expect(sourceRun).toBeVisible();
   await sourceRun.click();
@@ -180,7 +179,8 @@ test("최근 workspace는 KST 관측 범위 기본값과 수집 회차를 API에
   const runLine = page.locator(".pre-specs-filters .source-run-context");
   await expect(runLine).toContainText("회차 보기");
   await expect(runLine).toContainText("09-14~09-15 수집");
-  await expect(page.locator(".pre-specs-filters .workspace-filter-count")).toHaveText("1");
+  // 조회 범위에 있는 SW 중심 해제와 수집 회차가 각각 한 조건이다.
+  await expect(page.locator(".pre-specs-filters .workspace-filter-count")).toHaveText("2");
 
   // `모든 회차로`가 회차만 지우고 다른 조건은 남긴다.
   await runLine.getByRole("button", { name: "모든 회차로", exact: true }).click();
@@ -228,9 +228,10 @@ test("사전규격의 회차는 기존 조건에 더해지고 기본값 복원�
   await page.getByRole("option", { name: /09-14~09-15 수집/ }).click();
   await expect.poll(() => queries.at(-1)?.get("source_run_id")).toBe("pre-spec-run-b");
 
-  // 다른 축이 그대로 남는다. 상세 필터 단추의 수는 발견 구분 + 회차 둘이다.
+  // SW 중심 해제, 발견 구분, 회차가 각각 한 조건이다.
   expect(new URL(page.url()).searchParams.get("origin")).toBe("신규");
-  await expect(page.locator(".pre-specs-filters .workspace-filter-count")).toHaveText("2");
+  expect(new URL(page.url()).searchParams.get("sw_only")).toBe("false");
+  await expect(page.locator(".pre-specs-filters .workspace-filter-count")).toHaveText("3");
 
   // 회차 줄까지 그려진 상태에서도 넘치지 않는다(1280·1440 두 폭).
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth))
@@ -267,9 +268,8 @@ test("사전규격도 목록에 없는 회차를 바꾸지 않고, 회차 목록
 });
 
 // ADR-0064 — 검토할 항목의 기본 시야는 `마감 전 + 마감 미확인`이고, 마감 경과는
-// 사라지지 않고 1클릭 거리에 건수와 함께 남는다. 구간은 actionable 술어의 일부라
-// 다른 보기로 옮기면 URL에서 지워진다.
-test("검토할 항목 기본 구간은 마감 전·미확인이고 마감 경과는 1클릭 전환이다", async ({ page }) => {
+// 상세 필터에서 구간별 건수를 보고 전환한다. 다른 보기로 옮기면 URL에서 구간이 지워진다.
+test("검토할 항목은 마감 전·미확인이 기본이고 상세 필터에서 마감 경과로 전환한다", async ({ page }) => {
   const queries: URLSearchParams[] = [];
   page.on("request", (request) => {
     const url = new URL(request.url());
@@ -289,8 +289,11 @@ test("검토할 항목 기본 구간은 마감 전·미확인이고 마감 경�
   const rows = page.locator(".pre-specs-row");
   await expect(rows).toHaveCount(2);
   await expect(page.getByRole("button", { name: /^검토할 항목/ })).toHaveAccessibleName(/검토할 항목\s+2$/);
-  const scope = page.getByRole("radiogroup", { name: "마감 구간" });
-  await expect(page.locator(".pre-specs-deadline-scope-caption")).toHaveText("마감 구간");
+  const filterToggle = page.getByRole("button", { name: "상세 필터", exact: true });
+  const filters = page.getByRole("region", { name: "상세 필터", exact: true });
+  const scope = filters.getByRole("radiogroup", { name: "마감 구간" });
+  await filterToggle.click();
+  await expect(filters.locator(".pre-specs-deadline-scope-caption")).toHaveText("마감 구간");
   await expect(scope.getByRole("radio", { name: "마감 전·미확인 2" })).toBeChecked();
   await expect(scope.getByRole("radio", { name: "마감 경과 2" })).not.toBeChecked();
   await expect(rows.filter({ hasText: "마감 미확인 사전규격 표본" })).toHaveCount(1);
@@ -299,6 +302,7 @@ test("검토할 항목 기본 구간은 마감 전·미확인이고 마감 경�
   //     돌리고 목록이 바뀐다.
   // 페이지를 넘긴 상태에서 전환해야 `offset`이 정말 지워지는지 보인다.
   await page.goto("/pre-specs?offset=2&deadline_scope=current");
+  await filterToggle.click();
   await scope.getByRole("radio", { name: "마감 경과 2" }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("deadline_scope")).toBe("passed");
   expect(new URL(page.url()).searchParams.has("offset")).toBe(false);
@@ -313,7 +317,8 @@ test("검토할 항목 기본 구간은 마감 전·미확인이고 마감 경�
   await page.getByRole("button", { name: /^최근 수집/ }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("workspace")).toBe("recent");
   expect(new URL(page.url()).searchParams.has("deadline_scope")).toBe(false);
-  await expect(page.getByRole("radiogroup", { name: "마감 구간" })).toHaveCount(0);
+  await expect(filters).toBeVisible();
+  await expect(scope).toHaveCount(0);
 
   // (5) 같은 축의 컨트롤을 둘 두지 않는다 — 검토할 항목에는 상세 필터의
   //     `마감 상태`가 없고 전체 이력에는 있다.
@@ -326,16 +331,16 @@ test("검토할 항목 기본 구간은 마감 전·미확인이고 마감 경�
   await expect(page.getByRole("radiogroup", { name: "마감 구간" })).toHaveCount(0);
 });
 
-// 구간 컨트롤은 조회 도구 줄의 **네 번째 칸**이고 그 줄은 한 줄로 남아야 한다.
-// Astryx `SegmentedControl`의 `fill`은 `width:100%`라 혼자 한 줄을 차지하므로,
-// `hug`가 풀리면 이 검사가 잡는다.
-test("마감 구간 컨트롤은 조회 도구 줄의 네 번째 칸이고 줄을 늘리지 않는다", async ({ page }) => {
+// 머리의 조회 도구는 필터·검색 한 줄이고, 마감 구간은 상세 필터의 추적·일정에 있다.
+test("마감 구간은 상세 필터의 추적·일정에 있고 조회 도구 줄을 늘리지 않는다", async ({ page }) => {
   await mockApi(page);
   await mockPreSpecDeadlineScope(page);
   await page.goto("/pre-specs");
-  await expect(page.locator(".pre-specs-row").first()).toBeVisible();
+  const tools = page.locator(".pre-specs-filter-tools");
+  await expect(tools).toBeVisible();
+  await expect(tools.getByRole("radiogroup", { name: "마감 구간" })).toHaveCount(0);
 
-  const metrics = await page.locator(".workspace-filter-tools").evaluate((tools) => {
+  const metrics = await tools.evaluate((tools) => {
     const children = [...tools.children] as HTMLElement[];
     const tops = children.map((child) => Math.round(child.getBoundingClientRect().top));
     return {
@@ -343,10 +348,14 @@ test("마감 구간 컨트롤은 조회 도구 줄의 네 번째 칸이고 줄�
       distinctTops: [...new Set(tops)].length,
     };
   });
-  expect(metrics.classNames).toHaveLength(4);
-  expect(metrics.classNames[3]).toContain("pre-specs-deadline-scope");
-  // 네 칸의 위쪽 좌표가 같으면 도구 줄은 한 줄이다.
+  expect(metrics.classNames).toEqual(["workspace-advanced-toggle", "workspace-search-field"]);
   expect(metrics.distinctTops).toBe(1);
+  await tools.getByRole("button", { name: "상세 필터", exact: true }).click();
+  const filters = page.getByRole("region", { name: "상세 필터", exact: true });
+  const schedule = filters.locator(".workspace-filter-group").filter({
+    has: page.getByRole("heading", { name: "추적·일정", exact: true }),
+  });
+  await expect(schedule.getByRole("radiogroup", { name: "마감 구간" })).toBeVisible();
 });
 
 test("기존 view URL은 전체 workspace의 overview_view로 정규화된다", async ({ page }) => {
@@ -678,90 +687,38 @@ test("PN-03 선택 저장소를 사용할 수 없으면 검토 순서를 성공�
   await expect(page.locator("#pre-specs-selection-disabled")).toContainText("선택 저장소");
 });
 
-test("LS-06 필터·상세 이탈 guard 취소는 URL·active·check·입력을 보존한다", async ({ page }) => {
+test("사전규격 목록은 담당자 이름만으로는 상세 이동을 막지 않는다", async ({ page }) => {
+  await page.route("**/api/**", route => route.fulfill({ status: 404, json: {} }));
+  await mockApi(page);
   await mockPreSpecs(page);
+  await page.addInitScript(() => localStorage.setItem("bidops.actorName", "검토 담당자"));
   await page.goto("/pre-specs?workspace=all&sw_only=false");
   const rows = page.locator(".pre-specs-row");
   await rows.nth(1).click();
   await rows.nth(1).getByRole("checkbox").check();
-  // 대화상자는 없다(spec §3.3). 추적 폼은 상세 pane 바닥에 늘 열려 있다.
   const decision = page.locator(".pre-specs-detail-actions");
-  await decision.getByRole("combobox", { name: "선택 사유" }).click();
-  await page.getByRole("option", { name: "기타 · 직접 입력" }).click();
-  const reason = page.getByRole("textbox", { name: "선택 사유 직접 입력 (필수)" });
-  await reason.fill("guard 취소 사유");
-  await reason.focus();
-  const beforeUrl = page.url();
-  const swToggle = page.locator(".pre-specs-switch input");
-  await expect(swToggle).not.toBeChecked();
-
-  // The tracking dialog is intentionally still open. Trigger the page-owned
-  // filter transition through the page's own event path; the guard must catch
-  // it before the URL changes.
-  await page.evaluate(() => {
-    const toggle = document.querySelector<HTMLInputElement>(".pre-specs-switch input");
-    toggle?.click();
-  });
-  const guard = page.getByRole("alertdialog");
-  await expect(guard).toBeVisible();
-  // The modal layer disables body hit-testing; the portal surface must remain
-  // pointer-interactive so this is a real click, not a forced test bypass.
-  await expect(guard).toHaveCSS("pointer-events", "auto");
-  await guard.getByRole("button", { name: "계속 편집", exact: true }).click();
-  await expect(page).toHaveURL(beforeUrl);
-  await expect(swToggle).not.toBeChecked();
-  await expect(rows.nth(1)).toHaveAttribute("aria-current", "true");
-  await expect(rows.nth(1).getByRole("checkbox")).toBeChecked();
-  await expect(reason).toHaveValue("guard 취소 사유");
-  await expect(reason).toBeFocused();
-
-  await page.evaluate(() => {
-    const link = [...document.querySelectorAll("a")]
-      .find((candidate) => candidate.textContent?.trim() === "상세 페이지 열기 →") as HTMLAnchorElement | undefined;
-    link?.click();
-  });
-  const detailGuard = page.getByRole("alertdialog");
-  await expect(detailGuard).toBeVisible();
-  await detailGuard.getByRole("button", { name: "계속 편집", exact: true }).click();
-  await expect(page).toHaveURL(beforeUrl);
-  await expect(reason).toHaveValue("guard 취소 사유");
-  await expect(reason).toBeFocused();
-
-  // 행 전환도 같은 guard를 거친다 — 저장하지 않은 입력을 확인 없이 버리지 않는다.
-  await rows.nth(2).click();
-  const rowGuard = page.getByRole("alertdialog");
-  await expect(rowGuard).toBeVisible();
-  await rowGuard.getByRole("button", { name: "계속 편집", exact: true }).click();
-  await expect(rows.nth(1)).toHaveAttribute("aria-current", "true");
-  await expect(reason).toHaveValue("guard 취소 사유");
+  await expect(decision.getByRole("combobox", { name: "선택 사유" })).toHaveCount(0);
+  await expect(decision.getByRole("button", { name: "추적 시작하기", exact: true })).toBeEnabled();
+  const detail = decision.getByRole("link", { name: /상세 페이지 열기/ });
+  const href = await detail.getAttribute("href");
+  await detail.click();
+  await expect(page).toHaveURL(url => url.pathname === href?.split("?")[0]);
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
 });
 
-test("LS-06 pager guard 취소는 경계 URL·active·check·입력을 보존한다", async ({ page }) => {
+test("사전규격 목록은 담당자 이름과 체크 선택을 유지하며 다음 페이지로 이동한다", async ({ page }) => {
   await mockApi(page);
   await mockPagedPreSpecs(page);
+  await page.addInitScript(() => localStorage.setItem("bidops.actorName", "검토 담당자"));
   await page.goto("/pre-specs?sw_only=false");
   const rows = page.locator(".pre-specs-row");
-  await rows.first().click();
   await rows.first().getByRole("checkbox").check();
-  await page.locator(".pre-specs-detail-actions").getByRole("combobox", { name: "선택 사유" }).click();
-  await page.getByRole("option", { name: "기타 · 직접 입력" }).click();
-  const reason = page.getByRole("textbox", { name: "선택 사유 직접 입력 (필수)" });
-  await reason.fill("pager guard 취소 사유");
-  await reason.focus();
-  const beforeUrl = page.url();
-  await page.evaluate(() => {
-    const button = [...document.querySelectorAll("button")]
-      .find((candidate) => candidate.textContent?.trim() === "다음") as HTMLButtonElement | undefined;
-    button?.click();
-  });
-  const guard = page.getByRole("alertdialog");
-  await expect(guard).toBeVisible();
-  await guard.getByRole("button", { name: "계속 편집", exact: true }).click();
-  await expect(page).toHaveURL(beforeUrl);
-  await expect(rows.first()).toHaveAttribute("aria-current", "true");
+  await page.getByRole("button", { name: "다음", exact: true }).click();
+  await expect(page).toHaveURL(url => Number(url.searchParams.get("offset")) > 0);
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("bidops.actorName"))).toBe("검토 담당자");
+  await page.getByRole("button", { name: "이전", exact: true }).click();
   await expect(rows.first().getByRole("checkbox")).toBeChecked();
-  await expect(reason).toHaveValue("pager guard 취소 사유");
-  await expect(reason).toBeFocused();
 });
 
 test("개요 결과 본문과 첫 주장은 한 번만 렌더된다", async ({ page }) => {
@@ -895,7 +852,7 @@ test("LS-08 전체 선택은 현재 페이지만 더하고 다른 페이지 선�
 
 // spec §6 A5 — 구역 순서와 값 없음 표기. 시안(mockups/shots/Main.png)과 spec §3.1은
 // 발주기관을 사업명 위에 두므로 DOM 순서도 그대로다.
-test("우측 정보 영역은 사업명·기관·설명·과업 3건·예산·마감·게시·본공고·주의 한 줄·추적 폼·상세 링크를 순서대로 둔다", async ({ page }) => {
+test("우측 정보 영역은 기관·사업명·예산과 일정·설명·과업 3건·주의 한 줄·결정 띠를 순서대로 둔다", async ({ page }) => {
   await mockApi(page);
   await mockPreSpecCautionSample(page);
   await page.goto("/pre-specs?sw_only=false");
@@ -907,13 +864,14 @@ test("우측 정보 영역은 사업명·기관·설명·과업 3건·예산·�
     ["기관", ".pre-specs-detail-agency"],
     ["사업명", ".pre-specs-detail-title"],
     ["식별", ".pre-specs-detail-facts"],
+    ["예산·일정 사실 목록", ".pre-specs-detail-figures .astryx-metadata-list"],
     ["사업 설명", ".pre-specs-detail-summary"],
     ["주요 과업", ".pre-specs-detail-tasks"],
-    ["예산·일정 4칸", ".pre-specs-detail-figures"],
     ["규모·일정 한 줄", ".pre-specs-detail-scale"],
     ["주의사항", ".pre-specs-detail-caution"],
-    ["추적 폼", ".pre-spec-tracking-form"],
-    ["상세 링크", ".pre-specs-detail-open"],
+    ["결정 띠 상태", ".workbench-decision .workbench-decision-status"],
+    ["상세 링크", ".workbench-decision .pre-specs-detail-open"],
+    ["추적 시작", ".workbench-decision .tracking-action.is-continue"],
   ] as const;
   const found = await detail.evaluate((root, selectors) => {
     const all = [...root.querySelectorAll("*")];
@@ -934,6 +892,7 @@ test("우측 정보 영역은 사업명·기관·설명·과업 3건·예산·�
     .toContainText("4건 중 3건 · 전체는 상세에서");
 
   const figures = detail.locator(".pre-specs-detail-figures");
+  await expect(figures.locator("dt")).toHaveText(["사업 예산", "의견등록 마감", "게시", "본공고"]);
   await expect(figures).toContainText("49,844,864원");
   await expect(figures).toContainText(PRE_SPEC_CAUTION_SAMPLE_BID_NOTICE_NO);
   await expect(figures.locator(".pre-specs-detail-deadline")).toContainText("D-");
@@ -960,24 +919,25 @@ test("우측 정보 영역은 사업명·기관·설명·과업 3건·예산·�
 // F2 · spec §6.2 — 실제 발주처(수요기관)가 먼저 읽히고 대행 공고기관은 뒤에·작게
 // 붙는다(M5 승인 2026-09-22). 수요기관이 없는 건은 직접 공고이므로 지금처럼
 // `발주기관`으로 공고기관만 둔다 — `agency`를 `수요기관`으로 재명명하지 않는다.
-test("수요기관이 있으면 목록 행과 상세 머리가 수요기관을 앞·크게, 공고기관을 뒤·작게 둔다", async ({ page }) => {
+test("수요기관이 있으면 목록 행과 상세 머리에서 공고기관을 뒤에 둔다", async ({ page }) => {
   await mockPreSpecs(page);
   await page.goto("/pre-specs?workspace=all&sw_only=false");
 
   const proxyRow = page.locator(".pre-specs-row").filter({ hasText: "안전한 문서 준비 사전규격" });
   const proxyAgency = proxyRow.locator(".pre-specs-row-agency");
   await expect(proxyAgency).toHaveText("한국예술인복지재단 · 테스트 조달기관 대행");
-  // 기관 줄 자체의 글자 단은 그대로이고 대행 부분만 작다.
+  // 기관 열은 같은 값 글자 단을 쓰고 전체 기관명은 title에서 읽는다.
+  await expect(proxyAgency.locator("[title]")).toHaveAttribute("title", "한국예술인복지재단 · 테스트 조달기관 대행");
   const sizes = await proxyAgency.evaluate((element) => ({
     expected: Number.parseFloat(getComputedStyle(element).getPropertyValue("--bo-k-meta")),
     agency: Number.parseFloat(getComputedStyle(element).fontSize),
     proxy: Number.parseFloat(getComputedStyle(element.querySelector(".pre-specs-row-agency-proxy")!).fontSize),
   }));
   expect(sizes.agency).toBe(sizes.expected);
-  expect(sizes.proxy).toBeLessThan(sizes.agency);
+  expect(sizes.proxy).toBe(sizes.agency);
 
   const head = page.locator(".pre-specs-detail-header");
-  await proxyRow.locator(".pre-specs-row-meta").click();
+  await proxyRow.locator(".pre-specs-row-title").click();
   await expect(head.locator(".pre-specs-detail-agency .review-agency-label")).toHaveText("수요기관");
   await expect(head.locator(".pre-specs-detail-agency .review-agency-name")).toHaveText("한국예술인복지재단");
   await expect(head.locator(".pre-spec-announcer-agency")).toHaveText("공고기관 테스트 조달기관");
@@ -986,7 +946,7 @@ test("수요기관이 있으면 목록 행과 상세 머리가 수요기관을 �
   const directRow = page.locator(".pre-specs-row").filter({ hasText: "신규 지능형 행정 지원 사전규격" });
   await expect(directRow.locator(".pre-specs-row-agency")).toHaveText("신규 발주기관");
   await expect(directRow.locator(".pre-specs-row-agency-proxy")).toHaveCount(0);
-  await directRow.locator(".pre-specs-row-meta").click();
+  await directRow.locator(".pre-specs-row-title").click();
   await expect(head.locator(".pre-specs-detail-agency .review-agency-label")).toHaveText("발주기관");
   await expect(head.locator(".pre-specs-detail-agency .review-agency-name")).toHaveText("신규 발주기관");
   await expect(head.locator(".pre-spec-announcer-agency")).toHaveCount(0);

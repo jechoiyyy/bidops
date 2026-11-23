@@ -1,3 +1,5 @@
+import { AdminListHeader, AdminRecordTable } from "../components/common/AdminRecordTable";
+import { DecisionBar, ReviewPreviewHeader, SplitWorkspace } from "../components/common/ReviewPrimitives";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
@@ -11,10 +13,8 @@ import { ScheduleSettingsDialog } from "../components/operations/ScheduleSetting
 import { operationsWriteError } from "../components/operations/feedback";
 import {
   Caption,
-  DetailFooter,
   DetailHeader,
   Facts,
-  ListRecord,
   Note,
   Section,
 } from "../components/runs/RunStatusPrimitives";
@@ -91,7 +91,7 @@ function useSafeOperationsPolling(queryClient: ReturnType<typeof useQueryClient>
   }, [queryClient]);
 }
 
-export function OperationsPage({ panelId = "run-status-panel-operations" }: { panelId?: string }) {
+export function OperationsPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   useSafeOperationsPolling(queryClient);
@@ -201,6 +201,11 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
     ? computeActivation(alwaysOn, activePolicy, activePolicyVersion, policiesQuery.isLoading, policiesQuery.isFetching)
     : null;
 
+  const operationStatus = {
+    label: alwaysOnQuery.error ? "미확인" : alwaysOn ? (alwaysOn.effective_enabled ? "켜짐" : "꺼짐") : "확인 중",
+    tone: "neutral",
+  } as const;
+  const recoveryCount = executions.filter((execution) => ["실패", "부분 성공", "건너뜀"].includes(execution.status)).length;
   const paneItems = PANES.map((item) => {
     if (item.key === "activation") {
       return {
@@ -215,7 +220,7 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
           : activation
             ? activation.blockers.length > 0 ? `미충족 조건 ${activation.blockers.length}건` : "구조 조건 충족"
             : "확인 중",
-        status: alwaysOnQuery.error ? "미확인" : alwaysOn ? (alwaysOn.effective_enabled ? "켜짐" : "꺼짐") : "확인 중",
+        status: operationStatus,
       };
     }
     if (item.key === "schedule") {
@@ -235,7 +240,7 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
       subtitle: executionsQuery.error ? "이력 미확인" : `최근 ${executions.length}건`,
       meta: executionsQuery.error
         ? "조회 실패는 이력 0건이 아니에요"
-        : `복구 대상 ${executions.filter((execution) => ["실패", "부분 성공", "건너뜀"].includes(execution.status)).length}건`,
+        : `복구 대상 ${recoveryCount}건`,
       status: undefined,
     };
   });
@@ -243,32 +248,25 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
   const activePaneTitle = PANES.find((item) => item.key === pane)?.title ?? "운영 항목";
 
   return (
-    <div className="rs-workspace" id={panelId} role="tabpanel" aria-label="상시 운영">
-      <section className="rs-list-pane" aria-label="운영 항목">
-        <header className="rs-list-head">
-          <Text className="rs-list-title" as="p">운영 항목</Text>
-          <Caption as="span">{PANES.length}건</Caption>
-        </header>
-        <div className="rs-list-scroll">
-          {paneItems.map((item) => (
-            <ListRecord
-              key={item.key}
-              selected={pane === item.key}
-              onSelect={() => selectPane(item.key)}
-              item={{ id: item.key, title: item.title, subtitle: item.subtitle, meta: item.meta, status: item.status }}
-            />
-          ))}
-        </div>
-        <footer className="rs-list-foot">
-          <Caption>설정 저장과 운영 활성화는 별도예요. 수동 실행은 상시 운영과 별개로 요청해요.</Caption>
-        </footer>
+    <SplitWorkspace className="workbench-admin-workspace" aria-label="상시 운영">
+      <section className="review-split-list" aria-label="운영 항목">
+        <AdminListHeader title="운영 항목" count={`${PANES.length}건`} />
+        <AdminRecordTable
+          label="운영 항목"
+          selectedId={pane}
+          onSelect={selectPane}
+          rows={paneItems.map((item) => ({
+            id: item.key, title: item.title, subtitle: item.subtitle, meta: item.meta, status: item.status,
+          }))}
+        />
       </section>
 
-      <section className="rs-detail-pane" aria-label="선택한 운영 항목">
+      <section className="review-split-detail rs-detail-pane" aria-label="선택한 운영 항목">
+        <ReviewPreviewHeader />
         <DetailHeader
           eyebrow="상시 운영 · 수집과 판정 예약"
           title={activePaneTitle}
-          status={alwaysOnQuery.error ? "미확인" : alwaysOn ? (alwaysOn.effective_enabled ? "켜짐" : "꺼짐") : "확인 중"}
+          status={operationStatus}
           statusDescription="상시 운영의 실제 상태예요."
         >
           <Caption>
@@ -277,7 +275,7 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
           </Caption>
         </DetailHeader>
 
-        <div className="rs-detail-scroll">
+        <div className="workbench-admin-detail-scroll rs-detail-scroll">
           {actionMessage ? <Note title={actionMessage} role="status" /> : null}
           {actionError ? <Note title={actionError} tone="error" /> : null}
 
@@ -349,6 +347,7 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
                 </Note>
               ) : null}
               {loading && !executionsQuery.data ? <Caption>정기 실행 이력을 불러오는 중이에요.</Caption> : null}
+              {executionsQuery.data ? <Caption>복구 대상 {recoveryCount}건</Caption> : null}
               {executionsQuery.data ? (
                 <ScheduleExecutionTable
                   items={executions}
@@ -368,31 +367,37 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
           ) : null}
         </div>
 
-        <DetailFooter note="설정과 실제 운영은 별도">
-          <Button
-            label="수동 실행 예약"
-            size="sm"
-            onClick={() => { setRecoveryTarget(null); setActionError(null); setManualDialogOpen(true); }}
-          />
-          {pane === "schedule" ? (
+        <DecisionBar
+          stateLabel="실제 운영"
+          state={operationStatus}
+          note="설정과 실제 운영을 따로 표시해요."
+          secondaryActions={(
             <Button
-              label="스케줄 수정"
+              label="수동 실행 예약"
               size="sm"
-              icon={<Settings2 aria-hidden="true" />}
-              isDisabled={!settings}
-              onClick={() => { setActionError(null); setScheduleDialogOpen(true); }}
+              onClick={() => { setRecoveryTarget(null); setActionError(null); setManualDialogOpen(true); }}
             />
-          ) : null}
-          {pane === "activation" && alwaysOn && activation ? (
-            <AlwaysOnActions
-              state={alwaysOn}
-              view={activation}
-              busy={alwaysOnBusy}
-              onUpdate={updateAlwaysOn}
-              activePolicyVersion={activePolicyVersion}
-            />
-          ) : null}
-        </DetailFooter>
+          )}
+          primaryAction={
+            pane === "schedule" ? (
+              <Button
+                label="스케줄 수정"
+                size="sm"
+                icon={<Settings2 aria-hidden="true" />}
+                isDisabled={!settings}
+                onClick={() => { setActionError(null); setScheduleDialogOpen(true); }}
+              />
+            ) : pane === "activation" && alwaysOn && activation ? (
+              <AlwaysOnActions
+                state={alwaysOn}
+                view={activation}
+                busy={alwaysOnBusy}
+                onUpdate={updateAlwaysOn}
+                activePolicyVersion={activePolicyVersion}
+              />
+            ) : null
+          }
+        />
       </section>
 
       {settings ? (
@@ -414,6 +419,6 @@ export function OperationsPage({ panelId = "run-status-panel-operations" }: { pa
         onSubmit={submitExecution}
         onCancelRecovery={() => setRecoveryTarget(null)}
       />
-    </div>
+    </SplitWorkspace>
   );
 }

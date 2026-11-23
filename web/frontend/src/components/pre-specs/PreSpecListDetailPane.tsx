@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
 import { Heading } from "@astryxdesign/core/Heading";
-import { Token } from "@astryxdesign/core/Token";
+import { ClassTag, StatusMark } from "../common/Marks";
+import { SideFacts } from "../common/Facts";
 import { StickyDecisionHeader } from "../common/ReviewPrimitives";
 import { PreSpecAgencyFeature, PreSpecExclusionRecord } from "./PreSpecAgency";
 import {
@@ -26,34 +27,21 @@ import {
 import {
   hasCanonicalOverviewNoticeId,
   PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL,
+  PRE_SPEC_OVERVIEW_STATUS_LABEL,
   PRE_SPEC_OVERVIEW_VALIDATION,
   PRE_SPEC_OVERVIEW_WAITING_DESCRIPTION,
 } from "../../lib/preSpecOverviewStatus";
 import type {
-  PageOverviewCurrentStatus,
   PageOverviewPayload,
   PageOverviewView,
   PreSpecListItem,
 } from "../../lib/types";
-
-const TRACKING_REASON_PRESETS = [
-  "후속 입찰공고 확인",
-  "세부 과업·연계 범위 확인",
-  "참여 자격·실적 확인 필요",
-] as const;
 
 /** 과업 요약은 앞 세 건만 이 자리에 온다. 나머지는 상세가 갖는다(spec §3.1 3행). */
 const TASK_PREVIEW_LIMIT = 3;
 
 /** 상세 ⑤(근거 문서·첨부)의 anchor. 상세의 id는 P3가 정하므로 지금은 이 값으로 둔다. */
 const EVIDENCE_ANCHOR = "ps-evidence";
-
-/** 새 계약에는 `stale`이 없다. 남은 자리를 위한 문장만 두고 상태를 지어내지 않는다. */
-function overviewWaitingDescription(status: PageOverviewCurrentStatus): string {
-  return status === "stale"
-    ? "이전 입력 기준의 결과는 현재 결과로 쓸 수 없어요. 사람 확인이 필요해요."
-    : PRE_SPEC_OVERVIEW_WAITING_DESCRIPTION[status];
-}
 
 /**
  * 예산·일정 4칸은 좁아서 `9.16 23:59`처럼 월·일과 24시간 시:분만 쓴다
@@ -128,7 +116,6 @@ export function PreSpecDetail({
     ? pageOverview.currentResult ?? pageOverview.legacyReview
     : null;
   const payload = review?.payload ?? null;
-  const validation = PRE_SPEC_OVERVIEW_VALIDATION[review ? review.validation_status : "pending"];
 
   // 본공고 번호는 목록 projection에 없고 notice의 `lifecycle`에만 있다. 상세
   // 화면과 **같은 query key**를 써서 상세로 넘어갈 때 요청이 늘지 않게 한다.
@@ -142,16 +129,28 @@ export function PreSpecDetail({
     ? readPreSpecLifecycle(noticeQuery.data.lifecycle).bid_ntice_no_list
     : null;
 
-  // 결과 자리가 비었을 때 무엇을 기다리는지. 상태 어휘와 문장은
-  // `preSpecOverviewStatus`가 소유하며 여기서 새 문장을 만들지 않는다.
-  const emptyOverviewText = ((): string => {
-    if (overviewQuery.isPending) return "개요 검토 결과를 불러오는 중이에요.";
-    if (overviewQuery.isError) return "개요 검토 API 응답을 확인할 수 없어요.";
-    if (!overviewValid) return "개요 검토 결과를 확인할 수 없어요.";
-    if (payload) return "이번 입력에서는 확인되지 않았어요.";
-    if (pageOverview.current) return overviewWaitingDescription(pageOverview.current.status);
-    if (item.overview_review_status) return PRE_SPEC_OVERVIEW_WAITING_DESCRIPTION[item.overview_review_status];
-    return PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL;
+  const overviewStatus = overviewValid && !overviewQuery.isError
+    ? pageOverview.current?.status ?? item.overview_review_status
+    : null;
+  const overviewState = (() => {
+    if (overviewQuery.isPending) return { title: "개요 검토 결과를 불러오는 중" };
+    if (overviewQuery.isError || !overviewValid) return { title: "개요 검토 결과를 확인할 수 없어요" };
+    if (overviewStatus === null) return {
+      title: PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL,
+      description: "아직 개요 검토 실행 기록이 없어요.",
+    };
+    if (overviewStatus === "failed") return {
+      title: "개요 검토 실패",
+      description: "상세 페이지의 ‘처리 상태·기술 정보’에서 마지막 실행을 확인할 수 있어요.",
+    };
+    if (overviewStatus === "stale") return {
+      title: "개요 검토 결과 확인 필요",
+      description: "이전 입력의 개요 검토 결과는 사람 확인이 필요해요.",
+    };
+    return {
+      title: `개요 검토 · ${PRE_SPEC_OVERVIEW_STATUS_LABEL[overviewStatus]}`,
+      description: PRE_SPEC_OVERVIEW_WAITING_DESCRIPTION[overviewStatus],
+    };
   })();
 
   const description = payload?.business_overview[0]?.text ?? null;
@@ -171,6 +170,7 @@ export function PreSpecDetail({
     verification: overviewValid ? pageOverview.verification : null,
     deepReviewUnknownCount: null,
   });
+  const showCaution = caution.count > 0 || payload !== null;
 
   // 연결이 없으면 `사업기회 미연결`, 연결은 있는데 값이 없으면 `미확인`이다.
   // 둘 중 어느 것도 사람이 고른 `미선택`으로 바꾸지 않는다.
@@ -191,8 +191,7 @@ export function PreSpecDetail({
       <StickyDecisionHeader className="review-detail-head pre-specs-detail-header" label="사전규격 상세 헤더">
         {/* A안(승인 시안) — 기관 블록이 전체 폭을 쓰고, 사업명 → 칩 → 식별 줄이
             이어진다. 강조 블록은 발주계획 상세와 같은 공용 primitive다(ADR-0062). */}
-        {/* 수요기관이 있으면 그 이름을 크게 두고 공고(대행)기관은 아래 부제로
-            내린다(M5 승인 2026-09-22). 없으면 지금과 같은 `발주기관` 한 블록이다. */}
+        {/* 수요기관과 대행 공고기관은 같은 보조 글자 단으로 한 줄에 둔다. */}
         <PreSpecAgencyFeature
           agency={item.agency}
           className="pre-specs-detail-agency"
@@ -202,19 +201,15 @@ export function PreSpecDetail({
           <Heading level={3}>{titleOf(item)}</Heading>
         </div>
         <span className="pre-specs-detail-chips">
-          {item.review_exclusion_status === "excluded" ? <Token size="sm" label="검토 제외" color="default" /> : null}
-          <Token size="sm" label={originLabel(item.origin)} color="default" />
-          <Token size="sm" label={item.business_division?.trim() || "업무구분 미확인"} color="default" />
-          <Token
-            size="sm"
-            label={item.sw_business_status === null ? "SW 미확인" : `SW사업대상 ${item.sw_business_status}`}
-            color="default"
-          />
-          <Token size="sm" label={`추적 결정 · ${trackingText}`} color="default" />
+          {item.review_exclusion_status === "excluded" ? <StatusMark mark={{ label: "검토 제외", tone: "neutral" }} /> : null}
+          <ClassTag label={originLabel(item.origin)} />
+          <ClassTag label={item.business_division?.trim() || "업무구분 미확인"} />
+          <ClassTag label={item.sw_business_status === null ? "SW 미확인" : `SW사업대상 ${item.sw_business_status}`} />
+          <StatusMark mark={{ label: `추적 결정 · ${trackingText}`, tone: "neutral" }} />
         </span>
         {/* 제외 기록은 칩이 말한 상태의 근거다 — 누가·언제·왜(spec §6.2). */}
         <PreSpecExclusionRecord className="pre-specs-detail-exclusion" item={item} />
-        <p className="pre-specs-detail-facts">
+        <p className="pre-specs-detail-facts review-detail-identity">
           <span>
             사전규격 {item.pre_spec_no ? <code className="mono">{item.pre_spec_no}</code> : "번호 미확인"}
           </span>
@@ -224,68 +219,70 @@ export function PreSpecDetail({
       </StickyDecisionHeader>
 
       <div className="pre-specs-detail-scroll">
-        {/* ② 사업 설명 — 검증 라벨을 캡션에 붙여, 검증되지 않은 문장을 판정처럼
-            읽지 않게 한다(spec §3.1 2행). */}
-        <section className="pre-specs-detail-block" aria-label="사업 설명">
-          <p className="pre-specs-detail-caption">
-            <span className="pre-specs-detail-section-label">사업 설명</span>
-            <span aria-hidden="true">·</span>
-            <span>개요 검토 결과 · {validation.label}</span>
-          </p>
-          <p className={`pre-specs-detail-summary${description ? "" : " is-empty"}`}>
-            {description ?? emptyOverviewText}
-          </p>
-        </section>
-
-        {/* ③ 주요 과업 요약 — 앞 세 건만이고 건수를 숨기지 않는다. */}
-        <section className="pre-specs-detail-block" aria-label="주요 과업 요약">
-          <p className="pre-specs-detail-caption">
-            <span className="pre-specs-detail-section-label">주요 과업 요약</span>
-            <span className="pre-specs-detail-caption-end">
-              {taskTexts.length > 0
-                ? `${taskTexts.length}건 중 ${shownTasks.length}건 · 전체는 상세에서`
-                : "전체는 상세에서"}
-            </span>
-          </p>
-          {shownTasks.length > 0 ? (
-            <ol className="pre-specs-detail-tasks">
-              {shownTasks.map((text, index) => (
-                <li key={`${noticePk}-task-${index}`}>
-                  <span aria-hidden="true">{index + 1}</span>
-                  <span>{text}</span>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="pre-specs-detail-summary is-empty">{emptyOverviewText}</p>
-          )}
-        </section>
-
-        {/* ④ 예산·일정 4칸 — 구조화 필드만 온다. 모델 문장은 아래 ⑤ 한 줄이
-            갖는다(spec §3.1 4행). */}
-        <dl className="pre-specs-detail-figures">
-          <div>
-            <dt className="pre-specs-detail-field-label">사업 예산</dt>
-            <dd>{exactBudget(item.budget)}</dd>
-          </div>
-          <div>
-            <dt className="pre-specs-detail-field-label">의견등록 마감</dt>
-            <dd className="pre-specs-detail-deadline">
+        <SideFacts className="pre-specs-detail-figures" items={[
+          { label: "사업 예산", value: exactBudget(item.budget) },
+          { label: "의견등록 마감", value: (
+            <span className="pre-specs-detail-deadline">
               <span>{shortDateTime(item.deadline_at) ?? "마감 일시 없음"}</span>
               {item.deadline_at ? <DeadlineMark value={item.deadline_at} /> : null}
-            </dd>
-          </div>
-          <div>
-            <dt className="pre-specs-detail-field-label">게시</dt>
-            <dd className={shortDateTime(item.published_at) ? undefined : "is-unknown"}>
-              {shortDateTime(item.published_at) ?? "미확인"}
-            </dd>
-          </div>
-          <div>
-            <dt className="pre-specs-detail-field-label">본공고</dt>
-            <dd className={bidNoticeNo ? undefined : "is-unknown"}>{bidNoticeNo ?? "미확인"}</dd>
-          </div>
-        </dl>
+            </span>
+          ) },
+          { label: "게시", value: shortDateTime(item.published_at) ?? "미확인" },
+          { label: "본공고", value: bidNoticeNo ?? "미확인" },
+        ]} />
+
+        {review && payload ? (
+          <>
+            {/* ② 사업 설명 — 검증 라벨을 캡션에 붙여, 검증되지 않은 문장을 판정처럼
+                읽지 않게 한다(spec §3.1 2행). */}
+            <section className="pre-specs-detail-block" aria-label="사업 설명">
+              <p className="pre-specs-detail-caption">
+                <span className="pre-specs-detail-section-label">사업 설명</span>
+                <span aria-hidden="true">·</span>
+                <span>개요 검토 결과 · {PRE_SPEC_OVERVIEW_VALIDATION[review.validation_status].label}</span>
+              </p>
+              <p className={`pre-specs-detail-summary${description ? "" : " is-empty"}`}>
+                {description ?? "이번 입력에서는 확인되지 않았어요."}
+              </p>
+            </section>
+
+            {/* ③ 주요 과업 요약 — 앞 세 건만이고 건수를 숨기지 않는다. */}
+            <section className="pre-specs-detail-block" aria-label="주요 과업 요약">
+              <p className="pre-specs-detail-caption">
+                <span className="pre-specs-detail-section-label">주요 과업 요약</span>
+                <span className="pre-specs-detail-caption-end">
+                  {taskTexts.length > 0
+                    ? `${taskTexts.length}건 중 ${shownTasks.length}건 · 전체는 상세에서`
+                    : "전체는 상세에서"}
+                </span>
+              </p>
+              {shownTasks.length > 0 ? (
+                <ol className="pre-specs-detail-tasks">
+                  {shownTasks.map((text, index) => (
+                    <li key={`${noticePk}-task-${index}`}>
+                      <span aria-hidden="true">{index + 1}</span>
+                      <span>{text}</span>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="pre-specs-detail-summary is-empty">이번 입력에서는 확인되지 않았어요.</p>
+              )}
+            </section>
+          </>
+        ) : (
+          <section
+            aria-label="개요 검토 상태"
+            className={`pre-specs-detail-overview-state${overviewStatus === "failed" ? " is-failed" : ""}`}
+          >
+            <Heading level={4}>
+              {overviewStatus === "failed" ? <StatusMark mark={{ label: overviewState.title, tone: "error" }} /> : overviewState.title}
+            </Heading>
+            {overviewState.description ? <p>{overviewState.description}</p> : null}
+          </section>
+        )}
+
+
 
         {/* ⑤ 일정·규모 한 줄 — 항목이 없으면 줄 자체를 만들지 않는다. */}
         {scaleText ? (
@@ -301,44 +298,41 @@ export function PreSpecDetail({
 
         {/* ⑥ 주의사항 — 건수와 문구는 `preSpecCautions`가 정한다. 주의가 있을
             때만 색을 쓰고, 없을 때는 같은 줄을 중립으로 둔다. */}
-        <p className={`pre-specs-detail-caution${caution.tone === "caution" ? " is-caution" : ""}`}>
-          <span className="pre-specs-detail-caution-text">{formatPreSpecCaution(caution)}</span>
+        <p className={`pre-specs-detail-caution${caution.tone === "caution" ? " is-caution" : ""}${showCaution ? "" : " is-source-only"}`}>
+          {showCaution ? (
+            <span className="pre-specs-detail-caution-text">{formatPreSpecCaution(caution)}</span>
+          ) : null}
           <Link className="pre-specs-detail-caution-link" to={`${detailUrl}#${EVIDENCE_ANCHOR}`}>
-            근거 보기 →
+            {payload ? "근거 보기 →" : "원문·첨부 보기 →"}
           </Link>
         </p>
       </div>
 
-      <footer className="pre-specs-detail-actions" id="pre-specs-tracking-target" aria-label="추적 결정">
-        <TrackingDecisionControl
-          key={noticePk}
-          item={item}
-          isPending={false}
-          isError={false}
-          onRetry={() => { void overviewQuery.refetch(); }}
-          headingLevel="h4"
-          compact
-          presentation="inline"
-          showRecordHeading={false}
-          showIntent={false}
-          reasonPresets={TRACKING_REASON_PRESETS}
-          onDirtyChange={onDirtyChange}
-          onSaved={onSaved}
-        />
-
-        <div className="pre-specs-action-row">
-          {onReviewExclusion ? <Button size="sm" variant="secondary"
-            label={item.review_exclusion_status === "excluded" ? "검토 목록으로 복원" : "검토 제외"}
-            onClick={onReviewExclusion} /> : null}
-          <Link
-            className="interaction-control interaction-control-primary pre-specs-detail-open"
-            to={detailUrl}
-            onClick={openDetailHref}
-          >
-            상세 페이지 열기 →
-          </Link>
-        </div>
-      </footer>
+      <TrackingDecisionControl
+        key={noticePk}
+        item={item}
+        isPending={false}
+        isError={false}
+        onRetry={() => { void overviewQuery.refetch(); }}
+        compact
+        presentation="preview"
+        onDirtyChange={onDirtyChange}
+        onSaved={onSaved}
+        previewActions={(
+          <>
+            {onReviewExclusion ? <Button size="md" variant="secondary"
+              label={item.review_exclusion_status === "excluded" ? "검토 목록으로 복원" : "검토 제외"}
+              onClick={onReviewExclusion} /> : null}
+            <Link
+              className="interaction-control pre-specs-detail-open"
+              to={detailUrl}
+              onClick={openDetailHref}
+            >
+              상세 페이지 열기 →
+            </Link>
+          </>
+        )}
+      />
     </div>
   );
 }

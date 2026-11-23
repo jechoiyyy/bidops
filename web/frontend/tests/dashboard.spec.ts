@@ -19,10 +19,18 @@ function panel(page: Page, name: string) {
   return page.getByRole("region", { name, exact: true });
 }
 
+function decisionRows(page: Page, kind: "tracking" | "final") {
+  return page.getByRole("table", { name: "오늘 결정할 것", exact: true }).locator(`tbody > tr.dash-decision-${kind}`);
+}
+
+function decisionScope(page: Page) {
+  return panel(page, "오늘 결정할 것").locator(".dash-decision-scope");
+}
+
 test("회차 선택기와 회차 의존 패널이 화면에서 빠졌다", async ({ page }) => {
   await mockDashboard(page);
   await page.goto("/");
-  await expect(panel(page, "마감 임박 추적 건")).toBeVisible();
+  await expect(page.getByRole("table", { name: "오늘 결정할 것", exact: true })).toBeVisible();
   // 회차 선택기·회차 자료 줄·`회차 실행 보기`는 운영 화면으로 갔다(ADR-0067).
   await expect(page.getByRole("button", { name: "조회할 실행 회차" })).toHaveCount(0);
   await expect(page.locator(".dash-run-context")).toHaveCount(0);
@@ -35,8 +43,6 @@ test("회차 선택기와 회차 의존 패널이 화면에서 빠졌다", async
   await expect(page.locator(".dash-page")).not.toContainText("1차 필터 누락");
   await expect(page.locator(".dash-page")).not.toContainText("판정 표본");
   await expect(page.locator(".dash-page")).not.toContainText("읽기 전용");
-  await expect(page.locator(".dash-dashboard-foot")).not.toContainText("선택한 회차의 기준 시각");
-  await expect(page.locator(".dash-dashboard-foot")).toContainText("최종 참여 판단은 최종 Go/No-Go에서 진행해요.");
   expect(new URL(page.url()).searchParams.has("run")).toBe(false);
 });
 
@@ -45,22 +51,27 @@ function countCell(page: Page, key: string) {
   return page.locator(`.dash-count-item[data-count="${key}"]`);
 }
 
-// 설계고도화안 C-8: 본문은 세 묶음이고 일일 수집 묶음이 맨 위다. 옛 단계 바로가기 네 칸은 없어졌고
-// 그 건수는 묶음의 건수 띠로 옮겼다. 건수 칸마다 목적지 목록의 기본 보기가 같은 건수를 보인다.
-test("대시보드는 일일 수집 아래 오늘 결정할 것·확인할 것·새로 볼 것 세 묶음이다", async ({ page }) => {
+test("대시보드는 검토 업무 요약을 먼저 보여주고 수집과 세부 업무를 이어서 보여준다", async ({ page }) => {
   await mockDashboard(page);
   await page.goto("/");
-  await expect(page.locator(".dash-block-head h2")).toHaveText(["오늘 결정할 것", "확인할 것", "새로 볼 것"]);
+  await expect(page.locator(".dash-block-head h2")).toHaveText(["오늘 검토할 업무", "오늘 결정할 것", "확인할 것", "새로 볼 것"]);
   await expect(page.locator(".dash-journey-strip")).toHaveCount(0);
   const order = await page.evaluate(() => [...document.querySelectorAll(".daily-collection, .dash-block")]
     .map((node) => (node.classList.contains("daily-collection") ? "daily" : node.getAttribute("data-block"))));
-  expect(order).toEqual(["daily", "decide", "check", "new"]);
+  expect(order).toEqual(["today", "decide", "daily", "check", "new"]);
+  await expect(page.getByRole("table", { name: "단계별 업무량", exact: true })).toHaveCount(0);
+  const decisions = page.getByRole("table", { name: "오늘 결정할 것", exact: true });
+  await expect(decisions.getByRole("columnheader")).toHaveText(["사업명", "결정 종류", "기관·상태", "마감"]);
+  await expect(decisions.locator("tbody tr > td:last-child")).toHaveText(["D-2", "D-2", "D-4", "D-6", "마감 미제공"]);
+  await expect(page.locator('[data-block="today"] .dash-count-item')).toHaveCount(5);
+  await expect(page.locator('[data-block="today"] .dash-count-item').nth(0)).toHaveAttribute("data-count", "deadline");
+  await expect(page.locator('[data-block="today"] .dash-count-item').nth(1)).toHaveAttribute("data-count", "go-no-go");
   // 업무 패널은 성격에 맞는 묶음 안에 있다.
   const block = (id: string) => page.locator(`.dash-block[data-block="${id}"]`);
-  await expect(block("decide").getByRole("region", { name: "최종 결정 대기", exact: true })).toBeVisible();
-  await expect(block("decide").getByRole("region", { name: "보류 재검토", exact: true })).toBeVisible();
+  await expect(block("decide").locator(".dash-panel")).toHaveCount(0);
+  await expect(block("check").locator('[data-count="hold-overdue"]')).toBeVisible();
+  await expect(block("check").getByRole("region", { name: "보류 재검토", exact: true })).toHaveCount(0);
   await expect(block("check").getByRole("region", { name: "사람 확인 필요", exact: true })).toBeVisible();
-  await expect(block("check").getByRole("region", { name: "마감 임박 추적 건", exact: true })).toBeVisible();
   await expect(block("new").getByRole("region", { name: "새 관련 발주계획", exact: true })).toBeVisible();
 });
 
@@ -68,18 +79,18 @@ test("건수 띠의 칸은 목적지 목록의 기본 보기와 같은 정의이
   await mockDashboard(page);
   await page.goto("/");
   const expectations: [string, RegExp | string, string | null][] = [
-    // 오늘 결정할 것
+    // 오늘 검토할 것
+    ["deadline", "마감 임박 추적 건7건", "/opportunities?section=전체&deadline_within_days=7&sort=deadline"],
+    ["go-no-go", /최종 Go\/No-Go\d+건/, "/go-no-go"],
+    ["action-required", "사업기회 조치 필요3건", "/opportunities"],
     ["order-plan-relevant", "필수 검토 발주계획1건", "/order-plans"],
     ["pre-spec-actionable", /사전규격 검토할 항목\d+건/, "/pre-specs"],
-    ["go-no-go", /최종 Go\/No-Go\d+건/, "/go-no-go"],
-    ["hold-overdue", "보류 재검토1건", "/opportunities?section=조치 필요&reason=hold_overdue"],
     // 확인할 것
-    ["action-required", "사업기회 조치 필요3건", "/opportunities"],
+    ["hold-overdue", "보류 재검토1건", "/opportunities?section=조치 필요&reason=hold_overdue"],
     ["overview-attention", "개요 사람 확인2건", "/pre-specs?workspace=all&sw_only=false&overview_view=attention"],
     // 2026-11-19: 옛 `개요 실패`(누적) 칸은 `사전규격 확인 필요`(기본 보기와 같은 구간)로 바뀌었다.
     ["pre-spec-needs-check", "사전규격 확인 필요3건", "/pre-specs?workspace=needs_check"],
     ["blocking", "확인 항목 미답변1건", "/opportunities?section=조치 필요&reason=blocking_item"],
-    ["deadline", "마감 임박 추적 건7건", "/opportunities?section=전체&deadline_within_days=7&sort=deadline"],
     ["order-plan-uncertain", "훑어보기 발주계획1건", "/order-plans?qwen=uncertain&tracking=미선택"],
     // 새로 볼 것(요청 시각 KST 2026-09-17의 전일 이후)
     ["new-order-plan", "새 관련 발주계획12건", "/order-plans?qwen=relevant&tracking=미선택&first_observed_from=2026-09-16"],
@@ -93,7 +104,10 @@ test("건수 띠의 칸은 목적지 목록의 기본 보기와 같은 정의이
   }
   // 판정 확인은 셀 수 있는 기록이 아직 없어 칸 자체가 없다(같은 비숫자를 매일 보이지 않는다).
   await expect(countCell(page, "verdict-confirmation")).toHaveCount(0);
-  await expect(page.locator('.dash-block[data-block="decide"] .dash-count-item')).toHaveCount(4);
+  await expect(page.locator('.dash-block[data-block="today"] .dash-count-item')).toHaveText([
+    /마감 임박 추적 건/, /최종 Go\/No-Go/, /사업기회 조치 필요/, /필수 검토 발주계획/, /사전규격 검토할 항목/,
+  ]);
+  await expect(page.locator('.dash-block[data-block="check"] [data-count="hold-overdue"]')).toBeVisible();
 });
 
 test("`새로`를 셀 수 없으면 0이 아니라 미확인으로 적는다", async ({ page }) => {
@@ -105,14 +119,17 @@ test("`새로`를 셀 수 없으면 0이 아니라 미확인으로 적는다", a
   await expect(foot).not.toContainText("0건");
 });
 
-test("누적 패널 다섯이 제목·목적지·기준을 갖는다", async ({ page }) => {
+test("결정 표와 누적 업무 패널은 목적지와 기준을 표시한다", async ({ page }) => {
   await mockDashboard(page, { holdReviews: holdReviewList(holdReviewItems.slice(0, 1), 1) });
   await page.goto("/");
-  // 두 링크(S1)는 목적지 화면에 **패널의 목록 호출과 같은 조건**을 넘긴다. 마감 임박은
+  // 결정 표 머리의 링크는 목적지 화면에 **목록 호출과 같은 조건**을 넘긴다. 마감 임박은
   // 기본 구역이 걸리지 않게 `section=전체`를 함께 건다.
+  const header = panel(page, "오늘 결정할 것").locator(".dash-block-head .dash-block-actions");
+  await expect(header.getByRole("link", { name: "사업기회", exact: true }))
+    .toHaveAttribute("href", "/opportunities?section=전체&deadline_within_days=7&sort=deadline");
+  await expect(header.getByRole("link", { name: "최종 Go/No-Go", exact: true }))
+    .toHaveAttribute("href", "/go-no-go");
   const expectations: [string, string, string][] = [
-    ["마감 임박 추적 건", "사업기회", "/opportunities?section=전체&deadline_within_days=7&sort=deadline"],
-    ["최종 결정 대기", "최종 Go/No-Go", "/go-no-go"],
     ["사람 확인 필요", "사전규격", "/pre-specs?workspace=all&sw_only=false&overview_view=attention"],
     ["보류 재검토", "사업기회에서 모두 보기", "/opportunities?section=조치 필요&reason=hold_overdue"],
     ["새 관련 발주계획", "발주계획", "/order-plans?qwen=relevant&tracking=미선택&first_observed_from=2026-09-16"],
@@ -122,9 +139,9 @@ test("누적 패널 다섯이 제목·목적지·기준을 갖는다", async ({ 
     await expect(region).toBeVisible();
     await expect(region.getByRole("link", { name: linkLabel, exact: true })).toHaveAttribute("href", href);
   }
-  await expect(panel(page, "최종 결정 대기").locator(".dash-panel-foot")).toContainText("입찰 마감순");
+  await expect(decisionScope(page)).toContainText("입찰 마감순");
   // 바닥 건수는 링크한 Go/No-Go 기본 보기(검토 대상)와 같은 정의다.
-  await expect(panel(page, "최종 결정 대기").locator(".dash-panel-foot")).toContainText(/검토 대상 \d+건/);
+  await expect(decisionScope(page)).toContainText(/검토 대상 \d+건/);
   await expect(panel(page, "새 관련 발주계획").locator(".dash-panel-foot")).toContainText("전일 수집 이후 처음 관측");
   await expect(panel(page, "새 관련 발주계획").locator(".dash-panel-foot")).toContainText("추적 미선택 12건 중 상위 5건");
   await expect(panel(page, "사람 확인 필요")).toContainText("확인 항목은 추적 상태와 무관하게 세요.");
@@ -133,12 +150,12 @@ test("누적 패널 다섯이 제목·목적지·기준을 갖는다", async ({ 
 test("건수는 workload가 내고 목록 길이로 덮지 않는다", async ({ page }) => {
   const trace = await mockDashboard(page);
   await page.goto("/");
-  const region = panel(page, "마감 임박 추적 건");
-  await expect(region.locator(".dash-work-item")).toHaveCount(3);
-  await expect(region.locator(".dash-panel-foot")).toContainText("마감 임박 7건");
-  await expect(region.locator(".dash-panel-foot")).toContainText("추적 중·보류 사업 중 7일 이내");
-  await expect(region.locator(".dash-panel-foot")).toContainText("기준");
-  await expect(region.locator(".dash-panel-foot")).not.toContainText("3건");
+  await expect(decisionRows(page, "tracking")).toHaveCount(3);
+  const scope = decisionScope(page);
+  await expect(scope).toContainText("마감 임박 7건");
+  await expect(scope).toContainText("추적 중·보류 사업 중 7일 이내");
+  await expect(scope).toContainText("기준");
+  await expect(scope).not.toContainText("3건");
   const deadlineRequest = trace.requests.find(entry => entry.path === "/api/opportunities" && "deadline_within_days" in entry.params);
   expect(deadlineRequest?.params).toEqual({ deadline_within_days: "7", sort: "deadline", limit: "5" });
   const planRequest = trace.requests.find(entry => entry.path === "/api/order-plans");
@@ -154,19 +171,20 @@ test("건수는 workload가 내고 목록 길이로 덮지 않는다", async ({ 
 test("목록이 비어도 건수를 0으로 고치지 않는다", async ({ page }) => {
   await mockDashboard(page, { deadlines: opportunityList([], 7) });
   await page.goto("/");
-  const region = panel(page, "마감 임박 추적 건");
-  await expect(region).toContainText("7일 이내 마감인 추적 건이 없어요");
-  await expect(region.locator(".dash-panel-foot")).toContainText("마감 임박 7건");
+  const body = panel(page, "오늘 결정할 것").locator(".dash-decision-body");
+  await expect(body.locator('[data-source="tracking"]')).toContainText("7일 이내 마감인 추적 건이 없어요");
+  await expect(decisionRows(page, "final")).toHaveCount(2);
+  await expect(decisionScope(page)).toContainText("마감 임박 7건");
 });
 
 test("건수를 못 받으면 미확인이며 0으로 쓰지 않는다", async ({ page }) => {
   await mockDashboard(page, { workload: workloadWith("tracking_deadline_imminent", null, "provider_absent") });
   await page.goto("/");
-  const foot = panel(page, "마감 임박 추적 건").locator(".dash-panel-foot");
+  const foot = decisionScope(page);
   await expect(foot).toContainText("마감 임박 건수 미확인 · 집계 모듈 없음");
   await expect(foot).not.toContainText("0건");
   // 목록은 그대로 보인다 — 건수가 없다고 목록을 지우지 않는다.
-  await expect(panel(page, "마감 임박 추적 건").locator(".dash-work-item")).toHaveCount(3);
+  await expect(decisionRows(page, "tracking")).toHaveCount(3);
 });
 
 test("사람 확인 필요는 서버 합계를 쓰고 하위 둘을 따로 적는다", async ({ page }) => {
@@ -210,7 +228,7 @@ test("하위 건수가 하나라도 없으면 합계도 미확인이다", async 
 test("마감 임박 행은 마감 종류와 D-day를 적고 3일 이내를 강조한다", async ({ page }) => {
   await mockDashboard(page);
   await page.goto("/");
-  const rows = panel(page, "마감 임박 추적 건").locator(".dash-work-item");
+  const rows = decisionRows(page, "tracking");
   await expect(rows.nth(0)).toContainText("종료된 지능형 업무 시스템 본공고");
   await expect(rows.nth(0)).toContainText("입찰 마감 · 계속 추적");
   await expect(rows.nth(0)).toContainText("D-2");
@@ -220,13 +238,12 @@ test("마감 임박 행은 마감 종류와 D-day를 적고 3일 이내를 강�
   await expect(rows.nth(2)).toContainText("입찰 마감 · 계속 추적");
   await expect(rows.nth(2)).toContainText("D-6");
   await expect(rows.nth(0).getByRole("link")).toHaveAttribute("href", "/opportunities/501");
-  const styles = await page.evaluate(() => {
-    const cells = [...document.querySelectorAll(".dash-work-panel .dash-work-due")].slice(0, 3);
-    return cells.map(cell => ({
+  const styles = await rows.locator(".dash-work-due").evaluateAll((cells) =>
+    cells.map(cell => ({
       text: cell.textContent, weight: getComputedStyle(cell).fontWeight, color: getComputedStyle(cell).color,
       urgent: cell.classList.contains("dash-work-due-urgent"),
-    }));
-  });
+    })),
+  );
   expect(styles[0].urgent).toBe(true);
   expect(styles[1].urgent).toBe(false);
   expect(Number(styles[0].weight)).toBeGreaterThan(Number(styles[1].weight));
@@ -236,7 +253,7 @@ test("마감 임박 행은 마감 종류와 D-day를 적고 3일 이내를 강�
 test("최종 결정 대기는 추정가격과 마감 미제공을 구분한다", async ({ page }) => {
   await mockDashboard(page);
   await page.goto("/");
-  const rows = panel(page, "최종 결정 대기").locator(".dash-work-item");
+  const rows = decisionRows(page, "final");
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toContainText("경상남도 · 추정가격 940,000,000원");
   await expect(rows.nth(0)).toContainText("D-2");
@@ -258,24 +275,25 @@ test("새 관련 발주계획 행은 기관·예산·발주 예정과 모델 판
   await expect(rows.nth(0).getByRole("link")).toHaveAttribute("href", "/order-plans?selected=901");
 });
 
-test("한 패널의 조회 실패가 다른 패널을 막지 않고 그 패널에서만 다시 조회한다", async ({ page }) => {
+test("한 결정 목록이 실패해도 다른 행은 보이고 실패한 목록만 다시 조회한다", async ({ page }) => {
   const options = { decisionError: true };
   await mockDashboard(page, options);
   await page.goto("/");
-  const failed = panel(page, "최종 결정 대기");
-  await expect(failed.getByRole("alert")).toContainText("최종 결정 대기 목록을 불러오지 못했어요");
+  const body = panel(page, "오늘 결정할 것").locator(".dash-decision-body");
+  const failed = body.locator('[data-source="final"][role="alert"]');
+  await expect(failed).toContainText("최종 결정 대기 목록을 불러오지 못했어요");
   // 바닥 건수는 같은 대기열(검토 대상 정의)에서 오므로 대기열이 실패하면 0이 아니라 미확인이다.
-  await expect(failed.locator(".dash-panel-foot")).toContainText("검토 대상 미확인");
-  await expect(panel(page, "마감 임박 추적 건").locator(".dash-work-item")).toHaveCount(3);
+  await expect(decisionScope(page)).toContainText("검토 대상 미확인");
+  await expect(decisionRows(page, "tracking")).toHaveCount(3);
   await expect(panel(page, "새 관련 발주계획").locator(".dash-work-item")).toHaveCount(2);
-  await expect(panel(page, "마감 임박 추적 건").getByRole("alert")).toHaveCount(0);
+  await expect(body.locator('[data-source="tracking"][role="alert"]')).toHaveCount(0);
   options.decisionError = false;
   await failed.getByRole("button", { name: "다시 시도", exact: true }).click();
-  await expect(failed.locator(".dash-work-item")).toHaveCount(2);
-  await expect(failed.getByRole("alert")).toHaveCount(0);
+  await expect(decisionRows(page, "final")).toHaveCount(2);
+  await expect(failed).toHaveCount(0);
 });
 
-test("패널마다 로딩과 빈 상태를 다른 문장으로 구분한다", async ({ page }) => {
+test("결정 표가 한 목록의 로딩과 다른 목록의 빈 상태를 구분한다", async ({ page }) => {
   await mockDashboard(page, {
     deadlines: opportunityList([], 0),
     overviewFailed: preSpecList([], 0),
@@ -285,20 +303,35 @@ test("패널마다 로딩과 빈 상태를 다른 문장으로 구분한다", as
   let release!: () => void;
   const pending = new Promise<void>(resolve => { release = resolve; });
   await page.route(url => url.pathname === "/api/bid-delta/decision-queue", async route => { await pending; await route.fallback(); });
-  const decision = panel(page, "최종 결정 대기");
+  const body = panel(page, "오늘 결정할 것").locator(".dash-decision-body");
   try {
     await page.goto("/");
-    await expect(decision.locator(".dash-panel-body").getByRole("status")).toHaveText("최종 결정 대기 목록을 불러오는 중");
-    await expect(panel(page, "마감 임박 추적 건")).toContainText("7일 이내 마감인 추적 건이 없어요");
+    await expect(body.locator('[data-source="final"][role="status"]')).toHaveText("최종 결정 대기 목록을 불러오는 중이에요.");
+    await expect(body.locator('[data-source="tracking"]')).toContainText("7일 이내 마감인 추적 건이 없어요");
     await expect(panel(page, "사람 확인 필요")).toContainText("사람이 확인할 개요 검토와 확인 항목이 없어요");
   } finally { release(); }
-  await expect(decision.locator(".dash-work-item")).toHaveCount(2);
+  await expect(decisionRows(page, "final")).toHaveCount(2);
+});
+
+test("두 결정 목록이 모두 비면 표 자리에 빈 상태 하나를 표시한다", async ({ page }) => {
+  await mockDashboard(page, {
+    deadlines: opportunityList([], 0),
+    decisions: { items: [], total: 0, limit: 5, offset: 0 },
+    workload: workloadWith("tracking_deadline_imminent", 0),
+  });
+  await page.goto("/");
+  const body = panel(page, "오늘 결정할 것").locator(".dash-decision-body");
+  await expect(body.locator(".record-table-state .empty-state")).toHaveCount(1);
+  await expect(body).toContainText("표시할 결정 항목이 없어요");
+  await expect(body.getByRole("table")).toHaveCount(0);
+  await expect(decisionScope(page)).toContainText("마감 임박 0건");
+  await expect(decisionScope(page)).toContainText("검토 대상 0건");
 });
 
 test("새로고침은 모든 패널을 다시 조회한다", async ({ page }) => {
   const trace = await mockDashboard(page);
   await page.goto("/");
-  await expect(panel(page, "마감 임박 추적 건").locator(".dash-work-item")).toHaveCount(3);
+  await expect(decisionRows(page, "tracking")).toHaveCount(3);
   const before = trace.requests.length;
   await page.getByRole("button", { name: "새로고침", exact: true }).click();
   await expect.poll(() => trace.requests.length).toBeGreaterThanOrEqual(before + 8);
@@ -350,15 +383,16 @@ test("보류 기한 지남 건수를 받지 못하면 0건으로 채우지 않�
   await expect(head).not.toContainText("0건");
 });
 
-// S1 — 패널의 링크가 목적지 화면에서 **같은 집합**을 연다. 여기서는 같은 mock이 패널과
+// S1 — 표 머리의 링크가 목적지 화면에서 **같은 집합**을 연다. 여기서는 같은 mock이 표와
 // 목록 화면에 같은 응답을 주므로, 같은 행이 나오는 것으로 모집단이 같음을 본다.
 test("마감 임박 바로가기는 사업기회를 같은 조건·같은 집합으로 연다", async ({ page }) => {
   const trace = await mockDashboard(page);
   await page.goto("/");
-  const region = panel(page, "마감 임박 추적 건");
-  await expect(region.locator(".dash-work-item")).toHaveCount(3);
-  const titles = await region.locator(".dash-work-title").allTextContents();
-  await region.getByRole("link", { name: "사업기회", exact: true }).click();
+  const header = panel(page, "오늘 결정할 것").locator(".dash-block-head .dash-block-actions");
+  const rows = decisionRows(page, "tracking");
+  await expect(rows).toHaveCount(3);
+  const titles = await rows.locator(".record-table-title").allTextContents();
+  await header.getByRole("link", { name: "사업기회", exact: true }).click();
 
   await expect.poll(() => new URL(page.url()).pathname).toBe("/opportunities");
   const params = new URL(page.url()).searchParams;
@@ -404,39 +438,37 @@ test("새 관련 발주계획 바로가기는 발주계획을 같은 첫 수집 
 });
 
 for (const [width, height] of WIDTHS) {
-  test(`두 폭에서 2열 격자와 전폭 패널이 넘치지 않는다 ${width}`, async ({ page }, info) => {
+  test(`두 폭에서 건수 띠와 전폭 업무 표가 넘치지 않는다 ${width}`, async ({ page }, info) => {
     const trace = await mockDashboard(page, { holdReviews: holdReviewList(holdReviewItems, 7) });
     await page.setViewportSize({ width, height });
     await page.goto("/");
     await expect(panel(page, "새 관련 발주계획").locator(".dash-work-item")).toHaveCount(2);
     await settleFonts(page);
-    const measured = await page.evaluate(() => {
+    const table = page.getByRole("table", { name: "오늘 결정할 것", exact: true });
+    const measured = await table.evaluate((element) => {
       const rect = (selector: string) => document.querySelector(selector)!.getBoundingClientRect();
-      const panels = [...document.querySelectorAll(".dash-work-grid > .dash-panel")].map(node => {
-        const box = node.getBoundingClientRect();
-        return { label: node.getAttribute("aria-label"), left: box.left, width: box.width, overflow: node.scrollWidth - node.clientWidth };
-      });
+      const viewport = element.closest(".record-table-viewport")!;
       return {
         overflow: document.documentElement.scrollWidth - innerWidth,
-        strip: { top: rect(".daily-collection").top, left: rect(".daily-collection").left },
+        strip: rect('[data-block="today"]'),
         headerBottom: rect('[data-shell-region="topbar"]').bottom,
         panelLeft: rect('[data-shell-region="panel"]').left,
-        gridWidth: rect(".dash-work-grid").width,
-        panels,
+        table: element.getBoundingClientRect(),
+        tableOverflow: viewport.scrollWidth - viewport.clientWidth,
+        valueWidths: [...element.querySelectorAll("th.record-table-value")].map(cell => Math.round(cell.getBoundingClientRect().width)),
+        valuesWrap: [...element.querySelectorAll(".record-table-value")].some(cell => getComputedStyle(cell).whiteSpace !== "nowrap"),
       };
     });
     expect(measured.overflow).toBe(0);
     // 최종 시안 셸(2026-11-19): 패널 헤더 아래 + canvas 위 여백 24, 흰 패널(사이드바 228 오른쪽, 1px 테두리) + canvas 좌 여백 32.
-    // 맨 위는 일일 실행 한 줄(설계고도화안 A-5)이고 바로가기 띠가 그 아래다.
     expect(measured.strip.top).toBeCloseTo(measured.headerBottom + physical(24), 0);
-    expect(measured.panelLeft).toBeCloseTo(228, 0);
-    expect(measured.strip.left).toBeCloseTo(measured.panelLeft + 1 + physical(32), 0);
-    expect(measured.panels).toHaveLength(5);
-    // 두 열: 1·3번째 패널이 같은 왼쪽 가장자리에서 시작하고 마지막은 전폭이다.
-    expect(measured.panels[2].left).toBeCloseTo(measured.panels[0].left, 0);
-    expect(measured.panels[3].left).toBeCloseTo(measured.panels[1].left, 0);
-    expect(measured.panels[4].width).toBeCloseTo(measured.gridWidth, 0);
-    expect(measured.panels[4].left).toBeCloseTo(measured.panels[0].left, 0);
+    expect(measured.panelLeft).toBeCloseTo(216, 0);
+    expect(measured.strip.left).toBeCloseTo(measured.panelLeft + 1 + physical(24), 0);
+    expect(measured.table.left).toBeCloseTo(measured.strip.left, 0);
+    expect(measured.table.width).toBeCloseTo(measured.strip.width, 0);
+    expect(measured.tableOverflow).toBeLessThanOrEqual(1);
+    expect(measured.valueWidths).toEqual([132, 360, 132]);
+    expect(measured.valuesWrap).toBe(false);
     await page.screenshot({ path: info.outputPath(`dashboard-${width}.png`), animations: "disabled", fullPage: true });
     expect(trace.writes).toEqual([]);
   });
@@ -452,8 +484,8 @@ for (const [width, height] of WIDTHS) {
     });
     await page.setViewportSize({ width, height });
     await page.goto("/");
-    await expect(panel(page, "마감 임박 추적 건")).toContainText("공동활용");
-    await expect(panel(page, "마감 임박 추적 건").locator(".dash-work-item").first()).toContainText("D-2");
+    await expect(decisionRows(page, "tracking").nth(0)).toContainText("공동활용");
+    await expect(decisionRows(page, "tracking").nth(0)).toContainText("D-2");
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBe(0);
     await page.screenshot({ path: info.outputPath(`dashboard-long-${width}.png`), animations: "disabled", fullPage: true });
   });

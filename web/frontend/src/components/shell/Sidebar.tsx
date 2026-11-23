@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { Layers } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import { api } from "../../lib/api";
@@ -8,34 +9,12 @@ import type { WorkloadKey } from "../../lib/types";
 import { ActorField, OPEN_ACTOR_EVENT, useRememberedActorName } from "../common/ActorField";
 import { runSearchFor } from "./route-meta";
 
-/**
- * RL 사이드바 — docs/1016_rootlab-redefinition/ui-spec.md §1.2 (시안 v26, mockups/v26).
- *
- * 2026-11-18 개정(설계고도화안 A-7·C-1·C-2, ui-spec §1.2 날짜 메모): 시안의 묶음과 모양은 그대로
- * 두되 **항목 이름 = 여는 화면의 제목**이다. 화면이 없는 자리표시(노트·보고서·기관·새 리스트·
- * 팀원 초대·도움말·검색)는 그리지 않는다. 최종 Go/No-Go와 실행 상태에 고정 항목을 둔다.
- *
- * - 빠른 이동: 대시보드
- * - 레코드: 발주계획 · 사전규격 · 사업기회 · 최종 Go/No-Go · 회사 근거
- * - 리스트(사업기회·브리핑의 이름 붙은 보기): 오늘의 브리핑 · 추적 중 · 마감 임박
- * - 하단: 실행 상태 · 판정 기준
- *
- * 건수는 **도착 화면의 기본 보기가 보이는 건수**만 그린다(목록 API `total` 또는 같은 정의의
- * `GET /api/workload` 키). 그런 값이 없는 항목은 건수를 그리지 않는다.
- * 활성 항목은 주소 하나당 정확히 하나다(`resolveActiveItemId`).
- *
- * 2026-11-19 최종 시안(`docs/1119_kstyle-shell/mockups/`): 묶음·항목·순서·건수 출처는 그대로 두고
- * 모양만 바꿨다. 사이드바는 바탕(frame) 위에 면 없이 228px로 놓이고, 행 36px·글자 14px·아이콘 16px,
- * 활성은 채움 + 굵은 본문색 + 먹색 알약 건수다. `리스트` 묶음은 색 점·아이콘 없이 들여쓴다.
- * 맨 아래 담당자 칸은 이 브라우저에 기억된 담당자 이름(`bidops.actorName`, 화면들의 담당자 입력이
- * 같이 쓰는 값)을 보이고 고칠 수 있다 — 감사 표식이며 로그인이 아니다.
- */
+/** 실무자는 오늘 할 일에서 시작해 탐색과 사업기회로 이동한다. */
 type IconName =
   | "home"
   | "plan"
   | "doc"
   | "opp"
-  | "decision"
   | "shield"
   | "activity"
   | "gear"
@@ -47,13 +26,10 @@ type CountSource = { kind: "workload"; key: WorkloadKey } | { kind: "order-plan-
 interface NavItem {
   id: string;
   label: string;
-  /** 이동할 주소(검색어 포함 가능). */
+  /** 이동할 화면 주소. */
   path: string;
   icon?: IconName;
-  /** 리스트 항목의 색 점. 상태를 색 점만으로 말하지 않으며 식별용이다. */
-  dot?: "accent" | "teal" | "warning" | "error";
-  /** 화면 metadata의 `navPath`와 맞추는 값. 없으면 `path`의 pathname이다. */
-  navPath?: string;
+  nested?: boolean;
   /** metadata가 없는 주소에서 이 항목이 활성이 되는 옛 경로. */
   absorbs?: string[];
   count?: CountSource;
@@ -65,48 +41,27 @@ interface NavGroup {
 }
 
 const groups: NavGroup[] = [
+  { label: null, items: [{ id: "dashboard", label: "오늘 할 일", path: "/", icon: "home" }] },
+  {
+    label: "탐색",
+    items: [
+      { id: "order-plans", label: "발주계획", path: "/order-plans", icon: "plan", count: { kind: "order-plan-default" } },
+      { id: "pre-specs", label: "사전규격", path: "/pre-specs", icon: "doc", count: { kind: "pre-spec-default" } },
+    ],
+  },
   {
     label: null,
     items: [
-      // 대시보드는 목록이 아니라 여러 업무의 요약이므로 건수를 그리지 않는다.
-      { id: "dashboard", label: "대시보드", path: "/", icon: "home" },
-    ],
-  },
-  {
-    label: "레코드",
-    items: [
-      // 건수 = 발주계획 기본 보기 `관련`(모델 판단 관련 AND 추적 미선택)의 건수.
-      { id: "order-plans", label: "발주계획", path: "/order-plans", icon: "plan", count: { kind: "order-plan-default" } },
-      // 건수 = 사전규격 기본 보기 `검토할 항목`(마감 전·미확인, SW사업대상)의 건수.
-      { id: "pre-specs", label: "사전규격", path: "/pre-specs", icon: "doc", count: { kind: "pre-spec-default" } },
-      // 건수 = 사업기회 기본 구역 `조치 필요`(workload `tracking_action_required`가 같은 식으로 센다).
-      // `/judgments/:id`는 입찰공고 상세로 남아 사업기회 아래에서 열린다. 판정 대기열(`/queue`·`/reviews`·
-      // `/deadlines`)은 2026-11-19에 흡수 목록에서 뺐다 — C-1 공고 판정을 다시 돌리지 않는다.
       { id: "opportunities", label: "사업기회", path: "/opportunities", icon: "opp", absorbs: ["/judgments"], count: { kind: "workload", key: "tracking_action_required" } },
-      // 기본 보기 `검토 대상`은 목록 전체를 받아야 셀 수 있어 사이드바에서는 그리지 않는다.
-      { id: "go-no-go", label: "최종 Go/No-Go", path: "/go-no-go", icon: "decision" },
-      // 회사 근거(RL-00)는 읽기 전용 `/company`다. 건수는 기본 묶음 `확인 필요`의 건수다.
-      { id: "company", label: "회사 근거", path: "/company", icon: "shield", absorbs: ["/companies"], count: { kind: "workload", key: "company_attention" } },
-    ],
-  },
-  {
-    label: "리스트",
-    items: [
-      // 건수는 가장 최근 브리핑의 반응 대기 추천 수다(`briefing_pending`) — 기본 탭 `반응 대기`.
-      { id: "briefing", label: "오늘의 브리핑", path: "/briefing", dot: "accent", count: { kind: "workload", key: "briefing_pending" } },
-      // 사업기회의 `추적 중` 구역. 이름은 그 보기 탭의 이름이다.
-      { id: "tracking", label: "추적 중", path: "/opportunities?section=추적 중", navPath: "/opportunities?section=추적 중", dot: "teal" },
-      // 사업기회의 7일 이내 마감 보기. 건수는 같은 조건의 workload `tracking_deadline_imminent`.
-      { id: "deadline", label: "마감 임박", path: "/opportunities?section=전체&deadline_within_days=7&sort=deadline", navPath: "/opportunities?deadline_within_days", dot: "error", count: { kind: "workload", key: "tracking_deadline_imminent" } },
+      { id: "go-no-go", label: "최종 Go/No-Go", path: "/go-no-go", nested: true },
     ],
   },
 ];
 
-const footerItems: NavItem[] = [
-  // 운영 화면(실행 상태·회차·첨부·상시 운영·감사)은 한 화면의 탭이다.
-  { id: "run-status", label: "실행 상태", path: "/run-status", icon: "activity", absorbs: ["/runs", "/attachments", "/operations", "/audit"] },
-  // 판정 기준(회사 프로필·판정 정책·품질 게이트·검증 지표·발주계획 판정 기준)도 한 화면의 탭이다.
+const managementItems: NavItem[] = [
+  { id: "company", label: "회사 근거", path: "/company", icon: "shield", absorbs: ["/companies"], count: { kind: "workload", key: "company_attention" } },
   { id: "criteria", label: "판정 기준", path: "/criteria", icon: "gear", absorbs: ["/profile", "/policies", "/quality-gates", "/metrics", "/order-plan-policies"] },
+  { id: "run-status", label: "실행 상태", path: "/run-status", icon: "activity", absorbs: ["/runs", "/attachments", "/operations", "/audit"] },
 ];
 
 function NavIcon({ name }: { name: IconName }) {
@@ -120,8 +75,6 @@ function NavIcon({ name }: { name: IconName }) {
       return <svg {...common}><path d="M4 4h12l4 4v12H4z" /><path d="M8 12h8M8 16h8" /></svg>;
     case "opp":
       return <svg {...common}><path d="M3 12h4l3-7 4 14 3-7h4" /></svg>;
-    case "decision":
-      return <svg {...common}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="m8 12 3 3 5-6" /></svg>;
     case "shield":
       return <svg {...common}><path d="M12 3 4 7v5c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V7z" /><path d="m9 12 2 2 4-4" /></svg>;
     case "activity":
@@ -133,28 +86,13 @@ function NavIcon({ name }: { name: IconName }) {
   }
 }
 
-function pathnameOf(path: string): string {
-  const index = path.indexOf("?");
-  return index === -1 ? path : path.slice(0, index);
-}
-
 function isCurrentPath(pathname: string, path: string): boolean {
   return path === "/" ? pathname === "/" : pathname === path || pathname.startsWith(`${path}/`);
 }
 
-/**
- * 활성 항목을 **하나만** 고른다. 화면 metadata의 `activeNavPath`가 먼저이고, 같은 화면을 여는
- * 항목(사업기회·추적 중·마감 임박)은 목록 주소의 검색어로만 가른다 — 레코드·상세·Go/No-Go
- * 같은 다른 화면은 자기 항목을 갖는다. metadata가 없는 주소만 경로·흡수 목록으로 돌아간다.
- */
-export function resolveActiveItemId(items: readonly NavItem[], activeNavPath: string | null, pathname: string, search: string): string | null {
-  if (activeNavPath === "/opportunities" && pathname === "/opportunities") {
-    const params = new URLSearchParams(search);
-    if (params.has("deadline_within_days")) return "deadline";
-    if (params.get("section") === "추적 중") return "tracking";
-    return "opportunities";
-  }
-  const navOf = (item: NavItem) => item.navPath ?? pathnameOf(item.path);
+/** 데이터 보기의 URL 조건과 관계없이 소속 화면 하나를 활성화한다. */
+function resolveActiveItemId(items: readonly NavItem[], activeNavPath: string | null, pathname: string): string | null {
+  const navOf = (item: NavItem) => item.path;
   const target = activeNavPath ?? pathname;
   const exact = items.find((item) => navOf(item) === target);
   if (exact) return exact.id;
@@ -194,7 +132,12 @@ export function Sidebar({ activeNavPath, runSearch, demoNav = null }: { activeNa
   const { pathname, search } = useLocation();
   const workload = useQuery({ queryKey: ["workload"], queryFn: () => api.getWorkload(), staleTime: 60_000 });
   // 목록 기본 보기의 건수는 그 목록 API의 total이다. 대시보드 타일과 같은 query key를 쓴다.
-  const orderPlanDefault = useQuery(orderPlanViewTotalQuery("relevant"));
+  const params = new URLSearchParams(search);
+  // The unscoped workspace supplies the same count in its first page response.
+  const orderPlanDefault = useQuery({
+    ...orderPlanViewTotalQuery("relevant"),
+    enabled: pathname !== "/order-plans" || Boolean(params.get("source_run_id") || params.get("first_observed_from")),
+  });
   const preSpecDefault = useQuery(preSpecDefaultViewTotalQuery());
   const workloadCounts = new Map<WorkloadKey, number>();
   for (const item of workload.data?.items ?? []) {
@@ -218,17 +161,20 @@ export function Sidebar({ activeNavPath, runSearch, demoNav = null }: { activeNa
   // 제품 이름을 둔다(회사 화면이 같은 key로 오류를 설명한다).
   const company = useQuery({ queryKey: companyContextQueryKey, queryFn: ({ signal }) => getCompanyContext({ signal }), retry: false, staleTime: 60_000 });
   const workspace = workspaceIdentity(company.data?.company.name ?? null);
-  const visibleGroups = demoNav ? [...groups, demoGroup(demoNav.companyId)] : groups;
-  const allItems = [...visibleGroups.flatMap((group) => group.items), ...footerItems];
-  const activeId = resolveActiveItemId(allItems, activeNavPath, pathname, search);
+  const visibleGroups = [
+    ...groups,
+    ...(demoNav ? [demoGroup(demoNav.companyId)] : []),
+    { label: "관리", items: managementItems },
+  ];
+  const allItems = visibleGroups.flatMap((group) => group.items);
+  const activeId = resolveActiveItemId(allItems, activeNavPath, pathname);
   return (
     <aside aria-label="주 메뉴" className="sidebar" data-shell-region="sidebar">
-      {/* 워크스페이스 줄(시안: 머리글자 아이콘 + 회사명). 로그인·워크스페이스 전환이
-          없으므로 링크는 브리핑으로 간다. */}
-      <Link aria-label={`${workspace.name} BidOps 오늘의 브리핑으로 이동`} className="sidebar-brand" to={{ pathname: "/briefing", search: runSearchFor("/briefing", runSearch) }}>
+      <Link aria-label={`${workspace.name} 오늘 할 일로 이동`} className="sidebar-brand" to="/">
         {/* 시안: 제품 이름(굵게) + 회사 이름(작게). 회사 이름을 모르면 제품 이름 하나만 둔다. */}
-        {workspace.name !== "BidOps" ? <span className="sidebar-brand-product">BidOps</span> : null}
-        <strong>{workspace.name}</strong>
+        <span className="sidebar-brand-mark" aria-hidden="true"><Layers size={15} /></span>
+        <span className="sidebar-brand-product">BidOps</span>
+        {workspace.name !== "BidOps" ? <strong>{workspace.name}</strong> : null}
       </Link>
       <nav aria-label="주 메뉴" className="sidebar-nav">
         {visibleGroups.map((group, index) => (
@@ -259,15 +205,6 @@ export function Sidebar({ activeNavPath, runSearch, demoNav = null }: { activeNa
         </a>
       </nav>
       <div className="sidebar-footer">
-        {footerItems.map((item) => (
-          <NavEntry
-            active={item.id === activeId}
-            count={null}
-            item={item}
-            key={item.id}
-            runSearch={runSearch}
-          />
-        ))}
         <SidebarActor />
       </div>
     </aside>
@@ -277,8 +214,6 @@ export function Sidebar({ activeNavPath, runSearch, demoNav = null }: { activeNa
 function NavEntry({ item, active, count, runSearch }: { item: NavItem; active: boolean; count: number | "error" | null; runSearch: string }) {
   const body = (
     <>
-      {/* 리스트 묶음(색 점 항목)은 시안대로 아이콘·점 없이 들여쓴다. 점의 색은 식별용이었고
-          항목 이름이 같은 말을 하므로 잃는 정보가 없다. */}
       {item.icon ? <NavIcon name={item.icon} /> : null}
       <span className="sidebar-item-label">{item.label}</span>
       {/* 건수는 보조 표시다. 링크의 접근 가능한 이름은 항목 이름 하나로 두고(테스트·
@@ -290,16 +225,12 @@ function NavEntry({ item, active, count, runSearch }: { item: NavItem; active: b
       ) : null}
     </>
   );
-  const pathname = pathnameOf(item.path);
-  const query = item.path.includes("?") ? item.path.slice(item.path.indexOf("?")) : "";
-  const runQuery = runSearchFor(pathname, runSearch);
-  const searchValue = query && runQuery ? `${query}&${runQuery.slice(1)}` : query || runQuery;
   return (
     <Link
       aria-current={active ? "page" : undefined}
-      className={`sidebar-item${active ? " is-active" : ""}${item.dot ? " is-list" : ""}`}
+      className={`sidebar-item${active ? " is-active" : ""}${item.nested ? " is-nested" : ""}`}
       title={count === "error" ? `${item.label} · 건수를 불러오지 못했어요` : count !== null && count > 0 ? `${item.label} ${count}건` : undefined}
-      to={{ pathname, search: searchValue }}
+      to={{ pathname: item.path, search: runSearchFor(item.path, runSearch) }}
     >
       {body}
     </Link>

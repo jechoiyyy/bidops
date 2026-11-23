@@ -4,7 +4,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { EmptyState } from "./EmptyState";
 import { SkeletonPanel } from "./Skeleton";
 
-export function RouteLoadingFallback() {
+function RouteLoadingFallback() {
   return <SkeletonPanel className="route-loading-skeleton" label="화면을 불러오는 중" lines={4} />;
 }
 

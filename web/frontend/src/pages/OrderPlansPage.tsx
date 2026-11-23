@@ -1,10 +1,10 @@
-import { SkeletonBlock } from "../components/common/Skeleton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
-import { searchKey, searchMatches } from "../lib/search";
-import { Badge } from "@astryxdesign/core/Badge";
+import { searchKey } from "../lib/search";
+import { orderPlanViewTotalQuery } from "../lib/defaultViewCounts";
+import { StatusMark } from "../components/common/Marks";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { DialogHeader } from "@astryxdesign/core/Dialog";
@@ -17,7 +17,7 @@ import { Text } from "@astryxdesign/core/Text";
 import { ConfirmDecisionDialog, trackingEndConfirmContent } from "../components/common/ConfirmDecisionDialog";
 import { EmptyState } from "../components/common/EmptyState";
 import { PageHeaderActions, PageHeaderTabs } from "../components/common/PageHeaderActions";
-import { setRememberedActorName, useRememberedActorName } from "../components/common/ActorField";
+import { requestActorInput, setRememberedActorName, useRememberedActorName } from "../components/common/ActorField";
 import { usePageHeader } from "../components/shell/PageHeaderContext";
 import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
 import { useUnsavedGuard } from "../components/common/useUnsavedGuard";
@@ -30,10 +30,9 @@ import {
   trackingReasonValue,
   trackingSavedMessage,
 } from "../components/common/TrackingDecisionForm";
+import { RecordTable } from "../components/common/RecordTable";
 import { useListSelection } from "../components/common/useListSelection";
 import {
-  DenseList,
-  ListColumns,
   ListPagerControls,
   ReviewDecisionAction,
   ReviewFilterSelector,
@@ -44,9 +43,12 @@ import {
 } from "../components/common/ReviewPrimitives";
 import { SourceRunContextLine, SourceRunFilter } from "../components/common/SourceRunFilter";
 import {
+  AppliedFilterTokens,
   formatCount,
+  type AppliedFilter,
   WorkspaceAdvancedToggle,
   WorkspaceFilterAdvanced,
+  WorkspaceFilterGroup,
   WorkspaceFilterBar,
   WorkspaceFilterContext,
   WorkspaceFilterLine,
@@ -70,17 +72,11 @@ import {
   OrderPlanBulkTrackingDialog,
 } from "../components/order-plans/OrderPlanBulkTrackingDialog";
 import { OrderPlanDetailPane } from "../components/order-plans/OrderPlanDetailPane";
-import { OrderPlanListRow } from "../components/order-plans/OrderPlanListRow";
+import { orderPlanColumns } from "../components/order-plans/OrderPlanListRow";
 import { scopeLabel } from "../components/order-plans/orderPlanDialogShared";
 import {
   TRACKING_REASONS,
   formatMoment,
-  currentKstMonth,
-  isJudgmentFailure,
-  orderPlanUnjudgedKind,
-  sortByCollectionRank,
-  sortForBrowse,
-  sortForReview,
   textOrUnknown,
   trackingAvailability,
 } from "../components/order-plans/orderPlanFormat";
@@ -98,18 +94,20 @@ import type {
   OrderPlanFeedbackPriority,
   OrderPlanListItem,
   OrderPlanListQuery,
-  OrderPlanListResponse,
   OrderPlanListScope,
   OrderPlanRelevance,
   OrderPlanScreeningExecutionListResponse,
   OrderPlanScreeningExecutionSummary,
-  OrderPlanStage1Status,
-  OrderPlanStage2Status,
   OpportunityTrackingStatus,
 } from "../lib/types";
 import "../styles/order-plans.css";
 
-const PAGE_SIZE = 500;
+const PAGE_SIZE = 100;
+const EXECUTION_PAGE_SIZE = 500;
+function orderPlanPageKey(params: OrderPlanListQuery) {
+  return ["order-plan-c2", "list", { ...params, q: searchKey(params.q) }] as const;
+}
+
 const SAVED_VIEWS_STORAGE_KEY = "bidops.order-plans.views";
 
 /**
@@ -191,7 +189,7 @@ interface FilterAxes {
 }
 
 interface Preset {
-  key: string;
+  key: "relevant" | "uncertain" | "unjudged" | "all";
   label: string;
   description: string;
   axes: FilterAxes;
@@ -302,82 +300,6 @@ function safeExternalUrl(value: string | null | undefined): string | null {
   }
 }
 
-function relevanceToken(value: OrderPlanRelevance | null): RelevanceToken {
-  return (value ?? "null") as RelevanceToken;
-}
-
-const RELEVANCE_PRIORITY: Readonly<Record<RelevanceToken, number>> = {
-  relevant: 0,
-  uncertain: 1,
-  not_relevant: 2,
-  null: 3,
-};
-
-/**
- * 검토 목록은 모델 relevance 신호만으로 우선순위를 정한다. 점수나 다른 상태를
- * 추론하지 않으며, 같은 relevance 안에서는 API가 준 순서를 보존한다.
- */
-function sortByRelevance(items: readonly OrderPlanListItem[]): OrderPlanListItem[] {
-  return items
-    .map((item, index) => ({ item, index }))
-    .sort((left, right) =>
-      RELEVANCE_PRIORITY[relevanceToken(left.item.qwen_relevance)] - RELEVANCE_PRIORITY[relevanceToken(right.item.qwen_relevance)]
-      || left.index - right.index,
-    )
-    .map(({ item }) => item);
-}
-
-function trackingToken(item: OrderPlanListItem): TrackingToken {
-  return item.tracking?.tracking_status ?? "none";
-}
-
-function stage1Token(value: OrderPlanStage1Status | null): Stage1Token {
-  return (value ?? "null") as Stage1Token;
-}
-
-function isExecutionIssue(item: OrderPlanListItem): boolean {
-  return isJudgmentFailure(item);
-}
-
-/**
- * 축(Qwen·BM25·사람 피드백·실행 결과) 매칭만 떼어 낸 부분. 축 안은 OR, 축끼리는 AND다.
- *
- * 목록 필터와 보기 탭의 건수가 **같은 규칙 하나**를 읽게 하려고 나눴다. 탭 건수는 검색어를
- * 뺀 축만으로 세므로(검색은 탭이 아니라 입력이 소유한다) 검색 조건은 여기 없다.
- */
-interface AxisSelection {
-  qwenSet: Set<RelevanceToken>;
-  stage1Set: Set<Stage1Token>;
-  feedbackSet: Set<FeedbackToken>;
-  trackingSet: Set<TrackingToken>;
-  issueOn: boolean;
-  unjudgedOn: boolean;
-}
-
-function matchesAxes(item: OrderPlanListItem, axes: AxisSelection): boolean {
-  if (axes.qwenSet.size && !axes.qwenSet.has(relevanceToken(item.qwen_relevance))) return false;
-  if (axes.stage1Set.size && !axes.stage1Set.has(stage1Token(item.stage1_status))) return false;
-  if (axes.feedbackSet.size) {
-    const token: FeedbackToken = item.human_feedback ? "has" : "none";
-    if (!axes.feedbackSet.has(token)) return false;
-  }
-  if (axes.trackingSet.size && !axes.trackingSet.has(trackingToken(item))) return false;
-  if (axes.issueOn && !isExecutionIssue(item)) return false;
-  if (axes.unjudgedOn && orderPlanUnjudgedKind(item) === null) return false;
-  return true;
-}
-
-function presetSelection(preset: Preset): AxisSelection {
-  return {
-    qwenSet: new Set(preset.axes.qwen),
-    stage1Set: new Set(preset.axes.stage1),
-    feedbackSet: new Set(preset.axes.feedback),
-    trackingSet: new Set(preset.axes.tracking),
-    issueOn: preset.axes.issue,
-    unjudgedOn: preset.axes.unjudged,
-  };
-}
-
 function parseTokenSet<T extends string>(raw: string | null, allowed: readonly T[]): Set<T> {
   const set = new Set<T>();
   if (!raw) return set;
@@ -458,33 +380,11 @@ function saveSessionValue(key: string, value: string): void {
 }
 
 async function fetchAllExecutions(signal: AbortSignal): Promise<OrderPlanScreeningExecutionListResponse> {
-  const first = await api.getOrderPlanScreeningExecutions({ limit: PAGE_SIZE, offset: 0 }, { signal });
+  const first = await api.getOrderPlanScreeningExecutions({ limit: EXECUTION_PAGE_SIZE, offset: 0 }, { signal });
   const items = [...first.items];
-  const pageSize = first.limit > 0 ? first.limit : PAGE_SIZE;
+  const pageSize = first.limit > 0 ? first.limit : EXECUTION_PAGE_SIZE;
   while (items.length < first.total) {
     const page = await api.getOrderPlanScreeningExecutions({ limit: pageSize, offset: items.length }, { signal });
-    if (!page.items.length) break;
-    items.push(...page.items);
-  }
-  return { ...first, items, offset: 0 };
-}
-
-/**
- * `sourceRunId`가 없으면 누적 모드다(화면 기본). `source_run_id`를 아예 보내지 않는다 —
- * 서버는 활성화된 적 있는 policy의 운영 판정을 발주계획마다 최신 1건씩 투영한다.
- *
- * `firstObservedFrom`(`YYYY-MM-DD`)은 **서버가 거는 하한**이다(ADR-0067 결정 6). 이미
- * 받은 페이지를 브라우저에서 다시 좁히지 않으므로 보기 탭 건수도 같은 창 안에서 센다.
- */
-async function fetchAllOrderPlans(
-  scope: OrderPlanListQuery,
-  signal: AbortSignal,
-): Promise<OrderPlanListResponse> {
-  const first = await api.getOrderPlans({ ...scope, limit: PAGE_SIZE, offset: 0 }, { signal });
-  const items = [...first.items];
-  const pageSize = first.limit > 0 ? first.limit : PAGE_SIZE;
-  while (items.length < first.total) {
-    const page = await api.getOrderPlans({ ...scope, limit: pageSize, offset: items.length }, { signal });
     if (!page.items.length) break;
     items.push(...page.items);
   }
@@ -535,20 +435,20 @@ function ExecutionHealthChip({
 }) {
   if (isError) {
     return (
-      <span className="c2l-status-chip is-problem" role="status">
-        선별 실행 상태를 확인하지 못했어요
+      <span className="c2l-status-chip" role="status">
+        <StatusMark mark={{ label: "선별 실행 상태를 확인하지 못했어요", tone: "error" }} />
         <Button label="다시 시도" size="sm" variant="ghost" onClick={onRetry} />
       </span>
     );
   }
   if (!latest || !EXECUTION_PROBLEM_STATUSES.has(latest.status)) return null;
   return (
-    <span className="c2l-status-chip is-problem">
+    <span className="c2l-status-chip">
       <Link
         className="c2l-scope-link"
         to={`/runs?run=${encodeURIComponent(latest.source_run_id)}&execution=${encodeURIComponent(latest.execution_id)}`}
       >
-        최근 선별 실행 {latest.status} · 운영 화면에서 확인 →
+        <StatusMark mark={{ label: `최근 선별 실행 ${latest.status} · 운영 화면에서 확인 →`, tone: "error" }} />
       </Link>
     </span>
   );
@@ -609,7 +509,8 @@ function OrderPlansWorkspace() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   // ↑↓ 이동은 목록 `<ul>`에 리스너를 단다(window 전역이 아니다) — 상세 pane 입력의
   // 방향키가 같은 화면에서 서로 경쟁하지 않는다.
-  const listRef = useRef<HTMLUListElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const [editingDecision, setEditingDecision] = useState<Exclude<OpportunityTrackingStatus, "미선택"> | null>(null);
   const trackingSectionRef = useRef<HTMLElement | null>(null);
   const [savedViews, setSavedViews] = useState<SavedView[]>(() => loadSavedViews());
   const [newViewName, setNewViewName] = useState("");
@@ -642,6 +543,7 @@ function OrderPlansWorkspace() {
    * 결정했을 때 선택이 첫 행으로 튀지 않고 "이동하지 않습니다" 안내가 사실로 남게 한다.
    */
   const [retainedPk, setRetainedPk] = useState<number | null>(null);
+  const [locateAfterSave, setLocateAfterSave] = useState<number | null>(null);
 
   const [relevance, setRelevance] = useState<OrderPlanRelevance>("uncertain");
   const [priority, setPriority] = useState<OrderPlanFeedbackPriority | "">("");
@@ -730,20 +632,6 @@ function OrderPlansWorkspace() {
     if (selectedParam === null && deepLinkActive) setDeepLinkActive(false);
   }, [deepLinkActive, selectedParam]);
 
-  const runsQuery = useQuery({
-    queryKey: ["runs"],
-    queryFn: () => api.getRuns(),
-    staleTime: 15_000,
-  });
-  const executionsQuery = useQuery({
-    queryKey: ["order-plan-c2", "executions"],
-    queryFn: ({ signal }) => fetchAllExecutions(signal),
-    staleTime: 15_000,
-  });
-  const executions = executionsQuery.data?.items ?? [];
-  const collectionRuns = (runsQuery.data?.items ?? [])
-    .filter((run) => run.kind === "order_plans" || run.kind === "mixed")
-    .sort((a, b) => b.generated_at.localeCompare(a.generated_at));
   /**
    * 회차는 **감사용 보조 선택**이다(spec §7). URL에 회차가 없으면 누적 모드로 열고, 최신 회차를
    * 골라 URL에 박지 않는다 — 누적 목록이 기본이고, 회차를 고른 사람만 그 회차의 실행으로 좁힌다.
@@ -752,6 +640,21 @@ function OrderPlansWorkspace() {
   const sourceRunId = searchParams.get("source_run_id")?.trim() || null;
   /** 첫 수집 창. 회차와 같이 상세 필터의 한 축이며 URL이 소유한다(S1). */
   const firstObservedFrom = parseFirstObservedFrom(searchParams.get("first_observed_from"));
+  const runsQuery = useQuery({
+    queryKey: ["runs"],
+    queryFn: () => api.getRuns(),
+    enabled: advancedOpen || sourceRunId !== null,
+    staleTime: 15_000,
+  });
+  const executionsQuery = useQuery({
+    queryKey: ["order-plan-c2", "executions"],
+    queryFn: ({ signal }) => fetchAllExecutions(signal),
+    staleTime: 15_000,
+  });
+  const executions = executionsQuery.data?.items ?? [];
+  const collectionRuns = useMemo(() => (runsQuery.data?.items ?? [])
+    .filter((run) => run.kind === "order_plans" || run.kind === "mixed")
+    .sort((a, b) => b.generated_at.localeCompare(a.generated_at)), [runsQuery.data]);
   const dailyTriggerQuery = useQuery({
     queryKey: ["order-plan-c2", "daily-trigger"],
     queryFn: ({ signal }) => api.getC2DailyTrigger({ signal }),
@@ -803,38 +706,53 @@ function OrderPlansWorkspace() {
     });
   }
 
-  const scope = { source_run_id: sourceRunId, first_observed_from: firstObservedFrom };
-  // 관련 판정 전체를 먼저 받아 기존 예정월 정렬과 저장 직후 행 유지를 보장한다.
-  const defaultEntry = !isExplicitDeepLink && !AXIS_KEYS.some(key => searchParams.has(key));
+  const defaultEntry = !AXIS_KEYS.some((key) => searchParams.has(key));
+  const urlQwen = parseTokenSet(searchParams.get("qwen"), RELEVANCE_TOKENS);
+  const urlStage1 = parseTokenSet(searchParams.get("stage1"), STAGE1_TOKENS);
+  const urlFeedback = parseTokenSet(searchParams.get("feedback"), FEEDBACK_TOKENS);
+  const urlTracking = parseTokenSet(searchParams.get("tracking"), TRACKING_TOKENS);
+  const issueOn = searchParams.get("issue") === "yes";
+  const unjudgedOn = searchParams.get("unjudged") === "yes";
+  const explicitPreset = qText ? undefined : PRESETS.find(({ axes }) => (
+    setEqualsArray(urlQwen, axes.qwen)
+    && setEqualsArray(urlStage1, axes.stage1)
+    && setEqualsArray(urlFeedback, axes.feedback)
+    && setEqualsArray(urlTracking, axes.tracking)
+    && issueOn === axes.issue
+    && unjudgedOn === axes.unjudged
+  ));
+  const offsetRaw = Number(searchParams.get("offset") ?? "0");
+  const requestedOffset = Number.isSafeInteger(offsetRaw) && offsetRaw >= 0 ? Math.floor(offsetRaw / PAGE_SIZE) * PAGE_SIZE : 0;
+  const presetOrder = explicitPreset?.key;
+  const pageQuery: OrderPlanListQuery = {
+    source_run_id: sourceRunId,
+    first_observed_from: firstObservedFrom,
+    review_order: defaultEntry ? "default" : presetOrder && presetOrder !== "all" ? presetOrder : "relevance",
+    qwen_relevance: [...urlQwen].map((value) => value === "null" ? "missing" : value),
+    stage1_status: [...urlStage1].map((value) => value === "null" ? "missing" : value),
+    feedback_present: urlFeedback.size === 1 ? urlFeedback.has("has") : undefined,
+    tracking_status: [...urlTracking].map((value) => value === "none" ? "missing" : value),
+    issue: issueOn || undefined,
+    unjudged: unjudgedOn || undefined,
+    q: qText,
+    limit: PAGE_SIZE,
+    offset: requestedOffset,
+    locate: isExplicitDeepLink ? selectedPk : locateAfterSave,
+    retain: retainedPk === selectedPk ? retainedPk : null,
+  };
   const listQuery = useQuery({
-    queryKey: ["order-plan-c2", "list", sourceRunId, firstObservedFrom, defaultEntry],
-    queryFn: async ({ signal }) => {
-      if (defaultEntry) {
-        const relevant = await fetchAllOrderPlans({ ...scope, qwen_relevance: "relevant" }, signal);
-        if (relevant.scope?.mode === "run" || relevant.scope?.policy_versions.length) {
-          return { ...relevant, narrowed: true };
-        }
-      }
-      return { ...await fetchAllOrderPlans(scope, signal), narrowed: false };
-    },
+    queryKey: orderPlanPageKey(pageQuery),
+    queryFn: ({ signal }) => api.getOrderPlans(pageQuery, { signal }),
     staleTime: 15_000,
   });
-  const tabTotals = useQuery({
-    queryKey: ["order-plan-c2", "list", "tab-totals", sourceRunId, firstObservedFrom],
-    enabled: listQuery.data?.narrowed === true,
-    queryFn: async ({ signal }) => {
-      const count = async (filters: OrderPlanListQuery) =>
-        (await api.getOrderPlans({ ...scope, ...filters, limit: 1 }, { signal })).total;
-      // 순위 밖과 그 외 행의 판정 실패를 분리해 중복 집계를 피한다.
-      const [all, uncertain, outsideRank, otherFailures] = await Promise.all([
-        count({}), count({ qwen_relevance: "uncertain", tracking_status: "미선택" }),
-        count({ stage1_status: "filtered_out" }),
-        count({ stage1_status: ["selected", "failed", "rejected", "missing"], issue: true }),
-      ]);
-      return { all, uncertain, unjudged: outsideRank + otherFailures };
-    },
-    staleTime: 15_000,
-  });
+  const offset = listQuery.data?.offset ?? requestedOffset;
+  const reviewPage = listQuery.data?.review_page;
+  const viewCounts = reviewPage?.view_counts;
+  useEffect(() => {
+    if (sourceRunId || firstObservedFrom || !viewCounts) return;
+    queryClient.setQueryData(orderPlanViewTotalQuery("relevant").queryKey, viewCounts.relevant);
+    queryClient.setQueryData(orderPlanViewTotalQuery("uncertain").queryKey, viewCounts.uncertain);
+  }, [firstObservedFrom, queryClient, sourceRunId, viewCounts]);
   /** 목록 응답의 범위. 불러오기 전에는 `undefined`, 회차에 완료 실행이 없으면 `null`이다. */
   const listScope: OrderPlanListScope | null | undefined = listQuery.data ? listQuery.data.scope : undefined;
   const isCumulative = sourceRunId === null;
@@ -861,15 +779,11 @@ function OrderPlansWorkspace() {
   // Keep the normal review default while resolving a selected row. Once the
   // target and list scope are known, the targeted reset effect below
   // removes only filters that hide that record (for example `not_relevant`).
-  const isDefaultView = judgmentsAvailable && !AXIS_KEYS.some((key) => searchParams.has(key));
-  const qwenSet = isDefaultView ? new Set<RelevanceToken>(DEFAULT_VIEW_AXES.qwen) : parseTokenSet(searchParams.get("qwen"), RELEVANCE_TOKENS);
-  const stage1Set = isDefaultView ? new Set<Stage1Token>(DEFAULT_VIEW_AXES.stage1) : parseTokenSet(searchParams.get("stage1"), STAGE1_TOKENS);
-  const feedbackSet = isDefaultView ? new Set<FeedbackToken>(DEFAULT_VIEW_AXES.feedback) : parseTokenSet(searchParams.get("feedback"), FEEDBACK_TOKENS);
-  const trackingSet = isDefaultView ? new Set<TrackingToken>(DEFAULT_VIEW_AXES.tracking) : parseTokenSet(searchParams.get("tracking"), TRACKING_TOKENS);
-  const issueOn = isDefaultView ? DEFAULT_VIEW_AXES.issue : searchParams.get("issue") === "yes";
-  const unjudgedOn = isDefaultView ? DEFAULT_VIEW_AXES.unjudged : searchParams.get("unjudged") === "yes";
-  const offsetRaw = Number(searchParams.get("offset") ?? "0");
-  const offset = Number.isFinite(offsetRaw) && offsetRaw >= 0 ? Math.floor(offsetRaw / PAGE_SIZE) * PAGE_SIZE : 0;
+  const isDefaultView = judgmentsAvailable && defaultEntry && !reviewPage?.target_filters_cleared;
+  const qwenSet = isDefaultView ? new Set<RelevanceToken>(DEFAULT_VIEW_AXES.qwen) : urlQwen;
+  const stage1Set = urlStage1;
+  const feedbackSet = urlFeedback;
+  const trackingSet = isDefaultView ? new Set<TrackingToken>(DEFAULT_VIEW_AXES.tracking) : urlTracking;
   /**
    * 첫 수집 창도 의미 필터이므로 바뀌면 선택을 비운다. 공용
    * `orderPlansFilterFingerprint`에는 아직 이 축이 없어 여기서 덧붙이며, **창이 없으면
@@ -899,20 +813,7 @@ function OrderPlansWorkspace() {
     restoreStoredState: true,
   });
 
-  const activePreset = (() => {
-    if (qText) return null;
-    for (const preset of PRESETS) {
-      if (
-        setEqualsArray(qwenSet, preset.axes.qwen)
-        && setEqualsArray(stage1Set, preset.axes.stage1)
-        && setEqualsArray(feedbackSet, preset.axes.feedback)
-        && setEqualsArray(trackingSet, preset.axes.tracking)
-        && issueOn === preset.axes.issue
-        && unjudgedOn === preset.axes.unjudged
-      ) return preset.key;
-    }
-    return null;
-  })();
+  const activePreset = isDefaultView ? "relevant" : explicitPreset?.key ?? null;
 
   // 아래 네 함수는 확인 단계를 갖지 않는 원본이다. 확인은 사람이 누르는 자리
   // (`changeAxes`, `applyPreset`, `applySavedViewSearch`, `resetFilters`, 페이지 이동)가
@@ -1068,74 +969,17 @@ function OrderPlansWorkspace() {
     });
   }
 
-  function matchesFilters(item: OrderPlanListItem): boolean {
-    if (!matchesAxes(item, { qwenSet, stage1Set, feedbackSet, trackingSet, issueOn, unjudgedOn })) return false;
-    if (searchKey(qText) && !searchMatches(qText, item.title, item.agency_name, item.order_plan_unty_no)) return false;
-    return true;
-  }
-
-  const allItems = listQuery.data?.items ?? [];
-  /**
-   * 보기 탭 옆의 건수. 지금 필터가 아니라 **각 탭을 눌렀을 때 남을 건수**이므로 검색어를
-   * 빼고 그 탭의 축만 적용해 센다. 목록을 아직 못 읽었으면 0이 아니라 `null`(미확인)이다.
-   */
-  const presetCounts = useMemo(() => {
-    const items = listQuery.data?.items;
-    const counts = new Map<string, number | null>();
-    for (const preset of PRESETS) {
-      counts.set(preset.key, items ? items.filter((item) => matchesAxes(item, presetSelection(preset))).length : null);
-    }
-    if (listQuery.data?.narrowed) {
-      for (const key of ["all", "uncertain", "unjudged"] as const) {
-        counts.set(key, tabTotals.data?.[key] ?? null);
-      }
-    }
-    return counts;
-  }, [listQuery.data, tabTotals.data]);
-  // 필터 결과 전체를 먼저 relevance 우선순위로 정렬한 뒤 잘라야 페이지와 ↑↓ 이동이
-  // 같은 검토 순서를 공유한다. null은 값 없음으로만 다루고 다른 상태로 보정하지 않는다.
-  // `관련`·`불확실` 보기는 검토 순서(예정월이 가까운 건 → 최근 첫 수집, 예정월 지남·공고 게시됨은 뒤)로
-  // 줄 세운다. 목록은 범위 전체를 받아 브라우저가 자르므로(`fetchAllOrderPlans`) 서버 계약을 바꾸지 않는다.
-  // `불확실`(훑어보기)은 지난 건을 뒤로 보낸 뒤 수집일 최신 → 그날 BM25 순위순, `모델 미판정`은 수집일
-  // 최신 → 그날 BM25 순위순이다(2026-11-18 수정안 3B). 다른 보기는 지금처럼 모델 판단 순서와 서버 순서다.
-  const reviewMonth = useMemo(() => currentKstMonth(Date.now()), []);
-  const matched = sortByRelevance(allItems.filter((item) => matchesFilters(item) || item.order_plan_pk === retainedPk));
-  const filteredItems = activePreset === "relevant"
-    ? sortForReview(matched, reviewMonth)
-    : activePreset === "uncertain"
-      ? sortForBrowse(matched, reviewMonth)
-      : activePreset === "unjudged"
-        ? sortByCollectionRank(matched)
-        : matched;
-  const total = filteredItems.length;
-  const visibleItems = filteredItems.slice(offset, offset + PAGE_SIZE);
-
-  const explicitTargetItem = selectedPk !== null
-    ? allItems.find((item) => item.order_plan_pk === selectedPk) ?? null
-    : null;
+  const visibleItems = listQuery.data?.items ?? [];
+  const total = listQuery.data?.total ?? 0;
+  const presetCounts = reviewPage?.view_counts;
   const invalidSelectedParam = selectedParam !== null && selectedPk === null;
-  const explicitTargetInFilteredItems = selectedPk !== null
-    && filteredItems.some((item) => item.order_plan_pk === selectedPk);
-  // The default review view is derived from the list scope, so the deep link
-  // is not consumed before the list (and therefore that scope) is known.
-  // Otherwise the ordinary first-row fallback could select a different record.
-  const deepLinkPending = isExplicitDeepLink && selectedPk !== null && listQuery.isPending;
+  const explicitTargetInFilteredItems = visibleItems.some((item) => item.order_plan_pk === selectedPk);
   const deepLinkFailed = isExplicitDeepLink && (
-    invalidSelectedParam
-    || listQuery.isError
-    || (!listQuery.isPending && !deepLinkPending && explicitTargetItem === null)
+    invalidSelectedParam || listQuery.isError || reviewPage?.target_found === false
   );
-  const selectedItem = invalidSelectedParam
-    ? null
-    : isExplicitDeepLink
-    ? (deepLinkPending || deepLinkFailed || !explicitTargetInFilteredItems
-      ? null
-      : filteredItems.find((item) => item.order_plan_pk === selectedPk) ?? null)
-    : ((selectedPk !== null
-      ? filteredItems.find((item) => item.order_plan_pk === selectedPk)
-      : orderPlanSelection.activeId !== null
-        ? filteredItems.find((item) => item.order_plan_pk === orderPlanSelection.activeId)
-        : undefined) ?? visibleItems[0] ?? null);
+  const selectedItem = invalidSelectedParam || deepLinkFailed ? null
+    : visibleItems.find((item) => item.order_plan_pk === (selectedPk ?? orderPlanSelection.activeId))
+      ?? (isExplicitDeepLink || locateAfterSave !== null ? null : visibleItems[0] ?? null);
   const selectedSourceUrl = selectedItem ? safeExternalUrl(selectedItem.source_url) : null;
 
   function toggleChecked(pk: number, checked: boolean) {
@@ -1197,53 +1041,53 @@ function OrderPlansWorkspace() {
     staleTime: 15_000,
   });
 
-  /**
-   * A deep link owns its target. If an existing filter hides it, clear that
-   * filter and move to the target's page so the selected row and pane agree.
-   * Once initialized, ordinary filtering resumes and may hide the current row.
-   */
   useEffect(() => {
-    if (!isExplicitDeepLink || selectedPk === null || deepLinkPending || deepLinkFailed || !explicitTargetItem) return;
-    const defaultViewCandidate = judgmentsAvailable && !AXIS_KEYS.some((key) => searchParams.has(key));
-    const defaultAxes = presetSelection(PRESETS[0]);
-    const hiddenByCurrentFilters = !explicitTargetInFilteredItems;
-    const hiddenByDefaultView = defaultViewCandidate && !matchesAxes(explicitTargetItem, defaultAxes);
-    const targetHidden = hiddenByCurrentFilters || hiddenByDefaultView;
-    // Keep a valid target's current filter context when it is already visible.
-    // Only use the complete collection after deciding that a filter hid it.
-    const targetCollection = targetHidden ? sortByRelevance(allItems) : filteredItems;
-    const targetIndex = targetCollection.findIndex((item) => item.order_plan_pk === selectedPk);
-    const targetOffset = targetIndex < 0 ? 0 : Math.floor(targetIndex / PAGE_SIZE) * PAGE_SIZE;
-    const targetOutsideVisiblePage = targetIndex >= 0 && (targetIndex < offset || targetIndex >= offset + PAGE_SIZE);
-    if (targetHidden || targetOutsideVisiblePage) {
-      const params = new URLSearchParams(searchParams);
-      if (targetHidden) {
-        for (const key of AXIS_KEYS) params.delete(key);
-        // An empty axis is the explicit "all" sentinel. Removing every axis
-        // would reactivate the normal default review view immediately after the
-        // deep-link state is consumed.
-        params.set("qwen", "");
+    const response = listQuery.data;
+    if (!response || deepLinkFailed) return;
+    const params = new URLSearchParams(searchParams);
+    const filtersCleared = reviewPage?.target_filters_cleared === true;
+    if (filtersCleared) {
+      for (const key of AXIS_KEYS) params.delete(key);
+      params.set("qwen", "");
+    }
+    if (offset > 0) params.set("offset", String(offset));
+    else params.delete("offset");
+    const addressChanged = params.toString() !== searchParams.toString();
+    if (!addressChanged && !isExplicitDeepLink && locateAfterSave === null) return;
+
+    // The already loaded response is the canonical page. Keep it visible when
+    // normalizing the URL or releasing the one-shot locate parameter.
+    const canonical: OrderPlanListQuery = { ...pageQuery, offset, locate: null };
+    if (filtersCleared) {
+      Object.assign(canonical, { review_order: "relevance", qwen_relevance: [], stage1_status: [],
+        tracking_status: [], feedback_present: undefined, issue: undefined, unjudged: undefined, q: "" });
+    }
+    if (reviewPage) {
+      const resolved = {
+        ...response,
+        review_page: { ...reviewPage, target_found: null, target_filters_cleared: false },
+      };
+      queryClient.setQueryData(orderPlanPageKey(canonical), resolved);
+      if (addressChanged && pageQuery.locate != null) {
+        queryClient.setQueryData(orderPlanPageKey({ ...canonical, locate: pageQuery.locate }), resolved);
       }
-      // Keep the deep-link source and selected PK. If the target is beyond the
-      // current page, retain the useful page context by selecting its page.
-      if (targetOffset > 0) params.set("offset", String(targetOffset));
-      else params.delete("offset");
+    }
+    if (addressChanged) {
       setSearchParams(params, { replace: true });
       return;
     }
-    setDeepLinkActive(false);
-  }, [allItems, deepLinkFailed, deepLinkPending, explicitTargetInFilteredItems, explicitTargetItem, isExplicitDeepLink, judgmentsAvailable, offset, searchParams, selectedPk, setSearchParams]);
+    if (isExplicitDeepLink) setDeepLinkActive(false);
+    if (locateAfterSave !== null) setLocateAfterSave(null);
+  }, [deepLinkFailed, isExplicitDeepLink, listQuery.data, locateAfterSave, offset, pageQuery, queryClient, reviewPage, searchParams, setSearchParams]);
 
   useEffect(() => {
-    if (!visibleItems.length || isExplicitDeepLink || invalidSelectedParam || !orderPlanSelection.hydrated) return;
-    const currentActivePk = selectedPk ?? orderPlanSelection.activeId;
-    const stillValid = currentActivePk !== null && filteredItems.some((item) => item.order_plan_pk === currentActivePk);
-    if (stillValid) return;
+    if (!selectedItem || isExplicitDeepLink || locateAfterSave !== null || !orderPlanSelection.hydrated) return;
+    if (selectedPk === selectedItem.order_plan_pk) return;
     const params = new URLSearchParams(searchParams);
-    params.set("selected", String(visibleItems[0].order_plan_pk));
+    params.set("selected", String(selectedItem.order_plan_pk));
     setSearchParams(params, { replace: true });
-    orderPlanSelection.setActiveId(visibleItems[0].order_plan_pk);
-  }, [filteredItems, invalidSelectedParam, isExplicitDeepLink, orderPlanSelection, searchParams, selectedPk, setSearchParams, visibleItems]);
+    orderPlanSelection.setActiveId(selectedItem.order_plan_pk);
+  }, [isExplicitDeepLink, locateAfterSave, orderPlanSelection, searchParams, selectedItem, selectedPk, setSearchParams]);
 
   useEffect(() => {
     if (!orderPlanSelection.hydrated || !selectedItem || isExplicitDeepLink) return;
@@ -1255,8 +1099,8 @@ function OrderPlansWorkspace() {
   // 결정한 건을 남겨 두는 것은 그 건이 선택돼 있는 동안뿐이다. 다른 건으로 옮기거나 필터를
   // 바꾸면 목록은 다시 필터 그대로다.
   useEffect(() => {
-    if (retainedPk !== null && selectedItem?.order_plan_pk !== retainedPk) setRetainedPk(null);
-  }, [retainedPk, selectedItem?.order_plan_pk]);
+    if (retainedPk !== null && selectedPk !== retainedPk) setRetainedPk(null);
+  }, [retainedPk, selectedPk]);
   useEffect(() => {
     setRetainedPk(null);
   }, [selectionFingerprint]);
@@ -1274,38 +1118,23 @@ function OrderPlansWorkspace() {
     setDialog(null);
   }, [selectedItem?.order_plan_pk]);
 
-  /**
-   * 다음 건으로 이동한다. 마지막 건이면 **이동하지 않았다**는 사실을 함께 돌려준다.
-   *
-   * 이동 여부를 감추면 마지막 건에서도 "다음 발주계획으로 이동합니다"라는 거짓 안내가
-   * 남고, 행이 바뀌지 않으니 사유를 비우는 효과도 돌지 않는다.
-   */
-  function advanceToNext(): { pk: number; moved: boolean } | null {
+  function moveSelection(direction: "next" | "previous", afterSave = false): { pk: number; moved: boolean } | null {
     if (!selectedItem) return null;
-    const idx = filteredItems.findIndex((item) => item.order_plan_pk === selectedItem.order_plan_pk);
-    if (idx === -1 || idx + 1 >= filteredItems.length) return { pk: selectedItem.order_plan_pk, moved: false };
-    const nextItem = filteredItems[idx + 1];
+    const index = visibleItems.findIndex((item) => item.order_plan_pk === selectedItem.order_plan_pk);
+    const neighbor = visibleItems[index + (direction === "next" ? 1 : -1)];
+    const pk = neighbor?.order_plan_pk ?? (direction === "next" ? reviewPage?.next_pk : reviewPage?.previous_pk);
+    if (pk == null) return { pk: selectedItem.order_plan_pk, moved: false };
     const params = new URLSearchParams(searchParams);
-    params.set("selected", String(nextItem.order_plan_pk));
-    if (idx + 1 >= offset + PAGE_SIZE) params.set("offset", String(offset + PAGE_SIZE));
+    params.set("selected", String(pk));
+    if (!neighbor) {
+      const nextOffset = offset + (direction === "next" ? PAGE_SIZE : -PAGE_SIZE);
+      if (nextOffset > 0) params.set("offset", String(nextOffset));
+      else params.delete("offset");
+      // Removing the saved row can shift the next row across a page boundary.
+      if (afterSave) setLocateAfterSave(pk);
+    }
     setSearchParams(params, { replace: true });
-    return { pk: nextItem.order_plan_pk, moved: true };
-  }
-
-  /**
-   * `advanceToNext`의 반대 방향. ↑가 페이지 첫 행을 넘어가면 앞 페이지의 마지막 행으로
-   * 간다. 첫 건에서는 이동하지 않았다는 사실을 그대로 돌려준다.
-   */
-  function retreatToPrevious(): { pk: number; moved: boolean } | null {
-    if (!selectedItem) return null;
-    const idx = filteredItems.findIndex((item) => item.order_plan_pk === selectedItem.order_plan_pk);
-    if (idx <= 0) return { pk: selectedItem.order_plan_pk, moved: false };
-    const previousItem = filteredItems[idx - 1];
-    const params = new URLSearchParams(searchParams);
-    params.set("selected", String(previousItem.order_plan_pk));
-    if (idx - 1 < offset) params.set("offset", String(Math.max(0, offset - PAGE_SIZE)));
-    setSearchParams(params, { replace: true });
-    return { pk: previousItem.order_plan_pk, moved: true };
+    return { pk, moved: true };
   }
 
   /** 이 행의 실행에 붙은 마지막 수정본 번호. 이력을 읽기 전에는 모른다(`null`). */
@@ -1365,6 +1194,7 @@ function OrderPlansWorkspace() {
   //
   // 소유 사업기회의 기존 PATCH 성공 뒤에만 목록을 다시 읽고 다음 건으로 이동한다.
   const trackingAvailabilityState = trackingAvailability(selectedItem);
+  const canStartTracking = selectedItem?.tracking?.tracking_status === "미선택";
 
   const trackingMutation = useMutation({
     mutationFn: (status: Exclude<OpportunityTrackingStatus, "미선택">) => {
@@ -1372,23 +1202,28 @@ function OrderPlansWorkspace() {
       if (!tracking) throw new Error("추적 결정을 기록할 소유 사업기회가 없어요.");
       return api.updateOpportunityTrackingStatus(
         tracking.opportunity_id,
-        { tracking_status: status, reason: trackingReason },
+        status === "계속 추적" && canStartTracking ? { tracking_status: status } : { tracking_status: status, reason: trackingReason },
         trackingActor,
       );
+    },
+    onError: (error) => {
+      if (describeApiError(error, TRACKING_SAVE_FAILED).code === "tracking_start_conflict") {
+        void queryClient.invalidateQueries({ queryKey: ["order-plan-c2", "list"] });
+      }
     },
     onSuccess: async (saved) => {
       // 방금 저장에 성공한 사유를 비우기 **전에** 잡아 둔다. 이것이 다음 건의
       // `직전 사유 다시 쓰기` 후보이고, 드롭다운을 미리 채우는 것과는 다르다.
-      if (trackingReason) {
-        setLastReason(trackingReason);
-        saveSessionValue(LAST_REASON_STORAGE_KEY, trackingReason);
+      if (saved.tracking_reason) {
+        setLastReason(saved.tracking_reason);
+        saveSessionValue(LAST_REASON_STORAGE_KEY, saved.tracking_reason);
       }
       // 사유는 건마다 다시 고르는 값이므로 저장에 성공하면 **언제나** 비운다. 다음 건으로
       // 옮겨 가는 경우는 행 전환 effect도 비우지만, 마지막 건은 행이 바뀌지 않아 여기서
       // 비우지 않으면 방금 저장한 사유가 남고 "저장되지 않은 입력"으로도 계속 잡힌다.
+      setEditingDecision(null);
       setReasonChoice("");
       setCustomReason("");
-      if (selectedItem) setRetainedPk(selectedItem.order_plan_pk);
       // 영수증은 서버가 돌려준 값만 담는다. 같은 건을 다시 정하면 마지막 결정 하나로 바꾼다.
       if (selectedItem?.tracking && receipts !== null) {
         const receipt: DecidedReceipt = {
@@ -1404,8 +1239,9 @@ function OrderPlansWorkspace() {
         const nextReceipts = [receipt, ...receipts.filter((entry) => entry.order_plan_pk !== receipt.order_plan_pk)];
         setReceipts(saveReceipts(nextReceipts) ? nextReceipts : null);
       }
+      const next = moveSelection("next", true);
+      if (selectedItem && !next?.moved) setRetainedPk(selectedItem.order_plan_pk);
       await queryClient.invalidateQueries({ queryKey: ["order-plan-c2", "list"] });
-      const next = advanceToNext();
       // 저장 성공은 화면 알림으로 알린다(C-7, 세 추적 결정 자리가 같은 문장·같은 자리). 시안의 `사업기회에서 보기`·
       // `추적 되돌리기`는 그 사업기회 레코드로 간다 — 되돌리기는 레코드의 기존 되돌리기 확인(사유·담당자 입력)을
       // 열 뿐 여기서 사유를 지어 저장하지 않는다.
@@ -1423,7 +1259,7 @@ function OrderPlansWorkspace() {
     },
   });
 
-  const trackingDisabledReason = bulkPending
+  const trackingAvailabilityReason = bulkPending
     ? "일괄 추적 저장 요청이 끝날 때까지 단건 추적 입력과 저장을 잠가요."
     : trackingAvailabilityState === "contract_missing"
     // 서버 API 계약이 없다는 사실을 실무 결과로 적는다 — 이 화면에서 `계약`은 조달
@@ -1431,14 +1267,19 @@ function OrderPlansWorkspace() {
     ? "이 발주계획은 추적 결정을 기록하는 기능이 아직 제공되지 않아요."
     : trackingAvailabilityState === "opportunity_missing"
       ? "이 발주계획을 소유한 사업기회를 확인하지 못해 추적 결정을 기록할 수 없어요."
+      : undefined;
+  const trackingDisabledReason = trackingAvailabilityReason
       // 입력 검증은 세 추적 결정 자리가 같은 순서·같은 문장을 쓴다(C-7).
-      : trackingInputBlockedReason({
+      ?? trackingInputBlockedReason({
         choice: reasonChoice,
         custom: customReason,
         actorName: trackingActor,
         pending: trackingMutation.isPending,
       }) ?? undefined;
   const trackingReady = !bulkPending && Boolean(selectedItem) && trackingDisabledReason === undefined;
+  const startDisabledReason = trackingAvailabilityReason ?? (trackingMutation.isPending
+    ? "추적 결정 저장 요청을 처리하고 있어요."
+    : trackingActor.trim() ? undefined : "사이드바에서 담당자 이름을 입력해 주세요.");
 
   function saveTracking(status: Exclude<OpportunityTrackingStatus, "미선택">) {
     setTrackingMessage(null);
@@ -1451,7 +1292,7 @@ function OrderPlansWorkspace() {
    * 다이얼로그의 요약에 한 줄로 얹고, 되돌릴 수 있는 두 상태만 이탈 확인을 따로 묻는다.
    */
   function decideTracking(status: Exclude<OpportunityTrackingStatus, "미선택">) {
-    if (!trackingReady) return;
+    if (status === "계속 추적" && canStartTracking ? startDisabledReason !== undefined : !trackingReady) return;
     if (status === "종료") {
       const content = trackingEndConfirmContent({
         actor: trackingActor,
@@ -1474,6 +1315,7 @@ function OrderPlansWorkspace() {
     trackingMutation.reset();
     // 열려 있던 확인 단계도 그 건의 것이다. 다른 건으로 옮겨 가면 닫는다.
     setEndConfirm(null);
+    setEditingDecision(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedItem?.order_plan_pk]);
 
@@ -1481,7 +1323,7 @@ function OrderPlansWorkspace() {
   function skipCurrent() {
     withRowGuard(() => {
       trackingMutation.reset();
-      const next = advanceToNext();
+      const next = moveSelection("next");
       if (next) {
         setTrackingMessage({
           pk: next.pk,
@@ -1505,8 +1347,7 @@ function OrderPlansWorkspace() {
     keys: visibleItems.map((item) => item.order_plan_pk),
     onBoundary: (direction) => {
       withRowGuard(() => {
-        if (direction === "next") advanceToNext();
-        else retreatToPrevious();
+        moveSelection(direction);
       });
     },
     onSelect: selectRow,
@@ -1540,22 +1381,21 @@ function OrderPlansWorkspace() {
   /**
    * 목록 행에서 Ctrl/Cmd+Enter로 `추적 시작`.
    *
-   * 준비가 안 됐으면 **아무것도 채우지 않고** 무엇이 필요한지 말한 뒤 사유 드롭다운으로
-   * 초점을 옮긴다. 한 키가 사유를 지어내면 감사 기록이 사람의 판단이 아니게 된다.
+   * 미선택인 건만 이 단축키로 시작한다. 담당자 이름은 사이드바에서 받아 감사에 남긴다.
    */
   function handleRowKeyDown(event: ReactKeyboardEvent<HTMLElement>, pk: number) {
     if (bulkPending) return;
     if (!(event.ctrlKey || event.metaKey) || event.key !== "Enter") return;
     // 초점이 있는 행과 결정이 붙어 있는 건이 다르면(이탈 확인을 취소한 직후) 결정하지 않는다.
-    if (pk !== selectedItem?.order_plan_pk) return;
-    // DenseListRow의 Enter→선택보다 먼저다. hook의 ↑↓도 defaultPrevented를 보고 비켜난다.
+    if (pk !== selectedItem?.order_plan_pk || !canStartTracking) return;
+    // RecordTable의 Enter→활성 행 변경보다 먼저다. hook의 ↑↓도 defaultPrevented를 보고 비켜난다.
     event.preventDefault();
-    if (trackingReady) {
+    if (startDisabledReason === undefined) {
       decideTracking("계속 추적");
       return;
     }
-    setTrackingMessage({ pk, text: "사유와 담당자를 입력하면 Ctrl+Enter로 추적을 시작해요." });
-    trackingSectionRef.current?.querySelector<HTMLElement>('[role="combobox"]')?.focus();
+    setTrackingMessage({ pk, text: startDisabledReason });
+    if (!trackingActor.trim()) requestActorInput();
   }
 
   // 오류 문구는 화면마다 따로 만들지 않는다. 서버 raw message를 그대로 싣지
@@ -1597,8 +1437,45 @@ function OrderPlansWorkspace() {
     + (sourceRunId ? 1 : 0)
     + (firstObservedFrom ? 1 : 0);
 
+  // 관련·불확실 탭은 모델 판단을 말한다. 그 보기에서 함께 적용된 추적 조건은 별도로 해제할 수 있다.
+  const appliedFilters = ([
+    !activePreset && qwenSet.size > 0 && {
+      key: "qwen",
+      label: `모델 판단 · ${Array.from(qwenSet).map(axisValueLabel(ORDER_PLAN_RELEVANCE_LABEL)).join("·")}`,
+      onRemove: () => changeAxes({ qwen: new Set() }),
+    },
+    stage1Set.size > 0 && {
+      key: "stage1",
+      label: `1차 선별 · ${Array.from(stage1Set).map(axisValueLabel(ORDER_PLAN_STAGE1_LABEL)).join("·")}`,
+      onRemove: () => changeAxes({ stage1: new Set() }),
+    },
+    feedbackSet.size > 0 && {
+      key: "feedback",
+      label: `사람 판단 · ${Array.from(feedbackSet, (value) => value === "has" ? "있음" : "없음").join("·")}`,
+      onRemove: () => changeAxes({ feedback: new Set() }),
+    },
+    trackingSet.size > 0 && {
+      key: "tracking",
+      label: `추적 선택 · ${Array.from(trackingSet, (value) => value === "none" ? ORDER_PLAN_TRACKING_NONE_LABEL : value).join("·")}`,
+      // 암묵적인 기본 보기에서 나가도 모델 판단 축의 범위를 보존한다.
+      onRemove: () => changeAxes({ tracking: new Set(), ...(isDefaultView ? { qwen: qwenSet } : {}) }),
+    },
+    issueOn && {
+      key: "issue", label: "선별 처리 · 실패·거부만", onRemove: () => changeAxes({ issue: false }),
+    },
+    unjudgedOn && activePreset !== "unjudged" && {
+      key: "unjudged", label: "모델 미판정", onRemove: () => changeAxes({ unjudged: false }),
+    },
+    sourceRunId && selectedRunLabel && {
+      key: "source_run_id", label: `수집 회차 · ${selectedRunLabel}`, onRemove: () => changeSourceRun(null),
+    },
+    firstObservedFrom && {
+      key: "first_observed_from", label: firstObservedLabel(firstObservedFrom), onRemove: clearFirstObservedFrom,
+    },
+  ]).filter((filter): filter is AppliedFilter => Boolean(filter));
+
   const selectedIndex = selectedItem
-    ? filteredItems.findIndex((item) => item.order_plan_pk === selectedItem.order_plan_pk) + 1
+    ? offset + visibleItems.findIndex((item) => item.order_plan_pk === selectedItem.order_plan_pk) + 1
     : 0;
   /**
    * 패널 헤더 문장(최종 시안 `FinalOrderPlans.dc.html`·`FinalOrderPlansDone.dc.html`). 숫자는 이미 받은
@@ -1615,42 +1492,14 @@ function OrderPlansWorkspace() {
       : headPreset?.key === "all"
         ? (firstObservedFrom ? `전체 · ${firstObservedLabel(firstObservedFrom)}` : "전체")
         : filterMeaning;
-  const relevantCount = presetCounts.get("relevant") ?? null;
-  const uncertainCount = presetCounts.get("uncertain") ?? null;
+  const uncertainCount = presetCounts?.uncertain ?? null;
   const relevantDone = listQuery.isSuccess
     && !searchKey(qText)
     && (isDefaultView || activePreset === "relevant")
     && total === 0;
-  const headerContent = listQuery.isSuccess ? (() => {
-    if (relevantDone) {
-      return {
-        eyebrow: "발주계획",
-        title: "관련 발주계획을 모두 정했어요",
-        // 그 순간의 데이터를 말하는 문장만 남긴다(2026-11-20 사용자 요청: 고정 설명 줄 제거).
-        description: (uncertainCount ?? 0) > 0 ? `불확실로 분류된 ${formatCount(uncertainCount ?? 0)}건이 남아 있어요.` : null,
-      };
-    }
-    if (activePreset === "relevant" || isDefaultView) {
-      return {
-        eyebrow: "발주계획",
-        title: `추적을 정할 발주계획이 ${formatCount(relevantCount ?? total)}건 있어요`,
-      };
-    }
-    if (activePreset === "uncertain") {
-      return {
-        eyebrow: "발주계획",
-        title: `불확실로 분류된 발주계획이 ${formatCount(total)}건 있어요`,
-      };
-    }
-    if (activePreset === "unjudged") {
-      return {
-        eyebrow: "발주계획",
-        title: `모델이 판정하지 않은 발주계획이 ${formatCount(total)}건 있어요`,
-      };
-    }
-    return { eyebrow: "발주계획", title: `발주계획 ${formatCount(total)}건을 보고 있어요` };
-  })() : null;
-  usePageHeader(headerContent);
+  usePageHeader(relevantDone && uncertainCount !== null && uncertainCount > 0
+    ? { description: `불확실로 분류된 ${formatCount(uncertainCount)}건이 남아 있어요.` }
+    : null);
 
   const feedbackSummaryLabel = selectedItem?.human_feedback
     ? `${relevanceLabel(selectedItem.human_feedback.relevance)} · 우선순위 ${priorityLabel(selectedItem.human_feedback.priority)}`
@@ -1727,21 +1576,21 @@ function OrderPlansWorkspace() {
           className="c2l-filters"
         >
           <WorkspaceFilterLine>
-            {/* 건수는 서버가 아니라 이미 불러온 회차 전체에서 센다. 목록 자체가
-                클라이언트에서 좁혀지므로 같은 규칙(`matchesAxes`)을 두 번 쓰지 않는다. */}
+            {/* 보기별 건수는 서버가 범위 전체를 기준으로 함께 반환한다. */}
             <WorkspaceViewTabs
               label="보기"
               onChange={applyPreset}
               tabs={PRESETS.map((preset) => ({
                 key: preset.key,
                 label: preset.label,
-                count: presetCounts.get(preset.key) ?? null,
+                count: presetCounts?.[preset.key] ?? null,
               }))}
               value={activePreset ?? ""}
             />
           </WorkspaceFilterLine>
 
           <WorkspaceFilterTools className="c2l-filter-tools">
+            <AppliedFilterTokens filters={appliedFilters} isDisabled={bulkPending} />
             <WorkspaceAdvancedToggle
               activeCount={activeFilterCount}
               controlsId="c2l-advanced-filters"
@@ -1761,8 +1610,13 @@ function OrderPlansWorkspace() {
             />
           </WorkspaceFilterTools>
 
-          {advancedOpen ? (
-            <WorkspaceFilterAdvanced columns={4} id="c2l-advanced-filters" onReset={resetFilters}>
+          <WorkspaceFilterAdvanced
+            isOpen={advancedOpen}
+            onClose={() => setAdvancedOpen(false)}
+            id="c2l-advanced-filters"
+            onReset={resetFilters}
+          >
+            <WorkspaceFilterGroup title="모델 선별">
               {/* 축 이름과 값은 한글 라벨이고 **URL·서버 값은 `value`에 그대로 남는다**
                   (ADR-0066 결정 3). `값 없음`은 서버가 값을 주지 않았다는 뜻이며
                   `미확인`·`계산 불가`와 다르다. */}
@@ -1796,7 +1650,8 @@ function OrderPlansWorkspace() {
                   <ToggleButton value="null" label="값 없음" />
                 </ToggleButtonGroup>
               </div>
-
+            </WorkspaceFilterGroup>
+            <WorkspaceFilterGroup title="사람 판단·추적">
               <div className="c2l-filter-axis">
                 <Text type="label" color="secondary" as="p">사람 판단</Text>
                 <ToggleButtonGroup
@@ -1825,7 +1680,8 @@ function OrderPlansWorkspace() {
                   <ToggleButton value="none" label={ORDER_PLAN_TRACKING_NONE_LABEL} />
                 </ToggleButtonGroup>
               </div>
-
+            </WorkspaceFilterGroup>
+            <WorkspaceFilterGroup title="조회 범위">
               <details className="c2l-secondary-filters">
                 <summary>처리 상태·회차·저장된 보기</summary>
                 <div className="c2l-secondary-fields">
@@ -1894,8 +1750,8 @@ function OrderPlansWorkspace() {
                   </div>
                 </div>
               </details>
-            </WorkspaceFilterAdvanced>
-          ) : null}
+            </WorkspaceFilterGroup>
+          </WorkspaceFilterAdvanced>
 
           {/* 회차 줄 — 상세 필터를 접었는지와 무관하게 그린다(명세 §2.1). 측정 전용
               실행 표식이 여기 하나로 모인다(시안 M1 승인 A안): 지금 보는 목록이 운영
@@ -1904,7 +1760,7 @@ function OrderPlansWorkspace() {
             <WorkspaceFilterContext className="c2l-filter-context">
               <SourceRunContextLine
                 badge={listScope?.mode === "run" && listScope.purpose === "gate_measurement"
-                  ? <Badge variant="warning" label="측정 전용 실행" />
+                  ? <StatusMark mark={{ label: "측정 전용 실행", tone: "warning" }} />
                   : null}
                 label={selectedRunLabel}
                 onClearRun={() => changeSourceRun(null)}
@@ -1972,9 +1828,10 @@ function OrderPlansWorkspace() {
                       {[textOrUnknown(receipt.agency_name), receipt.budget_amount === null ? "예산 미제공" : formatCompactPrice(receipt.budget_amount), receipt.tracking_reason ? `사유: ${receipt.tracking_reason}` : null].filter(Boolean).join(" · ")}
                     </span>
                   </div>
-                  <span className={`bo-tag ${receipt.tracking_status === "계속 추적" ? "is-brand" : "is-muted"}`}>
-                    {receipt.tracking_status === "계속 추적" ? "추적 중" : receipt.tracking_status === "종료" ? "추적 종료" : receipt.tracking_status}
-                  </span>
+                  <StatusMark mark={{
+                    label: receipt.tracking_status === "계속 추적" ? "추적 중" : receipt.tracking_status === "종료" ? "추적 종료" : receipt.tracking_status,
+                    tone: receipt.tracking_status === "계속 추적" ? "accent" : "neutral",
+                  }} />
                   <Link className="panel-header-link" to={`/opportunities/${receipt.opportunity_id}/activity?reset=1`}>추적 되돌리기</Link>
                 </li>
               ))}
@@ -2025,34 +1882,22 @@ function OrderPlansWorkspace() {
                       : orderPlanSelection.selectedIds.length > ORDER_PLAN_BULK_END_MAX_SELECTION
                           ? "한 번에 200건까지 종료할 수 있어요. 선택을 줄여 주세요."
                           : ""}
+                selectPage={{
+                  onClick: selectCurrentPage,
+                  disabled: bulkPending || !orderPlanSelection.hydrated || !orderPlanSelection.storageAvailable || visibleItems.length === 0 || pageFullySelected,
+                }}
+                clearSelection={{
+                  onClick: () => {
+                    orderPlanSelection.clear();
+                    setBulkEndNotice(null);
+                  },
+                  disabled: bulkPending || orderPlanSelection.selectedIds.length === 0 || !orderPlanSelection.hydrated,
+                }}
+                startTracking={{
+                  onClick: () => setBulkDialogMode("start"),
+                  disabled: bulkPending || mutation.isPending || trackingMutation.isPending || !orderPlanSelection.hydrated || !orderPlanSelection.storageAvailable || Boolean(orderPlanSelection.storageError) || orderPlanSelection.selectedIds.length === 0,
+                }}
                 actions={(
-                  <>
-                    {/* M7 ②(ADR-0062 결정 표): 선택 도구 4개를 사전규격과 같은 부품·같은
-                        순서로 맞춘다 — `전체 선택`(현재 페이지) · `전체 해제` ·
-                        `선택 항목 제외` · `선택 항목 추적 시작`(primary). */}
-                    <button
-                      className="interaction-control"
-                      type="button"
-                      onClick={selectCurrentPage}
-                      disabled={bulkPending || !orderPlanSelection.hydrated || !orderPlanSelection.storageAvailable || visibleItems.length === 0 || pageFullySelected}
-                      aria-label="현재 페이지 전체 선택"
-                      title="현재 페이지 전체 선택"
-                    >
-                      전체 선택
-                    </button>
-                    <button
-                      aria-describedby="c2l-selection-action-reason"
-                      aria-label="선택 전체 해제"
-                      className="interaction-control"
-                      type="button"
-                      disabled={bulkPending || orderPlanSelection.selectedIds.length === 0 || !orderPlanSelection.hydrated}
-                      onClick={() => {
-                        orderPlanSelection.clear();
-                        setBulkEndNotice(null);
-                      }}
-                    >
-                      전체 해제
-                    </button>
                     <Button
                       aria-describedby="c2l-selection-action-reason"
                       isDisabled={bulkPending || mutation.isPending || trackingMutation.isPending || !orderPlanSelection.hydrated || !orderPlanSelection.storageAvailable || Boolean(orderPlanSelection.storageError) || orderPlanSelection.selectedIds.length === 0 || orderPlanSelection.selectedIds.length > ORDER_PLAN_BULK_END_MAX_SELECTION}
@@ -2062,17 +1907,6 @@ function OrderPlansWorkspace() {
                       size="sm"
                       variant="secondary"
                     />
-                    <button
-                      aria-describedby="c2l-selection-action-reason"
-                      className="interaction-control interaction-control-primary"
-                      type="button"
-                      disabled={bulkPending || mutation.isPending || trackingMutation.isPending || !orderPlanSelection.hydrated || !orderPlanSelection.storageAvailable || Boolean(orderPlanSelection.storageError) || orderPlanSelection.selectedIds.length === 0}
-                      aria-label="선택 항목 추적 시작"
-                      onClick={() => setBulkDialogMode("start")}
-                    >
-                      추적 시작
-                    </button>
-                  </>
                 )}
               />
               {(!orderPlanSelection.storageAvailable || orderPlanSelection.storageError) && orderPlanSelection.hydrated ? (
@@ -2080,67 +1914,52 @@ function OrderPlansWorkspace() {
                   이 탭의 선택 저장소를 사용할 수 없어 일괄 추적을 사용할 수 없어요. 단건 추적 경로를 사용해 주세요.
                 </p>
               ) : null}
-              <ListColumns className="c2l-list-columns">
-                <span>사업명 / 발주기관</span>
-                <span>발주 예정</span>
-              </ListColumns>
-              {listQuery.isPending ? (
-                <div className="c2l-list-empty" role="status">
-                  <Text type="body" color="secondary" as="p">발주계획을 불러오는 중…</Text>
-                  <SkeletonBlock label={null} lines={3} />
-                </div>
-              ) : listQuery.isError ? (
-                <div className="c2l-list-empty">
-                  <EmptyState
-                    compact
-                    tone="error"
-                    title="발주계획 목록을 불러오지 못했어요"
-                    description={listError}
-                    action={{ label: "다시 시도", onClick: () => { void listQuery.refetch(); } }}
-                  />
-                </div>
-              ) : visibleItems.length === 0 ? (
-                /* 시안의 빈 상태 패턴. 값이 없다는 사실과 되돌리는 방법을 함께 준다. */
-                <div className="c2l-list-empty">
-                  <EmptyState
-                    compact
-                    title="조건에 맞는 계획이 없어요"
-                    description={searchKey(qText)
+
+              <RecordTable
+                activeKey={selectedItem?.order_plan_pk ?? null}
+                className="c2l-list-scroll"
+                columns={orderPlanColumns({
+                  unjudged: unjudgedOn,
+                  hideModelLabel: activePreset === "relevant" || activePreset === "uncertain" ? activePreset : null,
+                  hideUntracked: activePreset === "relevant" || activePreset === "uncertain",
+                })}
+                getKey={(item) => item.order_plan_pk}
+                getRowLabel={(item) => textOrUnknown(item.title)}
+                isRowDisabled={() => bulkPending}
+                label="발주계획 검토 목록"
+                navigation={rowNavigation}
+                onActivate={selectRow}
+                onRowKeyDown={(event, item) => handleRowKeyDown(event, item.order_plan_pk)}
+                rowClassName="c2l-row"
+                rows={visibleItems}
+                selection={{
+                  getChecked: (item) => orderPlanSelection.selectedIdSet.has(item.order_plan_pk),
+                  getLabel: (item) => `${textOrUnknown(item.title)} 선택`,
+                  onCheckedChange: (item, checked) => toggleChecked(item.order_plan_pk, checked),
+                }}
+                state={listQuery.isPending ? {
+                  kind: "loading", label: "발주계획을 불러오는 중…", lines: 3, showLabel: true,
+                } : listQuery.isError ? {
+                  kind: "error",
+                  message: {
+                    title: "발주계획 목록을 불러오지 못했어요",
+                    description: listError,
+                    action: { label: "다시 시도", onClick: () => { void listQuery.refetch(); } },
+                  },
+                } : visibleItems.length === 0 ? {
+                  kind: "empty",
+                  message: {
+                    title: "조건에 맞는 계획이 없어요",
+                    description: searchKey(qText)
                       ? `적용된 검색어 "${qText}"와 다른 활성 필터에 맞는 계획이 없어요.`
-                      : "필터를 바꿔보세요. 표시되지 않은 값이나 판정 실패를 다른 모델 판단으로 바꾸지 않아요."}
-                    action={searchKey(qText)
+                      : "필터를 바꿔보세요. 표시되지 않은 값이나 판정 실패를 다른 모델 판단으로 바꾸지 않아요.",
+                    action: searchKey(qText)
                       ? { label: "검색어만 지우기", onClick: () => applySearch("") }
-                      : { label: "필터 초기화", onClick: resetFilters }}
-                  />
-                </div>
-              ) : (
-                <DenseList
-                  aria-label="발주계획 검토 목록"
-                  className="c2l-list-scroll"
-                  onKeyDown={rowNavigation.onKeyDown}
-                  onPointerDownCapture={rowNavigation.onPointerDownCapture}
-                  ref={listRef}
-                >
-                  {visibleItems.map((item) => (
-                    <OrderPlanListRow
-                      key={item.order_plan_pk}
-                      item={item}
-                      isSelected={selectedItem?.order_plan_pk === item.order_plan_pk}
-                      isChecked={orderPlanSelection.selectedIdSet.has(item.order_plan_pk)}
-                      onCheckedChange={(checked) => toggleChecked(item.order_plan_pk, checked)}
-                      disabled={bulkPending}
-                      onKeyDown={(event) => handleRowKeyDown(event, item.order_plan_pk)}
-                      onSelect={() => selectRow(item.order_plan_pk)}
-                      rowProps={rowNavigation.rowProps(item.order_plan_pk)}
-                      variant={unjudgedOn ? "unjudged" : "default"}
-                      // 활성 보기가 이미 말해 주는 값(관련 보기의 `모델 · 관련`, 미선택 보기의 `추적 미선택`)만 숨긴다.
-                      // 보기 탭(관련·불확실)이 걸렸을 때만이다. 상세 필터로 고른 조합은 행마다 그대로 보인다.
-                      hideModelLabel={(isDefaultView || activePreset === "relevant") ? "relevant" : activePreset === "uncertain" ? "uncertain" : null}
-                      hideUntracked={isDefaultView || activePreset === "relevant" || activePreset === "uncertain"}
-                    />
-                  ))}
-                </DenseList>
-              )}
+                      : { label: "필터 초기화", onClick: resetFilters },
+                  },
+                } : undefined}
+                viewportRef={listRef}
+              />
               {/* 바닥 안내 줄 — 실무자가 알아야 할 **경고가 있을 때만** 보인다(2026-09-21
                   사용자 결정). 평상시(누적 · 활성 policy 판정 있음)에는 그리지 않는다.
                   - 정렬 설명은 지웠다: 행마다 관련도 표식이 있어 순서가 자명하다.
@@ -2163,6 +1982,7 @@ function OrderPlansWorkspace() {
               {listQuery.isPending || listQuery.isError ? null : (
                 <ListPagerControls
                   className="c2l-pager"
+                  keyboardAction="추적 시작"
                   label="발주계획 목록 페이지"
                   offset={offset}
                   onNext={() => changeOffset(offset + PAGE_SIZE)}
@@ -2191,6 +2011,7 @@ function OrderPlansWorkspace() {
               trackingProblem={trackingMutation.isError ? describeApiError(trackingMutation.error, TRACKING_SAVE_FAILED) : null}
               trackingMessage={trackingMessage}
               trackingDisabledReason={trackingDisabledReason}
+              startDisabledReason={startDisabledReason}
               trackingActor={trackingActor}
               onActorNameChange={changeTrackingActor}
               customReason={customReason}
@@ -2202,6 +2023,12 @@ function OrderPlansWorkspace() {
               selectedIndex={selectedIndex}
               total={total}
               trackingSectionRef={trackingSectionRef}
+              editingDecision={editingDecision}
+              decisionLocked={Boolean(trackingAvailabilityReason) || trackingMutation.isPending}
+              onEditDecision={(status) => {
+                setEditingDecision(status);
+                if (!status) changeReasonChoice("");
+              }}
               trackingReady={trackingReady}
               onDecideTracking={decideTracking}
               onSkipCurrent={skipCurrent}
@@ -2221,7 +2048,7 @@ function OrderPlansWorkspace() {
           <Text type="supporting" color="secondary" as="p">
             기존 사람 판단을 그대로 둬요. 추적 결정과는 별도 수정본이며 적합성 등급·참여 준비 상태·심층 추적 승인·최종 Go/No-Go를 채우거나 대신하지 않아요.
           </Text>
-          <Badge variant="neutral" label={selectedItem?.human_feedback ? feedbackSummaryLabel : "사람 판단 미입력"} />
+          <StatusMark mark={{ label: selectedItem?.human_feedback ? feedbackSummaryLabel : "사람 판단 미입력", tone: "neutral" }} />
           {/* 수정본이 붙는 판정의 실행 식별자·policy는 운영 화면이 진다(0921 명세 §3.1).
               저장 요청은 그대로 그 행의 실행에 묶인다. 판정이 없으면 입력을 막고 이유를 말한다. */}
           {feedbackExecutionId ? null : (
@@ -2247,7 +2074,7 @@ function OrderPlansWorkspace() {
                   ),
                   id: item.feedback_id,
                   revision: item.revision,
-                  tags: <Badge variant="neutral" label={relevanceLabel(item.relevance)} />,
+                  tags: <StatusMark mark={{ label: relevanceLabel(item.relevance), tone: "neutral" }} />,
                 }))}
                 headingLevel={5}
                 label="사람 판단 수정 이력"

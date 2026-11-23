@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { StatusMark } from "../common/Marks";
 import { initialOf } from "../../lib/record";
 import { TERM_SENSE } from "../../lib/glossary";
 import type { VerdictResult } from "../../lib/types";
@@ -12,7 +13,7 @@ import {
 } from "../../lib/verdict";
 
 /*
- * 판정 탭 좌측(280px, ui-spec §4.4): 판정 이름 20px/700(색) + 사유 · 체크리스트 5행 · 다음 행동 ·
+ * 판정 탭 좌측(280px, ui-spec §4.4): 판정 표식 + 사유 · 체크리스트 5행 · 다음 행동 ·
  * 고지 한 줄.
  *
  * 판정 이름·사유·체크리스트 상태·다음 행동은 서버가 조립한 값이다. 화면은 이 값을 다시 계산하지
@@ -31,7 +32,9 @@ export function VerdictSummary({ result }: { result: VerdictResult }) {
   return (
     <>
       <section aria-labelledby="vd-verdict-name" className="rec-side-block vd-verdict" data-testid="verdict-summary">
-        <h3 className={`vd-verdict-name is-${tone}`} id="vd-verdict-name">{result.verdict}</h3>
+        <h3 className="vd-verdict-name" id="vd-verdict-name">
+          <StatusMark mark={{ label: result.verdict, tone: tone === "success" ? "confirmed" : tone === "muted" ? "neutral" : tone }} />
+        </h3>
         <p
           className="vd-verdict-reason"
           data-clamped={collapsible && !expanded ? "true" : undefined}
@@ -58,7 +61,7 @@ export function VerdictSummary({ result }: { result: VerdictResult }) {
           {result.checklist.map((row) => (
             <li className="vd-checklist-row" data-key={row.key} key={row.key}>
               <span>{CHECKLIST_LABEL[row.key] ?? row.key}</span>
-              <span className={`vd-pill is-${FIT_TONE[row.status] ?? "muted"}`}>{FIT_LABEL[row.status] ?? row.status}</span>
+              <StatusMark mark={{ label: FIT_LABEL[row.status] ?? row.status, tone: FIT_TONE[row.status] ?? "neutral" }} />
             </li>
           ))}
         </ul>
@@ -81,7 +84,7 @@ export function VerdictSummary({ result }: { result: VerdictResult }) {
                     <span aria-hidden="true" className="rec-avatar" title={`담당 ${owner}`}>{initialOf(owner)}</span>
                   ) : null}
                   <div className="rec-next-main">
-                    {byCode ? <span className="vd-pill is-warning">사람 확인</span> : null}
+                    {byCode ? <StatusMark mark={{ label: "사람 확인", tone: "warning" }} /> : null}
                     <p>{action.action}</p>
                     <p className="rec-side-note" data-owner={assigned ? "assigned" : "unassigned"}>
                       {assigned ? `담당 ${owner}` : owner}

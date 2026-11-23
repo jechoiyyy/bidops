@@ -98,7 +98,7 @@ test("판정이 없으면 '아직 판정이 없어요'와 판정 요청을 보�
   await expect(header.getByRole("button", { name: "판정 요청", exact: true })).toBeEnabled();
   await expect(header.getByRole("button", { name: "판정 보기" })).toHaveCount(0);
   // 판정이 없으면 좌측은 기존 사업 정보를 그대로 둔다(판정 요약은 판정이 있을 때만).
-  await expect(page.locator(".rec-attribute")).toHaveCount(8);
+  await expect(page.locator(".workbench-record-rail [data-attribute]")).toHaveCount(8);
   await expect(page.getByTestId("verdict-summary")).toHaveCount(0);
   // 오류 제보·실행 정보는 대상이 없어 비활성이고 이유를 말한다.
   await header.getByRole("button", { name: "사업기회 더보기" }).click();
@@ -112,9 +112,11 @@ test("판정이 없으면 '아직 판정이 없어요'와 판정 요청을 보�
 test("완료 판정은 좌측에 판정 이름·사유·체크리스트 5행·다음 행동·고지를 그린다", async ({ page }) => {
   await openVerdict(page, completedView());
   const summary = page.getByTestId("verdict-summary");
-  await expect(summary.getByRole("heading", { name: "조건부 진행" })).toBeVisible();
-  await expect(summary.getByRole("heading", { name: "조건부 진행" })).toHaveClass(/is-warning/);
-  const weight = await summary.getByRole("heading", { name: "조건부 진행" }).evaluate((node) => getComputedStyle(node).fontWeight);
+  const judgmentHeading = summary.getByRole("heading", { name: "조건부 진행" });
+  const judgmentMark = judgmentHeading.locator(".workbench-mark");
+  await expect(judgmentHeading).toBeVisible();
+  await expect(judgmentMark).toHaveAttribute("data-tone", "warning");
+  const weight = await judgmentMark.evaluate((node) => getComputedStyle(node).fontWeight);
   expect(Number(weight)).toBe(600);
 
   // 사유는 두 문장으로 자르지 않고 그대로다. 길면 접고 "더 보기"로 편다.
@@ -130,10 +132,10 @@ test("완료 판정은 좌측에 판정 이름·사유·체크리스트 5행·�
   // 체크리스트: 키 → 라벨, met → 충족 · gap → 부족 · unknown → 확인 필요(부족이 아니다).
   const checklist = page.getByTestId("verdict-checklist").locator(".vd-checklist-row");
   await expect(checklist).toHaveText(["자격·실적부족", "상주·인력확인 필요", "금액·기간충족", "기술충족", "운영·SLA확인 필요"]);
-  await expect(checklist.nth(0).locator(".vd-pill")).toHaveClass(/is-error/);
-  await expect(checklist.nth(1).locator(".vd-pill")).toHaveClass(/is-warning/);
-  await expect(checklist.nth(1).locator(".vd-pill")).not.toHaveClass(/is-error/);
-  await expect(checklist.nth(2).locator(".vd-pill")).toHaveClass(/is-success/);
+  await expect(checklist.nth(0).locator(".workbench-mark")).toHaveAttribute("data-tone", "error");
+  await expect(checklist.nth(1).locator(".workbench-mark")).toHaveAttribute("data-tone", "warning");
+  await expect(checklist.nth(1).locator(".workbench-mark")).not.toHaveAttribute("data-tone", "error");
+  await expect(checklist.nth(2).locator(".workbench-mark")).toHaveAttribute("data-tone", "confirmed");
 
   // 다음 행동: 담당 머리글자(아바타)·owner null은 "미지정".
   const actions = page.getByTestId("verdict-next-actions").locator(".rec-next-item");
@@ -177,7 +179,7 @@ test("검증 실패로 격리된 요구사항은 '검증 실패 — 사람 확�
   await chooseFilter(page, "전체");
   const rejected = rowOf(page, "검증 실패 — 사람 확인 필요");
   await expect(rejected).toHaveCount(2);
-  await expect(rejected.first().locator(".vd-pill")).toHaveText("확인 필요");
+  await expect(rejected.first().locator(".workbench-mark")).toHaveText("확인 필요");
   await expect(rejected.first()).toContainText("조건 인용이 단위·비교어 앞에서 잘림");
   await expect(rejected.first()).not.toContainText("null");
   for (const value of FORBIDDEN_VALUES) await expect(page.locator("body")).not.toContainText(value);
@@ -217,10 +219,10 @@ test("코드가 붙인 다음 행동은 '사람 확인' 표식으로 모델 행�
   const actions = page.getByTestId("verdict-next-actions").locator(".rec-next-item");
   await expect(actions).toHaveCount(3);
   await expect(actions.nth(0)).toHaveAttribute("data-origin", "model");
-  await expect(actions.nth(0).locator(".vd-pill")).toHaveCount(0);
+  await expect(actions.nth(0).locator(".workbench-mark")).toHaveCount(0);
   for (const index of [1, 2]) {
     await expect(actions.nth(index)).toHaveAttribute("data-origin", "code");
-    await expect(actions.nth(index).locator(".vd-pill")).toHaveText("사람 확인");
+    await expect(actions.nth(index).locator(".workbench-mark")).toHaveText("사람 확인");
     await expect(actions.nth(index).locator(".rec-avatar")).toHaveCount(0);
     await expect(actions.nth(index).locator('[data-owner="unassigned"]')).toHaveText("미지정");
   }
@@ -234,23 +236,32 @@ test("코드가 붙인 다음 행동은 '사람 확인' 표식으로 모델 행�
 
 test("헤더 판정 pill은 판정 이름이고 판정 보기는 결과가 있을 때만 열려 판정 탭으로 간다", async ({ page }) => {
   const trace = await openVerdict(page, completedView(), "/opportunities/7101/activity");
+  const headerVerdict = page.locator('[data-testid="page-header-facts"] [data-fact="verdict"]');
   await expect.poll(() => headerPills(page)).toEqual(["입찰공고", "D-4", "조건부 진행", "추적 중"]);
-  await expect(page.locator('[data-testid="page-header-facts"] [data-fact="verdict"]')).toHaveClass(/is-warning/);
+  await expect(headerVerdict).toHaveClass(/is-warning/);
   const open = page.getByRole("button", { name: "판정 보기", exact: true });
   await expect(open).toBeEnabled();
   await open.click();
   await expect(page).toHaveURL(/\/opportunities\/7101\/verdict$/);
   await expect(page.getByTestId("verdict-summary")).toBeVisible();
 
-  // 같은 규칙의 다른 판정 이름: 진행 가능 success · 진행 어려움 error · 판단 불가 muted.
-  for (const [verdict, tone] of [["진행 가능", "is-success"], ["진행 어려움", "is-error"], ["판단 불가", "is-muted"]] as const) {
+  for (const [verdict, markTone, headerTone] of [
+    ["진행 가능", "confirmed", "is-success"],
+    ["진행 어려움", "error", "is-error"],
+    ["판단 불가", "neutral", null],
+  ] as const) {
     const view = completedView();
     view.result!.verdict = verdict;
     trace.setVerdict(7101, view);
     await page.goto("/opportunities/7101/verdict");
-    await expect(page.getByTestId("verdict-summary").getByRole("heading", { name: verdict })).toHaveClass(new RegExp(tone));
-    if (tone !== "is-muted") await expect(page.locator('[data-testid="page-header-facts"] [data-fact="verdict"]')).toHaveClass(new RegExp(tone));
-    await expect(page.locator('[data-testid="page-header-facts"] [data-fact="verdict"] dd')).toHaveText(verdict);
+    const judgmentMark = page.getByTestId("verdict-summary").getByRole("heading", { name: verdict }).locator(".workbench-mark");
+    await expect(judgmentMark).toHaveAttribute("data-tone", markTone);
+    await expect(headerVerdict.locator("dd")).toHaveText(verdict);
+    if (headerTone) {
+      await expect(headerVerdict).toHaveClass(new RegExp(headerTone));
+    } else {
+      await expect(headerVerdict).not.toHaveClass(/is-(success|warning|error)/);
+    }
   }
 });
 
@@ -287,11 +298,11 @@ test("요구사항 표는 부족 → 확인 필요 → 충족으로 정렬하고
   await expect(rowOf(page, R[4]).locator(".vd-row-main .vd-row-sub")).toHaveText("운영 · 미표기");
 
   // 대조 pill: 글자가 상태 이름이고 확인 필요는 부족(error)이 아니다.
-  await expect(rowOf(page, R[3]).locator(".vd-pill")).toHaveText("부족");
-  await expect(rowOf(page, R[3]).locator(".vd-pill")).toHaveClass(/is-error/);
-  await expect(rowOf(page, R[2]).locator(".vd-pill")).toHaveText("확인 필요");
-  await expect(rowOf(page, R[2]).locator(".vd-pill")).toHaveClass(/is-warning/);
-  await expect(rowOf(page, R[2]).locator(".vd-pill")).not.toHaveClass(/is-error/);
+  await expect(rowOf(page, R[3]).locator(".workbench-mark")).toHaveText("부족");
+  await expect(rowOf(page, R[3]).locator(".workbench-mark")).toHaveAttribute("data-tone", "error");
+  await expect(rowOf(page, R[2]).locator(".workbench-mark")).toHaveText("확인 필요");
+  await expect(rowOf(page, R[2]).locator(".workbench-mark")).toHaveAttribute("data-tone", "warning");
+  await expect(rowOf(page, R[2]).locator(".workbench-mark")).not.toHaveAttribute("data-tone", "error");
 
   // 회사 근거: 첫 역할 의견의 이유 + 보조 fact label. 역할 의견이 없으면 그 사실을 적는다.
   await expect(rowOf(page, R[3]).locator(".vd-row-reason")).toHaveText("직접생산 확인 품목에 해당 소프트웨어가 없음");
@@ -388,7 +399,7 @@ test("행을 고르면 원문 패널이 열려 인용 2개를 mark로 보이고 
   expect(trace.pageGets).toEqual([{ structureId: VERDICT_STRUCTURE_ID, page: 3 }]);
   // 이 행의 인용이 가리키는 블록(b4·b5)은 이 쪽에 없으므로 표시가 없다.
   await expect(dialog.locator("mark")).toHaveCount(0);
-  await dialog.getByRole("button", { name: "닫기", exact: true }).click();
+  await dialog.locator(".opportunity-dialog-actions").getByRole("button", { name: "닫기", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 
   // 상속 쪽: 제목 뒤 "(추정)", 인용이 가리키는 블록은 쪽 전체 보기에서 mark다.
@@ -510,7 +521,7 @@ test("원문 패널 행동은 담당자 이름을 받아 오류 제보를 보내
 test("⋯ 판정 오류 제보는 판정 전체(wrong_verdict)를 요구사항 식별자 없이 보낸다", async ({ page }) => {
   const trace = await openVerdict(page, completedView());
   await page.getByRole("button", { name: "사업기회 더보기" }).click();
-  await expect(page.getByRole("menu").getByRole("menuitem")).toHaveText([/추적 상태 변경/, /추적 되돌리기/, /신호 확인/, /후보 연결/, /판정 오류 제보/, /실행 정보/]);
+  await expect(page.getByRole("menu").getByRole("menuitem")).toHaveText([/추적 되돌리기/, /신호 확인/, /후보 연결/, /판정 오류 제보/, /실행 정보/]);
   await page.getByRole("menuitem", { name: /판정 오류 제보/ }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("이 판정 전체가 틀렸다고 제보해요");
@@ -741,7 +752,7 @@ test("실무 화면 DOM에는 정책 id·모델명·해시·참조 실행 표식
   // 모든 탭에서도 같다.
   for (const tab of ["activity", "proposal", "documents", "source", "similar", "verdict"]) {
     await page.goto(`/opportunities/7101/${tab}`);
-    await expect(page.locator(".rec-body")).toBeVisible();
+    await expect(page.locator(".workbench-record")).toBeVisible();
     await expect(page.locator('[data-testid="record-title"]')).toBeVisible();
     await assertClean(`${tab} 탭`);
   }
@@ -762,7 +773,7 @@ test("실무 화면 DOM에는 정책 id·모델명·해시·참조 실행 표식
   await expect(dialog).toContainText("참조 실행 · 품질 미측정");
   await expect(dialog).toContainText("운영 완료로 읽지 마세요");
   await expect(dialog).toContainText("현재 기준");
-  await dialog.getByRole("button", { name: "닫기", exact: true }).click();
+  await dialog.locator(".opportunity-dialog-actions").getByRole("button", { name: "닫기", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await assertClean("실행 정보 닫은 뒤");
 });
@@ -790,29 +801,29 @@ test("브리핑 v2 판정 칸은 서버가 준 판정 이름 글자 그대로이
     if (display) entry.verdict_display = display;
   }
   await mockBriefing(page, { briefings: { [view.briefing_date]: view } });
-  // 2026-11-19 최종 시안: 판정 이름은 행 보조 줄의 글자다(표식 칸이 아니다). 의미 색 규칙은 그대로다.
-  const pill = (index: number) => page.locator(`li[data-item-id="${briefingItemId(index)}"] .briefing-row-verdict`);
+  // 행 보조 줄의 공용 상태 표식에서 서버 문구와 의미색을 확인한다.
+  const pill = (index: number) => page.locator(`li[data-item-id="${briefingItemId(index)}"] .workbench-mark`);
 
   await page.goto("/briefing");
   await expect(pill(1)).toHaveText("진행 가능");
-  await expect(pill(1)).toHaveClass(/is-verdict-success/);
+  await expect(pill(1)).toHaveAttribute("data-tone", "confirmed");
   await expect(pill(2)).toHaveText("진행 어려움");
-  await expect(pill(2)).toHaveClass(/is-verdict-error/);
+  await expect(pill(2)).toHaveAttribute("data-tone", "error");
   await expect(pill(3)).toHaveText("판단 불가");
-  await expect(pill(3)).toHaveClass(/is-verdict-muted/);
+  await expect(pill(3)).toHaveAttribute("data-tone", "neutral");
   await page.goto("/briefing?view=accepted");
   await expect(pill(4)).toHaveText("조건부 진행");
-  await expect(pill(4)).toHaveClass(/is-verdict-warning/);
+  await expect(pill(4)).toHaveAttribute("data-tone", "warning");
   await page.goto("/briefing?view=ignored");
   await expect(pill(5)).toHaveText("사전규격 판정 참조");
-  await expect(pill(5)).toHaveClass(/is-verdict-muted/);
+  await expect(pill(5)).toHaveAttribute("data-tone", "neutral");
   await page.goto("/briefing?view=later");
   await expect(pill(6)).toHaveText("판정 대상 아님");
-  await expect(pill(6)).toHaveClass(/is-verdict-muted/);
+  await expect(pill(6)).toHaveAttribute("data-tone", "neutral");
 });
 
 for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
-  test(`${viewport.width}px에서 가로로 넘치지 않고 좌측 280px·원문 패널 300~380px이며 긴 한글도 넘치지 않는다`, async ({ page }) => {
+  test(`${viewport.width}px에서 가로로 넘치지 않고 오른쪽 열 320px·원문 패널 300~380px이며 긴 한글도 넘치지 않는다`, async ({ page }) => {
     await page.setViewportSize(viewport);
     const longWord = "클라우드기반통합정보시스템구축사업의세부요구사항을모두충족하여야하며".repeat(6);
     const matrix = sampleMatrix();
@@ -824,7 +835,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
 
     const metrics = await page.evaluate(() => {
       const canvas = document.querySelector(".page-canvas") as HTMLElement;
-      const side = document.querySelector(".rec-side") as HTMLElement;
+      const side = document.querySelector(".workbench-record-rail") as HTMLElement;
       const source = document.querySelector(".vd-source") as HTMLElement;
       // 레코드 액션은 패널 헤더 오른쪽 칸에 있다(ADR-0076).
       const header = document.querySelector("header.topbar") as HTMLElement;
@@ -848,7 +859,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     });
     expect(metrics.pageOverflow).toBeLessThanOrEqual(0);
     expect(metrics.canvasOverflow).toBeLessThanOrEqual(0);
-    expect(Math.round(metrics.side)).toBe(280);
+    expect(Math.round(metrics.side)).toBe(320);
     expect(metrics.source).toBeGreaterThanOrEqual(299);
     expect(metrics.source).toBeLessThanOrEqual(381);
     expect(metrics.centerOverflow).toBeLessThanOrEqual(0);

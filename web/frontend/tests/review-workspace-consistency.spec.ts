@@ -3,7 +3,7 @@ import { mockApi, mockOrderPlans, mockPreSpecs } from "./api-mock";
 
 // 사용자가 두 페이지의 목록 크기를 같게 요청했다. 개별 화면이 넘치지 않는 것만
 // 확인하면 한쪽이 고정 px이고 다른 쪽이 비율인 회귀를 놓치므로 함께 비교한다.
-test("발주계획과 사전규격은 두 지원 폭에서 같은 38% 목록 폭을 사용한다", async ({ page }) => {
+test("발주계획과 사전규격은 두 지원 폭에서 같은 60% 목록 폭을 사용한다", async ({ page }) => {
   await mockApi(page);
   await mockOrderPlans(page);
   await mockPreSpecs(page);
@@ -26,7 +26,31 @@ test("발주계획과 사전규격은 두 지원 폭에서 같은 38% 목록 폭
     }));
 
     expect(Math.abs(order.width - preSpec.width), `${viewport.width}px에서 두 목록 폭`).toBeLessThanOrEqual(1);
-    expect(order.width / order.workspaceWidth).toBeCloseTo(0.38, 2);
-    expect(preSpec.width / preSpec.workspaceWidth).toBeCloseTo(0.38, 2);
+    expect(order.width / order.workspaceWidth).toBeCloseTo(0.60, 2);
+    expect(preSpec.width / preSpec.workspaceWidth).toBeCloseTo(0.60, 2);
+  }
+});
+
+test("발주계획과 사전규격의 선택 도구줄은 같은 공통 작업을 제공한다", async ({ page }) => {
+  await mockApi(page);
+  await mockOrderPlans(page);
+  await mockPreSpecs(page);
+
+  for (const [path, label, checked] of [
+    ["/order-plans", "발주계획 선택 작업", ".c2l-row input:checked"],
+    ["/pre-specs?workspace=all&sw_only=false", "사전규격 선택 작업", ".pre-specs-row input:checked"],
+  ]) {
+    await page.goto(path);
+    const toolbar = page.getByRole("group", { name: label });
+    const bulkStart = toolbar.getByRole("button", { name: "일괄 추적 시작" });
+    const clear = toolbar.getByRole("button", { name: "선택 전체 해제" });
+    await expect(bulkStart).toBeDisabled();
+    await expect(clear).toBeDisabled();
+    await toolbar.getByRole("button", { name: "현재 페이지 전체 선택" }).click();
+    await expect(page.locator(checked).first()).toBeChecked();
+    await expect(bulkStart).toBeEnabled();
+    await clear.click();
+    await expect(page.locator(checked)).toHaveCount(0);
+    await expect(bulkStart).toBeDisabled();
   }
 });

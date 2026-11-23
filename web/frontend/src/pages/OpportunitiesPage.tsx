@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
 import { Selector } from "@astryxdesign/core/Selector";
-import { Table, pixel, proportional, type TableColumn } from "@astryxdesign/core/Table";
-import { Token } from "@astryxdesign/core/Token";
 import { Activity } from "lucide-react";
 import { opportunitySearchValid, searchKey } from "../lib/search";
+import { DEADLINE_IMMINENT_DAYS, imminentDeadline } from "../components/dashboard/dashboardData";
+import { describeDeadlineCountdown } from "../lib/deadline";
+import { formatListPrice } from "../lib/format";
 import { OpportunityDetail } from "../components/opportunities/OpportunityDetail";
 import {
   ACTION_REASON_ORDER,
@@ -17,21 +18,23 @@ import {
   nextCheckNote,
   nextCheckOf,
   primaryAgency,
-  primaryLinkSummary,
+  primaryLinkFacts,
+  trackingMark,
   primaryTitle,
   rowPrimaryAction,
+  topActionReason,
   type OpportunityDetailIntent,
 } from "../components/opportunities/trackingFlow";
-import { EmptyState } from "../components/common/EmptyState";
+import { DeadlineText, StatusMark } from "../components/common/Marks";
+import { RecordTable, type RecordTableColumn } from "../components/common/RecordTable";
 import { PageHeaderTabs } from "../components/common/PageHeaderActions";
-import { usePageHeader } from "../components/shell/PageHeaderContext";
 
 import { useRowKeyboardNavigation } from "../components/common/useRowKeyboardNavigation";
 import { ListPagerControls, SplitWorkspace } from "../components/common/ReviewPrimitives";
-import { SkeletonPanel } from "../components/common/Skeleton";
 import {
   WorkspaceAdvancedToggle,
   WorkspaceFilterAdvanced,
+  WorkspaceFilterGroup,
   WorkspaceFilterBar,
   WorkspaceFilterContext,
   WorkspaceFilterLine,
@@ -83,23 +86,13 @@ const SORT_LABELS: Record<OpportunitySort, string> = {
 };
 const PAGE_SIZE = 100;
 
-/**
- * 마감 창(`deadline_within_days`)은 **URL로만 들어오는 축**이다(S1).
- *
- * 대시보드 `마감 임박 추적 건` 패널이 자기 목록 호출과 **같은 인자**로 이 화면을 열기
- * 위한 것이고(ADR-0067 결정 1·3), 상세 필터에 새 컨트롤을 만들지 않는다. 걸려 있다는
- * 사실은 필터 문맥 줄 하나가 말하고 거기서 해제한다. 서버 계약의 허용 범위 밖이면
- * 보내지 않는다 — 422를 받는 대신 창을 걸지 않은 목록이 된다.
- */
+const DEADLINE_VIEW = "마감 임박";
 const DEADLINE_WINDOW_MIN = 1;
 const DEADLINE_WINDOW_MAX = 365;
 
 /** 서버 검색 `q`의 허용 길이(spec §7.4). 밖이면 보내지 않는다. */
 const SEARCH_MIN = 2;
 const SEARCH_MAX = 100;
-
-/** Astryx `Table`은 행 type이 index signature를 갖기를 요구한다. 값은 그대로다. */
-type OpportunityRow = OpportunityListItem & Record<string, unknown>;
 
 export function OpportunitiesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -171,15 +164,12 @@ export function OpportunitiesPage() {
 
   const rows = useMemo(() => list.data?.items ?? [], [list.data]);
   const total = list.data?.total ?? 0;
-  // 패널 헤더(최종 시안 패턴). 숫자는 서버 total 그대로이며 읽기 전·실패면 올리지 않는다.
-  usePageHeader(list.isSuccess ? {
-    eyebrow: "사업기회",
-    title: total > 0 ? `사업기회 ${total.toLocaleString("ko-KR")}건을 보고 있어요` : "이 보기에 사업기회가 없어요",
-  } : null);
   const counts = list.data?.section_counts ?? null;
   const reasonCounts = list.data?.action_reason_counts ?? null;
   const undecided = counts?.["미결정"] ?? 0;
   const allCount = counts ? Object.values(counts).reduce((sum, value) => sum + value, 0) : 0;
+  const pagerView = deadlineWithinDays !== null ? "마감 임박" : reason ? actionReasonLabel(reason) : view;
+  const pagerDescription = counts && allCount !== total ? `${pagerView} ${formatCount(total)}건` : pagerView;
 
   const selectedParam = Number(searchParams.get("selected") ?? "");
   /**
@@ -317,7 +307,7 @@ export function OpportunitiesPage() {
   }
 
   /**
-   * ↑↓ 목록 이동. 리스너는 목록 표의 스크롤 영역이 지고 `rowProps`는 첫 열 버튼이 받는다
+   * ↑↓ 목록 이동. 리스너는 목록 표의 스크롤 영역이 지고 `rowProps`는 행이 받는다
    * (발주계획·사전규격과 같은 hook, `useRowKeyboardNavigation`).
    *
    * 경계(현재 페이지의 처음·끝)는 hook이 모르므로 화면이 맡는다. 두 방향 모두 `changeOffset`을
@@ -358,97 +348,118 @@ export function OpportunitiesPage() {
   }, [list.isPending, offset, rows, searchParams, setSearchParams]);
 
   const now = new Date();
-  const columns: TableColumn<OpportunityRow>[] = [
+  const columns: RecordTableColumn<OpportunityListItem>[] = [
     {
       key: "business",
-      header: "사업명 / 발주기관",
-      width: proportional(1),
-      renderCell: (item) => {
+      header: "사업명",
+      title: primaryTitle,
+      titleClassName: "opportunity-row-title opportunity-row-business",
+      renderBelow: (item) => {
         const present = actionReasonsOf(item);
         const hold = holdReviewText(item, now);
-        const linkSummary = primaryLinkSummary(item);
+        const primaryReason = topActionReason(item);
+        const nextCheck = nextCheckOf(item);
+        const nextNote = nextCheckNote(item);
+        const hasCheckChip = primaryReason !== null && nextCheck.key !== "tracking_decision";
         const chips = ACTION_REASON_ORDER.filter((code) => present.includes(code));
         // 모르는 사유 코드는 감추지 않고 뒤에 그대로 붙인다.
         const unknown = present.filter((code) => !ACTION_REASON_ORDER.includes(code));
+        const milestone = deadlineWithinDays === null ? primaryLinkFacts(item)?.milestone : null;
         return (
-          <div className="opportunity-row-cell">
-            <button
-              aria-pressed={item.id === selectedId}
-              className="opportunity-row-business"
-              onClick={() => selectRow(item.id)}
-              type="button"
-              {...rowNavigation.rowProps(item.id)}
-            >
-              <span className="opportunity-row-title">{primaryTitle(item)}</span>
-              <span className="opportunity-row-agency">{primaryAgency(item)}</span>
-              <span className="opportunity-row-meta">
-                <span className="opportunity-caption">{latestConfirmedStage(item.links)}</span>
-                <span className="opportunity-caption">·</span>
-                <span className="opportunity-caption">{item.tracking_status}</span>
-                {linkSummary ? (
-                  <>
-                    <span className="opportunity-caption">·</span>
-                    <span className="opportunity-caption">{linkSummary}</span>
-                  </>
-                ) : null}
+          <>
+            <div className="opportunity-row-reasons-line">
+              {chips.length + unknown.length > 0 || hold ? (
+                <ul aria-label="조치 사유" className="opportunity-row-reasons">
+                  {[...chips, ...unknown].map((code) => (
+                    <li key={code}>
+                      <StatusMark mark={{
+                        label: code === "hold_overdue" && hold ? hold
+                          : hasCheckChip && code === primaryReason ? nextCheck.label : actionReasonLabel(code),
+                        tone: "warning",
+                      }} />
+                    </li>
+                  ))}
+                  {hold && !present.includes("hold_overdue") ? (
+                    <li className="record-table-note opportunity-row-hold">{hold}</li>
+                  ) : null}
+                </ul>
+              ) : null}
+              <span className="record-table-note opportunity-row-next-note">
+                {hasCheckChip ? nextNote : `${nextCheck.label} · ${nextNote}`}
               </span>
-            </button>
-            {chips.length + unknown.length > 0 || hold ? (
-              <ul aria-label="조치 사유" className="opportunity-row-reasons">
-                {[...chips, ...unknown].map((code) => (
-                  <li key={code}>
-                    <Token
-                      label={code === "hold_overdue" && hold ? hold : actionReasonLabel(code)}
-                      size="sm"
-                    />
-                  </li>
-                ))}
-                {hold && !present.includes("hold_overdue") ? (
-                  <li className="opportunity-caption opportunity-row-hold">{hold}</li>
-                ) : null}
-              </ul>
-            ) : null}
-          </div>
+            </div>
+            <div className="record-table-note opportunity-row-meta">
+              {latestConfirmedStage(item.links)}
+              {milestone ? <span className="opportunity-row-milestone"> · {milestone}</span> : null}
+            </div>
+          </>
+        );
+      },
+    },
+    {
+      key: "agency",
+      header: "발주기관",
+      width: 60,
+      grow: true,
+      ellipsis: true,
+      className: "opportunity-row-agency",
+      renderCell: primaryAgency,
+    },
+    {
+      key: "budget",
+      header: "금액",
+      width: 108,
+      numeric: true,
+      className: "opportunity-row-budget",
+      renderCell: (item) => {
+        const facts = primaryLinkFacts(item);
+        if (!facts) return "금액 미확인";
+        if (facts.budgetAmount === null) return facts.budget;
+        const price = formatListPrice(facts.budgetAmount);
+        return <span title={price.exact}>{price.label}</span>;
+      },
+    },
+    {
+      key: "tracking",
+      header: "추적 상태",
+      width: 66,
+      className: "opportunity-row-status",
+      renderCell: (item) => <StatusMark mark={trackingMark(item.tracking_status)} />,
+    },
+    {
+      key: "deadline",
+      header: "다음 마감",
+      width: 108,
+      className: "opportunity-row-deadline",
+      renderCell: (item) => {
+        const due = imminentDeadline(item, now.getTime());
+        const countdown = describeDeadlineCountdown(due?.deadlineAt);
+        return (
+          <>
+            {due && countdown ? <span className="record-table-note record-table-subline">{due.kind}{" "}</span> : null}
+            <DeadlineText text={countdown?.label ?? "마감 미확인"} urgency={countdown?.urgency ?? "none"} />
+          </>
         );
       },
     },
     {
       key: "next",
       header: "다음 확인",
-      width: pixel(120),
+      width: 62,
+      className: "opportunity-next-cell",
       renderCell: (item) => {
         const action = rowPrimaryAction(item);
-        return (
-          <span className="opportunity-next-cell">
-            <span className={`opportunity-next-label${item.section === ACTION_VIEW ? " is-action" : ""}`}>
-              {nextCheckOf(item).label}
-            </span>
-            <span className="opportunity-caption">{nextCheckNote(item)}</span>
-            {action ? (
-              <Button
-                className="opportunity-row-action"
-                label={action.label}
-                onClick={() => runRowAction(item)}
-                size="sm"
-              />
-            ) : null}
-          </span>
-        );
+        return action ? (
+          <Button
+            className="opportunity-row-action"
+            label={action.label}
+            onClick={() => runRowAction(item)}
+            size="sm"
+          />
+        ) : null;
       },
     },
   ];
-
-  // 행 어디를 눌러도 상세가 열린다. 키보드로 여는 자리는 첫 열의 버튼 하나이며,
-  // 이 처리는 포인터 편의만 더한다(버튼·링크를 누른 경우는 그쪽이 처리한다).
-  const selectFromRow = (event: ReactMouseEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement;
-    if (target.closest("button, a, input")) return;
-    const row = target.closest("tbody tr");
-    if (!row?.parentElement) return;
-    const index = Array.prototype.indexOf.call(row.parentElement.children, row);
-    const item = rows[index];
-    if (item) selectRow(item.id);
-  };
 
   return (
     <section aria-labelledby="page-title" className="opportunities-page">
@@ -465,13 +476,17 @@ export function OpportunitiesPage() {
             <WorkspaceViewTabs
               className="opportunity-view-tabs"
               label="추적 구역"
-              onChange={(value) => changeFilters({ section: value === ACTION_VIEW ? null : value, reason: null })}
-              tabs={VIEWS.map((value) => ({
+              onChange={(value) => changeFilters(value === DEADLINE_VIEW
+                ? { section: ALL_VIEW, reason: null, deadline_within_days: String(DEADLINE_IMMINENT_DAYS), sort: "deadline" }
+                : { section: value === ACTION_VIEW ? null : value, reason: null, deadline_within_days: null,
+                  ...(deadlineWithinDays !== null && sort === "deadline" ? { sort: null } : {}) })}
+              tabs={[...VIEWS.slice(0, 3), DEADLINE_VIEW, ...VIEWS.slice(3)].map((value) => ({
                 key: value,
                 label: value,
-                count: counts ? (value === ALL_VIEW ? allCount : counts[value]) : undefined,
+                count: counts && deadlineWithinDays === null && value !== DEADLINE_VIEW
+                  ? (value === ALL_VIEW ? allCount : counts[value as OpportunitySection]) : undefined,
               }))}
-              value={view}
+              value={deadlineWithinDays === null ? view : DEADLINE_VIEW}
             />
           </WorkspaceFilterLine>
           <WorkspaceFilterTools className="opportunity-filter-tools">
@@ -496,16 +511,19 @@ export function OpportunitiesPage() {
               value={searchText}
             />
           </WorkspaceFilterTools>
-          {advanced ? (
-            <WorkspaceFilterAdvanced columns={2} id="opportunity-filter-advanced" onReset={resetFilters}>
-              {view === ACTION_VIEW ? (
+          <WorkspaceFilterAdvanced
+            isOpen={advanced}
+            onClose={() => setAdvanced(false)}
+            id="opportunity-filter-advanced" onReset={resetFilters}>
+            {view === ACTION_VIEW ? (
+              <WorkspaceFilterGroup title="조치 사유">
                 <div className="opportunity-reason-filters">
                   {/* 건수는 서버가 사유 필터만 빼고 센 값이다(`action_reason_counts`). 한 사업은
                       여러 사유에 들어가므로 합이 구역 건수와 같지 않다. */}
                   <div aria-label="조치 사유" className="opportunity-reason-chips" role="group">
                     {ACTION_REASON_ORDER.map((code) => {
-                      const count = reasonCounts ? reasonCounts[code] ?? null : undefined;
-                      const countText = count === undefined ? null : count === null ? "–" : formatCount(count);
+                      const count = reasonCounts?.[code];
+                      const countText = count == null ? null : formatCount(count);
                       return (
                         <Button
                           aria-pressed={reason === code}
@@ -523,7 +541,9 @@ export function OpportunitiesPage() {
                   </div>
 
                 </div>
-              ) : null}
+              </WorkspaceFilterGroup>
+            ) : null}
+            <WorkspaceFilterGroup title="조회 범위">
               <Selector
                 hasClear
                 label="최초 발견 단계"
@@ -533,6 +553,8 @@ export function OpportunitiesPage() {
                 size="sm"
                 value={stage ?? ""}
               />
+            </WorkspaceFilterGroup>
+            <WorkspaceFilterGroup title="정렬">
               <Selector
                 label="표시 순서"
                 onChange={(value) => changeFilter("sort", value === "created_at" ? null : value)}
@@ -540,8 +562,8 @@ export function OpportunitiesPage() {
                 size="sm"
                 value={sort}
               />
-            </WorkspaceFilterAdvanced>
-          ) : null}
+            </WorkspaceFilterGroup>
+          </WorkspaceFilterAdvanced>
 
           {/* 마감 창 줄 — 발주계획의 회차 줄과 같은 자리·같은 방식이다(S1). 상세 필터를
               폈는지와 무관하게 그려서, URL로 들어온 창이 조용히 목록을 좁히지 않게 한다. */}
@@ -563,13 +585,12 @@ export function OpportunitiesPage() {
         </WorkspaceFilterBar>
       </PageHeaderTabs>
       <WorkspaceFrame>
-
-        {/* 조회 중이거나 실패해도 좌우 분할 골격은 그대로 두고 상태를 목록 pane 안에
-            그린다(ADR-0062: 발주계획 방식). 틀·폭·머리 여백은 공용 `SplitWorkspace`가
-            소유하고 화면 클래스는 검사 selector로만 병기한다. 목록 본문은 시안 M1c
-            A안대로 Astryx `Table`을 그대로 쓴다. */}
-        <SplitWorkspace aria-label="사업 추적 목록과 상세" className="opportunity-workspace">
-          <section aria-label="사업 추적 목록" className="review-split-list opportunity-list-pane">
+        <SplitWorkspace
+          aria-label="사업 추적 목록과 상세"
+          className="opportunity-workspace"
+          listClassName="opportunity-list-pane"
+          listLabel="사업 추적 목록"
+          listHeader={(
             <header className="review-list-head opportunity-list-head">
               <p className="opportunity-list-title">사업 추적 목록 · {formatCount(rows.length)}건</p>
               <p className="opportunity-caption">
@@ -578,101 +599,76 @@ export function OpportunitiesPage() {
                   : "사업 단위"}
               </p>
             </header>
-            <div
+          )}
+          list={(
+            <RecordTable
+              activeKey={selectedId}
               className="opportunity-table-scroll"
-              onClick={selectFromRow}
-              onKeyDown={rowNavigation.onKeyDown}
-              onPointerDownCapture={rowNavigation.onPointerDownCapture}
-              ref={listRef}
-              role="presentation"
-            >
-              {invalidUrlSearch ? (
-                <div className="opportunity-empty">
-                  <p role="alert">주소의 검색어는 공백을 정리한 뒤 2~100자여야 해요. 검색어를 고치거나 지워 주세요.</p>
-                </div>
-              ) : list.isPending ? (
-                <SkeletonPanel label="사업 목록을 불러오는 중" lines={5} />
-              ) : list.isError ? (
-                <div className="opportunity-empty">
-                  <EmptyState
-                    compact
-                    tone="error"
-                    title="사업 목록을 불러오지 못했어요"
-                    action={{ label: "다시 시도", onClick: () => void list.refetch() }}
-                  />
-                </div>
-              ) : rows.length === 0 ? (
-                <div className="opportunity-empty">
-                  <EmptyState
-                    compact
-                    title={emptyActionQueue ? "오늘 필요한 조치가 없어요" : "조건에 맞는 사업이 없어요"}
-                    description={emptyActionQueue ? "신규 입찰공고와 전체 사업은 다른 구역에서 볼 수 있어요." : search ? `적용된 검색어 "${search}"와 다른 활성 필터에 맞는 사업이 없어요.`
-                      : "다른 구역이나 다음 페이지에 있을 수 있으며, 사업이 없다는 뜻은 아니에요."}
-                    action={emptyActionQueue ? (allCount > 0 ? {
-                      label: newBidCount ? `신규 입찰공고 ${formatCount(newBidCount)}건 보기` : "전체 사업 보기",
-                      onClick: () => changeFilters({ section: newBidCount ? "신규 입찰공고" : ALL_VIEW, reason: null }),
-                    } : undefined) : {
-                      label: search ? "검색어만 지우기" : "필터 초기화",
-                      onClick: search ? () => applySearch("") : resetFilters,
-                    }}
-                  />
-                </div>
-              ) : (
-                <Table
-                  columns={columns}
-                  data={rows as OpportunityRow[]}
-                  density="compact"
-                  dividers="rows"
-                  hasHover
-                  idKey="id"
-                  verticalAlign="top"
-                />
-              )}
-            </div>
-            <footer className="opportunity-list-foot">
-              <p className="opportunity-caption">
-                {invalidUrlSearch
-                  ? "검색어 오류로 목록을 조회하지 않았어요."
-                  : `서버 ${formatCount(total)}건 중 ${formatCount(rows.length)}건 표시${search ? ` · 검색어 "${search}"는 서버가 페이지를 나누기 전에 적용해요` : ""}`}
-              </p>
+              columns={columns}
+              getKey={(item) => item.id}
+              label="사업 추적"
+              navigation={rowNavigation}
+              onActivate={selectRow}
+              rowClassName="opportunity-row"
+              rows={rows}
+              state={invalidUrlSearch ? {
+                kind: "error",
+                message: { title: "주소의 검색어는 공백을 정리한 뒤 2~100자여야 해요. 검색어를 고치거나 지워 주세요." },
+              } : list.isPending ? {
+                kind: "loading", label: "사업 목록을 불러오는 중",
+              } : list.isError ? {
+                kind: "error",
+                message: {
+                  title: "사업 목록을 불러오지 못했어요",
+                  action: { label: "다시 시도", onClick: () => void list.refetch() },
+                },
+              } : rows.length === 0 ? {
+                kind: "empty",
+                message: {
+                  title: emptyActionQueue ? "오늘 필요한 조치가 없어요" : "조건에 맞는 사업이 없어요",
+                  description: emptyActionQueue ? "신규 입찰공고와 전체 사업은 다른 구역에서 볼 수 있어요." : search ? `적용된 검색어 "${search}"와 다른 활성 필터에 맞는 사업이 없어요.`
+                    : "다른 구역이나 다음 페이지에 있을 수 있으며, 사업이 없다는 뜻은 아니에요.",
+                  action: emptyActionQueue ? (allCount > 0 ? {
+                    label: newBidCount ? `신규 입찰공고 ${formatCount(newBidCount)}건 보기` : "전체 사업 보기",
+                    onClick: () => changeFilters({ section: newBidCount ? "신규 입찰공고" : ALL_VIEW, reason: null }),
+                  } : undefined) : {
+                    label: search ? "검색어만 지우기" : "필터 초기화",
+                    onClick: search ? () => applySearch("") : resetFilters,
+                  },
+                },
+              } : undefined}
+              viewportRef={listRef}
+            />
+          )}
+          listFooter={(
+            <>
               {invalidUrlSearch || searchError ? (
-                <p className="opportunity-caption">
+                <p className="opportunity-list-notice opportunity-caption">
                   검색어는 공백을 정리한 뒤 {SEARCH_MIN}~{SEARCH_MAX}자여야 해요. {search && !invalidUrlSearch ? `현재 목록은 검색어 "${search}" 결과예요.` : "검색어를 고치거나 지워 주세요."}
                 </p>
               ) : null}
-              {undecided > 0 ? (
-                <p className="opportunity-caption">
-                  구역이 정해지지 않은 미결정 {formatCount(undecided)}건은 전체에서만 보여요.
-                </p>
-              ) : null}
-              {/* 페이저는 목록 pane 안쪽 바닥이고 발주계획·사전규격과 같은 공용 부품을
-                  쓴다(명세 §2.2, U3). 한 쪽뿐이어도 줄은 남기고 단추만 끈다 — 그래서
-                  "뒤에 N건이 더 있어요" 문단은 없앴다. 페이저의 `1–100 / 1,234`가
-                  같은 사실을 말한다. */}
-              {list.isSuccess ? (
+              {list.isSuccess && (total > 0 || allCount > 0 || offset > 0) ? (
                 <ListPagerControls
                   className="opportunity-pager"
                   label="사업 추적 목록 페이지"
                   offset={offset}
                   onNext={() => changeOffset(offset + PAGE_SIZE)}
                   onPrevious={() => changeOffset(Math.max(0, offset - PAGE_SIZE))}
+                  summary={{ overallTotal: counts ? allCount : undefined, description: pagerDescription }}
                   total={total}
                   visibleCount={rows.length}
                 />
               ) : null}
-            </footer>
-          </section>
-
-          <section aria-label="선택한 사업" className="review-split-detail opportunity-detail-pane">
-            {list.isPending ? (
+            </>
+          )}
+          detailClassName="opportunity-detail-pane"
+          detailLabel="선택한 사업"
+          detail={(
+            list.isPending ? (
               <div className="opportunity-empty">
                 <p>목록을 불러온 뒤 사업 상세를 표시해요.</p>
               </div>
-            ) : selectedId === null ? (
-              <div className="opportunity-empty">
-                <h3>선택할 사업이 없어요</h3>
-              </div>
-            ) : (
+            ) : selectedId !== null ? (
               <OpportunityDetail
                 intent={intent?.id === selectedId ? intent : null}
                 key={selectedId}
@@ -681,9 +677,13 @@ export function OpportunitiesPage() {
                 opportunityId={selectedId}
                 returnSearch={returnSearch}
               />
-            )}
-          </section>
-        </SplitWorkspace>
+            ) : list.isError || invalidUrlSearch ? (
+              <div className="opportunity-empty">
+                <h3>선택할 사업이 없어요</h3>
+              </div>
+            ) : null
+          )}
+        />
       </WorkspaceFrame>
 
       {toast ? <Toast message={toast.message} onDismiss={dismissToast} variant={toast.variant} /> : null}

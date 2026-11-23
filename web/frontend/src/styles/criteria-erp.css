@@ -1,39 +1,9 @@
-/* 판정 기준(회사 프로필 · 판정 정책 · 품질 게이트 · 검증 지표) 화면.
- *
- * 이 파일은 승인된 시안(`design-previews/bidops-criteria-runstatus-erp-20260907/`)의
- * `source/style.css` 중 **이 페이지가 소유하는 부분만** 옮긴 것이다. 시안의 바깥
- * 셸(preview bar·sidebar·page header)은 제품 공통 셸이 이미 갖고 있으므로 옮기지
- * 않는다. 비율(38:62)·글자 크기(20/15/14/12)·여백·정보 순서·하단 고정 액션은
- * 시안의 계산값을 그대로 쓰고 선택자 이름만 `crit-` 접두사로 바꿨다.
- *
- * 접두사를 새로 두는 이유: `styles/quality-policy.css`는 `main.tsx`가 전역으로
- * 읽으므로 옛 `.policy-*`·`.quality-*` 규칙이 계속 살아 있다. 이 화면은 그 이름을
- * 쓰지 않아 옛 규칙의 영향을 받지 않는다. 전역 파일을 고치지 않고 여기서만
- * 끝낸다.
- *
- * 색은 `bidops` 테마 토큰만 읽는다(ADR-0048). `:root`나 이 파일에서 `--color-*`를
- * 새로 정의하지 않는다. raw hex·px를 두지 않는다.
- * 지원 폭은 1280~1920px 하나뿐이므로(ADR-0047) 폭에 따른 레이아웃 분기가 없다.
- *
- * 2026-09-15: 카드 외곽 테두리 → `--shadow-low` 그림자, 카드 안 구분선 →
- * `--color-background-muted` 1px (docs/0915_ui-redesign/spec.md §2.3).
- */
+/* 판정 기준과 승인 사본 대화상자에서 쓰는 화면 스타일. */
 
 .crit-page {
-  /* 목록 첫 줄은 본문보다 한 단 크다(시안 `--bo-type-list: 15px`). 정수 척도의
-     목록 제목 단(16px, typography.css)을 읽는다. */
+  /* 집계 값은 목록 제목 단을 읽는다. */
   --crit-type-list: var(--bo-type-list-title);
 
-  display: flex;
-  flex-direction: column;
-  /* 여기에 gap을 두면 요약 줄과 목록/상세 사이가 벌어진다. 시안은 요약 줄의
-     아래 테두리를 지우고 작업 영역의 위 테두리에 **붙여** 한 덩어리로 그린다.
-     간격은 필요한 자리에만 margin으로 준다. */
-  min-width: 0;
-  /* pane 안에서만 스크롤한다. 페이지가 통째로 길어지면 상세 바닥의 고정 액션이
-     화면 밖으로 밀린다(최종 Go/No-Go 화면과 같은 골격). */
-  height: 100%;
-  min-height: 604px;
   font-size: var(--bo-type-body);
   line-height: var(--bo-type-body-leading);
   color: var(--color-text-primary);
@@ -87,38 +57,6 @@
   margin: 0;
 }
 
-/* --- 탭 --- */
-
-.crit-tabs {
-  flex: 0 0 auto;
-  min-width: 0;
-}
-
-.crit-tabs .astryx-tab-list {
-  width: 100%;
-}
-
-/* --- 요약 한 줄 (시안 `.context-strip`) ---
- * 탭이 바뀌어도 남는 자리다. 기준 프로필 · 운영 활성 정책 · 미확인 항목 수를
- * 여기서만 말하고, 탭마다 되풀이하지 않는다. */
-
-.crit-summary {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: var(--spacing-5);
-  flex-wrap: wrap;
-  /* 시안 실측 49px = 내용 32 + 위아래 패딩 16 + 아래 테두리 1. */
-  min-height: calc(var(--spacing-8) + var(--spacing-4) + var(--border-width));
-  min-width: 0;
-  margin-top: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-4);
-  border: 0;
-  border-radius: var(--radius-container) var(--radius-container) 0 0;
-  box-shadow: var(--shadow-low);
-  background: var(--color-background-surface);
-}
-
 .crit-summary-item {
   display: flex;
   align-items: center;
@@ -144,11 +82,6 @@
   margin-left: auto;
 }
 
-/* --- 회사 프로필의 확인 요청 절 + 목록/상세 두 단 ---
- * H3(ADR-0066 결정 7·2): 대시보드 `담당자 확인 요청` 중 회사 역량 미확인
- * 항목을 이 화면 위에 얹는다. `.crit-workspace`(38:62 목록/상세)는 그대로
- * 아래에 남기고, 확인 요청 절만 그 카드 밖에 고정 높이로 둔다. */
-
 .crit-profile-page {
   display: flex;
   flex: 1 1 0;
@@ -158,170 +91,10 @@
   min-height: 0;
 }
 
-.crit-profile-page > .crit-workspace {
-  flex: 1 1 0;
-}
-
 .crit-verification-requests {
   flex: 0 0 auto;
   border: 0;
-  border-radius: var(--radius-container);
-  box-shadow: var(--shadow-low);
-  background: var(--color-background-surface);
   padding: var(--spacing-4);
-}
-
-/* --- 목록 38% : 상세 62% ---
- * 발주계획·사전규격·최종 Go/No-Go 화면과 같은 기본 비율이다. 고정 px로 근사하지
- * 않는다. */
-
-.crit-workspace {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: row;
-  align-items: stretch;
-  min-height: 0;
-  min-width: 0;
-  border: 0;
-  border-radius: 0 0 var(--radius-container) var(--radius-container);
-  box-shadow: var(--shadow-low);
-  background: var(--color-background-surface);
-  overflow: hidden;
-}
-
-.crit-queue {
-  display: flex;
-  flex: 0 0 38%;
-  flex-direction: column;
-  width: 38%;
-  min-width: 0;
-  min-height: 0;
-  border-right: var(--border-width) solid var(--color-background-muted);
-}
-
-.crit-detail {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-}
-
-.crit-pane-head {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
-  border-bottom: var(--border-width) solid var(--color-background-muted);
-}
-
-.crit-queue-tools {
-  display: grid;
-  flex: 0 0 auto;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3);
-  border-bottom: var(--border-width) solid var(--color-background-muted);
-}
-
-.crit-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-1);
-}
-
-.crit-filters .astryx-button {
-  font-size: var(--bo-type-caption);
-  min-height: var(--spacing-7);
-  border-color: transparent;
-  background: transparent;
-}
-
-.crit-filters .astryx-button[aria-pressed="true"] {
-  border-color: var(--color-border);
-  background: var(--color-accent-muted);
-  color: var(--color-text-accent);
-  font-weight: var(--font-weight-semibold);
-}
-
-.crit-queue-scroll {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-}
-
-.crit-pane-foot {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-  flex-wrap: wrap;
-  padding: var(--spacing-3) var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-background-muted);
-  background: var(--color-background-body);
-}
-
-/* 목록 한 줄. 제목 15px semibold · 보조 14px · 메타 12px (시안 `.record`). */
-.crit-record {
-  display: grid;
-  gap: var(--spacing-1);
-  width: 100%;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.crit-record-line {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-
-.crit-record-line .astryx-token {
-  flex-shrink: 0;
-  margin-top: var(--spacing-0-5);
-}
-
-.crit-page .crit-record-title {
-  font-size: var(--crit-type-list);
-  font-weight: var(--font-weight-semibold);
-  line-height: var(--bo-type-body-leading);
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.crit-page .crit-record-subtitle {
-  font-size: var(--bo-type-body);
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.crit-record:hover .crit-record-title {
-  text-decoration: underline;
-}
-
-.crit-record:focus-visible {
-  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
-  outline-offset: var(--focus-outline-offset);
-}
-
-
-
-.crit-queue-scroll thead {
-  display: none;
-}
-
-.crit-queue .astryx-table-row:has([aria-pressed="true"]) {
-  /* 선택 행 좌측 inset 바 없음(spec §2.3). */
-  background: var(--color-accent-muted);
 }
 
 /* --- 상세 --- */
@@ -347,70 +120,11 @@
   min-width: 0;
 }
 
-.crit-detail-tabs {
-  flex: 0 0 auto;
-  padding: 0 var(--spacing-5);
-}
-
 /* 응답 확인 필요 같은 화면 전체 경고는 상세 본문이 비어도 남는다. */
 .crit-detail-alert {
   flex: 0 0 auto;
   min-width: 0;
   padding: var(--spacing-4) var(--spacing-5) 0;
-}
-
-.crit-detail-scroll {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  gap: var(--spacing-5);
-  min-height: 0;
-  padding: var(--spacing-4) var(--spacing-5);
-  overflow: auto;
-}
-
-.crit-detail-scroll > * {
-  flex-shrink: 0;
-}
-
-/* 하단 액션은 본문 스크롤과 분리해 항상 보인다. */
-.crit-detail-foot {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-3);
-  /* 시안 실측 57px = 내용 32 + 위아래 패딩 24 + 위 테두리 1. */
-  min-height: calc(var(--spacing-8) + var(--spacing-6) + var(--border-width));
-  padding: var(--spacing-3) var(--spacing-4);
-  border-top: var(--border-width) solid var(--color-background-muted);
-  background: var(--color-background-body);
-}
-
-.crit-detail-foot-note {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  min-width: 0;
-}
-
-.crit-detail-foot-note > .crit-small {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-2);
-}
-
-.crit-detail-foot-note svg {
-  width: var(--spacing-4);
-  height: var(--spacing-4);
-  flex-shrink: 0;
-}
-
-.crit-detail-foot-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  flex-shrink: 0;
 }
 
 /* --- 본문 조각 --- */
@@ -630,20 +344,6 @@
 
 .crit-state-body {
   max-width: 576px;
-}
-
-.crit-empty-inline {
-  display: grid;
-  justify-items: center;
-  gap: var(--spacing-3);
-  padding: var(--spacing-8) var(--spacing-4);
-  text-align: center;
-}
-
-.crit-empty-inline > svg {
-  width: var(--spacing-5);
-  height: var(--spacing-5);
-  color: var(--color-text-secondary);
 }
 
 /* --- 짧은 경계 안내 ---

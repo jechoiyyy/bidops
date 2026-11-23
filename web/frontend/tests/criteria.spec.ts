@@ -32,26 +32,23 @@ async function open(page: Page, path: string, options: CriteriaMockOptions = {})
   return calls;
 }
 
-const workspace = (page: Page) => page.locator(".crit-workspace");
+const workspace = (page: Page) => page.locator(".workbench-admin-workspace");
 const summary = (page: Page) => page.locator(".crit-summary");
-const detailFooter = (page: Page) => page.locator(".crit-detail-foot");
+const detailFooter = (page: Page) => page.locator(".crit-detail").getByRole("group", { name: "결정 영역", exact: true });
 // 2026-11-18 ×0.9 compact 축척을 없앴다. 시안 치수가 그대로 렌더된다.
-const UI_SCALE = 1;
-const physical = (logical: number) => logical * UI_SCALE;
 
 // ── 화면 골격과 탭 ────────────────────────────────────────────────────
 
-test("네 탭이 각자의 정식 주소로 열리고 목록 38% · 상세 62%를 유지한다", async ({ page }) => {
-  for (const [path, tab] of [["/profile", "회사 프로필"], ["/policies", "판정 정책"], ["/quality-gates", "품질 게이트"], ["/metrics", "검증 지표"]] as const) {
+test("공고 판정 네 구역이 각자의 정식 주소로 열리고 목록 60%를 유지한다", async ({ page }) => {
+  for (const [path, tab] of [["/profile", "판정용 프로필 사본"], ["/policies", "판정 정책"], ["/quality-gates", "품질 게이트"], ["/metrics", "회차 검증 지표"]] as const) {
     await open(page, path);
-    await expect(page.getByRole("tab", { name: tab, exact: true })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("navigation", { name: "판정 기준 구역" }).getByRole("link", { name: tab, exact: true })).toHaveAttribute("aria-current", "page");
     await expect(workspace(page)).toBeVisible();
     const ratio = await workspace(page).evaluate((node) => {
-      const queue = node.querySelector(".crit-queue") as HTMLElement | null;
+      const queue = node.querySelector(".review-split-list") as HTMLElement | null;
       return queue ? queue.getBoundingClientRect().width / node.getBoundingClientRect().width : 0;
     });
-    expect(ratio).toBeGreaterThan(0.36);
-    expect(ratio).toBeLessThan(0.4);
+    expect(ratio).toBeCloseTo(0.60, 2);
   }
 });
 
@@ -63,7 +60,8 @@ test("보이지 않는 탭의 조회는 함께 나가지 않는다", async ({ pa
   });
   await open(page, "/profile");
   await expect(workspace(page)).toBeVisible();
-  await expect(page.getByText("사업·기술 역량").first()).toBeVisible();
+  await expect(workspace(page).getByRole("table", { name: "기준 항목", exact: true })
+    .getByRole("row", { name: /사업·기술 역량/ })).toBeVisible();
   // `확인 요청 · 프로필 절 기준` 절은 이 탭에서만 회차 목록·통계를 조회한다
   // (H3, ADR-0066 결정 7·2). 조회가 끝날 때까지 기다린 뒤 요청 목록을 본다.
   await expect(page.locator(".crit-verification-requests")).toContainText("run-0906-a");
@@ -77,22 +75,23 @@ test("보이지 않는 탭의 조회는 함께 나가지 않는다", async ({ pa
   expect(requested.filter((path) => path.startsWith("/api/metrics"))).toHaveLength(0);
 });
 
-test("경계 안내는 이 화면이 정하지 않는 네 판단을 모든 탭에 남긴다", async ({ page }) => {
-  for (const path of ["/criteria", "/profile", "/policies", "/quality-gates", "/metrics"]) {
+test("탭마다 공통 주석을 반복하지 않는다", async ({ page }) => {
+  for (const path of ["/profile", "/policies", "/quality-gates", "/metrics"]) {
     await open(page, path);
-    const boundary = page.locator(".crit-boundary");
-    await expect(boundary).toContainText("적합성 등급");
-    await expect(boundary).toContainText("참여 준비");
-    await expect(boundary).toContainText("추적 선택");
-    await expect(boundary).toContainText("Go/No-Go");
-    await expect(boundary).toContainText("소급해 바꾸지 않아요");
-    await expect(boundary).toContainText("이후 실행에만 적용");
+    await expect(page.locator(".crit-summary")).toBeVisible();
+    await expect(page.locator(".crit-boundary")).toHaveCount(0);
   }
 });
 
-test("탭을 옮겨도 회차와 다른 화면의 선택이 지워지지 않는다", async ({ page }) => {
+test("키보드로 구역을 옮겨도 회차와 다른 화면의 선택이 지워지지 않는다", async ({ page }) => {
   await open(page, "/profile?run=run-0905-a&notice=notice-9");
-  await page.getByRole("tab", { name: "판정 정책", exact: true }).click();
+  const nav = page.getByRole("navigation", { name: "판정 기준 구역" });
+  await nav.getByRole("link", { name: "판정용 프로필 사본", exact: true }).focus();
+  await page.keyboard.press("Tab");
+  const policy = nav.getByRole("link", { name: "판정 정책", exact: true });
+  await expect(policy).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(policy).toHaveAttribute("aria-current", "page");
   await expect.poll(() => new URL(page.url()).pathname).toBe("/policies");
   const params = new URL(page.url()).searchParams;
   expect(params.get("run")).toBe("run-0905-a");
@@ -128,7 +127,7 @@ test("요약의 미확인 항목은 회사 프로필 탭의 미확인 필터를 
   await expect.poll(() => new URL(page.url()).pathname).toBe("/profile");
   expect(new URL(page.url()).searchParams.get("pstatus")).toBe("unknown");
   expect(new URL(page.url()).searchParams.get("run")).toBe("run-0905-a");
-  await expect(page.getByRole("group", { name: "확인 상태 필터" }).getByRole("button", { name: "미확인" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("radiogroup", { name: "확인 상태 필터" }).getByRole("radio", { name: "미확인" })).toBeChecked();
 });
 
 // ── 회사 프로필 ───────────────────────────────────────────────────────
@@ -159,37 +158,64 @@ test("프로필의 불완전한 응답은 상태와 미확인을 0으로 확정�
   await expect(page.locator(".crit-pane-foot")).toContainText("미확인 미확인");
   await expect(page.locator(".crit-pane-foot")).not.toContainText("확정 0");
   // 절 트리가 파싱 실패를 말하면 미확인 "0건"은 아는 0이 아니다.
-  await expect(summary(page).getByRole("button", { name: "미확인 항목 · 확인 불가" })).toBeVisible();
+  await expect(summary(page)).toContainText("미확인 항목 · 확인 불가");
+  await expect(summary(page).getByRole("button", { name: /미확인 항목/ })).toHaveCount(0);
   await expect(summary(page)).not.toContainText(/미확인 항목 0(?:\D|$)/);
   await expect(page.locator(".crit-detail").getByRole("alert")).toContainText("프로필 응답 확인 필요");
-  await expect(page.locator(".crit-pane-head")).toContainText("건수 미확인");
+  await expect(workspace(page).locator(".workbench-admin-list-head")).toContainText("건수 미확인");
   await expect(page.locator(".crit-detail")).not.toContainText("승인된 사본에 표시할 절이 없어요");
   await expect(page.locator(".crit-detail").getByRole("button", { name: "다시 조회" })).toBeVisible();
 });
 
 test("프로필 읽기 실패는 빈 정상 상태가 아니라 오류 상태로 표시한다", async ({ page }) => {
   await open(page, "/profile", { profile: "read-error" });
-  await expect(page.getByRole("alert")).toContainText("회사 프로필을 불러오지 못했어요");
-  await expect(page.getByRole("alert")).toContainText("0건이나 정상 상태로 표시하지 않아요");
+  await expect(page.getByRole("alert")).toContainText("판정용 프로필 사본을 불러오지 못했어요");
+  await expect(page.getByRole("alert")).toContainText("구조화 항목과 미확인 건수를 조회할 수 없어요");
+});
+
+test("사본 목록이 비어 있을 때만 미등록을 표시하고 재조회한다", async ({ page }) => {
+  await mockApi(page);
+  await mockCriteria(page);
+  let registered = false;
+  await page.route("**/api/profile/*", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/profile/snapshots") {
+      await route.fulfill({ json: registered
+        ? { items: [{ version: "registered-test-snapshot" }], total: 1 }
+        : { items: [], total: 0 } });
+    } else {
+      await route.fulfill({ status: 503, json: { detail: "profile_snapshot_unavailable" } });
+    }
+  });
+  await page.goto("/profile");
+  await expect(page.getByRole("heading", { name: "승인된 판정용 프로필 사본이 없어요" })).toBeVisible();
+  await expect(summary(page)).toContainText("승인 사본 미등록");
+  await expect(summary(page).getByRole("button", { name: /미확인 항목/ })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: /확인 요청/ })).toHaveCount(0);
+
+  registered = true;
+  await page.getByRole("button", { name: "등록 상태 다시 확인" }).click();
+  await expect(page.getByRole("alert")).toContainText("판정용 프로필 사본을 불러오지 못했어요");
+  await expect(summary(page)).not.toContainText("승인 사본 미등록");
 });
 
 test("검색과 상태 필터는 실제 필드에 작동하고 주소에 남는다", async ({ page }) => {
   await open(page, "/profile");
   await page.getByRole("textbox", { name: "프로필 항목 검색" }).fill("블록체인");
   await expect.poll(() => new URL(page.url()).searchParams.get("pq")).toBe("블록체인");
-  await expect(page.locator(".crit-queue-scroll .crit-record")).toHaveCount(1);
-  await expect(page.locator(".crit-queue-scroll")).toContainText("사업·기술 역량");
+  await expect(page.locator(".workbench-admin-table tbody > tr")).toHaveCount(1);
+  await expect(page.locator(".workbench-admin-table")).toContainText("사업·기술 역량");
 
   await page.getByRole("textbox", { name: "프로필 항목 검색" }).fill("존재하지 않는 항목");
-  await expect(page.locator(".crit-queue-scroll")).toContainText("검색·필터 조건에 맞는 절이 없어요");
+  await expect(page.locator(".workbench-admin-table")).toContainText("검색·필터 조건에 맞는 절이 없어요");
   await expect(page.locator(".crit-detail")).toContainText("조건에 맞는 절이 없어요");
 });
 
 test("미확인 필터는 미확인 항목이 있는 절만 남긴다", async ({ page }) => {
   await open(page, "/profile?pstatus=unknown");
-  const records = page.locator(".crit-queue-scroll .crit-record");
+  const records = page.locator(".workbench-admin-table tbody > tr");
   await expect(records).toHaveCount(3);
-  await expect(page.locator(".crit-queue-scroll")).not.toContainText("기본 정보");
+  await expect(page.locator(".workbench-admin-table")).not.toContainText("기본 정보");
 });
 
 test("사본 정보 창은 버전·해시·읽기 전용을 보여 주고 편집 진입점을 두지 않는다", async ({ page }) => {
@@ -355,7 +381,7 @@ test("정책 내용은 본문 키를 그대로 보여 주고 업무 의미로 �
 
 test("모델 비교 게이트는 운영 활성화에 쓸 수 없다고 목록과 상세가 함께 말한다", async ({ page }) => {
   await open(page, "/quality-gates?gate=gate-model-comparison");
-  await expect(page.locator(".crit-queue-scroll")).toContainText("운영 활성화에 사용 불가");
+  await expect(page.locator(".workbench-admin-table")).toContainText("운영 활성화에 사용 불가");
   await expect(page.locator(".crit-detail-scroll").getByRole("alert")).toContainText("모델 비교 결과는 운영 활성화에 사용할 수 없어요");
   await expect(detailFooter(page)).toContainText("운영 활성화에 연결 불가");
 });
@@ -381,7 +407,7 @@ test("게이트 상세 조회 실패는 게이트 없음으로 접히지 않는�
   await expect(alert).toContainText("선택한 게이트의 상세를 불러오지 못했어요");
   await expect(alert).toContainText("선택한 게이트가 없어진 것이 아니라");
   // 목록은 그대로 남는다.
-  await expect(page.locator(".crit-queue-scroll .crit-record")).toHaveCount(4);
+  await expect(page.locator(".workbench-admin-table tbody > tr")).toHaveCount(4);
 });
 
 test("고정 입력과 계산 이력은 수정본을 덮지 않고 모두 남긴다", async ({ page }) => {
@@ -480,7 +506,6 @@ test("계산 불가와 값 미확인을 0%로 바꾸지 않는다", async ({ pag
   await open(page, "/metrics?metric=human_agreement_rate");
   const detail = page.locator(".crit-detail-scroll");
   await expect(detail).toContainText("계산 불가");
-  await expect(detail).toContainText("0%로 표시하지 않아요");
   await expect(detail).toContainText("담당자 리뷰가 기준 수에 미치지 못해");
   await expect(page.locator(".crit-stat-line")).not.toContainText("0.0%");
 });
@@ -503,7 +528,7 @@ test("회차 선택기는 run 파라미터만 바꾸고 다른 쿼리를 지우�
 
 test("지표 목록은 서버가 준 key·label·상태를 그대로 쓴다", async ({ page }) => {
   await open(page, "/metrics");
-  const queue = page.locator(".crit-queue-scroll");
+  const queue = page.locator(".workbench-admin-table");
   await expect(queue).toContainText("근거 연결률");
   await expect(queue).toContainText("감사 표본 누락률");
   await expect(queue).toContainText("기준 · 95% 이상");
@@ -513,67 +538,30 @@ test("지표 목록은 서버가 준 key·label·상태를 그대로 쓴다", as
 
 // ── 폭·긴 제목 ────────────────────────────────────────────────────────
 
-/**
- * 승인 시안을 실제로 렌더해 잰 값이다(부모가 잰 `reference-geometry.json`).
- * 요약 줄 49 = 내용 32 + 위아래 패딩 16 + 테두리 1, 하단 액션 57 = 32 + 24 + 1,
- * 탭 37(Astryx 밑줄, 2026-11-18부터 공용 36), 요약 줄과 작업 영역 사이 이음매 0,
- * 하단 단추는 sm 12px(2026-11-18 결정 4).
- */
-for (const width of [1280, 1440]) {
-  test(`시안 실측 치수를 ${width}px에서 유지한다`, async ({ page }) => {
-    await page.setViewportSize({ width, height: width === 1280 ? 800 : 900 });
-    await open(page, "/policies");
-    await expect(page.locator(".crit-record-title").first()).toBeVisible();
-    const geometry = await page.evaluate(() => {
-      const box = (selector: string) => document.querySelector(selector)?.getBoundingClientRect() ?? null;
-      const strip = box(".crit-summary");
-      const work = box(".crit-workspace");
-      const button = document.querySelector(".crit-detail-foot .astryx-button");
-      const boundaryNode = document.querySelector(".crit-boundary") as HTMLElement | null;
-      const boundaryStyle = boundaryNode ? window.getComputedStyle(boundaryNode) : null;
-      return {
-        tabs: Math.round(box('.crit-tabs [role="tablist"]')?.height ?? 0),
-        strip: Math.round(strip?.height ?? 0),
-        footer: Math.round(box(".crit-detail-foot")?.height ?? 0),
-        seam: Math.round((work?.top ?? 0) - (strip?.bottom ?? 0)),
-        workspaceBottom: Math.round(work?.bottom ?? 0),
-        boundaryFont: boundaryStyle?.fontSize ?? "",
-        // 한 줄인가. 문단 높이를 줄 높이로 나눠 본다.
-        boundaryLines: boundaryNode && boundaryStyle
-          ? Math.round((boundaryNode.clientHeight - parseFloat(boundaryStyle.paddingTop) - parseFloat(boundaryStyle.paddingBottom)) / parseFloat(boundaryStyle.lineHeight))
-          : 0,
-        buttonFont: button ? window.getComputedStyle(button).fontSize : "",
-        listTitleFont: window.getComputedStyle(document.querySelector(".crit-record-title") as Element).fontSize,
-        listTitleWeight: window.getComputedStyle(document.querySelector(".crit-record-title") as Element).fontWeight,
-        detailTitleFont: window.getComputedStyle(document.querySelector(".crit-detail-head h2") as Element).fontSize,
-      };
-    });
-    // 2026-11-20 4차(ADR-0076 결정 11): 패널 본문은 k 단(본문 16·보조 14·구역 18·상세 22, 단추 44)이다. 요약 줄은 채움 블록이고 작업 영역과 8px 띄운다(옛 seam 0을 대신한다).
-    expect(geometry.seam).toBe(8);
-    // 2026-11-20 4차(ADR-0076 결정 11): 요약 줄은 44px 단추를 품는 채움 블록(60), 상세 바닥은 44px 단추 + 위아래 8(60)이다.
-    expect(geometry.strip).toBeCloseTo(60, 0);
-    expect(geometry.footer).toBeCloseTo(61, 0);
-    // 탭 줄은 패널 헤더의 둥근 칸 탭 한 줄(40px)이다(2026-11-19 ADR-0076, 2026-11-18 결정 3의 36px를 대신한다).
-    expect(geometry.tabs).toBeCloseTo(40, 0);
-    // 하단 단추는 Astryx size="sm"이고 sm 단추는 앱 전체에서 12px 한 벌이다(2026-11-18 결정 4).
-    expect(geometry.buttonFont).toBe("14px");
-    expect(geometry.listTitleFont).toBe("16px");
-    expect(geometry.listTitleWeight).toBe("600");
-    // 상세 머리 제목은 상세 단(20px)이다(2026-11-18 결정).
-    expect(geometry.detailTitleFont).toBe("22px");
-    // 각주는 두 폭 모두 한 줄이다. 두 줄이 되면 작업 영역이 그만큼 짧아진다.
-    expect(geometry.boundaryLines).toBe(1);
-    expect(geometry.boundaryFont).toBe("14px");
-    // The shell fills the viewport and keeps the reference bottom inset (37px,
-    // rendered 1:1 since the ×0.9 compact scale was removed on 2026-11-18).
-    const viewportHeight = width === 1280 ? 800 : 900;
-    // 2026-11-19 최종 시안 셸: 흰 패널의 바깥 여백 8 + 테두리 1, 캔버스 하단 여백 32px이 모든 화면에 같다.
-    // 판정 기준·실행 상태는 캔버스 바닥 여백이 16px이다(작업 영역에 높이를 돌려준다).
-    expect(geometry.workspaceBottom).toBeCloseTo(viewportHeight - physical(37) - 8 - 1 - 16, 0);
+for (const width of [1280, 1440, 1920]) {
+  test(`판정 기준의 요약, 작업면과 결정 띠가 ${width}px에서 이어진다`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 1280 ? 800 : width === 1440 ? 900 : 1080 });
+    await open(page, `/policies?policy=${POLICY_CANDIDATE}`);
+    const title = workspace(page).locator('[aria-current="true"] .record-table-title');
+    await expect(title).toBeVisible();
+    await expect(title).toHaveCSS("font-size", "14px");
+    await expect(title).toHaveCSS("font-weight", "700");
+    await expect(page.locator(".crit-detail-head h2")).toHaveCSS("font-size", "22px");
+    const footer = detailFooter(page);
+    await expect(footer.getByRole("button", { name: "정책 활성화 확인" })).toHaveCSS("font-size", "14px");
+    const [stripBox, workspaceBox, footerBox, canvasBox] = await Promise.all([
+      summary(page).boundingBox(),
+      workspace(page).boundingBox(),
+      footer.boundingBox(),
+      page.locator(".page-canvas").boundingBox(),
+    ]);
+    expect(workspaceBox!.y).toBeCloseTo(stripBox!.y + stripBox!.height, 0);
+    expect(footerBox!.y + footerBox!.height).toBeCloseTo(workspaceBox!.y + workspaceBox!.height, 0);
+    expect(workspaceBox!.y + workspaceBox!.height).toBeCloseTo(canvasBox!.y + canvasBox!.height, 0);
   });
 
   test(`하단 액션이 ${width}px에서 스크롤 없이 보이고 화면이 가로로 넘치지 않는다`, async ({ page }) => {
-    await page.setViewportSize({ width, height: width === 1280 ? 800 : 900 });
+    await page.setViewportSize({ width, height: width === 1280 ? 800 : width === 1440 ? 900 : 1080 });
     await open(page, "/policies");
     const footer = detailFooter(page);
     await expect(footer).toBeInViewport();
@@ -693,7 +681,7 @@ test("긴 한글 절 제목에서도 목록과 상세가 가로로 넘치지 않
   await page.setViewportSize({ width: 1280, height: 800 });
   await open(page, "/profile?psection=capability", { longTitle: true });
   await expect(page.locator(".crit-detail-head")).toContainText(LONG_SECTION_TITLE);
-  const overflow = await page.locator(".crit-workspace").evaluate((node) => node.scrollWidth - node.clientWidth);
+  const overflow = await page.locator(".workbench-admin-workspace").evaluate((node) => node.scrollWidth - node.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   await expect(detailFooter(page)).toBeInViewport();
 });

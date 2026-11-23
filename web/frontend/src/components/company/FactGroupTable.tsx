@@ -99,10 +99,12 @@ interface FactGroupTableProps {
   facts: readonly CompanyProfileFact[];
   today: string;
   warningDays: number;
+  selectedKey: string | undefined;
+  onSelect: (key: string) => void;
 }
 
 /** 그룹 표 4열: 항목 · 상태 · 내용 · 항목 키 복사. 영향 공고 열은 판정 결과(RL-03) 전까지 없다. */
-export function FactGroupTable({ caption, facts, today, warningDays }: FactGroupTableProps) {
+export function FactGroupTable({ caption, facts, today, warningDays, selectedKey, onSelect }: FactGroupTableProps) {
   const rows = facts.filter(isDisplayedFact);
   if (rows.length === 0) {
     return <p className="co-empty" role="status">이 항목에 등록된 값이 없어요.</p>;
@@ -123,9 +125,10 @@ export function FactGroupTable({ caption, facts, today, warningDays }: FactGroup
           const origin = factOriginNote(fact);
           const expiry = expiryNote(fact, today, warningDays);
           return (
-            <tr data-fact-key={fact.fact_key} data-fact-status={fact.status} key={fact.fact_key}>
+            <tr data-selected={selectedKey === fact.fact_key} data-fact-key={fact.fact_key} data-fact-status={fact.status} key={fact.fact_key}>
               <th scope="row">
-                <span className="co-row-title">{fact.label}</span>
+                <button className="co-row-title co-select-fact" type="button" aria-pressed={selectedKey === fact.fact_key}
+                  onClick={() => onSelect(fact.fact_key)}>{fact.label}</button>
                 {origin ? <span className="co-row-sub">{origin}</span> : null}
               </th>
               <td><StatusPill status={fact.status} /></td>

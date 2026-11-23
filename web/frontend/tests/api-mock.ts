@@ -5,12 +5,14 @@ import { getVisualResponse } from "./fixtures/visual-api";
 import type {
   BidDeltaDecisionQueueItem, BriefingItemView, BriefingReaction, BriefingView, OpportunityListItem, OpportunitySectionCounts,
   OpportunityRecheckEventView, OpportunityTrackingDecisionItem, OpportunityTrackingStatus,
-  OrderPlanListItem, OrderPlanListScope, OrderPlanScreeningExecutionSummary, OrderPlanScreeningErrorCode,
+  OrderPlanListItem, OrderPlanListResponse, OrderPlanListScope, OrderPlanScreeningExecutionSummary, OrderPlanScreeningErrorCode,
   OrderPlanTracking, OrderPlanBulkPreviewResponse, OrderPlanBulkStartResponse, OrderPlanBulkEndResponse,
   OverviewEnvelope, OverviewRun, PractitionerVerdictView, PreSpecDisplayAssessment, ProposalDraft, ProposalSectionKey, PreSpecListItem, PreSpecOrderPlanCandidatesResponse,
   RunSummary, WorkloadKey, WorkloadResponse,
 } from "../src/lib/types";
 import { searchKey, searchMatches } from "../src/lib/search";
+import { currentKstMonth, isJudgmentFailure, orderPlanUnjudgedKind } from "../src/components/order-plans/orderPlanReviewFacts";
+import { sortByCollectionRank, sortForBrowse, sortForReview } from "./fixtures/order-plan-review-order";
 import { clickReadyUnlinkedPreSpec, decisionQueueItems, opportunityDeepReviews, opportunityTrackingHistory } from "./fixtures/lifecycle-v2";
 import {
   COMPANY_FIXTURES,
@@ -110,11 +112,73 @@ function fixtureActor(headers: Record<string, string>): string {
 function matchesValues(value: string | null, query: string | null): boolean {
   return !query || query.split(",").some((entry) => entry === "missing" ? value === null : value === entry);
 }
+export function orderPlanListFixture(
+  candidates: OrderPlanListItem[],
+  search: URLSearchParams,
+  scope: OrderPlanListScope | null,
+  now = Date.now(),
+): OrderPlanListResponse {
+  const limit = Number(search.get("limit") ?? 100);
+  let offset = Number(search.get("offset") ?? 0);
+  const order = search.get("review_order");
+  const hasJudgments = scope?.mode === "run" || Boolean(scope?.policy_versions.length);
+  const relevant = (item: OrderPlanListItem) => item.qwen_relevance === "relevant" && item.tracking?.tracking_status === "미선택";
+  const uncertain = (item: OrderPlanListItem) => item.qwen_relevance === "uncertain" && item.tracking?.tracking_status === "미선택";
+  const unjudged = (item: OrderPlanListItem) => orderPlanUnjudgedKind(item) !== null;
+  const viewCounts = { relevant: candidates.filter(relevant).length, uncertain: candidates.filter(uncertain).length,
+    unjudged: candidates.filter(unjudged).length, all: candidates.length };
+  const locate = search.has("locate") ? Number(search.get("locate")) : null;
+  const retain = search.has("retain") ? Number(search.get("retain")) : null;
+  const query = search.get("q");
+  const feedbackPresent = search.get("feedback_present");
+  let rows = candidates.filter(item =>
+    (order && item.order_plan_pk === retain) || (
+      matchesValues(item.stage1_status, search.get("stage1_status"))
+      && matchesValues(item.stage2_status, search.get("stage2_status"))
+      && matchesValues(item.qwen_relevance, search.get("qwen_relevance"))
+      && matchesValues(item.human_feedback?.relevance ?? null, search.get("human_relevance"))
+      && (!search.get("tracking_status") || ((order || item.tracking !== null)
+        && matchesValues(item.tracking?.tracking_status ?? null, search.get("tracking_status"))))
+      && (feedbackPresent === null || Boolean(item.human_feedback) === (feedbackPresent === "true"))
+      && (search.get("issue") !== "true" || isJudgmentFailure(item))
+      && (search.get("unjudged") !== "true" || unjudged(item))
+      && (!searchKey(query) || searchMatches(query!, item.title, item.agency_name, item.order_plan_unty_no))
+      && (order !== "default" || !hasJudgments || relevant(item))
+    ));
+  const targetFound = locate === null ? null : candidates.some(item => item.order_plan_pk === locate);
+  const targetFiltersCleared = targetFound === true && !rows.some(item => item.order_plan_pk === locate);
+  if (order) {
+    const relevance = { relevant: 0, uncertain: 1, not_relevant: 2 };
+    const rank = (item: OrderPlanListItem) => item.qwen_relevance === null ? 3 : relevance[item.qwen_relevance];
+    rows = (targetFiltersCleared ? [...candidates] : rows).sort((a, b) =>
+      rank(a) - rank(b) || a.order_plan_pk - b.order_plan_pk);
+    const month = currentKstMonth(now);
+    if (!targetFiltersCleared) {
+      if (order === "relevant" || (order === "default" && hasJudgments)) rows = sortForReview(rows, month);
+      if (order === "uncertain") rows = sortForBrowse(rows, month);
+      if (order === "unjudged") rows = sortByCollectionRank(rows);
+    }
+    if (targetFound) offset = Math.floor(rows.findIndex(item => item.order_plan_pk === locate) / limit) * limit;
+    offset = Math.min(offset, Math.max(0, Math.floor((rows.length - 1) / limit) * limit));
+  }
+  return { schema_version: "order-plan-list-response.v5", producer: "order-plan-review-api",
+    consumer: "order-plan-review-client", scope, items: rows.slice(offset, offset + limit), total: rows.length, limit, offset,
+    ...(order ? { review_page: {
+      view_counts: viewCounts,
+      target_found: targetFound,
+      target_filters_cleared: targetFiltersCleared,
+      previous_pk: rows[offset - 1]?.order_plan_pk ?? null,
+      next_pk: rows[offset + limit]?.order_plan_pk ?? null,
+    } } : {}),
+  };
+}
+
 async function fulfillJson(route: Route, body: unknown, status = 200) {
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }
-async function trackingError(route: Route, code: "actor_name_required" | "opportunity_not_found" | "tracking_status_invalid" | "tracking_reason_required") {
-  await fulfillJson(route, { error: { code, message: "합성 추적 오류", details: null }, request_id: null }, code === "actor_name_required" ? 400 : code === "opportunity_not_found" ? 404 : 422);
+async function trackingError(route: Route, code: "actor_name_required" | "opportunity_not_found" | "tracking_status_invalid" | "tracking_reason_required" | "tracking_start_conflict") {
+  const status = code === "actor_name_required" ? 400 : code === "opportunity_not_found" ? 404 : code === "tracking_start_conflict" ? 409 : 422;
+  await fulfillJson(route, { error: { code, message: "합성 추적 오류", details: null }, request_id: null }, status);
 }
 
 const responses = fixtures as Record<string, unknown>;
@@ -1268,7 +1332,7 @@ export async function mockOpportunity(page: Page): Promise<void> {
 }
 
 export async function mockBidDeltaDecisionQueue(page: Page, items: BidDeltaDecisionQueueItem[] = decisionQueueItems): Promise<void> {
-  const pending = () => items.filter((item) => item.bid_notice_external_id !== null && (item.latest_final_decision === null || item.decision_currentness === "stale"));
+  const pending = () => items.filter((item) => item.bid_notice_external_id !== null && (item.latest_final_decision === null || item.decision_currentness !== "current"));
   workloadProvider(page, "bid_final_decision_pending", () => ({ count: pending().length, unavailable_reason: null }));
   await page.route("**/api/bid-delta/decision-queue**", async (route) => {
     const search = new URL(route.request().url()).searchParams;
@@ -3289,12 +3353,36 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
       }); return;
     }
     if (pathname === "/api/order-plans" && method === "GET") {
-      const items = listItems(search), limit = Number(search.get("limit") ?? 100), offset = Number(search.get("offset") ?? 0);
-      await fulfillJson(route, { schema_version: "order-plan-list-response.v5", producer: "order-plan-review-api", consumer: "order-plan-review-client", scope: scopeFor(search.get("source_run_id")), items: items.slice(offset, offset + limit).map((item) => {
+      const scopeSearch = new URLSearchParams();
+      for (const key of ["source_run_id", "first_observed_from"]) {
+        const value = search.get(key);
+        if (value !== null) scopeSearch.set(key, value);
+      }
+      const candidates = listItems(scopeSearch);
+      const scope = scopeFor(search.get("source_run_id"));
+      let now: number;
+      try {
+        // 검토 정렬의 기준 월은 page.clock이 적용된 브라우저 시각으로 계산한다.
+        now = search.has("review_order") && typeof page.evaluate === "function"
+          ? await page.evaluate(() => Date.now())
+          : Date.now();
+      } catch (error) {
+        if (error instanceof Error) {
+          if (/^page\.evaluate: Test ended\.(?:\r?\n|$)/.test(error.message)) return;
+          if (/^page\.evaluate: Execution context was destroyed, most likely because of a navigation\.?(?:\r?\n|$)/.test(error.message)) {
+            // 이동 전 요청을 끝내고 새 문서의 목록 요청에서 시각을 다시 읽는다.
+            await route.abort("aborted");
+            return;
+          }
+        }
+        throw error;
+      }
+      const result = orderPlanListFixture(candidates, search, scope, now);
+      await fulfillJson(route, { ...result, items: result.items.map((item) => {
         if (!options.omitTracking) return item;
         const { tracking: _tracking, ...legacy } = item;
         return legacy;
-      }), total: items.length, limit, offset }); return;
+      }) }); return;
     }
     const planMatch = pathname.match(/^\/api\/order-plans\/(\d+)(?:\/(screening-history|screening-feedback))?$/);
     if (planMatch) {
@@ -3327,12 +3415,15 @@ export async function mockOrderPlans(page: Page, scenario: OrderPlanMockScenario
         trace.trackingPatches.push({ opportunityId, body, headers: request.headers() });
         if (!fixtureActor(request.headers())) { await trackingError(route, "actor_name_required"); return; }
         if (!["미선택", "계속 추적", "보류", "종료"].includes(String(body.tracking_status))) { await trackingError(route, "tracking_status_invalid"); return; }
-        if (typeof body.reason !== "string" || !body.reason.trim()) { await trackingError(route, "tracking_reason_required"); return; }
+        const start = body.tracking_status === "계속 추적" && body.reason == null;
+        const reason = typeof body.reason === "string" ? body.reason.trim() : null;
+        if (!start && !reason) { await trackingError(route, "tracking_reason_required"); return; }
+        if (start && projection.tracking_status !== "미선택") { await trackingError(route, "tracking_start_conflict"); return; }
         const status = body.tracking_status as OpportunityTrackingStatus, claimedName = fixtureActor(request.headers()), decidedAt = "2026-09-02T01:00:00Z";
         const decisions = trackingDecisions.get(orderPlanPk) ?? [];
-        decisions.unshift({ decided_at: decidedAt, tracking_status: status, previous_tracking_status: projection.tracking_status, reason: body.reason, claimed_name: claimedName, audit_event_id: `f2f4d7c1-0a61-4f07-8d2e-${String(decisions.length + 1).padStart(12, "0")}`, cleared_recheck_signal: false });
+        decisions.unshift({ decided_at: decidedAt, tracking_status: status, previous_tracking_status: projection.tracking_status, reason, claimed_name: claimedName, audit_event_id: `f2f4d7c1-0a61-4f07-8d2e-${String(decisions.length + 1).padStart(12, "0")}`, cleared_recheck_signal: false });
         trackingDecisions.set(orderPlanPk, decisions);
-        const saved: OrderPlanTracking = { opportunity_id: opportunityId, tracking_status: status, tracking_reason: status === "미선택" ? null : body.reason, tracking_selected_by: status === "미선택" ? null : claimedName, tracking_selected_at: status === "미선택" ? null : decidedAt };
+        const saved: OrderPlanTracking = { opportunity_id: opportunityId, tracking_status: status, tracking_reason: status === "미선택" ? null : reason, tracking_selected_by: status === "미선택" ? null : claimedName, tracking_selected_at: status === "미선택" ? null : decidedAt };
         trackingState.set(orderPlanPk, saved);
         const shared = sharedOpportunities?.find((item) => item.id === opportunityId);
         if (shared) {
@@ -3662,13 +3753,12 @@ export async function mockOrderPlanBulkTracking(
       }
       if (
         scenario === "validation-error"
-        || !hasBulkKeys(body, ["schema_version", "request_id", "order_plan_ids", "reason"])
+        || !hasBulkKeys({ ...body, reason: body.reason ?? null }, ["schema_version", "request_id", "order_plan_ids", "reason"])
         || body.schema_version !== "order-plan-bulk-start-request.v1"
         || !requestId
         || !uuidPattern.test(requestId)
         || !validBulkIdList(body.order_plan_ids)
-        || typeof body.reason !== "string"
-        || !body.reason.trim()
+        || (body.reason != null && (typeof body.reason !== "string" || !body.reason.trim()))
       ) {
         await fulfillJson(route, {
           detail: [{ type: "uuid_parsing", loc: ["body", "request_id"], msg: "invalid", input: requestId }],
@@ -3676,7 +3766,7 @@ export async function mockOrderPlanBulkTracking(
         return;
       }
       const ids = bulkMockIds(body.order_plan_ids);
-      const fingerprint = JSON.stringify({ body, actor: fixtureActor(headers) });
+      const fingerprint = JSON.stringify({ body: { ...body, reason: body.reason ?? null }, actor: fixtureActor(headers) });
       const previous = receipts.get(requestId);
       if (previous) {
         if (previous.fingerprint !== fingerprint) {

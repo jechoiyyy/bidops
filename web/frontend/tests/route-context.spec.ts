@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { mockApi, visualPreSpecNotice } from "./api-mock";
 import routeFixtures from "./fixtures/api.json" with { type: "json" };
 
-const routeNotice29 = (routeFixtures as Record<string, unknown>)["/api/notices/29"];
+const routeNotice29 = routeFixtures["/api/notices/29"];
 
 const RUN_ID = "20260817-20260823--20260824T090927.138116Z";
 
@@ -12,10 +12,11 @@ type RouteContextCase = {
   title: string;
   dataScope: "run" | "cumulative";
   runSelectorVisible: boolean;
+  section?: string;
 };
 
 const routeContexts: RouteContextCase[] = [
-  { name: "dashboard", path: `/?run=${RUN_ID}`, title: "대시보드", dataScope: "cumulative", runSelectorVisible: false },
+  { name: "dashboard", path: `/?run=${RUN_ID}`, title: "오늘 할 일", dataScope: "cumulative", runSelectorVisible: false },
   // `/queue`와 `/reviews`는 현재 공고 판정 이력 route metadata를 공유한다.
   // ADR-0046 결정 3의 읽기 전용·회차 선택기·편집 범위 없음 계약을 함께 검증한다.
   { name: "queue list", path: `/queue?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", runSelectorVisible: true },
@@ -24,10 +25,10 @@ const routeContexts: RouteContextCase[] = [
   // 결정 UI가 말한다(사용자 결정 2026-09-08). 같은 metadata를 쓰는 상세
   // (`/opportunities/501`)는 경로 모드지만 상단바에 칩을 두지 않는 것은 같다.
   { name: "opportunities", path: `/opportunities?run=${RUN_ID}`, title: "사업기회", dataScope: "cumulative", runSelectorVisible: false },
-  { name: "opportunity detail", path: `/opportunities/501?run=${RUN_ID}`, title: "사업기회", dataScope: "cumulative", runSelectorVisible: false },
-  { name: "bid delta", path: `/opportunities/501/bid-delta?run=${RUN_ID}`, title: "입찰 변경 비교", dataScope: "cumulative", runSelectorVisible: false },
+  { name: "opportunity detail", path: `/opportunities/501?run=${RUN_ID}`, title: "사업기회 #501", dataScope: "cumulative", runSelectorVisible: false },
+  { name: "bid delta", path: `/opportunities/501/bid-delta?run=${RUN_ID}`, title: "입찰 참여 결정", dataScope: "cumulative", runSelectorVisible: false },
   { name: "pre-specs", path: `/pre-specs?run=${RUN_ID}`, title: "사전규격", dataScope: "cumulative", runSelectorVisible: false },
-  { name: "pre-spec detail", path: `/pre-specs/991?run=${RUN_ID}`, title: "사전규격", dataScope: "cumulative", runSelectorVisible: false },
+  { name: "pre-spec detail", path: `/pre-specs/991?run=${RUN_ID}`, title: visualPreSpecNotice.title, dataScope: "cumulative", runSelectorVisible: false },
   // 공고 판정 이력·담당자 리뷰 기록은 검토 대기열의 탭으로 흡수됐다(ADR-0041 결정 2).
   // 옛 경로가 리다이렉트가 아니라 각 탭의 정식 주소로 남아 있고, 두 회차 종속
   // 탭은 공고 판정 이력 route metadata를 공유한다.
@@ -37,19 +38,18 @@ const routeContexts: RouteContextCase[] = [
   { name: "reviews", path: `/reviews?run=${RUN_ID}`, title: "공고 판정 이력", dataScope: "run", runSelectorVisible: true },
   // 최종 Go/No-Go는 사이드바 최상위 항목이 됐다(ADR-0041 결정 3).
   { name: "go-no-go", path: `/go-no-go?run=${RUN_ID}`, title: "최종 Go/No-Go", dataScope: "cumulative", runSelectorVisible: false },
-  // 기준 4화면은 판정 기준 한 화면의 탭이다. 넷 다 누적 자료이므로 회차 선택기가
-  // 보이지 않고, 그 사실이 1차 분류(기준과 운영)만 보고 예측된다(PRD §2.1).
-  { name: "criteria", path: `/criteria?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", runSelectorVisible: false },
-  { name: "profile", path: `/profile?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", runSelectorVisible: false },
-  { name: "metrics", path: `/metrics?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", runSelectorVisible: false },
-  { name: "quality gates", path: `/quality-gates?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", runSelectorVisible: false },
-  { name: "policies", path: `/policies?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", runSelectorVisible: false },
-  // 운영 3화면과 산출물 감사 로그는 실행 상태 한 화면의 탭이다.
-  { name: "run-status", path: `/run-status?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", runSelectorVisible: false },
-  { name: "runs", path: `/runs?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", runSelectorVisible: false },
-  { name: "attachments", path: `/attachments?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", runSelectorVisible: false },
-  { name: "operations", path: `/operations?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", runSelectorVisible: false },
-  { name: "audit", path: `/audit?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", runSelectorVisible: false },
+  // 두 관리 화면은 구역과 회차 쿼리를 별도로 유지한다.
+  { name: "criteria", path: `/criteria?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", runSelectorVisible: false, section: "선별 정책" },
+  { name: "order-plan-policies", path: `/order-plan-policies?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", runSelectorVisible: false, section: "선별 정책" },
+  { name: "profile", path: `/profile?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", runSelectorVisible: false, section: "판정용 프로필 사본" },
+  { name: "metrics", path: `/metrics?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", runSelectorVisible: false, section: "회차 검증 지표" },
+  { name: "quality gates", path: `/quality-gates?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", runSelectorVisible: false, section: "품질 게이트" },
+  { name: "policies", path: `/policies?run=${RUN_ID}`, title: "판정 기준", dataScope: "cumulative", runSelectorVisible: false, section: "판정 정책" },
+  { name: "run-status", path: `/run-status?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", runSelectorVisible: false, section: "수집 실행" },
+  { name: "runs", path: `/runs?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", runSelectorVisible: false, section: "수집 실행" },
+  { name: "attachments", path: `/attachments?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", runSelectorVisible: false, section: "첨부 확보" },
+  { name: "operations", path: `/operations?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", runSelectorVisible: false, section: "상시 운영" },
+  { name: "audit", path: `/audit?run=${RUN_ID}`, title: "실행 상태", dataScope: "cumulative", runSelectorVisible: false, section: "산출물 감사 로그" },
 ];
 
 test.beforeEach(async ({ page }) => {
@@ -63,6 +63,12 @@ for (const context of routeContexts) {
     const topbar = page.locator("header.topbar");
     await expect(topbar.locator("h1")).toHaveText(context.title);
     await expect(topbar).toHaveAttribute("data-route-data-scope", context.dataScope);
+
+    if (context.section) {
+      const nav = page.getByRole("navigation", { name: `${context.title} 구역`, exact: true });
+      await expect(nav.locator('a[aria-current="page"]')).toHaveText(context.section);
+      await expect(page).toHaveURL(context.path);
+    }
 
     const runSelector = page.getByLabel("실행 회차", { exact: true });
     if (context.runSelectorVisible) {
@@ -85,7 +91,7 @@ test("직접 진입한 lazy route가 metadata와 실제 화면을 함께 렌더�
   await page.goto(`/opportunities/501?run=${RUN_ID}`);
 
   const topbar = page.locator("header.topbar");
-  await expect(topbar.locator("h1")).toHaveText("사업기회");
+  await expect(topbar.locator("h1")).toHaveText("사업기회 #501");
   await expect(topbar).toHaveAttribute("data-route-data-scope", "cumulative");
   await expect(topbar).toHaveAttribute("data-topbar-mode", "breadcrumb");
   await expect(topbar.locator(".topbar-status")).toHaveCount(0);
@@ -101,9 +107,10 @@ test("SPA 내부 link click으로 lazy route에 들어가도 metadata와 화면�
   const topbar = page.locator("header.topbar");
   // 2026-11-19: 입찰공고 상세에는 판정 대기열(`/queue`·`/reviews`)로 가는 링크·탭이 없다
   // (C-1 공고 판정 미가동, 사전규격 단계 수정안 §3 B). 상세가 그려진 뒤 확인한다.
-  await expect(page.locator(".judgment-page-header")).toBeVisible();
-  await expect(topbar.locator("h1")).toHaveText("입찰공고 상세");
-  await expect(page.locator(".judgment-page-actions").getByRole("link", { name: "검토 대기열" })).toHaveCount(0);
+  await expect(page.locator(".notice-read-detail .workbench-record")).toBeVisible();
+  await expect(topbar.locator(".topbar-location-title")).toHaveText("입찰공고 상세");
+  await expect(topbar.locator("h1")).toHaveText(routeNotice29.title);
+  await expect(page.locator(".notice-read-detail").getByRole("link", { name: "검토 대기열" })).toHaveCount(0);
   await expect(page.getByRole("tab", { name: "검토 대기열" })).toHaveCount(0);
   await expect(page.getByRole("tab", { name: "담당자 리뷰 기록" })).toHaveCount(0);
 
@@ -147,8 +154,8 @@ test("라우트 오류 재시도는 reload 없이 복구한다", async ({ page }
   expect(new URL(page.url()).pathname).toBe("/go-no-go");
 
   // 위치가 바뀌면 경계는 스스로 비워지고 다음 화면이 그대로 열린다.
-  await page.locator("aside.sidebar").getByRole("link", { name: "대시보드", exact: true }).click();
-  await expect(page.locator("header.topbar h1")).toHaveText("대시보드");
+  await page.locator("aside.sidebar").getByRole("link", { name: "오늘 할 일", exact: true }).click();
+  await expect(page.locator("header.topbar h1")).toHaveText("오늘 할 일");
   await expect(page.locator(".lazy-route-error")).toHaveCount(0);
   expect(await page.evaluate(() => (window as unknown as { __reloads: number }).__reloads)).toBe(0);
 });
@@ -174,22 +181,31 @@ test("누적 화면은 회차 API 실패와 무관하게 열린다", async ({ pa
 });
 
 // ── 패널 헤더의 현재 위치 ─────────────────────────────────────────────────────
-// 2026-11-19 패널 헤더(ADR-0076): 옛 경로 줄(`그룹 › 상위 화면 › 화면 이름 › 상세 식별자`)은 없다.
-// 상세 화면은 맨 위 `‹ 상위 화면` 돌아가기 링크 하나, 그 아래 화면 이름·식별자(작은 글자)와 `<h1>` 제목이다.
-// 목록·대시보드처럼 돌아갈 곳이 없는 화면은 링크 없이 제목만 둔다. `<h1>`은 언제나 하나다.
-
-type HeaderCase = { name: string; path: string; back: string | null; heading: string[] };
+// 위치 줄은 화면명 또는 목록 복귀 링크와 레코드 위치를 표시한다. 상세 본문이
+// 레코드 제목을 제공하면 제목 배치로 이어지고 패널 헤더의 `<h1>`은 하나다.
+type HeaderCase = {
+  name: string;
+  path: string;
+  back: string | null;
+  location: string;
+  notice?: { detail: string; identifier: string };
+};
 
 const headerCases: HeaderCase[] = [
-  { name: "dashboard", path: "/", back: null, heading: ["대시보드"] },
-  { name: "pre-spec detail", path: "/pre-specs/991", back: "사전규격", heading: ["사전규격"] },
-  { name: "opportunity detail", path: "/opportunities/501", back: "사업기회", heading: ["#501"] },
-  // 되돌릴 수 없는 결정 화면은 어느 사업기회의 결정인지 돌아가기 링크와 화면 이름이 남긴다.
-  { name: "bid delta", path: "/opportunities/501/bid-delta", back: "#501", heading: ["입찰 변경 비교"] },
-  { name: "queue detail", path: "/queue/29", back: "공고 판정 이력", heading: ["공고 29"] },
-  { name: "judgments detail", path: "/judgments/29", back: "입찰공고 상세", heading: ["공고 29"] },
-  { name: "criteria", path: "/criteria", back: null, heading: ["판정 기준"] },
-  { name: "run-status", path: "/run-status", back: null, heading: ["실행 상태"] },
+  { name: "dashboard", path: "/", back: null, location: "오늘 할 일" },
+  { name: "pre-spec detail", path: "/pre-specs/991", back: "사전규격", location: "사전규격 #991" },
+  { name: "opportunity detail", path: "/opportunities/501", back: "사업기회", location: "사업기회 #501" },
+  { name: "bid delta", path: "/opportunities/501/bid-delta", back: "#501", location: "입찰 참여 결정" },
+  {
+    name: "queue detail", path: "/queue/29", back: "공고 판정 이력", location: "공고 판정 이력",
+    notice: { detail: ".workbench-record", identifier: ".notice-record-key" },
+  },
+  {
+    name: "judgments detail", path: "/judgments/29", back: "입찰공고 상세", location: "입찰공고 상세",
+    notice: { detail: ".workbench-record", identifier: ".notice-record-key" },
+  },
+  { name: "criteria", path: "/criteria", back: null, location: "판정 기준" },
+  { name: "run-status", path: "/run-status", back: null, location: "실행 상태" },
 ];
 
 for (const context of headerCases) {
@@ -200,7 +216,14 @@ for (const context of headerCases) {
     const back = topbar.getByRole("navigation", { name: "현재 위치" }).getByRole("link");
     if (context.back === null) await expect(back).toHaveCount(0);
     else await expect(back).toHaveText(context.back);
-    for (const text of context.heading) await expect(topbar.locator(".topbar-heading")).toContainText(text);
+    await expect(topbar.locator(".topbar-main .topbar-location-title")).toHaveText(context.location);
+    if (context.notice) {
+      const detail = page.locator(context.notice.detail);
+      await expect(topbar.getByRole("heading", { name: routeNotice29.title, exact: true })).toBeVisible();
+      await expect(detail.locator(context.notice.identifier)).toHaveText(routeNotice29.notice_key);
+      await expect.poll(() => new URL(page.url()).pathname).toBe(context.path);
+      await expect.poll(() => new URL(page.url()).searchParams.get("run")).toBe(routeNotice29.run_id);
+    }
     // 제목은 하나만 `<h1>`이다. 제목을 두 번 쓰지 않는다.
     await expect(topbar.locator("h1")).toHaveCount(1);
   });
@@ -428,9 +451,9 @@ test("PN-06 빠른 A→B 전환에서 늦은 A 응답이 B record를 덮지 않�
   await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs/992");
   await expect(page.getByRole("heading", { name: "두 번째 사전규격 상세" })).toBeVisible();
   // 2026-11-21: 기관명 강조 블록은 없어졌다. 기관은 패널 헤더 작은 줄(eyebrow)이 한 번 말하고,
-  // 식별 줄의 공고기관은 수요기관과 다를 때만 나온다(같은 값은 반복하지 않는다).
+  // 정보 열의 공고기관은 수요기관과 다를 때만 나온다(같은 값은 반복하지 않는다).
   await expect(page.getByTestId("page-header-eyebrow")).toHaveText("사전규격 · 두 번째 발주기관");
-  await expect(page.locator(".ps-record-agency")).toHaveCount(0);
+  await expect(page.locator("#ps-summary dt").filter({ hasText: /^공고기관$/ })).toHaveCount(0);
   await expect(page.getByText("PRE-992")).toBeVisible();
 
   // The old request is resolved only after the new record is mounted. Its
@@ -440,7 +463,7 @@ test("PN-06 빠른 A→B 전환에서 늦은 A 응답이 B record를 덮지 않�
   await expect(page.getByRole("heading", { name: "안전한 문서 준비 사전규격" })).toHaveCount(0);
 });
 
-test("PN-06 record key가 문서 패널 상태를 초기화하고 guard 취소는 A를 보존한다", async ({ page }) => {
+test("PN-06 record key가 문서 패널 상태를 다음 항목의 기본값으로 초기화한다", async ({ page }) => {
   await seedPreSpecReview(page);
   await mockSecondPreSpecNotice(page);
   await page.goto(`/pre-specs/991?${PN_REVIEW.listSearch}&selection_review=${PN_REVIEW_ID}`);
@@ -453,26 +476,13 @@ test("PN-06 record key가 문서 패널 상태를 초기화하고 guard 취소�
   const navigation = page.getByRole("navigation", { name: "사전규격 선택 순회" });
   await navigation.getByRole("button", { name: "다음 선택 사전규격" }).click();
   await expect(page.getByRole("heading", { name: "두 번째 사전규격 상세" })).toBeVisible();
-  // B's keyed body uses its own default (no stale closed override from A).
+  // 두 번째 항목은 첫 항목에서 닫은 상태를 이어받지 않는다.
   await expect(page.getByRole("button", { name: "문서 준비 닫기", exact: true })).toBeVisible();
-
-  // 992 has a mutable tracking form. Moving back while it is dirty opens the
-  // existing child SPA guard; cancelling leaves B, its values, and context.
-  const reason = page.getByRole("combobox", { name: "선택 사유" });
-  await reason.click();
-  await page.getByRole("option", { name: "후속 입찰공고 확인" }).click();
-  // 2026-11-21: 담당자 입력 칸은 하단 띠에 없다(사이드바 칸 하나). 보호 대상은 띠의 사유 입력이다.
-  await expect(page.getByRole("textbox", { name: "담당자 이름 (필수)" })).toHaveCount(0);
-  await navigation.getByRole("button", { name: "이전 선택 사전규격" }).click();
-
-  const guard = page.getByRole("alertdialog");
-  await expect(guard).toBeVisible();
-  await expect(guard).toContainText("저장하지 않은 추적 결정 사유와 담당자 이름이 있어요.");
-  await guard.getByRole("button", { name: "계속 편집", exact: true }).click();
-  await expect(guard).toHaveCount(0);
   await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs/992");
-  await expect(reason).toContainText("후속 입찰공고 확인");
   await expect(navigation.locator("strong")).toHaveText("2 / 2");
+  await expect(page.locator("#page-footer").getByRole("textbox", { name: "담당자 이름 (필수)" })).toHaveCount(0);
+  // 분석 전 상세는 사유 없이 추적을 시작한다. 사유가 있는 화면의 SPA 이탈 취소와
+  // 초안 보존은 company-review.spec.ts의 T4 보고서 추적 결정 검사에서 확인한다.
 });
 
 // 설계고도화안 C-5: `run` 없이 연 공고 상세(사업기회 레코드·추적 흐름의 링크)는 그 공고 상세가 알려 준
@@ -488,7 +498,7 @@ test("run 없이 연 공고 상세는 자기 회차를 쓰고 목록에 없어�
     ...(routeNotice29 as Record<string, unknown>), id: 777, run_id: OTHER_RUN, title: "기본 회차 목록에 없는 합성 공고",
   } }));
   await page.goto("/judgments/777");
-  await expect(page.locator(".judgment-page h2")).toHaveText("기본 회차 목록에 없는 합성 공고");
+  await expect(page.locator("header.topbar h1")).toHaveText("기본 회차 목록에 없는 합성 공고");
   await expect.poll(() => new URL(page.url()).pathname).toBe("/judgments/777");
   await expect.poll(() => new URL(page.url()).searchParams.get("run")).toBe(OTHER_RUN);
 });

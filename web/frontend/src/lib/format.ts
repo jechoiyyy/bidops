@@ -1,4 +1,4 @@
-import { deadlineLabel, remainingDeadlineDays } from "./deadline";
+import { deadlineLabel, formatCompactPrice, remainingDeadlineDays } from "./deadline";
 export function present(value: unknown, fallback = "값 없음"): string {
   if (value === null || value === undefined) return fallback;
   if (typeof value === "string" && value.trim() === "") return fallback;
@@ -40,7 +40,7 @@ function currentKstYear(): number {
 }
 
 /** {@link formatRunRangeShort}가 받는 최소 모양. `RunSummary`를 그대로 넘길 수 있다. */
-export interface RunRangeShortInput {
+interface RunRangeShortInput {
   run_id: string;
   window_from: string | null;
   window_to: string | null;
@@ -125,6 +125,12 @@ export function formatPrice(value: number | null | undefined): string {
   return `${formatNumber(value)}원`;
 }
 
+/** Keep exact won amounts through the width of "999,999,999원" in a record table. */
+export function formatListPrice(value: number) {
+  const exact = formatPrice(value);
+  return { exact, label: exact.length > "999,999,999원".length ? formatCompactPrice(value) : exact };
+}
+
 export function formatDate(value: string | null | undefined): string {
   if (!value) return "일자 미확인";
   const date = new Date(value);
@@ -151,18 +157,6 @@ export function formatTime(value: string | null | undefined): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
-}
-
-// 상단 바의 회차 선택기는 폭이 좁으므로 연도를 한 번만 적는 축약형을 쓴다.
-export function formatRunRangeCompact(
-  runId: string,
-  windowFrom: string | null,
-  windowTo: string | null,
-): string {
-  if (!windowFrom || !windowTo) return present(runId, "회차 미확인");
-  const from = windowFrom.slice(0, 10).replace(/-/g, ".");
-  const to = windowTo.slice(5, 10).replace(/-/g, ".");
-  return `${from}–${to}`;
 }
 
 export function runStatusLabel(status: string): string {

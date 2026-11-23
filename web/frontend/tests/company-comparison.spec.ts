@@ -17,7 +17,7 @@ import {
  * 고정 응답은 `tests/api-mock.ts`의 `mockCompanyWorkspace`이며 실제 백엔드에 연결하지 않는다.
  * 비교 상태는 fixture가 서버 규칙(다른 입력 > 이전 입력 > 결과 없음 > 비교 가능)대로 정해
  * 응답하고, 화면이 그 값을 다시 계산하지 않는다는 것은 "서버 값 그대로" 검사가 모순된 값을 주어 확인한다.
- * 두 폭(1280/1440) 구조 검사는 STEP-005 몫이며 여기는 app 프로젝트(1440x900)의 1440 폭이다.
+ * 두 폭(1280/1440) 구조 검사는 STEP-005 몫이며 여기는 app 프로젝트에서 1440×900을 직접 설정한다.
  */
 
 type Slug = keyof typeof COMPANY_BY_SLUG;
@@ -342,6 +342,7 @@ test("T6: 사전규격 목록·상세의 읽는 중 상태도 완료로 보이�
 
 test("T6: 1440 폭에서 공백 없는 긴 한글 제목·요약·사유·회사 이름이 목록·상세·비교에서 넘치지 않는다", async ({ page }) => {
   await installMocks(page, { longText: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
   expect(page.viewportSize()).toEqual({ width: 1440, height: 900 });
   const company = COMPANY_BY_SLUG["demo-public-si"];
 

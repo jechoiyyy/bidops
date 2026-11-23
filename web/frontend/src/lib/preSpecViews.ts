@@ -10,7 +10,6 @@ import type {
   PreSpecAutoPreparationStatus,
   PreSpecListItem,
   PreSpecDeadlineStatus,
-  PreSpecNextAction,
   PreSpecOverviewView,
   PreSpecOverviewReviewStatus,
   PreSpecSort,
@@ -24,14 +23,14 @@ import type {
 export type WorkspaceKey = PreSpecWorkspace;
 export type ViewKey = PreSpecOverviewView;
 
-export interface WorkspaceDefinition {
+interface WorkspaceDefinition {
   key: WorkspaceKey;
   label: string;
   description: string;
   defaultSort: PreSpecSort;
 }
 
-export interface ViewDefinition {
+interface ViewDefinition {
   key: ViewKey;
   label: string;
   /** `null`이면 전체(상태로 좁히지 않음). */
@@ -116,11 +115,6 @@ export function validDeadlineScope(value: string | null): "current" | "passed" {
 
 export const TRACKING_STATUS_OPTIONS = ["계속 추적", "보류", "종료", "미선택"] as const;
 
-export const PRE_SPEC_NEXT_ACTION_LABEL: Record<PreSpecNextAction, string> = {
-  confirm_overview: PRE_SPEC_TERM.confirmOverview,
-  review_overview: PRE_SPEC_TERM.reviewOverview,
-};
-
 export function workspaceOf(key: WorkspaceKey): WorkspaceDefinition {
   return WORKSPACES.find((workspace) => workspace.key === key) ?? WORKSPACES[0];
 }
@@ -172,18 +166,7 @@ export function validTrackingDecision(value: string | null): "pending" | "" {
   return value === "pending" ? "pending" : "";
 }
 
-/** 추적 결정 대기 — 신규이면서 사람이 아직 고르지 않은 건. `미확인`(null)과
- * 사람이 고른 `미선택`을 모두 대기로 본다 — 둘 다 결정이 남은 상태다. */
-export function matchesTrackingDecision(item: PreSpecListItem, filter: "pending" | ""): boolean {
-  if (!filter) return true;
-  return item.origin === "신규" && (item.tracking_status === null || item.tracking_status === "미선택");
-}
-
-export function validView(value: string | null): ViewKey {
-  return validOverviewView(value);
-}
-
-export function viewOf(key: ViewKey): ViewDefinition {
+function viewOf(key: ViewKey): ViewDefinition {
   return VIEWS.find((view) => view.key === key) ?? VIEWS[0];
 }
 
@@ -191,10 +174,6 @@ export function matchesView(item: PreSpecListItem, key: ViewKey): boolean {
   const statuses = viewOf(key).statuses;
   if (statuses === null) return true;
   return statuses.includes(item.overview_review_status);
-}
-
-export function nextActionLabel(value: PreSpecListItem["next_action"]): string | null {
-  return value ? PRE_SPEC_NEXT_ACTION_LABEL[value] ?? null : null;
 }
 
 /** 목록과 상세에서 같은 서버 값을 같은 문장으로 옮기는 순수 표시 도우미. */
@@ -211,10 +190,10 @@ export function trackingLabel(item: PreSpecListItem): string {
   return item.tracking_status ?? "미확인";
 }
 
-export function overviewTokenColor(status: PreSpecOverviewReviewStatus | null): "red" | "orange" | "default" {
-  if (status === "failed") return "red";
-  if (status === "needs_human_review") return "orange";
-  return "default";
+export function overviewStatusTone(status: PreSpecOverviewReviewStatus | null): "error" | "warning" | "neutral" {
+  if (status === "failed") return "error";
+  if (status === "needs_human_review") return "warning";
+  return "neutral";
 }
 
 export function attachmentAttention(item: PreSpecListItem): string | null {
@@ -239,9 +218,4 @@ export function overviewStatusLabel(status: PreSpecOverviewReviewStatus | null):
 export function originLabel(value: PreSpecListItem["origin"]): string {
   if (value === null) return "구분 미확인";
   return originOf(value) === "추적" ? "발주계획 연계" : "독립 발견";
-}
-
-export function swRowNote(value: string | null): string | null {
-  if (value === "Y") return null;
-  return value === null ? "SW 미확인" : `SW ${value}`;
 }

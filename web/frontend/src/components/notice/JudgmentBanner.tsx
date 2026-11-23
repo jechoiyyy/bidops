@@ -1,6 +1,6 @@
 import type { JudgmentResponse } from "../../lib/types";
-import { formatNumber, present } from "../../lib/format";
-import { gradeRailClass } from "../../lib/grade";
+import { SideFacts } from "../common/Facts";
+import { formatNumber } from "../../lib/format";
 import { TERM_SENSE } from "../../lib/glossary";
 
 interface JudgmentBannerProps {
@@ -30,40 +30,13 @@ export function JudgmentBanner({ judgment }: JudgmentBannerProps) {
   const favourable = favourableCount(judgment);
 
   return (
-    <section className={`judgment-banner ${gradeRailClass(judgment?.grade ?? null)}`} aria-label="판정 요약">
-      <div className="judgment-banner-grade">
-        <span className="judgment-banner-eyebrow">판정 등급</span>
-        <strong>{present(judgment?.grade, "등급 미확인")}</strong>
-        <span className="judgment-banner-perspective mono tabular-nums">
-          {perspectives.length > 0 ? `관점 ${formatNumber(perspectives.length)}개 중 ${formatNumber(favourable)}개 우호` : "관점 평가 없음"}
-        </span>
-      </div>
-
-      <div className="judgment-banner-main">
-        <p className="judgment-banner-summary">{judgment?.summary?.trim() || "종합 권고가 없어요."}</p>
-        <div className="judgment-banner-next">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-            <path d="M5 12h13M13 6l6 6-6 6" />
-          </svg>
-          <span>{TERM_SENSE.nextActionGuide}</span>
-          <strong>{judgment?.next_action?.trim() || `${TERM_SENSE.nextActionGuide} 미확인`}</strong>
-        </div>
-      </div>
-
-      <dl className="judgment-banner-counts">
-        <div>
-          <dt>확인 항목</dt>
-          <dd className="mono tabular-nums">{formatNumber(verificationItems.length)}</dd>
-        </div>
-        <div className={blockingCount > 0 ? "is-blocking" : ""}>
-          <dt>차단 항목</dt>
-          <dd className="mono tabular-nums">{formatNumber(blockingCount)}</dd>
-        </div>
-        <div>
-          <dt>반론</dt>
-          <dd className="mono tabular-nums">{formatNumber(counterCount)}</dd>
-        </div>
-      </dl>
-    </section>
+    <SideFacts items={[
+      { label: "종합 권고", value: judgment?.summary?.trim() || "종합 권고가 없어요." },
+      { label: TERM_SENSE.nextActionGuide, value: judgment?.next_action?.trim() || `${TERM_SENSE.nextActionGuide} 미확인` },
+      { label: "관점 평가", value: perspectives.length > 0 ? `관점 ${formatNumber(perspectives.length)}개 중 ${formatNumber(favourable)}개 우호` : "관점 평가 없음" },
+      { label: "확인 항목", value: formatNumber(verificationItems.length) },
+      { label: "차단 항목", value: formatNumber(blockingCount) },
+      { label: "반론", value: formatNumber(counterCount) },
+    ]} />
   );
 }

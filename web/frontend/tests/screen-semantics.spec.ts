@@ -81,7 +81,7 @@ test("대시보드 건수 띠는 묶음마다 한 줄이고 이름이 잘리지 
 
 test("흡수한 마감·감사 경로가 기존 쿼리를 보존한다", async ({ page }) => {
   // docs/design/PLAN.md 2단계: 마감 추적은 검토 대기열의 저장된 뷰, 산출물 감사
-  // 로그는 실행 상태의 탭으로 흡수됐다. 리다이렉트가 아니라 각 뷰의 주소이므로
+  // 감사 로그는 실행 상태 구역의 직접 진입 주소이므로
   // 경로가 그대로 남고, 담당자가 들고 온 쿼리를 잃지 않아야 한다.
   await page.goto(`/deadlines?run=${encodeURIComponent(RUN_ID)}&from=dashboard`);
   // 전체 실행에서 400여 개가 동시에 붙으면 기본 5초 안에 이동이 끝나지 않아
@@ -91,12 +91,12 @@ test("흡수한 마감·감사 경로가 기존 쿼리를 보존한다", async (
   expect(params.get("run")).toBe(RUN_ID);
   expect(params.get("from")).toBe("dashboard");
   // `/deadlines` keeps the queue view but uses its shared route metadata, whose
-  // topbar context is the read-only 공고 판정 이력 screen.
-  await expect(page.locator("header.topbar h1")).toHaveText("공고 판정 이력");
+  // location row keeps the screen name after an active notice owns the heading.
+  await expect(page.locator("header.topbar .topbar-location-title")).toHaveText("공고 판정 이력");
 
   await page.goto(`/audit?run=${encodeURIComponent(RUN_ID)}&from=review`);
   await expect(page.locator("header.topbar h1")).toHaveText("실행 상태");
-  await expect(page.getByRole("tab", { name: "산출물 감사 로그", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("navigation", { name: "실행 상태 구역" }).getByRole("link", { name: "산출물 감사 로그", exact: true })).toHaveAttribute("aria-current", "page");
   params = new URL(page.url()).searchParams;
   expect(params.get("run")).toBe(RUN_ID);
   expect(params.get("from")).toBe("review");
@@ -151,8 +151,11 @@ test("프로필 읽기 실패는 빈 정상 상태가 아니라 오류 상태로
   });
 
   await page.goto("/profile");
-  await expect(page.getByText("회사 프로필을 불러오지 못했어요", { exact: true })).toBeVisible();
-  await expect(page.getByText(/^승인된 프로필 사본과 구조화 상태를 확인할 수 없어요\./)).toBeVisible();
+  const error = page.getByRole("alert").filter({ hasText: "판정용 프로필 사본을 불러오지 못했어요" });
+  await expect(error).toBeVisible();
+  await expect(error).toContainText("프로필 사본의 구조화 항목과 미확인 건수를 조회할 수 없어요.");
+  await expect(error.getByRole("button", { name: "다시 조회" })).toBeVisible();
+  await expect(page.getByText("승인된 판정용 프로필 사본이 없어요", { exact: true })).toHaveCount(0);
 });
 
 test("진행 중인 전량 판정은 중복 실행할 수 없다", async ({ page }) => {
@@ -164,7 +167,7 @@ test("진행 중인 전량 판정은 중복 실행할 수 없다", async ({ page
 
 test("정책 활성화는 최신 운영 게이트와 담당자 없이는 열리지 않는다", async ({ page }) => {
   await page.goto(`/policies?policy=${CANDIDATE_POLICY}&ptab=approval`);
-  const activate = page.locator(".crit-detail-foot").getByRole("button", { name: "정책 활성화 확인" });
+  const activate = page.getByRole("group", { name: "결정 영역", exact: true }).getByRole("button", { name: "정책 활성화 확인" });
   await expect(activate).toBeDisabled();
   await page.getByLabel("통과한 최신 운영 evaluation").click();
   await expect(page.getByRole("listbox")).not.toContainText("gate-model-comparison");
@@ -384,11 +387,10 @@ test("자동 심층 검토가 있어도 사업 추적 화면은 미선택을 그
 // 유사 실적은 출처가 둘이며(수집 탐색 신호·판정 검토 결과) 구조가 달라 표를
 // 나눈다 — 비어 있으면 `대조된 실적 없음`이다.
 async function noticeFacts(page: import("@playwright/test").Page): Promise<Record<string, string>> {
-  return page.locator(".notice-facts").evaluate((list) => {
+  return page.locator(".notice-record-facts").evaluate((list) => {
     const entries: Record<string, string> = {};
-    const nodes = [...list.children];
-    for (let index = 0; index + 1 < nodes.length; index += 2) {
-      entries[(nodes[index].textContent ?? "").trim()] = (nodes[index + 1].textContent ?? "").trim();
+    for (const label of list.querySelectorAll("dt")) {
+      entries[(label.textContent ?? "").trim()] = (label.nextElementSibling?.textContent ?? "").trim();
     }
     return entries;
   });
@@ -396,7 +398,7 @@ async function noticeFacts(page: import("@playwright/test").Page): Promise<Recor
 
 test("입찰공고 상세는 예산과 추정가격을 따로 두고 개찰 없음과 대조된 실적 없음을 구분한다", async ({ page }) => {
   await page.goto(`/judgments/29?run=${encodeURIComponent(RUN_ID)}`);
-  await expect(page.locator(".notice-facts")).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator(".notice-record-facts")).toBeVisible({ timeout: 10_000 });
 
   const facts = await noticeFacts(page);
   // 서로 다른 두 값이 각자의 칸에 남는다.
@@ -430,7 +432,7 @@ test("유사 실적은 수집 탐색 신호와 판정 검토 결과를 따로 �
     });
   });
   await page.goto(`/judgments/6?run=${encodeURIComponent(RUN_ID)}`);
-  await expect(page.locator(".notice-facts")).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator(".notice-record-facts")).toBeVisible({ timeout: 10_000 });
 
   const facts = await noticeFacts(page);
   expect(facts["예산 (원문 제공 금액)"]).toBe("409,090,909원");

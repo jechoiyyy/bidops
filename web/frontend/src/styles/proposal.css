@@ -220,20 +220,9 @@
 }
 
 .pp-mark,
-.pp-src,
 .pp-edited {
-  font-family: var(--font-family-body);
-  font-size: var(--bo-type-caption);
-  line-height: 0;
-}
-
-.pp-mark {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-0-5);
   margin-left: var(--spacing-1);
-  color: var(--color-warning);
-  font-weight: 600;
+  font-family: var(--font-family-body);
   vertical-align: middle;
 }
 
@@ -244,14 +233,11 @@
 
 .pp-src {
   margin-left: var(--spacing-0-5);
+  font-family: var(--font-family-body);
+  font-size: var(--bo-type-caption);
+  line-height: 0;
   color: var(--color-accent);
   vertical-align: super;
-}
-
-.pp-edited {
-  margin-left: var(--spacing-1);
-  color: var(--color-text-secondary);
-  vertical-align: middle;
 }
 
 /* 수정 영역 + 출처 */

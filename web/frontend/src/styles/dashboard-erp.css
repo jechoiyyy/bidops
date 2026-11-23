@@ -1,12 +1,4 @@
-/* Source: approved bidops-dashboard-erp-20260908/source/dashboard.css.
- * Prefixes isolate dashboard styles; the app owns the existing sidebar/header.
- * The preview toolbar is omitted. Palette values remain theme-owned.
- *
- * 2026-09-15: 카드 외곽 테두리 → `--shadow-low` 그림자, 카드 안 구분선 →
- * `--color-background-muted` 1px (docs/0915_ui-redesign/spec.md §2.3). 우선 검토
- * KPI 강조는 §2.4. */
-/* 2026-09-17: 보류 재검토 패널(spec §11.2)이 차면 한 화면을 넘을 수 있어 세로만 스크롤한다. */
-/* 캔버스 여백과 상단바 제목은 셸 한 벌을 쓴다(2026-11-18). 가로 넘침만 막는다. */
+/* 건수 띠, 업무 표, 일일 수집과 확인 구역을 셸 패널 한 장에 그린다. */
 .app-shell[data-astryx-theme="bidops"] .page-canvas:has(> .dash-page) { overflow-x: hidden; }
 .dash-header-actions { margin-left: auto; }
 .dash-page { --bo-type-list: var(--bo-type-list-title); --bo-line: var(--border-width); color: var(--color-text-primary); font-size: var(--bo-type-body); line-height: 1.5; }
@@ -17,8 +9,7 @@
 .dash-page .astryx-selector, .dash-page .astryx-field-label { font-size: var(--bo-type-body); }
 :is(.dash-page, .dash-header-actions) svg { width: var(--spacing-4); height: var(--spacing-4); flex-shrink: 0; }
 .dash-page :is(a, button):focus-visible { outline: var(--focus-outline-width) solid var(--color-accent); outline-offset: var(--spacing-0-5); }
-.dash-row, .dash-header-actions { display: flex; align-items: center; gap: var(--spacing-2); min-width: 0; }
-.dash-spread { justify-content: space-between; }
+.dash-header-actions { display: flex; align-items: center; gap: var(--spacing-2); min-width: 0; }
 /* Desktop ERP dashboard. Shell and typography are shared with the approved
  * six-page previews. Dimensions use project or Astryx tokens; color belongs to bidops. */
 .dash-page {
@@ -29,25 +20,27 @@
   min-width: 0;
   gap: var(--spacing-3);
 }
-/* 세 묶음(설계고도화안 C-8): 오늘 결정할 것 · 확인할 것 · 새로 볼 것. 묶음마다 머리 한 줄, 건수 띠,
- * 업무 패널 격자 순서다. 옛 단계 바로가기 네 칸(01~04)의 건수는 이 건수 띠로 옮겼다. */
 .dash-block { display: flex; flex-direction: column; gap: var(--spacing-2); min-width: 0; }
 .dash-block + .dash-block { margin-top: var(--spacing-2); }
 .dash-block-head { display: flex; align-items: baseline; gap: var(--spacing-3); min-width: 0; }
 .dash-page .dash-block-head h2 { font-size: var(--bo-type-list); white-space: nowrap; }
+.dash-block-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-inline-start: auto;
+}
 .dash-count-strip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(calc(var(--spacing-12) * 3), 1fr));
   margin: 0;
   padding: 0;
   list-style: none;
-  border-radius: var(--radius-container);
-  box-shadow: var(--shadow-low);
-  background: var(--color-background-surface);
+  border-block: 1px solid var(--bo-line-soft);
   overflow: hidden;
 }
 .dash-count-item { min-width: 0; }
-.dash-count-item + .dash-count-item { border-left: var(--bo-line) solid var(--color-background-muted); }
+.dash-count-item + .dash-count-item { border-inline-start: 1px solid var(--bo-line-soft); }
 .dash-count-cell {
   display: flex;
   flex-direction: column;
@@ -63,9 +56,6 @@ a.dash-count-cell:hover .dash-count-value { text-decoration: underline; }
 a.dash-count-cell:focus-visible { outline-offset: calc(0 - var(--focus-outline-width)); }
 .dash-page .dash-count-value { font-size: var(--bo-type-list); font-weight: 600; font-variant-numeric: tabular-nums; }
 .dash-count-cell.is-static .dash-count-value { color: var(--color-text-secondary); font-weight: 500; }
-/* 누적 업무 패널 격자(시안 M6). 두 열이고 마지막 패널만 전폭이다. 회차 선택기와
- * 회차 의존 패널 넷이 빠졌으므로 `.dash-run-context`·`.dash-dashboard-grid` 규칙도
- * 함께 없앴다(패널 컴포넌트는 H3가 `/runs`·`/profile`로 옮겼고 T2가 `DashboardPanels.tsx`를 지웠다). */
 .dash-work-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -78,54 +68,54 @@ a.dash-count-cell:focus-visible { outline-offset: calc(0 - var(--focus-outline-w
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  background: var(--color-background-surface);
-  border: 0;
-  border-radius: var(--radius-container);
-  box-shadow: var(--shadow-low);
-  overflow: hidden;
 }
 .dash-panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-2);
-  padding: var(--spacing-1) var(--spacing-4);
-  min-height: var(--spacing-10);
-  border-bottom: var(--bo-line) solid var(--color-background-muted);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-bottom: 1px solid var(--bo-line-soft);
   flex-shrink: 0;
 }
 .dash-page .dash-panel-head h3 { font-size: var(--bo-type-section-title); white-space: nowrap; }
-.dash-panel-head .astryx-selector { width: 120px; }
-.dash-panel-body { flex: 1; overflow-y: auto; min-height: 0; min-width: 0; }
+.dash-panel-body:empty { display: none; }
+.dash-panel-body { flex: 1; min-height: 0; min-width: 0; }
 .dash-panel-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--spacing-1) var(--spacing-2);
   min-height: var(--spacing-8);
-  border-top: var(--bo-line) solid var(--color-background-muted);
-  padding: 0 var(--spacing-4);
-  background: var(--color-background-body);
+  padding-inline: var(--spacing-2);
   flex-shrink: 0;
 }
-.dash-page .astryx-table { width: 100%; }
-.dash-page .astryx-table-header-cell {
-  background: var(--color-background-body);
-  font-size: var(--bo-type-caption);
+.dash-decisions-table .record-table tbody tr { cursor: auto; }
+.dash-decisions-table .record-table-title a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-0-5);
 }
-.dash-page .astryx-table-cell { font-size: var(--bo-type-body); }
-.dash-page .astryx-table-cell:has(.dash-deadline-cell) { vertical-align: top; }
+.dash-decisions-table .record-table-title a:focus-visible {
+  outline-offset: calc(-1 * var(--focus-outline-width));
+}
+.dash-decision-status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+}
+.dash-decision-status[role="alert"] { color: var(--color-error); }
+.dash-decision-scope { overflow-wrap: anywhere; }
 .dash-cell-stack { display: grid; gap: var(--spacing-1); min-width: 0; }
-/* 대시보드 KPI 카드의 강조(우선 검토), spec §2.4. */
-.dash-dashboard-foot { flex-shrink: 0; line-height: 1; }
-.dash-empty-inline { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--spacing-2); text-align: center; min-height: 128px; padding: var(--spacing-5); }
-.dash-run-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--spacing-3); border: 0; border-radius: var(--radius-container); box-shadow: var(--shadow-low); background: var(--color-background-surface); padding: var(--spacing-6); text-align: center; }
-.dash-run-state > svg { width: var(--spacing-6); height: var(--spacing-6); color: var(--color-text-secondary); }
-.dash-run-state > .astryx-button { margin-top: var(--spacing-2); }
 
 .dash-page .dash-panel-foot > .dash-small { min-width: 0; }
 
 /* 누적 업무 패널의 행. 목록은 상위 5건이고 오른쪽 칸은 D-day 또는 표식 하나다. */
-.dash-page .dash-work-panel .dash-panel-body { overflow-x: auto; }
 .dash-work-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .dash-work-item + .dash-work-item { border-top: var(--bo-line) solid var(--color-background-muted); }
 .dash-work-row {
@@ -156,3 +146,57 @@ a.dash-count-cell:focus-visible { outline-offset: calc(0 - var(--focus-outline-w
 .dash-hold-state-error { color: var(--color-error); }
 .dash-hold-state-error > svg { color: var(--color-error); }
 .dash-hold-state > .astryx-button { margin-left: var(--spacing-2); }
+
+.dash-page [data-block="today"] .dash-count-strip {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--spacing-3);
+  border: 0;
+  background: transparent;
+}
+
+.dash-page [data-block="today"] .dash-count-item {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-element);
+  background: var(--color-background-surface);
+  overflow: hidden;
+}
+
+.dash-page [data-block="today"] .dash-count-cell {
+  padding: var(--spacing-4);
+}
+
+.dash-page [data-block="today"] .dash-count-value {
+  color: var(--color-text-accent);
+  font-size: var(--bo-k-display);
+  font-weight: 700;
+}
+
+.dash-page [data-block="check"] .dash-count-item + .dash-count-item {
+  border-inline-start-color: var(--color-background-muted);
+}
+
+.dash-page .daily-collection {
+  border: 0;
+  border-block: 1px solid var(--bo-line-soft);
+  border-radius: 0;
+  padding-inline: 0;
+}
+
+.dash-collection-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2) var(--spacing-5);
+  margin: 0;
+  padding: var(--spacing-2) 0;
+  list-style: none;
+  border-block-end: 1px solid var(--bo-line-soft);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+}
+
+.dash-collection-status li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+}

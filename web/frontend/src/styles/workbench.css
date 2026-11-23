@@ -1,0 +1,636 @@
+/* RecordTable's viewport owns both scroll axes and keeps the column headers in view. */
+.record-table-viewport {
+  container-type: inline-size;
+}
+
+.record-table-viewport > .astryx-table-scroll-wrapper {
+  overflow: visible;
+  margin-inline: 0;
+  padding-inline: 0;
+}
+
+.record-table-viewport .record-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.app-shell .record-table :is(.astryx-table-cell, .astryx-table-header-cell) {
+  padding: var(--spacing-2);
+  border-bottom-color: var(--bo-line-soft);
+  color: var(--color-text-primary);
+  font-size: var(--bo-k-meta);
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.app-shell .record-table :is(.astryx-table-cell, .astryx-table-header-cell):first-child:not(.record-table-check) {
+  padding-inline-start: var(--record-inset, var(--spacing-6));
+}
+
+.app-shell .record-table .astryx-table-header-cell {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-background-muted);
+  font-size: var(--bo-k-meta);
+  font-weight: 400;
+}
+
+.record-table tbody tr {
+  cursor: pointer;
+  scroll-margin-block-start: 40px;
+}
+
+.record-table tbody tr[aria-disabled="true"] {
+  cursor: default;
+}
+
+.record-table tbody tr[aria-current="true"],
+.record-table tbody tr[aria-current="true"] > td {
+  background: var(--color-accent-muted);
+}
+
+.record-table tbody tr[aria-current="true"] > td:first-child {
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}
+
+.record-table tbody tr:focus-visible {
+  position: relative;
+  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
+  outline-offset: calc(-1 * var(--focus-outline-width));
+}
+
+.record-table .record-table-title {
+  display: block;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: var(--bo-k-meta);
+  font-weight: 600;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.record-table [aria-current="true"] .record-table-title {
+  font-weight: 700;
+}
+
+/* Plain value text inherits the cell size, including spans styled by a page's body typography. */
+.record-table .record-table-value > :where(span),
+.record-table .record-table-ellipsis > :where(span) {
+  font-size: inherit;
+}
+
+.record-table .record-table-note {
+  font-size: var(--bo-k-small);
+  color: var(--color-text-secondary);
+  white-space: normal;
+}
+
+.app-shell .record-table .record-table-value {
+  padding-inline: var(--spacing-1);
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.app-shell .record-table .record-table-value .record-table-note {
+  overflow-wrap: anywhere;
+}
+
+.record-table-ellipsis {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.record-table-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-0-5) var(--spacing-1);
+}
+
+.record-table-status .record-table-note {
+  flex-basis: 100%;
+}
+
+.record-table .record-table-subline {
+  display: block;
+}
+
+.app-shell .record-table .record-table-number {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-shell .record-table .record-table-check:first-child {
+  padding-inline: var(--spacing-1);
+  text-align: center;
+}
+
+.record-table-check input {
+  width: var(--record-checkbox-size, var(--spacing-4));
+  height: var(--record-checkbox-size, var(--spacing-4));
+  accent-color: var(--color-accent);
+}
+
+.record-table-check input:focus-visible {
+  outline: var(--focus-outline-width) solid var(--color-accent);
+  outline-offset: var(--spacing-0-5);
+}
+
+.record-table-state {
+  min-height: 100%;
+  display: grid;
+  align-content: center;
+  padding: var(--spacing-4) var(--record-inset, var(--spacing-6));
+}
+
+.workbench-mark {
+  max-width: 100%;
+}
+
+.workbench-admin-workspace .review-split-detail .workbench-mark,
+.workbench-admin-workspace .review-split-detail .workbench-mark > span {
+  font-size: var(--bo-k-small);
+  line-height: 1.5;
+}
+
+.workbench-mark[data-grade-level="1"] { background: var(--bo-grade-1); color: var(--bo-on-grade-1); }
+.workbench-mark[data-grade-level="2"] { background: var(--bo-grade-2); color: var(--bo-on-grade-2); }
+.workbench-mark[data-grade-level="3"] { background: var(--bo-grade-3); color: var(--bo-on-grade-3); }
+.workbench-mark[data-grade-level="4"] { background: var(--bo-grade-4); color: var(--bo-on-grade-4); }
+
+:is(.record-table, .workbench-decision) .workbench-mark,
+:is(.record-table, .workbench-decision) .workbench-mark span {
+  font-size: var(--bo-k-tag);
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.app-shell .record-table .record-table-value .workbench-deadline {
+  font-size: var(--bo-k-meta);
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.record-table .record-table-value :is(.astryx-token, .astryx-token span, .astryx-badge, .astryx-badge span):not(.record-table-status *) {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.record-table .workbench-deadline[data-level="none"] {
+  color: inherit;
+}
+
+.workbench-deadline {
+  font-size: var(--bo-k-tag);
+  font-variant-numeric: tabular-nums;
+  word-break: keep-all;
+}
+
+.workbench-deadline[data-level="urgent"] {
+  color: var(--color-error);
+  font-weight: 700;
+}
+
+.workbench-deadline[data-level="soon"] {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+.workbench-deadline[data-level="none"] {
+  color: var(--color-text-secondary);
+}
+
+.workbench-facts {
+  min-width: 0;
+  margin-block: var(--spacing-3);
+}
+
+.workbench-facts :is(dt, dd) {
+  min-width: 0;
+  margin: 0;
+}
+
+.workbench-facts dt {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+  font-weight: 500;
+}
+
+.workbench-facts dd {
+  font-size: var(--bo-k-lead);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.workbench-facts small {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-tag);
+  font-weight: 400;
+}
+
+.workbench-flow .astryx-step-indicator svg {
+  width: var(--spacing-3-5, 14px);
+  height: var(--spacing-3-5, 14px);
+}
+
+.app-shell .page-canvas[data-canvas="flush"] > .workbench-admin {
+  --shell-list-width: 60%;
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.workbench-section-nav {
+  box-sizing: border-box;
+  display: flex;
+  flex: 0 0 200px;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-height: 0;
+  overflow: auto;
+  padding: var(--spacing-4) var(--spacing-3);
+  border-inline-end: 1px solid var(--color-border);
+}
+
+.workbench-section-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-0-5);
+}
+
+.workbench-section-label {
+  padding: var(--spacing-1) var(--spacing-2);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-small);
+  font-weight: 600;
+}
+
+.workbench-section-nav a {
+  display: flex;
+  align-items: center;
+  min-height: var(--bo-k-control-nav);
+  padding-inline: var(--spacing-2);
+  border-radius: var(--radius-element);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+  text-decoration: none;
+}
+
+.workbench-section-nav a:hover {
+  background: var(--color-background-muted);
+}
+
+.workbench-section-nav a[aria-current="page"] {
+  background: var(--bo-sidebar-active);
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.workbench-section-nav a:focus-visible {
+  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
+  outline-offset: var(--focus-outline-offset);
+}
+
+.workbench-admin-main,
+.workbench-admin-state {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.workbench-admin-summary {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1) var(--spacing-3);
+  min-width: 0;
+  padding: var(--spacing-2) var(--spacing-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* 관리 목록도 제목·건수·조회 도구를 한 줄에 둔다. 검색이 남는 폭을 사용한다. */
+.app-shell .page-canvas[data-canvas="flush"] .workbench-admin-list-head {
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.workbench-admin-list-heading,
+.workbench-admin-list-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+
+.workbench-admin-list-heading {
+  flex: none;
+  color: var(--color-text-primary);
+  font-size: var(--bo-k-meta);
+}
+
+.workbench-admin-list-heading strong {
+  font-weight: 600;
+}
+
+.workbench-admin-list-heading > span {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-small);
+}
+
+.workbench-admin-list-tools {
+  --size-element-sm: var(--bo-k-control-tab);
+  --size-element-md: var(--bo-k-control-tab);
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+
+.workbench-admin-list-tools > :is(.astryx-field, .rs-field) {
+  flex: 0 1 180px;
+  min-width: 0;
+}
+
+.workbench-admin-list-tools .astryx-field {
+  width: 100%;
+  min-width: 0;
+}
+
+.app-shell .page-canvas .workbench-admin .workbench-admin-list-tools :is(.astryx-text-input, .astryx-selector.input, .astryx-button) {
+  min-height: var(--size-element-sm);
+}
+
+.app-shell .page-canvas .workbench-admin .workbench-admin-list-tools .astryx-text-input {
+  height: var(--size-element-sm);
+  padding-inline: var(--spacing-3);
+  border-color: var(--color-border);
+  border-radius: var(--radius-element);
+}
+
+.app-shell .page-canvas .workbench-admin .workbench-admin-list-tools :is(.astryx-text-input input, .astryx-segmented-control-item span) {
+  font-size: var(--bo-k-small);
+}
+
+.workbench-admin-list-tools .astryx-selector > button {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-admin-list-foot {
+  flex: none;
+  padding: var(--spacing-2) var(--spacing-4);
+  border-top: 1px solid var(--color-border);
+  overflow-wrap: anywhere;
+}
+
+.workbench-admin-table .record-table .record-table-note {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-admin-detail-scroll {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--spacing-5);
+  min-height: 0;
+  padding: var(--spacing-4) var(--spacing-5);
+  overflow: auto;
+}
+
+.workbench-admin-detail-scroll > * {
+  flex-shrink: 0;
+}
+
+.workbench-preview-empty {
+  flex: 1 1 auto;
+}
+
+.app-shell .page-canvas .workbench-detail-tabs {
+  flex: 0 0 auto;
+  padding: 0 var(--spacing-8) var(--spacing-2);
+}
+
+.app-shell .page-canvas .workbench-admin-workspace .workbench-detail-tabs {
+  padding-inline: var(--spacing-5);
+}
+
+.workbench-decision {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2) var(--spacing-4);
+  min-height: 64px;
+  padding: var(--spacing-3) var(--record-inset, var(--spacing-6));
+  border-top: 1px solid var(--color-border);
+  background: var(--color-background-surface);
+}
+
+.workbench-decision-content {
+  flex: 1 0 100%;
+  min-width: 0;
+}
+
+.workbench-decision-content:not(:has(> :not(.visually-hidden))) {
+  display: contents;
+}
+
+.workbench-decision-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-1) var(--spacing-3);
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-tag);
+  overflow-wrap: anywhere;
+}
+
+.workbench-decision-status,
+.workbench-decision-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+}
+
+.workbench-decision-actions {
+  justify-content: flex-end;
+  margin-inline-start: auto;
+}
+
+.workbench-decision-status > span:first-child,
+.workbench-decision .workbench-decision-note {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-small);
+}
+
+.workbench-decision .workbench-decision-actions .astryx-button,
+.workbench-decision .workbench-decision-actions .astryx-button span {
+  font-size: var(--bo-k-meta);
+  font-weight: 600;
+}
+
+.workbench-decision-actions .astryx-button.primary,
+.workbench-decision-actions .astryx-button.primary span {
+  font-weight: 700;
+}
+
+.app-shell .page-canvas .workbench-decision .workbench-decision-actions .interaction-control {
+  min-height: var(--spacing-8);
+  padding-inline: var(--spacing-2);
+  border-color: var(--color-border);
+  background: var(--color-background-surface);
+  font-size: var(--bo-k-meta);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.app-shell .page-canvas .workbench-decision .workbench-decision-actions .interaction-control:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-muted);
+}
+
+.app-shell .topbar-tabs .workspace-filters > .workspace-filter-tools:has(.workbench-filter-tokens) {
+  flex: 1 1 400px;
+  flex-wrap: nowrap;
+}
+
+.workbench-filter-tokens {
+  flex: 1 1 0;
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  min-width: 64px;
+  overflow: clip;
+}
+
+.workbench-filter-tokens > .astryx-overflow-list {
+  width: 100%;
+  justify-content: flex-end;
+}
+
+.workbench-filter-token-group {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.workbench-filter-count {
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-small);
+  white-space: nowrap;
+}
+
+.review-list-pager {
+  container-type: inline-size;
+}
+
+.review-list-pager-context,
+.review-list-pager-keys {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  white-space: nowrap;
+}
+
+.review-list-pager-context {
+  gap: var(--spacing-2);
+}
+
+.review-list-pager .review-list-pager-keys,
+.review-list-pager .review-list-pager-keys :is(.astryx-kbd, kbd) {
+  font-size: var(--bo-k-small);
+}
+
+.review-list-pager-range {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+@container (max-width: 540px) {
+  .review-list-pager-keys {
+    display: none;
+  }
+}
+
+/* Reading detail. The shell publishes the width for record routes. */
+.workbench-record {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.workbench-record[data-layout="rail"] {
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--spacing-8);
+  max-width: var(--shell-reading-width, 1040px);
+  margin-inline: auto;
+}
+
+.workbench-record-main,
+.workbench-record-rail,
+.workbench-record-intro,
+.workbench-record-section {
+  display: grid;
+  align-content: start;
+  gap: var(--spacing-3);
+  min-width: 0;
+}
+
+.workbench-record-main,
+.workbench-record-rail {
+  gap: var(--spacing-6);
+}
+
+.workbench-record-rail {
+  padding-inline-start: var(--spacing-6);
+  border-inline-start: 1px solid var(--bo-line-soft);
+}
+
+.workbench-record-section {
+  padding-block-end: var(--spacing-5);
+  border-block-end: 1px solid var(--bo-line-soft);
+}
+
+.workbench-record-section:last-child {
+  padding-block-end: 0;
+  border-block-end: 0;
+}
+
+.workbench-record-section-title {
+  margin: 0;
+  font-size: var(--bo-k-section);
+  font-weight: 700;
+}
+
+.workbench-record-section > .workbench-facts {
+  margin-block: 0;
+}
+
+.page-footer .workbench-record-decision {
+  width: 100%;
+  padding-inline: max(var(--shell-canvas-inline-padding), calc((100% - var(--shell-reading-width)) / 2));
+}
+
+.workbench-record-heading-marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+}

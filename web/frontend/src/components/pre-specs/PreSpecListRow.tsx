@@ -1,147 +1,82 @@
-import { Token } from "@astryxdesign/core/Token";
-import { DenseListRow, type DenseListRowSelection } from "../common/ReviewPrimitives";
-import { preSpecExclusionRecord, PreSpecRowAgency } from "./PreSpecAgency";
-import { describeDeadline, shortDateLabel } from "../../lib/deadline";
+import { DeadlineText, StatusMark } from "../common/Marks";
+import type { RecordTableColumn } from "../common/RecordTable";
+import { PreSpecRowAgency } from "./PreSpecAgency";
+import { describeDeadline, describeDeadlineCountdown, shortDateLabel } from "../../lib/deadline";
 import { formatDateTime } from "../../lib/format";
 import {
   attachmentAttention,
   budgetLabel,
   exactBudget,
-  originLabel,
   overviewStatusLabel,
-  overviewTokenColor,
-  swRowNote,
+  overviewStatusTone,
   titleOf,
   trackingLabel,
 } from "../../lib/preSpecViews";
-import type { KeyboardEventHandler } from "react";
 import type { PreSpecListItem } from "../../lib/types";
-import type { RowKeyboardNavigationRowProps } from "../common/useRowKeyboardNavigation";
 
 export function DeadlineMark({ value }: { value: string | null }) {
   const deadline = describeDeadline(value);
   return (
-    <span aria-label={`D-day: ${deadline.label}`} className={`pre-specs-deadline is-${deadline.urgency} mono tabular-nums`}>
-      {deadline.label}
+    <span aria-label={`D-day: ${deadline.label}`} className="pre-specs-deadline">
+      <DeadlineText text={deadline.label} urgency={deadline.urgency} />
     </span>
   );
 }
 
-/**
- * 목록 행 — 시안의 두 열 구조다.
- *
- * 왼쪽 열은 사업명(16px, 굵게) → 발주기관(16px) → 예산·발견 구분(14px) → 개요 상태와
- * 추적 상태(14px)를 그대로 쌓는다. 행에서 먼저 읽혀야 하는 것은 사업명이므로 시안의
- * 두 줄 차례를 뒤집었다(사용자 정정). 오른쪽 열은 의견등록 마감뿐이며 D-day와 짧은
- * 날짜만 둔다. 정확한 일시·금액과 자동 준비 같은 나머지 사실은 선택한 건의
- * 상세가 보여 준다 — 목록에서 같은 사실을 강한 배지로 반복하지 않는다.
- *
- * 행은 스스로 판정하지 않는다. 서버가 준 상태를 옮길 뿐이고, 사업명을 눌러도
- * 목록을 떠나지 않고 오른쪽 상세만 바뀐다(상세 화면 진입은 상세 pane 바닥의
- * `상세 검토 열기`가 소유한다).
- */
-export function PreSpecRow({
-  item,
-  isSelected,
-  hideUntracked = false,
-  onSelect,
-  selection,
-  ...rowProps
-}: {
-  item: PreSpecListItem;
-  isSelected: boolean;
-  /** 활성 보기가 `추적 결정 없음`을 말할 때 행의 `미선택`을 숨긴다. 다른 추적 값(예외)은 그대로 보인다. */
-  hideUntracked?: boolean;
-  onSelect: () => void;
-  selection?: DenseListRowSelection;
-} & Partial<RowKeyboardNavigationRowProps> & {
-  onKeyDown?: KeyboardEventHandler<HTMLElement>;
-}) {
-  const title = titleOf(item);
-  const swNote = swRowNote(item.sw_business_status);
-  const attention = attachmentAttention(item);
-  const shortDeadline = shortDateLabel(item.deadline_at);
+function PreSpecListDeadline({ value }: { value: string | null }) {
+  const countdown = describeDeadlineCountdown(value);
+  const date = shortDateLabel(value);
+  // The column header already says 마감. On the due day, keep the time beside 오늘.
+  const label = countdown && date ? `${countdown.label.replace(/ 마감$/, "")} · ${date}` : "마감 미확인";
   return (
-    <DenseListRow
-      // `data-row-key`·roving `tabIndex`·`onKeyDown`은 키보드 이동 hook이 준다.
-      // 그대로 행 요소까지 내려야 hook이 행을 찾아 초점을 옮길 수 있다.
-      {...rowProps}
-      // 선택 모드에서는 행과 체크박스가 독립된 컨트롤이므로 사업명을 행 이름으로 고정한다.
-      aria-label={title}
-      className="pre-specs-row"
-      data-checked={selection?.checked ? "true" : "false"}
-      selected={isSelected}
-      onSelect={onSelect}
-      selection={selection}
-      label={<span className="pre-specs-row-title">{title}</span>}
-      description={(
-        <>
-          {/* 수요기관이 있으면 실제 발주처를 앞에 두고 대행 공고기관을 작은
-              글자로 뒤에 붙인다(M5 승인). 없으면 지금처럼 `agency` 하나다. */}
-          <span className="pre-specs-row-agency"><PreSpecRowAgency item={item} /></span>
-          <span className="pre-specs-row-meta">
-            <span title={exactBudget(item.budget)}>{budgetLabel(item.budget)}</span>
-            <span aria-hidden="true">·</span>
-            <span>{originLabel(item.origin)}</span>
-            {swNote ? (
-              <>
-                <span aria-hidden="true">·</span>
-                <span>{swNote}</span>
-              </>
-            ) : null}
-            {/* 등급 토큰과 기존 심층 검토 상태는 2026-11-19에 행에서 내려갔다(사전규격 단계
-                수정안 §3 B — C-1 공고 판정과 기존 심층 검토를 화면에서 내림). */}
-            {/* 제외된 건은 누가·언제·왜 뺐는지 함께 읽어야 복원을 판단할 수 있다
-                (spec §6.2). 제외 건은 전체 이력 보기에만 나온다. */}
-            {item.review_exclusion_status === "excluded" ? (
-              <>
-                <span aria-hidden="true">·</span>
-                <Token size="sm" label="검토 제외" color="default" />
-                <span className="pre-specs-row-exclusion">{preSpecExclusionRecord(item)}</span>
-              </>
-            ) : null}
-            {item.kept_by_tracking ? (
-              <>
-                <span aria-hidden="true">·</span>
-                {/* 뜻은 `표시 범위` 대화상자가 문장으로 갖는다. 목록에는 짧은 표식만
-                    두고 그 뜻을 접근 가능한 이름으로 함께 남긴다. */}
-                <span
-                  aria-label="추적 예외 · SW사업대상 Y가 아니지만 추적 중인 발주계획에 연결됨"
-                  className="pre-specs-tracking-exception"
-                >
-                  추적 예외
-                </span>
-              </>
-            ) : null}
-          </span>
-          <span className="pre-specs-row-state">
-            <Token
-              size="sm"
-              label={overviewStatusLabel(item.overview_review_status)}
-              color={overviewTokenColor(item.overview_review_status)}
-            />
-            {hideUntracked && item.opportunity_id !== null && item.tracking_status === "미선택"
-              ? null
-              : <span className="pre-specs-row-tracking">{trackingLabel(item)}</span>}
-            {/* M7 ④(2026-09-22 승인): "다음: …"은 개요 상태 칩·추적 상태와 같은 말의
-                반복이라 행에서 뺐다. `next_action` 값은 우측 상세의 다음 행동 안내
-                (`PreSpecListDetailPane`)에만 남는다. 응답 필드는 그대로다. */}
-            {/* 0건은 실제 0이므로 아무것도 적지 않는다. 1건 이상일 때만 남긴다. */}
-            {attention ? <span className="pre-specs-row-attention">{attention}</span> : null}
-          </span>
-        </>
-      )}
-      endContent={(
-        <span className="pre-specs-row-end">
-          <DeadlineMark value={item.deadline_at} />
-          <span
-            className="pre-specs-row-deadline-at"
-            title={item.deadline_at ? formatDateTime(item.deadline_at) : undefined}
-          >
-            {shortDeadline ?? "일시 없음"}
-          </span>
-        </span>
-      )}
-    />
+    <span aria-label={`D-day: ${label}`} className="pre-specs-deadline" title={value ? formatDateTime(value) : undefined}>
+      <DeadlineText text={label} urgency={countdown?.urgency ?? "none"} />
+    </span>
   );
+}
+
+function PreSpecStatus({ item, hideUntracked }: { item: PreSpecListItem; hideUntracked: boolean }) {
+  const attention = attachmentAttention(item);
+  return (
+    <div className="record-table-status pre-specs-row-state">
+      <StatusMark mark={{ label: overviewStatusLabel(item.overview_review_status), tone: overviewStatusTone(item.overview_review_status) }} />
+      {item.review_exclusion_status === "excluded" ? <StatusMark mark={{ label: "검토 제외", tone: "neutral" }} /> : null}
+      {hideUntracked && item.opportunity_id !== null && item.tracking_status === "미선택"
+        ? null
+        : <span className="record-table-note pre-specs-row-tracking">{trackingLabel(item)}</span>}
+      {attention ? <span className="record-table-note pre-specs-row-attention">{attention}</span> : null}
+    </div>
+  );
+}
+
+export function preSpecColumns(hideUntracked: boolean): RecordTableColumn<PreSpecListItem>[] {
+  return [
+    {
+      key: "business", header: "사업명", title: titleOf, titleClassName: "pre-specs-row-title",
+      renderBelow: (item) => item.kept_by_tracking ? (
+        <span
+          aria-label="추적 예외 · SW사업대상 Y가 아니지만 추적 중인 발주계획에 연결됨"
+          className="record-table-note pre-specs-tracking-exception"
+        >
+          추적 예외
+        </span>
+      ) : null,
+    },
+    {
+      key: "agency", header: "발주기관", width: 60, grow: true, className: "pre-specs-row-agency",
+      renderCell: (item) => <PreSpecRowAgency item={item} />,
+    },
+    {
+      key: "budget", header: "예산", width: 98, numeric: true, className: "pre-specs-row-budget",
+      renderCell: (item) => <span title={exactBudget(item.budget)}>{budgetLabel(item.budget)}</span>,
+    },
+    {
+      key: "overview", header: "개요 상태", width: 92,
+      renderCell: (item) => <PreSpecStatus item={item} hideUntracked={hideUntracked} />,
+    },
+    {
+      key: "deadline", header: "의견 마감", width: 132, className: "pre-specs-row-date",
+      renderCell: (item) => <PreSpecListDeadline value={item.deadline_at} />,
+    },
+  ];
 }

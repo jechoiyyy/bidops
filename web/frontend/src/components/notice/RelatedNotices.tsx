@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Badge } from "../common/Badge";
+import { ClassTag } from "../common/Marks";
+import { NoticeGradeMark } from "./NoticeMarks";
 import { EmptyState } from "../common/EmptyState";
 import { Panel } from "../common/Panel";
 import { api } from "../../lib/api";
 import { formatDate, present } from "../../lib/format";
 import type { RelatedNoticeRelation } from "../../lib/types";
-import { gradeVariant } from "../../lib/grade";
 
 interface RelatedNoticesProps {
   noticePk: number;
@@ -46,8 +46,8 @@ export function RelatedNotices({ noticePk }: RelatedNoticesProps) {
               <span className="related-notice-main">
                 <span className="related-notice-title">{present(item.title, "공고명 미확인")}</span>
                 <span className="related-notice-meta">
-                  <Badge label={relationLabel(item.relation)} variant="focus" />
-                  <Badge label={item.grade} variant={gradeVariant(item.grade)} />
+                  <ClassTag label={relationLabel(item.relation)} />
+                  <NoticeGradeMark grade={item.grade} />
                   <span className="mono tabular-nums">{item.published_at ? formatDate(item.published_at) : "공고일 미확인"}</span>
                 </span>
                 <span className="related-notice-key mono tabular-nums">{present(item.notice_key, "식별자 미확인")}</span>

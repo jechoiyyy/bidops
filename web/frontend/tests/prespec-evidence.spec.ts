@@ -56,9 +56,9 @@ test("evidence: 사전규격 목록과 상세를 selector 단위로 조작하고
   await expect(briefing).toBeVisible();
   record("assert.visible", "role=heading[name='등급 사유']", "등급 사유");
 
-  const header = page.locator(".pre-spec-detail-header");
-  await expect(header).toContainText("본공고");
-  record("assert.containsText", ".pre-spec-detail-header", "본공고 칩");
+  const summary = page.locator("#ps-summary");
+  await expect(summary.getByText("본공고", { exact: true })).toBeVisible();
+  record("assert.visible", "#ps-summary dt:text-is('본공고')", "본공고 사실 목록");
 
   // 범위 확인 자리는 `처리 상태·기술 정보` 안에 있다(2026-11-21). 이 건은 처리 상태 구역이 열려 들어온다.
   await expect(page.locator("#ps-record-range")).toBeAttached();

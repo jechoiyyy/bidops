@@ -1,8 +1,11 @@
-import { Token } from "@astryxdesign/core/Token";
-import { ArrowRight } from "lucide-react";
+import "../../styles/decision-conditions-preview.css";
+import { StatusMark } from "../common/Marks";
+import { ArrowRight, GitCompareArrows } from "lucide-react";
 import { EmptyState } from "../common/EmptyState";
+import { GridFacts, SideFacts } from "../common/Facts";
 import { describeApiError } from "../../lib/apiErrors";
 import { CHANGE_STATUS_LABELS, formatMoment, shortHash } from "./labels";
+import { describeDeadlineCountdown } from "../../lib/deadline";
 import type {
   BidConditionChange,
   BidConditionField,
@@ -23,7 +26,7 @@ import type {
  *   하나뿐이고, 그것이 없으면 목록 끝을 최신으로 대신하지 않는다.
  */
 
-export const CONDITION_LABELS: Record<BidConditionField, string> = {
+const CONDITION_LABELS: Record<BidConditionField, string> = {
   budget: "예산",
   estimated_price: "추정가격",
   deadline_at: "입찰마감",
@@ -46,16 +49,10 @@ const PRE_SPEC_FIELD_LABELS: Record<BidConditionPreSpecChange["field"], string> 
   title: "사업명",
 };
 
-/** 표의 한 줄에 두 항목씩. 긴 문장인 정정 사유는 마지막 줄을 혼자 쓴다. */
-const TABLE_ROWS: Array<[BidConditionField, BidConditionField | null]> = [
-  ["budget", "estimated_price"],
-  ["deadline_at", "opening_at"],
-  ["method", "successful_bid_method"],
-  ["participation_limited", "industry_limited"],
-  ["sw_industry_1468", "technical_evaluation_rate"],
-  ["joint_contract_method", "joint_contract_regions"],
-  ["region_limit_basis", "re_notice"],
-  ["change_reason", null],
+const CONDITION_FIELDS: readonly BidConditionField[] = [
+  "budget", "estimated_price", "deadline_at", "opening_at", "method", "successful_bid_method",
+  "participation_limited", "industry_limited", "sw_industry_1468", "technical_evaluation_rate",
+  "joint_contract_method", "joint_contract_regions", "region_limit_basis", "re_notice", "change_reason",
 ];
 
 const FLAG_GLOSS: Partial<Record<BidConditionField, { Y: string; N: string }>> = {
@@ -74,7 +71,7 @@ function formatAmount(value: string): string {
 }
 
 /** 조건 값 하나를 사람이 읽는 문자로. 해석은 표시 변환뿐이고 모르는 값은 그대로 둔다. */
-export function formatConditionValue(field: BidConditionField, value: unknown): string {
+function formatConditionValue(field: BidConditionField, value: unknown): string {
   if (value === null || value === undefined) return "값 없음";
   if (Array.isArray(value)) {
     return value.length === 0 ? "지정 지역 없음" : value.map((item) => String(item)).join(", ");
@@ -113,7 +110,7 @@ function RoundChanges({ previous, notice, isLatest }: { previous: BidConditionNo
   const unchanged = notice.changes_from_previous.filter((change) => change.status === "unchanged");
   const line = (change: BidConditionChange) => (
     <li key={change.field} data-change-status={change.status} data-condition-field={change.field}>
-      <Token size="sm" label={CHANGE_STATUS_LABELS[change.status]} />
+      <StatusMark mark={{ label: CHANGE_STATUS_LABELS[change.status], tone: "neutral" }} />
       <strong>{CONDITION_LABELS[change.field]}</strong>
       <ChangeValues field={change.field} before={change.before} after={change.after} />
     </li>
@@ -158,7 +155,7 @@ function PreSpecComparison({ view }: { view: BidConditionsView }) {
           <ul className="bid-delta-round-list">
             {view.pre_spec_comparison.map((change) => (
               <li key={change.field} data-change-status={change.status} data-prespec-field={change.field}>
-                <Token size="sm" label={CHANGE_STATUS_LABELS[change.status]} />
+                <StatusMark mark={{ label: CHANGE_STATUS_LABELS[change.status], tone: "neutral" }} />
                 <strong>{PRE_SPEC_FIELD_LABELS[change.field]}</strong>
                 <span className="bid-delta-condition-change-values">
                   <span>{change.field === "budget" ? formatConditionValue("budget", change.before) : change.before ?? "값 없음"}</span>
@@ -180,6 +177,56 @@ function PreSpecComparison({ view }: { view: BidConditionsView }) {
   );
 }
 
+const deadlineSummaryFormat = new Intl.DateTimeFormat("sv-SE", {
+  timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+});
+
+function overviewConditionValue(field: BidConditionField, value: unknown) {
+  if (field !== "deadline_at" || typeof value !== "string") return formatConditionValue(field, value);
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return formatConditionValue(field, value);
+  const parts = deadlineSummaryFormat.formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((entry) => entry.type === type)?.value;
+  return `${part("month")}월 ${part("day")}일 ${part("hour")}:${part("minute")}`;
+}
+
+export function BidConditionOverview({ view, compact = false }: { view: BidConditionsView; compact?: boolean }) {
+  const latest = latestConditionNotice(view);
+  if (!latest) return <p className="bid-delta-help" role="status">
+    {view.bid_notices.length ? "최신 차수를 확정할 수 없어요. 공고 순서를 확인해 주세요." : "확정 연결된 입찰공고가 없어요."}
+  </p>;
+  const changeRows = latest.changes_from_previous.filter((row) => row.status === "changed");
+  const unknownCount = latest.changes_from_previous.filter((row) => row.status === "unknown").length;
+  const changes = compact ? changeRows.slice(0, 3) : changeRows;
+  const due = describeDeadlineCountdown(latest.conditions.deadline_at);
+  const facts = [
+    {
+      label: "입찰 마감",
+      value: <>{overviewConditionValue("deadline_at", latest.conditions.deadline_at)}{due ? <small>{due.label} · KST</small> : null}</>,
+    },
+    { label: "추정가격", value: formatConditionValue("estimated_price", latest.conditions.estimated_price) },
+    { label: "최신 공고", value: noticeRoundLabel(latest) },
+  ];
+  return (
+    <>
+      {compact ? <SideFacts items={facts} /> : <GridFacts className="bid-delta-condition-summary" columns={3} items={facts} />}
+      <section className="gng-condition-changes">
+        <h4><GitCompareArrows aria-hidden="true" />직전 차수 변경</h4>
+        {changes.length > 0 ? (
+          <table className="bid-delta-conditions-table" aria-label="직전 차수와 최신 차수 비교">
+            <thead><tr><th scope="col">항목</th><th scope="col">직전 차수</th><th scope="col">최신 차수</th></tr></thead>
+            <tbody>{changes.map((row) => (
+              <tr key={row.field}><th scope="row">{CONDITION_LABELS[row.field]}</th><td>{overviewConditionValue(row.field, row.before)}</td><td><strong>{overviewConditionValue(row.field, row.after)}</strong></td></tr>
+            ))}</tbody>
+          </table>
+        ) : <p className="bid-delta-help">{view.bid_notices.length < 2 ? "비교할 직전 차수가 없어요." : "확인된 변경 항목이 없어요."}</p>}
+        {compact && changeRows.length > changes.length ? <p className="bid-delta-help">변경 {changeRows.length}건 중 {changes.length}건 · 나머지는 결정 화면에서 확인해요.</p> : null}
+        {unknownCount > 0 ? <p className="bid-delta-help">변경 여부 미확인 {unknownCount}건</p> : null}
+      </section>
+    </>
+  );
+}
+
 export function BidConditionsSection({
   view,
   isPending,
@@ -195,7 +242,7 @@ export function BidConditionsSection({
   return (
     <section className="bid-delta-conditions" aria-labelledby="bid-delta-conditions-title">
       <div className="bid-delta-panel-heading">
-        <h3 id="bid-delta-conditions-title">공고 조건</h3>
+        <h3 id="bid-delta-conditions-title">최신 공고 조건</h3>
         <span className="bid-delta-muted">
           {latest
             ? `최신 차수 ${noticeRoundLabel(latest)} · 게시 ${formatMoment(latest.published_at)}`
@@ -218,26 +265,18 @@ export function BidConditionsSection({
         <p className="bid-delta-help">확정 연결된 입찰공고가 없어 공고 조건을 표시할 수 없어요. 입찰공고가 없다는 뜻은 아니에요.</p>
       ) : (
         <>
+          <BidConditionOverview view={view} />
           {latest ? (
-            <table className="bid-delta-conditions-table" aria-label={`최신 차수 공고 조건 · ${noticeRoundLabel(latest)}`}>
-              <tbody>
-                {TABLE_ROWS.map(([left, right]) => (
-                  <tr key={left}>
-                    <th scope="row">{CONDITION_LABELS[left]}</th>
-                    <td data-condition-field={left} colSpan={right ? 1 : 3}>{formatConditionValue(left, latest.conditions[left])}</td>
-                    {right ? (
-                      <>
-                        <th scope="row">{CONDITION_LABELS[right]}</th>
-                        <td data-condition-field={right}>{formatConditionValue(right, latest.conditions[right])}</td>
-                      </>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <section aria-labelledby="bid-delta-requirements-title">
+              <h4 id="bid-delta-requirements-title">참가 요건과 공고 조건</h4>
+              <GridFacts className="bid-delta-requirements" columns={2} items={CONDITION_FIELDS.map((field) => ({
+                label: CONDITION_LABELS[field],
+                value: <span data-condition-field={field}>{formatConditionValue(field, latest.conditions[field])}</span>,
+              }))} />
+            </section>
           ) : (
             <p className="bid-delta-help" role="status">
-              최신 차수를 확정할 수 없어요. 게시 시각이 없는 차수가 있어 목록 순서로 최신을 대신하지 않으며, 최신 차수 조건을 표시하지 않아요.
+              최신 차수를 확정할 수 없어요. 게시 시각과 공고 차수를 확인해 주세요.
             </p>
           )}
           {latest ? (
@@ -247,7 +286,8 @@ export function BidConditionsSection({
             </p>
           ) : null}
 
-          <section className="bid-delta-conditions-sub" aria-labelledby="bid-delta-round-changes-title">
+          <details className="bid-delta-conditions-sub">
+            <summary>전체 차수 이력</summary>
             <div className="bid-delta-panel-heading">
               <h4 id="bid-delta-round-changes-title">차수 간 변경</h4>
               <span className="bid-delta-muted">차수 {view.bid_notices.length}개 · 공고번호·차수 순</span>
@@ -266,11 +306,11 @@ export function BidConditionsSection({
                 ))}
               </div>
             )}
-          </section>
+          </details>
         </>
       )}
 
-      {view && !isPending && !error ? <PreSpecComparison view={view} /> : null}
+      {view && !isPending && !error ? <details className="bid-delta-conditions-sub"><summary>사전규격 대비</summary><PreSpecComparison view={view} /></details> : null}
     </section>
   );
 }

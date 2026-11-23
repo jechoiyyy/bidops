@@ -39,12 +39,12 @@ async function openList(page: Page, search = "", options = SLOW): Promise<void> 
   await mockApi(page);
   await mockGoNoGo(page, options);
   await page.goto(`/go-no-go${search}`);
-  await expect(page.locator(".gng-row").first()).toBeVisible();
+  await expect(rows(page).nth(0)).toBeVisible();
 }
 
-/** 목록 한 행. 사업명·발주기관 칸(`.gng-row`)과 사람 결정 칸이 한 줄이다. */
+/** 목록의 활성 표식과 키 속성이 붙는 실제 표 행. */
 function rows(page: Page) {
-  return page.locator(".gng-table-scroll tbody tr");
+  return page.locator(".gng-table-scroll tbody tr.gng-row");
 }
 
 test("기본 검토 대상은 미결정·오래된 결정·효력 미확인을 함께 남기고 입찰공고 미연결은 뺀다", async ({ page }) => {
@@ -58,7 +58,7 @@ test("기본 검토 대상은 미결정·오래된 결정·효력 미확인을 �
   const stale = rows(page).filter({ hasText: "교통정보 수집·제공 플랫폼 고도화" });
   await expect(stale).toContainText("Go · 재검토");
   // 현재성을 모르는 결정도 끝난 것이 아니다.
-  await expect(rows(page).filter({ hasText: "공고 조건 기준 결정 사업" })).toContainText("No-Go · 효력 미확인");
+  await expect(rows(page).filter({ hasText: "공고 조건 기준 결정 사업" })).toContainText("공고 확인 필요");
 
   // 이미 확정된 현재 결정과 결정할 입찰공고가 없는 사업은 기본 보기에 없다.
   await expect(rows(page).filter({ hasText: "문화시설 통합예약 서비스 구축" })).toHaveCount(0);
@@ -69,14 +69,20 @@ test("보기 탭은 검토 대상·재검토·결정 기록·전체를 서로 �
   await openList(page);
   const tabs = page.locator(".gng-view-tabs");
   await expect(tabs.getByRole("button", { name: /검토 대상/ })).toContainText("9");
-  await expect(tabs.getByRole("button", { name: /재검토/ })).toContainText("2");
+  await expect(tabs.getByRole("button", { name: /재검토/ })).toContainText("1");
+  await expect(tabs.getByRole("button", { name: /공고 확인 필요/ })).toContainText("1");
   await expect(tabs.getByRole("button", { name: /결정 기록/ })).toContainText("4");
   await expect(tabs.getByRole("button", { name: /전체/ })).toContainText(String(SCENARIOS.length));
 
   await tabs.getByRole("button", { name: /재검토/ }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("show")).toBe("recheck");
-  await expect(rows(page)).toHaveCount(2);
+  await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).filter({ hasText: "교통정보 수집·제공 플랫폼 고도화" })).toContainText("Go · 재검토");
+
+  await tabs.getByRole("button", { name: /공고 확인 필요/ }).click();
+  await expect(rows(page)).toHaveCount(1);
+  await expect(rows(page).first()).toContainText("공고 확인 필요");
+  await expect(page.getByRole("button", { name: "공고 확인 열기", exact: true })).toBeVisible();
 
   await tabs.getByRole("button", { name: /결정 기록/ }).click();
   await expect(rows(page)).toHaveCount(4);
@@ -93,6 +99,7 @@ test("목록은 결정 대기열 한 번으로 그리고 행마다 비교를 조
   await mockGoNoGo(page, SLOW);
   const queueQueries: Array<Record<string, string>> = [];
   const workspaceIds: number[] = [];
+  const conditionsIds: number[] = [];
   let opportunityListRequests = 0;
   page.on("request", (request) => {
     const url = new URL(request.url());
@@ -100,28 +107,30 @@ test("목록은 결정 대기열 한 번으로 그리고 행마다 비교를 조
     if (url.pathname === "/api/opportunities") opportunityListRequests += 1;
     const workspace = /^\/api\/opportunities\/(\d+)\/bid-delta$/.exec(url.pathname);
     if (workspace) workspaceIds.push(Number(workspace[1]));
+    const conditions = /^\/api\/opportunities\/(\d+)\/bid-conditions$/.exec(url.pathname);
+    if (conditions) conditionsIds.push(Number(conditions[1]));
   });
 
   await page.goto("/go-no-go?show=all&selected=903");
   await expect(rows(page)).toHaveCount(SCENARIOS.length);
   // 선택한 사업의 상세가 실제로 그려질 때까지 기다린 뒤 센다.
-  await expect(page.getByRole("heading", { name: "변경 비교 계산을 기다리고 있어요" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "직전 차수 변경" })).toBeVisible();
   expect(queueQueries).toHaveLength(1);
   expect(queueQueries[0]).toMatchObject({ status: "all", limit: "500", offset: "0" });
   expect(opportunityListRequests).toBe(0);
   expect([...new Set(workspaceIds)]).toEqual([903]);
+  expect([...new Set(conditionsIds)]).toEqual([903]);
 
   // 다른 행을 골라도 대기열은 다시 받지 않고 그 행 하나만 조회한다.
-  await rows(page).filter({ hasText: "학교 통합정보서비스 운영 및 유지관리" }).locator(".gng-row").click();
-  await expect(page.getByRole("heading", { name: "변경 비교 결과가 아직 없어요" })).toBeVisible();
+  await rows(page).filter({ hasText: "학교 통합정보서비스 운영 및 유지관리" }).click();
+  await expect.poll(() => [...new Set(workspaceIds)].sort()).toEqual([903, 904]);
+  await expect.poll(() => [...new Set(conditionsIds)].sort()).toEqual([903, 904]);
   expect(queueQueries).toHaveLength(1);
-  expect([...new Set(workspaceIds)].sort()).toEqual([903, 904]);
 });
 
 test("집계와 검색 범위를 밝히고 대기열이 넘치면 받은 범위 기준이라고 적는다", async ({ page }) => {
   await openList(page);
-  await expect(page.locator(".gng-summary")).toContainText(`전체 ${SCENARIOS.length}건 기준`);
-  await expect(page.locator(".gng-summary")).not.toContainText("일부");
+  await expect(page.locator(".gng-pager .review-list-pager-summary")).toHaveText(`전체 ${SCENARIOS.length}건 · 현재 보기 9건`);
 
   const input = page.getByPlaceholder("사업명·발주기관 검색");
   await input.fill("교통정보");
@@ -136,7 +145,7 @@ test("집계와 검색 범위를 밝히고 대기열이 넘치면 받은 범위 
   await expect(rows(page)).toHaveCount(1);
   await input.press("Enter");
   await expect(page.getByText("조건에 맞는 사업이 없어요", { exact: true })).toBeVisible();
-  await expect(page.locator(".gng-list-empty")).toContainText('적용된 검색어 "없는사업"와 다른 활성 보기 조건에 맞는 사업이 없어요.');
+  await expect(page.locator(".gng-table-scroll .record-table-state")).toContainText('적용된 검색어 "없는사업"와 다른 활성 보기 조건에 맞는 사업이 없어요.');
   await page.getByRole("button", { name: "검색어만 지우기", exact: true }).click();
   await expect(rows(page)).toHaveCount(9);
 
@@ -147,8 +156,9 @@ test("집계와 검색 범위를 밝히고 대기열이 넘치면 받은 범위 
   });
   await page.goto("/go-no-go?show=all&q=교통정보");
   await expect(rows(page)).toHaveCount(1);
-  await expect(page.locator(".gng-summary")).toContainText(`받은 ${SCENARIOS.length}건 기준`);
-  await expect(page.locator(".gng-summary")).toContainText("전체 600건 중 일부예요");
+  await expect(page.locator(".gng-pager .review-list-pager-summary")).toHaveText(
+    `전체 600건 · 받은 ${SCENARIOS.length}건 중 1건을 표시해요.`,
+  );
   await expect(page.locator(".gng-filter-context")).toContainText("검색은 받은 범위 안에서만 좁혀요");
   await expect(page.getByRole("navigation", { name: "결정 대기열 페이지" })).toContainText(`1–${SCENARIOS.length} / 600`);
 });
@@ -159,31 +169,31 @@ test("집계와 검색 범위를 밝히고 대기열이 넘치면 받은 범위 
 test("목록에서 ↑↓로 행을 옮기면 선택·초점·URL·상세가 함께 따라간다", async ({ page }) => {
   await openList(page, "?show=all");
 
-  const buttons = page.locator(".gng-row");
-  await expect(buttons).toHaveCount(SCENARIOS.length);
-  const firstId = await buttons.first().getAttribute("data-row-key");
-  const firstTitle = ((await buttons.first().locator(".gng-row-title").textContent()) ?? "").trim();
-  const secondId = await buttons.nth(1).getAttribute("data-row-key");
-  const secondTitle = ((await buttons.nth(1).locator(".gng-row-title").textContent()) ?? "").trim();
+  const records = rows(page);
+  await expect(records).toHaveCount(SCENARIOS.length);
+  const firstId = await records.nth(0).getAttribute("data-row-key");
+  const firstTitle = ((await records.nth(0).locator(".gng-row-title").textContent()) ?? "").trim();
+  const secondId = await records.nth(1).getAttribute("data-row-key");
+  const secondTitle = ((await records.nth(1).locator(".gng-row-title").textContent()) ?? "").trim();
   expect(secondTitle).not.toBe(firstTitle);
   await expect(page.locator(".gng-detail-head")).toContainText(firstTitle);
 
-  await buttons.first().focus();
+  await records.nth(0).focus();
   await page.keyboard.press("ArrowDown");
   // 선택은 hook이 아니라 URL이 소유하므로 선택 이동을 먼저 확인한다.
-  await expect(buttons.nth(1)).toHaveAttribute("aria-pressed", "true");
+  await expect(records.nth(1)).toHaveAttribute("aria-current", "true");
   await expect.poll(() => new URL(page.url()).searchParams.get("selected")).toBe(secondId);
-  await expect(buttons.nth(1)).toBeFocused();
+  await expect(records.nth(1)).toBeFocused();
   await expect(page.locator(".gng-detail-head")).toContainText(secondTitle);
   // 행을 옮기면 상세는 검토 요약부터 본다(기존 동작).
-  await expect(page.locator(".gng-detail-tabs button").first()).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".gng-detail-tabs").getByRole("tab", { name: "검토 요약" })).toHaveAttribute("aria-selected", "true");
 
   await page.keyboard.press("ArrowUp");
-  await expect(buttons.first()).toHaveAttribute("aria-pressed", "true");
+  await expect(records.nth(0)).toHaveAttribute("aria-current", "true");
   await expect.poll(() => new URL(page.url()).searchParams.get("selected")).toBe(firstId);
-  await expect(buttons.first()).toBeFocused();
+  await expect(records.nth(0)).toBeFocused();
   await expect(page.locator(".gng-detail-head")).toContainText(firstTitle);
-  await expect(page.locator(".gng-detail-tabs button").first()).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".gng-detail-tabs").getByRole("tab", { name: "검토 요약" })).toHaveAttribute("aria-selected", "true");
 });
 
 test("상세 조회 중·조회 실패·비교 없음·계산 대기를 미결정이나 변경 없음으로 접지 않는다", async ({ page }) => {
@@ -194,12 +204,12 @@ test("상세 조회 중·조회 실패·비교 없음·계산 대기를 미결�
   await expect(rows(page).filter({ hasText: "시설관리 업무시스템 구축" })).toContainText("변경 비교 1건");
 
   // 상세 조회가 실패해도 대기열이 준 사람 결정은 그대로이고, 상세를 단정하지 않는다.
-  await rows(page).filter({ hasText: "의료정보 연계 기반 구축" }).locator(".gng-row").click();
+  await rows(page).filter({ hasText: "의료정보 연계 기반 구축" }).click();
   await expect(page.getByRole("heading", { name: "비교·결정 상세를 불러오지 못했어요" })).toBeVisible();
   await expect(rows(page).filter({ hasText: "의료정보 연계 기반 구축" })).toContainText("미결정");
-  await expect(page.locator(".gng-action-footer")).toContainText("아직 결정하지 않음");
+  await expect(page.getByRole("group", { name: "결정 영역", exact: true })).toContainText("아직 결정하지 않음");
 
-  await rows(page).filter({ hasText: "관광데이터 분석 환경 구축" }).locator(".gng-row").click();
+  await rows(page).filter({ hasText: "관광데이터 분석 환경 구축" }).click();
   await expect(page.getByRole("heading", { name: "비교·결정 상세를 확인하고 있어요" })).toBeVisible();
   await expect(page.getByText("조회가 끝나기 전에는 변경 없음으로 표시하지 않아요.", { exact: false })).toBeVisible();
 });
@@ -211,13 +221,13 @@ test("완료된 비교가 없으면 결정 화면의 공고 조건 근거로 안
   await expect(page.getByRole("button", { name: "변경 검토·결정 열기" })).toHaveCount(0);
 
   await page.goto("/go-no-go?show=all&selected=904");
-  await expect(page.getByRole("heading", { name: "변경 비교 결과가 아직 없어요" })).toBeVisible();
-  await expect(page.getByText("비교가 없다는 것은 변경이 없다는 뜻이 아니에요.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "직전 차수 변경" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "직전 차수와 최신 차수 비교" })).toContainText("입찰마감");
 
   // 입찰공고가 없으면 결정할 공고가 없다고 적는다.
   await page.goto("/go-no-go?show=all&selected=911");
-  await expect(page.getByRole("button", { name: "결정 화면 열기" })).toBeVisible();
-  await expect(page.locator(".gng-action-footer")).toContainText("연결된 입찰공고가 없어 최종 결정을 기록할 수 없어요");
+  await expect(page.getByRole("button", { name: "공고 연결 확인" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "결정 영역", exact: true })).toContainText("연결된 입찰공고가 없어 최종 결정을 기록할 수 없어요");
   await expect(page.locator(".gng-detail-head")).toContainText("입찰공고 미연결");
 });
 
@@ -273,7 +283,7 @@ test("근거 대화상자는 양쪽 원문과 검증 상태를 그대로 보여 
 
 test("비교 문서 탭은 API가 준 양쪽 문서 스냅숏만 보여 준다", async ({ page }) => {
   await openList(page, "?show=all&selected=901");
-  await page.getByRole("button", { name: "비교 문서", exact: true }).click();
+  await page.getByRole("tab", { name: "비교 문서", exact: true }).click();
   const documents = page.locator(".gng-documents");
   await expect(documents).toContainText("PS-2026-901");
   await expect(documents).toContainText("BN-2026-901");
@@ -283,14 +293,19 @@ test("비교 문서 탭은 API가 준 양쪽 문서 스냅숏만 보여 준다",
 
   // 비교가 없으면 문서가 없다고 단정하지 않는다.
   await page.goto("/go-no-go?show=all&selected=904");
-  await page.getByRole("button", { name: "비교 문서", exact: true }).click();
+  await page.getByRole("tab", { name: "비교 문서", exact: true }).click();
   await expect(page.getByText("문서가 없다는 뜻은 아니에요.", { exact: false })).toBeVisible();
 });
 
 test("결정 기록 탭은 마지막 결정과 근거 종류만 보여 주고 이력을 지어내지 않는다", async ({ page }) => {
   await openList(page, "?show=all&selected=903");
-  await page.getByRole("button", { name: "결정 기록", exact: true }).click();
-  const history = page.locator(".gng-decision-history");
+  const historyTab = page.locator(".gng-detail-tabs").getByRole("tab", { name: "결정 기록", exact: true });
+  await historyTab.click();
+  await expect(historyTab).toHaveAttribute("aria-selected", "true");
+  const panel = page.getByRole("tabpanel", { name: "결정 기록", exact: true });
+  await expect(historyTab).toHaveAttribute("aria-controls", "gng-panel-decision");
+  await expect(panel).toHaveAttribute("id", "gng-panel-decision");
+  const history = panel.locator(".gng-decision-history");
   await expect(history).toContainText("Go · 참여");
   await expect(history).toContainText("재검토 필요");
   await expect(history).toContainText("기존 검토자");
@@ -301,14 +316,14 @@ test("결정 기록 탭은 마지막 결정과 근거 종류만 보여 주고 �
 
   // 공고 조건 근거 결정은 비교 필드 대신 기준 입찰공고와 관측 해시를 적는다.
   await page.goto("/go-no-go?show=all&selected=912");
-  await page.getByRole("button", { name: "결정 기록", exact: true }).click();
+  await historyTab.click();
   await expect(page.locator(".gng-decision-history")).toContainText("No-Go · 불참");
   await expect(page.locator(".gng-decision-history")).toContainText("공고 조건 기준 · 기준 입찰공고 ID 91200 · 관측 해시 ffffffffffff");
   await expect(page.locator(".gng-decision-history")).not.toContainText("비교 버전");
 
   // 결정이 없으면 없다고 적고 추적 상태를 결정으로 승격하지 않는다.
   await page.goto("/go-no-go?show=all&selected=901");
-  await page.getByRole("button", { name: "결정 기록", exact: true }).click();
+  await historyTab.click();
   await expect(page.getByText("아직 기록된 최종 결정이 없어요.")).toBeVisible();
   await expect(page.getByText("추적 상태 ‘계속 추적’은 입찰 참여를 결정했다는 뜻이 아니에요.")).toBeVisible();
 });
@@ -317,7 +332,7 @@ test("오래된 결정은 상세에서 재검토로 보이고 현재 승인으�
   await openList(page, "?show=all&selected=903");
   await expect(page.locator(".gng-review-notice")).toContainText("기존 Go 결정을 다시 검토해야 해요");
   await expect(page.locator(".gng-review-notice")).toContainText("이전 결정 기록은 보존되며 새 결정은 덮어쓰지 않고 추가돼요");
-  await expect(page.locator(".gng-action-footer")).toContainText("Go · 재검토 필요");
+  await expect(page.getByRole("group", { name: "결정 영역", exact: true })).toContainText("Go · 재검토 필요");
 });
 
 test("결정 화면 열기는 선택한 비교와 돌아올 검색 조건을 함께 넘긴다", async ({ page }) => {
@@ -327,6 +342,8 @@ test("결정 화면 열기는 선택한 비교와 돌아올 검색 조건을 함
   const url = new URL(page.url());
   expect(url.searchParams.get("comparison")).toBe(comparisonFor(0)?.id);
   expect(url.searchParams.get("back")).toContain("selected=901");
+  await expect(page.locator(".bid-delta-decision-pane > .workbench-decision"))
+    .toContainText("현재 사람 결정");
 
   // 돌아오는 길이 원래 보기와 선택을 되살린다.
   await page.getByRole("link", { name: "결정 목록으로" }).click();
@@ -342,8 +359,7 @@ test("화면 제목과 페이지 액션은 상단바에 있고 경로·편집 �
 
   await expect(topbar).toHaveAttribute("data-topbar-mode", "title");
   // 화면 이름은 패널 헤더의 작은 글자이고 `<h1>`은 받은 대기열 건수를 쓴 문장이다(ADR-0076).
-  await expect(topbar.getByTestId("page-header-eyebrow")).toHaveText("최종 Go/No-Go");
-  await expect(topbar.locator("h1")).toHaveText(/^최종 결정을 볼 사업이 (\d+건 있어요|없어요)$/);
+  await expect(topbar.locator("h1")).toHaveText("최종 Go/No-Go");
   await expect(topbar.locator(".topbar-breadcrumb")).toHaveCount(0);
   await expect(topbar.locator(".topbar-status")).toHaveCount(0);
 
@@ -457,13 +473,13 @@ test("조회 중에도 분할 골격이 남고 건수를 0건으로 적지 않�
   await expect(listPane.getByRole("status")).toContainText("최종 결정 대기열을 불러오는 중");
   await expect(detailPane).toContainText("목록을 불러온 뒤 사업 상세를 표시해요.");
   // 받지 못한 범위를 요약·페이저로 말하지 않는다.
-  await expect(page.locator(".gng-summary")).toHaveCount(0);
+  await expect(page.locator(".gng-pager .review-list-pager-summary")).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "결정 대기열 페이지" })).toHaveCount(0);
 
   release();
-  await expect(page.locator(".gng-row").first()).toBeVisible();
+  await expect(rows(page).nth(0)).toBeVisible();
   await expect(page.locator(".gng-list-head")).toContainText("최종 결정 목록 · 9건");
-  await expect(page.locator(".gng-summary")).toBeVisible();
+  await expect(page.locator(".gng-pager .review-list-pager-summary")).toBeVisible();
 });
 
 test("대기열 조회 실패도 분할 골격 안에서 말하고 건수를 0건으로 적지 않는다", async ({ page }) => {
@@ -478,11 +494,11 @@ test("대기열 조회 실패도 분할 골격 안에서 말하고 건수를 0�
   const listPane = page.getByRole("region", { name: "최종 결정 검토 목록" });
   await expect(listPane).toBeVisible();
   await expect(page.locator(".gng-list-head")).toContainText("최종 결정 목록 · 건수 확인 불가");
-  await expect(page.locator(".gng-list-empty")).toContainText("최종 결정 대기열을 불러오지 못했어요");
-  await expect(page.locator(".gng-list-empty")).toContainText("조회 실패를 결정 대기 없음으로 해석하지 않아요.");
+  await expect(page.locator(".gng-table-scroll .record-table-state")).toContainText("최종 결정 대기열을 불러오지 못했어요");
+  await expect(page.locator(".gng-table-scroll .record-table-state")).toContainText("조회 실패를 결정 대기 없음으로 해석하지 않아요.");
   await expect(page.getByRole("region", { name: "선택한 결정 검토 사업" }))
     .toContainText("목록을 불러오지 못해 상세를 표시할 수 없어요.");
-  await expect(page.locator(".gng-summary")).toHaveCount(0);
+  await expect(page.locator(".gng-pager .review-list-pager-summary")).toHaveCount(0);
 });
 
 
@@ -511,24 +527,27 @@ test("선택한 사업의 상세 조회 실패는 그 조회를 다시 불러 �
   await expect(page.getByRole("button", { name: "다시 조회", exact: true })).toHaveCount(0);
 });
 
-// M5 ④(spec §6.3): 입찰 마감 열과 발주기관 줄의 추정가격. 서버가 이미 마감순으로
+// M5 ④(spec §6.3): 입찰 마감 열과 추정가격 열. 서버가 이미 마감순으로
 // 주므로(§3.10) 화면이 다시 정렬하지 않는다는 것은 다른 spec(대기열 order)이 아니라
 // 여기서는 셀 표기만 본다.
-test("입찰 마감 열은 D-n·짧은 날짜를 적고 발주기관 줄에는 추정가격이 붙는다", async ({ page }) => {
+test("입찰 마감과 추정가격은 각 열에서 제공 여부를 구분한다", async ({ page }) => {
   await openList(page, "?show=all");
 
+  await expect(page.getByRole("table", { name: "최종 결정 대기열" }).getByRole("columnheader")).toHaveText([
+    "사업명", "발주기관", "추정가격", "사람 결정", "입찰 마감",
+  ]);
   // 입찰공고가 연결된 사업(index 3)은 마감·추정가격 값이 있다.
   const linked = queueItemFor(3);
   const linkedRow = rows(page).filter({ hasText: linked.title });
   await expect(linkedRow.locator(".gng-deadline-cell")).toHaveText(expectedDeadlineCell(linked.deadline_at));
-  await expect(linkedRow.locator(".gng-row-agency")).toContainText(`추정가격 ${expectedEstimatedPrice(linked.estimated_price)}`);
+  await expect(linkedRow.locator(".gng-row-price")).toHaveText(expectedEstimatedPrice(linked.estimated_price));
 
   // 입찰공고가 연결되지 않은 사업(index 10)은 마감·예산·추정가격이 모두 서버가
   // 값을 안 준 것이므로 `미확인`이 아니라 `미제공`이다(spec §1.1).
   const unlinked = queueItemFor(10);
   const unlinkedRow = rows(page).filter({ hasText: unlinked.title });
   await expect(unlinkedRow.locator(".gng-deadline-cell")).toHaveText("마감 미제공");
-  await expect(unlinkedRow.locator(".gng-row-agency")).toContainText("추정가격 미제공");
+  await expect(unlinkedRow.locator(".gng-row-price")).toHaveText("추정가격 미제공");
 });
 
 // 3일 이내 강조는 fixture의 고정 날짜가 아니라 실행 시각 기준 상대 날짜로 만들어
@@ -549,10 +568,10 @@ test("3일 이내 마감은 색·글자 굵기로 강조하고, 7일을 넘는 �
   await page.goto("/go-no-go?show=all");
 
   const soonCell = rows(page).filter({ hasText: "합성 마감 임박 사업" }).locator(".gng-deadline-cell");
-  await expect(soonCell).toHaveClass(/gng-deadline-critical/);
+  await expect(soonCell.locator(".workbench-deadline")).toHaveAttribute("data-level", "urgent");
   await expect(soonCell).toHaveText(expectedDeadlineCell(soonDeadline));
 
   const laterCell = rows(page).filter({ hasText: "합성 마감 여유 사업" }).locator(".gng-deadline-cell");
-  await expect(laterCell).not.toHaveClass(/gng-deadline-critical/);
+  await expect(laterCell.locator(".workbench-deadline")).toHaveAttribute("data-level", "normal");
   await expect(laterCell).toHaveText(expectedDeadlineCell(laterDeadline));
 });

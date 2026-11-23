@@ -29,12 +29,12 @@ export const PRE_SPEC_OVERVIEW_STATUS_LABEL: Record<PreSpecOverviewReviewStatus,
  * 목록·그룹 헤더가 쓰는 고정 라벨. */
 export const PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL = "개요 검토 미시작";
 
-export function preSpecOverviewStatusVariant(status: PreSpecOverviewReviewStatus): BadgeVariant {
-  if (status === "completed") return "evidence-confirmed";
+export function preSpecOverviewStepTone(status: PreSpecOverviewReviewStatus): "confirmed" | "error" | "warning" | "neutral" {
+  if (status === "completed") return "confirmed";
   // 실패는 오류이고 사람 검토 필요는 경고다. 같은 색으로 칠하면 "확인해
   // 주세요"와 "이건 실패했습니다"가 구분되지 않는다.
-  if (status === "failed") return "danger";
-  if (status === "needs_human_review") return "alert";
+  if (status === "failed") return "error";
+  if (status === "needs_human_review") return "warning";
   return "neutral";
 }
 

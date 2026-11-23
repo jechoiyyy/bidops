@@ -16,6 +16,7 @@ import { RL_COMPANY_ID, rlContextView } from "../tests/fixtures/company-rl";
 import {
   mockApi,
   mockBidDelta,
+  mockBriefing,
   mockCompanyWorkspace,
   mockDeepReviewLifecycle,
   mockDocumentStructurePage,
@@ -25,6 +26,7 @@ import {
   mockOrderPlanBulkTracking,
   mockOrderPlans,
   mockPreSpecs,
+  mockRealCompany,
   overviewAbsentEnvelope,
   overviewCompletedEnvelope,
   overviewNeedsHumanReviewEnvelope,
@@ -139,6 +141,8 @@ async function buildPage(): Promise<FakePage> {
   // 가상회사 데모 화면(`/companies/...`)을 브라우저로 보려고 demo-config를 켠다. 응답은
   // 같은 Playwright fixture(`mockCompanyWorkspace`)이며 실제 회사 자료가 아니다.
   await mockCompanyWorkspace(page as never);
+  await mockRealCompany(page as never);
+  await mockBriefing(page as never);
 
   // 사전규격 목록 fixture에는 있지만 공고 상세 fixture가 없는 건이 있다
   // (`mockPreSpecs`는 991만 상세를 준다). 브라우저로 목록의 행을 눌러 보는

@@ -6,6 +6,7 @@ import {
   overviewCompletedRunFixture,
   overviewEnvelopeFixture,
   overviewFallbackQueuedRunFixture,
+  overviewRunFixture,
   openProcessSection,
   setSidebarActor,
 } from "./api-mock";
@@ -300,7 +301,7 @@ interface PreSpecTrace {
   listQueries: URLSearchParams[];
   noticeGets: number[];
   overviewGets: number[];
-  trackingPatches: Array<{ opportunityId: number; trackingStatus: string; reason: string }>;
+  trackingPatches: Array<{ opportunityId: number; trackingStatus: string; reason?: string }>;
 }
 
 interface PreSpecMockOptions {
@@ -308,12 +309,6 @@ interface PreSpecMockOptions {
   trackingSavedActor?: string;
   /** 개요 검토 envelope(`bidops.prespec-overview.v1`). 없으면 run이 없는 공고다. */
   overviewBody?: unknown;
-}
-
-async function fillRecordReason(page: Page, text: string) {
-  await page.getByRole("combobox", { name: "선택 사유" }).click();
-  await page.getByRole("option", { name: "기타 · 직접 입력" }).click();
-  await page.getByRole("textbox", { name: "선택 사유 직접 입력 (필수)" }).fill(text);
 }
 
 async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promise<PreSpecTrace> {
@@ -406,7 +401,9 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
     }
     const body = request.postDataJSON() as { tracking_status?: string; reason?: string };
     const opportunityId = Number(match[1]);
-    if (!trackingByOpportunity.has(opportunityId) || !body.tracking_status || !body.reason?.trim()) {
+    const directStart = body.tracking_status === "계속 추적" && body.reason === undefined
+      && trackingByOpportunity.get(opportunityId) === "미선택";
+    if (!trackingByOpportunity.has(opportunityId) || !body.tracking_status || (!directStart && !body.reason?.trim())) {
       await route.fulfill({ status: 422, contentType: "application/json", body: JSON.stringify({ detail: "tracking_reason_required" }) });
       return;
     }
@@ -423,7 +420,7 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
       body: JSON.stringify({
         id: opportunityId,
         tracking_status: body.tracking_status,
-        tracking_reason: body.reason,
+        tracking_reason: body.reason ?? null,
         tracking_selected_by: options.trackingSavedActor ?? decodeURIComponent((request.headers()["x-bidops-actor-name"] ?? "테스트 담당자").replace(/^UTF-8''/, "")),
         tracking_selected_at: "2026-09-01T00:00:00Z",
         recheck_signal: false,
@@ -462,15 +459,14 @@ async function mockPreSpecs(page: Page, options: PreSpecMockOptions = {}): Promi
   return trace;
 }
 
-// 목록은 12열 표가 아니라 리스트 행이다(시안 PreSpecs.png). 한 건을 집는
-// 자리를 한곳에 두어 행 구조가 바뀌어도 spec 전체가 같은 곳만 고치면 된다.
+// 헤더 행과 본문 행을 구분하고 사업명으로 본문 행을 찾는다.
 function preSpecRow(page: Page, title: string) {
-  return page.locator('.pre-specs-list-pane [data-review-primitive="dense-list-row"]').filter({ hasText: title });
+  return page.getByRole("table", { name: "사전규격", exact: true }).getByRole("row", { name: title, exact: true });
 }
 
 /** 행 선택은 제목 링크·버튼이 아닌 자리를 눌러야 상세만 바뀐다. */
 async function selectPreSpecRow(page: Page, title: string) {
-  await preSpecRow(page, title).locator(".pre-specs-row-meta").click();
+  await preSpecRow(page, title).locator(".pre-specs-row-agency").click();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -482,7 +478,9 @@ test("URL 누락은 sw_only=true, 전체 보기와 기본값 복원은 서로 �
   const trace = await mockPreSpecs(page);
   await page.goto("/pre-specs");
 
-  const defaultView = page.getByRole("checkbox", { name: "SW 중심 · 추적 예외 포함" });
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
+  const filters = page.getByRole("region", { name: "상세 필터", exact: true });
+  const defaultView = filters.getByRole("checkbox", { name: "SW 중심 · 추적 예외 포함" });
   await expect(defaultView).toBeChecked();
   await expect.poll(() => trace.listQueries.at(-1)?.get("sw_only")).toBe("true");
   expect(new URL(page.url()).searchParams.has("sw_only")).toBe(false);
@@ -494,8 +492,7 @@ test("URL 누락은 sw_only=true, 전체 보기와 기본값 복원은 서로 �
   await expect(defaultView).not.toBeChecked();
   expect(new URL(page.url()).searchParams.get("sw_only")).toBe("false");
 
-  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
-  await page.getByRole("button", { name: "기본값으로" }).click();
+  await filters.getByRole("button", { name: "기본값으로", exact: true }).click();
   await expect(defaultView).toBeChecked();
   await expect.poll(() => trace.listQueries.at(-1)?.get("sw_only")).toBe("true");
   expect(new URL(page.url()).searchParams.has("sw_only")).toBe(false);
@@ -511,13 +508,13 @@ test("기본 보기 빈 상태의 전체 사전규격 보기는 sw_only=false를
   await expect(preSpecRow(page, allOnlyPreSpec.title)).toBeVisible();
 });
 
-// 행 구조: 사업명 → 기관 → 예산·발견 구분 → 개요 상태·추적 상태(사용자 정정으로
-// 시안의 첫 두 줄을 맞바꿨다). 크기는 사업명·기관이 14px, 나머지가 12px이며 굵은
-// 글자는 사업명 하나뿐이다(2026-11-18 조밀 목록 결정. ×0.9 축척 때는 14.4px·12.6px).
+// 표의 값은 14px, 보조 줄과 상태 표식은 12px로 읽힌다.
 test("목록 행은 사업명·기관·예산·상태를 정해진 순서와 글자 크기로 보여준다", async ({ page }) => {
   await mockPreSpecs(page);
   // 2026-11-19: 991(`계속 추적` 결정)은 기본 보기(검토할 항목)에 없다 — 사람이 결정한 건은 빠진다(서버 술어). 전체 이력에서 연다.
-  await page.goto("/pre-specs?workspace=all");
+  await page.goto("/pre-specs?workspace=all&density=roomy");
+  await expect(page).toHaveURL((url) => !url.searchParams.has("density"));
+  await expect(page.getByRole("combobox", { name: "목록 밀도", exact: true })).toHaveCount(0);
 
   const row = preSpecRow(page, trackingException.title);
   const agency = row.locator(".pre-specs-row-agency");
@@ -527,41 +524,45 @@ test("목록 행은 사업명·기관·예산·상태를 정해진 순서와 글
 
   const fontSize = (locator: ReturnType<typeof preSpecRow>) => locator
     .evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
-  // 2026-11-20(ADR-0076 결정 10): 발주계획과 같은 행 단 — 사업명 16px, 발주기관 14px.
   expect(await fontSize(agency)).toBe(14);
-  expect(await fontSize(title)).toBe(16);
+  expect(await fontSize(title)).toBe(14);
   const fontWeight = (locator: ReturnType<typeof preSpecRow>) => locator
     .evaluate((element) => Number(getComputedStyle(element).fontWeight));
   expect(await fontWeight(title)).toBeGreaterThanOrEqual(600);
   expect(await fontWeight(agency)).toBeLessThan(600);
-  // 2026-11-20 4차(ADR-0076 결정 11): 패널 본문은 k 단(본문 16·보조 14·구역 18·상세 22, 단추 44)이다.
-  expect(await fontSize(row.locator(".pre-specs-row-meta"))).toBe(14);
-  expect(await fontSize(row.locator(".pre-specs-row-state"))).toBe(14);
+  expect(await fontSize(row.locator(".pre-specs-tracking-exception"))).toBe(12);
+  expect(await fontSize(row.locator(".pre-specs-row-state > .astryx-token"))).toBe(12);
   expect(await fontSize(row.locator(".pre-specs-deadline"))).toBe(14);
 
-  // 사업명이 기관보다 위에 있고, 마감은 행의 오른쪽 절반에 있다.
   const positions = await row.evaluate((element) => {
     const box = element.getBoundingClientRect();
     const agencyBox = element.querySelector(".pre-specs-row-agency")!.getBoundingClientRect();
     const titleBox = element.querySelector(".pre-specs-row-title")!.getBoundingClientRect();
     const deadlineBox = element.querySelector(".pre-specs-deadline")!.getBoundingClientRect();
-    return {
-      titleAboveAgency: titleBox.top < agencyBox.top,
-      deadlineOnRight: deadlineBox.left > box.left + box.width / 2,
-    };
+    return { titleBeforeAgency: titleBox.right <= agencyBox.left, deadlineOnRight: deadlineBox.left > box.left + box.width / 2 };
   });
-  expect(positions).toEqual({ titleAboveAgency: true, deadlineOnRight: true });
+  expect(positions).toEqual({ titleBeforeAgency: true, deadlineOnRight: true });
 
   // 예산은 목록에서 억 단위로 줄이고 정확한 금액은 tooltip과 상세가 갖는다.
-  const budget = row.locator(".pre-specs-row-meta span").first();
+  const budget = row.locator(".pre-specs-row-budget [title]");
+  await expect(budget).toHaveCount(1);
   await expect(budget).toHaveText("5.1억원");
   await expect(budget).toHaveAttribute("title", "510,000,000원");
-  // 마감은 D-day와 짧은 날짜이고 정확한 일시는 tooltip에 남는다.
-  await expect(row.getByLabel("D-day: D-2")).toBeVisible();
-  await expect(row.locator(".pre-specs-row-deadline-at")).toHaveText("09.02");
+  expect(await fontSize(budget)).toBe(14);
+  const keys = page.locator(".pre-specs-pager .review-list-pager-keys");
+  await expect(keys).toHaveCSS("font-size", "12px");
+  // 마감은 D-day와 짧은 날짜를 한 줄로 보여 주고 정확한 일시는 tooltip에 남긴다.
+  const deadline = row.locator(".pre-specs-row-date");
+  await expect(deadline.getByLabel("D-day: D-2 · 09.02", { exact: true })).toHaveAttribute("title", /2026.*9.*2/);
+  await expect(deadline).toHaveText("D-2 · 09.02");
+  await expect(deadline).toHaveCSS("white-space", "nowrap");
+
+  await page.clock.setFixedTime(new Date("2026-09-02T12:00:00+09:00"));
+  await page.reload();
+  await expect(deadline).toHaveText("마감 지남 · 09.02");
 });
 
-test("행은 개요 상태와 추적 상태만 상태 줄에 두고 첨부 차단·실패를 숨기지 않는다", async ({ page }) => {
+test("개요와 추적 상태를 같은 열에 두고 첨부 차단·실패를 보여 준다", async ({ page }) => {
   await mockPreSpecs(page);
   await page.goto("/pre-specs?workspace=all&sw_only=false");
 
@@ -569,9 +570,9 @@ test("행은 개요 상태와 추적 상태만 상태 줄에 두고 첨부 차�
   await expect(trackedRow.locator(".pre-specs-row-state")).toContainText("사람 검토 필요");
   await expect(trackedRow.locator(".pre-specs-row-state")).toContainText("계속 추적");
   await expect(trackedRow.locator(".pre-specs-row-attention")).toHaveText("첨부 차단 2 · 실패 1");
-  // 추적 예외와 SW 값 없음은 짧은 글자로 남는다(강한 배지로 반복하지 않는다).
-  await expect(trackedRow.locator(".pre-specs-row-meta")).toContainText("추적 예외");
-  await expect(trackedRow.locator(".pre-specs-row-meta")).toContainText("SW N");
+  await expect(trackedRow.locator(".pre-specs-tracking-exception")).toHaveText("추적 예외");
+  await trackedRow.locator(".pre-specs-row-title").click();
+  await expect(page.locator(".pre-specs-detail-chips")).toContainText("SW사업대상 N");
 
   const newRow = preSpecRow(page, newPreSpec.title);
   await expect(newRow.locator(".pre-specs-row-state")).toContainText("실패");
@@ -648,7 +649,7 @@ test("화면 제목과 `목록 기준` 액션은 상단바에 있고 페이지�
   const topbar = page.locator("header.topbar");
   await expect(topbar).toHaveAttribute("data-topbar-mode", "title");
   // 화면 이름은 패널 헤더의 작은 글자이고 `<h1>`은 문장형 제목이다(ADR-0076).
-  await expect(topbar.getByTestId("page-header-eyebrow")).toHaveText("사전규격");
+  await expect(topbar.locator("h1")).toHaveText("사전규격");
   await expect(topbar.locator("h1")).toHaveText(/사전규격/);
   // 페이지에 남는 것은 `aria-labelledby`가 가리킬 숨긴 이름(제목 아님)뿐이고, 제목 줄은 없다.
   await expect(page.locator(".pre-specs-page > span.visually-hidden#page-title")).toHaveText("사전규격");
@@ -710,6 +711,8 @@ for (const viewport of [{ width: 1920, height: 1080 }, { width: 1440, height: 90
     await expect(detail.locator('.pre-specs-detail-block[aria-label="사업 설명"]')).toContainText("차세대 통합 데이터 플랫폼을 구축하는 사업이다.");
     await expect(scroll.locator(".pre-specs-detail-tasks > li").first()).toBeVisible();
     await expect(scroll.locator(".pre-specs-detail-scale")).toBeVisible();
+    await expect(scroll.locator(".pre-specs-detail-figures > .astryx-metadata-list"))
+      .toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 
     const styles = await scroll.evaluate((element) => {
       const styleOf = (selector: string) => {
@@ -730,7 +733,7 @@ for (const viewport of [{ width: 1920, height: 1080 }, { width: 1440, height: 90
         task: styleOf(".pre-specs-detail-tasks > li"),
         fieldValue: styleOf(".pre-specs-detail-figures dd"),
         caption: styleOf(".pre-specs-detail-caption"),
-        fieldLabel: styleOf(".pre-specs-detail-field-label"),
+        fieldLabel: styleOf(".pre-specs-detail-figures dt"),
         scale: styleOf(".pre-specs-detail-scale"),
         sectionLabel: styleOf(".pre-specs-detail-section-label"),
         scaleLabel: styleOf(".pre-specs-detail-scale-label"),
@@ -751,13 +754,14 @@ for (const viewport of [{ width: 1920, height: 1080 }, { width: 1440, height: 90
     // 2026-11-20 4차(ADR-0076 결정 11): 패널 본문은 k 단(본문 16·보조 14·구역 18·상세 22, 단추 44)이다.
     expect(styles.summary.fontSize).toBe(16);
     expect(styles.task.fontSize).toBe(16);
-    expect(styles.fieldValue.fontSize).toBe(16);
+    expect(styles.fieldValue.fontSize).toBe(15);
     expect(styles.caption.fontSize).toBe(14);
     expect(styles.fieldLabel.fontSize).toBe(14);
     expect(styles.scale.fontSize).toBe(14);
-    // 굵기는 400·500·600만 쓴다(2026-11-18). 라벨 강조는 600이다.
+    // 세로 사실 목록 값은 600, 라벨은 500이다.
     expect(styles.sectionLabel.fontWeight).toBeGreaterThanOrEqual(600);
-    expect(styles.fieldLabel.fontWeight).toBeGreaterThanOrEqual(600);
+    expect(styles.fieldValue.fontWeight).toBe(600);
+    expect(styles.fieldLabel.fontWeight).toBe(500);
     expect(styles.scaleLabel.fontWeight).toBeGreaterThanOrEqual(600);
     expect(styles.validation.fontWeight).toBeLessThan(600);
     expect(styles.taskText.fontWeight).toBeLessThan(600);
@@ -780,24 +784,34 @@ for (const viewport of [{ width: 1920, height: 1080 }, { width: 1440, height: 90
         background: style.backgroundColor,
       };
     });
-    // 2026-11-20 4차(ADR-0076 결정 11): 행 안 보조 단추는 44px이다.
+    // 결정 띠에서 상세 링크는 14/600 보조 조작이다.
     expect(linkStyle.minHeight).toBe(32);
-    expect(linkStyle.fontSize).toBe(16);
-    expect(linkStyle.fontWeight).toBeGreaterThanOrEqual(600);
+    expect(linkStyle.fontSize).toBe(14);
+    expect(linkStyle.fontWeight).toBe(600);
     expect(linkStyle.background).not.toBe("rgba(0, 0, 0, 0)");
 
-    // 목록 도구줄의 채운 Primary와 상세 진입 링크는 같은 기본·hover 색을
-    // 사용한다. 링크가 `<a>`인 것은 그대로 두고, 선택 검토는 실제로 활성화해
-    // 두 조작의 스타일 계약만 비교한다.
-    await page.locator(".pre-specs-row").first().getByRole("checkbox").check();
+    // 상세 진입과 선택 검토는 보조 조작이다. 기본·hover 색을 테마 토큰과 비교한다.
+    await preSpecRow(page, trackingException.title).getByRole("checkbox").check();
     const selectionReview = page.getByRole("button", { name: "선택 항목 검토", exact: true });
     await expect(selectionReview).toBeEnabled();
-    const backgroundOf = async (locator: ReturnType<typeof page.locator>) => locator.evaluate((element) => getComputedStyle(element).backgroundColor);
-    expect(await backgroundOf(actionLink)).toBe(await backgroundOf(selectionReview));
+    const expectThemeBackground = async (control: ReturnType<typeof page.locator>, token: string) => {
+      const color = await control.evaluate((element, themeToken) => {
+        const sample = document.createElement("span");
+        sample.hidden = true;
+        sample.style.backgroundColor = `var(${themeToken})`;
+        element.append(sample);
+        const resolved = getComputedStyle(sample).backgroundColor;
+        sample.remove();
+        return resolved;
+      }, token);
+      await expect(control).toHaveCSS("background-color", color);
+    };
+    await expectThemeBackground(actionLink, "--color-background-surface");
+    await expectThemeBackground(selectionReview, "--color-background-surface");
     await actionLink.hover();
-    const linkHoverBackground = await backgroundOf(actionLink);
+    await expectThemeBackground(actionLink, "--color-accent-muted");
     await selectionReview.hover();
-    expect(linkHoverBackground).toBe(await backgroundOf(selectionReview));
+    await expectThemeBackground(selectionReview, "--color-accent-muted");
 
     const footerBefore = await detail.locator(".pre-specs-detail-actions").boundingBox();
     await scroll.evaluate((element) => { element.scrollTop = element.scrollHeight; });
@@ -805,6 +819,11 @@ for (const viewport of [{ width: 1920, height: 1080 }, { width: 1440, height: 90
       .toBe(footerBefore?.top);
     await expect(actionLink).toBeInViewport();
     await expect(scroll).toHaveCSS("overflow-y", "auto");
+
+    await preSpecRow(page, newPreSpec.title).locator(".pre-specs-row-title").click();
+    const primary = detail.locator(".workbench-decision .astryx-button.primary");
+    await expect(primary).toHaveCount(1);
+    await expect(primary).toHaveAccessibleName("추적 시작하기");
   });
 }
 
@@ -893,9 +912,7 @@ test("발주계획에서 승계한 건은 폼 대신 현재 추적 상태를 보
   expect(trace.trackingPatches).toEqual([]);
 });
 
-// PLAN 단계 D 작업 4: 신규 건만 한 조작으로 받는다. 사유는 빈 값으로 시작하는
-// 드롭다운이고 `기타`를 골랐을 때만 직접 입력이 열린다.
-test("신규 사전규격은 사유 드롭다운과 담당자로 추적을 시작하고 목록에 남는다", async ({ page }) => {
+test("신규 사전규격은 사유 없이 한 번에 추적을 시작하고 목록에 남는다", async ({ page }) => {
   const trace = await mockPreSpecs(page);
   await page.goto("/pre-specs?workspace=all");
 
@@ -903,21 +920,21 @@ test("신규 사전규격은 사유 드롭다운과 담당자로 추적을 시�
 
   const decision = page.locator(".pre-specs-detail-actions");
   await expect(page.locator(".pre-specs-detail-header")).toContainText("추적 결정 · 미선택");
-  // 사유는 비어 있는 상태로 시작하고 자유 입력은 열려 있지 않다.
-  await expect(decision.locator("textarea")).toHaveCount(0);
+  await expect(decision.getByRole("combobox", { name: "선택 사유" })).toHaveCount(0);
   const save = decision.getByRole("button", { name: "추적 시작하기", exact: true });
   await expect(save).toBeDisabled();
 
-  await fillRecordReason(page, "발주계획에 없던 신규 건");
-  await decision.getByRole("button", { name: "사이드바에서 이름 입력하기" }).click();
+  await decision.getByRole("button", { name: "담당자 이름 입력" }).click();
+  await expect(page.locator("#sidebar-actor-input")).toBeFocused();
   await page.locator("#sidebar-actor-input").fill("홍길동");
   await page.locator(".sidebar-actor-done").click();
+  await expect(decision.getByRole("button", { name: /홍길동.*이름 변경/ })).toBeVisible();
   await save.click();
 
   await expect.poll(() => trace.trackingPatches).toEqual([{
     opportunityId: 78,
     trackingStatus: "계속 추적",
-    reason: "발주계획에 없던 신규 건",
+    reason: undefined,
   }]);
   // 2026-11-19: 추적 결정은 추적만 정한다. 저장 뒤 분석 실행 자리(옛 심층 검토)로 데려가지 않는다.
   await expect(decision).toContainText("계속 추적");
@@ -925,39 +942,13 @@ test("신규 사전규격은 사유 드롭다운과 담당자로 추적을 시�
   await expect(page.getByText("심층 검토 실행 승인", { exact: false })).toHaveCount(0);
 });
 
-test("사유 예시를 고르면 그 문장이 그대로 저장 사유가 된다", async ({ page }) => {
-  const trace = await mockPreSpecs(page);
-  await page.goto("/pre-specs?workspace=all");
-
-  await selectPreSpecRow(page, newPreSpec.title);
-  const decision = page.locator(".pre-specs-detail-actions");
-  await decision.getByRole("combobox", { name: "선택 사유" }).click();
-  await page.getByRole("option", { name: "후속 입찰공고 확인" }).click();
-  // 예시를 고른 뒤에는 자유 입력이 열리지 않는다.
-  await expect(decision.locator("textarea")).toHaveCount(0);
-  await decision.getByRole("button", { name: "사이드바에서 이름 입력하기" }).click();
-  await page.locator("#sidebar-actor-input").fill("홍길동");
-  await page.locator(".sidebar-actor-done").click();
-  await decision.getByRole("button", { name: "추적 시작하기", exact: true }).click();
-
-  await expect.poll(() => trace.trackingPatches).toEqual([{
-    opportunityId: 78,
-    trackingStatus: "계속 추적",
-    reason: "후속 입찰공고 확인",
-  }]);
-});
-
-// 인라인 폼의 사유는 저장 전까지 화면에만 있다. 행을 옮기면 사라지므로 사유가
-// 있으면 확인 없이 버리지 않는다(spec §3.3의 `onDirtyChange` → 목록 guard 경로).
-// 담당자 이름만 있고 사유가 비어 있으면 저장할 수 없는 입력이라 잃을 것이 없으므로
-// 확인 창 없이 바로 옮긴다(0923 패키지 B, 미저장 판정은 사유만 본다).
 test("담당자 이름만 입력하고 행을 옮기면 확인 없이 이동한다", async ({ page }) => {
   const trace = await mockPreSpecs(page);
   await page.goto("/pre-specs?workspace=all");
 
   await selectPreSpecRow(page, newPreSpec.title);
   const decision = page.locator(".pre-specs-detail-actions");
-  await decision.getByRole("button", { name: "사이드바에서 이름 입력하기" }).click();
+  await decision.getByRole("button", { name: "담당자 이름 입력" }).click();
   await page.locator("#sidebar-actor-input").fill("아직 저장하지 않은 담당자");
   await page.locator(".sidebar-actor-done").click();
 
@@ -965,50 +956,6 @@ test("담당자 이름만 입력하고 행을 옮기면 확인 없이 이동한�
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
   await expect(page.locator(".pre-specs-detail-title")).toContainText(trackingException.title);
   expect(trace.trackingPatches).toEqual([]);
-});
-
-test("사유를 고르고 행을 옮기면 확인 없이 버리지 않는다", async ({ page }) => {
-  const trace = await mockPreSpecs(page);
-  await page.goto("/pre-specs?workspace=all");
-
-  await selectPreSpecRow(page, newPreSpec.title);
-  const decision = page.locator(".pre-specs-detail-actions");
-  await fillRecordReason(page, "아직 저장하지 않은 사유");
-
-  // 취소하면 선택 행도 입력도 그대로다.
-  await selectPreSpecRow(page, trackingException.title);
-  const guard = page.getByRole("alertdialog");
-  await expect(guard).toBeVisible();
-  await expect(guard).toContainText("저장하지 않은 추적 결정 사유와 담당자 이름이 있어요.");
-  await guard.getByRole("button", { name: "계속 편집", exact: true }).click();
-  await expect(guard).toHaveCount(0);
-  await expect(decision.getByRole("textbox", { name: "선택 사유 직접 입력 (필수)" })).toHaveValue("아직 저장하지 않은 사유");
-
-  // 확인하면 행이 바뀌고 저장 요청은 나가지 않는다.
-  await selectPreSpecRow(page, trackingException.title);
-  await page.getByRole("alertdialog").getByRole("button", { name: "저장하지 않고 옮기기", exact: true }).click();
-  await expect(page.locator(".pre-specs-detail-title")).toContainText(trackingException.title);
-  expect(trace.trackingPatches).toEqual([]);
-});
-
-// Selector `hasClear`: 고른 사유를 다시 비울 수 있고, 비우면 저장이 막힌다.
-test("사유를 고른 뒤 지우기 단추를 누르면 빈 상태로 돌아가고 저장이 비활성화된다", async ({ page }) => {
-  await mockPreSpecs(page);
-  await page.goto("/pre-specs?workspace=all");
-
-  await selectPreSpecRow(page, newPreSpec.title);
-  const decision = page.locator(".pre-specs-detail-actions");
-  await decision.getByRole("combobox", { name: "선택 사유" }).click();
-  await page.getByRole("option", { name: "후속 입찰공고 확인" }).click();
-  await decision.getByRole("button", { name: "사이드바에서 이름 입력하기" }).click();
-  await page.locator("#sidebar-actor-input").fill("홍길동");
-  await page.locator(".sidebar-actor-done").click();
-  const save = decision.getByRole("button", { name: "추적 시작하기", exact: true });
-  await expect(save).toBeEnabled();
-
-  await decision.getByRole("button", { name: "선택 사유 지우기" }).click();
-  await expect(decision.getByRole("combobox", { name: "선택 사유" })).toContainText("사유를 선택하세요");
-  await expect(save).toBeDisabled();
 });
 
 // 선택한 건의 개요 본문은 목록 응답이 아니라 개요 endpoint의 run envelope에서 온다.
@@ -1060,7 +1007,7 @@ test("개요 결과가 없으면 상태가 무엇을 기다리는지 말하고 �
   await page.goto("/pre-specs?workspace=all");
 
   const detail = page.locator(".pre-specs-detail-pane");
-  await expect(detail.locator('.pre-specs-detail-block[aria-label="사업 설명"]'))
+  await expect(detail.getByRole("region", { name: "개요 검토 상태" }))
     .toContainText("승인된 모델 실행이 큐에서 차례를 기다리고 있어요.");
   // 결과가 없으면 과업 목록도 규모 한 줄도 만들지 않는다.
   await expect(detail.locator(".pre-specs-detail-tasks")).toHaveCount(0);
@@ -1069,12 +1016,39 @@ test("개요 결과가 없으면 상태가 무엇을 기다리는지 말하고 �
 
 test("개요 응답의 notice ID가 어긋나면 목록 화면도 교차 정본을 그리지 않는다", async ({ page }) => {
   await mockPreSpecs(page, { overviewBody: { ...overviewCompletedEnvelope(), notice_id: 992 } });
-  await page.goto("/pre-specs");
+  await page.goto("/pre-specs?workspace=all");
+  await selectPreSpecRow(page, trackingException.title);
 
   const detail = page.locator(".pre-specs-detail-pane");
   // 담당자 어휘로 적되 교차 표시를 막는 의미는 그대로다(ADR-0055 D11).
-  await expect(detail).toContainText("개요 검토 결과를 확인할 수 없어요.");
+  await expect(detail.getByRole("heading", { name: "개요 검토 결과를 확인할 수 없어요" })).toBeVisible();
   await expect(detail.locator(".pre-specs-detail-tasks")).toHaveCount(0);
+});
+
+test("개요 미시작과 실패는 결과 구역 대신 하나의 상태와 원문 경로를 보여준다", async ({ page }) => {
+  await mockPreSpecs(page);
+  const failed = overviewRunFixture({ id: "failed-992", status: "failed" });
+  await page.route("**/api/pre-specs/992/overview", (route) => route.fulfill({
+    json: overviewEnvelopeFixture(992, failed, [failed, overviewCompletedRunFixture]),
+  }));
+  await page.goto("/pre-specs?workspace=all&sw_only=false");
+
+  const preview = page.locator(".pre-specs-detail-pane");
+  const status = preview.getByRole("region", { name: "개요 검토 상태" });
+  for (const [item, title, description] of [
+    [allOnlyPreSpec, "개요 검토 미시작", "아직 개요 검토 실행 기록이 없어요."],
+    [newPreSpec, "개요 검토 실패", "‘처리 상태·기술 정보’에서 마지막 실행을 확인할 수 있어요."],
+  ] as const) {
+    await selectPreSpecRow(page, item.title);
+    await expect(status.getByRole("heading", { name: title })).toBeVisible();
+    await expect(status).toContainText(description);
+    await expect(preview.getByRole("region", { name: "사업 설명" })).toHaveCount(0);
+    await expect(preview.getByRole("region", { name: "주요 과업 요약" })).toHaveCount(0);
+    await expect(preview).not.toContainText(/검증 대기|주의 없음/);
+    await expect(preview.getByRole("link", { name: "원문·첨부 보기 →" }))
+      .toHaveAttribute("href", new RegExp(`/pre-specs/${item.notice_pk}.*#ps-evidence$`));
+    await captureRecord(page, `preview-${item.overview_review_status ?? "not-started"}`);
+  }
 });
 
 // 첨부 목록·처리 이력 탭은 우측 정보 영역에서 빠졌다(spec §3.1). 그 내용은
@@ -1126,14 +1100,14 @@ test("사전규격 상세는 notice_pk projection의 현재 추적 상태와 첨
   expect(trace.listQueries.at(-1)?.has("sw_only")).toBe(false);
 });
 
-test("사유 없이 사전규격 추적 상태를 보낼 수 없다", async ({ page }) => {
+test("담당자 없이 사전규격 추적 상태를 보낼 수 없다", async ({ page }) => {
   const trace = await mockPreSpecs(page);
-  // 991은 승계 건이라 결정 form이 없다. 사유 규칙은 신규 건에서 확인한다.
+  // 승계하지 않은 신규 건에서 담당자 안내를 확인한다.
   await page.goto("/pre-specs/992");
 
   // 저장 버튼과 비활성 사유는 헤더 아래 추적 결정 카드가 함께 소유한다.
   await expect(page.getByRole("button", { name: "추적 시작하기", exact: true })).toBeDisabled();
-  await expect(page.locator("#pre-spec-tracking-save-disabled")).toContainText("선택 사유와 담당자 이름을 입력하면 추적 결정을 기록할 수 있어요.");
+  await expect(page.locator("#pre-spec-tracking-save-disabled")).toContainText("담당자 이름을 입력해 주세요.");
   expect(trace.trackingPatches).toEqual([]);
 });
 
@@ -1144,8 +1118,7 @@ test("추적 결정은 추적만 정한다는 문구이고 심층 검토 실행 
   await page.goto("/pre-specs/992");
   const bar = page.locator("#page-footer");
   await expect(bar.getByRole("button", { name: "추적 시작하기", exact: true })).toBeVisible();
-  await expect(bar).not.toContainText("보류·종료는 사업 추적에서, 입찰 참여는 최종 Go/No-Go에서 정해요.");
-  await expect(page.getByText("보류·종료는 사업 추적에서, 입찰 참여는 최종 Go/No-Go에서 정해요.")).toHaveCount(0);
+  await expect(bar).not.toContainText("최종 Go/No-Go");
   await expect(bar).not.toContainText("심층 검토");
   await expect(page.getByText("추적 시작하고 심층 검토", { exact: false })).toHaveCount(0);
   await expect(page.getByText("심층 검토 실행 승인", { exact: false })).toHaveCount(0);
@@ -1161,20 +1134,19 @@ test("사전규격 추적 선택에 성공하면 사람 결정 상태가 갱신�
   await expect(bar.getByRole("button", { name: "보류", exact: true })).toHaveCount(0);
   await expect(bar.getByRole("button", { name: "종료", exact: true })).toHaveCount(0);
   await expect(bar.getByRole("button", { name: "계속 추적", exact: true })).toHaveCount(0);
-  await fillRecordReason(page, "연계 범위를 확인한 뒤 계속 검토하기로 함");
   await bar.getByRole("button", { name: "추적 시작하기", exact: true }).click();
 
   await expect.poll(() => trace.trackingPatches).toEqual([{
     opportunityId: 78,
     trackingStatus: "계속 추적",
-    reason: "연계 범위를 확인한 뒤 계속 검토하기로 함",
+    reason: undefined,
   }]);
   // 담당자는 띠의 입력 칸이 아니라 사이드바 담당자 칸의 값이 헤더로 나간다.
   expect(trace.trackingActors).toEqual(["홍길동"]);
   // 저장이 끝나면 띠가 기록됨 상태로 바뀐다: 저장 알림 · 사유 · 담당자(서버 응답 값) · 사업 추적 링크, 입력과 단추 없음.
   const recorded = page.locator("#page-footer .pre-spec-tracking-decision.is-recorded");
   await expect(recorded).toContainText("추적 상태를 계속 추적(으)로 기록했어요.");
-  await expect(recorded).toContainText("연계 범위를 확인한 뒤 계속 검토하기로 함");
+  await expect(recorded).not.toContainText("사유");
   await expect(recorded).toContainText("홍길동");
   await expect(recorded.getByRole("link", { name: "사업 추적에서 상태 관리 ↗" })).toBeVisible();
   await expect(bar.getByRole("button", { name: "추적 시작하기", exact: true })).toHaveCount(0);
@@ -1188,7 +1160,8 @@ test("사업기회가 없으면 추적 결정을 기록할 수 없는 이유를 
   // 2026-11-21: 옛 머리 칩(`추적 결정 · 사업기회 미연결`)은 없다. 상태와 이유는 하단 띠가 한 번 말한다.
   const bar = page.locator("#page-footer .pre-spec-tracking-decision.is-unlinked");
   await expect(bar).toContainText("사업기회 미연결");
-  await expect(page.locator(".pre-spec-detail-header")).not.toContainText("사업기회 미연결");
+  await expect(page.locator("header.topbar")).not.toContainText("사업기회 미연결");
+  await expect(page.locator("#ps-summary")).not.toContainText("사업기회 미연결");
   await expect(bar.locator("#pre-spec-tracking-save-disabled")).toContainText("아직 사업기회에 연결되지 않아 추적 결정을 기록할 수 없어요.");
   await expect(bar.getByRole("button", { name: "계속 추적", exact: true })).toHaveCount(0);
   await expect(bar.getByRole("button", { name: "추적 시작하기", exact: true })).toBeDisabled();
@@ -1196,9 +1169,12 @@ test("사업기회가 없으면 추적 결정을 기록할 수 없는 이유를 
 
 test("사전규격 목록과 상세는 viewport 바깥으로 넘치지 않는다", async ({ page }) => {
   await mockPreSpecs(page);
-  for (const path of ["/pre-specs", "/pre-specs/991"]) {
+  for (const [path, heading] of [
+    ["/pre-specs", "사전규격"],
+    ["/pre-specs/991", trackingException.title],
+  ]) {
     await page.goto(path);
-    await expect(page.locator("header.topbar h1")).toHaveText("사전규격");
+    await expect(page.locator("header.topbar h1")).toHaveText(heading);
     await expect.poll(() => page.evaluate(() => ({
       root: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       canvas: (() => {
@@ -1211,11 +1187,11 @@ test("사전규격 목록과 상세는 viewport 바깥으로 넘치지 않는다
 
 // 2026-11-21 시안: 읽는 헤더와 본문에는 조작이 없고, 사유·저장은 패널 아래 하단 결정 띠 한 자리에서만 다룬다.
 // 담당자 이름 칸은 띠에 없고 사이드바 담당자 칸의 값을 쓴다. 화면의 주 버튼은 이 띠 하나다.
-test("사전규격 상세는 하단 결정 띠에서 사유·저장을 다루고 담당자는 사이드바 칸을 쓴다", async ({ page }) => {
+test("사전규격 상세는 하단 결정 띠에서 사유 없이 시작하고 담당자는 사이드바 칸을 쓴다", async ({ page }) => {
   const trace = await mockPreSpecs(page);
   await page.goto("/pre-specs/992");
   await setSidebarActor(page, "홍길동");
-  const header = page.locator('header[aria-label="사전규격 상세 정보"]');
+  const header = page.locator("header.topbar");
   const decision = page.locator("#page-footer").getByRole("region", { name: "추적 결정", exact: true });
   const saveButton = decision.getByRole("button", { name: "추적 시작하기", exact: true });
   // 되돌릴 수 없는 입력·저장 조작을 본문 머리에 올리지 않는다.
@@ -1224,20 +1200,19 @@ test("사전규격 상세는 하단 결정 띠에서 사유·저장을 다루고
   await expect(page.locator("#ps-tasks, #ps-evidence, #ps-process").getByRole("button", { name: "추적 시작하기", exact: true })).toHaveCount(0);
   await expect(saveButton).toHaveCount(1);
   await expect(page.getByRole("button", { name: "추적 시작하기", exact: true })).toHaveCount(1);
-  await expect(decision.getByRole("combobox", { name: "선택 사유" })).toBeVisible();
+  await expect(decision.getByRole("combobox", { name: "선택 사유" })).toHaveCount(0);
   // 담당자 입력 칸은 상세 어디에도 없다(범위 확정 폼 안의 이름 칸은 별개이며 이 건에는 범위 폼이 없다).
   await expect(page.getByRole("textbox", { name: "담당자 이름 (필수)" })).toHaveCount(0);
-  await expect(page.locator(".detail-skeleton-main").getByRole("textbox", { name: "선택 사유 직접 입력 (필수)" })).toHaveCount(0);
+  await expect(page.locator(".workbench-record-main").getByRole("textbox", { name: "선택 사유 직접 입력 (필수)" })).toHaveCount(0);
   // 화면의 주 버튼은 하단 띠 하나다.
   await expect(page.locator(".astryx-button.primary")).toHaveCount(1);
   await expect(decision.locator(".astryx-button.primary")).toHaveCount(1);
-  await fillRecordReason(page, "후속 입찰공고까지 확인하기로 함");
   await saveButton.click();
   await expect(decision.getByText("추적 상태를 계속 추적(으)로 기록했어요.")).toBeVisible();
   expect(trace.trackingPatches).toEqual([{
     opportunityId: 78,
     trackingStatus: "계속 추적",
-    reason: "후속 입찰공고까지 확인하기로 함",
+    reason: undefined,
   }]);
   expect(trace.trackingActors).toEqual(["홍길동"]);
   // 기록된 뒤에는 화면의 주 버튼이 없다.
@@ -1249,12 +1224,11 @@ test("담당자 이름이 없으면 하단 띠가 저장을 막고 사이드바 
   const trace = await mockPreSpecs(page);
   await page.goto("/pre-specs/992");
   const bar = page.locator("#page-footer");
-  await fillRecordReason(page, "이름 없이 저장을 시도해 본다");
   const save = bar.getByRole("button", { name: "추적 시작하기", exact: true });
   await expect(save).toBeDisabled();
-  await expect(bar.locator("#pre-spec-tracking-save-disabled")).toContainText("담당자 이름을 입력하면 추적 결정을 기록할 수 있어요.");
+  await expect(bar.locator("#pre-spec-tracking-save-disabled")).toContainText("담당자 이름을 입력해 주세요.");
   const guide = bar.getByTestId("pre-spec-actor-missing");
-  await expect(guide).toHaveText("사이드바에서 이름 입력하기");
+  await expect(guide).toHaveText("담당자 이름 입력");
   expect(trace.trackingPatches).toEqual([]);
 
   await guide.click();
@@ -1262,12 +1236,11 @@ test("담당자 이름이 없으면 하단 띠가 저장을 막고 사이드바 
   await expect(sidebarActor).toBeFocused();
   await sidebarActor.fill("이름 입력 뒤");
   await page.locator("aside.sidebar").getByRole("button", { name: "닫기", exact: true }).click();
-  // 사유 입력은 이름을 적는 동안에도 남아 있다.
   await expect(bar.getByTestId("pre-spec-actor-missing")).toHaveCount(0);
   await expect(save).toBeEnabled();
   await save.click();
   await expect.poll(() => trace.trackingPatches.length).toBe(1);
-  expect(trace.trackingPatches[0].reason).toBe("이름 없이 저장을 시도해 본다");
+  expect(trace.trackingPatches[0].reason).toBeUndefined();
   expect(trace.trackingActors).toEqual(["이름 입력 뒤"]);
 });
 
@@ -1319,10 +1292,10 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     const trace = await mockPreSpecs(page);
     await page.goto('/pre-specs/992?sw_only=false&sort=deadline');
     await setSidebarActor(page, '검토 담당자');
-    // 단일 열이라 본문 카드(① 사실 줄 머리)의 폭을 잰다. 스켈레톤 자리는 조회가 끝나면 사라진다.
-    await expect(page.locator('.ps-record .pre-spec-detail-header')).toBeVisible();
+    // 상세가 도착한 뒤 왼쪽 본문의 폭을 잰다. 전체 읽기 틀의 폭은 design-shell.spec.ts에서 확인한다.
+    await expect(page.locator('#ps-tasks')).toBeVisible();
     const geometry = await page.evaluate(() => {
-      const main = document.querySelector('.ps-record .pre-spec-detail-header')!;
+      const main = document.querySelector('.ps-record .workbench-record-main')!;
       const canvas = document.querySelector('.page-canvas')!;
       return {
         mainWidth: main.getBoundingClientRect().width,
@@ -1333,22 +1306,21 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     });
     const effectiveScale = geometry.rootZoom * geometry.canvasZoom;
     expect(effectiveScale).toBeCloseTo(1, 2);
-    // 단일 열 최대 폭 1040px(읽기 폭). 두 폭 구조 비교는 design-shell.spec.ts가 갖는다.
     expect(geometry.mainWidth).toBeLessThanOrEqual(1040 * effectiveScale + 1);
     expect(geometry.mainWidth).toBeGreaterThan(550 * effectiveScale);
     expect(geometry.overflow).toBe(0);
     const decision = page.locator('#page-footer').getByRole('region', { name: '추적 결정', exact: true });
-    await expect(decision.getByRole('combobox', { name: '선택 사유' })).toBeInViewport();
+    await expect(decision.getByRole('combobox', { name: '선택 사유' })).toHaveCount(0);
     await expect(decision.getByRole('button', { name: '추적 시작하기', exact: true })).toBeInViewport();
-    // 띠 안에서 사유 칸과 저장 단추는 같은 가로줄(세로 중심 차이 ≤ 2px)이고 띠 안쪽에 있다.
+    // 상태 문장과 저장 단추는 띠 안에서 같은 가로줄에 놓인다.
     const alignment = await page.evaluate(() => {
       const box = (sel: string) => document.querySelector(sel)!.getBoundingClientRect();
       const bar = box('#page-footer .ps-decision-bar');
-      const selector = box('#page-footer .astryx-selector');
+      const status = box('#page-footer .ps-decision-bar-status');
       const save = box('#page-footer .ps-decision-bar-action .astryx-button');
       return {
-        centerGap: Math.abs((selector.top + selector.bottom) / 2 - (save.top + save.bottom) / 2),
-        inside: selector.top >= bar.top && save.bottom <= bar.bottom && save.right <= bar.right,
+        centerGap: Math.abs((status.top + status.bottom) / 2 - (save.top + save.bottom) / 2),
+        inside: status.top >= bar.top && save.bottom <= bar.bottom && save.right <= bar.right,
       };
     });
     expect(alignment.centerGap).toBeLessThanOrEqual(2);
@@ -1360,20 +1332,18 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
       agency: '해솔시청 디지털정책국 공공데이터 통합운영 추진단',
     } }));
     await page.reload();
-    // 기관은 패널 헤더 작은 줄이 한 번 말한다. 수요기관이 없는 건이라 공고기관이 그 자리를 쓰고, 식별 줄에는 되풀이하지 않는다.
+    // 기관은 패널 헤더 작은 줄이 한 번 말한다. 수요기관이 없는 건이라 공고기관이 그 자리를 쓰고, 정보 열에는 되풀이하지 않는다.
     await expect(page.getByTestId('page-header-eyebrow')).toContainText('해솔시청');
-    await expect(page.locator('.ps-record-agency')).toHaveCount(0);
+    await expect(page.locator('#ps-summary dt').filter({ hasText: /^공고기관$/ })).toHaveCount(0);
     await captureRecord(page, `long-${viewport.width}`);
     // 구역 이동 nav는 새 배치에 없다. 본문은 한 흐름으로 읽고 결정은 하단 띠에 늘 보인다.
     await expect(decision.getByRole('button', { name: '추적 시작하기', exact: true })).toBeInViewport();
-    await fillRecordReason(page, '세부 과업과 연계 범위를 확인하고 계속 추적');
     await expect(decision.getByRole('button', { name: '추적 시작하기', exact: true })).toBeEnabled();
     await captureRecord(page, `documents-${viewport.width}`);
     // 처리 이력과 실행 정보는 맨 아래 접힌 `처리 상태·기술 정보` 안의 접힌 `기술 정보`에 모여 있다가 펼칠 수 있다.
     await openProcessSection(page);
     await page.getByRole('button', { name: '기술 정보 · 주장 검증 진단, 고정 입력과 식별 해시, 회사 적합성 실행 정보' }).click();
     await captureRecord(page, `history-${viewport.width}`);
-    await expect(decision.getByRole('textbox', { name: '선택 사유 직접 입력 (필수)' })).toHaveValue('세부 과업과 연계 범위를 확인하고 계속 추적');
     expect(trace.trackingPatches).toEqual([]);
     await decision.getByRole('button', { name: '추적 시작하기', exact: true }).click();
     await expect.poll(() => trace.trackingPatches.length).toBe(1);
@@ -1419,10 +1389,20 @@ test('사전규격 ERP 상세: 로딩 자리가 본문과 보조 열을 유지�
   const pending = new Promise<void>(resolve => { finish = resolve; });
   await page.route('**/api/notices/991', async route => { await pending; await route.fulfill({ json: notice991 }); });
   await page.goto('/pre-specs/991');
-  await expect(page.getByRole('status').filter({ hasText: '사전규격 991 상세를 불러오는 중' })).toBeVisible();
+  const main = page.locator('.ps-record .workbench-record-main');
+  const rail = page.getByRole('complementary', { name: '사전규격 정보' });
+  await expect(main.getByRole('status').filter({ hasText: '사전규격 991 상세를 불러오는 중' })).toBeVisible();
+  await expect(rail.getByRole('status').filter({ hasText: '사전규격 사실을 불러오는 중' })).toBeVisible();
+  const [loadingMain, loadingRail] = await Promise.all([main.boundingBox(), rail.boundingBox()]);
+  expect(loadingRail!.x).toBeGreaterThan(loadingMain!.x + loadingMain!.width);
+  expect(loadingRail!.width).toBeCloseTo(320, 0);
   await captureRecord(page, 'loading-1440');
   finish?.();
-  await expect(page.locator('#pre-spec-detail-title')).toBeVisible();
+  await expect(page.locator('header.topbar h1')).toHaveText(notice991.title);
+  await expect(rail.getByRole('heading', { name: '사업 정보' })).toBeVisible();
+  const [readyMain, readyRail] = await Promise.all([main.boundingBox(), rail.boundingBox()]);
+  expect(readyMain!.width).toBeCloseTo(loadingMain!.width, 0);
+  expect(readyRail!.width).toBeCloseTo(loadingRail!.width, 0);
 });
 
 test('공식 번호는 lifecycle fallback과 복사를 지원하고 내부 PK를 대신 표시하지 않는다', async ({ page }) => {
@@ -1461,7 +1441,7 @@ for (const url of [null, 'javascript:alert(1)', '/guessed-detail/992', 'https://
   });
 }
 
-test('수집된 원문 URL을 새 탭으로 열고 추적 저장 실패 시 입력을 보존한다', async ({ page, context }) => {
+test('수집된 원문 URL을 새 탭으로 열고 추적 시작 실패 뒤 담당자와 재시도 경로를 보존한다', async ({ page, context }) => {
   await mockPreSpecs(page);
   const sourceUrl = 'https://example.invalid/collected-prespec/992';
   await page.route('**/api/notices/992', route => route.fulfill({ json: { ...notice991, id: 992, url: sourceUrl } }));
@@ -1474,17 +1454,13 @@ test('수집된 원문 URL을 새 탭으로 열고 추적 저장 실패 시 입�
   const popupPromise = context.waitForEvent('page'); await link.click(); const popup = await popupPromise;
   await expect(popup.getByRole('heading', { name: '수집된 원문 URL · 테스트' })).toBeVisible();
   expect(await popup.evaluate(() => window.opener === null)).toBe(true); await popup.close();
-  await page.getByRole('combobox', { name: '선택 사유' }).click();
-  await page.getByRole('option', { name: '후속 입찰공고 확인', exact: true }).click();
   await page.route('**/api/opportunities/78/tracking-status', route => route.fulfill({ status: 503, json: { detail: 'unavailable' } }));
   await page.getByRole('button', { name: '추적 시작하기', exact: true }).click();
   const bar = page.locator('#page-footer');
   await expect(bar.locator('.mutation-feedback-error')).toBeVisible();
-  await expect(bar.getByRole('combobox', { name: '선택 사유' })).toContainText('후속 입찰공고 확인');
   // 담당자는 사이드바 칸의 값이고 저장이 실패해도 그대로 남는다.
   await expect(bar).toContainText('김기획 이름으로 기록해요');
-  // C-7: 실패 뒤에도 버튼 이름은 그대로이고, 초안이 남았다는 사실은 오류 표시가 말한다.
-  await expect(bar.locator('.mutation-feedback-error')).toContainText('입력한 내용은 그대로 남아 있어요');
+  await expect(bar.getByRole('button', { name: '추적 시작하기', exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: '추적 시작하기', exact: true })).toBeInViewport();
   await captureRecord(page, 'save-error-1440');
 });
@@ -1798,7 +1774,6 @@ test("선택 검토는 저장 실패 시 머물고 성공 시에만 다음 공�
   const search = "?workspace=all&selection_review=" + token;
   await page.goto("/pre-specs/992" + search);
   await setSidebarActor(page, "검토자");
-  await fillRecordReason(page, "연계 범위 확인");
   await page.route("**/api/opportunities/78/tracking-status", route =>
     route.fulfill({ status: 503, json: {} }), { times: 1 });
   const save = page.getByRole("button", { name: "추적 시작하기", exact: true });

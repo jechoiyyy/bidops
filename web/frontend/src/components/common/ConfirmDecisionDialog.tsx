@@ -1,5 +1,6 @@
 import { useId } from "react";
 import { Button as AstryxButton } from "@astryxdesign/core/Button";
+import { TriangleAlert } from "lucide-react";
 import { Dialog as AstryxDialog } from "./WorkspaceDialog";
 import "../../styles/confirm-decision-dialog.css";
 
@@ -16,8 +17,7 @@ import "../../styles/confirm-decision-dialog.css";
  *
  * 이 컴포넌트는 **무엇을 저장하는지 다시 보여 줄 뿐** 업무 규칙을 갖지 않는다.
  * 저장 전제조건(계산 완료·사유 필수·담당자 필수·validation acknowledge)과 비활성
- * 사유는 부르는 화면이 그대로 소유한다. 확인 버튼은 `destructive`가 아니라
- * primary다 — 결정은 오류가 아니다.
+ * 사유는 부르는 화면이 그대로 소유한다.
  */
 
 /** 확인 다이얼로그가 기본으로 쓰는 경고 문장. 화면마다 다르게 쓰지 않는다. */
@@ -32,15 +32,9 @@ export const UNSAVED_INPUT_WARNING = "저장하지 않고 이동하면 입력한
  * - `decision`: 사람이 **저장하려는** 결정을 되돌릴 수 없다(최종 Go/No-Go, 추적 종료).
  * - `unsaved`: 사람이 **저장하지 않은** 입력을 버린다(화면 이탈, 다른 행 선택).
  *
- * 둘 다 되돌릴 수 없지만 사람이 잃는 것이 다르므로 머리말과 기본 경고 문장을 나눈다.
- * 색으로는 구분하지 않는다 — 구분은 머리말·경고 문장·버튼 이름이 진다.
+ * 저장 확인과 초안 이탈은 경고 문장과 버튼의 강조 순서를 달리한다.
  */
 export type ConfirmDecisionTone = "decision" | "unsaved";
-
-const TONE_KICKER: Record<ConfirmDecisionTone, string> = {
-  decision: "되돌릴 수 없는 결정 · 최종 확인",
-  unsaved: "저장되지 않은 입력 · 이동 확인",
-};
 
 const TONE_WARNING: Record<ConfirmDecisionTone, string> = {
   decision: IRREVERSIBLE_DECISION_WARNING,
@@ -85,6 +79,7 @@ export function ConfirmDecisionDialog({
   const id = useId().replace(/:/g, "");
   const titleId = `confirm-decision-dialog-title-${id}`;
   const descriptionId = `confirm-decision-dialog-description-${id}`;
+  const leaving = tone === "unsaved";
   return (
     <AstryxDialog
       aria-describedby={descriptionId}
@@ -108,10 +103,10 @@ export function ConfirmDecisionDialog({
       style={{ pointerEvents: "auto" }}
     >
       <header className="confirm-decision-dialog-header">
-        <span className="confirm-decision-dialog-kicker">
-          {TONE_KICKER[tone]}
-        </span>
-        <h2 id={titleId} data-slot="alert-dialog-title">{title}</h2>
+        <h2 id={titleId} data-slot="alert-dialog-title">
+          {leaving ? <TriangleAlert aria-hidden="true" /> : null}
+          {title}
+        </h2>
         <p id={descriptionId} data-slot="alert-dialog-description">{warning}</p>
       </header>
       {summary.length ? (
@@ -132,7 +127,7 @@ export function ConfirmDecisionDialog({
           isDisabled={isPending}
           label={cancelLabel}
           onClick={() => onOpenChange(false)}
-          variant="secondary"
+          variant={leaving ? "primary" : "secondary"}
         />
         <AstryxButton
           className="confirm-decision-dialog-confirm"
@@ -140,7 +135,7 @@ export function ConfirmDecisionDialog({
           isDisabled={isPending}
           label={isPending ? "저장 중…" : confirmLabel}
           onClick={onConfirm}
-          variant="primary"
+          variant={leaving ? "secondary" : "primary"}
         />
       </footer>
     </AstryxDialog>

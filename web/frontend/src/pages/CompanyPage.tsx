@@ -1,12 +1,11 @@
-import { usePageHeader } from "../components/shell/PageHeaderContext";
-import { FEATURE_OFF_LABEL } from "../lib/featureFlags";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { EmptyState } from "../components/common/EmptyState";
-import { PageHeaderActions } from "../components/common/PageHeaderActions";
+import { PageHeaderActions, PageHeaderTabs } from "../components/common/PageHeaderActions";
 import { AttentionList } from "../components/company/AttentionList";
-import { FactGroupTable } from "../components/company/FactGroupTable";
+import { expiryNote, factOriginNote, FactGroupTable, StatusPill } from "../components/company/FactGroupTable";
+import { ReviewPreviewHeader } from "../components/common/ReviewPrimitives";
 import { describeCompanyApiError, apiErrorRecoveryAction } from "../lib/apiErrors";
 import {
   companyApi,
@@ -20,8 +19,10 @@ import {
   COMPANY_FACT_GROUPS,
   COMPANY_GROUP_LABEL,
   attentionFacts,
+  companyFactValueText,
   countFacts,
   factsOfGroup,
+  isDisplayedFact,
   parseCompanyGroup,
   todayInSeoul,
   type CompanyFactGroup,
@@ -49,51 +50,14 @@ function formatSavedDate(value: string): string {
   return new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "long" }).format(parsed);
 }
 
-/** 상단바 오른쪽 슬롯: "㈜루트랩 · 마지막 저장 날짜"와 "이전 버전". 저장 버튼은 없다. */
 function CompanyTopbarActions({ context }: { context: CompanyContextView }) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
   const active = context.active_graph_version;
   return (
     <PageHeaderActions>
       <span className="co-topbar-meta" data-testid="company-topbar-meta">
         {context.company.name}
-        {active ? ` · 마지막 저장 ${formatSavedDate(active.created_at)}` : " · 아직 저장된 버전이 없어요"}
+        {active ? ` · 활성 근거 버전 · ${formatSavedDate(active.created_at)} 저장` : " · 활성 근거 버전 없음"}
       </span>
-      <div className="basis-popover" ref={containerRef}>
-        <button
-          aria-controls="company-version-panel"
-          aria-expanded={open}
-          className="basis-popover-trigger"
-          type="button"
-          onClick={() => setOpen((current) => !current)}
-        >
-          이전 버전
-        </button>
-        {open ? (
-          <div aria-label="회사 근거 버전" className="basis-popover-panel" id="company-version-panel" role="region">
-            <p className="co-version-line">
-              {active ? `현재 버전 · ${formatSavedDate(active.created_at)} 저장` : "현재 활성 버전이 없어요."}
-            </p>
-            <p className="co-version-line is-secondary">이전 버전 선택은 아직 지원하지 않아요. 현재 버전만 볼 수 있어요.</p>
-          </div>
-        ) : null}
-      </div>
     </PageHeaderActions>
   );
 }
@@ -149,13 +113,15 @@ function CountList({ confirmed, attention, expiring }: { confirmed: number; atte
   );
 }
 
-function GroupBody({ group, facts, today, warningDays }: {
+function GroupBody({ group, facts, today, warningDays, selectedKey, onSelect }: {
   group: CompanyFactGroup;
   facts: readonly CompanyProfileFact[];
   today: string;
   warningDays: number;
+  selectedKey?: string;
+  onSelect: (key: string) => void;
 }) {
-  if (group === "attention") return <AttentionList facts={attentionFacts(facts)} today={today} warningDays={warningDays} />;
+  if (group === "attention") return <AttentionList facts={attentionFacts(facts)} today={today} warningDays={warningDays} selectedKey={selectedKey} onSelect={onSelect} />;
   if (group === "proposal-assets") {
     return (
       <section aria-labelledby="co-group-title" className="co-group">
@@ -172,7 +138,7 @@ function GroupBody({ group, facts, today, warningDays }: {
         {COMPANY_GROUP_LABEL[group]}
         <span className="co-block-count">{rows.length}</span>
       </h2>
-      <FactGroupTable caption={COMPANY_GROUP_LABEL[group]} facts={rows} today={today} warningDays={warningDays} />
+      <FactGroupTable caption={COMPANY_GROUP_LABEL[group]} facts={rows} today={today} warningDays={warningDays} selectedKey={selectedKey} onSelect={onSelect} />
     </section>
   );
 }
@@ -180,6 +146,7 @@ function GroupBody({ group, facts, today, warningDays }: {
 export function CompanyPage() {
   const [searchParams] = useSearchParams();
   const group = parseCompanyGroup(searchParams.get("group"));
+  const [selectedFactKey, setSelectedFactKey] = useState<string | null>(null);
   const contextQuery = useQuery({
     queryKey: companyContextQueryKey,
     queryFn: ({ signal }) => getCompanyContext({ signal }),
@@ -195,23 +162,16 @@ export function CompanyPage() {
     retry: false,
   });
   const profile = profileQuery.data;
-  // 패널 헤더(최종 시안 패턴). 화면은 읽기 전용이며 값은 회사 파일을 고쳐 다시 등록한다(RL-00).
-  usePageHeader({
-    eyebrow: "회사 근거",
-    title: "판정에 쓰는 회사 근거를 확인해요",
-  });
 
   let body;
   let ready = false;
   if (contextQuery.isPending) {
     body = <p className="co-status" role="status">회사 근거를 불러오는 중이에요.</p>;
   } else if (contextQuery.isError && describeCompanyApiError(contextQuery.error, "").code === "company_not_registered") {
-    // 운영 회사 근거가 등록되지 않은 환경이다. 실패가 아니라 "이 환경에서 꺼져 있음"으로 먼저 말한다
-    // (설계고도화안 C-4). 수치를 0으로 적지 않는다.
     body = (
       <EmptyState
-        description="이 환경에는 운영 회사 근거가 등록되지 않았어요. 회사 파일 등록·활성화는 운영 담당자가 하며, 그 전에는 회사 기준 판정·브리핑·분석 엔진도 쓸 수 없어요."
-        title={`회사 근거 · ${FEATURE_OFF_LABEL}`}
+        description="운영 담당자가 회사 근거를 등록하고 활성화하면 자격·실적·인력과 각 항목의 확인 상태를 볼 수 있어요."
+        title="운영 회사 근거가 등록되지 않았어요"
       />
     );
   } else if (contextQuery.isError || !context) {
@@ -228,7 +188,7 @@ export function CompanyPage() {
     // 활성 버전이 없으면 수치를 0으로 적지 않는다(값 없음과 0은 다르다).
     body = (
       <EmptyState
-        description="회사 파일을 등록하고 활성화하면 이곳에 확인된 값과 확인이 필요한 값이 나타나요."
+        description="회사는 등록됐어요. 운영 담당자가 근거 버전을 활성화하면 확인된 항목과 확인이 필요한 항목을 볼 수 있어요."
         title="회사 근거가 아직 활성화되지 않았어요"
       />
     );
@@ -258,17 +218,36 @@ export function CompanyPage() {
     const today = todayInSeoul();
     const warningDays = context.expiry_warning_days;
     const counts = countFacts(profile.facts, today, warningDays);
+    const groupFacts = group === "attention" ? attentionFacts(profile.facts)
+      : group === "proposal-assets" ? [] : factsOfGroup(profile.facts, group);
+    const displayed = groupFacts.filter(isDisplayedFact);
+    const selectedFact = displayed.find((fact) => fact.fact_key === selectedFactKey) ?? displayed[0];
+    const origin = selectedFact ? factOriginNote(selectedFact) : null;
+    const expiry = selectedFact ? expiryNote(selectedFact, today, warningDays) : null;
     ready = true;
     body = (
       <>
-        <aside aria-label="회사 근거 요약" className="co-side">
-          <GroupNav attentionCount={counts.attention} group={group} />
+        <PageHeaderTabs><GroupNav attentionCount={counts.attention} group={group} /></PageHeaderTabs>
+        <section aria-label="회사 근거 목록" className="co-side">
           <CountList attention={counts.attention} confirmed={counts.confirmed} expiring={counts.expiring} />
-        </aside>
-        <div className="co-main">
-          <p className="co-notice">{NOTICE_LINE}</p>
-          <GroupBody facts={profile.facts} group={group} today={today} warningDays={warningDays} />
-        </div>
+          <GroupBody facts={profile.facts} group={group} today={today} warningDays={warningDays}
+            selectedKey={selectedFact?.fact_key} onSelect={setSelectedFactKey} />
+        </section>
+        <section aria-label="선택한 회사 근거" className="co-main">
+          <ReviewPreviewHeader />
+          <div className="co-preview-body">
+            {selectedFact && isDisplayedFact(selectedFact) ? (
+              <>
+                <h2>{selectedFact.label}</h2>
+                <StatusPill status={selectedFact.status} />
+                <p className="co-preview-value">{companyFactValueText(selectedFact)}</p>
+                {origin ? <p className="co-row-sub">{origin}</p> : null}
+                {expiry ? <p className="co-row-sub is-warning">{expiry}</p> : null}
+                <p className="co-notice">{NOTICE_LINE}</p>
+              </>
+            ) : <EmptyState compact title="표시할 회사 근거가 없어요" />}
+          </div>
+        </section>
       </>
     );
   }

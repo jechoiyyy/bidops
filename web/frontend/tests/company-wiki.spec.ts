@@ -21,6 +21,7 @@ test("프로필 이름표와 확인 수준을 읽고 기술 정보를 펼쳐요"
   await page.goto("/company");
   const main = page.getByRole("main");
   await expect(main.getByRole("heading", { name: "예시 회사" })).toBeVisible();
+  await expect(page.locator("header.topbar .topbar-view-note")).toHaveText("실적 5건 가운데 4건이 업무별 근거 지도에 들어 있어요");
   await expect(main).toContainText("마지막으로 바뀐 날 · 2026-11-22");
   for (const name of ["회사", "인력", "custom"]) await expect(main.getByRole("table", { name, exact: true })).toBeVisible();
   for (const name of ["회사명 예시 회사 확인됨", "등록 건수 0건 공개 자료", "people.lead 미확인 표시 없음", "people.total 값 없음 추정"]) {
@@ -136,7 +137,8 @@ test("근거 지도가 없는 묶음은 날짜와 건수를 추정하지 않아�
   await mockWiki(page, { "": { ...summary, last_changed: null, work_units_available: false, counts: { ...summary.counts,
     ingested_projects: null, work_topics: null, work_units: null, evidence_links: null, units_without_evidence: null } } });
   await page.goto("/company");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("실적 5건이 등록돼 있어요");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("회사 근거");
+  await expect(page.locator("header.topbar .topbar-view-note")).toHaveText("실적 5건이 등록돼 있어요");
   await expect(page.getByText(/마지막으로 바뀐 날/)).toHaveCount(0);
   await expect(page.getByRole("definition").filter({ hasText: "값 없음" })).toHaveCount(3);
   await tab(page, "업무별 근거").click();
