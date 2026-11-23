@@ -9,11 +9,16 @@ module owns the compiled layer:
   from the sidecar, so a reader goes index -> hub -> topic page -> the cited requirement.
 - ``log.txt``: append-only change log.
 
-Ingest is a file contract. A model (outside this package) reads one project's
-requirements and writes a mapping file; ``ingest-apply`` validates it, merges it into the
+Ingest is a file contract with one prompt per project. ``ingest-prompt`` builds the prompt
+(instructions, taxonomy, the project's requirements); the caller sends it to the model;
+``ingest-validate`` checks the answer and, when it is wrong, writes the one allowed
+second-attempt prompt naming the problems; ``ingest-apply`` merges a valid mapping into the
 sidecar, re-renders the pages, appends the log and lints the tree. No transport here.
 
     python -m bid_deep_engine.wiki_tools init --root WIKI --taxonomy taxonomy.json
+    python -m bid_deep_engine.wiki_tools ingest-prompt --root WIKI --source requirements.json > prompt.txt
+    python -m bid_deep_engine.wiki_tools ingest-validate --root WIKI --source requirements.json \\
+        --response response.txt --out mapping.json --repair-prompt retry.txt
     python -m bid_deep_engine.wiki_tools ingest-apply --root WIKI --mapping mapping.json
     python -m bid_deep_engine.wiki_tools render --root WIKI [--allow P2023-10 ...]
     python -m bid_deep_engine.wiki_tools feedback-apply --root WIKI --feedback feedback.json
@@ -124,6 +129,93 @@ def apply_mapping(data: dict, mapping: dict, *, today: str) -> dict:
         "ingested_at": today,
     }
     return data
+
+
+INGEST_PROMPT_HEAD = """# 작업: 과거 수주 사업의 요구사항을 업무 단위로 분류
+
+아래 "분류표"와 "요구사항"만 보고, 요구사항 하나하나가 어떤 종류의 업무(업무 단위)를 담고 있는지 분류한다. 도구를 쓰거나 파일을 읽지 않는다. 답은 JSON 객체 하나만 출력한다(설명·코드 블록 표시 없이).
+
+## 분류 기준
+
+1. 요구사항을 업무 단위로 나눈다. 한 요구사항에 여러 업무가 들어 있는 경우가 많다(예: "하자 및 유지보수" = 하자보수 + 장애 대응 + 교육).
+2. 요구사항이 실제로 담고 있는 업무 단위 id를 분류표에서 모두 고른다.
+   - 같은 단위: 실무자가 같은 일이라고 부르는 것. 주기·횟수, 기간·기한, 수량, 도구·제품·매체, 서식·산출물 이름, 법령·지침 이름, 알림 채널, 대상 이름의 차이는 단위를 나누는 이유가 아니다.
+   - 다른 단위: 활동 자체가 다르거나 그 일이 생기는 계기가 다른 것.
+3. 요구사항 본문이 그 업무를 실제로 요구할 때만 고른다. 주제가 비슷하다거나 요구사항 번호의 접두어만 보고 고르지 않는다. 제목뿐이거나 내용이 없는 줄에는 아무것도 고르지 않는다. `name`·`definition`이 비어 있으면 `details`를 읽는다.
+4. 하드웨어 작업(장비 수리, 부품 교체, 예비 장비, 물리 설치·이전)은 같은 요구사항의 소프트웨어 단위와 별도로 하드웨어 주제의 단위에도 넣는다.
+5. 어느 단위에도 맞지 않는 업무가 있으면 가장 가까운 주제 아래에 새 단위를 제안한다. 실무자가 같은 일이라고 부를 기존 단위가 있으면 그것을 쓴다. 새 단위는 꼭 필요할 때만 만든다.
+
+## 출력 형식
+
+{"schema": "bidops.wiki-ingest-mapping.v1", "project": "<요구사항 자료의 project>", "title": "<요구사항 자료의 title>", "source": "과거 수주 사업 RFP 요구사항", "assignments": [{"req_id": "SER-003", "units": ["<분류표의 단위 id>"]}], "new_units": [{"topic": "<기존 주제 id>", "id": "<주제 id>.<새-이름>", "title": "한글 제목", "covers": "한 문장"}]}
+
+- 요구사항 자료의 모든 요구사항 id가 자료 순서대로 정확히 한 번씩 `assignments`에 있어야 한다. `req_id`는 원문 그대로 쓴다. `units`는 빈 배열일 수 있다.
+- 단위 id는 분류표에 적힌 그대로 쓴다(주제 id와 점까지 포함). 분류표에 없는 id는 `new_units`에 적은 것만 쓸 수 있다. 새 단위 id는 `<기존 주제 id>.<소문자-영문-이름>` 형식이다.
+"""
+
+
+def taxonomy_text(data: dict) -> str:
+    lines = []
+    for topic in data["topics"]:
+        lines.append(f"## {topic['id']} — {topic['title']}: {topic.get('scope', '')}")
+        for unit in topic["units"]:
+            lines.append(f"- {unit['id']} | {unit['title']} | {unit.get('covers', '')}"
+                         + (f" | 아님: {unit['not']}" if unit.get("not") else ""))
+    return "\n".join(lines)
+
+
+def build_ingest_prompt(data: dict, source: dict) -> str:
+    """One prompt for one project: instructions, the taxonomy and the project's requirements."""
+    return (INGEST_PROMPT_HEAD + "\n## 분류표\n\n" + taxonomy_text(data) + "\n\n## 요구사항\n\n"
+            + json.dumps(source, ensure_ascii=False))
+
+
+def parse_ingest_response(text: str) -> dict:
+    match = re.search(r"\{.*\}", text, flags=re.S)
+    if not match:
+        raise WikiToolError("response holds no JSON object")
+    try:
+        return json.loads(match.group(0))
+    except json.JSONDecodeError as exc:
+        raise WikiToolError(f"response JSON is invalid: {exc}") from exc
+
+
+def validate_mapping(data: dict, mapping: dict, source: dict) -> list[str]:
+    """Problems that stop a mapping from being applied. Empty list means it can be applied."""
+    errors: list[str] = []
+    topics = {t["id"] for t in data["topics"]}
+    units = {u["id"] for t in data["topics"] for u in t["units"]}
+    if mapping.get("schema") != MAPPING_SCHEMA or mapping.get("project") != source.get("project"):
+        errors.append("schema 또는 project 값이 다르다")
+    new: set[str] = set()
+    for item in mapping.get("new_units", []):
+        uid = str(item.get("id", ""))
+        if item.get("topic") not in topics or not UNIT_RE.match(uid) or not uid.startswith(f"{item.get('topic')}.") or not item.get("title"):
+            errors.append(f"새 단위 형식 오류: {uid}")
+        new.add(uid)
+    want = [str(r["id"]) for r in source.get("requirements", [])]
+    got = [str(a.get("req_id")) for a in mapping.get("assignments", [])]
+    if want != got:
+        missing = [x for x in want if x not in got]
+        extra = [x for x in got if x not in want]
+        errors.append(f"요구사항 id 목록이 자료와 다르다(빠짐 {missing[:10]}, 자료에 없음 {extra[:10]}, 결과 {len(got)}건/자료 {len(want)}건)")
+    by_slug: dict[str, list[str]] = {}
+    for uid in units:
+        by_slug.setdefault(uid.split(".", 1)[1], []).append(uid)
+    for item in mapping.get("assignments", []):
+        for uid in item.get("units", []):
+            if uid in units or uid in new:
+                continue
+            hint = by_slug.get(str(uid).split(".", 1)[-1], [])
+            errors.append(f"{item.get('req_id')}: 분류표에 없는 단위 {uid}" + (f" (비슷한 단위: {', '.join(sorted(hint))})" if hint else ""))
+    return errors
+
+
+def build_repair_prompt(prompt: str, response: str, errors: list[str]) -> str:
+    """Second and last attempt: the first answer and what the check found wrong with it."""
+    return (prompt + "\n\n## 앞선 답과 검사 결과\n\n앞선 답:\n" + response.strip()
+            + "\n\n검사에서 나온 문제:\n" + "\n".join(f"- {e}" for e in errors)
+            + "\n\n문제를 고친 전체 JSON 객체 하나를 다시 출력한다. 문제가 없는 부분은 바꾸지 않는다.")
 
 
 def _front(slug: str, title: str, today: str, sources: list[str]) -> str:
@@ -295,7 +387,7 @@ def stats(data: dict) -> dict:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="bid_deep_engine.wiki_tools")
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("init", "ingest-apply", "feedback-apply", "render", "lint", "check", "stats"):
+    for name in ("init", "ingest-prompt", "ingest-validate", "ingest-apply", "feedback-apply", "render", "lint", "check", "stats"):
         cmd = sub.add_parser(name)
         cmd.add_argument("--root", required=True)
         cmd.add_argument("--today", default=date.today().isoformat())
@@ -303,6 +395,12 @@ def main(argv: list[str] | None = None) -> int:
     sub.choices["ingest-apply"].add_argument("--mapping", required=True, nargs="+")
     sub.choices["render"].add_argument("--allow", nargs="*")
     sub.choices["feedback-apply"].add_argument("--feedback", required=True)
+    sub.choices["ingest-prompt"].add_argument("--source", required=True)
+    for name in ("ingest-validate",):
+        sub.choices[name].add_argument("--source", required=True)
+        sub.choices[name].add_argument("--response", required=True)
+        sub.choices[name].add_argument("--out", help="write the mapping here when it is valid")
+        sub.choices[name].add_argument("--repair-prompt", help="write the second-attempt prompt here when it is not")
     args = parser.parse_args(argv)
     root = Path(args.root)
     try:
@@ -318,6 +416,24 @@ def main(argv: list[str] | None = None) -> int:
                      today=args.today)
             _write(root / SIDECAR, data)
             render(root, data, today=args.today)
+        elif args.command == "ingest-prompt":
+            print(build_ingest_prompt(load_sidecar(root), _read(Path(args.source))))
+            return 0
+        elif args.command == "ingest-validate":
+            data, source = load_sidecar(root), _read(Path(args.source))
+            response = Path(args.response).read_text(encoding="utf-8")
+            try:
+                mapping = parse_ingest_response(response)
+                errors = validate_mapping(data, mapping, source)
+            except WikiToolError as exc:
+                mapping, errors = None, [str(exc)]
+            if not errors and args.out:
+                _write(Path(args.out), mapping)
+            if errors and args.repair_prompt:
+                Path(args.repair_prompt).write_text(
+                    build_repair_prompt(build_ingest_prompt(data, source), response, errors), encoding="utf-8")
+            print(json.dumps({"valid": not errors, "errors": errors}, ensure_ascii=False))
+            return 0 if not errors else 1
         elif args.command == "feedback-apply":
             data = load_sidecar(root)
             feedback = _read(Path(args.feedback))

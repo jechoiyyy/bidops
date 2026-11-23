@@ -60,6 +60,8 @@ never imports the old pipeline into the web process.
 
 `python -m bid_deep_engine.wiki_tools` keeps the compiled layer of the company wiki: the work-unit
 evidence map (`work-units.json` sidecar, `capabilities/work-*.md` pages rendered from it) and the
-change log. `ingest-apply` takes a mapping file (`bidops.wiki-ingest-mapping.v1`) that a model wrote
-for one project's requirements, validates it, merges it, re-renders the pages and lints the tree.
-The module makes no model call; producing the mapping file is the caller's job.
+change log. Ingest is one prompt per project: `ingest-prompt` builds it, the caller sends it to the model,
+`ingest-validate` checks the answer (and writes the single allowed repair prompt when it is wrong),
+`ingest-apply` merges a valid mapping (`bidops.wiki-ingest-mapping.v1`), re-renders the pages and
+lints the tree. `feedback-apply` writes back approved findings and `check` reports content problems.
+The module makes no model call.

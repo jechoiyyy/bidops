@@ -158,3 +158,46 @@ def test_content_check_reports_gaps_and_contradictions(wiki):
     assert report["evidence_without_source_line"] == ["P2025-01 SFR-001"]  # the fixture page has no such line
     assert report["no_record_but_has_evidence"] == ["booking.timeslot"]
     assert report["ingested_without_page"] == []
+
+
+SOURCE = {"project": "P2025-01", "title": "t", "requirements": [{"id": "SFR-001", "name": "예약"}, {"id": "SFR-002", "name": "기타"}]}
+
+
+def test_ingest_prompt_carries_taxonomy_and_requirements(wiki):
+    prompt = wiki_tools.build_ingest_prompt(wiki_tools.load_sidecar(wiki), SOURCE)
+    assert "- booking.timeslot | 시간대 예약 | 시간대 단위 예약 | 아님: 좌석 예매" in prompt
+    assert '"id": "SFR-002"' in prompt and prompt.startswith("# 작업")
+
+
+def test_valid_response_passes_and_wrong_topic_prefix_is_reported_with_a_hint(wiki):
+    data = wiki_tools.load_sidecar(wiki)
+    good = wiki_tools.parse_ingest_response("설명\n" + json.dumps(_mapping()) + "\n끝")
+    assert wiki_tools.validate_mapping(data, good, SOURCE) == []
+    bad = _mapping(assignments=[{"req_id": "SFR-001", "units": ["other.timeslot"]}, {"req_id": "SFR-002", "units": []}])
+    errors = wiki_tools.validate_mapping(data, bad, SOURCE)
+    assert errors == ["SFR-001: 분류표에 없는 단위 other.timeslot (비슷한 단위: booking.timeslot)"]
+    retry = wiki_tools.build_repair_prompt("PROMPT", json.dumps(bad), errors)
+    assert retry.startswith("PROMPT") and "비슷한 단위: booking.timeslot" in retry
+
+
+def test_missing_requirement_and_bad_json_are_rejected(wiki):
+    data = wiki_tools.load_sidecar(wiki)
+    short = _mapping(assignments=[{"req_id": "SFR-001", "units": []}])
+    assert "빠짐 ['SFR-002']" in wiki_tools.validate_mapping(data, short, SOURCE)[0]
+    with pytest.raises(wiki_tools.WikiToolError):
+        wiki_tools.parse_ingest_response("no json here")
+
+
+def test_cli_validate_writes_mapping_or_repair_prompt(wiki, tmp_path, capsys):
+    source = tmp_path / "source.json"
+    source.write_text(json.dumps(SOURCE), encoding="utf-8")
+    response = tmp_path / "response.txt"
+    response.write_text(json.dumps(_mapping(assignments=[{"req_id": "SFR-001", "units": ["x.y"]}, {"req_id": "SFR-002", "units": []}])), encoding="utf-8")
+    args = ["ingest-validate", "--root", str(wiki), "--source", str(source), "--response", str(response),
+            "--out", str(tmp_path / "m.json"), "--repair-prompt", str(tmp_path / "retry.txt")]
+    assert wiki_tools.main(args) == 1
+    assert not (tmp_path / "m.json").exists() and "분류표에 없는 단위 x.y" in (tmp_path / "retry.txt").read_text(encoding="utf-8")
+    response.write_text(json.dumps(_mapping()), encoding="utf-8")
+    capsys.readouterr()
+    assert wiki_tools.main(args) == 0
+    assert json.loads((tmp_path / "m.json").read_text(encoding="utf-8"))["project"] == "P2025-01"
