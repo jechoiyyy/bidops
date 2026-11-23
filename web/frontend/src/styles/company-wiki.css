@@ -9,8 +9,8 @@
 .company-wiki :is(h2,h3,h4,p,ul) { margin: 0 0 0.7em; }
 .company-wiki > p, .wiki-content, .wiki-detail { padding: 24px 32px; }
 .wiki-split { display: grid; grid-template-columns: 38% minmax(0, 1fr); }
-.company-wiki:has(.wiki-split) { flex: 1; min-height: 0; }
-.wiki-split { height: 100%; }
+.company-wiki:has(.wiki-split) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.wiki-split { flex: 1; min-height: 0; }
 .wiki-detail, .wiki-list { overflow: auto; }
 .wiki-list { border-right: 1px solid var(--bo-line-soft); }
 .wiki-list a {
@@ -29,12 +29,22 @@
 .wiki-stats { display: flex; flex-wrap: wrap; gap: 12px 32px; }
 .wiki-stats dt { font-size: var(--bo-k-meta); }
 .wiki-stats dd { margin: 0; font-size: var(--bo-k-figure); font-weight: 600; }
-.wiki-content table { border-collapse: collapse; width: 100%; margin-bottom: 24px; text-align: left; }
-.wiki-content caption { text-align: left; margin: 12px 0; font-weight: 600; }
-.wiki-content :is(th,td) { padding: 9px 12px; border-bottom: 1px solid var(--bo-line-soft); }
-.wiki-content thead { background: var(--color-background-muted); }
+.company-wiki table { border-collapse: collapse; width: 100%; margin-bottom: 24px; text-align: left; }
+.company-wiki caption { text-align: left; margin: 12px 0; font-weight: 600; }
+.company-wiki :is(th,td) { padding: 9px 12px; border-bottom: 1px solid var(--bo-line-soft); }
+.company-wiki thead { background: var(--color-background-muted); }
 .wiki-content tbody th { font-weight: 500; }
 .wiki-unit { border-top: 1px solid var(--bo-line-soft); padding: 16px 0; }
 .wiki-body, .wiki-unit { max-width: 75ch; }
 .wiki-body p { white-space: pre-line; }
 .company-wiki ul { padding-left: 1.4em; list-style: disc; }
+
+.wiki-actions { display: flex; gap: 12px; }
+.wiki-detail > button { margin-bottom: 12px; }
+.wiki-dialog-field { display: grid; gap: var(--spacing-2); }
+.wiki-dialog-field textarea {
+  min-height: 5em;
+  padding: var(--spacing-2);
+  border: 1px solid var(--color-border);
+  resize: vertical;
+}

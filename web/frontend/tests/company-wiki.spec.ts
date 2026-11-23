@@ -70,3 +70,23 @@ for (const [status, code, message] of [
     await expect(page.locator("main")).toContainText(message);
   });
 }
+
+test("프로필 묶음 이름과 내부 항목, 빈 제외 범위를 구분해요", async ({ page }) => {
+  await mockWiki(page);
+  await page.goto("/company");
+  for (const name of ["회사", "인력", "custom"]) await expect(page.getByRole("table", { name, exact: true })).toBeVisible();
+  await expect(page.getByText("schema_version")).toHaveCount(0);
+  await page.goto("/company?view=work-units&topic=read");
+  await expect(page.getByText("제외 범위 · 값 없음")).toBeVisible();
+  await expect(page.getByText(/제외 범위/)).toHaveCount(1);
+});
+
+test("직접 연 실적은 목록에서 선택되고 보이는 위치로 이동해요", async ({ page }) => {
+  const items = Array.from({ length: 40 }, (_, i) => ({ ...project, id: "P" + i, has_page: false }));
+  await mockWiki(page, { "/portfolio": { items } });
+  await page.goto("/company?view=portfolio&project=P39");
+  const row = page.getByRole("link", { name: /^실적 P39 / });
+  await expect(row).toHaveAttribute("aria-current", "page");
+  await expect(row).toBeInViewport({ ratio: 0.9 });
+  await expect(row).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+});
