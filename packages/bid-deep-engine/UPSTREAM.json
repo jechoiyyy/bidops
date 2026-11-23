@@ -480,6 +480,16 @@
       "path": "engine_tests/ingest_writer.py",
       "purpose": "test-only stand-in for upstream ingest/writer.py (dump_json, write_bundle) used by the vendored test_models/test_normalize",
       "sha256": "bf8920772b337dff693b50eefea1c6155c06cdd77c9eebcd99143a3bc39e21cf"
+    },
+    {
+      "path": "src/bid_deep_engine/wiki_tools.py",
+      "purpose": "company wiki maintenance: work-unit evidence map sidecar, ingest-apply, feedback-apply, render, lint, content check (no transport)",
+      "sha256": "bf088d0e665da2d6143dfed151361246dd82992a5633b689ac47958d344cc6f9"
+    },
+    {
+      "path": "engine_tests/test_wiki_tools.py",
+      "purpose": "wiki maintenance tests",
+      "sha256": "0415633e2ac4365c34cb8928a4b4b03668d75ac85a44afe41445268c3ca8f638"
     }
   ],
   "excluded_transport_files": [
