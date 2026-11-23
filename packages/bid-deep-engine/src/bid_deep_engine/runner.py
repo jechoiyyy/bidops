@@ -2,6 +2,9 @@
 
 The upstream normalizer, three-pass pipeline, gates, scoring, quote verification,
 and readiness logic execute unchanged. No upstream live transport is packaged.
+
+Input v1 projects BidOps company facts; input v2 carries the engine's own company files
+and knowledge tree, which are loaded and used as upstream does (`adapter.company_inputs`).
 """
 
 from __future__ import annotations
@@ -24,7 +27,15 @@ from .analysis.schemas import (
     SynthOut,
     Profitability,
 )
-from .adapter import EngineError, project_company, source_evidence, raw_blocks
+from .adapter import (
+    INPUT_V1,
+    INPUT_V2,
+    EngineError,
+    company_inputs,
+    project_company,
+    source_evidence,
+    raw_blocks,
+)
 from .company.provenance import CompanyEvidenceView
 from .company.schema import CompanyProfile, Company
 from .ingest.models import Block, RawDoc, RawMeta, NoticeBundle
@@ -42,6 +53,7 @@ ERROR_CODES = frozenset(
         "input_too_large",
         "engine_input_invalid",
         "engine_pipeline_failed",
+        "company_bundle_invalid",
     }
 )
 
@@ -158,13 +170,16 @@ def engine_company_input_hash(profile):
     stage stamp with `CompanyEvidenceView.company_input_hash`. Passing any other value
     (for example BidOps' `profile_sha256`) marks every fresh stage stale.
     """
+    if isinstance(profile, CompanyEvidenceView):
+        # Input v2 already carries the provenance sidecar; its own fingerprint applies.
+        return profile.company_input_hash
     return CompanyEvidenceView(profile).company_input_hash
 
 
 def execute(payload, *, mock_rules=()):
     """Run the pipeline once. `mock_rules` is for tests only; `main` never passes it."""
     if (
-        payload.get("schema_version") != "bidops.engine-input.v1"
+        payload.get("schema_version") not in (INPUT_V1, INPUT_V2)
         or payload.get("mode") != "mock_reference"
     ):
         raise EngineError("engine_live_not_approved")
@@ -202,13 +217,12 @@ def execute(payload, *, mock_rules=()):
         warnings=["structure_projection_partial"],
     )
     rfp = build(bundle, raw, None)
-    # Existing v2 profile remains frozen in payload. No unverified schema mapping
-    # promotes company qualifications; the v1 projection explicitly stays unknown.
-    profile, projected = project_company(payload)
-    company_hash = engine_company_input_hash(profile)
     client = MockTransport(rfp, mock_rules)
     with tempfile.TemporaryDirectory(prefix="bid-deep-engine-") as folder:
         root = Path(folder)
+        # v1: the BidOps profile stays frozen in the payload and only the conservative
+        # projection reaches the engine. v2: the bundled company files are used as they are.
+        company = company_inputs(payload, root)
         source = root / "rfp.json"
         output = root / "analysis"
         source.write_text(rfp.model_dump_json(), encoding="utf-8")
@@ -220,13 +234,15 @@ def execute(payload, *, mock_rules=()):
             source,
             output,
             client_factory=lambda: client,
-            profile=profile,
+            profile=company.profile,
             model="mock_reference",
             strategy="single",
             effort="high",
             passes=("extract", "match", "synth"),
             force=True,
-            company_input_hash=company_hash,
+            company_input_hash=engine_company_input_hash(company.profile),
+            knowledge=company.knowledge,
+            portfolio_texts=company.portfolio_texts,
             run_id=payload["slug"],
             transport="mock_reference",
         )
@@ -236,14 +252,7 @@ def execute(payload, *, mock_rules=()):
             analysis["source_evidence"] = source_evidence(
                 analysis, payload, sections=rfp.sections
             )
-            analysis["company_projection"] = {
-                "mapped_fields": projected,
-                "complete": False,
-                # BidOps binding (frozen profile version hash) and the engine's own
-                # fingerprint of the projected profile are kept apart for audit.
-                "source_profile_sha256": payload["profile_sha256"],
-                "engine_company_input_hash": company_hash,
-            }
+            analysis["company_projection"] = company.record
         failed = result.status == "failed"
         return {
             "schema_version": "bidops.engine-output.v1",
@@ -257,7 +266,11 @@ def execute(payload, *, mock_rules=()):
             else None,
             "warnings": [
                 "mock_reference_not_quality_evidence",
-                "company_profile_projection_incomplete",
+                *(
+                    []
+                    if company.record["complete"]
+                    else ["company_profile_projection_incomplete"]
+                ),
                 "structure_projection_partial",
                 *result.warnings,
             ],

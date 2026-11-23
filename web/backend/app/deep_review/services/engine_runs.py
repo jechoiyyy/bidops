@@ -61,8 +61,10 @@ RUNNER_ERROR_CODES = frozenset(
         "input_too_large",
         "engine_input_invalid",
         "engine_pipeline_failed",
+        "company_bundle_invalid",
     }
 )
+_BUNDLE_SLUG = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 _ERROR_CLASS = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
 
 logger = logging.getLogger(__name__)
@@ -193,6 +195,48 @@ def engine_analysis_enabled() -> bool:
     return bool(getattr(get_settings(), "engine_analysis_enabled", False))
 
 
+def company_bundle():
+    """The engine's own company files and wiki, when a bundle folder is configured.
+
+    Returns None when the folder or slug is not set (input v1). The layout and the digest
+    are the ones `bid_deep_engine.adapter` reads; the web process never imports the
+    package, so the reader is repeated here and the engine re-checks the digest.
+    """
+    settings = get_settings()
+    folder, slug = settings.engine_company_bundle_dir, settings.engine_company_bundle_slug
+    if not folder or not slug:
+        return None
+    if not _BUNDLE_SLUG.fullmatch(slug):
+        raise EngineRunError("company_bundle_unavailable")
+    base = Path(folder)
+    profile = base / f"{slug}.yaml"
+    tree = base / slug
+    try:
+        files = {
+            path.name: path.read_text(encoding="utf-8")
+            for path in sorted([profile, *base.glob(f"{slug}.*.yaml")])
+            if path.is_file() and not path.is_symlink()
+        }
+        pages = {}
+        if tree.is_dir() and not tree.is_symlink():
+            for path in sorted(tree.rglob("*.md")):
+                if path.is_file() and not path.is_symlink():
+                    pages[path.relative_to(tree).as_posix()] = path.read_text(
+                        encoding="utf-8"
+                    )
+    except (OSError, UnicodeDecodeError):
+        raise EngineRunError("company_bundle_unavailable") from None
+    if profile.name not in files:
+        raise EngineRunError("company_bundle_unavailable")
+    bundle = {"profile_file": profile.name, "files": files, "knowledge": pages}
+    bundle["bundle_sha256"] = hashlib.sha256(
+        json.dumps(
+            bundle, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+    ).hexdigest()
+    return bundle
+
+
 def create(session: Session, *, company_id: UUID, notice_id: int, payload, actor: str):
     # The switch is checked before idempotent replay and before any read.
     if not engine_analysis_enabled():
@@ -304,8 +348,11 @@ def create(session: Session, *, company_id: UUID, notice_id: int, payload, actor
     if not blocks:
         raise EngineRunError("structure_unavailable")
     run_id = uuid4()
+    bundled = company_bundle()
     frozen = {
-        "schema_version": "bidops.engine-input.v1",
+        "schema_version": "bidops.engine-input.v2"
+        if bundled
+        else "bidops.engine-input.v1",
         "engine_version": ENGINE_VERSION,
         "engine_sha256": engine_digest(),
         "mode": "mock_reference",
@@ -325,6 +372,11 @@ def create(session: Session, *, company_id: UUID, notice_id: int, payload, actor
         "primary_format": primary,
         "blocks": blocks,
     }
+    if bundled:
+        # The engine reads its own company files and wiki; the BidOps profile and graph
+        # stay bound by id and hash above but their bodies are not part of this input.
+        del frozen["profile_payload"], frozen["graph_nodes"]
+        frozen["company_bundle"] = bundled
     if len(canonical_json_bytes(frozen)) > MAX_INPUT:
         raise EngineRunError("input_too_large", 422)
     row = EngineRun(
@@ -353,6 +405,7 @@ def create(session: Session, *, company_id: UUID, notice_id: int, payload, actor
                 "engine_version": ENGINE_VERSION,
                 "quality_status": "mock_reference",
                 "input_sha256": row.input_sha256,
+                "company_bundle_sha256": bundled["bundle_sha256"] if bundled else None,
             },
             request_id=str(payload.request_id),
         )

@@ -14,7 +14,9 @@ names become `bid_deep_engine`. `llm.py` contains upstream value/error types onl
 `tracing.py` is offline, and `config.py` has no configuration or credential loader.
 
 The only executable boundary is `python -m bid_deep_engine.runner`: a bounded
-`bidops.engine-input.v1` stdin envelope and `bidops.engine-output.v1` stdout.
+`bidops.engine-input.v1` or `.v2` stdin envelope and `bidops.engine-output.v1` stdout.
+v2 carries `company_bundle` (the upstream company profile, portfolio, provenance sidecar and
+knowledge tree); the upstream loader reads it unchanged and the knowledge excerpt is selected per notice.
 No CLI/task DB, A2A/chat, credentials, original company data, network transport,
 telemetry or fallback is included. Python 3.12, Pydantic and PyYAML are required.
 The containing application owns PostgreSQL, MinIO, jobs, identity and human review.

@@ -21,3 +21,15 @@ Compose는 서비스 선택과 네트워크 권한을 분리한다. 개발 기�
 ## 검증과 한계
 
 [RL-09 계획](../../work/groups/RL/features/RL-09-engine-integration/plan.md)의 입력·기대 결과·증거를 따른다. mock 결과는 연결만 검증하며 Luna 품질·모델 전송·운영 활성화를 입증하지 않는다. 운영 web의 기존 restarting/unhealthy 상태는 복구 범위에 포함하지 않는다.
+
+## 2026-11-20 후속 결정
+
+사용자가 실제 사전규격 분석과 상세 검토를 목표로 확인했다. `bid-deep-agent` 코어는 확인된 BidOps 회사 사실과 승인된 루트랩 위키 발췌를 입력으로 받는다. 새로운 Luna 경로는 공고별 미리보기·승인과 건별 감사를 적용한다. 장문 처리와 결정적 차단·근거 검증 뒤 기존 RL 카드와 같은 입력으로 평가하고, 사람 인수 결과로 상세의 기본 표시를 확정한다. 실행·전송·운영 승인 경계는 [후속 계획](../../work/groups/RL/features/RL-11-live-prespec-engine/plan.md)을 따른다.
+
+## 2026-11-22 후속 결정
+
+사용자가 "원본 회사 파일 정본은 이식하지 않는다"는 처음 결정을 바꿨다. 분석 엔진은 원본 `bid-deep-agent`가 준비한 루트랩 회사 자료 전체(`rootlab.yaml`·실적·출처 sidecar)와 회사 위키(`company/knowledge/`, 원본 revision `7ad9283`)를 그대로 받는다. 공고마다 위키에서 유형을 고르고 관련 페이지를 발췌해 대조·종합 단계에 넣는 원본 동작도 그대로 쓴다. 2026-11-20 결정의 "확인된 BidOps 회사 사실과 승인된 위키 발췌만"이라는 입력 범위와 [RL-11 매핑안](../../work/groups/RL/features/RL-11-live-prespec-engine/company-wiki-mapping.md)의 문장 단위 승인·전송 제외 범위는 이 결정과 어긋나므로 RL-11을 진행할 때 다시 맞춘다.
+
+- 입력 계약은 `bidops.engine-input.v2`(`company_bundle`)다. v1(BidOps 회사 사실의 보수적 사상)은 묶음 폴더를 설정하지 않은 환경에서 그대로 쓴다. 계약은 [engine-runs](../../contracts/engine-runs.md).
+- 회사 자료는 저장소 밖 로컬 사본 `wiki/`에 두고 Git·이미지에 넣지 않는다. mock 스택만 읽기 전용으로 붙인다. 운영 스택 연결과 live 전송 승인은 별개이며 아직 없다.
+- 이 제품은 데모 버전이다. 원본 자료의 데모 임의값(공개 검색으로 찾지 못해 임의로 넣은 값)은 원본과 같이 판정에 그대로 쓴다(사용자 결정 2026-11-22). 프로젝트 소개에는 그 사실을 한 줄로 밝힌다.

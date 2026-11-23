@@ -6,6 +6,8 @@ env/*.env
 # 사람이 검토하는 모델 입력 본문은 저장소 안에 두되 Git에는 넣지 않는다.
 experiments/order-plan-screening/review-inputs/company/*.json
 experiments/order-plan-screening/review-inputs/prompts/*.txt
+# 루트랩 위키 원본의 로컬 참조 사본
+/wiki/
 __pycache__/
 *.pyc
 

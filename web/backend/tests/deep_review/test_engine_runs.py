@@ -1,7 +1,7 @@
 """Engine subprocess + API + WorkJob + authoritative company/document store contracts."""
 
 from datetime import datetime, UTC, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 import json
 import pytest
 from fastapi import FastAPI
@@ -481,3 +481,75 @@ def test_switch_off_worker_slot_claims_nothing(context, monkeypatch):
     _switch(monkeypatch, True)
     assert run_engine_once(session, "engine-test")
     assert client.get("/api/engine-runs/" + created["id"]).json()["status"] == "partial"
+
+
+# --- company bundle (engine-input v2): the engine's own company files and wiki ---------
+
+_BUNDLE_FILES = {
+    "acme.yaml": (
+        "schema_version: 1\ncompany:\n  name: 합성회사\n"
+        "portfolio_file: acme.portfolio.yaml\n"
+    ),
+    "acme.portfolio.yaml": "- id: P2025-01\n  client: 합성기관\n  title: 합성 실적\n",
+    "acme/INDEX.md": "# 목차\n\n- [[other]]\n- [[P2025-01]]\n",
+    "acme/categories/other.md": (
+        "---\nslug: other\ntitle: 기타\nkind: category\n---\n## 대표 실적\n\n[[P2025-01]]\n"
+    ),
+    "acme/portfolio/P2025-01.md": (
+        "---\nslug: P2025-01\ntitle: 합성 실적 상세\nkind: portfolio\n"
+        "portfolio_id: P2025-01\n---\n## 수행한 요구 범위\n\n통합검색을 구축했다.\n"
+    ),
+}
+
+
+def _bundle_dir(tmp_path, monkeypatch, files=_BUNDLE_FILES):
+    root = tmp_path / "company-bundle"
+    for rel, text in files.items():
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    monkeypatch.setenv("BIDOPS_ENGINE_COMPANY_BUNDLE_DIR", str(root))
+    monkeypatch.setenv("BIDOPS_ENGINE_COMPANY_BUNDLE_SLUG", "acme")
+    get_settings.cache_clear()
+    return root
+
+
+def test_company_bundle_is_frozen_into_the_input_and_used_by_the_engine(
+    context, tmp_path, monkeypatch
+):
+    session, client, ids = context
+    _bundle_dir(tmp_path, monkeypatch)
+    queued = enqueue(context)
+    frozen = session.get(EngineRun, UUID(queued["id"])).input_payload
+    assert frozen["schema_version"] == "bidops.engine-input.v2"
+    assert "profile_payload" not in frozen and "graph_nodes" not in frozen
+    assert sorted(frozen["company_bundle"]["files"]) == ["acme.portfolio.yaml", "acme.yaml"]
+    assert sorted(frozen["company_bundle"]["knowledge"]) == [
+        "INDEX.md",
+        "categories/other.md",
+        "portfolio/P2025-01.md",
+    ]
+    assert svc.run_once(session, "engine-test")
+    result = client.get("/api/engine-runs/" + queued["id"]).json()
+    assert result["status"] == "partial", result
+    record = result["analysis"]["company_projection"]
+    assert record["source"] == "company_bundle" and record["complete"] is True
+    assert record["bundle_sha256"] == frozen["company_bundle"]["bundle_sha256"]
+    assert "company_profile_projection_incomplete" not in result["warnings"]
+    # The wiki excerpt is chosen for this notice and recorded with the analysis.
+    assert result["analysis"]["knowledge"]["categories"] == ["other"]
+
+
+def test_configured_but_missing_company_bundle_rejects_creation(
+    context, tmp_path, monkeypatch
+):
+    session, client, ids = context
+    monkeypatch.setenv("BIDOPS_ENGINE_COMPANY_BUNDLE_DIR", str(tmp_path / "absent"))
+    monkeypatch.setenv("BIDOPS_ENGINE_COMPANY_BUNDLE_SLUG", "acme")
+    get_settings.cache_clear()
+    response = client.post(
+        endpoint(ids), json=body(ids), headers={"X-BidOps-Actor-Name": "tester"}
+    )
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == "company_bundle_unavailable"
+    assert session.scalar(select(func.count()).select_from(EngineRun)) == 0

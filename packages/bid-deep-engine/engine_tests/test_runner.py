@@ -209,3 +209,113 @@ def test_repeated_sentence_is_located_in_the_cited_section_end_to_end():
     assert located[0]["basis"] == "cited_section"
     # The cited section is the first one holding the sentence (참가자격), not 제출서류.
     assert located[0]["block_key"] == "p4" and cited is not None
+
+
+# --- input v2: the engine's own company files and knowledge tree -------------------
+
+_PROFILE = """schema_version: 1
+company:
+  name: 합성회사
+  region: 대구
+registrations:
+  g2b: {registered: true, industry_codes: ["1468"]}
+portfolio_file: synthetic.portfolio.yaml
+"""
+_PORTFOLIO = """- id: P2025-01
+  client: 합성기관
+  title: 합성 홈페이지 구축
+"""
+_CATEGORY = """---
+slug: homepage
+title: 홈페이지 구축
+kind: category
+keywords: [홈페이지]
+---
+## 대표 실적
+
+[[P2025-01]]
+"""
+_FALLBACK = """---
+slug: other
+title: 기타
+kind: category
+---
+## 관련 페이지
+
+[[homepage]]
+"""
+_INDEX = "# 목차\n\n- [[homepage]]\n- [[other]]\n- [[P2025-01]]\n"
+_PORTFOLIO_PAGE = """---
+slug: P2025-01
+title: 합성 홈페이지 구축 실적
+kind: portfolio
+portfolio_id: P2025-01
+confidence: confirmed
+sources: [합성 출처]
+---
+## 수행한 요구 범위
+
+통합검색 기능을 구축했다.
+"""
+
+
+def make_bundle_payload():
+    payload = make_payload()
+    for key in ("profile_payload", "graph_nodes"):
+        payload.pop(key)
+    payload["schema_version"] = "bidops.engine-input.v2"
+    payload["title"] = "합성 홈페이지 구축 사전규격"
+    payload["company_bundle"] = {
+        "profile_file": "synthetic.yaml",
+        "files": {"synthetic.yaml": _PROFILE, "synthetic.portfolio.yaml": _PORTFOLIO},
+        "knowledge": {
+            "INDEX.md": _INDEX,
+            "categories/homepage.md": _CATEGORY,
+            "categories/other.md": _FALLBACK,
+            "portfolio/P2025-01.md": _PORTFOLIO_PAGE,
+        },
+    }
+    return payload
+
+
+def test_company_bundle_is_loaded_and_knowledge_is_selected_for_the_notice():
+    out = runner.execute(make_bundle_payload())
+    analysis = out["analysis"]
+    record = analysis["company_projection"]
+    assert out["status"] == "partial" and out["error_code"] is None
+    assert record["source"] == "company_bundle" and record["complete"] is True
+    assert "company_profile_projection_incomplete" not in out["warnings"]
+    # The notice title contains the category keyword, so its pages are excerpted.
+    assert analysis["knowledge"]["categories"] == ["homepage"]
+    assert "P2025-01" in analysis["knowledge"]["pages"]
+    assert len(record["knowledge_hash"]) == 64 and len(record["bundle_sha256"]) == 64
+    assert "stale_stage" not in _assessment(out)["reason_codes"]
+
+
+def test_company_bundle_without_knowledge_runs_with_knowledge_disabled():
+    payload = make_bundle_payload()
+    payload["company_bundle"]["knowledge"] = {}
+    out = runner.execute(payload)
+    assert out["status"] == "partial"
+    assert out["analysis"]["company_projection"]["knowledge_hash"] is None
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda b: b.pop("files"),
+        lambda b: b.__setitem__("profile_file", "missing.yaml"),
+        lambda b: b["files"].__setitem__("../escape.yaml", "x: 1"),
+        lambda b: b["knowledge"].__setitem__("../../escape.md", "x"),
+        lambda b: b["knowledge"].__setitem__("a/b/c.md", "x"),
+        lambda b: b["files"].__setitem__("synthetic.yaml", "schema_version: 9"),
+        lambda b: b.__setitem__("bundle_sha256", "0" * 64),
+    ],
+)
+def test_invalid_company_bundle_fails_with_a_defined_code(mutate):
+    payload = make_bundle_payload()
+    mutate(payload["company_bundle"])
+    with pytest.raises(runner.EngineError) as caught:
+        runner.execute(payload)
+    assert caught.value.code == "company_bundle_invalid"
+    assert caught.value.code in runner.ERROR_CODES

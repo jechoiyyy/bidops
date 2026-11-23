@@ -1,7 +1,26 @@
-"""Explicit conservative v2→v1 projection and BidOps block provenance mapping."""
+"""Company input for the engine and BidOps block provenance mapping.
 
+Two company inputs exist. `bidops.engine-input.v1` carries BidOps company facts, which
+`project_company` projects conservatively (credit rating and portfolio titles only).
+`bidops.engine-input.v2` carries the engine's own company files and knowledge tree
+(`company_bundle`), which `company_inputs` loads unchanged with the upstream loader.
+"""
+
+import hashlib
+import json
 import re
+from dataclasses import dataclass
+from pathlib import Path
+
+from .company.knowledge import KnowledgeError, load_knowledge, portfolio_gate_texts
+from .company.loader import ProfileError, load_evidence_view
+from .company.provenance import CompanyEvidenceView
 from .company.schema import CompanyProfile
+
+INPUT_V1 = "bidops.engine-input.v1"
+INPUT_V2 = "bidops.engine-input.v2"
+_YAML_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\.ya?ml")
+_PAGE_PART = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
 
 class EngineError(ValueError):
@@ -62,6 +81,144 @@ def project_company(payload):
                 }
             )
     return CompanyProfile.model_validate(profile), mapped
+
+
+@dataclass(frozen=True)
+class CompanyInputs:
+    """What the pipeline reads about the company, and what the output records about it."""
+
+    profile: object  # CompanyEvidenceView
+    company_input_hash: str
+    knowledge: object | None
+    portfolio_texts: dict | None
+    record: dict
+
+
+def company_bundle_sha256(bundle):
+    """Digest of the company files and knowledge pages a bundle carries."""
+    body = {
+        "profile_file": bundle.get("profile_file"),
+        "files": bundle.get("files"),
+        "knowledge": bundle.get("knowledge") or {},
+    }
+    text = json.dumps(body, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def read_company_bundle(directory, slug):
+    """Bundle the company files `<slug>*.yaml` and the knowledge tree `<slug>/` of a folder.
+
+    This is the local layout BidOps keeps outside Git (`wiki/<slug>.yaml`, `wiki/<slug>/`).
+    Symbolic links are not followed and only `.md` pages are taken, as the loader does.
+    """
+    base = Path(directory)
+    profile = base / f"{slug}.yaml"
+    files = {
+        path.name: path.read_text(encoding="utf-8")
+        for path in sorted([profile, *base.glob(f"{slug}.*.yaml")])
+        if path.is_file() and not path.is_symlink()
+    }
+    tree = base / slug
+    pages = {}
+    if tree.is_dir() and not tree.is_symlink():
+        for path in sorted(tree.rglob("*.md")):
+            if path.is_file() and not path.is_symlink():
+                pages[path.relative_to(tree).as_posix()] = path.read_text(encoding="utf-8")
+    bundle = {"profile_file": profile.name, "files": files, "knowledge": pages}
+    bundle["bundle_sha256"] = company_bundle_sha256(bundle)
+    return bundle
+
+
+def _write_bundle(bundle, root):
+    files = bundle.get("files")
+    name = bundle.get("profile_file")
+    pages = bundle.get("knowledge") or {}
+    if (
+        not isinstance(files, dict)
+        or not isinstance(pages, dict)
+        or not isinstance(name, str)
+        or name not in files
+        or not all(
+            isinstance(k, str) and _YAML_NAME.fullmatch(k) and isinstance(v, str)
+            for k, v in files.items()
+        )
+    ):
+        raise EngineError("company_bundle_invalid")
+    declared = bundle.get("bundle_sha256")
+    if declared is not None and declared != company_bundle_sha256(bundle):
+        raise EngineError("company_bundle_invalid")
+    root.mkdir(parents=True)
+    for key, text in files.items():
+        (root / key).write_text(text, encoding="utf-8")
+    # The upstream layout: the knowledge tree sits in `knowledge/` beside the profile.
+    tree = root / "knowledge"
+    for rel, text in pages.items():
+        parts = rel.split("/") if isinstance(rel, str) else []
+        if (
+            not 1 <= len(parts) <= 2
+            or not all(_PAGE_PART.fullmatch(part) for part in parts)
+            or not rel.endswith(".md")
+            or not isinstance(text, str)
+        ):
+            raise EngineError("company_bundle_invalid")
+        target = tree.joinpath(*parts)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+    return root / name, tree if pages else None
+
+
+def company_inputs(payload, workdir):
+    """Company profile, knowledge and gate texts for one run.
+
+    v2 loads the bundled company files with the upstream loader, so provenance levels,
+    the knowledge excerpt chosen per notice and the portfolio texts the gates compare are
+    the upstream behavior. v1 keeps the conservative projection.
+    """
+    if payload.get("schema_version") == INPUT_V2:
+        bundle = payload.get("company_bundle")
+        if not isinstance(bundle, dict):
+            raise EngineError("company_bundle_invalid")
+        profile_path, tree = _write_bundle(bundle, Path(workdir) / "company")
+        try:
+            view = load_evidence_view(profile_path)
+            knowledge = (
+                load_knowledge(tree, profile=view.profile) if tree is not None else None
+            )
+        except (ProfileError, KnowledgeError, OSError, ValueError):
+            raise EngineError("company_bundle_invalid") from None
+        return CompanyInputs(
+            profile=view,
+            company_input_hash=view.company_input_hash,
+            knowledge=knowledge,
+            portfolio_texts=portfolio_gate_texts(knowledge)
+            if knowledge is not None
+            else None,
+            record={
+                "source": "company_bundle",
+                "mapped_fields": [],
+                "complete": True,
+                "source_profile_sha256": payload.get("profile_sha256"),
+                "engine_company_input_hash": view.company_input_hash,
+                "bundle_sha256": company_bundle_sha256(bundle),
+                "knowledge_hash": knowledge.hash if knowledge is not None else None,
+            },
+        )
+    profile, projected = project_company(payload)
+    view = CompanyEvidenceView(profile)
+    return CompanyInputs(
+        profile=profile,
+        company_input_hash=view.company_input_hash,
+        knowledge=None,
+        portfolio_texts=None,
+        record={
+            "mapped_fields": projected,
+            "complete": False,
+            # BidOps binding (frozen profile version hash) and the engine's own
+            # fingerprint of the projected profile are kept apart for audit.
+            "source_profile_sha256": payload["profile_sha256"],
+            "engine_company_input_hash": view.company_input_hash,
+        },
+    )
 
 
 def source_evidence(analysis, payload, sections=None):

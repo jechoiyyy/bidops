@@ -278,6 +278,12 @@ class Settings(BaseSettings):
     #: 꺼져 있으면 생성은 503 `engine_analysis_disabled`, worker 슬롯은 claim하지 않는다.
     #: 기존 실행 조회는 감사용으로 열어 둔다. 켜도 mock_reference뿐이며 live 전송은 없다.
     engine_analysis_enabled: bool = Field(default=False, validation_alias="BIDOPS_ENGINE_ANALYSIS_ENABLED")
+    #: 분석 엔진에 넘길 회사 자료 폴더와 회사 slug. 폴더에는 원본 엔진 형식의
+    #: `<slug>.yaml`·`<slug>.portfolio.yaml`·`<slug>.provenance.yaml`과 회사 위키 `<slug>/`가 있다
+    #: (저장소 밖 로컬 사본 `wiki/`). 둘 다 있으면 실행 입력이 `bidops.engine-input.v2`가 되어
+    #: 회사 자료와 위키를 그대로 싣고, 하나라도 비면 기존 v1(BidOps 회사 사실의 보수적 사상)이다.
+    engine_company_bundle_dir: str = Field(default="", validation_alias="BIDOPS_ENGINE_COMPANY_BUNDLE_DIR")
+    engine_company_bundle_slug: str = Field(default="", validation_alias="BIDOPS_ENGINE_COMPANY_BUNDLE_SLUG")
     deep_review_auto_start_enabled: bool = Field(default=False, validation_alias="BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED")
     luna_deep_review_enabled: bool = Field(default=False, validation_alias="BIDOPS_LUNA_DEEP_REVIEW_ENABLED")
     luna_runner_url: str = Field(default="http://codex-runner:8091", validation_alias="BIDOPS_LUNA_RUNNER_URL")

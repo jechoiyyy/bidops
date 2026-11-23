@@ -61,9 +61,15 @@ services:
       BIDOPS_C2_DAILY_TRIGGER_ENABLED: ${BIDOPS_C2_DAILY_TRIGGER_ENABLED:-false}
       BIDOPS_C2_CAPABILITIES_PATH: /run/c2/company-capabilities.json
       BIDOPS_C2_PROMPT_PATH: /run/c2/order-plan-prompt.txt
+      # 분석 엔진의 회사 자료(원본 엔진 형식의 프로필 묶음과 회사 위키, ADR-0074 2026-11-22).
+      # 엔진 실행을 만드는 것은 web뿐이라 web에만 붙인다. 엔진 스위치
+      # (BIDOPS_ENGINE_ANALYSIS_ENABLED)가 꺼져 있으면 읽지 않는다.
+      BIDOPS_ENGINE_COMPANY_BUNDLE_DIR: /app/company-bundle
+      BIDOPS_ENGINE_COMPANY_BUNDLE_SLUG: ${BIDOPS_ENGINE_COMPANY_BUNDLE_SLUG:-rootlab}
     volumes:
     - ${BIDOPS_C2_CAPABILITIES_HOST_PATH:?set an explicit approved capabilities file path}:/run/c2/company-capabilities.json:ro
     - ${BIDOPS_C2_PROMPT_HOST_PATH:?set an explicit approved prompt file path}:/run/c2/order-plan-prompt.txt:ro
+    - ./wiki:/app/company-bundle:ro
   analysis-worker:
     <<: *production-app
     restart: unless-stopped
