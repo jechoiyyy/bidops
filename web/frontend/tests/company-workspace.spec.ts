@@ -171,11 +171,11 @@ test("demo가 켜져 있으면 /companies/:id/profile은 세 회사 모두 /comp
   await mockRealCompany(page);
   for (const slug of ["demo-public-si", "demo-data-ai", "demo-cloud-si"] as const) {
     await page.goto(`/companies/${companyId(slug)}/profile`);
-    // replace 이동이라 주소가 /company이고(기본 그룹 attention은 쿼리 없이 열린다) 뒤로 가기가 옛 주소로 돌아가지 않는다.
+    // replace 이동이라 주소가 /company이고(위키 개요는 쿼리 없이 열린다) 뒤로 가기가 옛 주소로 돌아가지 않는다.
     await expect(page).toHaveURL(/\/company$/);
     // 화면 이름은 패널 헤더의 작은 글자다(ADR-0076). `<h1>`은 문장형 제목이다.
     await expect(page.locator("header.topbar").getByTestId("page-header-eyebrow")).toHaveText("회사 근거");
-    await expect(page.getByTestId("company-attention")).toBeVisible();
+    await expect(page.getByRole("group", { name: "회사 근거 보기" })).toBeVisible();
     await expect(page.getByTestId("company-header")).toHaveCount(0);
     await expect(page.locator("main")).not.toContainText(COMPANY_BY_SLUG[slug].name);
     await expect(page.getByTestId("company-profile-version")).toHaveCount(0);
@@ -186,7 +186,7 @@ test("demo가 꺼져 있으면 /companies/:id/profile은 /company로 가지 않�
   await installMocks(page, { enabled: false });
   await mockRealCompany(page);
   await page.goto(`/companies/${companyId("demo-public-si")}/profile`);
-  await expect(page.getByTestId("company-attention")).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "회사 근거 보기" })).toHaveCount(0);
   await expect(page).not.toHaveURL(/\/company(?:\?|$)/);
 });
 

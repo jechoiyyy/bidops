@@ -6,6 +6,7 @@ import {
   pages,
 } from "./screen-fixtures";
 import { mockApi, mockOrderPlanBulkTracking, mockOrderPlans, mockPreSpecs } from "./api-mock";
+import { mockWiki } from "./fixtures/company-wiki";
 import { mockGoNoGo } from "./go-no-go-fixtures";
 import { mockOpportunities } from "./opportunities-fixtures";
 
@@ -241,4 +242,17 @@ test("[search-ux] Go/No-Go 도구는 패널 헤더 탭 줄 오른쪽에 검색�
   await mockGoNoGo(page);
   await page.goto("/go-no-go");
   await expectSearchToolsRightOfTabs(page, testInfo, ".gng-row", ["workspace-search-field"]);
+});
+
+test("회사 위키에서 긴 실적명과 본문이 목록·상세 폭 안에 들어간다", async ({ page }) => {
+  await mockWiki(page);
+  await page.goto("/company?view=portfolio&project=P1");
+  await expect(page.getByRole("heading", { name: "근거 자료" })).toBeVisible();
+  const list = await page.locator(".wiki-list").boundingBox();
+  const split = await page.locator(".wiki-split").boundingBox();
+  expect(list!.width / split!.width).toBeCloseTo(0.38, 2);
+  for (const pane of [".wiki-list", ".wiki-detail"]) {
+    expect(await page.locator(pane).evaluate(node => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1);
+  }
+  await expectNoHorizontalOverflow(page);
 });

@@ -127,6 +127,7 @@ export const routeMetadata = {
   // RL-00 회사 근거(ui-spec §4.6). 회사는 하나라 상위 화면이 없고, 읽기 전용이다.
   // 화면 이름 하나가 `<h1>`(제목 모드)이며 "㈜회사 · 마지막 저장"과 "이전 버전"은 액션 슬롯이 그린다.
   company: {
+    canvas: "flush",
     title: "회사 근거",
     dataScope: "cumulative",
     topbar: "title",

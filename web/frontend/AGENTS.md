@@ -11,6 +11,7 @@
 - API error의 human message를 안정 code처럼 분기하지 않는다. endpoint 계열의 typed error shape와 code를 사용한다.
 - 모델 provider를 브라우저에서 직접 호출하거나 key, profile, prompt를 bundle에 넣지 않는다.
 - 프로필 화면은 API의 승인된 구조화 항목·`unknown`만 사용한다. filesystem source, source line, raw block·raw text, parser 예외을 type이나 UI에 추가하지 않는다.
+- 회사 근거 화면은 `/api/company-wiki`가 주는 위키 페이지 본문과 프로필 값을 그대로 보여 주며, 마크다운을 HTML로 주입하지 않는다.
 - TypeScript strict를 유지하고 API payload를 `any`로 우회하지 않는다.
 
 ## 상태 표현
