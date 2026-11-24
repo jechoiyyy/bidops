@@ -28,3 +28,9 @@ DB 전체 백업 `bidops-20261124T032234Z.dump`의 SHA-256은 `c389383da79ac763e
 배포 직전 요청자 확인 후 회사 묶음에 평가 파일을 게시하고 `web`만 `bidops:operator-quality-0edff67`로 교체했다. Compose web의 변경 필드는 이미지 하나였다. web healthy, 품질 조회 reviewed, C-2 자동 실행 응답 동일을 확인했다. Tailscale 운영 주소에서 판정 기준·실행 상태·회사 위키의 실제 평가표와 ‘페이지 미지정’ 표시를 브라우저로 확인했다.
 
 롤백 이미지는 `bidops:before-operator-quality-20261124-web`이다. 복구 시 기존 운영 이미지 태그로 .env의 BIDOPS_IMAGE를 복원하고 web만 교체한다. 평가 원본은 위의 실행 기록 디렉터리에 보존한다.
+
+## 같은 질문의 문서·절 인용 재측정
+
+2026-11-24, `a7af6f4`의 지침으로 같은 질문·모델·페이지 범위를 다시 실행했다. 요청자가 4건 전송과 결과 검수·배포를 확인했다. 기대 결론 일치 4/4, 해당 페이지와 절에서 확인된 인용 7/7, 근거 없는 단정 0/6, 준공일 보류 1/1이었다. 비교 질문에서 두 출처를 함께 인용해 인용 개수는 이전 6개와 다르다. 실제 읽기는 5회였다. 이전·새 평가와 실행 기록 위치는 `backups/wiki-evaluations/20261124-citations-Tgehyr`이다.
+
+DB 백업 `7a4a823b4a4bf8c290b5bde1b7c61dc742c56eb3379e90d948775019378d43cf  backups/postgres/full/bidops-20261124T033101Z.dump`의 목록을 확인했다. 이전 운영 이미지를 `bidops:before-wiki-citations-20261124-web`으로 보존하고 web만 `bidops:wiki-citations-a7af6f4`로 교체했다. web healthy, C-2 스위치 동일, 운영 품질 페이지의 목표 0건·인용 7/7과 실적 원문 링크를 확인했다. 롤백 시 이전 이미지 `bidops:operator-quality-0edff67`와 보관된 `prior-evaluation.json`을 함께 복원한다.
