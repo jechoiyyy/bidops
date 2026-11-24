@@ -48,6 +48,7 @@ import type {
   OverviewEnvelope,
   OverviewRangeConfirmationResponse,
   OverviewRun,
+  OverviewRunPageText,
   PageOverviewCurrent,
   PageOverviewRangeConfirmationRequest,
   PageOverviewRangeConfirmationResponse,
@@ -797,6 +798,7 @@ function pageOverviewView(noticeId: number, run: OverviewRun): PageOverviewView 
     model_revision: run.model_revision,
     prompt_version: run.prompt_version,
     created_at: run.created_at,
+    completed_at: run.completed_at,
     warnings: Array.isArray(run.warnings) ? run.warnings : [],
   };
 }
@@ -1440,6 +1442,9 @@ export const api = {
       attempt_enqueued: saved.attempt_enqueued,
     };
   },
+
+  getOverviewRunPageText: (noticeId: number, runId: string, options?: ReadRequestOptions) =>
+    request<OverviewRunPageText>(`/pre-specs/${noticeId}/overview/runs/${encodeURIComponent(runId)}/page-text`, options),
 
   /** run이 고정한 스냅샷 PDF의 안전한 상대 경로. 화면은 이 경로로만 원문을 연다. */
   preSpecOverviewRunPdfUrl: (noticeId: number, runId: string) =>

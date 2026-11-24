@@ -709,6 +709,16 @@ export interface PageOverviewPayloadV4 {
   verification_sha256?: string;
 }
 export type PageOverviewPayload = PageOverviewPayloadV3 | PageOverviewPayloadV4;
+export interface OverviewRunPageText {
+  schema: "bidops.prespec-overview-page-text.v1";
+  run_id: string;
+  notice_id: number;
+  document_version_id: string;
+  pdf_sha256: string;
+  page_count: number;
+  pages: { number: number; display_page: string | null; text: string }[];
+}
+
 export interface PageOverviewView {
   id: string;
   notice_id: number;
@@ -728,6 +738,7 @@ export interface PageOverviewView {
   model_revision: string | null;
   prompt_version: string;
   created_at: string;
+  completed_at?: string | null;
   /** 그 실행의 비차단 경고 코드(`OverviewRun.warnings`, 수치·날짜 대조 등). 어댑터가 옮기지 않은 view에는 없다. */
   warnings?: string[];
 }

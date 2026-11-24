@@ -25,7 +25,7 @@ test("detail with overview (검토할 항목 4190, no engine run)", async ({ pag
 
 test("analysis result (검토할 항목 4186, imported engine run)", async ({ page }, info) => {
   await page.goto("/pre-specs/4186");
-  await expect(page.locator("#pa-summary")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("region", { name: "한눈에" })).toBeVisible({ timeout: 30_000 });
   await page.waitForLoadState("networkidle");
   await page.screenshot({ path: `${shots}/${info.project.name}-3-detail-analysis-4186.png` });
 });

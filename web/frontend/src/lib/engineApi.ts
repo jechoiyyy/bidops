@@ -94,6 +94,7 @@ export interface EngineAnalysis {
       decision: EngineDecision;
       basis: "confirmed" | "assumed";
       conditions: EngineProvisionalCondition[];
+      demo_fields?: string[];
       fit_coverage: { judged: number; total: number };
     } | null;
   } | null;
@@ -105,6 +106,7 @@ export interface EngineAnalysis {
     evidence: EngineEvidence[];
     action: string | null;
     unknown_fields: string[];
+    input_fields?: string[];
   }[];
   fits: { req_id: string; fit: "FULL" | "PARTIAL" | "GAP" | "UNKNOWN"; rationale: string; gap_action: string | null; evidence: EngineEvidence | null; evidence_portfolio_ids?: string[];
     /** 원문에서 추출한 요구사항 명칭·정의(엔진 14756a0부터). 추출되지 않았으면 `null`, 옛 응답에는 없다. */
@@ -119,7 +121,26 @@ export interface EngineAnalysis {
   data_to_confirm: { field: string; why: string }[];
   /** 아래는 원본 Analysis에 있고 사전규격 상세 분석 완료 화면(mock 빌드 전용)이 읽는다. 옛 응답·fixture에는 없을 수 있다. */
   risks?: EngineRisk[];
-  facts?: { staffing?: EngineStaffingReq[]; contract_terms?: EngineContractTerms };
+  facts?: {
+    staffing?: EngineStaffingReq[];
+    contract_terms?: EngineContractTerms;
+    project?: {
+      budget_krw: number | null;
+      vat_included: boolean | null;
+      contract_method: string | null;
+      bidding_method: string | null;
+      evidence: EngineEvidence[];
+    };
+    evaluation?: {
+      tech_weight: number | null;
+      price_weight: number | null;
+      qualifying_rule: string | null;
+      evidence: EngineEvidence[];
+    };
+  };
+  knowledge?: { pages: string[]; skipped: string[] } | null;
+  citations?: { total: number; verified: number; unverified: number };
+  profitability?: { budget_krw: number | null; est_mm: number | null; note: string };
   review_actions?: { requests: EngineConfirmRequest[] } | null;
   source_evidence?: EngineSourceEvidence[];
 }

@@ -1,4 +1,4 @@
-"""사전규격 개요 검토 REST 세 endpoint (`bidops.prespec-overview.v1`).
+"""사전규격 개요 검토 REST (`bidops.prespec-overview.v1`).
 
 seed 도우미는 `tests/deep_review/test_overview_runs.py`의 것을 그대로 쓴다 —
 같은 스냅샷·묶음 모양을 두 벌 만들지 않는다.
@@ -18,7 +18,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.config import get_settings
 from app.core.db import Base, get_db
-from app.deep_review.models import ContentScan, PrespecOverviewRun, WorkJob
+from app.deep_review.models import ContentObjectLocation, ContentScan, DocumentVersion, PrespecOverviewRun, WorkJob
 from app.deep_review.routers import overviews
 from app.deep_review.services import overview_runs
 from app.deep_review.services.effective_grade import EffectiveGrade
@@ -286,3 +286,66 @@ def test_snapshot_pdf_opens_without_any_run(api):
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/pdf"
     assert response.content.startswith(b"%PDF-")
+
+
+def _page_text_url(notice_id, run_id):
+    return f"/api/pre-specs/{notice_id}/overview/runs/{run_id}/page-text"
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_run_page_text_normalizes_the_frozen_artifact(api, monkeypatch, native):
+    client, session, notice, snapshot, store = api
+    run = _completed_run(session, notice, snapshot)
+    saved = overview_runs.read_snapshot_page_text(session, store, snapshot)
+    text = saved["pages"][0]["text"]
+    if native:
+        monkeypatch.setattr(overview_runs, "read_snapshot_page_text", lambda *_: {
+            "schema": "bidops.rhwp-page-text.v1", "page_count": 1,
+            "pages": [{"number": 1, "display_page": 3, "section": 0, "text": text}],
+        })
+
+    response = client.get(_page_text_url(notice.id, run.id))
+    assert response.status_code == 200
+    assert response.json() == {
+        "schema": "bidops.prespec-overview-page-text.v1", "run_id": str(run.id),
+        "notice_id": notice.id, "document_version_id": str(snapshot.document_version_id),
+        "pdf_sha256": snapshot.pdf_sha256, "page_count": snapshot.pdf_page_count,
+        "pages": [{"number": 1, "display_page": "3" if native else None, "text": text}],
+    }
+
+
+@pytest.mark.parametrize(
+    ("case", "status", "code"),
+    [
+        ("other_notice", 404, "not_found"),
+        ("no_snapshot", 404, "not_found"),
+        ("unsafe", 409, "document_not_current_safe"),
+        ("missing_artifact", 409, "page_text_unavailable"),
+        ("other_schema", 409, "page_text_unavailable"),
+        ("nonconsecutive", 409, "page_text_unavailable"),
+    ],
+)
+def test_run_page_text_fails_closed(api, monkeypatch, case, status, code):
+    client, session, notice, snapshot, store = api
+    run = _completed_run(session, notice, snapshot)
+    notice_id = notice.id
+    if case == "other_notice":
+        other, _ = _seed_with_candidates(session, store)
+        notice_id = other.id
+    elif case == "no_snapshot":
+        run.snapshot_id = None
+    elif case == "unsafe":
+        session.get(DocumentVersion, snapshot.document_version_id).is_current = False
+    elif case == "missing_artifact":
+        location = session.get(ContentObjectLocation, snapshot.page_text_location_id)
+        del store.objects[location.object_key]
+    else:
+        monkeypatch.setattr(overview_runs, "read_snapshot_page_text", lambda *_: {
+            "schema": "other" if case == "other_schema" else "bidops.prespec-v4-page-text.v1",
+            "pages": [{"number": 2, "text": "원문"}],
+        })
+    session.commit()
+
+    response = client.get(_page_text_url(notice_id, run.id))
+    assert response.status_code == status
+    assert response.json()["error"]["code"] == code

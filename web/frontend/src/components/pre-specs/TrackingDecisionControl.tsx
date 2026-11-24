@@ -339,6 +339,16 @@ function PreSpecTrackingDecisionControl({
   }, [disabledReason, hasForm, onDecisionStateChange, ready, saveLabel]);
 
   if (bar) {
+    const decision = multiStatus && serverRecorded && opportunityQuery.data?.id === opportunityId
+      ? opportunityQuery.data : null;
+    const selectedAt = decision?.tracking_selected_at;
+    const decisionContext = [
+      decision?.tracking_reason?.trim() ? `사유 ${decision.tracking_reason}` : null,
+      decision?.tracking_selected_by?.trim() ? decision.tracking_selected_by : null,
+      selectedAt && Number.isFinite(Date.parse(selectedAt))
+        ? new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeZone: "Asia/Seoul" }).format(new Date(selectedAt))
+        : null,
+    ].filter(Boolean).join(" · ");
     return (
       <TrackingDecisionBarLayout
         state={isPending ? { kind: "loading" } : isError || !item ? { kind: "error", onRetry } : !hasOpportunity ? {
@@ -370,6 +380,7 @@ function PreSpecTrackingDecisionControl({
           disabledReason,
           actor: effectiveActor.trim(),
           savedMessage: multiStatus ? savedDecision?.message ?? null : null,
+          decisionContext,
           // 세 상태를 고르는 띠는 "상태를 골라 주세요" 안내를 화면 글줄로 두지 않는다(띠 높이 73px 유지). 세 단추가 그 안내이고
           // 이유 문장은 저장 단추의 aria-describedby 대상으로 남는다(낭독기용).
           choices: multiStatus ? (
@@ -690,7 +701,7 @@ type TrackingDecisionBarState =
   | { kind: "error"; onRetry: () => void }
   | { kind: "unlinked"; afterAnalysis: boolean; disabledReason: string; currentStatus: OpportunityTrackingStatus | null }
   | { kind: "recorded"; headline: string; statusLabel: string; context: ReactNode; opportunityId: number }
-  | { kind: "input"; currentStatusLabel: string; disabledReason: string | null; actor: string; savedMessage: string | null; choices: ReactNode };
+  | { kind: "input"; currentStatusLabel: string; disabledReason: string | null; actor: string; savedMessage: string | null; decisionContext: string; choices: ReactNode };
 
 /**
  * 하단 결정 띠의 배치(2026-11-21 시안 `.decision-bar`). 규칙·문구·저장은 `PreSpecTrackingDecisionControl`이 정하고
@@ -803,6 +814,9 @@ function TrackingDecisionBarLayout({
             )}
             {!state.actor || !state.disabledReason ? <TrackingActorButton actor={state.actor} /> : null}
           </div>
+          {state.decisionContext && (
+            <p className="ps-decision-bar-context" title={state.decisionContext}>{state.decisionContext}</p>
+          )}
         </div>
         {state.choices}
         {inputs ? <div className="ps-decision-bar-fields">{inputs}</div> : null}

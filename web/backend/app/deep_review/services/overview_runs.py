@@ -2316,6 +2316,10 @@ def run_snapshot_pdf(
     다시 확인하는 경계를 그대로 지난다.
     """
 
+    return _snapshot_pdf_bytes(session, _safe_run_snapshot(session, notice_id, run_id), store)
+
+
+def _safe_run_snapshot(session: Session, notice_id: int, run_id: UUID) -> PrespecV4PdfSnapshot:
     run = session.get(PrespecOverviewRun, run_id)
     if run is None or int(run.notice_id) != int(notice_id) or run.snapshot_id is None:
         raise OverviewRequestError("not_found")
@@ -2323,10 +2327,48 @@ def run_snapshot_pdf(
     if snapshot is None:
         raise OverviewRequestError("not_found")
     try:
-        safe_snapshot(session, snapshot)
+        return safe_snapshot(session, snapshot)
     except V4OpsError as error:
         raise OverviewRequestError("document_not_current_safe") from error
-    return _snapshot_pdf_bytes(session, snapshot, store)
+
+
+def run_snapshot_page_text(
+    session: Session, notice_id: int, run_id: UUID, *, store: Any | None = None
+) -> dict[str, Any]:
+    """현재 안전한 run 스냅샷에서 고정된 쪽별 원문을 반환한다."""
+    snapshot = _safe_run_snapshot(session, notice_id, run_id)
+    try:
+        payload = read_snapshot_page_text(session, _structure_store(store), snapshot)
+    except _CANDIDATE_READ_ERRORS as error:
+        raise OverviewRequestError("page_text_unavailable") from error
+
+    schema = payload.get("schema")
+    pages = payload.get("pages")
+    if schema not in ("bidops.prespec-v4-page-text.v1", "bidops.rhwp-page-text.v1") or not isinstance(pages, list):
+        raise OverviewRequestError("page_text_unavailable")
+    if len(pages) != snapshot.pdf_page_count:
+        raise OverviewRequestError("page_text_unavailable")
+
+    result = []
+    for number, page in enumerate(pages, 1):
+        if (not isinstance(page, Mapping) or type(page.get("number")) is not int
+                or page["number"] != number or not isinstance(page.get("text"), str)):
+            raise OverviewRequestError("page_text_unavailable")
+        display_page = page.get("display_page") if schema == "bidops.rhwp-page-text.v1" else None
+        if display_page is not None and type(display_page) is not int:
+            raise OverviewRequestError("page_text_unavailable")
+        result.append({
+            "number": number,
+            "display_page": str(display_page) if display_page is not None else None,
+            "text": page["text"],
+        })
+    return {
+        "schema": "bidops.prespec-overview-page-text.v1",
+        "run_id": str(run_id), "notice_id": notice_id,
+        "document_version_id": str(snapshot.document_version_id),
+        "pdf_sha256": snapshot.pdf_sha256, "page_count": snapshot.pdf_page_count,
+        "pages": result,
+    }
 
 
 __all__ = [
@@ -2359,6 +2401,7 @@ __all__ = [
     "read_range_candidates",
     "ready_bundle_document",
     "run_once",
+    "run_snapshot_page_text",
     "run_snapshot_pdf",
     "run_view",
     "snapshot_pdf",

@@ -42,7 +42,7 @@ import {
   type CompanyTrackingRow,
 } from "./fixtures/company-demo";
 import { RL_COMPANY_ID, rlAttentionCount, rlContextView, rlFacts, rlProfileView, type RlFact } from "./fixtures/company-rl";
-import { engineAnalysisRunFixture } from "./fixtures/engine-analysis";
+import { analysisOverviewResult, analysisPageText, analysisWikiProject, DOCUMENT_VERSION_ID, engineAnalysisRunFixture } from "./fixtures/engine-analysis";
 import type { EngineRun } from "../src/lib/engineApi";
 import { briefingFixture, previousBriefingFixture } from "./fixtures/briefing";
 import { NOTICE_FIXTURES, RECORD_FIXTURES, RECORD_NOW, RELATED_BY_NOTICE, type RecordFixture } from "./fixtures/opportunity-record";
@@ -5162,6 +5162,24 @@ export async function mockEngineAnalysis(page: Page, variant: "completed" | "par
   await page.route(new RegExp(`/api/engine-runs/${run.id}$`), async (route) => {
     await fulfillJson(route, run);
   });
+  const overview = { ...overviewCompletedRunFixture, document_version_id: DOCUMENT_VERSION_ID,
+    pdf_page_count: 64, page_start: 3, page_end: 4, reviewed_pages: [3, 4],
+    result: analysisOverviewResult, warnings: ["quantity_metadata_mismatch", "new_warning"], failed_claims: [],
+  };
+  await page.route(`**/api/pre-specs/${noticeId}/overview`, (route) => fulfillJson(route, overviewEnvelopeFixture(noticeId, overview)));
+  await page.route(`**/api/pre-specs/${noticeId}/overview/runs/${overview.id}/page-text`,
+    (route) => fulfillJson(route, analysisPageText(run, overview.id, overview.pdf_sha256!)));
+  await page.route(`**/api/pre-specs/${noticeId}/overview/runs/${overview.id}/pdf`,
+    (route) => route.fulfill({ contentType: "text/html", body: "동결 PDF 위치를 확인하는 응답 예시" }));
+  await page.route("**/api/company-wiki/portfolio", (route) => fulfillJson(route, { items: [analysisWikiProject], bundle_sha256: "a".repeat(64) }));
+  await page.route("**/api/company-wiki/pages", (route) => fulfillJson(route, { pages: [
+    { slug: "onsite-staffing", title: "현장 인력 운영", kind: "capability" },
+    { slug: "security", title: "보안 운영", kind: "capability" },
+  ], bundle_sha256: "a".repeat(64) }));
+  await page.route(`**/api/notices/${noticeId}`, (route) => fulfillJson(route, { ...visualPreSpecNotice, id: noticeId, attachments: [{
+    id: 1, name: "첨부 1", url: null, origin: "g2b", file_ext: "hwpx", size_bytes: null,
+    extract_status: null, created_at: null, acquired_file: { filename: "제안요청서.hwpx", file_ext: "hwpx", size_bytes: 123 },
+  }] }));
   return run;
 }
 

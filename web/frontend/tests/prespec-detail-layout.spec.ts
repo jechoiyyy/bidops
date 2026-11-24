@@ -126,9 +126,10 @@ test("읽기 폭은 상세에 표시되고 고정 슬롯 #page-footer는 추적 
 test("운영 번들에 분석 완료 화면의 문구와 선택자가 없다", async () => {
   test.skip(Boolean(process.env.BIDOPS_MOCK_UI), "개발 mock 서버 실행에서는 운영 번들을 검사하지 않는다.");
   // 다른 화면(회사 사전규격 등)도 쓰는 문구(`요구사항 대응`)는 뺐다. 이 화면에만 있는 문구·선택자만 본다.
-  const needles = ["분석 결과 요약", "엔진 참고 의견", "pa-section-nav", "차단·자격 조건", "인력·계약 조건", "pa-summary", "pa-ev-drawer"];
-  const source = readFileSync(join(process.cwd(), "src/components/pre-spec-analysis/PreSpecAnalysisView.tsx"), "utf8")
-    + readFileSync(join(process.cwd(), "src/styles/pre-spec-analysis.css"), "utf8");
+  const needles = ["엔진 참고 의견", "먼저 확인할 쟁점", "paw-tabs", "paw-workbench", "paw-drawer", "쪽 번호를 붙인 방법"];
+  const source = readFileSync(join(process.cwd(), "src/components/pre-spec-analysis/PreSpecAnalysisWorkbench.tsx"), "utf8")
+    + readFileSync(join(process.cwd(), "src/components/pre-spec-analysis/AnalysisSource.tsx"), "utf8")
+    + readFileSync(join(process.cwd(), "src/styles/pre-spec-analysis-workbench.css"), "utf8");
   for (const needle of needles) expect(source, `소스에 있어야 하는 표지: ${needle}`).toContain(needle);
 
   const outDir = join(process.cwd(), process.env.PW_OUT_DIR ?? "dist");
@@ -144,7 +145,7 @@ test("운영 번들의 사전규격 상세에는 분석 완료 구역이 없다"
   test.skip(Boolean(process.env.BIDOPS_MOCK_UI), "개발 mock 서버에서는 분석 완료 화면이 켜진다.");
   await page.goto("/pre-specs/991?analysis=completed");
   await expect(page.locator("#ps-summary")).toBeVisible();
-  await expect(page.locator("#pa-summary, #pa-gates, #pa-reqs, .pa-section-nav, nav[aria-label='구역 이동']")).toHaveCount(0);
+  await expect(page.locator(".paw-workbench, .paw-tabs, .paw-drawer")).toHaveCount(0);
   // 분석 전 화면의 결정은 `추적 시작하기` 하나이고 계속 추적·보류·종료 선택 묶음은 없다.
   await expect(page.locator("#page-footer .ps-decision-bar-choices")).toHaveCount(0);
 });

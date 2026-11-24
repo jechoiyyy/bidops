@@ -193,7 +193,7 @@ type HeaderCase = {
 
 const headerCases: HeaderCase[] = [
   { name: "dashboard", path: "/", back: null, location: "오늘 할 일" },
-  { name: "pre-spec detail", path: "/pre-specs/991", back: "사전규격", location: "사전규격 #991" },
+  { name: "pre-spec detail", path: "/pre-specs/991", back: "‹ 목록", location: "사전규격 #991" },
   { name: "opportunity detail", path: "/opportunities/501", back: "사업기회", location: "사업기회 #501" },
   { name: "bid delta", path: "/opportunities/501/bid-delta", back: "#501", location: "입찰 참여 결정" },
   {
@@ -360,7 +360,7 @@ test("PN-03 상세 새로고침과 오류 branch도 위치·목록 context를 �
 
   const navigation = page.getByRole("navigation", { name: "사전규격 선택 순회" });
   await expect(navigation.locator("strong")).toHaveText("1 / 2");
-  await expect(page.locator("header.topbar .topbar-crumb-link[href^='/pre-specs']")).toHaveAttribute(
+  await expect(page.locator(".topbar-main").getByRole("link", { name: "사전규격 목록으로" })).toHaveAttribute(
     "href",
     "/pre-specs?sw_only=false&q=%EC%95%88%EC%A0%84&offset=200",
   );
@@ -381,15 +381,15 @@ test("PN-04 token 없는 직접 주소는 저장된 선택과 무관하게 단�
   await seedPreSpecReview(page);
   await page.goto(`/pre-specs/991?${PN_REVIEW.listSearch}`);
 
-  const navigation = page.getByRole("navigation", { name: "사전규격 목록 이동" });
-  await expect(navigation.getByRole("link", { name: "사전규격 목록으로" })).toHaveAttribute(
-    "href", "/pre-specs?sw_only=false&q=%EC%95%88%EC%A0%84&offset=200",
-  );
-  await expect(navigation.getByRole("button")).toHaveCount(0);
-  await expect(page.locator("header.topbar .topbar-crumb-link[href^='/pre-specs']")).toHaveAttribute(
-    "href",
-    "/pre-specs?sw_only=false&q=%EC%95%88%EC%A0%84&offset=200",
-  );
+  const listUrl = `/pre-specs?${PN_REVIEW.listSearch}`;
+  const topbar = page.locator("header.topbar");
+  const back = topbar.locator(".topbar-main .topbar-back > a.panel-header-link:first-child");
+  await expect(back).toHaveAccessibleName("사전규격 목록으로");
+  await expect(back).toHaveAttribute("href", listUrl);
+  await expect(topbar.getByRole("link", { name: "사전규격 목록으로" })).toHaveCount(1);
+  await expect(topbar.getByRole("navigation", { name: "사전규격 선택 순회" })).toHaveCount(0);
+  await back.click();
+  await expect(page).toHaveURL((url) => url.pathname + url.search === listUrl);
 });
 
 test("PN-05 notice mismatch에서도 navigation shell은 위치를 잃지 않는다", async ({ page }) => {
