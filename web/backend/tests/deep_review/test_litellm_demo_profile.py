@@ -211,7 +211,11 @@ def _stage_input_of_request_bytes(target: int) -> dict:
 
 
 def _caller(path: Path, client) -> overview_runs._Caller:
-    run = SimpleNamespace(call_count=0, model_name="local-agent-main", warnings_json=[], raw_response_refs=[])
+    # model_revision=None keeps the byte-bound capacity check these tests measure; the token
+    # counter only applies to the approved overview model revision (overview_tokenizer).
+    run = SimpleNamespace(
+        call_count=0, model_name="local-agent-main", model_revision=None, warnings_json=[], raw_response_refs=[],
+    )
     return overview_runs._Caller(None, run, client, load_claims_policy(path), settings=None, clock=lambda: NOW)
 
 
