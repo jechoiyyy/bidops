@@ -4,7 +4,7 @@ import type { EngineAnalysis, EngineEvidence, EngineRun } from "../../lib/engine
 import type { PdfQuoteLocation } from "../../lib/pdfQuoteLocator";
 import { qualityStatusLabel } from "../../lib/qualityStatus";
 import type { NoticeDetailResponse, PageOverviewFact, PageOverviewView } from "../../lib/types";
-import { analysisDate, knowledgeName, known } from "./analysisPresentation";
+import { analysisDate, isOutsideWorkUnits, knowledgeName, knowledgeReadNotice, known, workUnitsNotice } from "./analysisPresentation";
 
 export type PageLink = (evidence: EngineEvidence | null | undefined, label: string) => ReactNode;
 
@@ -95,17 +95,21 @@ interface SourceProps {
   originalFilename?: string;
   portfolio: ReadonlyMap<string, WikiProject>;
   wikiNames: ReadonlyMap<string, string>;
+  readProjectCount: number | null;
   locate: (quote: string) => PdfQuoteLocation;
   pagesReady: boolean;
   claimLinks: (claim: PageOverviewFact, label: string) => ReactNode;
   openPdf: ReactNode;
 }
 
-export function AnalysisSource({ run, analysis, shown, notice, originalFilename, portfolio, wikiNames, locate, pagesReady, claimLinks, openPdf }: SourceProps) {
+export function AnalysisSource({
+  run, analysis, shown, notice, originalFilename, portfolio, wikiNames, readProjectCount, locate, pagesReady, claimLinks, openPdf,
+}: SourceProps) {
   const project = analysis.facts?.project;
   const requirementCount = analysis.requirement_counts?.source_found;
   const judged = analysis.assessment?.provisional?.fit_coverage.judged;
   const knowledge = analysis.knowledge;
+  const workUnits = analysis.work_units;
   const citations = analysis.citations;
   const profitability = analysis.profitability;
   const scoring = analysis.review_actions?.requests.filter(({ purpose }) => purpose === "scoring");
@@ -173,11 +177,18 @@ export function AnalysisSource({ run, analysis, shown, notice, originalFilename,
         <p>{citations ? `엔진이 근거로 인용한 원문 문장 ${citations.total}개 가운데 ${citations.verified}개는 원문과 글자가 일치하는 것을 확인했고, ${citations.unverified}개는 확인하지 못했어요.`
           : "엔진이 인용한 원문 문장 수는 미확인이에요."}</p>
       </dd>
-      <dt>엔진이 본 회사 자료</dt><dd>{knowledge ? <>
+      <dt>엔진이 본 회사 자료</dt><dd>{workUnits?.status === "classified" ? <p>{workUnitsNotice(workUnits)}</p>
+        : knowledge?.skipped.length === 0 ? <p>{knowledgeReadNotice(knowledge.pages.length, readProjectCount)}</p>
+        : knowledge ? <>
         <p>회사 근거 위키에서 <b>{knowledge.pages.length}쪽</b>을 읽었어요{knowledge.pages.length > 0 && `: ${names(knowledge.pages)}`}.</p>
         <p>분량 제한 때문에 <b>{knowledge.skipped.length}쪽</b>은 읽지 않았어요{skipped && `: ${skipped}`}.</p>
-        {knowledge.skipped.length > 0 && <p className="paw-muted">그래서 요구사항이 ‘회사 근거 없음’이어도 회사에 그런 실적이 없다는 뜻은 아니에요. 읽지 않은 실적에 근거가 있을 수 있어요.</p>}
+        <p className="paw-muted">그래서 요구사항이 ‘회사 근거 없음’이어도 회사에 그런 실적이 없다는 뜻은 아니에요. 읽지 않은 실적에 근거가 있을 수 있어요.</p>
       </> : <p>엔진이 본 회사 자료는 미확인이에요.</p>}</dd>
+      {workUnits && <>
+        <dt>업무 근거 지도</dt><dd><p>{workUnits.status === "classified"
+          ? `요구사항 ${workUnits.assignments.length}건을 업무 단위로 분류했어요(지도 실적 ${workUnits.basis_projects}건 기준). 어느 단위에도 들지 않은 요구사항 ${workUnits.assignments.filter(isOutsideWorkUnits).length}건은 ‘수행 기록 없음’으로 판정될 수 있어요.`
+          : `분류하지 못했어요${workUnits.reason === null ? "" : `(${workUnits.reason})`}. 이 분석의 ‘부족’은 회사 정보에서 확인된 제약에서만 나와요.`}</p></dd>
+      </>}
       <dt>엔진이 요청한 회사 정보</dt><dd>{scoring ? <>
         <p>점수를 추정하려고 회사 정보 <b>{scoring.length}가지</b>를 확인해 달라고 했어요{scoring[0] && `(예: ${scoring[0].title})`}.</p>
         {scoring.length > 0 && <p className="paw-muted">모두 점수 추정용이고 추적 여부를 바꾸는 항목은 없어서, 이 화면에서는 건수만 보여요. 추적 판단에 필요한 확인은 ‘쟁점’에 모아 두었어요.</p>}

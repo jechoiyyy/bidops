@@ -113,7 +113,8 @@ section.paw-brief { display: grid; grid-template-columns: minmax(0, 1.12fr) minm
 .paw-co small { display: block; color: var(--color-text-secondary); font-size: var(--bo-k-small); }
 .paw-detail { overflow: auto; min-width: 0; min-height: 0; padding: 16px 18px 20px; }
 .paw-detail .paw-top { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
-.paw-detail .paw-top .paw-navbtns { margin-inline-start: auto; }
+.paw-detail .paw-top .paw-navbtns { flex-shrink: 0; margin-inline-start: auto; }
+.paw-fit-meaning { font-size: var(--bo-k-tag); color: var(--color-text-secondary); }
 .paw-detail h3 { font-size: var(--bo-k-button-lg); line-height: 1.4; margin-bottom: 4px; }
 .paw-detail .paw-def { font-size: var(--bo-k-meta); color: var(--color-text-secondary); margin-bottom: 4px; }
 .paw-detail h4 { font-size: var(--bo-k-tag); color: var(--color-text-secondary); font-weight: 600; margin: 14px 0 5px; display: flex; gap: 8px; align-items: center; }

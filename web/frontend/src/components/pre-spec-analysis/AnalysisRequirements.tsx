@@ -4,7 +4,10 @@ import { useRowKeyboardNavigation } from "../common/useRowKeyboardNavigation";
 import type { WikiProject } from "../../lib/companyWikiApi";
 import type { EngineAnalysis } from "../../lib/engineApi";
 import type { PdfQuoteLocation } from "../../lib/pdfQuoteLocator";
-import { citationLabel, knowledgeName, known, replaceAnalysisHash, requirementKey, type Requirement } from "./analysisPresentation";
+import {
+  citationLabel, isOutsideWorkUnits, knowledgeName, knowledgeReadNotice, known, linkWorkAssignments, replaceAnalysisHash,
+  requirementKey, workUnitsNotice, type Requirement,
+} from "./analysisPresentation";
 import type { PageLink } from "./AnalysisSource";
 
 const categories: Record<string, string> = {
@@ -29,6 +32,8 @@ interface Props {
   fits: Requirement[];
   judged?: number;
   knowledge: EngineAnalysis["knowledge"];
+  workUnits: EngineAnalysis["work_units"];
+  readProjectCount: number | null;
   portfolio: ReadonlyMap<string, WikiProject>;
   wikiNames: ReadonlyMap<string, string>;
   target: { key: string } | null;
@@ -39,7 +44,9 @@ interface Props {
   related: (fit: Requirement) => ReactNode[];
 }
 
-export function AnalysisRequirements({ fits, judged, knowledge, portfolio, wikiNames, target, go, locate, locating, pageLink, related }: Props) {
+export function AnalysisRequirements({
+  fits, judged, knowledge, workUnits, readProjectCount, portfolio, wikiNames, target, go, locate, locating, pageLink, related,
+}: Props) {
   const [filter, setFilter] = useState<Filter>("all");
   const [group, setGroup] = useState("all");
   const [search, setSearch] = useState("");
@@ -51,6 +58,7 @@ export function AnalysisRequirements({ fits, judged, knowledge, portfolio, wikiN
   const previousTarget = useRef<typeof target>(null);
   const prefixList = [...new Set(fits.map(category))];
   const query = search.trim().toLowerCase();
+  const assignments = linkWorkAssignments(fits, workUnits);
   const portfolioName = (id: string) => portfolio.has(id) ? known(portfolio.get(id)?.title) : id;
   const replaceRationale = (text: string) => text.replace(/\[\[([^\]]+)\]\]/g, (_token, id: string) => portfolioName(id));
   const rationaleNodes = (text: string) => text.split(/\[\[([^\]]+)\]\]/g).map((part, i) =>
@@ -65,6 +73,18 @@ export function AnalysisRequirements({ fits, judged, knowledge, portfolio, wikiN
   const selectedKey = selected ? requirementKey(selected) : null;
   const index = selected ? rows.indexOf(selected) : -1;
   const relatedIssues = selected ? related(selected) : [];
+  const selectedAssignment = selected && assignments.get(selected);
+  const selectedMeaning = selected && fitMeaning(selected);
+
+  function fitMeaning(fit: Requirement) {
+    if (fit.fit === "UNKNOWN") return "판단 자료 없음";
+    if (fit.fit !== "GAP") return undefined;
+    const assignment = assignments.get(fit);
+    if (workUnits?.status === "classified" && assignment && isOutsideWorkUnits(assignment)) {
+      return `수행 기록 없음 · 업무 근거 지도 실적 ${workUnits.basis_projects}건 기준`;
+    }
+    return "회사 정보에서 확인된 제약";
+  }
 
   function select(key: string, focus = false) {
     setSelection(key);
@@ -139,9 +159,11 @@ export function AnalysisRequirements({ fits, judged, knowledge, portfolio, wikiN
   return <section className="paw-blk" id="s-reqs" aria-label="요구사항 비교">
     <div className="paw-blk-h"><h2>요구사항 대응</h2><span className="paw-n">{fits.length}건 · 엔진 판정 {judged == null ? "미확인" : `${judged}건`}</span>
       <span className="paw-aside">행을 고르면 오른쪽에 원문 발췌·회사 근거·보완 방안이 나와요 · ↑↓로 이동</span></div>
-    <p className="paw-kn">{knowledge ? <>회사 근거는 위키 <b>{knowledge.pages.length}쪽</b>만 분석에 들어갔고 <b>{knowledge.skipped.length}쪽</b>은 분석 분량 제한으로 빠졌어요
-      {knowledge.skipped.length > 0 && `(${knowledge.skipped.map((slug) => knowledgeName(slug, portfolio, wikiNames)).join(", ")})`}.</>
-      : "분석에 쓰인 회사 근거 위키 쪽은 미확인이에요."} ‘회사 근거 없음’이 실적이 없다는 뜻은 아니에요.</p>
+    <p className="paw-kn">{workUnits?.status === "classified" ? workUnitsNotice(workUnits)
+      : knowledge?.skipped.length === 0 ? knowledgeReadNotice(knowledge.pages.length, readProjectCount)
+      : <>{knowledge ? <>회사 근거는 위키 <b>{knowledge.pages.length}쪽</b>만 분석에 들어갔고 <b>{knowledge.skipped.length}쪽</b>은 분석 분량 제한으로 빠졌어요
+        {`(${knowledge.skipped.map((slug) => knowledgeName(slug, portfolio, wikiNames)).join(", ")})`}.</>
+        : "분석에 쓰인 회사 근거 위키 쪽은 미확인이에요."} ‘회사 근거 없음’이 실적이 없다는 뜻은 아니에요.</>}</p>
     <div className="paw-reqbar">
       <div className="paw-filters" role="group" aria-label="대응으로 거르기">
         {(["all", ...fitOrder] as const).map((value) => {
@@ -162,14 +184,16 @@ export function AnalysisRequirements({ fits, judged, knowledge, portfolio, wikiN
     </div>
     <div className="paw-reqgrid">
       <RecordTable label="요구사항 대응 목록" rows={rows} columns={columns} getKey={requirementKey}
-        activeKey={selectedKey} viewportRef={listRef} navigation={navigation} className="paw-reqlist"
+        activeKey={selectedKey} viewportRef={listRef} navigation={navigation} className="paw-reqlist" getRowTitle={fitMeaning}
         onActivate={(key) => select(key, true)} />
       {rows.length === 0 && <p className="paw-req-empty">조건에 맞는 요구사항이 없어요.</p>}
       <aside className="paw-detail" ref={detailRef} aria-live="polite" aria-label="선택한 요구사항">
         {selected ? <>
           <div className="paw-top"><span className="paw-mono">{selected.req_id}</span>
             <span className="paw-faint">{categories[category(selected)] ?? category(selected)}</span>
-            <Fit fit={selected.fit} /><div className="paw-navbtns">
+            <Fit fit={selected.fit} />
+            {selectedMeaning && <span className="paw-fit-meaning">{selectedMeaning}</span>}
+            <div className="paw-navbtns">
               <button type="button" className="paw-btn" aria-label="이전 요구사항" disabled={index <= 0}
                 onClick={() => select(requirementKey(rows[index - 1]), true)}>↑ 이전</button>
               <button type="button" className="paw-btn" aria-label="다음 요구사항" disabled={index >= rows.length - 1}
@@ -193,6 +217,16 @@ export function AnalysisRequirements({ fits, judged, knowledge, portfolio, wikiN
             </div>;
           }) : <p className="paw-muted">연결된 회사 실적이 없어요.{knowledge && knowledge.skipped.length > 0
             && ` 위키 ${knowledge.skipped.length}쪽이 분석에서 빠졌으니 실적이 없다는 뜻은 아니에요.`}</p>}
+          {selectedAssignment && <section aria-label="업무 근거">
+            <h4>업무 근거</h4>
+            <p><b>업무 단위</b>{" "}{selectedAssignment.units.length ? selectedAssignment.units.join(", ") : "연결 없음"}</p>
+            <p><b>근거 실적</b>{" "}{selectedAssignment.evidence_projects.length === 0 && "연결 없음"}</p>
+            {selectedAssignment.evidence_projects.map((id) => {
+              const name = portfolioName(id);
+              return <p key={id}>{name}{name !== id && <> <span className="paw-code">{id}</span></>}</p>;
+            })}
+            {selectedAssignment.uncovered.length > 0 && <p><b>단위에 들지 않는 부분</b>{" "}{selectedAssignment.uncovered.join(", ")}</p>}
+          </section>}
           <h4>보완 방안 (엔진)</h4><p>{selected.gap_action || <span className="paw-muted">엔진이 보완 방안을 내지 않았어요.</span>}</p>
           {relatedIssues.length > 0 && <><h4>관련 쟁점</h4>{relatedIssues}</>}
         </> : <p className="paw-muted">요구사항을 고르세요.</p>}

@@ -138,7 +138,13 @@ export interface EngineAnalysis {
       evidence: EngineEvidence[];
     };
   };
-  knowledge?: { pages: string[]; skipped: string[] } | null;
+  knowledge?: { pages: string[]; skipped: string[]; portfolio_excerpts?: Record<string, number[]> } | null;
+  work_units?: {
+    basis_projects: number;
+    status: "classified" | "unavailable";
+    reason: string | null;
+    assignments: { req_id: string; units: string[]; uncovered: string[]; evidence_projects: string[] }[];
+  } | null;
   citations?: { total: number; verified: number; unverified: number };
   profitability?: { budget_krw: number | null; est_mm: number | null; note: string };
   review_actions?: { requests: EngineConfirmRequest[] } | null;

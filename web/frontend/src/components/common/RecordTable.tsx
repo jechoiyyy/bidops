@@ -60,6 +60,7 @@ interface RecordTableProps<Row, Key extends RowKey> {
   className?: string;
   rowClassName?: string | ((row: Row) => string);
   getRowLabel?: (row: Row) => string;
+  getRowTitle?: (row: Row) => string | undefined;
   onRowKeyDown?: (event: KeyboardEvent<HTMLTableRowElement>, row: Row) => void;
   isRowDisabled?: (row: Row) => boolean;
   selection?: RecordSelection<Row>;
@@ -75,7 +76,7 @@ const INTERACTIVE = "a,button,input,select,textarea,[contenteditable]";
 
 export function RecordTable<Row, Key extends RowKey>({
   label, rows, columns, getKey, activeKey, onActivate, navigation,
-  viewportRef, onScroll, className, rowClassName, getRowLabel, onRowKeyDown, isRowDisabled,
+  viewportRef, onScroll, className, rowClassName, getRowLabel, getRowTitle, onRowKeyDown, isRowDisabled,
   selection, state,
 }: RecordTableProps<Row, Key>) {
   const minWidth = columns.reduce(
@@ -153,6 +154,8 @@ export function RecordTable<Row, Key extends RowKey>({
               const checkDisabled = disabled || selection?.isDisabled?.(row);
               const checked = selection?.getChecked(row) ?? false;
               const rowProps = navigation?.rowProps(key);
+              // Astryx forwards native row attributes but omits title from TableRowProps.
+              const rowTooltip: Pick<ComponentProps<"tr">, "title"> = { title: getRowTitle?.(row) };
 
               function handleKeyDown(event: KeyboardEvent<HTMLTableRowElement>) {
                 // Let the native checkbox handle its own Space and change events.
@@ -178,6 +181,7 @@ export function RecordTable<Row, Key extends RowKey>({
               return (
                 <TableRow
                   {...rowProps}
+                  {...rowTooltip}
                   aria-current={active ? "true" : undefined}
                   aria-disabled={disabled || undefined}
                   aria-label={getRowLabel?.(row)}

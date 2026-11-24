@@ -71,6 +71,12 @@ function Workbench({ run, notice, item, shown, overviewUnavailable, number, bidN
   const wikiPages = useQuery(wiki.pages);
   const portfolio = useMemo(() => new Map(portfolioQuery.data?.items.map((project) => [project.id, project])), [portfolioQuery.data]);
   const wikiNames = useMemo(() => new Map(wikiPages.data?.pages.map((page) => [page.slug, page.title])), [wikiPages.data]);
+  const includedPages = analysis.knowledge?.pages ?? [];
+  const includedProjectPages = includedPages.filter((slug) =>
+    portfolio.has(slug) || Object.hasOwn(analysis.knowledge?.portfolio_excerpts ?? {}, slug)
+    || wikiPages.data?.pages.some((page) => page.slug === slug && page.kind === "portfolio"));
+  const readProjectCount = includedPages.every((slug) => includedProjectPages.includes(slug) || wikiNames.has(slug))
+    ? includedProjectPages.length : null;
   const openedOpportunity = opportunity.data?.id === opportunityId ? opportunity.data : null;
 
   const pdf = shown?.pdf_sha256 && shown.pdf_page_count > 0 ? api.preSpecOverviewRunPdfUrl(notice.id, shown.id) : null;
@@ -399,14 +405,16 @@ function Workbench({ run, notice, item, shown, overviewUnavailable, number, bidN
       </div>
     </section>
 
-    <AnalysisRequirements fits={requirements} knowledge={analysis.knowledge} judged={judged} portfolio={portfolio} wikiNames={wikiNames}
+    <AnalysisRequirements fits={requirements} knowledge={analysis.knowledge} workUnits={analysis.work_units} readProjectCount={readProjectCount}
+      judged={judged} portfolio={portfolio} wikiNames={wikiNames}
       target={reqTarget} go={() => go("reqs")} locate={locate} locating={locating} pageLink={pageLink}
       related={(fit) => issues.filter((issue) => issue.same.includes(fit)).map(({ index, risk }) =>
         <div key={index}><span className={`paw-sev ${risk.severity}`}>{severity[risk.severity]}</span> {issueJump(index)}</div>)} />
     <AnalysisTerms analysis={analysis} pageLink={pageLink} consortiumIssue={issues.find(({ risk }) =>
       /공동수급/.test(risk.evidence.quote) && /공동수급/.test(risk.description) && /평가기준|평가 기준/.test(risk.description))?.index}
       openIssue={openIssue} />
-    <AnalysisSource run={run} analysis={analysis} shown={shown} notice={notice} originalFilename={originalFilename} portfolio={portfolio} wikiNames={wikiNames}
+    <AnalysisSource run={run} analysis={analysis} shown={shown} notice={notice} originalFilename={originalFilename} portfolio={portfolio}
+      wikiNames={wikiNames} readProjectCount={readProjectCount}
       locate={locate} pagesReady={boundText !== null && canLocate} claimLinks={claimLinks}
       openPdf={pdf ? pdfPageLink(1, "원문 전체", "PDF 처음부터 열기") : null} />
     {process}

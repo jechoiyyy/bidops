@@ -361,6 +361,31 @@ export const analysisWikiProject: WikiProject = {
   has_page: true, requirement_count: null, ingested: null, ingested_at: null, evidence_links: null,
 };
 
+/** Stage 2 mock data. The original run fixtures still cover responses without work_units. */
+export function withWorkUnits(analysis: EngineAnalysis, status: "classified" | "unavailable"): EngineAnalysis {
+  const knowledge = { pages: ["onsite-staffing", analysisWikiProject.id], skipped: [],
+    portfolio_excerpts: { [analysisWikiProject.id]: [0] } };
+
+  if (status === "unavailable") {
+    return { ...analysis, knowledge, work_units: { basis_projects: 7, status, reason: "invalid_assignments", assignments: [] } };
+  }
+
+  const fits = analysis.fits.flatMap((fit) => fit.req_id === "MHR-002" ? [
+    { ...fit, instance_key: "MHR-002@1" },
+    { ...fit, instance_key: "MHR-002@2" },
+    { ...fit, instance_key: "MHR-002@3" },
+  ] : [fit]);
+  return {
+    ...analysis, fits, knowledge,
+    work_units: { basis_projects: 7, status, reason: null, assignments: [
+      { req_id: "MHR-002@3", units: ["work-staffing-onsite"], uncovered: [], evidence_projects: [analysisWikiProject.id] },
+      { req_id: "MHR-002", units: [], uncovered: ["성남 상주 운영"], evidence_projects: [] },
+      { req_id: "MHR-002", units: ["work-staffing-schedule"], uncovered: ["성남 지정 근무지"], evidence_projects: [analysisWikiProject.id] },
+      { req_id: "MPR-006", units: [], uncovered: [], evidence_projects: [] },
+    ] },
+  };
+}
+
 export function analysisPageText(run: EngineRun, overviewId: string, pdfSha256: string): OverviewRunPageText {
   const pages = Array.from({ length: 64 }, (_, index) => ({ number: index + 1, display_page: null, text: "" }));
   const claims = [...analysisOverviewResult.business_overview, ...analysisOverviewResult.main_tasks, ...analysisOverviewResult.budget_and_period];

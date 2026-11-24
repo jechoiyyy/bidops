@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mockApi, mockEngineAnalysis, overviewEnvelopeFixture, overviewNeedsHumanReviewRunFixture, setSidebarActor } from "./api-mock";
-import { analysisOverviewResult, analysisWikiProject, engineAnalysisRunFixture } from "./fixtures/engine-analysis";
+import { analysisOverviewResult, analysisWikiProject, engineAnalysisRunFixture, withWorkUnits } from "./fixtures/engine-analysis";
 import { RL_COMPANY_ID } from "./fixtures/company-rl";
 
 // 일반 운영 preview에는 워크벤치가 없다. BIDOPS_MOCK_API=1 개발 서버에서만 이 spec을 실행한다.
@@ -9,9 +9,10 @@ test.skip(!process.env.BIDOPS_MOCK_UI, "개발 MOCK 서버 전용: BIDOPS_MOCK_U
 const NOTICE_ID = 991;
 const analysis = engineAnalysisRunFixture("completed", RL_COMPANY_ID, NOTICE_ID).analysis!;
 
-async function openAnalysis(page: Page, hash = "") {
+async function openAnalysis(page: Page, hash = "", workUnits?: "classified" | "unavailable") {
   await mockApi(page);
-  await mockEngineAnalysis(page, "completed", NOTICE_ID);
+  const run = await mockEngineAnalysis(page, "completed", NOTICE_ID);
+  if (workUnits && run.analysis) run.analysis = withWorkUnits(run.analysis, workUnits);
   await page.goto(`/pre-specs/${NOTICE_ID}${hash}`);
   await expect(page.locator("#s-brief")).toBeVisible();
 }
@@ -185,7 +186,63 @@ test("자격 표와 원문·처리 정보의 여덟 항목을 보여 준다", as
   await expect(source).toContainText("제안요청서.hwpx");
   await expect(source).toContainText("뜻이 등록되지 않은 경고예요. new_warning");
   await expect(source).toContainText("현장 인력 운영");
+  await expect(source).toContainText("보안 운영");
+  await expect(page.locator("#s-reqs .paw-kn")).toContainText("1쪽은 분석 분량 제한으로 빠졌어요(보안 운영).");
   await expect(page.locator("#ps-process")).toHaveCount(0);
+});
+
+test("업무 근거 지도는 두 종류의 부족과 미확인을 구분하고 같은 ID를 순서대로 연결한다", async ({ page }) => {
+  await openAnalysis(page, "#req=MHR-002%401", "classified");
+  const requirements = page.locator("#s-reqs");
+  const detail = requirements.getByRole("complementary", { name: "선택한 요구사항" });
+  const evidence = detail.getByRole("region", { name: "업무 근거" });
+  const row = (key: string) => requirements.locator(`tr[data-row-key="${key}"]`);
+  const noRecord = "수행 기록 없음 · 업무 근거 지도 실적 7건 기준";
+  const constrained = "회사 정보에서 확인된 제약";
+  await expect(row("MHR-002@1")).toHaveAttribute("title", noRecord);
+  await expect(row("MHR-002@2")).toHaveAttribute("title", constrained);
+  await expect(row("MHR-002@3")).toHaveAttribute("title", constrained);
+  await expect(row("MPR-005")).toHaveAttribute("title", "판단 자료 없음");
+  await expect(row("MHR-002@1").getByText("부족", { exact: true })).toBeVisible();
+  await expect(detail.getByText("부족", { exact: true })).toBeVisible();
+  await expect(detail.getByText(noRecord, { exact: true })).toBeVisible();
+  await expect(evidence).toContainText("단위에 들지 않는 부분 성남 상주 운영");
+
+  const filters = requirements.getByRole("group", { name: "대응으로 거르기" });
+  await filters.getByRole("button", { name: /^부족/ }).click();
+  await row("MHR-002@2").click();
+  await expect(detail.getByText(constrained, { exact: true })).toBeVisible();
+  await expect(evidence).toContainText("work-staffing-schedule");
+  await expect(evidence).toContainText("단위에 들지 않는 부분 성남 지정 근무지");
+  await expect(evidence).toContainText(analysisWikiProject.title!);
+  await expect(evidence).toContainText(analysisWikiProject.id);
+  await row("MHR-002@3").click();
+  await expect(evidence).toContainText("work-staffing-onsite");
+  await expect(evidence.getByText("단위에 들지 않는 부분")).toHaveCount(0);
+
+  await filters.getByRole("button", { name: /^미확인/ }).click();
+  await row("MPR-005").click();
+  await expect(detail.getByText("판단 자료 없음", { exact: true })).toBeVisible();
+  await expect(evidence).toHaveCount(0);
+  const notice = "요구사항마다 업무 근거 지도(실적 7건 기준)로 근거 실적을 연결했어요. 지도에 없는 실적은 판단에 들어가지 않았어요.";
+  await expect(requirements.locator(".paw-kn")).toHaveText(notice);
+  const source = page.locator("#s-source");
+  await expect(source).toContainText(notice);
+  await expect(source.getByText("업무 근거 지도", { exact: true })).toBeVisible();
+  await expect(source).toContainText("요구사항 4건을 업무 단위로 분류했어요(지도 실적 7건 기준). 어느 단위에도 들지 않은 요구사항 1건은 ‘수행 기록 없음’으로 판정될 수 있어요.");
+});
+
+test("업무 근거 지도 분류 실패는 원래 사유 코드와 실제 읽은 쪽 수를 보여 준다", async ({ page }) => {
+  await openAnalysis(page, "#req=MHR-002", "unavailable");
+  const detail = page.getByRole("complementary", { name: "선택한 요구사항" });
+  await expect(detail.getByText("회사 정보에서 확인된 제약", { exact: true })).toBeVisible();
+  await expect(detail.getByRole("region", { name: "업무 근거" })).toHaveCount(0);
+  const notice = "회사 근거 위키 2쪽과 관련 실적 1건을 읽었어요. ‘회사 근거 없음’이 실적이 없다는 뜻은 아니에요.";
+  await expect(page.locator("#s-reqs .paw-kn")).toHaveText(notice);
+  const source = page.locator("#s-source");
+  await expect(source).toContainText(notice);
+  await expect(source).toContainText("분류하지 못했어요(invalid_assignments). 이 분석의 ‘부족’은 회사 정보에서 확인된 제약에서만 나와요.");
+  await expect(source).not.toContainText("분량 제한 때문에 0쪽");
 });
 
 test("분석 완료 화면: 계속 추적·보류·종료를 고르고 종료는 확인 단계를 거친다", async ({ page }) => {

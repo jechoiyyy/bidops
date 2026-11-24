@@ -115,7 +115,7 @@ test("읽기 폭은 상세에 표시되고 고정 슬롯 #page-footer는 추적 
   await expect(page.locator(".app-content")).toHaveAttribute("data-reading-width", "detail");
   await expect(page.locator("#page-footer .ps-decision-bar")).toBeVisible();
   await page.locator("header.topbar").getByRole("navigation", { name: "현재 위치" })
-    .getByRole("link", { name: "사전규격", exact: true }).click();
+    .getByRole("link", { name: "사전규격 목록으로", exact: true }).click();
   await expect(page).toHaveURL(/\/pre-specs$/);
   await expect(page.locator("#page-footer .ps-decision-bar")).toHaveCount(0);
   expect(await page.locator("#page-footer").evaluate((element) => element.getBoundingClientRect().height)).toBe(0);
@@ -126,7 +126,7 @@ test("읽기 폭은 상세에 표시되고 고정 슬롯 #page-footer는 추적 
 test("운영 번들에 분석 완료 화면의 문구와 선택자가 없다", async () => {
   test.skip(Boolean(process.env.BIDOPS_MOCK_UI), "개발 mock 서버 실행에서는 운영 번들을 검사하지 않는다.");
   // 다른 화면(회사 사전규격 등)도 쓰는 문구(`요구사항 대응`)는 뺐다. 이 화면에만 있는 문구·선택자만 본다.
-  const needles = ["엔진 참고 의견", "먼저 확인할 쟁점", "paw-tabs", "paw-workbench", "paw-drawer", "쪽 번호를 붙인 방법"];
+  const needles = ["엔진 참고 의견", "먼저 확인할 쟁점", "paw-tabs", "paw-workbench", "paw-issue-jump", "쪽 번호를 붙인 방법"];
   const source = readFileSync(join(process.cwd(), "src/components/pre-spec-analysis/PreSpecAnalysisWorkbench.tsx"), "utf8")
     + readFileSync(join(process.cwd(), "src/components/pre-spec-analysis/AnalysisSource.tsx"), "utf8")
     + readFileSync(join(process.cwd(), "src/styles/pre-spec-analysis-workbench.css"), "utf8");

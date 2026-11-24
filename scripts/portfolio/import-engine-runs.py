@@ -187,8 +187,12 @@ def apply_main(path: str, actor: str) -> int:
             existing = session.scalars(
                 select(EngineRun).where(EngineRun.company_id == company_id, EngineRun.notice_id == notice_id)
             ).all()
+            # Same eval input analysed by a different engine tree (e.g. live2 after the 2026-11-24
+            # engine fix) is a new run; only the same input *and* engine is a replay.
             if any(((row.result_payload or {}).get("portfolio_import") or {}).get("eval_input_sha256")
-                   == record["eval_input_sha256"] for row in existing):
+                   == record["eval_input_sha256"]
+                   and ((row.result_payload or {}).get("portfolio_import") or {}).get("eval_engine_sha256")
+                   == record["engine_sha256"] for row in existing):
                 results["already_imported"].append(record["case_id"])
                 continue
             bundle = session.get(DocumentBundle, bundle_id)
