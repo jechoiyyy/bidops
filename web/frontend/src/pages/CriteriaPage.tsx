@@ -12,7 +12,7 @@ const NOTICE_SECTIONS = [
   { id: "profile", label: "판정용 프로필 사본", path: "/profile", Page: ProfilePage },
   { id: "policies", label: "판정 정책", path: "/policies", Page: PoliciesPage },
   { id: "quality-gates", label: "품질 게이트", path: "/quality-gates", Page: QualityGatesPage },
-  { id: "metrics", label: "회차 검증 지표", path: "/metrics", Page: MetricsPage },
+  { id: "metrics", label: "공고 판정 결과 검증", path: "/metrics", Page: MetricsPage },
 ] as const;
 
 const GROUPS = [

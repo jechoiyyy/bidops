@@ -307,6 +307,7 @@ export function ActivationPaneBody({
         {policyLoading ? <Caption>현재 active 정책을 확인하는 중이에요.</Caption> : null}
       </Section>
 
+      <details className="rs-disclosure"><summary>승인 조합과 환경 설정 상세</summary>
       <Section title="현재 승인 조합" action={<Caption as="span">게이트 {valueLabel(state.quality_gate_status)}</Caption>}>
         <dl className="rs-binding-list">
           <div>
@@ -373,6 +374,7 @@ export function ActivationPaneBody({
         />
       </Section>
 
+      </details>
       <Facts
         items={[
           ["마지막 변경", <span className="rs-mono" key="updated">{state.updated_at}</span>],

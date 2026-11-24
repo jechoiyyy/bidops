@@ -8,6 +8,7 @@ import { WikiState, wikiValue } from "../components/company-wiki/WikiState";
 import { WikiOverview, WikiPages, WikiPortfolio, WikiTopics } from "../components/company-wiki/WikiViews";
 import { ApiError } from "../lib/api";
 import { ingestList, inProgress } from "../lib/companyWikiIngestApi";
+import { WikiQuality } from "../components/company-wiki/WikiQuality";
 import { WikiIngests } from "../components/company-wiki/WikiIngests";
 import { IngestProblem } from "../components/company-wiki/IngestProblem";
 import { wikiUrl } from "../components/company-wiki/WikiBody";
@@ -18,7 +19,7 @@ import "../styles/company-wiki.css";
 const tabs = [
   { key: "overview", label: "개요" }, { key: "portfolio", label: "실적" },
   { key: "work-units", label: "업무별 근거" }, { key: "pages", label: "규칙·페이지" },
-  { key: "ingests", label: "넣기 기록" }, { key: "log", label: "변경 이력" },
+  { key: "quality", label: "답변 품질" }, { key: "ingests", label: "넣기 기록" }, { key: "log", label: "변경 이력" },
 ];
 
 function logText(entry: WikiLog) {
@@ -60,6 +61,7 @@ export default function CompanyWikiPage() {
       }}/></PageHeaderTabs>
     <div className="company-wiki">
       {summary.error || !summary.data ? <WikiState error={summary.error}/> : <>
+        {view === "quality" && <WikiQuality/>}
         {view === "overview" && <WikiOverview summary={summary.data}/>}
         {view === "portfolio" && <>
           {disabled && <p>실적 넣기는 아직 켜지지 않았어요.</p>}

@@ -314,6 +314,7 @@ def test_missing_gate_and_gate_without_evaluation(world: World, monkeypatch: pyt
     policy = world.add_policy("c2-v3")
     with _client(world, monkeypatch) as client:
         body = client.get("/api/order-plan-screening/policies/c2-v3").json()
+        assert body["stage1_top_k"] == policy.policy_payload_jsonb["stage1"]["top_k"]
         assert body["quality_gate"] is None
         assert body["blockers"] == [{"code": "quality_gate_missing", "detail": None}]
         # 조회에는 없는 artifact다. 활성화 요청은 그 artifact를 특정하지 못한다.

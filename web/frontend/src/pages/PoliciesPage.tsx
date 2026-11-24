@@ -208,6 +208,23 @@ export function PoliciesPage() {
       });
   }
 
+  const createDialog = (
+      <PolicyCreateDialog
+        onClose={() => setCreateOpen(false)}
+        onCreated={(policyVersion) => {
+          setCreateOpen(false);
+          updateParams({ policy: policyVersion, ptab: null });
+          refresh();
+        }}
+        open={createOpen}
+      />
+  );
+  if (!policies.length) return <div className="workbench-admin-state">
+    <StateView kind="empty" title="공고 판정에 적용 중인 정책이 없어요" description="공고 판정에 사용할 정책 버전을 등록할 수 있어요."
+      action={<Button label="새 정책 버전" size="sm" onClick={() => setCreateOpen(true)} />} />
+    {createDialog}
+  </div>;
+
   const promptCompatible = bindableGates.some((gate) => gate.prompt_version === selected?.prompt_version);
 
   return (
@@ -443,19 +460,12 @@ export function PoliciesPage() {
           <StateView
             description="정책을 만들면 목록과 상세에서 불변 본문과 활성화 조건을 확인할 수 있어요."
             kind="empty"
-            title="생성된 정책이 없어요"
+            title="공고 판정에 적용 중인 정책이 없어요"
           />
         )}
       </section>
-      <PolicyCreateDialog
-        onClose={() => setCreateOpen(false)}
-        onCreated={(policyVersion) => {
-          setCreateOpen(false);
-          updateParams({ policy: policyVersion, ptab: null });
-          refresh();
-        }}
-        open={createOpen}
-      />
+
+      {createDialog}
       <PolicyConfirmDialog
         busy={busy}
         error={confirmError}

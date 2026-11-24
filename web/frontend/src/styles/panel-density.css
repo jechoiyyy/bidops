@@ -143,6 +143,10 @@
   padding: var(--spacing-2) 0;
 }
 
+.app-shell .page-canvas .crit-profile-page > .crit-verification-requests {
+  padding-inline: var(--spacing-4);
+}
+
 .app-shell[data-astryx-theme="bidops"] .page-canvas .crit-verification-requests :is(td, th) {
   padding-top: var(--spacing-1);
   padding-bottom: var(--spacing-1);

@@ -1,7 +1,7 @@
 import { DecisionBar, ReviewFilterSegmentedControl, ReviewPreviewHeader, SplitWorkspace } from "../components/common/ReviewPrimitives";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
@@ -383,7 +383,7 @@ export function ProfilePage() {
         <div className="workbench-admin-state">
           {snapshot.missing ? (
             <StateView
-              action={<Button label="등록 상태 다시 확인" onClick={retryProfile} />}
+              action={<div className="rs-link-row"><Link to="/company">회사 위키 보기</Link><Button label="등록 상태 다시 확인" onClick={retryProfile} /></div>}
               description="운영 담당자가 공고 판정(C-1)에 사용할 승인 사본을 등록하면 항목과 미확인 건수를 볼 수 있어요."
               kind="empty"
               title="승인된 판정용 프로필 사본이 없어요"

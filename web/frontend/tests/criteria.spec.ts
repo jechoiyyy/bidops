@@ -40,7 +40,7 @@ const detailFooter = (page: Page) => page.locator(".crit-detail").getByRole("gro
 // ── 화면 골격과 탭 ────────────────────────────────────────────────────
 
 test("공고 판정 네 구역이 각자의 정식 주소로 열리고 목록 60%를 유지한다", async ({ page }) => {
-  for (const [path, tab] of [["/profile", "판정용 프로필 사본"], ["/policies", "판정 정책"], ["/quality-gates", "품질 게이트"], ["/metrics", "회차 검증 지표"]] as const) {
+  for (const [path, tab] of [["/profile", "판정용 프로필 사본"], ["/policies", "판정 정책"], ["/quality-gates", "품질 게이트"], ["/metrics", "공고 판정 결과 검증"]] as const) {
     await open(page, path);
     await expect(page.getByRole("navigation", { name: "판정 기준 구역" }).getByRole("link", { name: tab, exact: true })).toHaveAttribute("aria-current", "page");
     await expect(workspace(page)).toBeVisible();
@@ -488,7 +488,7 @@ test("회차별 추이는 최근 회차만 조회하고 그 범위를 밝힌다"
   });
   await open(page, "/metrics");
   await expect(page.locator(".crit-detail-scroll")).toContainText("최근 5개 회차");
-  await expect(page.locator(".crit-detail-scroll")).toContainText("전체 회차 7개");
+  await expect(page.locator(".crit-detail-scroll")).toContainText("공고 판정 회차 6개");
   await expect(page.locator(".crit-detail-scroll")).toContainText("조회 범위 밖 회차의 값은 미확인이며 없음을 뜻하지 않아요");
   await expect.poll(() => new Set(requested).size).toBe(5);
 });

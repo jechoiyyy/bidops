@@ -447,3 +447,77 @@ def test_project_order_and_distinct_topic_counts(wiki):
     assert (unit["project_count"], unit["latest_year"]) == (3, 2025)
     assert [(p["year"], p["project"]) for p in unit["projects"]] == [
         (2025, "P2024-02"), (2024, "P2025-01"), (2024, "P2024-03")]
+
+
+def test_reviewed_answers_reads_citations_and_snapshot_changes(wiki):
+    from io import StringIO
+    from app.deep_review.cli.wiki_evaluation import record
+    from app.deep_review.services.company_wiki import CompanyWiki
+
+    client, root = wiki
+    url = BASE + "/quality"
+    assert client.get(url).json()["status"] == "unmeasured"
+    requests = [
+        {"tool": "Read", "page": "rule/missing"},
+        {"tool": "Read", "page": "category/group"},
+        {"tool": "Read", "page": "category/group"},
+        {"tool": "Read", "page": "capability/skill"},
+        {"tool": "finish", "answer": "구축과 운영을 확인했습니다."},
+    ]
+    output = StringIO()
+    replies = StringIO()
+    record(CompanyWiki(), "build", map(json.dumps, requests), replies, output)
+    trace = json.loads(output.getvalue())
+    assert trace["tool_calls"] == 4
+    assert trace["read_pages"] == ["category/group", "category/group", "capability/skill"]
+    assert json.loads(replies.getvalue().splitlines()[0]) == {"error": "company_wiki_page_not_found"}
+    report = dict(schema_version="bidops.wiki-evaluation.v1", dataset_version="synthetic-v1",
+                  bundle_sha256=trace["bundle_sha256"], work_units_sha256=trace["work_units_sha256"],
+                  model_version="fixture", reviewed_on="2026-11-24", reviewer="test",
+                  rubric_version="v1", cases=[dict(
+                      id="build", question="구축과 운영이 모두 확인되는가?", expected_answer="일부만 확인",
+                      answer=trace["answer"], correct=False, answerable=True, abstained=False,
+                      reviewer_note="운영 근거 없음", required_groups=[["rule/one", "category/group"]],
+                      read_pages=trace["read_pages"], tool_calls=trace["tool_calls"], tokens=None,
+                      claims=[
+                          dict(text="구축", grounded=True, citations=[
+                              dict(page="category/group", quote="요구사항 전체 목록", supports_claim=True)]),
+                          dict(text="운영", grounded=False, citations=[
+                              dict(page="rule/one", quote="없는 원문", supports_claim=True)]),
+                      ],
+                  )])
+    from app.deep_review.cli.assemble_wiki_evaluation import assemble
+    for name in ("tool_calls", "read_pages"):
+        del report["cases"][0][name]
+    with pytest.raises(ValueError, match="snapshot mismatch"):
+        assemble(report, [{**trace, "bundle_sha256": "0" * 64}])
+    report = assemble(report, [trace]).model_dump(mode="json")
+    path = root / "answer-evaluation.json"
+    path.write_text(json.dumps(report))
+    result = client.get(url).json()
+    assert result["status"] == "reviewed"
+    metrics = {row["label"]: (row["numerator"], row["denominator"]) for row in result["metrics"]}
+    assert metrics["인용이 주장을 뒷받침"] == (1, 2)
+    assert metrics["인용으로 뒷받침한 주장"] == (1, 2)
+    assert metrics["근거 없는 단정"] == (1, 2)
+    assert metrics["필수 근거 열람률 (Recall)"] == (1, 1)
+    assert metrics["열람 페이지 관련도 (Precision)"] == (1, 2)
+    assert metrics["자료 부족 시 답변 보류"] == (0, 0)
+    assert not result["evaluation"]["cases"][0]["claims"][1]["citations"][0]["supports_claim"]
+    report["cases"].append(dict(
+        id="qual", question="자격 보유 여부는?", expected_answer="확인 불가", answer="확인 불가",
+        correct=True, answerable=False, abstained=True, reviewer_note="증빙 부족", claims=[],
+        required_groups=[["rule/one"]], read_pages=None, tool_calls=None, tokens=None,
+    ))
+    path.write_text(json.dumps(report))
+    more = client.get(url).json()
+    ratios = {row["label"]: (row["numerator"], row["denominator"]) for row in more["metrics"]}
+    assert ratios["자료 부족 시 답변 보류"] == (1, 1)
+    assert ratios["필수 근거 열람률 (Recall)"] == (1, 1)
+    assert ratios["읽기 기록이 있는 질문"] == (1, 2)
+    units = root / "work-units.json"
+    units.write_text(units.read_text() + "\n")
+    assert client.get(url).json()["status"] == "stale"
+    assert client.get(url).json()["evaluation"] is None
+    path.write_text("{}")
+    error(client.get(url), 503, "company_wiki_unreadable")

@@ -112,7 +112,7 @@ function DailyRunFacts({ title, parts }: { title: string; parts: string[] }) {
 /**
  * `embedded`: 대시보드 `일일 수집` 묶음 안의 한 행이다. 테두리 없이 그리고 행 제목은 트랙 이름이다.
  */
-export function DailyRunStatusLine({ className = "", showLink = true, embedded = false }: { className?: string; showLink?: boolean; embedded?: boolean }) {
+export function DailyRunStatusLine({ className = "", showLink = true, embedded = false, reviewLinks = false }: { className?: string; showLink?: boolean; embedded?: boolean; reviewLinks?: boolean }) {
   const { status, isPending, isError, refetch } = useDailyRunStatus();
   const lineClassName = `daily-run-line${embedded ? " is-row" : ""}${className ? ` ${className}` : ""}`;
   if (isPending) {
@@ -127,6 +127,7 @@ export function DailyRunStatusLine({ className = "", showLink = true, embedded =
       </div>
     );
   }
+  const runId = status.latest?.run.run_id;
   const problem = problemSentence(status);
   const mark = STATE_MARK[status.state];
   return (
@@ -140,6 +141,10 @@ export function DailyRunStatusLine({ className = "", showLink = true, embedded =
       <StatusMark mark={mark} />
       <DailyRunFacts title={embedded ? "발주계획" : "발주계획 일일 실행"} parts={factParts(status)} />
       {problem ? <span className="daily-run-problem">{problem}</span> : null}
+      {reviewLinks && runId && status.noJudgmentCount !== null && <nav className="rs-link-row" aria-label="회차별 발주계획 검토">
+        {[["관련", "qwen=relevant"], ["불확실", "qwen=uncertain"], ["모델 미판정", "qwen=&unjudged=yes"]].map(([label, filter]) =>
+          <Link key={label} to={`/order-plans?source_run_id=${encodeURIComponent(runId)}&${filter}`}>{label} 보기</Link>)}
+      </nav>}
       {showLink ? <Link className="daily-run-link" to="/runs">회차 기록 →</Link> : null}
     </div>
   );

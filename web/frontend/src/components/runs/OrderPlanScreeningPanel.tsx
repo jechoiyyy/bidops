@@ -102,6 +102,17 @@ function purposeCell(purpose: OrderPlanScreeningExecutionPurpose) {
   return <span>{PURPOSE_LABEL.operational}</span>;
 }
 
+export function useRunPlanExecutions(runId: string) {
+  return useQuery({
+    queryKey: ["order-plan-screening", "run-executions", runId],
+    queryFn: ({ signal }) => api.getOrderPlanScreeningExecutions(
+      { source_run_id: runId, limit: EXECUTION_LIST_LIMIT, offset: 0 },
+      { signal },
+    ),
+    staleTime: 15_000,
+  });
+}
+
 export function OrderPlanScreeningPanel({
   runId,
   selectedExecutionId,
@@ -114,14 +125,7 @@ export function OrderPlanScreeningPanel({
 }) {
   const [planOffset, setPlanOffset] = useState(0);
 
-  const executionsQuery = useQuery({
-    queryKey: ["order-plan-screening", "run-executions", runId],
-    queryFn: ({ signal }) => api.getOrderPlanScreeningExecutions(
-      { source_run_id: runId, limit: EXECUTION_LIST_LIMIT, offset: 0 },
-      { signal },
-    ),
-    staleTime: 15_000,
-  });
+  const executionsQuery = useRunPlanExecutions(runId);
 
   const executions = useMemo(
     () => sortExecutions(executionsQuery.data?.items ?? []),
@@ -292,7 +296,7 @@ export function OrderPlanScreeningPanel({
                 ["완료", formatNumber(activeExecution.counts.completed_count)],
                 ["실패", formatNumber(activeExecution.counts.failure_count)],
                 ["1차 선정", formatNumber(activeExecution.counts.stage1_selected_count)],
-                ["1차 탈락", formatNumber(activeExecution.counts.stage1_filtered_out_count)],
+                ["모델 판정 대상 순위 밖", formatNumber(activeExecution.counts.stage1_filtered_out_count)],
                 ["1차 실패", formatNumber(activeExecution.counts.stage1_failed_count)],
                 ["모델 관련", formatNumber(activeExecution.counts.stage2_relevant_count)],
                 ["모델 비관련", formatNumber(activeExecution.counts.stage2_not_relevant_count)],

@@ -141,6 +141,20 @@ export function AuditPanel() {
 
       <section className="review-split-detail rs-detail-pane" aria-label="선택한 산출물">
         <ReviewPreviewHeader />
+        {detail && (
+          <details className="rs-disclosure" id="run-warnings" ref={warningDisclosure}>
+            <summary>회차 전체 경고 집계 · {warningTotal}건</summary>
+            {Object.keys(warningCounts).length > 0 ? (
+              <DataTable
+                caption="회차 전체 경고 집계"
+                headings={["구분", "건수"]}
+                rows={Object.entries(warningCounts).map(([key, value]) => ({ id: key, cells: [key, `${value}건`] }))}
+              />
+            ) : (
+              <Caption>집계된 경고가 없어요.</Caption>
+            )}
+          </details>
+        )}
         {artifact && detail ? (
           <>
             <DetailHeader
@@ -153,6 +167,7 @@ export function AuditPanel() {
               </Caption>
             </DetailHeader>
             <div className="workbench-admin-detail-scroll rs-detail-scroll">
+
               <Section title="산출물 검증">
                 <Facts
                   items={[
@@ -212,20 +227,6 @@ export function AuditPanel() {
                   ]}
                 />
               </Section>
-
-
-              <details className="rs-disclosure" id="run-warnings" ref={warningDisclosure}>
-                <summary>회차 전체 경고 집계</summary>
-                {Object.keys(warningCounts).length > 0 ? (
-                  <DataTable
-                    caption="회차 전체 경고 집계"
-                    headings={["구분", "건수"]}
-                    rows={Object.entries(warningCounts).map(([key, value]) => ({ id: key, cells: [key, `${value}건`] }))}
-                  />
-                ) : (
-                  <Caption>집계된 경고가 없어요.</Caption>
-                )}
-              </details>
             </div>
             <DecisionBar
               stateLabel="산출물 검증"

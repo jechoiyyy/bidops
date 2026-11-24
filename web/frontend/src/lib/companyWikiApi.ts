@@ -92,7 +92,19 @@ function resource<T extends Bundle>(path: string) {
   });
 }
 
+export interface WikiMetric { group: "answer" | "diagnostic"; label: string; numerator: number; denominator: number }
+
+interface WikiEvaluation {
+  reviewed_on: string; reviewer: string; model_version: string; dataset_version: string; rubric_version: string;
+  judge_version: string | null;
+  cases: { id: string; question: string; expected_answer: string; answer: string; correct: boolean; reviewer_note: string;
+    claims: { text: string; grounded: boolean; citations: { page: string; quote: string; supports_claim: boolean }[] }[];
+    required_groups: string[][]; read_pages: string[] | null; duration_ms: number | null; judge_correct: boolean | null; tool_calls: number | null; tokens: number | null }[];
+}
+
 export const wiki = {
+  quality: resource<Bundle & { status: "unmeasured" | "stale" | "reviewed"; evaluation: WikiEvaluation | null;
+    metrics: WikiMetric[] }>("/quality"),
   summary: resource<WikiSummary>(""),
   profile: resource<Bundle & { sections: { key: string; label: Text; facts: WikiFact[] }[] }>("/profile"),
   portfolio: resource<Bundle & { items: WikiProject[] }>("/portfolio"),

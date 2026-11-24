@@ -510,7 +510,9 @@ def read(view, *args):
         # Copy identifiers and structured values exactly. Redact any financial
         # values repeated in prose before returning the new projections.
         prose_fields = {"title", "topic_title", "project_title", "name", "client", "type", "role", "domain",
-                        "scope", "scope_lines", "covers", "not", "note", "source", "text", "company_name"}
+                        "scope", "scope_lines", "covers", "not", "note", "source", "text", "company_name",
+                        "question", "expected_answer", "answer", "reviewer_note", "quote", "reviewer",
+                        "model_version", "judge_version", "rubric_version", "dataset_version", "id"}
 
         def public(value, field=None):
             if isinstance(value, str):

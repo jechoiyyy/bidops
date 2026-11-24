@@ -714,7 +714,7 @@ export function OrderPlanPolicyPage() {
         items={policies.map((policy) => ({
           id: policy.policy_version,
           title: policy.policy_version,
-          subtitle: `policy ${shortDigest(policy.policy_sha256)} · binding ${shortDigest(policy.binding_sha256)}`,
+          subtitle: `등록 ${moment(policy.created_at)}`,
           status: { label: STATUS_LABELS[policy.policy_status], tone: "neutral" },
           meta: policy.activated_at
             ? `${policy.policy_status === "active" ? "활성화" : "활성화 이력"} ${moment(policy.activated_at)} · ${policy.activated_by ?? "담당자 기록 없음"}`
@@ -740,7 +740,7 @@ export function OrderPlanPolicyPage() {
               status={{ label: STATUS_LABELS[selected.policy_status], tone: "neutral" }}
               title={selected.policy_version}
             >
-              <Small>{`policy ${shortDigest(selected.policy_sha256)} · 적재 ${moment(selected.created_at)} · ${selected.created_by}`}</Small>
+              <Small>{inspect?.stage1_top_k ? `1차 선별 상위 ${inspect.stage1_top_k}건까지 모델 판정 · ` : "모델 판정 대상 상한 미확인 · "}{`적재 ${moment(selected.created_at)} · ${selected.created_by}`}</Small>
             </DetailHeader>
             <div className="workbench-admin-detail-scroll crit-detail-scroll" id="criteria-order-plan-policy-detail">
               {notice ? (
@@ -782,7 +782,7 @@ export function OrderPlanPolicyPage() {
                         />
                         <StatusMark mark={{ label: trigger.effective_enabled ? "자동 실행 켜짐" : "자동 실행 꺼짐", tone: "neutral" }} />
                       </div>
-                      <DailyRunStatusLine showLink={false} />
+                      <DailyRunStatusLine showLink={false} reviewLinks />
                       <div className="opp-switch-guide">
                         <Small>{trigger.effective_enabled
                           ? "일일 스크립트가 실행되면 이 버전으로 판정해요."
@@ -829,6 +829,7 @@ export function OrderPlanPolicyPage() {
                   </Section>
 
                   <Section title="선별 품질 기준과 결과">
+                    <Small>고정 표본에서 측정한 결과예요. 일일 수집분의 모델 미판정 구간은 별도 감사 표본으로 확인해야 해요.</Small>
                     <Small>발주계획 선별에서 ‘관련’은 우선 검토, ‘불확실’은 훑어보기 대상이에요. 두 분류를 합해 검토 후보로 세어요.</Small>
                     {gatesQuery.isPending ? <Small>게이트 목록을 확인하는 중이에요.</Small> : null}
                     {gatesQuery.error ? (

@@ -2577,6 +2577,7 @@ export interface C2PolicySelectedGateView {
 }
 
 export interface C2PolicyInspectResponse extends C2PolicySummary {
+  stage1_top_k?: number | null;
   schema_version: "policy-inspect-response.v1";
   producer: "policy-api";
   consumer: "human-review-client";

@@ -5,6 +5,8 @@ from fastapi.responses import JSONResponse
 
 from ..schemas import company_wiki as dto
 from ..services.company_wiki import CompanyWiki, WikiError, read
+from ..schemas.wiki_quality import Quality
+from ..services.wiki_quality import quality
 
 router = APIRouter(prefix="/api/company-wiki", tags=["company-wiki"])
 
@@ -68,3 +70,8 @@ def project_detail(project: str):
 @router.get("/portfolio/{project}/requirements/{req_id}", response_model=dto.RequirementDetail)
 def requirement(project: str, req_id: str):
     return _get(CompanyWiki.requirement, project, req_id)
+
+
+@router.get("/quality", response_model=Quality)
+def answer_quality():
+    return _get(quality)

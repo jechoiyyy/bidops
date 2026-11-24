@@ -265,7 +265,7 @@ export function QualityGatesPage() {
           <StateView
             description="목적·정책·담당자를 입력해 첫 게이트를 만들면 A/B 검증 실행이 시작돼요."
             kind="empty"
-            title="생성된 품질 게이트가 없어요"
+            title="공고 판정 품질 평가 이력이 없어요"
           />
         ) : null}
         {gate && !detailQuery.error ? (

@@ -154,3 +154,32 @@ test("직접 연 실적은 목록에서 선택되고 보이는 위치로 이동�
   await expect(row).toBeInViewport({ ratio: 0.9 });
   await expect(row).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 });
+
+test("답변 품질은 미측정과 자료 변경, 조회 실패를 구분해요", async ({ page }) => {
+  for (const [payload, label] of [
+    [{ status: "unmeasured", evaluation: null, metrics: [] }, "미측정 · 이 회사 자료로"],
+    [{ status: "stale", evaluation: null, metrics: [] }, "평가 이후 회사 자료가 바뀌었어요"],
+    [{ status: 503, error: { code: "company_wiki_unreadable" } }, "평가 기록을 확인하지 못했어요"],
+  ] as const) {
+    await mockWiki(page, { "/quality": payload });
+    await page.goto("/company?view=quality");
+    await expect(page.getByRole("main")).toContainText(label);
+    await expect(page.getByRole("table", { name: "사람 검수 결과" })).toHaveCount(0);
+  }
+});
+
+test("검수 결과에서 실제 답변과 인용된 실적 페이지를 확인해요", async ({ page }) => {
+  await mockWiki(page, { "/quality": { status: "reviewed",
+    metrics: [{ group: "answer", label: "근거 없는 단정", numerator: 0, denominator: 1 }, { group: "answer", label: "자료 부족 시 답변 보류", numerator: 0, denominator: 0 }],
+    evaluation: { reviewed_on: "2026-11-24", reviewer: "검토자", dataset_version: "예시", model_version: "시험", rubric_version: "1",
+      cases: [{ id: "one", correct: true, question: "자료는?", answer: "확인했어요", expected_answer: "확인", reviewer_note: "원문 확인",
+        claims: [{ text: "문서", grounded: true, citations: [{ page: "portfolio/" + project.id, quote: "근거 자료", supports_claim: true }] }],
+        required_groups: [["portfolio/" + project.id]], read_pages: [], tool_calls: 0, tokens: null }] } } });
+  await page.goto("/company?view=quality");
+  await expect(page.getByRole("row", { name: /근거 없는 단정/ })).toContainText("0 / 1 (0%)");
+  await expect(page.getByRole("row", { name: /자료 부족/ })).toContainText("계산 대상 없음");
+  await page.getByText("결론 일치 · 자료는?").click();
+  await expect(page.getByRole("main")).toContainText("도구 호출 0 · 토큰 미수집");
+  await page.getByRole("link", { name: "원문 보기" }).click();
+  await expect(page.getByRole("heading", { name: "근거 자료" })).toBeVisible();
+});

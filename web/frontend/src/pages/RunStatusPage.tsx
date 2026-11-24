@@ -12,8 +12,10 @@ import { AuditPanel } from "../components/runs/AuditPanel";
 import { Caption, DialogFacts, Note } from "../components/runs/RunStatusPrimitives";
 import { isScreeningTerminal, useRecentScreeningExecutions, RECENT_EXECUTION_LIMIT } from "../components/runs/runStatusData";
 import { api } from "../lib/api";
-import { formatNumber } from "../lib/format";
+import { formatDateTime, formatNumber } from "../lib/format";
 import type { DailyCollectionTrackStatus } from "../lib/types";
+import { useRunPlanExecutions } from "../components/runs/OrderPlanScreeningPanel";
+import { latestOperationalExecution } from "../lib/orderPlanDaily";
 import { AttachmentsPage } from "./AttachmentsPage";
 import { OperationsPage } from "./OperationsPage";
 import { RunsPage } from "./RunsPage";
@@ -22,7 +24,7 @@ import "../styles/runstatus-erp.css";
 const SECTIONS = [
   { id: "runs", label: "수집 실행", path: "/runs", Page: RunsPage },
   { id: "attachments", label: "첨부 확보", path: "/attachments", Page: AttachmentsPage },
-  { id: "operations", label: "상시 운영", path: "/operations", Page: OperationsPage },
+  { id: "operations", label: "공고 자동 판정 일정", path: "/operations", Page: OperationsPage },
   { id: "audit", label: "산출물 감사 로그", path: "/audit", Page: AuditPanel },
 ] as const;
 
@@ -54,8 +56,8 @@ function SummaryLine({ onOpenConditions, collectionRefreshing }: {
   const alwaysOn = alwaysOnQuery.data;
   const executions = executionsQuery.data;
   const running = executions ? executions.items.filter((item) => !isScreeningTerminal(item.status)).length : null;
-  const lastLoaded = Math.max(alwaysOnQuery.dataUpdatedAt, executionsQuery.dataUpdatedAt);
-  const refreshing = collectionRefreshing || alwaysOnQuery.isFetching || executionsQuery.isFetching;
+  const trigger = useQuery({ queryKey: ["c2-daily-trigger"], queryFn: ({ signal }) => api.getC2DailyTrigger({ signal }), staleTime: 15_000 });
+  const refreshing = trigger.isFetching || collectionRefreshing || alwaysOnQuery.isFetching || executionsQuery.isFetching;
 
   const alwaysOnValue = alwaysOnQuery.isError
     ? "미확인"
@@ -74,7 +76,7 @@ function SummaryLine({ onOpenConditions, collectionRefreshing }: {
         <div className="rs-summary-item">
           <Caption as="span">공고 판정(C-1) 스케줄러</Caption>
           <Text className="rs-summary-value" as="span">{alwaysOnValue}</Text>
-          <Caption as="span">{alwaysOnDetail}</Caption>
+          <Caption as="span">{alwaysOnDetail} · 조회 {clockLabel(alwaysOnQuery.dataUpdatedAt)}</Caption>
         </div>
         <div className="rs-summary-item">
           <Caption as="span">C-1 현재 실행</Caption>
@@ -92,11 +94,11 @@ function SummaryLine({ onOpenConditions, collectionRefreshing }: {
                 : `최근 ${RECENT_EXECUTION_LIMIT}건 요청`}
           </Text>
           {/* 조회한 범위를 밝히고, 그 밖은 0이 아니라 미확인이라고 못박는다. */}
-          <Caption as="span">범위 밖 미확인</Caption>
+          <Caption as="span">범위 밖 미확인 · 조회 {clockLabel(executionsQuery.dataUpdatedAt)}</Caption>
         </div>
         <div className="rs-summary-item">
-          <Caption as="span">마지막 성공 조회</Caption>
-          <Text className="rs-summary-value" as="span">{clockLabel(lastLoaded || undefined)}</Text>
+          <Caption as="span">발주계획 일일 자동 선별</Caption>
+          <Text className="rs-summary-value" as="span">{trigger.isError ? "미확인" : !trigger.data ? "확인 중" : trigger.data.effective_enabled ? "켜짐" : "꺼짐"}</Text>
         </div>
       </div>
       <PageHeaderActions>
@@ -123,6 +125,23 @@ const COLLECTION_STATUS = {
   missing: { label: "수집 기록 없음", tone: "neutral" },
 } as const;
 
+function PlanReviewLinks({ runId }: { runId: string }) {
+  const executions = useRunPlanExecutions(runId);
+  if (executions.isError) return <Caption as="span">선별 결과 조회 실패</Caption>;
+  if (!executions.data) return <Caption as="span">선별 결과 확인 중</Caption>;
+  const execution = latestOperationalExecution(executions.data.items, runId);
+  if (!execution) return <Caption as="span">{executions.data.total > executions.data.items.length ? "조회 범위 안에 운영 선별 없음" : "운영 선별 기록 없음"}</Caption>;
+  const status = execution.status;
+  const url = `/order-plans?source_run_id=${encodeURIComponent(runId)}`;
+  return <span className="rs-link-row">
+    <Link to={`/runs?run=${encodeURIComponent(runId)}&view=order-plan-screening&execution=${encodeURIComponent(execution.execution_id)}`}>선별 {status}{execution.finished_at && ` · 종료 ${formatDateTime(execution.finished_at)}`}</Link>
+    {(status === "성공" || status === "부분 성공") && <>
+      <Link to={`${url}&qwen=relevant`}>관련 {formatNumber(execution.counts.stage2_relevant_count)}건</Link>
+      <Link to={`${url}&qwen=uncertain`}>불확실 {formatNumber(execution.counts.stage2_uncertain_count)}건</Link>
+    </>}
+  </span>;
+}
+
 function CollectionTrack({ track }: { track: DailyCollectionTrackStatus }) {
   const name = track.track === "order-plans" ? "발주계획" : "공고(사전규격·입찰공고)";
   const state = COLLECTION_STATUS[track.state];
@@ -131,10 +150,11 @@ function CollectionTrack({ track }: { track: DailyCollectionTrackStatus }) {
     <li className="rs-collection-track">
       <span className="rs-summary-label">{name}</span>
       <StatusMark mark={state} />
-      <Caption as="span">{track.basis_date} 기준</Caption>
+      <Caption as="span">{track.basis_date} 기준{track.collected_at && ` · 수집 ${formatDateTime(track.collected_at)}`}</Caption>
       {track.warning_count !== null && track.warning_count > 0 ? (
         <span className="rs-summary-value">적재 경고 {formatNumber(track.warning_count)}건</span>
       ) : null}
+      {track.track === "order-plans" && track.run_id && <PlanReviewLinks runId={track.run_id} />}
       {run ? (
         track.reasons.includes("ingest_warnings")
           ? <Link to={`/audit?run=${run}#run-warnings`} aria-label={`${name} 적재 경고 보기`}>적재 경고 보기</Link>

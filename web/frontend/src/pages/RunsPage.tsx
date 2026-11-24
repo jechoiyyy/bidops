@@ -197,6 +197,8 @@ export function RunsPage() {
     enabled: Boolean(selectedRunId),
     staleTime: 2_000,
   });
+  const orderPlansOnly = detailQuery.data?.kind === "order_plans";
+  const loadNoticeMetrics = Boolean(detailQuery.data) && !orderPlansOnly;
   const logsQuery = useQuery({
     queryKey: ["pipeline-logs", selectedRunId],
     queryFn: ({ signal }) => api.getPipelineLogs(selectedRunId as string, undefined, { signal }),
@@ -213,13 +215,13 @@ export function RunsPage() {
   const runStatsQuery = useQuery({
     queryKey: ["run-stats", selectedRunId],
     queryFn: () => api.getRunStats(selectedRunId as string),
-    enabled: Boolean(selectedRunId),
+    enabled: loadNoticeMetrics,
     staleTime: 30_000,
   });
   const validationQuery = useQuery({
     queryKey: ["validation-metrics", selectedRunId],
     queryFn: () => api.getValidationMetrics(selectedRunId as string),
-    enabled: Boolean(selectedRunId),
+    enabled: loadNoticeMetrics,
     staleTime: 30_000,
   });
 
@@ -259,7 +261,7 @@ export function RunsPage() {
       { run_id: selectedRunId as string, trigger: "manual_run", limit: 25, offset: 0 },
       { signal },
     ),
-    enabled: Boolean(selectedRunId),
+    enabled: loadNoticeMetrics,
     staleTime: 0,
     refetchInterval: (query) => {
       const data = query.state.data;
@@ -645,9 +647,12 @@ export function RunsPage() {
 
   const detail = detailQuery.data ?? null;
   const selectedSummary = runs.find((run) => run.run_id === selectedRunId) ?? detail;
-  const detailTabs = detail && hasOrderPlans(detail.kind)
+  const detailTabs = orderPlansOnly
+    ? [ORDER_PLAN_SCREENING_TAB, DETAIL_TABS[2]]
+    : detail && hasOrderPlans(detail.kind)
     ? [...DETAIL_TABS, ORDER_PLAN_SCREENING_TAB]
     : DETAIL_TABS;
+  const visibleTab = orderPlansOnly && detailTab !== "logs" ? "order_plan_screening" : detailTab;
   const currentStatus = currentScreeningExecution?.status;
   const executionBusy = manualFullRunExecutions.some((item) => !isScreeningTerminal(item.status));
   const screeningListReady = screeningExecutionsQuery.data !== undefined && !screeningExecutionsQuery.isLoading && !screeningExecutionsQuery.error;
@@ -805,7 +810,7 @@ export function RunsPage() {
             <DetailTabs
               aria-label="선택한 회차 상세 보기"
               onChange={(value) => setDetailTab(value as DetailTab)}
-              value={detailTab}
+              value={visibleTab}
             >
               {detailTabs.map((item) => (
                 <Tab
@@ -820,17 +825,17 @@ export function RunsPage() {
               ))}
             </DetailTabs>
 
-            {detailTabs.filter(({ key }) => key !== detailTab).map(({ key }) => (
+            {detailTabs.filter(({ key }) => key !== visibleTab).map(({ key }) => (
               <div key={key} id={`run-panel-${key}`} role="tabpanel" aria-labelledby={`run-tab-${key}`} hidden />
             ))}
             <div
-              aria-labelledby={`run-tab-${detailTab}`}
+              aria-labelledby={`run-tab-${visibleTab}`}
               className="workbench-admin-detail-scroll rs-detail-scroll"
-              id={`run-panel-${detailTab}`}
+              id={`run-panel-${visibleTab}`}
               role="tabpanel"
               tabIndex={0}
             >
-              {detailTab === "summary" ? (
+              {visibleTab === "summary" ? (
                 <>
                   <PipelineStageTrack stages={detail.pipeline} counts={selectedSummary.counts} />
                   {actionError ? (
@@ -968,7 +973,7 @@ export function RunsPage() {
                 </>
               ) : null}
 
-              {detailTab === "failures" ? (
+              {visibleTab === "failures" ? (
                 <FailurePanel
                   detail={screeningDetail}
                   summary={selectedScreeningSummary}
@@ -976,14 +981,19 @@ export function RunsPage() {
                 />
               ) : null}
 
-              {detailTab === "logs" ? (
+              {visibleTab === "logs" ? (
                 <>
+                  {orderPlansOnly && <>
+                    <PipelineStageTrack stages={detail.pipeline} counts={selectedSummary.counts} />
+                    {actionError && <div className="rs-inline-error" role="alert">{actionError}</div>}
+                    <Button label="파이프라인 실행" size="sm" onClick={() => { setActionError(null); setPipelineDialogOpen(true); }} />
+                  </>}
                   <ExecutionLog data={logsQuery.data} loading={logsQuery.isLoading} error={logsQuery.error} />
-                  <TelemetrySummary detail={screeningDetail} />
+                  {!orderPlansOnly && <TelemetrySummary detail={screeningDetail} />}
                 </>
               ) : null}
 
-              {detailTab === "binding" ? (
+              {visibleTab === "binding" ? (
                 <>
                   <Section title="이 실행에 고정된 기준">
                     {currentScreeningExecution ? (
@@ -1041,7 +1051,7 @@ export function RunsPage() {
                 </>
               ) : null}
 
-              {detailTab === "order_plan_screening" && hasOrderPlans(detail.kind) ? (
+              {visibleTab === "order_plan_screening" && hasOrderPlans(detail.kind) ? (
                 <OrderPlanScreeningPanel
                   runId={detail.run_id}
                   selectedExecutionId={orderPlanExecutionId}
@@ -1075,7 +1085,7 @@ export function RunsPage() {
               ) : null}
             </div>
 
-            <DecisionBar
+            {!orderPlansOnly && <DecisionBar
               stateLabel="판정 실행"
               state={screeningState}
               note={currentScreeningExecution?.published_run_id ? "게시 완료" : "게시 전"}
@@ -1112,7 +1122,7 @@ export function RunsPage() {
                   onClick={() => { setScreeningActionError(null); setStartDialogOpen(true); }}
                 />
               )}
-            />
+            />}
           </>
         ) : null}
       </section>

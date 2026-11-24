@@ -16,7 +16,7 @@ export function WikiOverview({ summary }: { summary: WikiSummary }) {
   const profile = useQuery(wiki.profile);
   const counts = summary.counts;
   const stats = [
-    ["수행 실적", counts.portfolio_items, "건"], ["요구사항까지 정리된 실적", counts.ingested_projects, "건"],
+    ["등록 실적", counts.portfolio_items, "건"], ["실적 원문 페이지", counts.portfolio_pages, "쪽"], ["요구사항까지 정리된 실적", counts.ingested_projects, "건"],
     ["업무", counts.work_units, "가지"], ["근거 연결", counts.evidence_links, "건"],
   ] as const;
   return <section className="wiki-content">
@@ -114,10 +114,10 @@ export function WikiTopics({ selected }: { selected: string | null }) {
 export function WikiPages({ selected }: { selected: string | null }) {
   const pages = useQuery(wiki.pages);
   if (pages.error || !pages.data) return <WikiState error={pages.error}/>;
-  const entries = pages.data.pages.filter(entry => entry.kind !== "portfolio" && !entry.slug.startsWith("work-"));
+  const entries = pages.data.pages.filter(entry => `${entry.kind}/${entry.slug}` === selected || (entry.kind !== "portfolio" && !entry.slug.startsWith("work-")));
   if (!entries.length) return <p>등록된 규칙이나 페이지가 없어요.</p>;
   const current = entries.find(entry => `${entry.kind}/${entry.slug}` === selected);
-  return <WikiSplit selected={selected} list={(["rule", "capability", "category", "glossary"] as const).map(kind => {
+  return <WikiSplit selected={selected} list={(["rule", "capability", "category", "glossary", "portfolio"] as const).map(kind => {
     const group = entries.filter(entry => entry.kind === kind);
     return group.length > 0 && <section key={kind}><h3>{kinds[kind]}</h3>{group.map(entry =>
       <Link key={entry.slug} to={wikiUrl("pages", { page: `${kind}/${entry.slug}` })} aria-current={entry === current ? "page" : undefined}>

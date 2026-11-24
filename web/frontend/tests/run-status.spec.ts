@@ -68,13 +68,16 @@ test.describe("실행 상태", () => {
     await installRunStatusMock(page);
     await mockDailyCollectionStatus(page, { "order-plans": { run_id: ORDER_PLAN_RUN_ID } });
     await page.goto("/run-status");
+    const daily = page.getByRole("region", { name: "일일 수집 상태" });
+    await expect(daily.getByRole("link", { name: "관련 29건" })).toHaveAttribute("href", `/order-plans?source_run_id=${encodeURIComponent(ORDER_PLAN_RUN_ID)}&qwen=relevant`);
+    await expect(daily.getByRole("link", { name: /선별 성공/ })).toHaveAttribute("href", new RegExp(C2_OPERATIONAL_EXECUTION_ID));
     const link = page.getByRole("link", { name: "선별 실행 보기", exact: true });
     await link.click();
     await expect(page.getByRole("tab", { name: "발주계획 선별", exact: true })).toHaveAttribute("aria-selected", "true");
     await expect(page.getByRole("heading", { name: /이 회차의 선별 실행/ })).toBeVisible();
     const row = page.getByRole("region", { name: "실행 회차 목록" }).getByText("선별 결과는 발주계획 선별 탭에서 확인", { exact: false });
     await expect(row).toHaveCount(1);
-    await page.getByRole("tab", { name: "진행 현황", exact: true }).click();
+    await page.getByRole("tab", { name: "실행 기록", exact: true }).click();
     await link.click();
     await expect(page.getByRole("tab", { name: "발주계획 선별", exact: true })).toHaveAttribute("aria-selected", "true");
   });
@@ -97,7 +100,7 @@ test.describe("실행 상태", () => {
     await expect.poll(() => new URL(page.url()).pathname).toBe("/attachments");
     await expect.poll(() => requested.includes("/api/attachments/queue")).toBe(true);
 
-    await page.getByRole("navigation", { name: "실행 상태 구역" }).getByRole("link", { name: "상시 운영", exact: true }).click();
+    await page.getByRole("navigation", { name: "실행 상태 구역" }).getByRole("link", { name: "공고 자동 판정 일정", exact: true }).click();
     await expect.poll(() => new URL(page.url()).pathname).toBe("/operations");
     await expect.poll(() => requested.includes("/api/schedule/settings")).toBe(true);
 
@@ -681,7 +684,7 @@ test.describe("실행 상태", () => {
   });
 
   // ── 발주계획 선별 탭 (spec §4) ──────────────────────────────────────────
-  test("발주계획 회차에만 다섯째 탭이 생기고 공고 회차는 네 탭 그대로다", async ({ page }) => {
+  test("발주계획은 선별 실행을 먼저 열고 공고 판정 지표와 등록 동작은 숨긴다", async ({ page }) => {
     await installRunStatusMock(page);
     await gotoRuns(page);
     const tabs = page.getByRole("tablist", { name: "선택한 회차 상세 보기" });
@@ -689,7 +692,9 @@ test.describe("실행 상태", () => {
     await expect(tabs.getByRole("tab", { name: "발주계획 선별", exact: true })).toHaveCount(0);
 
     await gotoRuns(page, `?run=${encodeURIComponent(ORDER_PLAN_RUN_ID)}`);
-    await expect(tabs.getByRole("tab")).toHaveCount(5);
+    await expect(tabs.getByRole("tab")).toHaveCount(2);
+    await expect(tabs.getByRole("tab", { name: "발주계획 선별" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("button", { name: "전량 판정 대기열에 넣기" })).toHaveCount(0);
     await expect(tabs.getByRole("tab", { name: "발주계획 선별", exact: true })).toBeVisible();
   });
 

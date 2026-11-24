@@ -420,10 +420,13 @@ class OrderPlanPolicyService:
         if policy is None:
             raise C2PolicyError("not_found", "C-2 policy를 찾을 수 없습니다", status_code=404)
         assessment = assess_policy(session, self.settings, policy)
+        stage1 = (policy.policy_payload_jsonb or {}).get("stage1")
+        top_k = stage1.get("top_k") if isinstance(stage1, Mapping) else None
         binding_status = _binding(policy).get("status")
         return {
             **_envelope("policy-inspect-response.v1"),
             **_summary(policy),
+            "stage1_top_k": top_k if _positive_int(top_k) else None,
             "binding_status": binding_status if isinstance(binding_status, str) else None,
             "policy_file_present": assessment.files.policy_present,
             "binding_file_present": assessment.files.binding_present,

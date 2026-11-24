@@ -149,6 +149,7 @@ function inspect(version: string) {
     producer: "policy-api",
     consumer: "human-review-client",
     ...summary(version),
+    stage1_top_k: 150,
     binding_status: STATUS[version] === "active" ? "approved" : "activation_candidate",
     policy_file_present: true,
     binding_file_present: true,
@@ -415,13 +416,14 @@ test("스위치를 끄려면 확인 창에서 사유와 명시 확인을 받는�
   expect(calls.trigger[0]).toMatchObject({ policy_version: ACTIVE, enabled: false, reason: "점검 기간", explicit_confirmation: true });
 });
 
-for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
+for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }, { width: 1920, height: 1080 }]) {
   test.describe(`${viewport.width}x${viewport.height}`, () => {
     test.use({ viewport });
 
     test(`판정 기준 구역과 상세 하단 액션이 ${viewport.width}px 안에 들어온다`, async ({ page }, testInfo) => {
       await open(page, `/order-plan-policies?c2policy=${CANDIDATE_BLOCKED}`);
       await waitForDetail(page, CANDIDATE_BLOCKED);
+      await expect(page.locator(".crit-detail-head")).toContainText("상위 150건까지 모델 판정");
       await expect(criteriaNav(page).getByRole("group").getByRole("link")).toHaveCount(5);
       await expect(queue(page).getByRole("columnheader")).toHaveText(["이름", "구분·식별", "상태"]);
       await expect(queue(page).getByRole("row", { name: new RegExp(CANDIDATE_BLOCKED) })).toHaveAttribute("aria-current", "true");

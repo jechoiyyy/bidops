@@ -379,10 +379,6 @@ export function AttachmentsPage() {
                 </Caption>
               </Section>
 
-              <Note title="기관 조달시스템에서 원문을 확인해요">
-                첨부가 없다는 사실만으로 공고의 적합성 등급이나 참여 준비 상태를 낮추지 않아요.
-              </Note>
-
               <Section title="기관 검색 경로">
                 <Facts
                   items={[
@@ -413,12 +409,13 @@ export function AttachmentsPage() {
               </Section>
 
               <Section title="관련 검토 상태">
+                <Caption>첨부가 없다는 사실만으로 공고의 적합성 등급이나 참여 준비 상태를 낮추지 않아요.</Caption>
                 <Facts
                   items={[
                     ["적합성 등급", present(selected.grade, "등급 미확인")],
                     ["참여 준비 상태", present(selected.readiness, "준비 상태 미확인")],
                     ["표본 역할", present(selected.sample_role, "기록 없음")],
-                    ["수집 층", present(selected.collection_bucket, "기록 없음")],
+                    ["수집 구분", selected.collection_bucket === "candidate_pool" ? "판정 후보" : selected.collection_bucket === "audit_pool" ? "감사 표본 후보" : present(selected.collection_bucket, "기록 없음")],
                   ]}
                 />
               </Section>

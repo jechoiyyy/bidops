@@ -5,10 +5,10 @@ const sections = [
   { path: "/profile", label: "판정용 프로필 사본", nav: "판정 기준 구역" },
   { path: "/policies", label: "판정 정책", nav: "판정 기준 구역" },
   { path: "/quality-gates", label: "품질 게이트", nav: "판정 기준 구역" },
-  { path: "/metrics", label: "회차 검증 지표", nav: "판정 기준 구역" },
+  { path: "/metrics", label: "공고 판정 결과 검증", nav: "판정 기준 구역" },
   { path: "/runs", label: "수집 실행", nav: "실행 상태 구역" },
   { path: "/attachments", label: "첨부 확보", nav: "실행 상태 구역" },
-  { path: "/operations", label: "상시 운영", nav: "실행 상태 구역" },
+  { path: "/operations", label: "공고 자동 판정 일정", nav: "실행 상태 구역" },
   { path: "/audit", label: "산출물 감사 로그", nav: "실행 상태 구역" },
 ];
 

@@ -101,6 +101,7 @@ class PolicyInspectResponse(PolicySummary):
     schema_version: Literal["policy-inspect-response.v1"]
     producer: Literal["policy-api"]
     consumer: Literal["human-review-client"]
+    stage1_top_k: int | None = None
     binding_status: str | None
     policy_file_present: bool
     binding_file_present: bool

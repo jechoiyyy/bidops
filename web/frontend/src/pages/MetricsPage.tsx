@@ -2,7 +2,7 @@ import { validationMetricTone } from "../components/runs/runStatusData";
 import { DecisionBar, ReviewPreviewHeader, SplitWorkspace } from "../components/common/ReviewPrimitives";
 import { useState } from "react";
 import { useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@astryxdesign/core/Button";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
@@ -112,13 +112,12 @@ export function MetricsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [runPickerOpen, setRunPickerOpen] = useState(false);
   const runsQuery = useQuery({ queryKey: ["runs"], queryFn: api.getRuns, staleTime: 30_000 });
-  const runs = runsQuery.data?.items ?? [];
+  const runs = (runsQuery.data?.items ?? []).filter(run => run.kind !== "order_plans" && run.counts.judgments > 0);
 
   const queryRunId = searchParams.get("run");
   // 수집·표본까지만 끝난 회차는 판정이 없어 지표가 비어 보인다. 명시적으로 고른
   // 회차가 없으면 판정을 갖춘 최신 회차를 기본으로 삼는다.
   const selectedRun = runs.find((run) => run.run_id === queryRunId)
-    ?? runs.find((run) => run.counts.judgments > 0)
     ?? runs[0]
     ?? null;
   const selectedRunId = selectedRun?.run_id ?? null;
@@ -178,11 +177,18 @@ export function MetricsPage() {
       </div>
     );
   }
+  const requested = runsQuery.data?.items.find(run => run.run_id === queryRunId);
+  if (requested && !runs.some(run => run.run_id === requested.run_id)) {
+    const isPlan = requested.kind === "order_plans";
+    return <StateView kind="empty" title={isPlan ? "발주계획 선별 회차예요" : "이 회차에는 공고 판정 결과가 없어요"}
+      description={isPlan ? "선별 상태와 결과는 해당 회차에서 확인할 수 있어요." : "공고 판정 결과가 적재되면 검증할 수 있어요."}
+      action={<Link to={`/runs?run=${encodeURIComponent(requested.run_id)}`}>해당 회차 보기</Link>} />;
+  }
   if (!selectedRun) {
     return (
       <div className="workbench-admin-state">
         <StateView
-          description="판정이 적재된 회차가 생기면 검증 지표를 계산할 수 있어요. 회차가 없는 것과 계산 실패는 다른 상태예요."
+          description="공고 판정 결과를 적재한 회차가 생기면 재현성·근거 타당성 등의 지표를 확인할 수 있어요."
           kind="empty"
           title="계산할 회차가 없어요"
         />
@@ -259,7 +265,7 @@ export function MetricsPage() {
               </Section>
               <Section title={`회차별 값과 상태 · 최근 ${historyRuns.length}개 회차`}>
                 <Small>
-                  {`전체 회차 ${runs.length}개 가운데 최근 ${historyRuns.length}개만 조회해요. 조회 범위 밖 회차의 값은 미확인이며 없음을 뜻하지 않아요.`}
+                  {`공고 판정 회차 ${runs.length}개 가운데 최근 ${historyRuns.length}개만 조회해요. 조회 범위 밖 회차의 값은 미확인이며 없음을 뜻하지 않아요.`}
                 </Small>
                 {failedHistory > 0 ? (
                   <Note role="alert" title={`과거 회차 지표 ${failedHistory}건을 불러오지 못했어요`} tone="warning">
