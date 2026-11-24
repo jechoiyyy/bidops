@@ -4,6 +4,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+REQUIREMENT_BASE_ID = r"[A-Z]{3}-(?:[A-Z]-)?[0-9]{2,3}"
+REQUIREMENT_BASE_ID_PATTERN = rf"^{REQUIREMENT_BASE_ID}$"
+
 # 모듈 수준 별칭. Role의 "skipped"와 BundleStatus의 "degraded"는 M0-03(hwp)에서 추가했다.
 Format = Literal["hwpx", "hwp", "pdf"]
 Role = Literal["primary", "reference", "pending_hwp", "superseded", "skipped"]
@@ -53,6 +56,7 @@ class RawTable(BaseModel):
     id: str  # "T" + 3자리
     block_idx: int
     rows: list[list[str]]
+    document_version_id: str | None = None
 
 
 class PageBound(BaseModel):
@@ -122,7 +126,7 @@ class Section(BaseModel):
 
 
 class Requirement(BaseModel):
-    id: str = Field(pattern=r"^[A-Z]{3}-\d{3}$")
+    id: str = Field(pattern=REQUIREMENT_BASE_ID_PATTERN)
     category: str  # ID 접두 3자
     name: str
     definition: str | None = None

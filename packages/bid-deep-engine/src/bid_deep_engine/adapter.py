@@ -352,7 +352,14 @@ def _project_blocks(payload):
                     "text"
                 ]
             table_id = f"T{len(tables) + 1:03d}"
-            tables.append(RawTable(id=table_id, block_idx=len(blocks), rows=rows))
+            tables.append(
+                RawTable(
+                    id=table_id,
+                    block_idx=len(blocks),
+                    rows=rows,
+                    document_version_id=block["document_version_id"],
+                )
+            )
             blocks.append(
                 Block(
                     idx=len(blocks),

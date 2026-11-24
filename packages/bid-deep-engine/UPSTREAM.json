@@ -208,37 +208,6 @@
       ]
     },
     {
-      "path": "src/bidops/analysis/schemas.py",
-      "sha256": "9aebe4b7a062302b470457ba22be7cef850f92e940fc474ca81de3b964a56eb5",
-      "adaptation": "import rename",
-      "local_replacements": [
-        [
-          "from typing import Any, Literal\n\nfrom pydantic import BaseModel, Field, field_validator, model_serializer, model_validator\n\nfrom bid_deep_engine.analysis.workunits import WorkUnitSummary\n\n# company.knowledge는 bid_deep_engine.analysis를 import하지 않는다(순환 없음, KB-01 import 규칙)\n",
-          "from typing import Any, Literal\n\nfrom pydantic import BaseModel, Field, field_validator, model_validator\n\n# company.knowledge는 bid_deep_engine.analysis를 import하지 않는다(순환 없음, KB-01 import 규칙)\n"
-        ],
-        [
-          "\n    `evidence_pages`는 모델 출력이 아니다(X7): pipeline `annotate_evidence_pages`가 `rationale`의\n    `[[slug]]` 중 발췌 페이지와 해당 요구사항의 지도 근거를 채운다. 필드 도입 전 산출물은 `[]`.\n    \"\"\"\n\n",
-          "\n    `evidence_pages`는 모델 출력이 아니다(X7): pipeline `annotate_evidence_pages`가 `rationale`의\n    `[[slug]]` 중 발췌에 포함된 회사 지식 페이지만 채운다(KB-03). 필드 도입 전 산출물은 `[]`.\n    \"\"\"\n\n"
-        ],
-        [
-          "    version: str\n    computed_at: str\n    inputs: dict[str, str | None]\n    parameters: StageParameters\n\n",
-          "    version: str\n    computed_at: str\n    inputs: dict[str, str]\n    parameters: StageParameters\n\n"
-        ],
-        [
-          "    @field_validator(\"inputs\")\n    @classmethod\n    def _input_hashes_are_lower_hex(cls, value: dict[str, str | None]) -> dict[str, str | None]:\n        if any(\n            key != \"work_units\" if item is None else not _SHA256_RE.fullmatch(item)\n            for key, item in value.items()\n        ):\n            raise ValueError(\"input hashes must be 64 lowercase hex characters\")\n        return value\n",
-          "    @field_validator(\"inputs\")\n    @classmethod\n    def _input_hashes_are_lower_hex(cls, value: dict[str, str]) -> dict[str, str]:\n        if any(not _SHA256_RE.fullmatch(item) for item in value.values()):\n            raise ValueError(\"input hashes must be 64 lowercase hex characters\")\n        return value\n"
-        ],
-        [
-          "    numeric_facts_unconfirmed: bool = False\n    knowledge: KnowledgeSelection | None = None  # None = 지식 비활성 또는 필드 도입 전 산출물\n    work_units: WorkUnitSummary | None = None\n    company_input_hash: str | None = None  # None = REV-01 이전 또는 legacy 호출\n    effort: str\n",
-          "    numeric_facts_unconfirmed: bool = False\n    knowledge: KnowledgeSelection | None = None  # None = 지식 비활성 또는 필드 도입 전 산출물\n    company_input_hash: str | None = None  # None = REV-01 이전 또는 legacy 호출\n    effort: str\n"
-        ],
-        [
-          "    usage: dict[str, int | float]  # calls, 토큰 4종, cost_usd\n    created_at: str  # ISO 8601, 초 단위, 로컬 시간대\n\n    @model_serializer(mode=\"wrap\")\n    def _omit_missing_work_units(self, handler):  # type: ignore[no-untyped-def]\n        data = handler(self)\n        if self.work_units is None:\n            data.pop(\"work_units\", None)\n        return data\n\n\n",
-          "    usage: dict[str, int | float]  # calls, 토큰 4종, cost_usd\n    created_at: str  # ISO 8601, 초 단위, 로컬 시간대\n\n\n"
-        ]
-      ]
-    },
-    {
       "path": "src/bidops/analysis/scoring.py",
       "sha256": "dea084f961571aceecaa9a44a645e09408c3c18f8c41bf8f1b5e6a61e9124efc",
       "adaptation": "import rename"
@@ -380,16 +349,6 @@
     {
       "path": "src/bidops/feedback/gate_confirmations.py",
       "sha256": "9dad366494cde60e7ad184d2500f24891007e0a0afeeb5f68db23d0f57c65d90",
-      "adaptation": "import rename"
-    },
-    {
-      "path": "src/bidops/ingest/models.py",
-      "sha256": "54585bc6a6e5dfb0cd056fb6341429c914ead4791385f36a7bf08ab3d93623c1",
-      "adaptation": "import rename"
-    },
-    {
-      "path": "src/bidops/ingest/normalize.py",
-      "sha256": "0a854d424e18167166dd01a67cafc98b67c1ac46277528c10cd4eb4c2e9fedf7",
       "adaptation": "import rename"
     },
     {
@@ -569,17 +528,6 @@
       "adaptation": "import rename"
     },
     {
-      "path": "tests/test_normalize.py",
-      "sha256": "b5e70eb0de7003fef44dcb65870cce92212b4aef8cae49893996142ca91877ef",
-      "adaptation": "import rename",
-      "local_replacements": [
-        [
-          "from engine_tests.ingest_writer import",
-          "from bid_deep_engine.ingest.writer import"
-        ]
-      ]
-    },
-    {
       "path": "tests/test_models.py",
       "sha256": "38c23b3a7b6f44342465ec3beeb40cb8f706518abff2321d3aead354c9ac1400",
       "adaptation": "import rename",
@@ -728,13 +676,41 @@
       "upstream_path": "src/bidops/analysis/tracing.py",
       "replacement": "offline no-op tracer; no telemetry transport",
       "sha256": "b65b4abc8c9c5cfc0562d86a91b4427330b797d981d5e58c6864d48b9f948317"
+    },
+    {
+      "path": "src/bid_deep_engine/analysis/schemas.py",
+      "upstream_path": "src/bidops/analysis/schemas.py",
+      "replacement": "share the accepted source requirement ID format with ingest; 2026-11-24 stage 2: optional Analysis.work_units (work-unit map classification summary)",
+      "upstream_sha256": "9aebe4b7a062302b470457ba22be7cef850f92e940fc474ca81de3b964a56eb5",
+      "sha256": "1aa9926fe6e6ef3b8e0b984467ccde34dca9ca9c963d957c8c9b8eb60e25fed4"
+    },
+    {
+      "path": "src/bid_deep_engine/ingest/models.py",
+      "upstream_path": "src/bidops/ingest/models.py",
+      "replacement": "accept two-digit and letter-prefixed requirement IDs preserved as written",
+      "upstream_sha256": "54585bc6a6e5dfb0cd056fb6341429c914ead4791385f36a7bf08ab3d93623c1",
+      "sha256": "afb47b05375333fe0cd17bf48587f02f1333f93ae187939bd533a9a22e4171e8"
+    },
+    {
+      "path": "src/bid_deep_engine/ingest/normalize.py",
+      "upstream_path": "src/bidops/ingest/normalize.py",
+      "replacement": "recognize verified ID labels, standalone related IDs and explicit table continuations",
+      "upstream_sha256": "0a854d424e18167166dd01a67cafc98b67c1ac46277528c10cd4eb4c2e9fedf7",
+      "sha256": "09c5a5d2532ea2076c38aadeb7b141ae0710a72aa534d1a3c0edb7bc2e422c42"
+    },
+    {
+      "path": "engine_tests/test_normalize.py",
+      "upstream_path": "tests/test_normalize.py",
+      "replacement": "cover real requirement ID forms, cross references and explicit continuations",
+      "upstream_sha256": "b5e70eb0de7003fef44dcb65870cce92212b4aef8cae49893996142ca91877ef",
+      "sha256": "a49d8fd905ed467fdb8397d68f9696c36eb15d498b376fb0aff9b27987ef4167"
     }
   ],
   "authored_files": [
     {
       "path": "src/bid_deep_engine/adapter.py",
       "purpose": "BidOps company projection, table/block projection and source locators",
-      "sha256": "96dc59af406c175547afc843e65482480795982b1dc6748fd63cacf3e44bcae0"
+      "sha256": "3683117d2da045f74f93b65685d73afcf64935aa3450a89c1e3aa7113e25b1f0"
     },
     {
       "path": "src/bid_deep_engine/runner.py",
@@ -749,7 +725,7 @@
     {
       "path": "engine_tests/test_manifest.py",
       "purpose": "checks this manifest against the vendored bytes offline",
-      "sha256": "3c7ebb5a855f8b452f853a651d1fdc624f048c0c32557e7809c0d86580601596"
+      "sha256": "b7426a2779c74fe68a609b9b2a45653cd98a0097935d367695604942429b4bc4"
     },
     {
       "path": "engine_tests/test_runner.py",

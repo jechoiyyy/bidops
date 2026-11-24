@@ -10,6 +10,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
 from bid_deep_engine.ingest.models import (
+    REQUIREMENT_BASE_ID,
     Block,
     NoticeBundle,
     RawDoc,
@@ -361,12 +362,15 @@ def render_table_markdown(rows: list[list[str]]) -> str:
 
 
 # --- 표 종류 태그(spec "표 종류 태그") ---
-REQ_ID = r"[A-Z]{3}-\d{3}(?:-\d+)*"
-_REQ_ID_RE = re.compile(REQ_ID)
+REQ_ID = rf"{REQUIREMENT_BASE_ID}(?:-[0-9]+)*"
+_REQ_BASE_ID_RE = re.compile(REQUIREMENT_BASE_ID)
+_REQ_ID_RE = re.compile(rf"(?<![A-Za-z0-9]){REQ_ID}(?![A-Za-z0-9-])")
 _REQ_ID_FULL = re.compile(rf"^{REQ_ID}$")
 _WS = re.compile(r"\s+")
 
 _DETAIL_ID_LABEL = re.compile(r"요구사항\s*(고유)?\s*번호|고유번호")
+_RELATED_REQ_LABEL = re.compile(r"^관련\s*요구사항\s*:?$")
+_CONTINUED = re.compile(r"\s*[（(]\s*계속\s*[)）]$")
 
 # 종류별 패턴 묶음: 묶음 안 모든 패턴이 (표의 어떤 셀에서든) 매치해야 한다. tunable.
 # requirement_detail은 이 패턴 + ID 셀, requirement_summary는 헤더 행(첫 행)에서만 본다.
@@ -385,13 +389,13 @@ TABLE_KEYWORDS: dict[TableKind, list[re.Pattern[str]]] = {
     "schedule": [re.compile(r"추진일정|M\+\d|개월차")],
 }
 LIST_MIN_ID_ROWS = 3  # tunable: ID가 든 행이 이만큼이면 목록표
-DETAIL_MAX_ID_CELLS = 1  # 고유번호 값 셀·단독 ID 셀이 이보다 많으면 목록표로 재분류
+DETAIL_MAX_ID_CELLS = 1  # 관련 요구사항 참조를 뺀 ID 셀 수
 
 # --- 요구사항 파서 A 라벨(공백 정규화한 셀 텍스트에 search). tunable ---
 REQUIREMENT_LABELS: dict[str, re.Pattern[str]] = {
     "id": _DETAIL_ID_LABEL,
-    "name": re.compile(r"요구사항\s*명칭|^명칭$"),
-    "definition": re.compile(r"^정의$"),
+    "name": re.compile(r"^(?:요구사항\s*명(?:칭)?|명칭)\s*:?$"),
+    "definition": re.compile(r"^(?:요구사항\s*)?정의\s*:?$"),
     "details": re.compile(r"세부\s*내용|상세\s*내용|상세설명|세부내용"),
     "mandatory": re.compile(r"^(?:응락\s*수준|필수\s*여부)\s*:?$"),
 }
@@ -471,10 +475,16 @@ def _id_label_values(grid: list[list[_Cell]]) -> list[_Pos]:
 
 
 def _id_cell_count(grid: list[list[_Cell]]) -> int:
-    """라벨 `고유번호` 값 셀 ∪ 단독 ID 셀(셀 전체가 ID) 수. 문장 속 참조 ID는 세지 않는다."""
+    """고유번호 값 셀과 단독 ID 셀을 세되 관련 요구사항 참조는 제외한다."""
+    references = {
+        vp
+        for r, c in _positions(grid)
+        if _RELATED_REQ_LABEL.fullmatch(grid[r][c].norm)
+        if (vp := _value_pos(grid, r, c)) is not None
+    }
     cells = set(_id_label_values(grid))
     cells.update((r, c) for r, c in _positions(grid) if _REQ_ID_FULL.match(grid[r][c].norm))
-    return len(cells)
+    return len(cells - references)
 
 
 def _matches_all(patterns: list[re.Pattern[str]], texts: list[str]) -> bool:
@@ -485,12 +495,16 @@ def classify_table(rows: list[list[str]]) -> TableKind:
     """표 종류 태그. spec 순서대로 첫 매치(셀 텍스트는 공백 정규화 후 판정)."""
     grid = _grid(rows)
     norms = [cell.norm for row in grid for cell in row]
-    has_id = any(_REQ_ID_RE.search(n) for n in norms)
-    if has_id and _matches_all(TABLE_KEYWORDS["requirement_detail"], norms):
+    if _matches_all(TABLE_KEYWORDS["requirement_detail"], norms):
+        label_ids = _id_label_values(grid)
+        # 상세표 안의 하위 표도 다른 요구사항 번호를 단독 셀에 인용할 수 있다.
+        if len(label_ids) == 1 and _labels(grid, "name") and _labels(grid, "details"):
+            return "requirement_detail"
         if _id_cell_count(grid) > DETAIL_MAX_ID_CELLS:
             return "requirement_list"  # 파서 A의 목록형 재분류와 같은 규칙
-        return "requirement_detail"
-    if grid and _matches_all(TABLE_KEYWORDS["requirement_summary"], [c.norm for c in grid[0]]):
+        if label_ids:
+            return "requirement_detail"
+    if grid and _matches_all(TABLE_KEYWORDS["requirement_summary"], [_squash(c.norm) for c in grid[0]]):
         return "requirement_summary"
     id_rows = sum(1 for row in grid if any(_REQ_ID_RE.search(c.norm) for c in row))
     if id_rows >= LIST_MIN_ID_ROWS:
@@ -514,7 +528,7 @@ def _mandatory(value: str | None) -> bool | None:
 
 def _parse_detail_table(
     table: RawTable, section_id: str | None
-) -> tuple[Requirement, list[str]] | None:
+) -> tuple[Requirement, list[str], bool] | None:
     """상세표 하나 → Requirement(+경고). ID가 없으면 None."""
     grid = _grid(table.rows)
     order = _positions(grid)
@@ -526,24 +540,15 @@ def _parse_detail_table(
                 return vp, grid[vp[0]][vp[1]].raw
         return None, None
 
-    # ID: 라벨 고유번호 값 우선, 아니면 표 전체 첫 매치
-    req_id: str | None = None
-    id_pos: _Pos | None = None
+    # 다른 요구사항을 인용한 본문에서 이 표의 ID를 가져오지 않는다.
     label_ids = _id_label_values(grid)
-    if label_ids:
-        id_pos = label_ids[0]
-        m = _REQ_ID_RE.search(grid[id_pos[0]][id_pos[1]].raw)
-        req_id = m.group(0) if m else None
-    else:
-        for r, c in order:
-            m = _REQ_ID_RE.search(grid[r][c].raw)
-            if m:
-                req_id = m.group(0)
-                if _REQ_ID_FULL.match(grid[r][c].norm):
-                    id_pos = (r, c)  # 단독 ID 셀만 details 폴백에서 제외한다
-                break
-    if req_id is None:
+    if not label_ids:
         return None
+    id_pos = label_ids[0]
+    id_text = grid[id_pos[0]][id_pos[1]].raw
+    match = _REQ_ID_RE.search(id_text)
+    assert match is not None
+    req_id = match.group(0)
 
     warnings: list[str] = []
     name_pos, name = first_value("name")
@@ -563,9 +568,10 @@ def _parse_detail_table(
         picked = [(r, c) for r, c in order if grid[r][c].label is None and (r, c) not in excluded]
     details = "\n".join(grid[r][c].raw for r, c in picked if grid[r][c].raw)
 
+    base_id = _requirement_base_id(req_id)
     req = Requirement(
-        id=req_id[:7],
-        instance_key=req_id if len(req_id) > 7 else None,
+        id=base_id,
+        instance_key=req_id if req_id != base_id else None,
         category=req_id[:3],
         name=name,
         definition=definition or None,
@@ -575,7 +581,60 @@ def _parse_detail_table(
         table_id=table.id,
         source="table",
     )
-    return req, warnings
+    continued = bool(_CONTINUED.search(name) or _CONTINUED.search(id_text))
+    return req, warnings, continued
+
+
+def _requirement_base_id(req_id: str) -> str:
+    match = _REQ_BASE_ID_RE.match(req_id)
+    assert match is not None
+    return match.group(0)
+
+
+def _parse_detail_rows(table: RawTable, section_id: str | None) -> list[Requirement]:
+    """Read tables with an ID/name/definition header and separate detail rows."""
+    if len(table.rows) < 3:
+        return []
+    header = {
+        label: col
+        for col, text in enumerate(table.rows[0])
+        if (label := _label_of(_norm_ws(text))) is not None
+    }
+    if not {"id", "name", "definition"}.issubset(header):
+        return []
+    if not any(_label_of(_norm_ws(text)) == "details" for text in table.rows[1]):
+        return []
+
+    starts = []
+    for index, row in enumerate(table.rows[2:], start=2):
+        id_col = header["id"]
+        if id_col < len(row) and _REQ_ID_FULL.fullmatch(row[id_col].strip()):
+            starts.append(index)
+
+    requirements = []
+    for start, stop in zip(starts, starts[1:] + [len(table.rows)]):
+        row = table.rows[start]
+        req_id = row[header["id"]].strip()
+        base_id = _requirement_base_id(req_id)
+        name = row[header["name"]].strip() if header["name"] < len(row) else ""
+        definition = row[header["definition"]].strip() if header["definition"] < len(row) else ""
+        details = "\n".join(
+            text.strip() for line in table.rows[start + 1 : stop] for text in line if text.strip()
+        )
+        requirements.append(
+            Requirement(
+                id=base_id,
+                instance_key=req_id if req_id != base_id else None,
+                category=req_id[:3],
+                name=name or req_id,
+                definition=definition or None,
+                details=details,
+                section_id=section_id,
+                table_id=table.id,
+                source="table",
+            )
+        )
+    return requirements
 
 
 def parse_requirements_from_tables(
@@ -583,17 +642,50 @@ def parse_requirements_from_tables(
     kinds: dict[str, TableKind],
     block_section: Callable[[int], str | None],
 ) -> tuple[list[Requirement], list[str]]:
-    """상세표마다 하나의 요구사항을 원문 순서로 보존한다."""
-    requirements = []
+    """상세표의 독립 항목을 원문 순서로 보존한다."""
+    requirements: list[Requirement] = []
     warnings: list[str] = []
+    first_documents: dict[tuple[tuple[str, ...], ...], str] = {}
+    last_document = None
     for table in tables:
-        if kinds.get(table.id) != "requirement_detail":
+        section_id = block_section(table.block_idx)
+        rows = _parse_detail_rows(table, section_id)
+        parsed = None
+        if not rows and kinds.get(table.id) == "requirement_detail":
+            parsed = _parse_detail_table(table, section_id)
+        if not rows and parsed is None:
             continue
-        parsed = _parse_detail_table(table, block_section(table.block_idx))
-        if parsed is None:
+        if table.document_version_id is not None:
+            fingerprint = tuple(
+                tuple(_norm_ws(text) for text in row if text.strip())
+                for row in table.rows
+                if any(text.strip() for text in row)
+            )
+            first = first_documents.setdefault(fingerprint, table.document_version_id)
+            if first != table.document_version_id:
+                continue
+        if rows:
+            requirements.extend(rows)
+            warnings.extend(
+                f"missing requirement name: {req.source_id}" for req in rows if not req.source_name
+            )
+            last_document = table.document_version_id
             continue
-        req, req_warnings = parsed
-        requirements.append(req)
+        assert parsed is not None
+        req, req_warnings, continued = parsed
+        prior = requirements[-1] if requirements else None
+        if (
+            continued
+            and prior is not None
+            and table.document_version_id == last_document
+            and prior.source_id == req.source_id
+            and prior.section_id == req.section_id
+            and _CONTINUED.sub("", req.name) == prior.name
+        ):
+            prior.details = "\n".join(filter(None, (prior.details, req.details)))
+        else:
+            requirements.append(req)
+        last_document = table.document_version_id
         warnings.extend(req_warnings)
     return _identify_occurrences(requirements, warnings)
 
@@ -615,9 +707,9 @@ def _identify_occurrences(
 
 # --- 요구사항 파서 B(spec "요구사항 파서 B"): paragraph Block을 줄 단위로 펼쳐 읽는다 ---
 # 라벨 정규식은 현재 줄과 "현재 줄 + 공백 + 다음 줄"(pdf에서 라벨이 두 줄로 갈린 경우)에 적용한다.
-_TEXT_ID_LABEL = re.compile(rf"요구사항\s*(고유)?\s*번호\s*({REQ_ID})")
+_TEXT_ID_LABEL = re.compile(rf"요구사항\s*(고유)?\s*번호\s*({REQ_ID})(?![A-Za-z0-9-])")
 _TEXT_ID_LINE = re.compile(rf"^({REQ_ID})$")
-_TEXT_NAME = re.compile(r"^요구사항\s*명칭\s*(.+)")
+_TEXT_NAME = re.compile(r"^(?:요구사항\s*명칭\s*|명칭\s+)(.+)")
 _TEXT_DEFINITION = re.compile(r"^정의\s*(.+)")
 _TEXT_DETAILS = re.compile(r"^세부\s*내용|^세부내용|^상세\s*내용|^상세설명")
 _TEXT_DETAILS_END = re.compile(r"^요구사항\s*분류|^요구사항\s*고유")
@@ -781,6 +873,7 @@ def parse_requirements_from_text(
     requirements = []
     warnings: list[str] = []
     for item in items:
+        base_id = _requirement_base_id(item.req_id)
         details = "\n".join(item.details or [])
         name = item.name
         if not name:
@@ -788,8 +881,8 @@ def parse_requirements_from_text(
             name = item.req_id
         requirements.append(
             Requirement(
-                id=item.req_id[:7],
-                instance_key=item.req_id if len(item.req_id) > 7 else None,
+                id=base_id,
+                instance_key=item.req_id if item.req_id != base_id else None,
                 category=item.req_id[:3],
                 name=name,
                 definition=item.definition or None,

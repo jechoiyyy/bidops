@@ -83,4 +83,4 @@ def test_replaced_and_authored_entries_record_the_vendored_bytes():
         actual = _sha((ROOT / entry["path"]).read_bytes())
         assert actual == entry["sha256"], f"{entry['path']}: update sha256 to {actual}"
     for entry in MANIFEST["replaced_files"]:
-        assert entry["upstream_path"].startswith("src/bidops/")
+        assert _vendored(entry["upstream_path"]) == entry["path"]

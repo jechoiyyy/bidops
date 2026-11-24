@@ -133,15 +133,16 @@ def test_rfp_document_field_order():
 
 
 @pytest.mark.parametrize(
-    "bad_id", ["sfr-001", "SFR-01", "SFR-0001", "SF-001", "SFR001", " SFR-001"]
+    "bad_id", ["sfr-001", "SFR-1", "SFR-0001", "SF-001", "SFR001", " SFR-001"]
 )
 def test_requirement_id_pattern_rejected(bad_id):
     with pytest.raises(ValidationError):
         make_requirement(id=bad_id)
 
 
-def test_requirement_id_pattern_kept_verbatim():
-    assert make_requirement(id="MAR-001").id == "MAR-001"
+@pytest.mark.parametrize("req_id", ["MAR-001", "COR-02", "SFR-A-04"])
+def test_requirement_id_pattern_kept_verbatim(req_id):
+    assert make_requirement(id=req_id).id == req_id
 
 
 @pytest.mark.parametrize("level", [-1, 5, 9])
@@ -568,7 +569,9 @@ def test_classify_reference_ids_do_not_reclassify():
         ["요구사항 고유번호", "SFR-003"],
         ["요구사항 명칭", "검색"],
         ["세부내용", "SFR-001 참조"],
-        ["관련 요구사항", "SFR-002 참조, SFR-004 참조"],
+        ["관련 요구사항", "SFR-002"],
+        ["화면", "관련 요구사항"],
+        ["상세 검색", "SFR-004"],
     ]
     assert classify_table(rows) == "requirement_detail"
 
@@ -734,7 +737,7 @@ def test_parser_a_value_from_next_row_and_label_id_priority():
     assert req.details == "업로드 용량 제한"
 
 
-def test_parser_a_id_fallback_first_match_in_table():
+def test_parser_a_does_not_take_id_from_details_when_id_field_missing():
     t = raw_table(
         [
             ["요구사항 고유번호", "미정"],
@@ -742,10 +745,69 @@ def test_parser_a_id_fallback_first_match_in_table():
             ["세부내용", "DAR-002 데이터 이관 수행, DAR-003 연계"],
         ]
     )
-    assert classify_table(t.rows) == "requirement_detail"
-    (req,), _ = parse_tables([t])
-    assert req.id == "DAR-002"
-    assert req.category == "DAR"
+    assert classify_table(t.rows) == "other"
+    assert parse_tables([t]) == ([], [])
+
+
+def test_parser_a_preserves_lettered_ids_and_merges_explicit_continuation():
+    def detail(table_id, req_id, name, details):
+        return raw_table(
+            [
+                ["요구사항 번호", req_id],
+                ["요구사항 명", name],
+                ["요구사항 정의", "접근 통제"],
+                ["세부내용", details],
+            ],
+            tid=table_id,
+        )
+
+    tables = [
+        detail("T001", "SFR-A-04", "검색", "기본 검색"),
+        detail("T002", "SFR-A-04(계속)", "검색", "상세 필터"),
+        detail("T003", "SFR-A-04", "보안 검색", "감사 이력"),
+        detail("T004", "COR-02-1", "제약사항", "접근 제한"),
+    ]
+    reqs, warnings = parse_tables(tables)
+    assert [req.id for req in reqs] == ["SFR-A-04", "SFR-A-04", "COR-02"]
+    assert [req.key for req in reqs] == ["SFR-A-04@1", "SFR-A-04@2", "COR-02-1"]
+    assert reqs[0].details == "기본 검색\n상세 필터"
+    assert reqs[0].definition == "접근 통제"
+    assert reqs[0].table_id == "T001"
+    assert warnings == ["duplicate requirement id: SFR-A-04"]
+
+
+def test_parser_a_reads_independent_requirements_in_a_shared_detail_table():
+    table = raw_table(
+        [
+            ["요구사항명", "고유번호", "요구사항 정의", "관련 요구사항"],
+            ["세부내용"],
+            ["예방점검", "SOR-01", "정기 점검", "SOR-02"],
+            ["일주일에 한 번 점검"],
+            ["점검 결과 보고"],
+            ["장애조치", "SOR-02", "서비스 복구", "SOR-01"],
+            ["장애 원인 분석"],
+        ]
+    )
+    reqs, warnings = parse_tables([table])
+    assert [req.id for req in reqs] == ["SOR-01", "SOR-02"]
+    assert [req.name for req in reqs] == ["예방점검", "장애조치"]
+    assert reqs[0].definition == "정기 점검"
+    assert reqs[0].details == "일주일에 한 번 점검\n점검 결과 보고"
+    assert reqs[1].details == "장애 원인 분석"
+    assert not warnings
+
+
+def test_parser_a_collapses_an_identical_table_copied_into_another_attached_document():
+    first = raw_table(
+        [["요구사항 번호", "SOR-01"], ["요구사항 명", "예방점검"], ["세부내용", "정기 점검"]]
+    )
+    first.document_version_id = "one"
+    copy = first.model_copy(update={"id": "T002", "document_version_id": "two"})
+    changed = copy.model_copy(deep=True, update={"id": "T003"})
+    changed.rows = [["요구사항 번호", "SOR-01"], ["요구사항 명", "예방점검"], ["세부내용", "월간 보고"]]
+    reqs, warnings = parse_tables([first, copy, changed])
+    assert [r.table_id for r in reqs] == ["T001", "T003"]
+    assert warnings == ["duplicate requirement id: SOR-01"]
 
 
 def test_parser_a_group_label_before_sub_labels():

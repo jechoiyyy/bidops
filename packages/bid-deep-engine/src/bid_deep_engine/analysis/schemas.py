@@ -27,6 +27,7 @@ from bid_deep_engine.analysis.workunits import WorkUnitSummary
 
 # company.knowledge는 bid_deep_engine.analysis를 import하지 않는다(순환 없음, KB-01 import 규칙)
 from bid_deep_engine.company.knowledge import KnowledgeSelection
+from bid_deep_engine.ingest.models import REQUIREMENT_BASE_ID_PATTERN
 
 QUOTE_MAX_CHARS = 200  # 인용 최대 길이(제약 1). 모델이 아니라 M2-02 verify가 검사한다.
 
@@ -510,7 +511,7 @@ class RequirementFit(BaseModel):
     `[[slug]]` 중 발췌 페이지와 해당 요구사항의 지도 근거를 채운다. 필드 도입 전 산출물은 `[]`.
     """
 
-    req_id: str = Field(pattern=r"^[A-Z]{3}-\d{3}$")
+    req_id: str = Field(pattern=REQUIREMENT_BASE_ID_PATTERN)
     fit: Fit
     rationale: str
     evidence_portfolio_ids: list[str] = Field(default_factory=list)

@@ -56,6 +56,12 @@ are left out.
 The application image copies this package and invokes it in a subprocess; it
 never imports the old pipeline into the web process.
 
+Requirement extraction preserves source IDs including `COR-02` and `SFR-A-04`.
+It reads single-item detail tables and row-based detail tables, joins explicitly
+continued entries, and counts a table repeated in two attachments once when the
+normalized cells match. Same-ID entries with different content retain separate
+occurrence keys.
+
 ## Company wiki maintenance
 
 `python -m bid_deep_engine.wiki_tools` keeps the compiled layer of the company wiki: the work-unit
