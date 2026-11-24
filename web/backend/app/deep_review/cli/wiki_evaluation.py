@@ -36,7 +36,7 @@ def record(wiki, case_id, source, replies, trace):
         except WikiError as exc:
             result = {"error": exc.code}
         else:
-            result = {"body": body}
+            result = {"body": body, "page": page, "citation_hint": "답변과 인용에 이 페이지 경로와 원문 절 제목을 함께 적으세요."}
             reads.append(page)
         events.append({"page": page, "success": "body" in result})
         print(json.dumps(result, ensure_ascii=False), file=replies, flush=True)

@@ -16,6 +16,7 @@ class Record(BaseModel):
 
 
 class Citation(Record):
+    section: Text | None = None
     reported_location: Text | None = None
     page: PageId | None
     quote: Text
@@ -58,6 +59,7 @@ class Evaluation(Record):
     schema_version: Literal["bidops.wiki-evaluation.v1"]
     bundle_sha256: Digest
     work_units_sha256: Digest | None
+    citation_format: Literal["page", "page_and_section"] = "page"
     dataset_version: Text
     model_version: Text
     judge_version: Text | None = None
@@ -76,6 +78,7 @@ class Evaluation(Record):
 
 
 class Metric(Record):
+    target_count: int | None = None
     group: Literal["answer", "diagnostic"] = "answer"
     label: str
     numerator: int

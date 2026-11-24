@@ -5,7 +5,7 @@ import { wikiUrl } from "./WikiBody";
 
 function MetricTable({ label, metrics }: { label: string; metrics: WikiMetric[] }) {
   return <table aria-label={label}><thead><tr><th>확인 항목</th><th>측정 결과</th></tr></thead>
-        <tbody>{metrics.map(row => <tr key={row.label}><th scope="row">{row.label}</th>
+        <tbody>{metrics.map(row => <tr key={row.label}><th scope="row">{row.label}{row.target_count != null && <small> · 목표 {row.target_count}건</small>}</th>
           <td>{row.denominator ? `${row.numerator} / ${row.denominator} (${Math.round(row.numerator / row.denominator * 100)}%)` : "계산 대상 없음"}</td></tr>)}</tbody></table>;
 }
 
@@ -30,7 +30,7 @@ export function WikiQuality() {
           {c.judge_correct != null && <><dt>채점 모델</dt><dd>{c.judge_correct ? "결론 일치" : "결론 불일치"}</dd></>}
           <dt>사람 검수</dt><dd>{c.reviewer_note}</dd></dl>
         {c.claims.map((claim, i) => <div key={i}><strong>{claim.grounded ? "근거 확인" : "근거 없는 단정"} · {claim.text}</strong>
-          {claim.citations.map((cite, j) => <p key={j}>{cite.supports_claim ? "인용 적절" : "인용 확인 필요"} · {cite.quote} {cite.reported_location && <span>· 답변의 출처 표기 {cite.reported_location} </span>}{cite.page ? <Link to={wikiUrl("pages", { page: cite.page })}>원문 보기</Link> : <span>· 페이지 미지정</span>}</p>)}</div>)}
+          {claim.citations.map((cite, j) => <p key={j}>{cite.supports_claim ? "인용 적절" : "인용 확인 필요"} · {cite.quote} {cite.reported_location && <span>· 답변의 출처 표기 {cite.reported_location} </span>}{cite.page ? <Link to={wikiUrl("pages", { page: cite.page })}>{cite.page}{cite.section && ` · ${cite.section}`} 원문 보기</Link> : <span>· 페이지 미지정</span>}</p>)}</div>)}
         <p>필수 근거 묶음 · {c.required_groups.map(group => group.join(" 또는 ")).join(", ") || "없음"}</p>
         <p>실제 읽은 페이지 · {c.read_pages?.join(", ") || (c.read_pages ? "0개" : "미수집")}</p>
         <p>도구 호출 {c.tool_calls ?? "미수집"} · 토큰 {c.tokens ?? "미수집"} · 소요 시간 {c.duration_ms == null ? "미수집" : `${c.duration_ms}ms`}</p>

@@ -526,3 +526,12 @@ def test_reviewed_answers_reads_citations_and_snapshot_changes(wiki):
     assert client.get(url).json()["evaluation"] is None
     path.write_text("{}")
     error(client.get(url), 503, "company_wiki_unreadable")
+
+
+def test_citation_sections_cannot_borrow_a_quote_from_another_heading():
+    from app.deep_review.services.wiki_quality import quote_in_section
+    body = "앞부분\n## 개요\n기본 정보\n### 요구 범위\n운영 지원\n"
+    assert quote_in_section(body, "요구 범위", "운영 지원")
+    assert quote_in_section(body, None, "앞부분")
+    assert not quote_in_section(body, "개요", "운영 지원")
+    assert not quote_in_section(body, None, "기본 정보")
