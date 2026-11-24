@@ -264,6 +264,8 @@ def test_selection_field_order():
         "skipped",
         "chars",
         "knowledge_hash",
+        "portfolio_excerpts",
+        "work_unit_excerpts",
     ]
 
 

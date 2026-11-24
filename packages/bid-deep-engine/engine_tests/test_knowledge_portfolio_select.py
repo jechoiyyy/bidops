@@ -181,7 +181,7 @@ def test_portfolio_budget_is_separate_and_greedy(tmp_path):
     zero = select_pages(knowledge, ["beta"], doc=doc, budget_chars=0)
     assert zero.pages == ["beta", *ranked]
     assert zero.skipped == ["cap-two", "glossary"]
-    assert PORTFOLIO_BUDGET_CHARS == 16_000
+    assert PORTFOLIO_BUDGET_CHARS == 30_000
 
 
 def test_category_linked_portfolio_is_not_in_category_budget_and_appears_once(tmp_path):
@@ -212,3 +212,54 @@ def test_prepare_records_portfolio_pages_in_selection(tmp_path):
     assert set(selection.pages[4:]) == {"P2030-01", "P2024-01"}
     assert "### [[P2030-01]] 합성 실적 P2030-01" in text
     assert selection.chars == len(text)
+
+
+# --- 원문 요구사항 목록 발췌(2026-11-24) ---
+
+from bid_deep_engine.company.knowledge import (  # noqa: E402
+    PORTFOLIO_EXCERPT_CHARS,
+    PORTFOLIO_EXCERPT_HEADING,
+    PORTFOLIO_LIST_HEADING,
+)
+
+
+def _with_full_list(text: str, lines: list[str]) -> str:
+    return text.replace(
+        "## 기술 환경",
+        f"{PORTFOLIO_LIST_HEADING}\n\n원문 목록 안내\n\n" + "\n".join(lines) + "\n\n## 기술 환경",
+    )
+
+
+def test_excerpt_keeps_only_matching_list_lines_within_cap_and_rest_of_page(tmp_path):
+    filler = [f"- MAR-{i:03d} 장비 반입 절차 {'나' * 280}" for i in range(1, 80)]
+    hits = ["- SFR-101 통합검색 색인 개선", "- SFR-102 통합검색 형태소 사전 관리"]
+    text = _with_full_list(portfolio_page("P2030-01", ["통합검색 개선"], ["Java"], extra="검색 역량"), filler[:40] + hits + filler[40:])
+    knowledge = load_knowledge(tree(tmp_path, {"P2030-01": text}))
+    doc = rfp("통합검색 사업", [("통합검색 색인", "형태소 사전")])
+    sel = select_pages(knowledge, ["beta"], doc=doc)
+    assert "P2030-01" in sel.pages
+    assert sel.portfolio_excerpts["P2030-01"] == [40, 41]
+    rendered = render_knowledge(knowledge, sel)
+    assert PORTFOLIO_EXCERPT_HEADING in rendered and PORTFOLIO_LIST_HEADING not in rendered
+    assert "SFR-101" in rendered and "SFR-102" in rendered and "MAR-001" not in rendered
+    assert "원문 목록 81줄 가운데" in rendered and "옮기지 않은 줄도 수행한 범위다." in rendered
+    assert "검색 역량" in rendered and "Java" in rendered
+    assert sel.chars == len(rendered)
+
+
+def test_excerpt_respects_character_cap(tmp_path):
+    lines = [f"- SFR-{i:03d} 통합검색 기능 {'다' * 290}" for i in range(1, 30)]
+    text = _with_full_list(portfolio_page("P2030-01", ["통합검색 개선"], []), lines)
+    knowledge = load_knowledge(tree(tmp_path, {"P2030-01": text}))
+    sel = select_pages(knowledge, ["beta"], doc=rfp("통합검색 사업", [("통합검색 기능", None)]))
+    picked = sel.portfolio_excerpts["P2030-01"]
+    assert 0 < len(picked) < len(lines)
+    assert sum(len(lines[i]) + 1 for i in picked) <= PORTFOLIO_EXCERPT_CHARS
+
+
+def test_page_without_full_list_and_lint_path_render_unchanged(tmp_path):
+    plain = portfolio_page("P2030-02", ["통합검색 개선"], [])
+    knowledge = load_knowledge(tree(tmp_path, {"P2030-02": plain}))
+    sel = select_pages(knowledge, ["beta"], doc=rfp("통합검색 사업", [("통합검색 개선", None)]))
+    assert "P2030-02" not in sel.portfolio_excerpts
+    assert _render_block(knowledge.pages["P2030-02"]) == _render_block(knowledge.pages["P2030-02"], None)

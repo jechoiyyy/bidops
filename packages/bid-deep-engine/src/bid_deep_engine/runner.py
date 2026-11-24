@@ -120,6 +120,8 @@ class MockTransport:
                     else []
                 ),
             )
+        elif purpose == "units":
+            value = output_model(assignments=[])
         elif purpose == "match":
             value = MatchOut(
                 fits=[

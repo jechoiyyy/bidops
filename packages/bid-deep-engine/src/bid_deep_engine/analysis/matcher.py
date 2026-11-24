@@ -88,6 +88,21 @@ def render_profile(profile: CompanyProfile | CompanyEvidenceView) -> str:
     return "\n".join(lines)
 
 
+
+def profile_gap_paths(profile: CompanyProfile | CompanyEvidenceView) -> list[str]:
+    """Paths with a current, explicitly negative profile value usable by match."""
+    if not isinstance(profile, CompanyEvidenceView) or profile.provenance is None:
+        return []
+    paths = []
+    for path in profile.provenance.fields:
+        item = profile.get(path)
+        if item["effective_level"] not in ("confirmed", "demo", "public"):
+            continue
+        value = item["value"]
+        if value is False or value == [] or value == "none":
+            paths.append(path)
+    return paths
+
 def build_match_instruction(
     requirements: list[Requirement], profile_summary: str, knowledge_text: str = ""
 ) -> str:

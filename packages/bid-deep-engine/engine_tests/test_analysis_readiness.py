@@ -52,7 +52,7 @@ def test_t1_exact_stage_keys_versions_and_golden_payload_hashes():
         # 설계 2026-10-25-past-performance-capability 2.1: 실적 지식 텍스트 해시
         "gates": ("facts", "company", "confirmations", "as_of", "portfolio_knowledge"),
         "scores": ("facts", "company", "as_of"),
-        "fits": ("facts", "requirements", "company", "knowledge", "prompts", "model_settings"),
+        "fits": ("facts", "requirements", "company", "knowledge", "prompts", "model_settings", "work_units"),
         "synth": (
             "facts",
             "gates",
