@@ -65,3 +65,5 @@ htmlcov/
 # 재생성 가능한 브라우저 테스트 결과 (docs의 검증 증거는 계속 추적한다)
 web/frontend/test-results/
 web/frontend/playwright-report/
+/env/portfolio-private
+/docker/portfolio/company-bundle/

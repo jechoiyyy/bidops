@@ -27,6 +27,6 @@ export default function App() {
 }
 
 function AppRouter({ demoEnabled }: { demoEnabled: boolean }) {
-  const router = useMemo(() => createBrowserRouter(buildRoutes(demoEnabled)), [demoEnabled]);
+  const router = useMemo(() => createBrowserRouter(buildRoutes(demoEnabled), { basename: import.meta.env.BASE_URL }), [demoEnabled]);
   return <RouterProvider router={router} />;
 }

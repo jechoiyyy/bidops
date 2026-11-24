@@ -137,7 +137,7 @@ export interface EngineRun {
   graph_version_id: string;
   graph_sha256: string;
   documents: Record<string, string>[];
-  quality_status: "mock_reference";
+  quality_status: "mock_reference" | "unmeasured_reference";
   status: "queued" | "running" | "completed" | "partial" | "failed";
   created_at: string;
   started_at: string | null;

@@ -68,7 +68,12 @@ function mockApiPlugin(): Plugin {
 }
 
 export default defineConfig(({ command }) => ({
-  define: { "import.meta.env.BIDOPS_REVIEW_MOCK": JSON.stringify(command === "serve" && Boolean(process.env.BIDOPS_MOCK_API)) },
+  define: {
+    "import.meta.env.BIDOPS_REVIEW_MOCK": JSON.stringify(command === "serve" && Boolean(process.env.BIDOPS_MOCK_API)),
+    // Portfolio-only build switch: compiles the analysis result view (PreSpecAnalysisView) without the
+    // rest of the mock build (no mock review route, no engine mock panel). Off unless set to "1" at build.
+    "import.meta.env.BIDOPS_PORTFOLIO_ANALYSIS": JSON.stringify(process.env.BIDOPS_PORTFOLIO_ANALYSIS === "1"),
+  },
   plugins: [react(), tailwindcss(), mockApiPlugin()],
   resolve: {
     alias: {

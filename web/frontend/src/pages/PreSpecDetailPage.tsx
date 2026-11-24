@@ -83,7 +83,8 @@ import "../styles/pre-spec-detail-erp.css";
  * `분석 완료` 화면(2026-11-21 시안 b1~b3)은 **mock 빌드 전용**이다. `BIDOPS_REVIEW_MOCK`이 `false`로 접히는 운영
  * 빌드에서는 아래 동적 import가 사라져 그 모듈의 코드·문구·CSS가 운영 번들에 들어가지 않는다(엔진 mock 패널과 같은 경계).
  */
-const loadAnalysisView = import.meta.env.BIDOPS_REVIEW_MOCK
+// Portfolio build (BIDOPS_PORTFOLIO_ANALYSIS) also compiles this view, but not the engine mock panel below.
+const loadAnalysisView = import.meta.env.BIDOPS_REVIEW_MOCK || import.meta.env.BIDOPS_PORTFOLIO_ANALYSIS
   ? () => import("../components/pre-spec-analysis/PreSpecAnalysisView")
   : null;
 const PreSpecEngineAnalysisProbe = loadAnalysisView

@@ -32,13 +32,17 @@ else
   envs=(--env-file "${BIDOPS_ENV_FILE:-env/${BIDOPS_ENV}.env}")
   if [[ "$BIDOPS_ENV" == mock ]]; then files+=(-f docker/docker-compose.mock-reference.yml); fi
 fi
+if [[ "$COMPOSE_PROJECT_NAME" == bidops-portfolio ]]; then
+  [[ "$BIDOPS_ENV" == dev ]] || exit 2
+  files+=(-f docker/docker-compose.portfolio.yml)
+fi
 # Persist optional capabilities in the selected primary env file. Never source it
 # as shell code: only the allowlisted value below is read, then validated.
 features="${BIDOPS_COMPOSE_FEATURES-}"
 if [[ -z "${BIDOPS_COMPOSE_FEATURES+x}" && -r "${envs[1]}" ]]; then
   features="$(awk -F= '$1 == "BIDOPS_COMPOSE_FEATURES" {value=$2} END {print value}' "${envs[1]}" | tr -d "\\\"'\r ")"
 fi
-if [[ "$BIDOPS_ENV" == mock && -n "$features" ]]; then
+if [[ ( "$BIDOPS_ENV" == mock || "$COMPOSE_PROJECT_NAME" == bidops-portfolio ) && -n "$features" ]]; then
   printf 'Mock does not allow external Luna or Slack capabilities\n' >&2; exit 2
 fi
 IFS=, read -r -a feature_list <<< "${features:-none}"

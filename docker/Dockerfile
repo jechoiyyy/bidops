@@ -10,6 +10,8 @@ WORKDIR /build
 COPY web/frontend/package.json web/frontend/package-lock.json ./
 RUN npm ci
 COPY web/frontend/ ./
+# Portfolio-only: "1" compiles the analysis result view into the bundle (see vite.config.ts).
+ARG BIDOPS_PORTFOLIO_ANALYSIS=
 RUN npm run build
 
 # Build-time UID/GID defaults match .env.example and may be changed to the host

@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+cd "$(dirname "$0")/../.."
+export BIDOPS_ENV=dev COMPOSE_PROJECT_NAME=bidops-portfolio BIDOPS_ENV_FILE=env/portfolio-private/stack.env BIDOPS_COMPOSE_FEATURES=
+export BIDOPS_IMAGE="${BIDOPS_PORTFOLIO_IMAGE:?set BIDOPS_PORTFOLIO_IMAGE to the portfolio web image tag}"
+exec scripts/compose.sh "$@"

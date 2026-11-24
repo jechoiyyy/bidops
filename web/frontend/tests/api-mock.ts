@@ -4892,7 +4892,7 @@ export async function mockOpportunityRecord(page: Page): Promise<OpportunityReco
         status: 200,
         contentType: "application/pdf",
         headers: { "X-BidOps-Export-Sha256": draft.latest_export.pdf_sha256 },
-        body: Buffer.from("%PDF-1.4\n% synthetic proposal export\n%%EOF\n"),
+        body: "%PDF-1.4\n% synthetic proposal export\n%%EOF\n",
       });
       return;
     }

@@ -1,0 +1,42 @@
+{
+  "schema_version": "bidops.collected-order-plans.v1",
+  "generated_at": "2026-11-22T19:00:00+09:00",
+  "source_window": {
+    "from": "2026-11-22",
+    "to": "2026-11-22",
+    "timezone": "Asia/Seoul"
+  },
+  "metadata": {
+    "complete": true
+  },
+  "counts": {
+    "total": 2
+  },
+  "warnings": [],
+  "order_plans": [
+    {
+      "order_plan_unty_no": "R26DD99990001",
+      "title": "도서관 통합검색 서비스 개편",
+      "agency_code": "9999999",
+      "agency_name": "가상시 정보원",
+      "published_at": "2026-11-22T09:00:00+09:00",
+      "contract_method": "제한경쟁",
+      "bid_ntice_no_list": null,
+      "sw_business_status": null,
+      "source_sha256": "bb66746096afb5c92f5ce37710443ab932bd66ae1cdf966636e84936b5d955bf",
+      "raw_source": "raw/plan-1.json"
+    },
+    {
+      "order_plan_unty_no": "R26DD99990002",
+      "title": "전자기록 분류 시스템 구축",
+      "agency_code": "9999999",
+      "agency_name": "가상시 정보원",
+      "published_at": "2026-11-22T09:00:00+09:00",
+      "contract_method": "제한경쟁",
+      "bid_ntice_no_list": null,
+      "sw_business_status": null,
+      "source_sha256": "3969439dba98f95b39fc8e514eaa1f1a556454ad2c8a733eb94131aea6c3b9a9",
+      "raw_source": "raw/plan-2.json"
+    }
+  ]
+}
