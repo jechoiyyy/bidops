@@ -1,0 +1,6 @@
+# Verification-only layer: the release image plus the host tools the script tests call.
+# Never deployed.
+FROM bidops:main-20261124-79cc306
+USER root
+RUN apt-get update && apt-get install --no-install-recommends --yes jq curl util-linux procps && rm -rf /var/lib/apt/lists/*
+USER bidops:bidops
