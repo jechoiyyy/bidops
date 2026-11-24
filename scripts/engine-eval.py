@@ -545,7 +545,7 @@ def _mock_client(runner, rfp):
     return runner.MockTransport(rfp)
 
 
-def _run_engine(engine, payload: dict, run_dir: Path, client_for):
+def _run_engine(engine, payload: dict, run_dir: Path, client_for, *, plan: bool = False):
     """The body of ``runner.execute`` with a caller-supplied client. The runner is not changed."""
     runner, llm, pipeline, token_usage = engine
     blocks, tables = runner.raw_blocks(payload)
@@ -602,6 +602,11 @@ def _run_engine(engine, payload: dict, run_dir: Path, client_for):
         "company_source": record.get("source", "projection"),
         "knowledge": (analysis or {}).get("knowledge"),
         "analysis": analysis is not None,
+        **({"plan_work_units": bool(
+            rfp.requirements and extra.get("knowledge") is not None
+            and hasattr(pipeline, "parse_work_unit_map")
+            and pipeline.parse_work_unit_map(extra["knowledge"]) is not None
+        )} if plan else {}),
     }
 
 
@@ -718,13 +723,20 @@ def cmd_plan(args) -> int:
         with tempfile.TemporaryDirectory(prefix="engine-eval-plan-") as folder:
             run_dir = Path(folder) / "r0"
             run_dir.mkdir()
-            outcome = _run_engine(engine, payload, run_dir, lambda rfp, d=run_dir: _PlanTransport(llm, token_usage, d))
+            outcome = _run_engine(
+                engine, payload, run_dir, lambda rfp, d=run_dir: _PlanTransport(llm, token_usage, d),
+                plan=True,
+            )
             call = next(iter(sorted((run_dir / "calls").glob("*.call.json"))), None)
             first = _read_json(call)["prompt_chars"] if call else None
         company = len(_canonical(payload.get("profile_payload") or payload.get("company_bundle")))
+        calls = (
+            "4 (+1 repair) (extract, units, match, synth; single strategy)"
+            if outcome["plan_work_units"] else "3 (extract, match, synth; single strategy)"
+        )
         print(
             f"{case_id}: requirements={outcome.get('requirements')} first_call_prompt_chars={first} "
-            f"frozen_company_chars={company} calls_per_run=3 (extract, match, synth; single strategy)"
+            f"frozen_company_chars={company} calls_per_run={calls}"
         )
     return 0
 

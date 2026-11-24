@@ -21,7 +21,9 @@ from datetime import datetime
 from pathlib import PurePosixPath
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_serializer, model_validator
+
+from bid_deep_engine.analysis.workunits import WorkUnitSummary
 
 # company.knowledge는 bid_deep_engine.analysis를 import하지 않는다(순환 없음, KB-01 import 규칙)
 from bid_deep_engine.company.knowledge import KnowledgeSelection
@@ -505,7 +507,7 @@ class RequirementFit(BaseModel):
     """요구사항 적합도 저장 모델(fits.json·analysis.json). 후처리 후 `evidence`는 항상 채워진다.
 
     `evidence_pages`는 모델 출력이 아니다(X7): pipeline `annotate_evidence_pages`가 `rationale`의
-    `[[slug]]` 중 발췌에 포함된 회사 지식 페이지만 채운다(KB-03). 필드 도입 전 산출물은 `[]`.
+    `[[slug]]` 중 발췌 페이지와 해당 요구사항의 지도 근거를 채운다. 필드 도입 전 산출물은 `[]`.
     """
 
     req_id: str = Field(pattern=r"^[A-Z]{3}-\d{3}$")
@@ -660,7 +662,7 @@ class StageStamp(BaseModel):
     output_hash: str
     version: str
     computed_at: str
-    inputs: dict[str, str]
+    inputs: dict[str, str | None]
     parameters: StageParameters
 
     @field_validator("input_hash", "output_hash")
@@ -672,8 +674,11 @@ class StageStamp(BaseModel):
 
     @field_validator("inputs")
     @classmethod
-    def _input_hashes_are_lower_hex(cls, value: dict[str, str]) -> dict[str, str]:
-        if any(not _SHA256_RE.fullmatch(item) for item in value.values()):
+    def _input_hashes_are_lower_hex(cls, value: dict[str, str | None]) -> dict[str, str | None]:
+        if any(
+            key != "work_units" if item is None else not _SHA256_RE.fullmatch(item)
+            for key, item in value.items()
+        ):
             raise ValueError("input hashes must be 64 lowercase hex characters")
         return value
 
@@ -797,6 +802,7 @@ class Analysis(BaseModel):
     strategy_effective: StrategyName | None = None  # None = 이 필드 도입 전 산출물(M2)
     numeric_facts_unconfirmed: bool = False
     knowledge: KnowledgeSelection | None = None  # None = 지식 비활성 또는 필드 도입 전 산출물
+    work_units: WorkUnitSummary | None = None
     company_input_hash: str | None = None  # None = REV-01 이전 또는 legacy 호출
     effort: str
     requirement_counts: RequirementCounts | None = None
@@ -820,6 +826,13 @@ class Analysis(BaseModel):
     citations: dict[str, int]  # total, verified, repaired, unverified
     usage: dict[str, int | float]  # calls, 토큰 4종, cost_usd
     created_at: str  # ISO 8601, 초 단위, 로컬 시간대
+
+    @model_serializer(mode="wrap")
+    def _omit_missing_work_units(self, handler):  # type: ignore[no-untyped-def]
+        data = handler(self)
+        if self.work_units is None:
+            data.pop("work_units", None)
+        return data
 
 
 def iter_evidence(model: BaseModel, *, include_conflicts: bool = False) -> Iterator[Evidence]:

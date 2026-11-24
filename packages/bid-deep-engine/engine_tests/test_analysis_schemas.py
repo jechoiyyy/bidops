@@ -223,6 +223,7 @@ def test_analysis_fields_and_round_trip():
         "strategy_effective",
         "numeric_facts_unconfirmed",
         "knowledge",
+        "work_units",
         "company_input_hash",
         "effort",
         "requirement_counts",
@@ -270,7 +271,7 @@ def test_analysis_fields_and_round_trip():
     assert analysis.numeric_facts_unconfirmed is False  # 기본값(필드 도입 전 산출물도 False)
     assert analysis.company_input_hash is None  # REV-01 이전 산출물 호환
     dumped = analysis.model_dump(mode="json")
-    assert list(dumped) == list(Analysis.model_fields)
+    assert list(dumped) == [name for name in Analysis.model_fields if name != "work_units"]
     assert Analysis.model_validate(json.loads(json.dumps(dumped, ensure_ascii=False))) == analysis
     assert isinstance(dumped["usage"]["calls"], int)
     assert isinstance(dumped["usage"]["cost_usd"], float)
@@ -349,7 +350,7 @@ def test_t9_analysis_knowledge_round_trip_includes_hash():
     )
     analysis = Analysis(**_analysis_kwargs(), knowledge=selection)
     dumped = analysis.model_dump(mode="json")
-    assert list(dumped) == list(Analysis.model_fields)
+    assert list(dumped) == [name for name in Analysis.model_fields if name != "work_units"]
     assert dumped["knowledge"] == {
         "categories": ["homepage-build"],
         "category_source": "keyword",

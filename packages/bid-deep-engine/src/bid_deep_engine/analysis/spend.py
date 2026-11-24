@@ -19,7 +19,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, ValidationError
 
 Phase = Literal["analyze", "bench", "agent"]
-Purpose = Literal["extract", "match", "synth", "chat"]
+Purpose = Literal["extract", "match", "synth", "chat", "units"]
 CostBasis = Literal["exact", "max_price", "subscription"]
 
 OUTPUT_SAMPLE_WINDOW = 50  # tunable(>= 1). 호출별 출력 추정 표본: purpose·단가 모델별 최근 건수
