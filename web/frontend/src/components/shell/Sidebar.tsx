@@ -18,6 +18,7 @@ type IconName =
   | "shield"
   | "activity"
   | "gear"
+  | "decision"
   | "external";
 
 /** 건수 출처. workload 키이거나 목록 기본 보기의 total이다. */
@@ -53,7 +54,7 @@ const groups: NavGroup[] = [
     label: null,
     items: [
       { id: "opportunities", label: "사업기회", path: "/opportunities", icon: "opp", absorbs: ["/judgments"], count: { kind: "workload", key: "tracking_action_required" } },
-      { id: "go-no-go", label: "최종 Go/No-Go", path: "/go-no-go", nested: true },
+      { id: "go-no-go", label: "최종 Go/No-Go", path: "/go-no-go", icon: "decision", nested: true },
     ],
   },
 ];
@@ -81,6 +82,9 @@ function NavIcon({ name }: { name: IconName }) {
       return <svg {...common}><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>;
     case "gear":
       return <svg {...common}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></svg>;
+    case "decision":
+      // 상단 바의 같은 화면 아이콘(lucide ClipboardCheck)과 같은 모양.
+      return <svg {...common}><rect x="8" y="2" width="8" height="4" rx="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="m9 14 2 2 4-4" /></svg>;
     case "external":
       return <svg {...common}><path d="M14 4h6v6M20 4l-9 9M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5" /></svg>;
   }

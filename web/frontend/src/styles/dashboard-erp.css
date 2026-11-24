@@ -175,11 +175,10 @@ a.dash-count-cell:focus-visible { outline-offset: calc(0 - var(--focus-outline-w
   border-inline-start-color: var(--color-background-muted);
 }
 
+/* 공통 규칙(panel-density.css)이 이 묶음을 옅은 채움 블록으로 바꾸므로, 글자가 채움 가장자리에 붙지 않게
+   다른 채움 블록과 같은 안쪽 여백을 준다. */
 .dash-page .daily-collection {
-  border: 0;
-  border-block: 1px solid var(--bo-line-soft);
-  border-radius: 0;
-  padding-inline: 0;
+  padding: var(--spacing-2) var(--spacing-4);
 }
 
 .dash-collection-status {
