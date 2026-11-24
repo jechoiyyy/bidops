@@ -511,7 +511,7 @@ def read(view, *args):
         # values repeated in prose before returning the new projections.
         prose_fields = {"title", "topic_title", "project_title", "name", "client", "type", "role", "domain",
                         "scope", "scope_lines", "covers", "not", "note", "source", "text", "company_name",
-                        "question", "expected_answer", "answer", "reviewer_note", "quote", "reviewer",
+                        "question", "expected_answer", "answer", "reviewer_note", "quote", "reported_location", "reviewer",
                         "model_version", "judge_version", "rubric_version", "dataset_version", "id"}
 
         def public(value, field=None):

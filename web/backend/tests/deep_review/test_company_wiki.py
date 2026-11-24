@@ -515,6 +515,11 @@ def test_reviewed_answers_reads_citations_and_snapshot_changes(wiki):
     assert ratios["자료 부족 시 답변 보류"] == (1, 1)
     assert ratios["필수 근거 열람률 (Recall)"] == (1, 1)
     assert ratios["읽기 기록이 있는 질문"] == (1, 2)
+    citation = report["cases"][0]["claims"][0]["citations"][0]
+    citation.update(page=None, reported_location="개요", supports_claim=True)
+    path.write_text(json.dumps(report))
+    unresolved = client.get(url).json()["evaluation"]["cases"][0]["claims"][0]["citations"][0]
+    assert unresolved == {**citation, "supports_claim": False}
     units = root / "work-units.json"
     units.write_text(units.read_text() + "\n")
     assert client.get(url).json()["status"] == "stale"

@@ -30,6 +30,9 @@ def quality(wiki):
     # A human checks meaning. A quote also has to occur on the cited page.
     bodies = {}
     for cite in citations:
+        if cite.page is None:
+            cite.supports_claim = False
+            continue
         if cite.page not in bodies:
             try:
                 bodies[cite.page] = wiki._page(*cite.page.split("/")).body

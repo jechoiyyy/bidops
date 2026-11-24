@@ -98,7 +98,7 @@ interface WikiEvaluation {
   reviewed_on: string; reviewer: string; model_version: string; dataset_version: string; rubric_version: string;
   judge_version: string | null;
   cases: { id: string; question: string; expected_answer: string; answer: string; correct: boolean; reviewer_note: string;
-    claims: { text: string; grounded: boolean; citations: { page: string; quote: string; supports_claim: boolean }[] }[];
+    claims: { text: string; grounded: boolean; citations: { page: string | null; reported_location?: string | null; quote: string; supports_claim: boolean }[] }[];
     required_groups: string[][]; read_pages: string[] | null; duration_ms: number | null; judge_correct: boolean | null; tool_calls: number | null; tokens: number | null }[];
 }
 

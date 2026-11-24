@@ -16,7 +16,8 @@ class Record(BaseModel):
 
 
 class Citation(Record):
-    page: PageId
+    reported_location: Text | None = None
+    page: PageId | None
     quote: Text
     supports_claim: bool
 
