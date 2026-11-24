@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { Link, useLocation, useMatches } from "react-router-dom";
 import { Activity, ChevronRight, ClipboardCheck, FileText, House, Layers, LayoutList, ShieldCheck, SlidersHorizontal, Target } from "lucide-react";
+import { preSpecReviewListUrl } from "../../lib/preSpecSelectionReview";
 import type { RunSummary } from "../../lib/types";
 import { BasisPopover } from "./BasisPopover";
 import { RunSelector } from "./RunSelector";
@@ -16,8 +17,6 @@ function crumbDestination(to: string, runSearch: string): { pathname: string; se
   const search = [own, run].filter(Boolean).join("&");
   return { pathname, search: search ? `?${search}` : "" };
 }
-import { preSpecReviewListUrl } from "../../lib/preSpecSelectionReview";
-
 interface TopBarProps {
   /** 상단 경로. 마지막 `screen` 칸이 `<h1>`이 된다. 제목 모드에서는 그리지 않는다. */
   crumbs: RouteCrumb[];
@@ -95,8 +94,9 @@ export function TopBar({
   const backCrumb = layout === "page"
     ? [...visibleCrumbs].reverse().find((crumb) => crumb.to !== null) ?? null
     : null;
+  const isPreSpecBackLink = backCrumb?.context === "pre-spec-list";
   const backTarget = backCrumb?.to
-    ? (backCrumb.context === "pre-spec-list" && preSpecListUrl ? preSpecListUrl : crumbDestination(backCrumb.to, runSearch))
+    ? (isPreSpecBackLink && preSpecListUrl ? preSpecListUrl : crumbDestination(backCrumb.to, runSearch))
     : null;
   const recordIntro = Boolean(record && pageHeader?.title);
   const matchingRoute = matches[matches.length - 1]?.params;
@@ -122,7 +122,13 @@ export function TopBar({
       <div className="topbar-main">
         {backCrumb && backTarget ? (
           <nav aria-label="현재 위치" className="topbar-back">
-            <Link className="topbar-back-link topbar-crumb-link" to={backTarget}>{backCrumb.label}</Link>
+            <Link
+              aria-label={isPreSpecBackLink ? "사전규격 목록으로" : undefined}
+              className={isPreSpecBackLink ? "panel-header-link topbar-crumb-link" : "topbar-back-link topbar-crumb-link"}
+              to={backTarget}
+            >
+              {isPreSpecBackLink ? "‹ 목록" : backCrumb.label}
+            </Link>
             <ChevronRight aria-hidden="true" className="topbar-location-icon" />
             {recordIntro ? <span className="topbar-location-title">{locationLabel}</span> : <h1 className="topbar-location-title">{locationLabel}</h1>}
           </nav>

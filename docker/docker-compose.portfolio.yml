@@ -1,0 +1,51 @@
+services:
+  # 2026-11-24 full-cycle rebuild: fresh volumes so the previous portfolio volumes
+  # (postgres-data, minio-data) stay untouched for rollback.
+  minio:
+    restart: unless-stopped
+    volumes: !override
+      - minio-data-fullcycle:/data
+  postgres:
+    restart: unless-stopped
+    volumes: !override
+      - postgres-data-fullcycle:/var/lib/postgresql/data
+    image: postgres:17-alpine@sha256:f9cf3e1f0066f0eb0c48707d864f0ac5941e9ff454a072077d97a4d278d07d73
+    platform: linux/arm64
+  web:
+    ports: !reset []
+    networks: !override [database, storage, portfolio-app]
+    volumes: !override
+      - pipeline-data:/app/data
+      - pipeline-reports:/app/reports
+      - web-data:/app/web/data
+      - ./docker/portfolio/reference:/app/docs/reference:ro
+      - ./docker/portfolio/reference/company-profile.md:/app/web/backend/app/screening/baseline_company_profile.md:ro
+      - ./docker/portfolio/company-bundle:/app/company-bundle:ro
+    environment:
+      BIDOPS_ENGINE_COMPANY_BUNDLE_DIR: /app/company-bundle
+      BIDOPS_ENGINE_COMPANY_BUNDLE_SLUG: rootlab
+    depends_on: !override
+      postgres: {condition: service_healthy}
+      minio: {condition: service_started}
+  gateway:
+    image: nginx:stable-alpine@sha256:caf4e1e032a20f9c3c5e28fc7f25ffd768ad8677b4975c54193075997b3a97e3
+    ports: ["127.0.0.1:14200:8080"]
+    volumes:
+      - ./docker/portfolio/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./env/portfolio-private/htpasswd:/etc/nginx/portfolio.htpasswd:ro
+    depends_on: [web]
+    networks: [portfolio-app, edge]
+    restart: unless-stopped
+volumes:
+  postgres-data-fullcycle:
+  minio-data-fullcycle:
+networks:
+  portfolio-app:
+    internal: true
+    ipam: {config: [{subnet: 10.253.246.0/28}]}
+  database:
+    ipam: {config: [{subnet: 10.253.246.16/28}]}
+  storage:
+    ipam: {config: [{subnet: 10.253.246.32/28}]}
+  edge:
+    ipam: {config: [{subnet: 10.253.246.48/28}]}

@@ -1,0 +1,6 @@
+cases with analysis: live1 45 live2 46
+live1 {'UNKNOWN': '617 (43.2%)', 'PARTIAL': '545 (38.2%)', 'FULL': '255 (17.9%)', 'GAP': '10 (0.7%)'}
+live2 {'FULL': '1291 (87.1%)', 'PARTIAL': '173 (11.7%)', 'GAP': '13 (0.9%)', 'UNKNOWN': '6 (0.4%)'}
+decision live1->live2 {(None, 'CONDITIONAL_GO'): 3, (None, None): 29, (None, 'NO_GO'): 1, ('NO_GO', 'NO_GO'): 9, ('NO_GO', 'CONDITIONAL_GO'): 1, ('CONDITIONAL_GO', 'CONDITIONAL_GO'): 2}
+work_units status {'classified': 31, None: 15} | GAP no-record 8 GAP other(profile etc) 5 | gap-without-basis warnings 5
+portfolio pages read per case live2 [(0, 1), (5, 45)]

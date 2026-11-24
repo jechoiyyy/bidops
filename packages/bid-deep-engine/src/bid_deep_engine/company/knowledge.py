@@ -19,14 +19,14 @@ import hashlib
 import os
 import re
 import unicodedata
-from collections.abc import Mapping
-from dataclasses import dataclass, field
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field, replace
 from datetime import date
 from pathlib import Path, PurePosixPath
 from typing import Annotated, Any, Literal
 
 import yaml
-from pydantic import BaseModel, Field, StringConstraints, ValidationError, field_validator
+from pydantic import BaseModel, Field, StringConstraints, ValidationError, field_validator, model_serializer
 
 from bid_deep_engine.company.past_labels import (
     PAST_LABELS_FILE,
@@ -53,7 +53,15 @@ CATEGORY_PAGE_MAX_CHARS = 6_000
 PAGE_MAX_CHARS = 4_000
 FALLBACK_CATEGORY = "other"
 PORTFOLIO_TOP_K = 5  # 관련 실적 선택: 겹침 점수 상위 개수
-PORTFOLIO_BUDGET_CHARS = 16_000  # 관련 실적 선택의 별도 예산(카테고리 예산과 따로 센다)
+PORTFOLIO_BUDGET_CHARS = 30_000  # 관련 실적 선택의 별도 예산(카테고리 예산과 따로 센다). 2026-11-24 발췌 도입과 함께 16_000에서 올림(45건 모의 최대 25,448자)
+# 실적 원문 요구사항 목록 발췌(2026-11-24). 위키 실적 넣기가 붙인 원문 목록 절은 1만~2만 자라 관련 실적 예산에
+# 한 건만 들어갔다(포트폴리오 45건 중 44건). 프롬프트에는 그 절 대신 이번 공고 요구사항과 단어가 겹치는 줄만
+# 실적당 `PORTFOLIO_EXCERPT_CHARS` 안에서 옮긴다. 파일·위키 화면·업무 근거 지도는 그대로다.
+PORTFOLIO_LIST_HEADING = "### 요구사항 전체 목록(원문)"
+WORK_UNIT_SECTION = "## 업무 단위별 근거"
+WORK_UNIT_EVIDENCE_RE = re.compile(r"- \[\[(P\d{4}-\d{2})\]\] ([A-Z]{3}-\d{3}(?:, *[A-Z]{3}-\d{3})*)")
+PORTFOLIO_EXCERPT_HEADING = "### 요구사항 원문 발췌(이번 공고와 겹치는 줄)"
+PORTFOLIO_EXCERPT_CHARS = 1_500
 # 실적 페이지 점수에 쓰는 절. 둘 다 없는 페이지(사람이 쓴 시드)는 본문 전체로 센다.
 PORTFOLIO_MATCH_SECTIONS: tuple[str, ...] = ("수행한 요구 범위", "기술 환경")
 KB_CLASSIFY_TARGET_PCT = 80  # 분류 적중 보고용 기준(코드로 강제하지 않는다)
@@ -228,14 +236,30 @@ class KnowledgeSelection(BaseModel):
     skipped: list[str]  # 예산 때문에 빠진 slug
     chars: int  # render_knowledge 결과 길이
     knowledge_hash: str
+    # 포함된 실적 slug → 원문 요구사항 목록에서 옮긴 줄의 순번(목록 안 0부터, 오름차순). 없으면 원문 전체.
+    portfolio_excerpts: dict[str, list[int]] = Field(default_factory=dict)
+
+    work_unit_excerpts: bool = False
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_excerpts(self, handler):  # type: ignore[no-untyped-def]
+        """발췌가 없으면 필드를 쓰지 않는다 — 발췌 도입 전 산출물과 저장 JSON이 같다."""
+        data = handler(self)
+        if not self.portfolio_excerpts:
+            data.pop("portfolio_excerpts", None)
+        if not self.work_unit_excerpts:
+            data.pop("work_unit_excerpts", None)
+        return data
 
 
 # --- 공개 함수 ---
 
 
-def load_knowledge(root: Path | str, *, profile: CompanyProfile | None = None) -> Knowledge:
-    """트리를 읽는다. lint error가 하나라도 있으면 KnowledgeError(경고는 무시)."""
-    tree, report = _build(Path(root), profile)
+def load_knowledge(
+    root: Path | str, *, profile: CompanyProfile | None = None, filter_work_unit_refs: bool = False
+) -> Knowledge:
+    """트리를 읽는다. 분석 입력에서는 실적 페이지가 빠진 업무 근거 행을 제외할 수 있다."""
+    tree, report = _build(Path(root), profile, filter_work_unit_refs=filter_work_unit_refs)
     if report.errors or tree is None:
         raise KnowledgeError(report.errors)
     return Knowledge(
@@ -354,6 +378,8 @@ def select_pages(
     doc: RfpDocument | None = None,
     portfolio_top_k: int = PORTFOLIO_TOP_K,
     portfolio_budget_chars: int = PORTFOLIO_BUDGET_CHARS,
+    related_override: list[str] | None = None,
+    excerpt_override: dict[str, list[int]] | None = None,
 ) -> KnowledgeSelection:
     """발췌 페이지를 고른다(spec "선택" 절): category → depth-1 링크(실적 제외) → glossary,
     그리디 예산. `doc`이 있으면 뒤에 관련 실적(`relevant_portfolio`)을 별도 예산으로 붙인다.
@@ -365,9 +391,16 @@ def select_pages(
     실적 페이지는 고르지 않는다.
     """
     cats = validate_override(knowledge, categories)
-    related = (
-        [] if doc is None else [s for s, _ in relevant_portfolio(knowledge, doc, portfolio_top_k)]
-    )
+    related = related_override
+    if related is None:
+        related = [] if doc is None else [s for s, _ in relevant_portfolio(knowledge, doc, portfolio_top_k)]
+    excerpts = {} if excerpt_override is None else excerpt_override.copy()
+    if excerpt_override is None and doc is not None:
+        wanted = _match_tokens(_requirement_match_text(doc))
+        for slug in related:
+            picked = _portfolio_excerpt(knowledge.pages[slug], wanted)
+            if picked is not None:
+                excerpts[slug] = picked
     plan = _plan_selection(
         knowledge.pages,
         cats,
@@ -375,7 +408,10 @@ def select_pages(
         budget_chars,
         related=related,
         portfolio_budget_chars=portfolio_budget_chars,
+        excerpts=excerpts,
+        work_unit_excerpts=excerpt_override is not None,
     )
+    included_excerpts = {slug: excerpts[slug] for slug in plan.pages if slug in excerpts}
     return KnowledgeSelection(
         categories=cats,
         category_source=category_source,
@@ -383,6 +419,8 @@ def select_pages(
         skipped=plan.skipped,
         chars=plan.chars,
         knowledge_hash=knowledge.hash,
+        portfolio_excerpts=included_excerpts,
+        work_unit_excerpts=excerpt_override is not None and bool(included_excerpts),
     )
 
 
@@ -393,7 +431,13 @@ def render_knowledge(knowledge: Knowledge, selection: KnowledgeSelection) -> str
     없음, 끝 개행 없음.
     """
     parts = [_render_header(selection.categories, selection.category_source)]
-    parts.extend(_render_block(knowledge.pages[slug]) for slug in selection.pages)
+    parts.extend(
+        _render_block(
+            knowledge.pages[slug], selection.portfolio_excerpts.get(slug),
+            work_unit_excerpt=selection.work_unit_excerpts,
+        )
+        for slug in selection.pages
+    )
     return _SEP.join(parts).rstrip("\n")
 
 
@@ -403,6 +447,8 @@ def prepare_knowledge(
     *,
     override: list[str] | None = None,
     budget_chars: int = KNOWLEDGE_BUDGET_CHARS,
+    related_override: list[str] | None = None,
+    excerpt_override: dict[str, list[int]] | None = None,
 ) -> tuple[KnowledgeSelection, str]:
     """classify → select(관련 실적 포함) → render. KB-03 pipeline·bench 사전 추정과 CLI show가
     같이 쓴다."""
@@ -413,6 +459,8 @@ def prepare_knowledge(
         budget_chars=budget_chars,
         category_source=classification.source,
         doc=doc,
+        related_override=related_override,
+        excerpt_override=excerpt_override,
     )
     return selection, render_knowledge(knowledge, selection)
 
@@ -612,6 +660,67 @@ def _match_tokens(text: str) -> set[str]:
     return tokens
 
 
+def _requirement_match_text(doc: RfpDocument) -> str:
+    """원문 목록 발췌의 공고 쪽 입력: 요구사항 이름·정의. 요구사항이 없으면 `_notice_match_text`."""
+    if not doc.requirements:
+        return _notice_match_text(doc)
+    return "\n".join(f"{req.name}\n{req.definition or ''}" for req in doc.requirements)
+
+
+def _portfolio_list_span(lines: list[str]) -> tuple[int, int, list[int]] | None:
+    """`PORTFOLIO_LIST_HEADING` 절의 (머리 줄, 끝 줄(제외), 항목 줄 번호들). 끝은 다음 `#`~`###` 머리."""
+    start = next((i for i, line in enumerate(lines) if line.rstrip() == PORTFOLIO_LIST_HEADING), None)
+    if start is None:
+        return None
+    end = next(
+        (i for i in range(start + 1, len(lines)) if re.match(r"#{1,3} ", lines[i])), len(lines)
+    )
+    items = [i for i in range(start + 1, end) if lines[i].startswith("- ")]
+    return start, end, items
+
+
+def _portfolio_excerpt(page: Page, wanted: set[str]) -> list[int] | None:
+    """원문 목록에서 `wanted` 토큰과 겹치는 줄의 순번(목록 안 0부터, 오름차순). 목록이 없으면 `None`.
+
+    겹치는 토큰 수 내림차순 → 순번 오름차순으로 줄 길이(+개행)의 합이 `PORTFOLIO_EXCERPT_CHARS`
+    이하인 동안 고른다(넘치는 줄은 건너뛰고 계속). 결정적 코드 규칙이다.
+    """
+    return _score_portfolio_excerpt(page, lambda line: len(wanted & _match_tokens(line)))
+
+
+def portfolio_evidence_excerpt(page: Page, scores: Mapping[str, int]) -> list[int] | None:
+    """Choose exact requirement-ID lines under the original excerpt character budget."""
+    def score(line: str) -> int:
+        match = re.match(r"^- ([A-Z]{3}-\d{3}) ", line)
+        return scores.get(match[1], 0) if match else 0
+
+    return _score_portfolio_excerpt(page, score)
+
+
+def _score_portfolio_excerpt(page: Page, score_line: Callable[[str], int]) -> list[int] | None:
+    if page.meta.kind != "portfolio":
+        return None
+    lines = page.body.split("\n")
+    span = _portfolio_list_span(lines)
+    if span is None:
+        return None
+    _, _, items = span
+    scored = []
+    for order, idx in enumerate(items):
+        score = score_line(lines[idx])
+        if score > 0:
+            scored.append((-score, order))
+    scored.sort()
+    picked: list[int] = []
+    used = 0
+    for _, order in scored:
+        cost = len(lines[items[order]]) + 1
+        if used + cost <= PORTFOLIO_EXCERPT_CHARS:
+            picked.append(order)
+            used += cost
+    return sorted(picked)
+
+
 def _notice_match_text(doc: RfpDocument) -> str:
     """공고 쪽 점수 입력: 제목 + overview 본문(`_body_source`와 같은 한도) + 요구사항 이름·정의.
 
@@ -702,11 +811,15 @@ class _Tree:
     warnings: list[_Issue] = field(default_factory=list)
 
 
-def _build(root: Path, profile: CompanyProfile | None) -> tuple[_Tree | None, KnowledgeReport]:
+def _build(
+    root: Path, profile: CompanyProfile | None, *, filter_work_unit_refs: bool = False
+) -> tuple[_Tree | None, KnowledgeReport]:
     """트리를 읽고(E1·E2·E12·W6) 나머지 lint 규칙을 적용해 보고서를 만든다."""
     if not root.is_dir():
         return None, KnowledgeReport(errors=[f"knowledge root not found: {root}"], pages=0)
     tree = _read_tree(root)
+    if filter_work_unit_refs:
+        _filter_work_unit_refs(tree)
     _lint_tree(tree, profile)
     _lint_past_labels(root, tree, profile)
     report = KnowledgeReport(
@@ -715,6 +828,34 @@ def _build(root: Path, profile: CompanyProfile | None) -> tuple[_Tree | None, Kn
         pages=tree.parsed,
     )
     return tree, report
+
+
+
+def is_work_topic(slug: str, kind: str) -> bool:
+    return kind == "capability" and slug.startswith("work-") and slug != "work-units"
+
+
+def _filter_work_unit_refs(tree: _Tree) -> None:
+    """Filter only projected evidence rows before checking links in an analysis bundle."""
+    projects = {slug for slug, page in tree.pages.items() if page.meta.kind == "portfolio"}
+    for index, page in enumerate(tree.parsed_pages):
+        slug = page.meta.slug
+        if not is_work_topic(slug, page.meta.kind):
+            continue
+        head, separator, body = page.body.partition(f"\n{WORK_UNIT_SECTION}\n")
+        if not separator:
+            continue
+        lines = [
+            line for line in body.split("\n")
+            if not (ref := WORK_UNIT_EVIDENCE_RE.fullmatch(line))
+            or ref[1] in projects
+        ]
+        filtered_body = head + separator + "\n".join(lines)
+        if filtered_body != page.body:
+            filtered = replace(page, body=filtered_body, links=_extract_links(filtered_body))
+            tree.parsed_pages[index] = filtered
+            if tree.pages[slug] is page:
+                tree.pages[slug] = filtered
 
 
 def _issue_key(issue: _Issue) -> tuple[str, int]:
@@ -967,14 +1108,43 @@ def _demote_headings(body: str) -> str:
     return HEADING_DEMOTE_RE.sub("##", body)
 
 
-def _render_block(page: Page) -> str:
-    """페이지 블록(`### …`부터 본문 끝까지, 끝 개행 없음). 본문이 비면 메타 줄에서 끝난다."""
+def _prompt_body(page: Page, excerpt: list[int] | None, *, work_unit_excerpt: bool) -> str:
+    """프롬프트 본문. `excerpt`가 있는 실적 페이지는 원문 목록 절을 발췌 절로 바꾼다(`None`이면 그대로)."""
+    if excerpt is None or page.meta.kind != "portfolio":
+        return page.body
+    lines = page.body.split("\n")
+    span = _portfolio_list_span(lines)
+    if span is None:
+        return page.body
+    start, end, items = span
+    kept = [lines[items[order]] for order in excerpt if 0 <= order < len(items)]
+    note = (
+        f"원문 목록 {len(items)}줄 가운데 이번 공고 요구사항과 단어가 겹치는 {len(kept)}줄만 옮겼다. "
+        "옮기지 않은 줄도 수행한 범위다."
+    )
+    heading = PORTFOLIO_EXCERPT_HEADING
+    if work_unit_excerpt:
+        heading = "### 요구사항 원문 발췌(업무 근거 지도가 연결한 줄)"
+        note = (
+            f"원문 목록 {len(items)}줄 가운데 업무 근거 지도가 이번 공고와 연결한 {len(kept)}줄만 옮겼다. "
+            "옮기지 않은 줄도 수행한 범위다."
+        )
+    block = [heading, "", note, *([""] + kept if kept else []), ""]
+    body = "\n".join(lines[:start] + block + lines[end:])
+    return body.rstrip("\n") if work_unit_excerpt else body
+
+
+def _render_block(
+    page: Page, excerpt: list[int] | None = None, *, work_unit_excerpt: bool = False
+) -> str:
+    """페이지 블록(`### …`부터 본문 끝까지, 끝 개행 없음). 본문이 비면 메타 줄에서 끝난다.
+    `excerpt`가 있으면 실적 원문 목록 대신 발췌를 넣는다(`_prompt_body`)."""
     meta = page.meta
     head = (
         f"### [[{meta.slug}]] {meta.title}\n"
         f"- kind: {meta.kind} · confidence: {meta.confidence} · updated: {meta.updated or '-'}"
     )
-    body = _demote_headings(page.body)
+    body = _demote_headings(_prompt_body(page, excerpt, work_unit_excerpt=work_unit_excerpt))
     return f"{head}\n{body}" if body else head
 
 
@@ -993,6 +1163,8 @@ def _plan_selection(
     *,
     related: list[str] | None = None,
     portfolio_budget_chars: int = PORTFOLIO_BUDGET_CHARS,
+    excerpts: Mapping[str, list[int]] | None = None,
+    work_unit_excerpts: bool = False,
 ) -> _SelectionPlan:
     """spec "선택" 절의 그리디. categories는 등록된 category slug여야 한다(호출자가 검증).
 
@@ -1034,7 +1206,8 @@ def _plan_selection(
         page = pages.get(slug)
         if page is None or page.meta.kind != "portfolio" or slug in included:
             continue
-        cost = len(_SEP) + len(_render_block(page))
+        block = _render_block(page, (excerpts or {}).get(slug), work_unit_excerpt=work_unit_excerpts)
+        cost = len(_SEP) + len(block)
         if portfolio_running + cost <= portfolio_budget_chars:
             included.append(slug)
             portfolio_running += cost

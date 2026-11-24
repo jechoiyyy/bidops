@@ -85,12 +85,18 @@ from bid_deep_engine.analysis.schemas import (
     StageState,
 )
 from bid_deep_engine.company.hints import DEFAULT_HINT, hint_for
+from bid_deep_engine.analysis.workunits import (
+    WorkUnitSummary,
+    parse_work_unit_map,
+    prepare_work_unit_knowledge,
+    validate_assignments,
+    work_unit_output_hash,
+)
 from bid_deep_engine.company.knowledge import (
     KnowledgeError,
     gate_knowledge_root,
     load_knowledge,
     load_portfolio_texts,
-    prepare_knowledge,
 )
 from bid_deep_engine.company.loader import ProfileError, load_evidence_view
 from bid_deep_engine.company.provenance import ASSUMED_LEVELS, DECISION_LEVELS, CompanyEvidenceView
@@ -933,22 +939,31 @@ def _load_artifacts(slug_dir: Path) -> tuple[dict[str, Any] | None, dict[str, An
 
 
 def _knowledge_hash_for(
-    stamp: StageStamp, document: RfpDocument, company: CompanyEvidenceView | None
+    stamp: StageStamp, document: RfpDocument, company: CompanyEvidenceView | None,
+    work_units: WorkUnitSummary | None,
 ) -> str | None:
     params = stamp.parameters
     if params.knowledge_root is None:
         return knowledge_input_hash(None, None)
     try:
         knowledge = load_knowledge(
-            params.knowledge_root, profile=None if company is None else company.profile
+            params.knowledge_root, profile=None if company is None else company.profile,
+            filter_work_unit_refs=True,
         )
         override = (
             params.knowledge_categories if params.knowledge_category_source == "manual" else None
         )
-        selection, _ = prepare_knowledge(document, knowledge, override=override)
+        work_map = None
+        if work_units is not None and work_units.status == "classified":
+            work_map = parse_work_unit_map(knowledge)
+            if work_map is None or validate_assignments(work_map, document, work_units.assignments):
+                return None
+        selection, _, evidence = prepare_work_unit_knowledge(
+            knowledge, document, work_map, work_units, override=override,
+        )
     except (OSError, ValueError, KnowledgeError):
         return None
-    return knowledge_input_hash(knowledge, selection)
+    return knowledge_input_hash(knowledge, selection, work_unit_evidence=evidence)
 
 
 def _current_rfp_hash(source_dir: Path, document: RfpDocument | None) -> str | None:
@@ -1070,7 +1085,7 @@ def _expected_inputs(
     readiness: str | None,
     now: date | datetime | None,
     portfolio_texts: Mapping[str, str] | None = None,
-) -> dict[str, str] | None:
+) -> dict[str, str | None] | None:
     params = stamp.parameters
     upstream = {
         name: stage_output_hash(name, outputs[name])
@@ -1130,11 +1145,11 @@ def _expected_inputs(
         if stage in ("fits", "synth"):
             if params.model is None or params.strategy is None or params.effort is None:
                 return None
-            knowledge = _knowledge_hash_for(stamp, document, company)
+            knowledge = _knowledge_hash_for(stamp, document, company, analysis.work_units)
             if knowledge is None:
                 return None
             prompt_stage = "fits" if stage == "fits" else "synth"
-            result = {
+            result: dict[str, str | None] = {
                 "facts": upstream["facts"],
                 "company": company.company_input_hash,
                 "knowledge": knowledge,
@@ -1148,6 +1163,8 @@ def _expected_inputs(
             }
             if stage == "fits":
                 result["requirements"] = requirements_hash(document)
+                if "work_units" in stamp.inputs:
+                    result["work_units"] = work_unit_output_hash(analysis.work_units)
             else:
                 if any(name not in upstream for name in ("gates", "scores", "fits")):
                     return None

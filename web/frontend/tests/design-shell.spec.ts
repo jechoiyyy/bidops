@@ -407,6 +407,8 @@ test("사전규격 상세의 본문·헤더 안쪽·하단 띠가 같은 읽기 
     const rail = rect(".ps-record .workbench-record-rail");
     const bodyCards = [...document.querySelectorAll<HTMLElement>(".ps-record .workbench-record-main > section[id]")].map((element) => element.getBoundingClientRect());
     const title = rect("header.topbar h1");
+    const topbar = document.querySelector<HTMLElement>(".topbar-main")!;
+    const back = rect(".topbar-main .panel-header-link");
     return {
       viewport: window.innerWidth,
       bodyWidths: bodyCards.map((box) => Math.round(box.width)),
@@ -419,6 +421,8 @@ test("사전규격 상세의 본문·헤더 안쪽·하단 띠가 같은 읽기 
       canvasLeft: Math.round(canvasRect.left),
       canvasRight: Math.round(canvasRect.left + canvas.clientWidth),
       titleLeft: Math.round(title.left),
+      backLeftOffset: back.left - topbar.getBoundingClientRect().left - parseFloat(getComputedStyle(topbar).paddingLeft),
+      backRightGap: rect(".topbar-location-title").left - back.right,
       barLeft: Math.round(rect("#page-footer .ps-decision-bar-inner").left),
       barWidth: Math.round(rect("#page-footer .ps-decision-bar-inner").width),
       rootOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -437,6 +441,8 @@ test("사전규격 상세의 본문·헤더 안쪽·하단 띠가 같은 읽기 
   expect(m.barWidth).toBe(m.frameWidth);
   expect(Math.abs(m.titleLeft - m.bodyLeft)).toBeLessThanOrEqual(1);
   expect(Math.abs(m.barLeft - m.bodyLeft)).toBeLessThanOrEqual(1);
+  expect(Math.abs(m.backLeftOffset)).toBeLessThanOrEqual(1);
+  expect(m.backRightGap).toBeGreaterThan(0);
   // 가로 넘침 없음.
   expect(m.rootOverflow).toBe(0);
   expect(m.canvasOverflow).toBe(0);

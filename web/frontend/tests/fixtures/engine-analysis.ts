@@ -11,11 +11,13 @@
  * (`quality_status=mock_reference`). 원본 Analysis에는 요구사항 이름이 없으므로(`RequirementFit`은
  * `req_id`만 갖는다) 여기에도 넣지 않는다. 엔진 14756a0부터는 `fits[].name`으로 명칭이 오므로 완료 예시에만 싣는다.
  */
+import type { OverviewRunPageText, OverviewRunResult } from "../../src/lib/types";
+import type { WikiProject } from "../../src/lib/companyWikiApi";
 import type { EngineAnalysis, EngineEvidence, EngineRun } from "../../src/lib/engineApi";
 
 const SOURCE_SHA = "d".repeat(64);
 const SOURCE_FILE = "제안요청서.hwpx";
-const DOCUMENT_VERSION_ID = "8c0f5d2e-4a51-4b8b-9a3e-2f3c1d6b7a10";
+export const DOCUMENT_VERSION_ID = "8c0f5d2e-4a51-4b8b-9a3e-2f3c1d6b7a10";
 
 /** 인용 하나. 쪽이 있으면 원본 규칙대로 위치 하나(`exact`), 없으면 `unavailable`이다(Evidence validator). */
 function evidence(quote: string, page: number | null, section = "S012"): EngineEvidence {
@@ -129,7 +131,8 @@ function analysisFixture(variant: "completed" | "partial"): EngineAnalysis {
     return {
       req_id: reqId,
       fit: unread ? "UNKNOWN" as const : fit,
-      rationale: unread ? "원문의 이 범위를 읽지 못해 대조하지 않았어요. (예시)" : RATIONALE[fit],
+      rationale: unread ? "원문의 이 범위를 읽지 못해 대조하지 않았어요. (예시)"
+        : reqId === "MPR-003" ? "[[P2026-03-1]]의 현장 장애 대응 범위를 확인했어요." : RATIONALE[fit],
       evidence_portfolio_ids: unread ? [] : Array.from({ length: portfolio }, (_, n) => `P2026-${String(index + 1).padStart(2, "0")}-${n + 1}`),
       gap_action: unread ? null : gap || null,
       evidence: unread ? null : evidence(quote, partial ? 31 + index : null),
@@ -155,6 +158,7 @@ function analysisFixture(variant: "completed" | "partial"): EngineAnalysis {
       evidence: [evidence("참여인력은 성남시에서 제공하는 장소에서 상주하는 것을 원칙으로 하되", partial ? 44 : null, "S021")],
       action: "기타 상주 가능 인원 확인",
       unknown_fields: ["staff.onsite_seongnam.count"],
+      input_fields: ["staff.onsite_seongnam"],
     },
     {
       code: "CONSORTIUM_CONDITION",
@@ -185,7 +189,7 @@ function analysisFixture(variant: "completed" | "partial"): EngineAnalysis {
     schema_version: 1,
     recommendation: partial
       ? { decision: "NO_GO", fit_score: 0, summary: "충족하지 못한 참가자격이 있어요. 부분 결과 기준이에요. (예시)", preconditions: [], why_not: ["단일 계약 2억 원 이상 실적 미확인 (예시)"] }
-      : { decision: "CONDITIONAL_GO", fit_score: 0, summary: "미확인 자격 조건이 있어요. (예시)", preconditions: ["상주 가능 인원 확인 (예시)"], why_not: [] },
+      : { decision: "CONDITIONAL_GO", fit_score: 0, summary: "미확인 자격 조건이 있어요. (예시)", preconditions: ["상주 가능 인원 확인 (예시)"], why_not: [RISKS[0][2], RISKS[2][2], RISKS[4][2]] },
     assessment: partial
       ? {
         state: "ready",
@@ -214,6 +218,7 @@ function analysisFixture(variant: "completed" | "partial"): EngineAnalysis {
             { id: "risk_gate:ONSITE_LOCATION", kind: "risk_gate", title: "상주 근무", check: "기타 상주 가능 인원 확인", if_not: "해결하지 못하면 포기 검토", gate_codes: ["ONSITE_LOCATION"] },
             { id: "unknown_gate:CONSORTIUM_CONDITION", kind: "unknown_gate", title: "원문 확인이 필요한 참가자격", check: "공고 원문 조항 확인", if_not: "충족하지 못하면 참가 불가", gate_codes: ["CONSORTIUM_CONDITION"] },
           ],
+          demo_fields: ["staff.onsite_seongnam.count"],
           fit_coverage: { judged: 37, total: 41 },
         },
       },
@@ -251,7 +256,18 @@ function analysisFixture(variant: "completed" | "partial"): EngineAnalysis {
         })),
       ],
     },
+    knowledge: { pages: ["onsite-staffing", "P2026-03-1"], skipped: ["security"] },
+    citations: { total: 62, verified: 61, unverified: 1 },
+    profitability: { budget_krw: 500_000_000, est_mm: null, note: "세부 투입 공수를 확인할 수 없어요." },
     facts: {
+      project: {
+        budget_krw: 500_000_000, vat_included: true, bidding_method: "제한경쟁", contract_method: "협상에 의한 계약",
+        evidence: [evidence("사업 금액 500,000,000원(VAT 포함)", null)],
+      },
+      evaluation: {
+        tech_weight: 90, price_weight: 10, qualifying_rule: "기술능력평가 점수 기준",
+        evidence: [evidence("기술능력평가(90%)와 가격평가(10%)", null)],
+      },
       staffing: [
         { role: "웹개발&시스템관리자", grade: null, count: 1, resident: true, location: "성남시 제공 장소(협의 후 결정)", min_years: 5, notes: "상주 기술인력", evidence: evidence("참여인력 중 상주 기술인력은 웹개발&시스템관리자로 1명 이상", partial ? 44 : null, "S021") },
         { role: "기획/분석", grade: "고급", count: null, resident: null, location: null, min_years: 7, notes: null, evidence: evidence("기획/분석 7년 이상", partial ? 45 : null, "S021") },
@@ -264,7 +280,7 @@ function analysisFixture(variant: "completed" | "partial"): EngineAnalysis {
         sla: { has: true, penalty_note: "장애처리 지연 시 월 유지관리비에서 공제" },
         warranty_months: 12,
         proposal_compensation: null,
-        proposal_page_limit: null,
+        proposal_page_limit: 100,
         remote_work: { allowed: null, note: "작업장소는 성남시 제공, 제안 장소는 검토 후 거부 가능" },
         evidence: [evidence("하도급은 사업금액의 50%를 초과할 수 없으며", partial ? 60 : null, "S032")],
       },
@@ -315,5 +331,73 @@ export function engineAnalysisRunFixture(variant: "completed" | "partial", compa
     error_code: null,
     warnings: partial ? ["structure_section_unreadable", "fits_partially_judged"] : [],
     analysis: analysisFixture(variant),
+  };
+}
+
+
+export const analysisOverviewResult: OverviewRunResult = {
+  business_overview: [
+    { claim_id: "purpose", text: "사업 목적은 시청 홈페이지를 안정적으로 유지하고 시민에게 정확한 정보를 제공하는 것이에요.", evidence: [{ page: 3, quote: "시청 홈페이지를 안정적으로 유지" }] },
+    { claim_id: "purpose2", text: "시민의 정보 접근성을 높이고 부서별 홈페이지 운영을 지원해요.", evidence: [{ page: 3, quote: "부서별 홈페이지 운영을 지원" }] },
+    { claim_id: "background", text: "추진 배경은 2026년 홈페이지 개편 후의 연속 운영이에요.", evidence: [{ page: 4, quote: "2026년 홈페이지 개편 후의 연속 운영" }] },
+  ],
+  main_tasks: [
+    "부서별 홈페이지 요청에 따라 기능을 개선하고 보안 점검과 업데이트를 지원해요.",
+    "시민의 서비스 이용을 검증하고 사용자 만족도를 조사해요.",
+    "홈페이지 장애에 신속히 대응하고 복구 작업 이력을 확인해요.",
+    "유지관리 산출물을 최신화하고 사업자 간 인수인계를 지원해요.",
+    "부서별 요청사항을 확인하고 운영 도구와 시스템을 개선해요.",
+  ].map((text, i) => ({ claim_id: `task-${i}`, text, evidence: [{ page: 3, quote: text }] })),
+  budget_and_period: [
+    { claim_id: "amount", text: "사업 금액은 500,000,000원이에요.", evidence: [{ page: 3, quote: "사업 금액 500,000,000원(VAT 포함)" }] },
+    { claim_id: "period", text: "사업 기간은 계약일부터 12개월이에요.", evidence: [{ page: 4, quote: "계약일부터 12개월" }] },
+  ],
+  input_limitations: ["3·4쪽의 본문 텍스트만 읽었어요."],
+};
+
+export const analysisWikiProject: WikiProject = {
+  id: "P2026-03-1", title: "시민 서비스 운영 실적", client: "합성 발주기관",
+  period_start: "2025-01", period_end: "2025-12", type: "유지관리", role: "주사업자",
+  has_page: true, requirement_count: null, ingested: null, ingested_at: null, evidence_links: null,
+};
+
+/** Stage 2 mock data. The original run fixtures still cover responses without work_units. */
+export function withWorkUnits(analysis: EngineAnalysis, status: "classified" | "unavailable"): EngineAnalysis {
+  const knowledge = { pages: ["onsite-staffing", analysisWikiProject.id], skipped: [],
+    portfolio_excerpts: { [analysisWikiProject.id]: [0] } };
+
+  if (status === "unavailable") {
+    return { ...analysis, knowledge, work_units: { basis_projects: 7, status, reason: "invalid_assignments", assignments: [] } };
+  }
+
+  const fits = analysis.fits.flatMap((fit) => fit.req_id === "MHR-002" ? [
+    { ...fit, instance_key: "MHR-002@1" },
+    { ...fit, instance_key: "MHR-002@2" },
+    { ...fit, instance_key: "MHR-002@3" },
+  ] : [fit]);
+  return {
+    ...analysis, fits, knowledge,
+    work_units: { basis_projects: 7, status, reason: null, assignments: [
+      { req_id: "MHR-002@3", units: ["work-staffing-onsite"], uncovered: [], evidence_projects: [analysisWikiProject.id] },
+      { req_id: "MHR-002", units: [], uncovered: ["성남 상주 운영"], evidence_projects: [] },
+      { req_id: "MHR-002", units: ["work-staffing-schedule"], uncovered: ["성남 지정 근무지"], evidence_projects: [analysisWikiProject.id] },
+      { req_id: "MPR-006", units: [], uncovered: [], evidence_projects: [] },
+    ] },
+  };
+}
+
+export function analysisPageText(run: EngineRun, overviewId: string, pdfSha256: string): OverviewRunPageText {
+  const pages = Array.from({ length: 64 }, (_, index) => ({ number: index + 1, display_page: null, text: "" }));
+  const claims = [...analysisOverviewResult.business_overview, ...analysisOverviewResult.main_tasks, ...analysisOverviewResult.budget_and_period];
+  for (const claim of claims) {
+    for (const proof of claim.evidence) pages[proof.page - 1].text += `❍ ${proof.quote}\n`;
+  }
+  run.analysis?.fits.forEach((fit, index) => {
+    if (fit.evidence) pages[11 + index].text += fit.evidence.quote;
+  });
+  return {
+    schema: "bidops.prespec-overview-page-text.v1", run_id: overviewId, notice_id: run.notice_id,
+    pdf_sha256: pdfSha256, document_version_id: DOCUMENT_VERSION_ID,
+    page_count: pages.length, pages,
   };
 }

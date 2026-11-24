@@ -88,6 +88,7 @@ overview_not_completed → service_unavailable → 회사 핏 사유`다. `overv
 | `GET /api/pre-specs/{notice_id}/overview` | `{schema, notice_id, current: Run\|null, history: Run[], range_review: RangeReview\|null, verification: Verification\|null}` |
 | `POST /api/pre-specs/{notice_id}/overview/range-confirmations` | body `{page_start, page_end, note?}` **또는** `{candidate_indices: [시작 index, 끝 index], note?}`(둘을 함께 보내면 `range_invalid`), `X-BidOps-Actor-Name` 헤더(비ASCII 이름은 `X-BidOps-Actor-Name-Format: utf-8-percent`). 409 `run_active`(queued/running 있음), 409 `document_not_current_safe`, 422 `range_invalid\|candidate_range_incomplete\|candidate_range_unavailable`. 201 `{run_id, attempt_enqueued: true, page_start, page_end}` |
 | `GET /api/pre-specs/{notice_id}/overview/runs/{run_id}/pdf` | 그 run이 읽은 고정 스냅샷 PDF. 404/409 safe 오류 |
+| `GET /api/pre-specs/{notice_id}/overview/runs/{run_id}/page-text` | run PDF와 같은 경계. JSON `bidops.prespec-overview-page-text.v1`의 `run_id`·`notice_id`·`document_version_id`·`pdf_sha256`·`page_count`와 1부터 연속인 `pages[{number, display_page, text}]`를 반환한다. 표시 쪽은 문자열 또는 null이며 텍스트는 원문 그대로다. 404 `not_found`, 409 `document_not_current_safe` 또는 `page_text_unavailable`. |
 | `GET /api/pre-specs/{notice_id}/overview/snapshot/pdf` | run이 없어도 여는 최신 고정 스냅샷 PDF(범위 확정용). run PDF와 같은 경계. 404 `not_found`, 409 `document_not_current_safe`, 503 `pdf_unavailable` |
 
 절 후보 index로 확정하면 서버가 쪽으로 바꾼다: 시작은 고른 절의 쪽, 끝은 **다음 절의 쪽**(마지막

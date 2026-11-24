@@ -38,6 +38,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import warnings
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
@@ -60,6 +61,7 @@ from bid_deep_engine.analysis.llm import (
     LlmRefusal,
     LlmTruncated,
 )
+from bid_deep_engine.analysis.matcher import profile_gap_paths
 from bid_deep_engine.analysis.output_quality import annotate_output
 from bid_deep_engine.analysis.provenance import (
     artifact_stage_stamp,
@@ -106,11 +108,19 @@ from bid_deep_engine.analysis.strategies import (
 )
 from bid_deep_engine.analysis.synthesizer import synth_document, synthesize
 from bid_deep_engine.analysis.tracing import NULL_TRACER, NoticeTrace, Tracer
+from bid_deep_engine.analysis.workunits import (
+    WorkUnitSummary,
+    classify_work_units,
+    parse_work_unit_map,
+    prepare_work_unit_knowledge,
+    summarize_assignments,
+    validate_assignments,
+    work_unit_output_hash,
+)
 from bid_deep_engine.company.knowledge import (
     WIKILINK_RE,
     Knowledge,
     KnowledgeSelection,
-    prepare_knowledge,
 )
 from bid_deep_engine.company.provenance import CompanyEvidenceView
 from bid_deep_engine.company.schema import CompanyProfile
@@ -367,22 +377,26 @@ def profile_file_hash(profile_path: Path, profile: CompanyProfile) -> str:
 
 
 def annotate_evidence_pages(
-    fits: list[RequirementFit], selection: KnowledgeSelection
+    fits: list[RequirementFit], selection: KnowledgeSelection,
+    work_units: WorkUnitSummary | None = None,
 ) -> tuple[list[RequirementFit], list[str]]:
     """각 fit `rationale`의 `[[slug]]`(KB-01 `WIKILINK_RE`)를 등장 순·중복 제거로 뽑아, 발췌에
-    포함된 페이지(`selection.pages`)만 `evidence_pages`에 넣는다(KB-03, X75).
+    포함된 페이지(`selection.pages`)와 해당 요구사항의 지도 근거만 `evidence_pages`에 넣는다.
 
     나머지 slug마다 경고 `match: unknown knowledge page removed: <slug> (<req_id>)`. `rationale`은
     바꾸지 않고 입력 fit도 바꾸지 않는다(`model_copy`). 지식 비활성이면 호출하지 않는다.
     """
     included = set(selection.pages)
+    mapped = {}
+    if work_units is not None and work_units.status == "classified":
+        mapped = {item.req_id: set(item.evidence_projects) for item in work_units.assignments}
     out: list[RequirementFit] = []
     warnings: list[str] = []
     for fit in fits:
         slugs = dict.fromkeys(m.group(1).strip() for m in WIKILINK_RE.finditer(fit.rationale))
         kept: list[str] = []
         for slug in slugs:
-            if slug in included:
+            if slug in included or slug in mapped.get(fit.key, ()):
                 kept.append(slug)
             else:
                 warnings.append(f"match: unknown knowledge page removed: {slug} ({fit.req_id})")
@@ -638,6 +652,8 @@ class _NoticeRun:
         self._doc: RfpDocument | None = None
         self._fits: tuple[dict[str, Any], list[RequirementFit]] | None = None
         self._selection: tuple[KnowledgeSelection | None, str] | None = None
+        self.work_units: WorkUnitSummary | None = None
+        self._work_unit_evidence = ""
         self._location_cache: tuple[NoticeBundle | None, list[RawDoc]] | None = None
         # 병합 기준은 이번 실행이 쓰기 전의 usage.json이다.
         self._base_calls, self._base_warnings = _read_usage(out_dir / "usage.json")
@@ -724,18 +740,42 @@ class _NoticeRun:
         return self._doc
 
     def knowledge_for(self, doc: RfpDocument) -> tuple[KnowledgeSelection | None, str]:
-        """공고당 한 번 고른 발췌 (선택, 렌더링 텍스트). 지식이 없으면 `(None, "")`.
-
-        match·synth가 같은 값을 쓴다. 미지 override slug의 `ValueError`는 잡지 않는다(CLI가 미리
-        검증 — 여기서 나면 프로그래밍 오류).
-        """
-        if self._selection is None:
-            if self.knowledge is None:
-                self._selection = (None, "")
-            else:
-                self._selection = prepare_knowledge(
-                    doc, self.knowledge, override=self.category_override
-                )
+        """Classify and select once. A standalone synth uses the classification of its fits."""
+        if self._selection is not None:
+            return self._selection
+        if self.knowledge is None:
+            self._selection = (None, "")
+            return self._selection
+        work_map = parse_work_unit_map(self.knowledge) if doc.requirements else None
+        if work_map is not None and self.current == "match":
+            output, reason = classify_work_units(self.client(), doc, work_map, self.calls)
+            self.work_units = summarize_assignments(work_map, output, reason)
+            if reason is not None:
+                self.warn("match", [f"units: classification unavailable: {reason}"])
+        elif work_map is not None:
+            fits_meta, _ = self.stored_fits()
+            prompt_hashes = fits_meta.get("prompt_hashes")
+            if (
+                fits_meta.get("knowledge_hash") == self.knowledge.hash
+                and fits_meta.get("work_units_requirements_hash") == requirements_hash(doc)
+                and isinstance(prompt_hashes, dict)
+                and prompt_hashes.get("units") == _sha256(prompt_bytes("units.md"))
+            ):
+                try:
+                    summary = WorkUnitSummary.model_validate(fits_meta.get("work_units"))
+                except ValidationError:
+                    summary = None
+                if summary is not None and (
+                    summary.status == "unavailable"
+                    or not validate_assignments(work_map, doc, summary.assignments)
+                ):
+                    self.work_units = summary
+        selection, text, self._work_unit_evidence = prepare_work_unit_knowledge(
+            self.knowledge, doc, work_map, self.work_units, override=self.category_override,
+        )
+        if self._work_unit_evidence:
+            text += "\n\n" + self._work_unit_evidence
+        self._selection = (selection, text)
         return self._selection
 
     def locate(self, model: Any, doc: RfpDocument) -> Any:
@@ -933,16 +973,29 @@ class _NoticeRun:
         self.begin("match")
         facts_meta, facts = self.facts()
         effective = self.stage_strategy(facts_meta)
+        profile = self.required_profile()
         selection, knowledge_text = self.knowledge_for(doc)
         skipped = _skipped_warning(selection)
         self.warn("match", skipped)  # 입력 사실이므로 호출 실패여도 usage.json에 남는다
         fits, calls, warnings = self.strategy_for(effective).match(
-            doc, facts, self.required_profile(), knowledge_text=knowledge_text
+            doc, facts, profile, knowledge_text=knowledge_text
         )
         self.calls.extend(calls)
-        if selection is not None:  # 전략(single·mapreduce) 공통 — 발췌 포함 페이지만 남긴다
-            fits, page_warnings = annotate_evidence_pages(fits, selection)
+        if selection is not None:  # 전략(single·mapreduce) 공통
+            fits, page_warnings = annotate_evidence_pages(fits, selection, self.work_units)
             warnings = [*warnings, *page_warnings]
+        no_units = {
+            row.req_id for row in self.work_units.assignments if not row.units
+        } if self.work_units is not None and self.work_units.status == "classified" else set()
+        negative_paths = profile_gap_paths(profile)
+        warnings.extend(
+            f"match: gap without work-unit or profile basis ({fit.key})"
+            for fit in fits
+            if fit.fit == "GAP" and fit.key not in no_units and not any(
+                re.search(rf"(?<![A-Za-z0-9_.%]){re.escape(path)}(?![A-Za-z0-9_.%\[])", fit.rationale)
+                for path in negative_paths
+            )
+        )
         fits = [self.locate(fit, doc) for fit in fits]
         self.warn("match", warnings)
         created_at = _now()
@@ -955,7 +1008,10 @@ class _NoticeRun:
                         "facts": stage_output_hash("facts", facts.model_dump(mode="json")),
                         "requirements": requirements_hash(doc),
                         "company": self.company_input_hash,
-                        "knowledge": knowledge_input_hash(self.knowledge, selection),
+                        "knowledge": knowledge_input_hash(
+                            self.knowledge, selection, work_unit_evidence=self._work_unit_evidence,
+                        ),
+                        "work_units": work_unit_output_hash(self.work_units),
                         "prompts": prompt_set_hash("fits", effective),
                         "model_settings": model_settings_hash(
                             model=self.model,
@@ -994,10 +1050,14 @@ class _NoticeRun:
             "prompt_hashes": {
                 "system": _sha256(prompt_bytes("system.md")),
                 "match": _sha256(prompt_bytes("match.md")),
+                "units": _sha256(prompt_bytes("units.md")),
             },
             "created_at": created_at,
-            "warnings": [*skipped, *warnings],
+            "warnings": self.pass_warnings["match"],
         }
+        if self.work_units is not None:
+            meta["work_units"] = self.work_units.model_dump(mode="json")
+            meta["work_units_requirements_hash"] = requirements_hash(doc)
         if stage is not None:
             meta["stage"] = stage.model_dump(mode="json")
         self.write_usage()
@@ -1140,7 +1200,9 @@ class _NoticeRun:
                     "scores": scores_hash,
                     "fits": fits_hash,
                     "company": self.company_input_hash,
-                    "knowledge": knowledge_input_hash(self.knowledge, selection),
+                    "knowledge": knowledge_input_hash(
+                        self.knowledge, selection, work_unit_evidence=self._work_unit_evidence,
+                    ),
                     "prompts": prompt_set_hash("synth", effective),
                     "model_settings": model_settings_hash(
                         model=self.model,
@@ -1168,6 +1230,7 @@ class _NoticeRun:
             strategy_effective=effective,
             numeric_facts_unconfirmed=numeric_facts_unconfirmed,
             knowledge=selection,
+            work_units=self.work_units,
             company_input_hash=self.company_input_hash,
             effort=self.effort,
             facts=facts,

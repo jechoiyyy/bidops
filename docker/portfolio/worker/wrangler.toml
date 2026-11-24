@@ -1,0 +1,9 @@
+name = "bidops-portfolio"
+main = "index.mjs"
+compatibility_date = "2026-11-23"
+workers_dev = true
+preview_urls = false
+
+[[vpc_services]]
+binding = "PORTFOLIO"
+service_id = "01a207f3-ef5e-79e1-9081-ca0fda46d9b1"

@@ -182,7 +182,8 @@ def company_inputs(payload, workdir):
         try:
             view = load_evidence_view(profile_path)
             knowledge = (
-                load_knowledge(tree, profile=view.profile) if tree is not None else None
+                load_knowledge(tree, profile=view.profile, filter_work_unit_refs=True)
+                if tree is not None else None
             )
         except (ProfileError, KnowledgeError, OSError, ValueError):
             raise EngineError("company_bundle_invalid") from None

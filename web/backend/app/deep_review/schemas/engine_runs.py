@@ -20,7 +20,8 @@ class EngineRunView(BaseModel):
     notice_id: int
     bundle_id: UUID
     engine_version: str
-    quality_status: Literal["mock_reference"]
+    # Portfolio: imported reference runs carry "unmeasured_reference" (참조 실행·미측정).
+    quality_status: Literal["mock_reference", "unmeasured_reference"]
     status: Literal["queued", "running", "completed", "partial", "failed"]
     engine_sha256: str
     input_currentness: Literal["current", "stale", "unknown"]

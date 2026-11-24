@@ -83,14 +83,15 @@ import "../styles/pre-spec-detail-erp.css";
  * `분석 완료` 화면(2026-11-21 시안 b1~b3)은 **mock 빌드 전용**이다. `BIDOPS_REVIEW_MOCK`이 `false`로 접히는 운영
  * 빌드에서는 아래 동적 import가 사라져 그 모듈의 코드·문구·CSS가 운영 번들에 들어가지 않는다(엔진 mock 패널과 같은 경계).
  */
-const loadAnalysisView = import.meta.env.BIDOPS_REVIEW_MOCK
+// Portfolio build (BIDOPS_PORTFOLIO_ANALYSIS) also compiles this view, but not the engine mock panel below.
+const loadAnalysisView = import.meta.env.BIDOPS_REVIEW_MOCK || import.meta.env.BIDOPS_PORTFOLIO_ANALYSIS
   ? () => import("../components/pre-spec-analysis/PreSpecAnalysisView")
   : null;
 const PreSpecEngineAnalysisProbe = loadAnalysisView
   ? lazy(() => loadAnalysisView().then((module) => ({ default: module.PreSpecEngineAnalysisProbe })))
   : null;
-const PreSpecAnalysisSections = loadAnalysisView
-  ? lazy(() => loadAnalysisView().then((module) => ({ default: module.PreSpecAnalysisSections })))
+const PreSpecAnalysisWorkbench = loadAnalysisView
+  ? lazy(() => loadAnalysisView().then((module) => ({ default: module.PreSpecAnalysisWorkbench })))
   : null;
 
 function recordDateTime(value: string | null): string {
@@ -178,26 +179,20 @@ function PreSpecQueryError({
 function PreSpecDetailNavigation({ noticeId, search }: { noticeId: number | null; search: string }) {
   const navigate = useNavigate();
   const review = readPreSpecSelectionReview(search, noticeId);
-  const index = review ? review.orderedNoticeIds.indexOf(noticeId as number) : -1;
-  const hasReview = review !== null && index >= 0;
-  const previousId = hasReview && index > 0 ? review.orderedNoticeIds[index - 1] : null;
-  const nextId = hasReview && index < review.orderedNoticeIds.length - 1
+  if (!review || noticeId === null) return null;
+
+  const index = review.orderedNoticeIds.indexOf(noticeId);
+  const previousId = index > 0 ? review.orderedNoticeIds[index - 1] : null;
+  const nextId = index < review.orderedNoticeIds.length - 1
     ? review.orderedNoticeIds[index + 1]
     : null;
   const moveTo = (nextNoticeId: number | null) => {
-    if (!review || nextNoticeId === null) return;
+    if (nextNoticeId === null) return;
     // 저장된 목록 query와 review token을 그대로 사용한다. 현재 상세 route의
     // index나 이후 query 변경으로 snapshot 순서를 재계산하지 않는다.
     navigate(preSpecDetailUrl(nextNoticeId, review.listSearch, review.reviewId));
   };
 
-  if (!hasReview) {
-    return (
-      <nav className="ps-detail-navigation" aria-label="사전규격 목록 이동">
-        <Link aria-label="사전규격 목록으로" className="panel-header-link" to={preSpecReviewListUrl(search, noticeId)}>‹ 목록</Link>
-      </nav>
-    );
-  }
   return (
     <nav className="ps-detail-navigation" aria-label="사전규격 선택 순회">
       <div className="ps-detail-navigation-position">
@@ -437,14 +432,6 @@ function OverviewBody({ review, validationLabel }: { review: PageOverviewView; v
   );
 }
 
-/** 접힌 개요 구역 제목 줄 오른쪽 요약. 서버 상태 이름과 받은 과업 수만 잇는다. */
-function joinOverviewSummary(statusLabel: string | null, review: PageOverviewView | null): string {
-  return [
-    statusLabel ? (statusLabel.startsWith("개요") ? statusLabel : `개요 ${statusLabel}`) : "개요 상태 미확인",
-    review ? `과업 ${review.payload.main_tasks.length}건` : null,
-  ].filter(Boolean).join(" · ");
-}
-
 function trimmedOrNull(value: string | null | undefined): string | null {
   return value?.trim() || null;
 }
@@ -491,8 +478,6 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
   const [rangeOpen, setRangeOpen] = useState(false);
   // 분석 완료 화면(mock 빌드 전용): 최신 엔진 run이 완료·부분 완료이고 `analysis`가 있으면 그 run이다.
   const [engineRun, setEngineRun] = useState<EngineRun | null>(null);
-  // 분석 완료 화면에서 `사업 개요와 주요 과업`은 접혀 들어온다.
-  const [overviewOpen, setOverviewOpen] = useState(false);
   // 개요 자동 검토가 이 환경에서 꺼져 있으면 실행 기록이 없는 이유를 먼저 말한다(설계고도화안 C-4).
   const overviewFeature = useFeatureFlags().state("prespec_overview");
   const overviewOff = overviewFeature === "off";
@@ -707,12 +692,8 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
   const preliminary = preSpecItem?.display_assessment.source === "preliminary_assessment" ? preSpecItem.display_assessment : null;
   const relevanceVisible = verdict.hasValue || currentCompanyFitAttempt !== null || preliminary !== null;
   // 분석 완료 화면(mock 빌드 전용). 회사 관련성 참고 구역은 이 화면의 구성(시안 b)에 없으므로 처리 상태 안으로 간다.
-  const analysisView = engineRun !== null && PreSpecAnalysisSections !== null;
+  const analysisView = engineRun !== null && PreSpecAnalysisWorkbench !== null;
   const showRelevanceSection = relevanceVisible && !analysisView;
-  const trackingStateLabel = !preSpecItem
-    ? "미확인"
-    : preSpecItem.opportunity_id == null ? "사업기회 미연결" : preSpecItem.tracking_status ?? "미확인";
-
   // `처리 상태·기술 정보` 제목 줄 오른쪽 요약 한 줄. 서버 상태 이름을 그대로 잇고 새 판단을 만들지 않는다.
   // 문제 상태에서는 멈춘 단계를 말로 적는다(안내와 같은 표). 꺼진 기능 표시는 그대로 붙는다.
   const processSummary = [
@@ -1020,12 +1001,78 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
     ? processAllBlocks.filter((block) => !processFirstBlocks.includes(block))
     : [];
 
+  // 처리 상태·기술 정보는 맨 아래에 두고, 문서 준비 패널의 조작·폴링은 종전대로 유지한다.
+  const processSection = (
+    <section id="ps-process" className="workbench-record-section ps-sec ps-record-process ps-fold" aria-labelledby="ps-process-title">
+      <div className="ps-sec-head ps-fold-head">
+        <h2 id="ps-process-title" className="ps-h-sec">
+          <button
+            className="ps-fold-toggle"
+            type="button"
+            aria-expanded={processOpen}
+            aria-controls={processOpen ? "ps-process-body" : undefined}
+            onClick={() => setProcessOverride(!processOpen)}
+          >
+            <svg aria-hidden="true" className="ps-fold-chevron" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" /></svg>
+            처리 상태·기술 정보
+          </button>
+        </h2>
+        <p className="ps-fold-meta" data-testid="pre-spec-process-summary">{processSummary}</p>
+      </div>
+
+      {processOpen ? (
+        <div id="ps-process-body" className="ps-fold-body">
+          {problem ? <>
+            {/* 문제 상태(시안 c `?open=1`): 멈춘 단계의 블록이 먼저이고, 나머지는 지우지 않고 한 번 더 접는다(ADR-0066 이동). */}
+            {processFirstBlocks}
+            <div className="ps-process-rest">
+              <button
+                className="ps-fold-toggle ps-process-rest-toggle"
+                type="button"
+                aria-expanded={processRestOpen}
+                aria-controls={processRestOpen ? "ps-process-rest-body" : undefined}
+                onClick={() => setProcessRestOpen(!processRestOpen)}
+              >
+                <svg aria-hidden="true" className="ps-fold-chevron" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" /></svg>
+                {processRestOpen ? "나머지 기술 정보 접기" : "나머지 기술 정보 보기"}
+              </button>
+              {processRestOpen ? (
+                <div id="ps-process-rest-body" className="ps-process-rest-body">{processRestBlocks}</div>
+              ) : null}
+            </div>
+          </> : processAllBlocks}
+        </div>
+      ) : null}
+    </section>
+  );
+
   return (
     <Fragment>
       {PreSpecEngineAnalysisProbe ? (
         <Suspense fallback={null}><PreSpecEngineAnalysisProbe noticeId={noticeId} onChange={setEngineRun} /></Suspense>
       ) : null}
-      <RecordFrame
+      {analysisView && engineRun && PreSpecAnalysisWorkbench ? (
+        <Suspense fallback={<SkeletonPanel label="분석 결과를 불러오는 중" lines={4} />}>
+          <PreSpecAnalysisWorkbench run={engineRun} notice={notice} item={preSpecItem}
+            shown={pageOverviewValid ? currentResult : null}
+            overviewUnavailable={pageOverviewQuery.isPending ? "사업 개요를 불러오는 중이에요."
+              : !pageOverviewValid ? "사업 개요를 불러오지 못했어요."
+              : currentPageOverviewForView?.status === "needs_human_review" || rangeNeedsDecision ? "개요 확인 필요"
+              : "확정된 사업 개요가 없어요."}
+            number={preSpecItem?.pre_spec_no ?? null} bidNotice={bidNoticeNumber}
+            originalFilename={bundleQuery.data?.items.find((bundle) => bundle.id === engineRun.bundle_id)
+              ?.documents.find((document) => document.id === engineRun.documents[0]?.document_version_id)?.original_filename}
+            process={problem ? <div className="ps-record" onClickCapture={openProcessTarget}>
+              <PreSpecProblemNotice notice={problem} noticeId={noticeId}
+                rangeForm={rangeInNotice && rangeReviewForView ? (
+                  <PageOverviewRangeReview noticeId={noticeId} review={rangeReviewForView} presentation="notice"
+                    runHasReasonCodes={runHasReasonCodes} onConfirmed={() => { void pageOverviewQuery.refetch(); }} />
+                ) : null} onOpenDocuments={openDocumentPreparation} />
+              {processSection}
+            </div> : null}
+          />
+        </Suspense>
+      ) : <RecordFrame
         heading={{
           eyebrow: ["사전규격", (preSpecItem?.demand_agency ?? notice.agency)?.trim()].filter(Boolean).join(" · "),
           title: present(notice.title, "사업명 미확인"),
@@ -1053,7 +1100,6 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
                   <small>SW사업대상 {preSpecItem?.sw_business_status ?? "미확인"}</small>
                 </> },
                 { label: "게시", value: recordDateTime(notice.published_at) },
-                ...(analysisView ? [{ label: "추적 상태", value: trackingStateLabel }] : []),
                 { label: "본공고", value: bidNoticeNumber ?? "미확인" },
                 ...(preSpecItem ? [{ label: "발견 경로", value: originLabel(preSpecItem.origin) }] : []),
                 ...(showAnnouncer ? [{ label: "공고기관", value: announcerAgency }] : []),
@@ -1069,42 +1115,21 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
         }
       >
 
-        {/* 분석 완료 화면(시안 b1~b3, mock 빌드 전용): 요약 · 차단·자격 조건 · 확인할 일 · 요구사항 대응 · 리스크 · 인력·계약. */}
-        {analysisView && engineRun && PreSpecAnalysisSections ? (
-          <Suspense fallback={<SkeletonPanel label="분석 결과를 불러오는 중" lines={4} />}>
-            <PreSpecAnalysisSections run={engineRun} />
-          </Suspense>
-        ) : null}
-
         {/* 2. 사업 개요와 주요 과업 (옛 ③). 주장마다 그 줄 오른쪽에 쪽 링크가 붙는다. */}
         <section
           id="ps-tasks"
-          className={`workbench-record-section ps-sec ps-record-tasks${analysisView ? " ps-fold" : ""}`}
+          className="workbench-record-section ps-sec ps-record-tasks"
           aria-labelledby="ps-tasks-title"
           onClickCapture={openProcessTarget}
         >
-          {analysisView ? (
-            /* 분석 완료 화면에서는 접혀 들어온다(시안 b). 여는 것은 사람의 조작이다. */
-            <div className="ps-sec-head ps-fold-head">
-              <h2 id="ps-tasks-title" className="ps-h-sec">
-                <button className="ps-fold-toggle" type="button" aria-expanded={overviewOpen} onClick={() => setOverviewOpen(!overviewOpen)}>
-                  <svg aria-hidden="true" className="ps-fold-chevron" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" /></svg>
-                  사업 개요와 주요 과업
-                </button>
-              </h2>
-              <p className="ps-fold-meta">{joinOverviewSummary(overviewStatusForStep, shown)}</p>
-            </div>
-          ) : (
-            <div className="ps-sec-head">
-              <h2 id="ps-tasks-title" className="ps-h-sec">사업 개요와 주요 과업</h2>
-              {shown && !rangeNeedsDecision ? (
-                <div className="ps-sec-actions">
-                  <OverviewPdfReference review={shown} />
-                </div>
-              ) : null}
-            </div>
-          )}
-          {analysisView && !overviewOpen ? null : <>
+          <div className="ps-sec-head">
+            <h2 id="ps-tasks-title" className="ps-h-sec">사업 개요와 주요 과업</h2>
+            {shown && !rangeNeedsDecision ? (
+              <div className="ps-sec-actions">
+                <OverviewPdfReference review={shown} />
+              </div>
+            ) : null}
+          </div>
           {problem ? (
             /* 문제 상태 안내 한 블록(시안 c1~c5). 실제 사유·할 일을 말하고, 범위 확정이 다시 실행하는 길이면 폼을 품는다.
                종전 알림 두 줄과 개요 자리 범위 폼은 이때 그리지 않는다(같은 일을 두 번 말하지 않는다). */
@@ -1165,7 +1190,6 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
                   : "개요 검토 실행 기록이 없어 주요 과업을 표시할 수 없어요."}</p>
             </div>
           )}
-          </>}
         </section>
 
         {/* (조건부) 회사 관련성 참고 — 옛 ④ 세 열과 머리의 예비 판단 근거. 값이 있을 때만 개요 아래에 그린다. */}
@@ -1212,52 +1236,9 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
           <OrderPlanCandidatesSection noticeId={noticeId} hideWhenEmpty />
         </section>
 
-        {/* 4. 처리 상태·기술 정보 (옛 ⑥ 전체). 맨 아래 접힌 구역 하나다 — 삭제가 아니라 이동이다(ADR-0066).
-            기본 닫힘이고 문제가 있으면 열린 채로 들어온다(`lib/preSpecProcessDefaultOpen.ts`). Astryx `Collapsible`을
-            쓰지 않는다 — 안의 문서 준비 패널이 조작·폴링을 잃지 않게 조건부 렌더링한다. */}
-        <section id="ps-process" className="workbench-record-section ps-sec ps-record-process ps-fold" aria-labelledby="ps-process-title">
-          <div className="ps-sec-head ps-fold-head">
-            <h2 id="ps-process-title" className="ps-h-sec">
-              <button
-                className="ps-fold-toggle"
-                type="button"
-                aria-expanded={processOpen}
-                aria-controls={processOpen ? "ps-process-body" : undefined}
-                onClick={() => setProcessOverride(!processOpen)}
-              >
-                <svg aria-hidden="true" className="ps-fold-chevron" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" /></svg>
-                처리 상태·기술 정보
-              </button>
-            </h2>
-            <p className="ps-fold-meta" data-testid="pre-spec-process-summary">{processSummary}</p>
-          </div>
+        {processSection}
 
-          {processOpen ? (
-            <div id="ps-process-body" className="ps-fold-body">
-              {problem ? <>
-                {/* 문제 상태(시안 c `?open=1`): 멈춘 단계의 블록이 먼저이고, 나머지는 지우지 않고 한 번 더 접는다(ADR-0066 이동). */}
-                {processFirstBlocks}
-                <div className="ps-process-rest">
-                  <button
-                    className="ps-fold-toggle ps-process-rest-toggle"
-                    type="button"
-                    aria-expanded={processRestOpen}
-                    aria-controls={processRestOpen ? "ps-process-rest-body" : undefined}
-                    onClick={() => setProcessRestOpen(!processRestOpen)}
-                  >
-                    <svg aria-hidden="true" className="ps-fold-chevron" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" /></svg>
-                    {processRestOpen ? "나머지 기술 정보 접기" : "나머지 기술 정보 보기"}
-                  </button>
-                  {processRestOpen ? (
-                    <div id="ps-process-rest-body" className="ps-process-rest-body">{processRestBlocks}</div>
-                  ) : null}
-                </div>
-              </> : processAllBlocks}
-            </div>
-          ) : null}
-        </section>
-
-      </RecordFrame>
+      </RecordFrame>}
 
       {/* 패널 아래 고정 추적 결정 띠(옛 ② `#ps-tracking` 구역). */}
       <PreSpecTrackingBar

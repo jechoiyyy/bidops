@@ -1,31 +1,23 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mockApi, mockEngineAnalysis, setSidebarActor } from "./api-mock";
-import { engineAnalysisRunFixture } from "./fixtures/engine-analysis";
+import { mockApi, mockEngineAnalysis, overviewEnvelopeFixture, overviewNeedsHumanReviewRunFixture, setSidebarActor } from "./api-mock";
+import { analysisOverviewResult, analysisWikiProject, engineAnalysisRunFixture, withWorkUnits } from "./fixtures/engine-analysis";
 import { RL_COMPANY_ID } from "./fixtures/company-rl";
-import { qualityStatusLabel } from "../src/lib/qualityStatus";
 
-// 사전규격 상세 `분석 완료` 화면(2026-11-21 시안 b1~b3)은 **mock 빌드 전용**이다. `import.meta.env.BIDOPS_REVIEW_MOCK`이
-// `vite` 개발 서버를 `BIDOPS_MOCK_API=1`로 띄울 때만 true이고, 운영 빌드·`npm run build`·`vite preview`에서는 false로 접혀
-// 이 화면의 코드가 번들에 없다(`prespec-detail-layout.spec.ts`가 번들을 검사한다). 그래서 이 spec은 일반 preview 번들로는
-// 돌지 못하고 개발 mock 서버가 있어야 한다. `mock-review-prototype.spec.ts`와 같은 약속이다:
-//
-//   BIDOPS_MOCK_API=1 npx vite --host 127.0.0.1 --port 5174 --strictPort
-//   BIDOPS_MOCK_UI=1 PW_PORT=5174 node_modules/.bin/playwright test prespec-analysis-view --project=app --workers=2
-//
-// 응답은 route mock이 준다(`mockApi`·`mockEngineAnalysis`). 기대 건수는 fixture에서 세어 구한다(값을 따로 적지 않는다).
+// 일반 운영 preview에는 워크벤치가 없다. BIDOPS_MOCK_API=1 개발 서버에서만 이 spec을 실행한다.
 test.skip(!process.env.BIDOPS_MOCK_UI, "개발 MOCK 서버 전용: BIDOPS_MOCK_UI=1 PW_PORT=<mock 서버 port>로 실행");
 
 const NOTICE_ID = 991;
-const completed = engineAnalysisRunFixture("completed", RL_COMPANY_ID, NOTICE_ID);
-const partial = engineAnalysisRunFixture("partial", RL_COMPANY_ID, NOTICE_ID);
-const count = <T,>(items: readonly T[], predicate: (item: T) => boolean) => items.filter(predicate).length;
+const analysis = engineAnalysisRunFixture("completed", RL_COMPANY_ID, NOTICE_ID).analysis!;
 
-async function openAnalysis(page: Page, variant: "completed" | "partial" = "completed") {
+async function openAnalysis(page: Page, hash = "", workUnits?: "classified" | "unavailable") {
   await mockApi(page);
-  await mockEngineAnalysis(page, variant, NOTICE_ID);
-  await page.goto(`/pre-specs/${NOTICE_ID}`);
-  await expect(page.locator("#pa-summary")).toBeVisible();
+  const run = await mockEngineAnalysis(page, "completed", NOTICE_ID);
+  if (workUnits && run.analysis) run.analysis = withWorkUnits(run.analysis, workUnits);
+  await page.goto(`/pre-specs/${NOTICE_ID}${hash}`);
+  await expect(page.locator("#s-brief")).toBeVisible();
 }
+
+const tabs = (page: Page) => page.getByRole("navigation", { name: "분석 구역 이동" });
 
 async function mockTrackingPatches(page: Page) {
   const patches: { opportunityId: number; status: string; reason: string; actor: string }[] = [];
@@ -45,222 +37,219 @@ async function mockTrackingPatches(page: Page) {
   return patches;
 }
 
-for (const state of ["abstain", "ready"] as const) {
-  test(`엔진 종합 권고는 화면에 표시한 의견과 다를 때만 보인다 · ${state}`, async ({ page }) => {
-    await mockApi(page);
-    const run = await mockEngineAnalysis(page, "completed", NOTICE_ID);
-    const analysis = run.analysis!;
-    const assessment = analysis.assessment!;
-    assessment.state = state;
-    assessment.decision = state === "ready" ? "NO_GO" : null;
-    assessment.provisional!.decision = "CONDITIONAL_GO";
-    analysis.recommendation.decision = "NO_GO";
-    analysis.recommendation.why_not = ["상주 장소를 협의해야 합니다.", "두 번째 우려입니다."];
-    await page.goto(`/pre-specs/${NOTICE_ID}`);
-    const opinion = page.locator("#pa-summary .pa-opinion");
-    await expect(opinion).toBeVisible();
-    if (state === "abstain") {
-      await expect(opinion.getByText(/엔진 종합 권고/)).toHaveText(
-        "엔진 종합 권고 · 참여 비권장 · 참여 우려 · 상주 장소를 협의해야 합니다.",
-      );
-      await expect(opinion).not.toContainText("두 번째 우려입니다.");
-    } else {
-      await expect(opinion).not.toContainText("엔진 종합 권고");
-    }
-  });
-}
-
-test("분석 완료 화면: 구역 순서·건수 줄·충족 접힘·점수 없음", async ({ page }) => {
-  await openAnalysis(page);
-  const analysis = completed.analysis!;
-
-  // 분석 결과 구역과 후속 구역의 순서를 확인한다. 사실은 오른쪽 정보 열에 있다.
-  const ids = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".ps-record .workbench-record-main > section[id]")].map((element) => element.id));
-  expect(ids).toEqual(["pa-summary", "pa-gates", "pa-todos", "pa-reqs", "pa-risks", "pa-terms", "ps-tasks", "ps-evidence", "ps-process"]);
-  // 헤더 탭 자리의 구역 이동 링크는 숨기지 않는 링크다(탭이 아니다).
-  await expect(page.locator(".workbench-record-rail #ps-summary dt", { hasText: "추적 상태" })).toBeVisible();
-  const nav = page.getByRole("navigation", { name: "구역 이동" });
-  await expect(nav.getByRole("link")).toHaveCount(7);
-  await expect(page.getByRole("tab", { name: /요약|자격 조건/ })).toHaveCount(0);
-
-  // 건수 세 줄은 fixture에서 센 값이다.
-  const gates = analysis.gates;
-  const fits = analysis.fits;
-  const risks = analysis.risks ?? [];
-  const counts = page.locator("#pa-summary .pa-counts");
-  await expect(counts).toContainText(`자격 조건 ${gates.length}`);
-  await expect(counts).toContainText(`차단 ${count(gates, (gate) => gate.verdict === "FAIL")}`);
-  await expect(counts).toContainText(`위험 ${count(gates, (gate) => gate.verdict === "RISK")}`);
-  await expect(counts).toContainText(`충족 ${count(gates, (gate) => gate.verdict === "PASS")}`);
-  await expect(counts).toContainText(`요구사항 ${fits.length}`);
-  await expect(counts).toContainText(`부족 ${count(fits, (fit) => fit.fit === "GAP")}`);
-  await expect(counts).toContainText(`부분 ${count(fits, (fit) => fit.fit === "PARTIAL")}`);
-  await expect(counts).toContainText(`리스크 ${risks.length}`);
-  await expect(counts).toContainText(`상 ${count(risks, (risk) => risk.severity === "H")}`);
-  // 0건 칸은 링크가 아니다.
-  await expect(page.locator("#pa-summary .pa-count.is-zero a")).toHaveCount(0);
-
-  // 엔진 참고 의견(점수 없음)과 판단 보류 + 잠정 의견, 품질 표식, 경계 문장.
-  const opinion = page.locator("#pa-summary .pa-opinion");
-  await expect(opinion).toContainText("엔진 참고 의견");
-  await expect(opinion).toContainText("판단 보류");
-  await expect(opinion).toContainText("잠정 의견");
-  await expect(opinion).toContainText("입찰 참여는 최종 Go/No-Go에서 정해요.");
-  await expect(page.locator("#pa-summary .pa-basis")).toContainText(qualityStatusLabel(completed.quality_status));
-  const analysisText = (await page.locator("#pa-summary, #pa-gates, #pa-todos, #pa-reqs, #pa-risks, #pa-terms").allInnerTexts()).join("\n");
-  expect(analysisText).not.toMatch(/점수|배점|fit_score|score/i);
-
-  // 차단·위험·미확인 행만 먼저 보이고 충족은 접혀 있다. 눌러야 보인다.
-  const fold = page.locator("#pa-gates details.pa-fold");
-  const passCount = count(gates, (gate) => gate.verdict === "PASS");
-  await expect(fold.locator("summary")).toHaveText(`충족 ${passCount}건 보기`);
-  await expect(fold).not.toHaveAttribute("open", "");
-  await expect(page.locator("#pa-gates table").first().locator("tbody tr")).toHaveCount(count(gates, (gate) => gate.verdict !== "PASS"));
-  await fold.locator("summary").click();
-  await expect(fold.locator("tbody tr")).toHaveCount(passCount);
-  await expect(fold.locator("tbody tr").first()).toBeVisible();
-
-  // 개요는 접혀 들어온다. 여는 것은 사람의 조작이다.
-  const overviewToggle = page.locator("#ps-tasks .ps-fold-toggle");
-  await expect(overviewToggle).toHaveAttribute("aria-expanded", "false");
-});
-
-test("분석 완료 화면: 엔진이 붙인 목적·확인 시점·요구사항 이름·분석 건수·원문 블록 위치를 그대로 보인다", async ({ page }) => {
-  await openAnalysis(page);
-  const analysis = completed.analysis!;
-  const requests = analysis.review_actions?.requests ?? [];
-  const conditions = analysis.assessment?.provisional?.conditions ?? [];
-  const plan = count(requests, (request) => request.kind !== "company");
-  const decisionCompany = count(requests, (request) => request.kind === "company" && request.purpose === "decision");
-  const otherCompany = count(requests, (request) => request.kind === "company" && request.purpose !== "decision");
-  expect(decisionCompany).toBeGreaterThan(0);
-
-  // 추적 판단에 쓰이는 회사 확인은 접지 않고, 건수에 들어간다. 나머지 회사 확인만 접힌다.
-  const todos = page.locator("#pa-todos");
-  await expect(todos.locator(".ps-cnt")).toHaveText(`${conditions.length + plan + decisionCompany}건`);
-  const decisionRows = todos.getByTestId("pa-company-decision").locator("tbody tr");
-  await expect(decisionRows).toHaveCount(decisionCompany);
-  await expect(decisionRows.first()).toContainText("상주 가능 지역·인원");
-  await expect(decisionRows.first()).toContainText("지금 확인 가능");
-  await expect(todos.locator("tr", { hasText: "공동수급 구성원 자격 조항" })).toContainText("새 분석 입력 필요");
-  const fold = todos.locator("details.pa-fold");
-  await expect(fold.locator("summary")).toHaveText(`그 밖의 회사 자료 확인 ${otherCompany}건 보기`);
-  await fold.locator("summary").click();
-  // 엔진이 준 제목은 글자로, 코드 글꼴은 옛 응답의 필드 키에만 쓴다.
-  await expect(fold.locator("li")).toHaveCount(otherCompany);
-  await expect(fold.locator("li code")).toHaveCount(0);
-
-  // 필수 여부는 다루지 않는다(2026-11-21 결정). 요구 ID 칸에 표시를 붙이지 않고 화면 어디에도 적지 않는다.
-  await page.locator("#pa-reqs .pa-pills").getByRole("button", { name: /^전체/ }).click();
-  await expect(page.locator("#pa-reqs .pa-req-table td.pa-col-id .pa-sub")).toHaveCount(0);
-  await expect(page.locator("#pa-reqs")).not.toContainText("필수");
-  // 요구사항 칸은 엔진이 원문에서 옮긴 이름이다. 모든 행에 이름이 있으면 "원문 발췌로 보여요" 안내가 없다.
-  const fits = analysis.fits;
-  await expect(page.locator("#pa-reqs .pa-req-table thead th").nth(1)).toHaveText("요구사항");
-  await expect(page.locator("#pa-reqs .pa-req-table tbody tr")).toHaveCount(fits.length);
-  await expect(page.locator("#pa-reqs .pa-req-table tbody tr", { hasText: fits[0].req_id }).first()).toContainText(fits[0].name as string);
-  await expect(page.locator("#pa-reqs > .pa-cap")).toHaveCount(0);
-  // 분석 기준 줄은 원문 요구사항 수와 분석에 넣은 수를, 요약은 한자·외국어 혼입 경고 건수를 그대로 알린다.
-  const counts = analysis.requirement_counts!;
-  await expect(page.locator("#pa-summary .pa-basis")).toContainText(`원문 요구사항 ${counts.source_found}건 중 ${counts.analysis_input}건 분석`);
-  await expect(page.getByTestId("pa-language-warning")).toContainText(`${analysis.language_warnings!.length}곳`);
-
-  // 쪽 번호가 없어도 원문 블록 위치가 하나로 확인된 인용은 그 사실을 알린다(쪽 번호로 바꿔 적지 않는다).
-  await page.locator("#pa-reqs [data-pa-ev]").first().click();
-  await expect(page.locator("#pa-ev .pa-cap").first()).toContainText("원문 위치 확인");
-  await expect(page.locator("#pa-ev .pa-cap").first()).not.toContainText("쪽");
-});
-
-test("부분 결과 화면: 새 필드가 없는 옛 응답은 회사 확인을 모두 접는다", async ({ page }) => {
-  await openAnalysis(page, "partial");
-  const analysis = partial.analysis!;
-  const requests = analysis.review_actions?.requests ?? [];
-  const company = count(requests, (request) => request.kind === "company");
-  const todos = page.locator("#pa-todos");
-  await expect(todos.getByTestId("pa-company-decision")).toHaveCount(0);
-  const fold = todos.locator("details.pa-fold");
-  await expect(fold.locator("summary")).toHaveText(`회사 자료 확인 ${company}건 보기`);
-  await fold.locator("summary").click();
-  await expect(fold.locator("li code")).toHaveCount(company);
-  await expect(page.locator("#pa-reqs > .pa-cap")).toHaveText("엔진 결과에 요구사항 이름이 없어 원문 발췌로 요구를 보여요.");
-  await expect(page.locator("#pa-reqs .pa-req-table thead th").nth(1)).toHaveText("원문 발췌");
-  await expect(page.locator("#pa-summary .pa-basis")).not.toContainText("원문 요구사항");
-  await expect(page.getByTestId("pa-language-warning")).toHaveCount(0);
-});
-
-test("분석 완료 화면: 요구사항 필터와 근거 패널(1440 옆 패널)이 열리고 Esc로 닫히며 초점이 돌아온다", async ({ page }) => {
+test("1440 첫 화면에 사업 개요·금액 대조·과업·세 층·사유가 결정 띠 위에 보인다", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openAnalysis(page);
-  const fits = completed.analysis!.fits;
-  const rows = page.locator("#pa-reqs .pa-req-table tbody tr");
-  const pill = (name: RegExp) => page.locator("#pa-reqs .pa-pills").getByRole("button", { name });
-
-  // 기본 필터는 부족·미확인이다. 필터를 바꾸면 행 수가 fixture의 대응 상태 건수와 같다.
-  await expect(pill(/^부족·미확인/)).toHaveAttribute("aria-pressed", "true");
-  await expect(rows).toHaveCount(count(fits, (fit) => fit.fit === "GAP" || fit.fit === "UNKNOWN"));
-  await pill(/^충족/).click();
-  await expect(rows).toHaveCount(count(fits, (fit) => fit.fit === "FULL"));
-  await pill(/^부분/).click();
-  await expect(rows).toHaveCount(count(fits, (fit) => fit.fit === "PARTIAL"));
-  await pill(/^전체/).click();
-  await expect(rows).toHaveCount(fits.length);
-  await expect(pill(/^전체/)).toHaveText(`전체 ${fits.length}`);
-  await pill(/^부족·미확인/).click();
-
-  // 근거 보기: 1440에서는 표 옆 패널이다. 회사 근거·조치 열이 숨겨지고, Esc로 닫으면 초점이 그 단추로 돌아온다.
-  const opener = page.locator("[data-pa-ev]").first();
-  const reqId = await opener.getAttribute("data-pa-ev");
-  await opener.click();
-  const panel = page.locator("aside#pa-ev");
-  await expect(panel).toBeVisible();
-  await expect(panel).toHaveAttribute("aria-label", `${reqId} 근거`);
-  await expect(panel).toHaveClass(/is-side/);
-  await expect(panel).toContainText("원문 발췌");
-  await expect(panel).toContainText("판단 사유");
-  await expect(page.locator("#pa-reqs .pa-req-table th", { hasText: "회사 근거" })).toHaveCount(0);
-  await expect(page.locator("#pa-reqs .pa-req-table th", { hasText: "부족을 메우려면" })).toHaveCount(0);
-  await expect(opener).toHaveAttribute("aria-expanded", "true");
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-
-  await page.keyboard.press("Escape");
-  await expect(panel).toHaveCount(0);
-  await expect(opener).toBeFocused();
-  await expect(opener).toHaveAttribute("aria-expanded", "false");
-
-  // 같은 단추를 다시 누르면 닫힌다(토글).
-  await opener.click();
-  await expect(panel).toBeVisible();
-  await opener.click();
-  await expect(panel).toHaveCount(0);
+  const panel = page.locator(".app-content");
+  await expect(panel).toHaveAttribute("data-reading-width", "analysis");
+  await expect(tabs(page).getByRole("link")).toHaveText([
+    "한눈에", `쟁점${analysis.risks?.length}`, `요구사항${analysis.fits.length}`, `자격·계약${analysis.gates.length}`, "원문·처리 정보",
+  ]);
+  await expect(tabs(page).getByRole("link", { name: "한눈에" })).toHaveAttribute("aria-current", "location");
+  await expect(page.getByTestId("page-header-facts").locator("dt")).toHaveText([
+    "의견 마감", "수요기관", "공고기관", "게시", "사전규격번호", "구분", "본공고",
+  ]);
+  await expect(page.locator("#page-header-actions")).toContainText("참조");
+  const brief = page.locator("#s-brief");
+  await expect(brief.locator(".paw-bcmp")).toContainText("차이 10,000,000원 · 등록액이 더 커요");
+  await expect(brief.getByRole("heading", { name: /^사업 개요/ })).toBeVisible();
+  await expect(brief.locator(".paw-purpose > li > span:first-child")).toHaveText(analysisOverviewResult.business_overview.map(({ text }) => text));
+  await expect(brief.locator(".paw-purpose").getByRole("link", { name: "4쪽", exact: true }))
+    .toHaveAttribute("href", /\/overview\/runs\/[^/]+\/pdf#page=4$/);
+  const footer = await page.locator("#page-footer").boundingBox();
+  expect(footer).not.toBeNull();
+  for (const selector of [".paw-purpose", ".paw-bcmp", ".paw-tasks", ".paw-layers", ".paw-why"]) {
+    const box = await brief.locator(selector).boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.y + box!.height).toBeLessThanOrEqual(footer!.y);
+  }
 });
 
-test("분석 완료 화면: 1280에서는 근거가 오른쪽 서랍이고 하단 결정 띠를 덮지 않는다", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
+test("개요 검증이 보류된 상세에는 개요 확인 필요가 표시된다", async ({ page }) => {
+  await mockApi(page);
+  await mockEngineAnalysis(page, "completed", NOTICE_ID);
+  await page.route(`**/api/pre-specs/${NOTICE_ID}/overview`, (route) => route.fulfill({
+    json: overviewEnvelopeFixture(NOTICE_ID, overviewNeedsHumanReviewRunFixture),
+  }));
+  await page.goto(`/pre-specs/${NOTICE_ID}`);
+  const brief = page.locator("#s-brief");
+  await expect(brief.getByText("개요 확인 필요", { exact: true })).toBeVisible();
+  await expect(brief.locator(".paw-purpose")).toHaveCount(0);
+});
+
+test("쟁점 필터·펼침과 사유 링크가 스크롤과 초점을 옮긴다", async ({ page }) => {
   await openAnalysis(page);
-  const opener = page.locator("[data-pa-ev]").first();
-  await opener.click();
-  const drawer = page.locator(".pa-ev-drawer aside#pa-ev");
-  await expect(drawer).toBeVisible();
-  await expect(drawer).toHaveClass(/is-drawer/);
-  // 근거를 보는 동안에도 결정 띠와 단추가 보인다(서랍은 띠 위까지만 덮는다).
-  const geometry = await page.evaluate(() => {
-    const drawerBox = document.querySelector(".pa-ev-drawer")!.getBoundingClientRect();
-    const footerBox = document.getElementById("page-footer")!.getBoundingClientRect();
-    return { drawerBottom: drawerBox.bottom, footerTop: footerBox.top, footerHeight: footerBox.height };
-  });
-  expect(geometry.footerHeight).toBeGreaterThan(0);
-  expect(geometry.drawerBottom).toBeLessThanOrEqual(geometry.footerTop + 1);
-  await expect(page.locator("#page-footer").getByRole("button", { name: "추적 결정 저장하기" })).toBeInViewport();
-  await page.keyboard.press("Escape");
-  await expect(drawer).toHaveCount(0);
-  await expect(opener).toBeFocused();
+  const why = page.locator(".paw-why > li").nth(0);
+  const quote = analysis.risks![0].evidence.quote;
+  const jump = why.getByRole("button", { name: `쟁점: ${quote} →` });
+  await jump.click();
+  const row = page.locator("#issue-0");
+  await expect(row.locator(".paw-rowbtn")).toBeFocused();
+  await expect(row.getByRole("heading", { name: "엔진 설명" })).toBeVisible();
+  await expect(row.locator("blockquote").filter({ hasText: quote })).toBeVisible();
+  await expect(tabs(page).getByRole("link", { name: /^쟁점/ })).toHaveAttribute("aria-current", "location");
+  await expect(page.locator(".app-content")).toHaveAttribute("data-header-compact", "true");
+  await expect(page.getByTestId("page-header-facts").locator('[data-fact="announcer"]')).toBeHidden();
+  const filters = page.getByRole("group", { name: "쟁점 보기" });
+  await filters.getByRole("button", { name: /^심각도 상/ }).click();
+  await expect(page.locator("#s-issues .paw-issue")).toHaveCount(analysis.risks!.filter((risk) => risk.severity === "H").length);
+  await expect(row.locator(".paw-rowbtn")).toHaveAttribute("aria-expanded", "false");
+  await row.locator(".paw-rowbtn").click();
+  await expect(row.getByRole("heading", { name: "같은 원문 문장을 인용한 요구사항" })).toBeVisible();
+  await row.getByRole("button", { name: /^MHR-002/ }).click();
+  await expect(page).toHaveURL(/#req=MHR-002$/);
+  await expect(tabs(page).getByRole("link", { name: /^요구사항/ })).toHaveAttribute("aria-current", "location");
+});
+
+test("요구사항 필터·검색·키 이동·주소와 원문/실적/보완 방안을 연결한다", async ({ page }) => {
+  await openAnalysis(page, "#req=MPR-003");
+  const list = page.getByRole("table", { name: "요구사항 대응 목록" });
+  const detail = page.getByRole("complementary", { name: "선택한 요구사항" });
+  const selected = list.locator("tr[aria-current=true]");
+  await expect(selected).toHaveAttribute("data-row-key", "MPR-003");
+  await expect(selected).toBeFocused();
+  await expect(detail.getByRole("heading", { name: "장애처리 및 지연" })).toBeVisible();
+  await expect(detail.locator("blockquote")).toHaveText(analysis.fits.find(({ req_id }) => req_id === "MPR-003")!.evidence!.quote);
+  await expect(detail).toContainText("2시간 내 현장 도착 체계");
+  await expect(detail.getByRole("link", { name: "회사 근거에서 이 실적 열기 ↗" })).toHaveAttribute("href", `/company?view=portfolio&project=${analysisWikiProject.id}`);
+  await expect(detail).toContainText(analysisWikiProject.title!);
+  await expect(page.locator(".paw-workbench")).not.toContainText("[[");
+  await selected.press("ArrowDown");
+  await expect(selected).toHaveAttribute("data-row-key", "MPR-004");
+  await expect(page).toHaveURL(/#req=MPR-004$/);
+  await detail.getByRole("button", { name: "이전 요구사항" }).click();
+  await expect(page).toHaveURL(/#req=MPR-003$/);
+  const fitFilters = page.getByRole("group", { name: "대응으로 거르기" });
+  await fitFilters.getByRole("button", { name: /^부분/ }).click();
+  await page.getByRole("combobox", { name: "분류로 거르기" }).selectOption("MPR");
+  const search = page.getByRole("searchbox", { name: "요구사항 검색" });
+  await search.fill(analysisWikiProject.title!);
+  await expect(page.locator(".paw-count")).toHaveText("1건 표시");
+  await expect(selected).toHaveAttribute("data-row-key", "MPR-003");
+  await page.getByRole("checkbox", { name: "회사 근거 없는 것만" }).check();
+  await expect(page.locator(".paw-count")).toHaveText("0건 표시");
+  await expect(page.getByText("조건에 맞는 요구사항이 없어요.")).toBeVisible();
+});
+
+test("근거 쪽 링크는 제안요청서 PDF의 해당 쪽을 새 탭에서 연다", async ({ page }) => {
+  await page.context().route("**/overview/runs/*/pdf", (route) => route.fulfill({
+    contentType: "text/html",
+    body: "동결 PDF 위치를 확인하는 응답 예시",
+  }));
+  await openAnalysis(page, "#req=MPR-003");
+  const detail = page.getByRole("complementary", { name: "선택한 요구사항" });
+  const link = detail.getByRole("link", { name: "14쪽", exact: true });
+  await expect(link).toHaveAttribute("target", "_blank");
+  const opening = page.waitForEvent("popup");
+  await link.click();
+  const pdf = await opening;
+  await expect(pdf).toHaveURL(/\/overview\/runs\/[^/]+\/pdf#page=14$/);
+  await expect(page).toHaveURL(/#req=MPR-003$/);
+  await pdf.close();
+});
+
+test("다른 문서 버전의 엔진 인용에는 쪽을 붙이지 않는다", async ({ page }) => {
+  await mockApi(page);
+  const run = await mockEngineAnalysis(page, "completed", NOTICE_ID);
+  run.documents[0].document_version_id = "다른 문서 버전";
+  await page.goto(`/pre-specs/${NOTICE_ID}#req=MPR-003`);
+  const detail = page.getByRole("complementary", { name: "선택한 요구사항" });
+  await expect(detail.getByText("쪽 없음", { exact: true })).toBeVisible();
+  await expect(detail.getByRole("link", { name: /^\d+쪽$/ })).toHaveCount(0);
+});
+
+test("쪽별 텍스트 읽기 실패 시 고정 PDF는 새 탭에서 연다", async ({ page }) => {
+  await mockApi(page);
+  await mockEngineAnalysis(page, "completed", NOTICE_ID);
+  await page.route("**/overview/runs/*/page-text", (route) => route.fulfill({ status: 409, json: {
+    error: { code: "page_text_unavailable", message: "고정된 쪽별 텍스트를 읽지 못했어요.", details: null }, request_id: null,
+  } }));
+  await page.goto(`/pre-specs/${NOTICE_ID}#req=MPR-003`);
+  const detail = page.getByRole("complementary", { name: "선택한 요구사항" });
+  await expect(detail.getByText("쪽 없음", { exact: true })).toBeVisible();
+  await expect(detail.getByRole("link", { name: "PDF 새 탭에서 열기 ↗" })).toHaveAttribute("href", /\/overview\/runs\/[^/]+\/pdf$/);
+});
+
+test("자격 표와 원문·처리 정보의 여덟 항목을 보여 준다", async ({ page }) => {
+  await openAnalysis(page);
+  await tabs(page).getByRole("link", { name: /^자격·계약/ }).click();
+  const terms = page.locator("#s-terms");
+  await expect(terms.getByText("자격 판정에 쓰인 회사 값 가운데 1개는 데모 입력이에요.")).toBeVisible();
+  await expect(terms.getByText("엔진 추출 값 100 · 단위·조건은 원문 확인")).toBeVisible();
+  await tabs(page).getByRole("link", { name: "원문·처리 정보" }).click();
+  await expect(tabs(page).getByRole("link", { name: "원문·처리 정보" })).toHaveAttribute("aria-current", "location");
+  const source = page.locator("#s-source");
+  await expect(source.locator("dt")).toHaveText([
+    "분석한 원문", "사업 개요의 범위", "심층 분석의 범위", "엔진이 본 회사 자료",
+    "엔진이 요청한 회사 정보", "수익성", "결과를 쓸 때 주의", "쪽 번호를 붙인 방법",
+  ]);
+  await expect(source).toContainText("제안요청서.hwpx");
+  await expect(source).toContainText("뜻이 등록되지 않은 경고예요. new_warning");
+  await expect(source).toContainText("현장 인력 운영");
+  await expect(source).toContainText("보안 운영");
+  await expect(page.locator("#s-reqs .paw-kn")).toContainText("1쪽은 분석 분량 제한으로 빠졌어요(보안 운영).");
+  await expect(page.locator("#ps-process")).toHaveCount(0);
+});
+
+test("업무 근거 지도는 두 종류의 부족과 미확인을 구분하고 같은 ID를 순서대로 연결한다", async ({ page }) => {
+  await openAnalysis(page, "#req=MHR-002%401", "classified");
+  const requirements = page.locator("#s-reqs");
+  const detail = requirements.getByRole("complementary", { name: "선택한 요구사항" });
+  const evidence = detail.getByRole("region", { name: "업무 근거" });
+  const row = (key: string) => requirements.locator(`tr[data-row-key="${key}"]`);
+  const noRecord = "수행 기록 없음 · 업무 근거 지도 실적 7건 기준";
+  const constrained = "회사 정보에서 확인된 제약";
+  await expect(row("MHR-002@1")).toHaveAttribute("title", noRecord);
+  await expect(row("MHR-002@2")).toHaveAttribute("title", constrained);
+  await expect(row("MHR-002@3")).toHaveAttribute("title", constrained);
+  await expect(row("MPR-005")).toHaveAttribute("title", "판단 자료 없음");
+  await expect(row("MHR-002@1").getByText("부족", { exact: true })).toBeVisible();
+  await expect(detail.getByText("부족", { exact: true })).toBeVisible();
+  await expect(detail.getByText(noRecord, { exact: true })).toBeVisible();
+  await expect(evidence).toContainText("단위에 들지 않는 부분 성남 상주 운영");
+
+  const filters = requirements.getByRole("group", { name: "대응으로 거르기" });
+  await filters.getByRole("button", { name: /^부족/ }).click();
+  await row("MHR-002@2").click();
+  await expect(detail.getByText(constrained, { exact: true })).toBeVisible();
+  await expect(evidence).toContainText("work-staffing-schedule");
+  await expect(evidence).toContainText("단위에 들지 않는 부분 성남 지정 근무지");
+  await expect(evidence).toContainText(analysisWikiProject.title!);
+  await expect(evidence).toContainText(analysisWikiProject.id);
+  await row("MHR-002@3").click();
+  await expect(evidence).toContainText("work-staffing-onsite");
+  await expect(evidence.getByText("단위에 들지 않는 부분")).toHaveCount(0);
+
+  await filters.getByRole("button", { name: /^미확인/ }).click();
+  await row("MPR-005").click();
+  await expect(detail.getByText("판단 자료 없음", { exact: true })).toBeVisible();
+  await expect(evidence).toHaveCount(0);
+  const notice = "요구사항마다 업무 근거 지도(실적 7건 기준)로 근거 실적을 연결했어요. 지도에 없는 실적은 판단에 들어가지 않았어요.";
+  await expect(requirements.locator(".paw-kn")).toHaveText(notice);
+  const source = page.locator("#s-source");
+  await expect(source).toContainText(notice);
+  await expect(source.getByText("업무 근거 지도", { exact: true })).toBeVisible();
+  await expect(source).toContainText("요구사항 4건을 업무 단위로 분류했어요(지도 실적 7건 기준). 어느 단위에도 들지 않은 요구사항 1건은 ‘수행 기록 없음’으로 판정될 수 있어요.");
+});
+
+test("업무 근거 지도 분류 실패는 원래 사유 코드와 실제 읽은 쪽 수를 보여 준다", async ({ page }) => {
+  await openAnalysis(page, "#req=MHR-002", "unavailable");
+  const detail = page.getByRole("complementary", { name: "선택한 요구사항" });
+  await expect(detail.getByText("회사 정보에서 확인된 제약", { exact: true })).toBeVisible();
+  await expect(detail.getByRole("region", { name: "업무 근거" })).toHaveCount(0);
+  const notice = "회사 근거 위키 2쪽과 관련 실적 1건을 읽었어요. ‘회사 근거 없음’이 실적이 없다는 뜻은 아니에요.";
+  await expect(page.locator("#s-reqs .paw-kn")).toHaveText(notice);
+  const source = page.locator("#s-source");
+  await expect(source).toContainText(notice);
+  await expect(source).toContainText("분류하지 못했어요(invalid_assignments). 이 분석의 ‘부족’은 회사 정보에서 확인된 제약에서만 나와요.");
+  await expect(source).not.toContainText("분량 제한 때문에 0쪽");
 });
 
 test("분석 완료 화면: 계속 추적·보류·종료를 고르고 종료는 확인 단계를 거친다", async ({ page }) => {
   const patches = await (async () => { await mockApi(page); return mockTrackingPatches(page); })();
   await mockEngineAnalysis(page, "completed", NOTICE_ID);
   await page.goto(`/pre-specs/${NOTICE_ID}`);
-  await expect(page.locator("#pa-summary")).toBeVisible();
+  await expect(page.locator("#s-brief")).toBeVisible();
   await setSidebarActor(page, "분석 담당");
 
   const bar = page.locator("#page-footer");
@@ -310,54 +299,25 @@ test("분석 완료 화면: 계속 추적·보류·종료를 고르고 종료는
   await expect(choices.getByRole("button", { name: "계속 추적" })).toHaveAttribute("aria-pressed", "true");
 });
 
-test("부분 결과 화면: 읽지 못한 범위를 알리고 판정 건수·차단 건수·품질 표식을 그대로 보인다", async ({ page }) => {
-  await openAnalysis(page, "partial");
-  const analysis = partial.analysis!;
-  const notice = page.locator("#pa-summary .pa-notice");
-  await expect(notice).toContainText("부분 결과예요");
-  await expect(notice).toContainText(`요구사항 ${analysis.assessment!.provisional!.fit_coverage!.total}건 중 ${analysis.assessment!.provisional!.fit_coverage!.judged}건 판정`);
-  await expect(notice).toContainText(partial.warnings.join(", "));
-  await expect(page.locator("#pa-summary .pa-counts")).toContainText(`차단 ${count(analysis.gates, (gate) => gate.verdict === "FAIL")}`);
-  await expect(page.locator("#pa-summary .pa-basis")).toContainText(qualityStatusLabel(partial.quality_status));
-  // 읽지 못한 요구사항은 충족으로 읽히지 않고 미확인으로 남는다.
-  const unreadRows = page.locator("#pa-reqs .pa-req-table tbody tr").filter({ hasText: "원문 발췌 없음" });
-  expect(await unreadRows.count()).toBeGreaterThan(0);
-  await expect(unreadRows.first()).toContainText("미확인");
-  // 부분 결과는 쪽 번호가 있는 근거라 단추가 쪽을 말한다.
-  await expect(page.locator("#pa-reqs [data-pa-ev]").filter({ hasText: /^\d+쪽$/ }).first()).toBeVisible();
-});
 
-// 정보 열의 5개 사실(추적 상태 포함)에서도 각 값이 한 줄이고, 하단 띠 높이는 분석 전과 같다.
-for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }]) {
-  test(`분석 완료 화면 ${viewport.width}: 정보 열 값이 한 줄이고 하단 띠 높이가 분석 전과 같다`, async ({ page }) => {
+for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }, { width: 1920, height: 1080 }]) {
+  test(`${viewport.width}px에서 헤더·본문·결정 띠가 정렬되고 가로로 넘치지 않는다`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await openAnalysis(page);
-    const facts = await page.locator(".workbench-record-rail #ps-summary dt:nth-of-type(-n+5)").evaluateAll((labels) => labels.map((label) => {
-      const dd = label.nextElementSibling!;
-      const text = [...dd.childNodes].find((node) => node.nodeType === Node.TEXT_NODE && (node.textContent ?? "").trim() !== "");
-      const range = document.createRange();
-      range.selectNodeContents(text!);
-      return { label: label.textContent, lines: new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size, text: text!.textContent };
-    }));
-    expect(facts.map((fact) => fact.label)).toEqual(["의견 마감", "사업 예산", "구분", "게시", "추적 상태"]);
-    for (const fact of facts) expect(fact.lines, `${fact.label}: ${fact.text}`).toBe(1);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-
-    const afterHeight = await page.locator("#page-footer .ps-decision-bar").evaluate((element) => Math.round(element.getBoundingClientRect().height));
-    // 분석 전 화면의 띠(같은 폭)와 같은 높이다. 비교 기준은 같은 폭의 분석 전 띠 실측이다.
-    const before = await page.context().newPage();
-    await before.setViewportSize(viewport);
-    await mockApi(before);
-    await mockEngineAnalysis(before, "completed", NOTICE_ID);
-    await before.route(/\/api\/companies\/.*\/engine-runs/, (route) => route.fulfill({ json: { items: [], total: 0 } }));
-    await before.goto("/pre-specs/992");
-    await expect(before.locator("#page-footer .ps-decision-bar")).toBeVisible();
-    const beforeHeight = await before.locator("#page-footer .ps-decision-bar").evaluate((element) => Math.round(element.getBoundingClientRect().height));
-    await before.close();
-    expect(afterHeight).toBe(beforeHeight);
-    expect(afterHeight).toBeLessThanOrEqual(56);
-    // 안내 문장은 화면 글줄이 아니라 저장 단추의 비활성 사유(낭독기)로 남는다.
-    await expect(page.locator("#page-footer #pre-spec-tracking-save-disabled")).toHaveText("추적 상태(계속 추적·보류·종료)를 골라 주세요.");
-    await expect(page.locator("#page-footer").getByRole("button", { name: "추적 결정 저장하기" })).toHaveAttribute("aria-describedby", "pre-spec-tracking-save-disabled");
+    await tabs(page).getByRole("link", { name: /^요구사항/ }).click();
+    await expect(tabs(page).getByRole("link", { name: /^요구사항/ })).toHaveAttribute("aria-current", "location");
+    const geometry = await page.evaluate(() => {
+      const left = (s: string) => document.querySelector(s)!.getBoundingClientRect().left;
+      const canvas = document.querySelector(".page-canvas")!;
+      const list = document.querySelector(".paw-reqlist")!;
+      return {
+        header: left(".topbar-record"), main: left(".paw-workbench"), footer: left(".ps-decision-bar-inner"),
+        page: document.documentElement.scrollWidth - innerWidth,
+        canvas: canvas.scrollWidth - canvas.clientWidth, list: list.scrollWidth - list.clientWidth,
+      };
+    });
+    expect(Math.abs(geometry.header - geometry.main)).toBeLessThanOrEqual(1);
+    expect(Math.abs(geometry.footer - geometry.main)).toBeLessThanOrEqual(1);
+    expect(Math.max(geometry.page, geometry.canvas, geometry.list)).toBeLessThanOrEqual(1);
   });
 }

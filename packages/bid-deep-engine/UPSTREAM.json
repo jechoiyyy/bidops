@@ -46,7 +46,13 @@
     {
       "path": "src/bidops/analysis/matcher.py",
       "sha256": "7774a38e53334be0d2474da93316408c31df989ed7b8e98845c3bfab9b7dae99",
-      "adaptation": "import rename"
+      "adaptation": "import rename",
+      "local_replacements": [
+        [
+          "    return \"\\n\".join(lines)\n\n\n\ndef profile_gap_paths(profile: CompanyProfile | CompanyEvidenceView) -> list[str]:\n    \"\"\"Paths with a current, explicitly negative profile value usable by match.\"\"\"\n    if not isinstance(profile, CompanyEvidenceView) or profile.provenance is None:\n        return []\n    paths = []\n    for path in profile.provenance.fields:\n        item = profile.get(path)\n        if item[\"effective_level\"] not in (\"confirmed\", \"demo\", \"public\"):\n            continue\n        value = item[\"value\"]\n        if value is False or value == [] or value == \"none\":\n            paths.append(path)\n    return paths\n\ndef build_match_instruction(\n",
+          "    return \"\\n\".join(lines)\n\n\ndef build_match_instruction(\n"
+        ]
+      ]
     },
     {
       "path": "src/bidops/analysis/merge.py",
@@ -61,7 +67,61 @@
     {
       "path": "src/bidops/analysis/pipeline.py",
       "sha256": "a294e877bf72d629d9c3d11724ef9c49aed0b9639d310540260c206408c59beb",
-      "adaptation": "import rename"
+      "adaptation": "import rename",
+      "local_replacements": [
+        [
+          "import math\nimport os\nimport re\nimport warnings\nfrom collections.abc import Callable, Mapping\n",
+          "import math\nimport os\nimport warnings\nfrom collections.abc import Callable, Mapping\n"
+        ],
+        [
+          "    LlmTruncated,\n)\nfrom bid_deep_engine.analysis.matcher import profile_gap_paths\nfrom bid_deep_engine.analysis.output_quality import annotate_output\nfrom bid_deep_engine.analysis.provenance import (\n",
+          "    LlmTruncated,\n)\nfrom bid_deep_engine.analysis.output_quality import annotate_output\nfrom bid_deep_engine.analysis.provenance import (\n"
+        ],
+        [
+          "from bid_deep_engine.analysis.synthesizer import synth_document, synthesize\nfrom bid_deep_engine.analysis.tracing import NULL_TRACER, NoticeTrace, Tracer\nfrom bid_deep_engine.analysis.workunits import (\n    WorkUnitSummary,\n    classify_work_units,\n    parse_work_unit_map,\n    prepare_work_unit_knowledge,\n    summarize_assignments,\n    validate_assignments,\n    work_unit_output_hash,\n)\nfrom bid_deep_engine.company.knowledge import (\n    WIKILINK_RE,\n    Knowledge,\n    KnowledgeSelection,\n)\nfrom bid_deep_engine.company.provenance import CompanyEvidenceView\n",
+          "from bid_deep_engine.analysis.synthesizer import synth_document, synthesize\nfrom bid_deep_engine.analysis.tracing import NULL_TRACER, NoticeTrace, Tracer\nfrom bid_deep_engine.company.knowledge import (\n    WIKILINK_RE,\n    Knowledge,\n    KnowledgeSelection,\n    prepare_knowledge,\n)\nfrom bid_deep_engine.company.provenance import CompanyEvidenceView\n"
+        ],
+        [
+          "\ndef annotate_evidence_pages(\n    fits: list[RequirementFit], selection: KnowledgeSelection,\n    work_units: WorkUnitSummary | None = None,\n) -> tuple[list[RequirementFit], list[str]]:\n    \"\"\"각 fit `rationale`의 `[[slug]]`(KB-01 `WIKILINK_RE`)를 등장 순·중복 제거로 뽑아, 발췌에\n    포함된 페이지(`selection.pages`)와 해당 요구사항의 지도 근거만 `evidence_pages`에 넣는다.\n\n    나머지 slug마다 경고 `match: unknown knowledge page removed: <slug> (<req_id>)`. `rationale`은\n",
+          "\ndef annotate_evidence_pages(\n    fits: list[RequirementFit], selection: KnowledgeSelection\n) -> tuple[list[RequirementFit], list[str]]:\n    \"\"\"각 fit `rationale`의 `[[slug]]`(KB-01 `WIKILINK_RE`)를 등장 순·중복 제거로 뽑아, 발췌에\n    포함된 페이지(`selection.pages`)만 `evidence_pages`에 넣는다(KB-03, X75).\n\n    나머지 slug마다 경고 `match: unknown knowledge page removed: <slug> (<req_id>)`. `rationale`은\n"
+        ],
+        [
+          "    \"\"\"\n    included = set(selection.pages)\n    mapped = {}\n    if work_units is not None and work_units.status == \"classified\":\n        mapped = {item.req_id: set(item.evidence_projects) for item in work_units.assignments}\n    out: list[RequirementFit] = []\n    warnings: list[str] = []\n",
+          "    \"\"\"\n    included = set(selection.pages)\n    out: list[RequirementFit] = []\n    warnings: list[str] = []\n"
+        ],
+        [
+          "        kept: list[str] = []\n        for slug in slugs:\n            if slug in included or slug in mapped.get(fit.key, ()):\n                kept.append(slug)\n            else:\n",
+          "        kept: list[str] = []\n        for slug in slugs:\n            if slug in included:\n                kept.append(slug)\n            else:\n"
+        ],
+        [
+          "        self._fits: tuple[dict[str, Any], list[RequirementFit]] | None = None\n        self._selection: tuple[KnowledgeSelection | None, str] | None = None\n        self.work_units: WorkUnitSummary | None = None\n        self._work_unit_evidence = \"\"\n        self._location_cache: tuple[NoticeBundle | None, list[RawDoc]] | None = None\n        # 병합 기준은 이번 실행이 쓰기 전의 usage.json이다.\n",
+          "        self._fits: tuple[dict[str, Any], list[RequirementFit]] | None = None\n        self._selection: tuple[KnowledgeSelection | None, str] | None = None\n        self._location_cache: tuple[NoticeBundle | None, list[RawDoc]] | None = None\n        # 병합 기준은 이번 실행이 쓰기 전의 usage.json이다.\n"
+        ],
+        [
+          "\n    def knowledge_for(self, doc: RfpDocument) -> tuple[KnowledgeSelection | None, str]:\n        \"\"\"Classify and select once. A standalone synth uses the classification of its fits.\"\"\"\n        if self._selection is not None:\n            return self._selection\n        if self.knowledge is None:\n            self._selection = (None, \"\")\n            return self._selection\n        work_map = parse_work_unit_map(self.knowledge) if doc.requirements else None\n        if work_map is not None and self.current == \"match\":\n            output, reason = classify_work_units(self.client(), doc, work_map, self.calls)\n            self.work_units = summarize_assignments(work_map, output, reason)\n            if reason is not None:\n                self.warn(\"match\", [f\"units: classification unavailable: {reason}\"])\n        elif work_map is not None:\n            fits_meta, _ = self.stored_fits()\n            prompt_hashes = fits_meta.get(\"prompt_hashes\")\n            if (\n                fits_meta.get(\"knowledge_hash\") == self.knowledge.hash\n                and fits_meta.get(\"work_units_requirements_hash\") == requirements_hash(doc)\n                and isinstance(prompt_hashes, dict)\n                and prompt_hashes.get(\"units\") == _sha256(prompt_bytes(\"units.md\"))\n            ):\n                try:\n                    summary = WorkUnitSummary.model_validate(fits_meta.get(\"work_units\"))\n                except ValidationError:\n                    summary = None\n                if summary is not None and (\n                    summary.status == \"unavailable\"\n                    or not validate_assignments(work_map, doc, summary.assignments)\n                ):\n                    self.work_units = summary\n        selection, text, self._work_unit_evidence = prepare_work_unit_knowledge(\n            self.knowledge, doc, work_map, self.work_units, override=self.category_override,\n        )\n        if self._work_unit_evidence:\n            text += \"\\n\\n\" + self._work_unit_evidence\n        self._selection = (selection, text)\n        return self._selection\n\n",
+          "\n    def knowledge_for(self, doc: RfpDocument) -> tuple[KnowledgeSelection | None, str]:\n        \"\"\"공고당 한 번 고른 발췌 (선택, 렌더링 텍스트). 지식이 없으면 `(None, \"\")`.\n\n        match·synth가 같은 값을 쓴다. 미지 override slug의 `ValueError`는 잡지 않는다(CLI가 미리\n        검증 — 여기서 나면 프로그래밍 오류).\n        \"\"\"\n        if self._selection is None:\n            if self.knowledge is None:\n                self._selection = (None, \"\")\n            else:\n                self._selection = prepare_knowledge(\n                    doc, self.knowledge, override=self.category_override\n                )\n        return self._selection\n\n"
+        ],
+        [
+          "        facts_meta, facts = self.facts()\n        effective = self.stage_strategy(facts_meta)\n        profile = self.required_profile()\n        selection, knowledge_text = self.knowledge_for(doc)\n        skipped = _skipped_warning(selection)\n        self.warn(\"match\", skipped)  # 입력 사실이므로 호출 실패여도 usage.json에 남는다\n        fits, calls, warnings = self.strategy_for(effective).match(\n            doc, facts, profile, knowledge_text=knowledge_text\n        )\n        self.calls.extend(calls)\n        if selection is not None:  # 전략(single·mapreduce) 공통\n            fits, page_warnings = annotate_evidence_pages(fits, selection, self.work_units)\n            warnings = [*warnings, *page_warnings]\n        no_units = {\n            row.req_id for row in self.work_units.assignments if not row.units\n        } if self.work_units is not None and self.work_units.status == \"classified\" else set()\n        negative_paths = profile_gap_paths(profile)\n        warnings.extend(\n            f\"match: gap without work-unit or profile basis ({fit.key})\"\n            for fit in fits\n            if fit.fit == \"GAP\" and fit.key not in no_units and not any(\n                re.search(rf\"(?<![A-Za-z0-9_.%]){re.escape(path)}(?![A-Za-z0-9_.%\\[])\", fit.rationale)\n                for path in negative_paths\n            )\n        )\n        fits = [self.locate(fit, doc) for fit in fits]\n        self.warn(\"match\", warnings)\n",
+          "        facts_meta, facts = self.facts()\n        effective = self.stage_strategy(facts_meta)\n        selection, knowledge_text = self.knowledge_for(doc)\n        skipped = _skipped_warning(selection)\n        self.warn(\"match\", skipped)  # 입력 사실이므로 호출 실패여도 usage.json에 남는다\n        fits, calls, warnings = self.strategy_for(effective).match(\n            doc, facts, self.required_profile(), knowledge_text=knowledge_text\n        )\n        self.calls.extend(calls)\n        if selection is not None:  # 전략(single·mapreduce) 공통 — 발췌 포함 페이지만 남긴다\n            fits, page_warnings = annotate_evidence_pages(fits, selection)\n            warnings = [*warnings, *page_warnings]\n        fits = [self.locate(fit, doc) for fit in fits]\n        self.warn(\"match\", warnings)\n"
+        ],
+        [
+          "                        \"requirements\": requirements_hash(doc),\n                        \"company\": self.company_input_hash,\n                        \"knowledge\": knowledge_input_hash(\n                            self.knowledge, selection, work_unit_evidence=self._work_unit_evidence,\n                        ),\n                        \"work_units\": work_unit_output_hash(self.work_units),\n                        \"prompts\": prompt_set_hash(\"fits\", effective),\n                        \"model_settings\": model_settings_hash(\n",
+          "                        \"requirements\": requirements_hash(doc),\n                        \"company\": self.company_input_hash,\n                        \"knowledge\": knowledge_input_hash(self.knowledge, selection),\n                        \"prompts\": prompt_set_hash(\"fits\", effective),\n                        \"model_settings\": model_settings_hash(\n"
+        ],
+        [
+          "                \"system\": _sha256(prompt_bytes(\"system.md\")),\n                \"match\": _sha256(prompt_bytes(\"match.md\")),\n                \"units\": _sha256(prompt_bytes(\"units.md\")),\n            },\n            \"created_at\": created_at,\n            \"warnings\": self.pass_warnings[\"match\"],\n        }\n        if self.work_units is not None:\n            meta[\"work_units\"] = self.work_units.model_dump(mode=\"json\")\n            meta[\"work_units_requirements_hash\"] = requirements_hash(doc)\n        if stage is not None:\n            meta[\"stage\"] = stage.model_dump(mode=\"json\")\n",
+          "                \"system\": _sha256(prompt_bytes(\"system.md\")),\n                \"match\": _sha256(prompt_bytes(\"match.md\")),\n            },\n            \"created_at\": created_at,\n            \"warnings\": [*skipped, *warnings],\n        }\n        if stage is not None:\n            meta[\"stage\"] = stage.model_dump(mode=\"json\")\n"
+        ],
+        [
+          "                    \"fits\": fits_hash,\n                    \"company\": self.company_input_hash,\n                    \"knowledge\": knowledge_input_hash(\n                        self.knowledge, selection, work_unit_evidence=self._work_unit_evidence,\n                    ),\n                    \"prompts\": prompt_set_hash(\"synth\", effective),\n                    \"model_settings\": model_settings_hash(\n",
+          "                    \"fits\": fits_hash,\n                    \"company\": self.company_input_hash,\n                    \"knowledge\": knowledge_input_hash(self.knowledge, selection),\n                    \"prompts\": prompt_set_hash(\"synth\", effective),\n                    \"model_settings\": model_settings_hash(\n"
+        ],
+        [
+          "            numeric_facts_unconfirmed=numeric_facts_unconfirmed,\n            knowledge=selection,\n            work_units=self.work_units,\n            company_input_hash=self.company_input_hash,\n            effort=self.effort,\n",
+          "            numeric_facts_unconfirmed=numeric_facts_unconfirmed,\n            knowledge=selection,\n            company_input_hash=self.company_input_hash,\n            effort=self.effort,\n"
+        ]
+      ]
     },
     {
       "path": "src/bidops/analysis/prompt_files.py",
@@ -71,7 +131,41 @@
     {
       "path": "src/bidops/analysis/provenance.py",
       "sha256": "bcd3ab6ea50fa304ea3f9119aef93314d6e3b8ca4a385d387026cbed157cd069",
-      "adaptation": "import rename"
+      "adaptation": "import rename",
+      "local_replacements": [
+        [
+          "    \"gates\": (\"facts\", \"company\", \"confirmations\", \"as_of\", \"portfolio_knowledge\"),\n    \"scores\": (\"facts\", \"company\", \"as_of\"),\n    \"fits\": (\"facts\", \"requirements\", \"company\", \"knowledge\", \"prompts\", \"model_settings\", \"work_units\"),\n    \"synth\": (\n        \"facts\",\n",
+          "    \"gates\": (\"facts\", \"company\", \"confirmations\", \"as_of\", \"portfolio_knowledge\"),\n    \"scores\": (\"facts\", \"company\", \"as_of\"),\n    \"fits\": (\"facts\", \"requirements\", \"company\", \"knowledge\", \"prompts\", \"model_settings\"),\n    \"synth\": (\n        \"facts\",\n"
+        ],
+        [
+          "\n\ndef stage_input_payload(stage: Stage, inputs: Mapping[str, str | None]) -> dict[str, Any]:\n    expected = STAGE_INPUT_KEYS[stage]\n    # Older match-v1 artifacts have no classification input.\n    if stage == \"fits\" and \"work_units\" not in inputs:\n        expected = expected[:-1]\n    if set(inputs) != set(expected):\n        raise ValueError(f\"{stage} inputs must be exactly {expected!r}\")\n    if any(\n        key != \"work_units\" if value is None else not _HASH_RE.fullmatch(value)\n        for key, value in inputs.items()\n    ):\n        raise ValueError(\"stage input values must be 64 lowercase hex hashes\")\n    return {\n",
+          "\n\ndef stage_input_payload(stage: Stage, inputs: Mapping[str, str]) -> dict[str, Any]:\n    expected = STAGE_INPUT_KEYS[stage]\n    if set(inputs) != set(expected):\n        raise ValueError(f\"{stage} inputs must be exactly {expected!r}\")\n    if any(not _HASH_RE.fullmatch(value) for value in inputs.values()):\n        raise ValueError(\"stage input values must be 64 lowercase hex hashes\")\n    return {\n"
+        ],
+        [
+          "\n\ndef stage_input_hash(stage: Stage, inputs: Mapping[str, str | None]) -> str:\n    return canonical_hash(stage_input_payload(stage, inputs))\n\n",
+          "\n\ndef stage_input_hash(stage: Stage, inputs: Mapping[str, str]) -> str:\n    return canonical_hash(stage_input_payload(stage, inputs))\n\n"
+        ],
+        [
+          "    stage: Stage,\n    *,\n    inputs: Mapping[str, str | None],\n    output: Any,\n    parameters: StageParameters,\n",
+          "    stage: Stage,\n    *,\n    inputs: Mapping[str, str],\n    output: Any,\n    parameters: StageParameters,\n"
+        ],
+        [
+          "    stamp: StageStamp,\n    *,\n    inputs: Mapping[str, str | None],\n    output: Any,\n) -> bool:\n",
+          "    stamp: StageStamp,\n    *,\n    inputs: Mapping[str, str],\n    output: Any,\n) -> bool:\n"
+        ],
+        [
+          "    names = {\n        \"facts\": (\"system.md\", \"extract.md\" if strategy == \"single\" else \"extract_partial.md\"),\n        \"fits\": (\"system.md\", \"match.md\", \"units.md\"),\n        \"synth\": (\"system.md\", \"synth.md\"),\n    }[stage]\n",
+          "    names = {\n        \"facts\": (\"system.md\", \"extract.md\" if strategy == \"single\" else \"extract_partial.md\"),\n        \"fits\": (\"system.md\", \"match.md\"),\n        \"synth\": (\"system.md\", \"synth.md\"),\n    }[stage]\n"
+        ],
+        [
+          "\n\ndef knowledge_input_hash(\n    knowledge: Knowledge | None, selection: KnowledgeSelection | None, *, work_unit_evidence: str = \"\"\n) -> str:\n    if knowledge is None or selection is None:\n        if knowledge is not None or selection is not None:\n",
+          "\n\ndef knowledge_input_hash(knowledge: Knowledge | None, selection: KnowledgeSelection | None) -> str:\n    if knowledge is None or selection is None:\n        if knowledge is not None or selection is not None:\n"
+        ],
+        [
+          "        ],\n    }\n    if work_unit_evidence:\n        payload[\"work_unit_evidence\"] = work_unit_evidence\n    return canonical_hash(payload)\n\n",
+          "        ],\n    }\n    return canonical_hash(payload)\n\n"
+        ]
+      ]
     },
     {
       "path": "src/bidops/analysis/recommend.py",
@@ -81,12 +175,68 @@
     {
       "path": "src/bidops/analysis/review.py",
       "sha256": "c7b3563461947454fd6504b4d8d20a3f10d24ed69f63af5dc8fdcec3d47e0000",
-      "adaptation": "import rename"
+      "adaptation": "import rename",
+      "local_replacements": [
+        [
+          ")\nfrom bid_deep_engine.company.hints import DEFAULT_HINT, hint_for\nfrom bid_deep_engine.analysis.workunits import (\n    WorkUnitSummary,\n    parse_work_unit_map,\n    prepare_work_unit_knowledge,\n    validate_assignments,\n    work_unit_output_hash,\n)\nfrom bid_deep_engine.company.knowledge import (\n    KnowledgeError,\n",
+          ")\nfrom bid_deep_engine.company.hints import DEFAULT_HINT, hint_for\nfrom bid_deep_engine.company.knowledge import (\n    KnowledgeError,\n"
+        ],
+        [
+          "    load_knowledge,\n    load_portfolio_texts,\n)\nfrom bid_deep_engine.company.loader import ProfileError, load_evidence_view\n",
+          "    load_knowledge,\n    load_portfolio_texts,\n    prepare_knowledge,\n)\nfrom bid_deep_engine.company.loader import ProfileError, load_evidence_view\n"
+        ],
+        [
+          "\ndef _knowledge_hash_for(\n    stamp: StageStamp, document: RfpDocument, company: CompanyEvidenceView | None,\n    work_units: WorkUnitSummary | None,\n) -> str | None:\n    params = stamp.parameters\n",
+          "\ndef _knowledge_hash_for(\n    stamp: StageStamp, document: RfpDocument, company: CompanyEvidenceView | None\n) -> str | None:\n    params = stamp.parameters\n"
+        ],
+        [
+          "    try:\n        knowledge = load_knowledge(\n            params.knowledge_root, profile=None if company is None else company.profile,\n            filter_work_unit_refs=True,\n        )\n        override = (\n            params.knowledge_categories if params.knowledge_category_source == \"manual\" else None\n        )\n        work_map = None\n        if work_units is not None and work_units.status == \"classified\":\n            work_map = parse_work_unit_map(knowledge)\n            if work_map is None or validate_assignments(work_map, document, work_units.assignments):\n                return None\n        selection, _, evidence = prepare_work_unit_knowledge(\n            knowledge, document, work_map, work_units, override=override,\n        )\n    except (OSError, ValueError, KnowledgeError):\n        return None\n    return knowledge_input_hash(knowledge, selection, work_unit_evidence=evidence)\n\n\n",
+          "    try:\n        knowledge = load_knowledge(\n            params.knowledge_root, profile=None if company is None else company.profile\n        )\n        override = (\n            params.knowledge_categories if params.knowledge_category_source == \"manual\" else None\n        )\n        selection, _ = prepare_knowledge(document, knowledge, override=override)\n    except (OSError, ValueError, KnowledgeError):\n        return None\n    return knowledge_input_hash(knowledge, selection)\n\n\n"
+        ],
+        [
+          "    now: date | datetime | None,\n    portfolio_texts: Mapping[str, str] | None = None,\n) -> dict[str, str | None] | None:\n    params = stamp.parameters\n    upstream = {\n",
+          "    now: date | datetime | None,\n    portfolio_texts: Mapping[str, str] | None = None,\n) -> dict[str, str] | None:\n    params = stamp.parameters\n    upstream = {\n"
+        ],
+        [
+          "            if params.model is None or params.strategy is None or params.effort is None:\n                return None\n            knowledge = _knowledge_hash_for(stamp, document, company, analysis.work_units)\n            if knowledge is None:\n                return None\n            prompt_stage = \"fits\" if stage == \"fits\" else \"synth\"\n            result: dict[str, str | None] = {\n                \"facts\": upstream[\"facts\"],\n                \"company\": company.company_input_hash,\n",
+          "            if params.model is None or params.strategy is None or params.effort is None:\n                return None\n            knowledge = _knowledge_hash_for(stamp, document, company)\n            if knowledge is None:\n                return None\n            prompt_stage = \"fits\" if stage == \"fits\" else \"synth\"\n            result = {\n                \"facts\": upstream[\"facts\"],\n                \"company\": company.company_input_hash,\n"
+        ],
+        [
+          "            if stage == \"fits\":\n                result[\"requirements\"] = requirements_hash(document)\n                if \"work_units\" in stamp.inputs:\n                    result[\"work_units\"] = work_unit_output_hash(analysis.work_units)\n            else:\n                if any(name not in upstream for name in (\"gates\", \"scores\", \"fits\")):\n",
+          "            if stage == \"fits\":\n                result[\"requirements\"] = requirements_hash(document)\n            else:\n                if any(name not in upstream for name in (\"gates\", \"scores\", \"fits\")):\n"
+        ]
+      ]
     },
     {
       "path": "src/bidops/analysis/schemas.py",
       "sha256": "9aebe4b7a062302b470457ba22be7cef850f92e940fc474ca81de3b964a56eb5",
-      "adaptation": "import rename"
+      "adaptation": "import rename",
+      "local_replacements": [
+        [
+          "from typing import Any, Literal\n\nfrom pydantic import BaseModel, Field, field_validator, model_serializer, model_validator\n\nfrom bid_deep_engine.analysis.workunits import WorkUnitSummary\n\n# company.knowledge는 bid_deep_engine.analysis를 import하지 않는다(순환 없음, KB-01 import 규칙)\n",
+          "from typing import Any, Literal\n\nfrom pydantic import BaseModel, Field, field_validator, model_validator\n\n# company.knowledge는 bid_deep_engine.analysis를 import하지 않는다(순환 없음, KB-01 import 규칙)\n"
+        ],
+        [
+          "\n    `evidence_pages`는 모델 출력이 아니다(X7): pipeline `annotate_evidence_pages`가 `rationale`의\n    `[[slug]]` 중 발췌 페이지와 해당 요구사항의 지도 근거를 채운다. 필드 도입 전 산출물은 `[]`.\n    \"\"\"\n\n",
+          "\n    `evidence_pages`는 모델 출력이 아니다(X7): pipeline `annotate_evidence_pages`가 `rationale`의\n    `[[slug]]` 중 발췌에 포함된 회사 지식 페이지만 채운다(KB-03). 필드 도입 전 산출물은 `[]`.\n    \"\"\"\n\n"
+        ],
+        [
+          "    version: str\n    computed_at: str\n    inputs: dict[str, str | None]\n    parameters: StageParameters\n\n",
+          "    version: str\n    computed_at: str\n    inputs: dict[str, str]\n    parameters: StageParameters\n\n"
+        ],
+        [
+          "    @field_validator(\"inputs\")\n    @classmethod\n    def _input_hashes_are_lower_hex(cls, value: dict[str, str | None]) -> dict[str, str | None]:\n        if any(\n            key != \"work_units\" if item is None else not _SHA256_RE.fullmatch(item)\n            for key, item in value.items()\n        ):\n            raise ValueError(\"input hashes must be 64 lowercase hex characters\")\n        return value\n",
+          "    @field_validator(\"inputs\")\n    @classmethod\n    def _input_hashes_are_lower_hex(cls, value: dict[str, str]) -> dict[str, str]:\n        if any(not _SHA256_RE.fullmatch(item) for item in value.values()):\n            raise ValueError(\"input hashes must be 64 lowercase hex characters\")\n        return value\n"
+        ],
+        [
+          "    numeric_facts_unconfirmed: bool = False\n    knowledge: KnowledgeSelection | None = None  # None = 지식 비활성 또는 필드 도입 전 산출물\n    work_units: WorkUnitSummary | None = None\n    company_input_hash: str | None = None  # None = REV-01 이전 또는 legacy 호출\n    effort: str\n",
+          "    numeric_facts_unconfirmed: bool = False\n    knowledge: KnowledgeSelection | None = None  # None = 지식 비활성 또는 필드 도입 전 산출물\n    company_input_hash: str | None = None  # None = REV-01 이전 또는 legacy 호출\n    effort: str\n"
+        ],
+        [
+          "    usage: dict[str, int | float]  # calls, 토큰 4종, cost_usd\n    created_at: str  # ISO 8601, 초 단위, 로컬 시간대\n\n    @model_serializer(mode=\"wrap\")\n    def _omit_missing_work_units(self, handler):  # type: ignore[no-untyped-def]\n        data = handler(self)\n        if self.work_units is None:\n            data.pop(\"work_units\", None)\n        return data\n\n\n",
+          "    usage: dict[str, int | float]  # calls, 토큰 4종, cost_usd\n    created_at: str  # ISO 8601, 초 단위, 로컬 시간대\n\n\n"
+        ]
+      ]
     },
     {
       "path": "src/bidops/analysis/scoring.py",
@@ -96,7 +246,13 @@
     {
       "path": "src/bidops/analysis/spend.py",
       "sha256": "ef27929ecd0853dbc230d6ce945caffd6d9a271cbda52fdfe391eeb8670e7ed3",
-      "adaptation": "import rename"
+      "adaptation": "import rename",
+      "local_replacements": [
+        [
+          "\nPhase = Literal[\"analyze\", \"bench\", \"agent\"]\nPurpose = Literal[\"extract\", \"match\", \"synth\", \"chat\", \"units\"]\nCostBasis = Literal[\"exact\", \"max_price\", \"subscription\"]\n\n",
+          "\nPhase = Literal[\"analyze\", \"bench\", \"agent\"]\nPurpose = Literal[\"extract\", \"match\", \"synth\", \"chat\"]\nCostBasis = Literal[\"exact\", \"max_price\", \"subscription\"]\n\n"
+        ]
+      ]
     },
     {
       "path": "src/bidops/analysis/strategies.py",
@@ -116,7 +272,85 @@
     {
       "path": "src/bidops/company/knowledge.py",
       "sha256": "11fc66c954a5ec680cf8ac1ec86a625bdb497308ba8abf35754c8fd9c6950ccf",
-      "adaptation": "import rename"
+      "adaptation": "import rename",
+      "local_replacements": [
+        [
+          "import re\nimport unicodedata\nfrom collections.abc import Callable, Mapping\nfrom dataclasses import dataclass, field, replace\nfrom datetime import date\nfrom pathlib import Path, PurePosixPath\n",
+          "import re\nimport unicodedata\nfrom collections.abc import Mapping\nfrom dataclasses import dataclass, field\nfrom datetime import date\nfrom pathlib import Path, PurePosixPath\n"
+        ],
+        [
+          "\nimport yaml\nfrom pydantic import BaseModel, Field, StringConstraints, ValidationError, field_validator, model_serializer\n\nfrom bid_deep_engine.company.past_labels import (\n",
+          "\nimport yaml\nfrom pydantic import BaseModel, Field, StringConstraints, ValidationError, field_validator\n\nfrom bid_deep_engine.company.past_labels import (\n"
+        ],
+        [
+          "FALLBACK_CATEGORY = \"other\"\nPORTFOLIO_TOP_K = 5  # 관련 실적 선택: 겹침 점수 상위 개수\nPORTFOLIO_BUDGET_CHARS = 30_000  # 관련 실적 선택의 별도 예산(카테고리 예산과 따로 센다). 2026-11-24 발췌 도입과 함께 16_000에서 올림(45건 모의 최대 25,448자)\n# 실적 원문 요구사항 목록 발췌(2026-11-24). 위키 실적 넣기가 붙인 원문 목록 절은 1만~2만 자라 관련 실적 예산에\n# 한 건만 들어갔다(포트폴리오 45건 중 44건). 프롬프트에는 그 절 대신 이번 공고 요구사항과 단어가 겹치는 줄만\n# 실적당 `PORTFOLIO_EXCERPT_CHARS` 안에서 옮긴다. 파일·위키 화면·업무 근거 지도는 그대로다.\nPORTFOLIO_LIST_HEADING = \"### 요구사항 전체 목록(원문)\"\nWORK_UNIT_SECTION = \"## 업무 단위별 근거\"\nWORK_UNIT_EVIDENCE_RE = re.compile(r\"- \\[\\[(P\\d{4}-\\d{2})\\]\\] ([A-Z]{3}-\\d{3}(?:, *[A-Z]{3}-\\d{3})*)\")\nPORTFOLIO_EXCERPT_HEADING = \"### 요구사항 원문 발췌(이번 공고와 겹치는 줄)\"\nPORTFOLIO_EXCERPT_CHARS = 1_500\n# 실적 페이지 점수에 쓰는 절. 둘 다 없는 페이지(사람이 쓴 시드)는 본문 전체로 센다.\nPORTFOLIO_MATCH_SECTIONS: tuple[str, ...] = (\"수행한 요구 범위\", \"기술 환경\")\n",
+          "FALLBACK_CATEGORY = \"other\"\nPORTFOLIO_TOP_K = 5  # 관련 실적 선택: 겹침 점수 상위 개수\nPORTFOLIO_BUDGET_CHARS = 16_000  # 관련 실적 선택의 별도 예산(카테고리 예산과 따로 센다)\n# 실적 페이지 점수에 쓰는 절. 둘 다 없는 페이지(사람이 쓴 시드)는 본문 전체로 센다.\nPORTFOLIO_MATCH_SECTIONS: tuple[str, ...] = (\"수행한 요구 범위\", \"기술 환경\")\n"
+        ],
+        [
+          "    chars: int  # render_knowledge 결과 길이\n    knowledge_hash: str\n    # 포함된 실적 slug → 원문 요구사항 목록에서 옮긴 줄의 순번(목록 안 0부터, 오름차순). 없으면 원문 전체.\n    portfolio_excerpts: dict[str, list[int]] = Field(default_factory=dict)\n\n    work_unit_excerpts: bool = False\n\n    @model_serializer(mode=\"wrap\")\n    def _omit_empty_excerpts(self, handler):  # type: ignore[no-untyped-def]\n        \"\"\"발췌가 없으면 필드를 쓰지 않는다 — 발췌 도입 전 산출물과 저장 JSON이 같다.\"\"\"\n        data = handler(self)\n        if not self.portfolio_excerpts:\n            data.pop(\"portfolio_excerpts\", None)\n        if not self.work_unit_excerpts:\n            data.pop(\"work_unit_excerpts\", None)\n        return data\n\n\n",
+          "    chars: int  # render_knowledge 결과 길이\n    knowledge_hash: str\n\n\n"
+        ],
+        [
+          "\n\ndef load_knowledge(\n    root: Path | str, *, profile: CompanyProfile | None = None, filter_work_unit_refs: bool = False\n) -> Knowledge:\n    \"\"\"트리를 읽는다. 분석 입력에서는 실적 페이지가 빠진 업무 근거 행을 제외할 수 있다.\"\"\"\n    tree, report = _build(Path(root), profile, filter_work_unit_refs=filter_work_unit_refs)\n    if report.errors or tree is None:\n        raise KnowledgeError(report.errors)\n",
+          "\n\ndef load_knowledge(root: Path | str, *, profile: CompanyProfile | None = None) -> Knowledge:\n    \"\"\"트리를 읽는다. lint error가 하나라도 있으면 KnowledgeError(경고는 무시).\"\"\"\n    tree, report = _build(Path(root), profile)\n    if report.errors or tree is None:\n        raise KnowledgeError(report.errors)\n"
+        ],
+        [
+          "    portfolio_top_k: int = PORTFOLIO_TOP_K,\n    portfolio_budget_chars: int = PORTFOLIO_BUDGET_CHARS,\n    related_override: list[str] | None = None,\n    excerpt_override: dict[str, list[int]] | None = None,\n) -> KnowledgeSelection:\n    \"\"\"발췌 페이지를 고른다(spec \"선택\" 절): category → depth-1 링크(실적 제외) → glossary,\n",
+          "    portfolio_top_k: int = PORTFOLIO_TOP_K,\n    portfolio_budget_chars: int = PORTFOLIO_BUDGET_CHARS,\n) -> KnowledgeSelection:\n    \"\"\"발췌 페이지를 고른다(spec \"선택\" 절): category → depth-1 링크(실적 제외) → glossary,\n"
+        ],
+        [
+          "    \"\"\"\n    cats = validate_override(knowledge, categories)\n    related = related_override\n    if related is None:\n        related = [] if doc is None else [s for s, _ in relevant_portfolio(knowledge, doc, portfolio_top_k)]\n    excerpts = {} if excerpt_override is None else excerpt_override.copy()\n    if excerpt_override is None and doc is not None:\n        wanted = _match_tokens(_requirement_match_text(doc))\n        for slug in related:\n            picked = _portfolio_excerpt(knowledge.pages[slug], wanted)\n            if picked is not None:\n                excerpts[slug] = picked\n    plan = _plan_selection(\n        knowledge.pages,\n",
+          "    \"\"\"\n    cats = validate_override(knowledge, categories)\n    related = (\n        [] if doc is None else [s for s, _ in relevant_portfolio(knowledge, doc, portfolio_top_k)]\n    )\n    plan = _plan_selection(\n        knowledge.pages,\n"
+        ],
+        [
+          "        related=related,\n        portfolio_budget_chars=portfolio_budget_chars,\n        excerpts=excerpts,\n        work_unit_excerpts=excerpt_override is not None,\n    )\n    included_excerpts = {slug: excerpts[slug] for slug in plan.pages if slug in excerpts}\n    return KnowledgeSelection(\n        categories=cats,\n",
+          "        related=related,\n        portfolio_budget_chars=portfolio_budget_chars,\n    )\n    return KnowledgeSelection(\n        categories=cats,\n"
+        ],
+        [
+          "        chars=plan.chars,\n        knowledge_hash=knowledge.hash,\n        portfolio_excerpts=included_excerpts,\n        work_unit_excerpts=excerpt_override is not None and bool(included_excerpts),\n    )\n\n",
+          "        chars=plan.chars,\n        knowledge_hash=knowledge.hash,\n    )\n\n"
+        ],
+        [
+          "    \"\"\"\n    parts = [_render_header(selection.categories, selection.category_source)]\n    parts.extend(\n        _render_block(\n            knowledge.pages[slug], selection.portfolio_excerpts.get(slug),\n            work_unit_excerpt=selection.work_unit_excerpts,\n        )\n        for slug in selection.pages\n    )\n    return _SEP.join(parts).rstrip(\"\\n\")\n\n",
+          "    \"\"\"\n    parts = [_render_header(selection.categories, selection.category_source)]\n    parts.extend(_render_block(knowledge.pages[slug]) for slug in selection.pages)\n    return _SEP.join(parts).rstrip(\"\\n\")\n\n"
+        ],
+        [
+          "    override: list[str] | None = None,\n    budget_chars: int = KNOWLEDGE_BUDGET_CHARS,\n    related_override: list[str] | None = None,\n    excerpt_override: dict[str, list[int]] | None = None,\n) -> tuple[KnowledgeSelection, str]:\n    \"\"\"classify → select(관련 실적 포함) → render. KB-03 pipeline·bench 사전 추정과 CLI show가\n",
+          "    override: list[str] | None = None,\n    budget_chars: int = KNOWLEDGE_BUDGET_CHARS,\n) -> tuple[KnowledgeSelection, str]:\n    \"\"\"classify → select(관련 실적 포함) → render. KB-03 pipeline·bench 사전 추정과 CLI show가\n"
+        ],
+        [
+          "        category_source=classification.source,\n        doc=doc,\n        related_override=related_override,\n        excerpt_override=excerpt_override,\n    )\n    return selection, render_knowledge(knowledge, selection)\n",
+          "        category_source=classification.source,\n        doc=doc,\n    )\n    return selection, render_knowledge(knowledge, selection)\n"
+        ],
+        [
+          "\n\ndef _requirement_match_text(doc: RfpDocument) -> str:\n    \"\"\"원문 목록 발췌의 공고 쪽 입력: 요구사항 이름·정의. 요구사항이 없으면 `_notice_match_text`.\"\"\"\n    if not doc.requirements:\n        return _notice_match_text(doc)\n    return \"\\n\".join(f\"{req.name}\\n{req.definition or ''}\" for req in doc.requirements)\n\n\ndef _portfolio_list_span(lines: list[str]) -> tuple[int, int, list[int]] | None:\n    \"\"\"`PORTFOLIO_LIST_HEADING` 절의 (머리 줄, 끝 줄(제외), 항목 줄 번호들). 끝은 다음 `#`~`###` 머리.\"\"\"\n    start = next((i for i, line in enumerate(lines) if line.rstrip() == PORTFOLIO_LIST_HEADING), None)\n    if start is None:\n        return None\n    end = next(\n        (i for i in range(start + 1, len(lines)) if re.match(r\"#{1,3} \", lines[i])), len(lines)\n    )\n    items = [i for i in range(start + 1, end) if lines[i].startswith(\"- \")]\n    return start, end, items\n\n\ndef _portfolio_excerpt(page: Page, wanted: set[str]) -> list[int] | None:\n    \"\"\"원문 목록에서 `wanted` 토큰과 겹치는 줄의 순번(목록 안 0부터, 오름차순). 목록이 없으면 `None`.\n\n    겹치는 토큰 수 내림차순 → 순번 오름차순으로 줄 길이(+개행)의 합이 `PORTFOLIO_EXCERPT_CHARS`\n    이하인 동안 고른다(넘치는 줄은 건너뛰고 계속). 결정적 코드 규칙이다.\n    \"\"\"\n    return _score_portfolio_excerpt(page, lambda line: len(wanted & _match_tokens(line)))\n\n\ndef portfolio_evidence_excerpt(page: Page, scores: Mapping[str, int]) -> list[int] | None:\n    \"\"\"Choose exact requirement-ID lines under the original excerpt character budget.\"\"\"\n    def score(line: str) -> int:\n        match = re.match(r\"^- ([A-Z]{3}-\\d{3}) \", line)\n        return scores.get(match[1], 0) if match else 0\n\n    return _score_portfolio_excerpt(page, score)\n\n\ndef _score_portfolio_excerpt(page: Page, score_line: Callable[[str], int]) -> list[int] | None:\n    if page.meta.kind != \"portfolio\":\n        return None\n    lines = page.body.split(\"\\n\")\n    span = _portfolio_list_span(lines)\n    if span is None:\n        return None\n    _, _, items = span\n    scored = []\n    for order, idx in enumerate(items):\n        score = score_line(lines[idx])\n        if score > 0:\n            scored.append((-score, order))\n    scored.sort()\n    picked: list[int] = []\n    used = 0\n    for _, order in scored:\n        cost = len(lines[items[order]]) + 1\n        if used + cost <= PORTFOLIO_EXCERPT_CHARS:\n            picked.append(order)\n            used += cost\n    return sorted(picked)\n\n\ndef _notice_match_text(doc: RfpDocument) -> str:\n    \"\"\"공고 쪽 점수 입력: 제목 + overview 본문(`_body_source`와 같은 한도) + 요구사항 이름·정의.\n",
+          "\n\ndef _notice_match_text(doc: RfpDocument) -> str:\n    \"\"\"공고 쪽 점수 입력: 제목 + overview 본문(`_body_source`와 같은 한도) + 요구사항 이름·정의.\n"
+        ],
+        [
+          "\n\ndef _build(\n    root: Path, profile: CompanyProfile | None, *, filter_work_unit_refs: bool = False\n) -> tuple[_Tree | None, KnowledgeReport]:\n    \"\"\"트리를 읽고(E1·E2·E12·W6) 나머지 lint 규칙을 적용해 보고서를 만든다.\"\"\"\n    if not root.is_dir():\n        return None, KnowledgeReport(errors=[f\"knowledge root not found: {root}\"], pages=0)\n    tree = _read_tree(root)\n    if filter_work_unit_refs:\n        _filter_work_unit_refs(tree)\n    _lint_tree(tree, profile)\n    _lint_past_labels(root, tree, profile)\n",
+          "\n\ndef _build(root: Path, profile: CompanyProfile | None) -> tuple[_Tree | None, KnowledgeReport]:\n    \"\"\"트리를 읽고(E1·E2·E12·W6) 나머지 lint 규칙을 적용해 보고서를 만든다.\"\"\"\n    if not root.is_dir():\n        return None, KnowledgeReport(errors=[f\"knowledge root not found: {root}\"], pages=0)\n    tree = _read_tree(root)\n    _lint_tree(tree, profile)\n    _lint_past_labels(root, tree, profile)\n"
+        ],
+        [
+          "    )\n    return tree, report\n\n\n\ndef is_work_topic(slug: str, kind: str) -> bool:\n    return kind == \"capability\" and slug.startswith(\"work-\") and slug != \"work-units\"\n\n\ndef _filter_work_unit_refs(tree: _Tree) -> None:\n    \"\"\"Filter only projected evidence rows before checking links in an analysis bundle.\"\"\"\n    projects = {slug for slug, page in tree.pages.items() if page.meta.kind == \"portfolio\"}\n    for index, page in enumerate(tree.parsed_pages):\n        slug = page.meta.slug\n        if not is_work_topic(slug, page.meta.kind):\n            continue\n        head, separator, body = page.body.partition(f\"\\n{WORK_UNIT_SECTION}\\n\")\n        if not separator:\n            continue\n        lines = [\n            line for line in body.split(\"\\n\")\n            if not (ref := WORK_UNIT_EVIDENCE_RE.fullmatch(line))\n            or ref[1] in projects\n        ]\n        filtered_body = head + separator + \"\\n\".join(lines)\n        if filtered_body != page.body:\n            filtered = replace(page, body=filtered_body, links=_extract_links(filtered_body))\n            tree.parsed_pages[index] = filtered\n            if tree.pages[slug] is page:\n                tree.pages[slug] = filtered\n\n\n",
+          "    )\n    return tree, report\n\n\n"
+        ],
+        [
+          "\n\ndef _prompt_body(page: Page, excerpt: list[int] | None, *, work_unit_excerpt: bool) -> str:\n    \"\"\"프롬프트 본문. `excerpt`가 있는 실적 페이지는 원문 목록 절을 발췌 절로 바꾼다(`None`이면 그대로).\"\"\"\n    if excerpt is None or page.meta.kind != \"portfolio\":\n        return page.body\n    lines = page.body.split(\"\\n\")\n    span = _portfolio_list_span(lines)\n    if span is None:\n        return page.body\n    start, end, items = span\n    kept = [lines[items[order]] for order in excerpt if 0 <= order < len(items)]\n    note = (\n        f\"원문 목록 {len(items)}줄 가운데 이번 공고 요구사항과 단어가 겹치는 {len(kept)}줄만 옮겼다. \"\n        \"옮기지 않은 줄도 수행한 범위다.\"\n    )\n    heading = PORTFOLIO_EXCERPT_HEADING\n    if work_unit_excerpt:\n        heading = \"### 요구사항 원문 발췌(업무 근거 지도가 연결한 줄)\"\n        note = (\n            f\"원문 목록 {len(items)}줄 가운데 업무 근거 지도가 이번 공고와 연결한 {len(kept)}줄만 옮겼다. \"\n            \"옮기지 않은 줄도 수행한 범위다.\"\n        )\n    block = [heading, \"\", note, *([\"\"] + kept if kept else []), \"\"]\n    body = \"\\n\".join(lines[:start] + block + lines[end:])\n    return body.rstrip(\"\\n\") if work_unit_excerpt else body\n\n\ndef _render_block(\n    page: Page, excerpt: list[int] | None = None, *, work_unit_excerpt: bool = False\n) -> str:\n    \"\"\"페이지 블록(`### …`부터 본문 끝까지, 끝 개행 없음). 본문이 비면 메타 줄에서 끝난다.\n    `excerpt`가 있으면 실적 원문 목록 대신 발췌를 넣는다(`_prompt_body`).\"\"\"\n    meta = page.meta\n    head = (\n",
+          "\n\ndef _render_block(page: Page) -> str:\n    \"\"\"페이지 블록(`### …`부터 본문 끝까지, 끝 개행 없음). 본문이 비면 메타 줄에서 끝난다.\"\"\"\n    meta = page.meta\n    head = (\n"
+        ],
+        [
+          "        f\"- kind: {meta.kind} · confidence: {meta.confidence} · updated: {meta.updated or '-'}\"\n    )\n    body = _demote_headings(_prompt_body(page, excerpt, work_unit_excerpt=work_unit_excerpt))\n    return f\"{head}\\n{body}\" if body else head\n\n",
+          "        f\"- kind: {meta.kind} · confidence: {meta.confidence} · updated: {meta.updated or '-'}\"\n    )\n    body = _demote_headings(page.body)\n    return f\"{head}\\n{body}\" if body else head\n\n"
+        ],
+        [
+          "    related: list[str] | None = None,\n    portfolio_budget_chars: int = PORTFOLIO_BUDGET_CHARS,\n    excerpts: Mapping[str, list[int]] | None = None,\n    work_unit_excerpts: bool = False,\n) -> _SelectionPlan:\n    \"\"\"spec \"선택\" 절의 그리디. categories는 등록된 category slug여야 한다(호출자가 검증).\n",
+          "    related: list[str] | None = None,\n    portfolio_budget_chars: int = PORTFOLIO_BUDGET_CHARS,\n) -> _SelectionPlan:\n    \"\"\"spec \"선택\" 절의 그리디. categories는 등록된 category slug여야 한다(호출자가 검증).\n"
+        ],
+        [
+          "        if page is None or page.meta.kind != \"portfolio\" or slug in included:\n            continue\n        block = _render_block(page, (excerpts or {}).get(slug), work_unit_excerpt=work_unit_excerpts)\n        cost = len(_SEP) + len(block)\n        if portfolio_running + cost <= portfolio_budget_chars:\n            included.append(slug)\n",
+          "        if page is None or page.meta.kind != \"portfolio\" or slug in included:\n            continue\n        cost = len(_SEP) + len(_render_block(page))\n        if portfolio_running + cost <= portfolio_budget_chars:\n            included.append(slug)\n"
+        ]
+      ]
     },
     {
       "path": "src/bidops/company/loader.py",
@@ -166,7 +400,17 @@
     {
       "path": "src/bidops/analysis/prompts/match.md",
       "sha256": "40eefa6b0a370f170f79b275981ccb5842f63c45590f7d4f472f3d7d37c1a923",
-      "adaptation": "none"
+      "adaptation": "none",
+      "local_replacements": [
+        [
+          "## 업무 근거 지도 분류\n\n아래 회사 지식에 \"## 요구사항별 업무 근거(업무 근거 지도, 실적 …건 기준)\" 절이 있을 때만 이 규칙을 해당 요구사항에 적용한다. 이 절이 없으면 위 fit 분류를 따른다.\n\n- 모든 업무가 단위에 들고 각 단위에 근거 실적이 있으면 `FULL`이다. 여러 실적의 근거를 합쳐 판단하고, 모두 `evidence_portfolio_ids`에 넣고 rationale에 [[실적 ID]]로 인용한다. 수치·기간·도구·서식 차이만으로 등급을 낮추지 않는다.\n- 근거 있는 단위로 확인되는 업무와 \"단위에 들지 않는 부분\"이 함께 있으면 `PARTIAL`이다. `gap_action`은 단위에 들지 않는 부분을 적는다.\n- \"어느 업무 단위에도 해당하지 않음\"이면 `GAP`이다. rationale은 \"업무 근거 지도(실적 n건 기준)의 어느 업무 단위에도 해당하는 수행 기록이 없다\"로 시작하고, n은 절에 적힌 실적 수를 쓰며 해당하지 않는 업무를 적는다.\n- \"분류할 업무 내용 없음(판단 보류)\"이면 `UNKNOWN`이다.\n- 분류된 단위가 모두 \"지도 범위 안 근거 없음 → 판단 보류\"이면 `UNKNOWN`이다. 이 경우는 단위가 있는 것이므로 \"어느 업무 단위에도 해당하지 않음\"이 아니고 `GAP`이 아니다. 판단 보류 단위가 섞인 경우 그 단위를 충족했다고 보지 않는다.\n- `GAP`은 그 요구사항 줄에 \"어느 업무 단위에도 해당하지 않음\"이라고 적힌 경우와 명시적 프로필 부정값에만 쓴다.\n- 하드웨어 작업의 근거는 소프트웨어 작업과 별도로 확인한다. 상주·자격 및 프로필 `unknown`에는 기존 프로필·자격 규칙을 적용한다. 명시적으로 확인된 프로필 부정값으로도 `GAP`을 판정할 수 있다. 이때 rationale에 근거가 된 프로필 점 경로를 적는다.\n\n",
+          ""
+        ],
+        [
+          "- `evidence_portfolio_ids`: 근거로 쓴 실적의 id(`P2024-01` 형식)를 \"## 실적\" 목록에서 그대로 옮긴다. 업무 근거 지도 절로 판단한 경우 해당 요구사항에 연결되어 근거로 쓴 실적 id를 모두 옮긴다. 목록에 없는 id를 만들지 않는다. 실적을 근거로 쓰지 않았으면 빈 리스트.\n",
+          "- `evidence_portfolio_ids`: 근거로 쓴 프로필 실적의 id(`P2024-01` 형식)만 \"## 실적\" 목록에서 그대로 옮긴다. 목록에 없는 id를 만들지 않는다. 실적을 근거로 쓰지 않았으면 빈 리스트.\n"
+        ]
+      ]
     },
     {
       "path": "src/bidops/analysis/prompts/extract_partial.md",
@@ -196,7 +440,21 @@
     {
       "path": "tests/test_analysis_schemas.py",
       "sha256": "465f7ca8ae61f9301f1a1bd462dd98e4b95a82fd1d79f3c5d7a5b75a7a0519ef",
-      "adaptation": "import rename"
+      "adaptation": "import rename",
+      "local_replacements": [
+        [
+          "        \"numeric_facts_unconfirmed\",\n        \"knowledge\",\n        \"work_units\",\n        \"company_input_hash\",\n        \"effort\",\n",
+          "        \"numeric_facts_unconfirmed\",\n        \"knowledge\",\n        \"company_input_hash\",\n        \"effort\",\n"
+        ],
+        [
+          "    assert analysis.company_input_hash is None  # REV-01 이전 산출물 호환\n    dumped = analysis.model_dump(mode=\"json\")\n    assert list(dumped) == [name for name in Analysis.model_fields if name != \"work_units\"]\n    assert Analysis.model_validate(json.loads(json.dumps(dumped, ensure_ascii=False))) == analysis\n    assert isinstance(dumped[\"usage\"][\"calls\"], int)\n",
+          "    assert analysis.company_input_hash is None  # REV-01 이전 산출물 호환\n    dumped = analysis.model_dump(mode=\"json\")\n    assert list(dumped) == list(Analysis.model_fields)\n    assert Analysis.model_validate(json.loads(json.dumps(dumped, ensure_ascii=False))) == analysis\n    assert isinstance(dumped[\"usage\"][\"calls\"], int)\n"
+        ],
+        [
+          "    analysis = Analysis(**_analysis_kwargs(), knowledge=selection)\n    dumped = analysis.model_dump(mode=\"json\")\n    assert list(dumped) == [name for name in Analysis.model_fields if name != \"work_units\"]\n    assert dumped[\"knowledge\"] == {\n        \"categories\": [\"homepage-build\"],\n",
+          "    analysis = Analysis(**_analysis_kwargs(), knowledge=selection)\n    dumped = analysis.model_dump(mode=\"json\")\n    assert list(dumped) == list(Analysis.model_fields)\n    assert dumped[\"knowledge\"] == {\n        \"categories\": [\"homepage-build\"],\n"
+        ]
+      ]
     },
     {
       "path": "src/bidops/analysis/pricing.py",
@@ -221,7 +479,13 @@
     {
       "path": "tests/test_analysis_readiness.py",
       "sha256": "8b509d5b56728f8debb69c64f27e688cfbbb5d3ccdcdcd7789c76a4beb18f3ba",
-      "adaptation": "import rename"
+      "adaptation": "import rename",
+      "local_replacements": [
+        [
+          "        \"gates\": (\"facts\", \"company\", \"confirmations\", \"as_of\", \"portfolio_knowledge\"),\n        \"scores\": (\"facts\", \"company\", \"as_of\"),\n        \"fits\": (\"facts\", \"requirements\", \"company\", \"knowledge\", \"prompts\", \"model_settings\", \"work_units\"),\n        \"synth\": (\n            \"facts\",\n",
+          "        \"gates\": (\"facts\", \"company\", \"confirmations\", \"as_of\", \"portfolio_knowledge\"),\n        \"scores\": (\"facts\", \"company\", \"as_of\"),\n        \"fits\": (\"facts\", \"requirements\", \"company\", \"knowledge\", \"prompts\", \"model_settings\"),\n        \"synth\": (\n            \"facts\",\n"
+        ]
+      ]
     },
     {
       "path": "tests/test_company_loader.py",
@@ -261,12 +525,28 @@
     {
       "path": "tests/test_knowledge_select.py",
       "sha256": "a2a75e4614ae49e70d6586c28acaf8bf158f7e1043a9e0a9248d8e68282a7872",
-      "adaptation": "import rename"
+      "adaptation": "import rename",
+      "local_replacements": [
+        [
+          "        \"chars\",\n        \"knowledge_hash\",\n        \"portfolio_excerpts\",\n        \"work_unit_excerpts\",\n    ]\n\n",
+          "        \"chars\",\n        \"knowledge_hash\",\n    ]\n\n"
+        ]
+      ]
     },
     {
       "path": "tests/test_knowledge_portfolio_select.py",
       "sha256": "cbbab3a768dbd6114fd5ba359fcf2f923fde09ef16fe4a08d6b053cf2503f644",
-      "adaptation": "import rename"
+      "adaptation": "import rename",
+      "local_replacements": [
+        [
+          "    assert zero.pages == [\"beta\", *ranked]\n    assert zero.skipped == [\"cap-two\", \"glossary\"]\n    assert PORTFOLIO_BUDGET_CHARS == 30_000\n\n\n",
+          "    assert zero.pages == [\"beta\", *ranked]\n    assert zero.skipped == [\"cap-two\", \"glossary\"]\n    assert PORTFOLIO_BUDGET_CHARS == 16_000\n\n\n"
+        ],
+        [
+          "    assert \"### [[P2030-01]] 합성 실적 P2030-01\" in text\n    assert selection.chars == len(text)\n\n\n# --- 원문 요구사항 목록 발췌(2026-11-24) ---\n\nfrom bid_deep_engine.company.knowledge import (  # noqa: E402\n    PORTFOLIO_EXCERPT_CHARS,\n    PORTFOLIO_EXCERPT_HEADING,\n    PORTFOLIO_LIST_HEADING,\n)\n\n\ndef _with_full_list(text: str, lines: list[str]) -> str:\n    return text.replace(\n        \"## 기술 환경\",\n        f\"{PORTFOLIO_LIST_HEADING}\\n\\n원문 목록 안내\\n\\n\" + \"\\n\".join(lines) + \"\\n\\n## 기술 환경\",\n    )\n\n\ndef test_excerpt_keeps_only_matching_list_lines_within_cap_and_rest_of_page(tmp_path):\n    filler = [f\"- MAR-{i:03d} 장비 반입 절차 {'나' * 280}\" for i in range(1, 80)]\n    hits = [\"- SFR-101 통합검색 색인 개선\", \"- SFR-102 통합검색 형태소 사전 관리\"]\n    text = _with_full_list(portfolio_page(\"P2030-01\", [\"통합검색 개선\"], [\"Java\"], extra=\"검색 역량\"), filler[:40] + hits + filler[40:])\n    knowledge = load_knowledge(tree(tmp_path, {\"P2030-01\": text}))\n    doc = rfp(\"통합검색 사업\", [(\"통합검색 색인\", \"형태소 사전\")])\n    sel = select_pages(knowledge, [\"beta\"], doc=doc)\n    assert \"P2030-01\" in sel.pages\n    assert sel.portfolio_excerpts[\"P2030-01\"] == [40, 41]\n    rendered = render_knowledge(knowledge, sel)\n    assert PORTFOLIO_EXCERPT_HEADING in rendered and PORTFOLIO_LIST_HEADING not in rendered\n    assert \"SFR-101\" in rendered and \"SFR-102\" in rendered and \"MAR-001\" not in rendered\n    assert \"원문 목록 81줄 가운데\" in rendered and \"옮기지 않은 줄도 수행한 범위다.\" in rendered\n    assert \"검색 역량\" in rendered and \"Java\" in rendered\n    assert sel.chars == len(rendered)\n\n\ndef test_excerpt_respects_character_cap(tmp_path):\n    lines = [f\"- SFR-{i:03d} 통합검색 기능 {'다' * 290}\" for i in range(1, 30)]\n    text = _with_full_list(portfolio_page(\"P2030-01\", [\"통합검색 개선\"], []), lines)\n    knowledge = load_knowledge(tree(tmp_path, {\"P2030-01\": text}))\n    sel = select_pages(knowledge, [\"beta\"], doc=rfp(\"통합검색 사업\", [(\"통합검색 기능\", None)]))\n    picked = sel.portfolio_excerpts[\"P2030-01\"]\n    assert 0 < len(picked) < len(lines)\n    assert sum(len(lines[i]) + 1 for i in picked) <= PORTFOLIO_EXCERPT_CHARS\n\n\ndef test_page_without_full_list_and_lint_path_render_unchanged(tmp_path):\n    plain = portfolio_page(\"P2030-02\", [\"통합검색 개선\"], [])\n    knowledge = load_knowledge(tree(tmp_path, {\"P2030-02\": plain}))\n    sel = select_pages(knowledge, [\"beta\"], doc=rfp(\"통합검색 사업\", [(\"통합검색 개선\", None)]))\n    assert \"P2030-02\" not in sel.portfolio_excerpts\n    assert _render_block(knowledge.pages[\"P2030-02\"]) == _render_block(knowledge.pages[\"P2030-02\"], None)\n",
+          "    assert \"### [[P2030-01]] 합성 실적 P2030-01\" in text\n    assert selection.chars == len(text)\n"
+        ]
+      ]
     },
     {
       "path": "tests/test_merge.py",
@@ -454,12 +734,12 @@
     {
       "path": "src/bid_deep_engine/adapter.py",
       "purpose": "BidOps company projection, table/block projection and source locators",
-      "sha256": "da4ee2c44cef35e8164a6526af69643b80f69f9af22a76b13fd1c39cb33dd8d7"
+      "sha256": "96dc59af406c175547afc843e65482480795982b1dc6748fd63cacf3e44bcae0"
     },
     {
       "path": "src/bid_deep_engine/runner.py",
       "purpose": "bidops.engine-input.v1/output.v1 subprocess boundary and mock_reference transport",
-      "sha256": "ff961fbcf9e217b020f6203224679febe0b4b5a53e7531cd3ec7314d191d6e3f"
+      "sha256": "0b3b3668f8fb505bc0111e738e28a365f22d77d966e81bd7b52aab88bd04f323"
     },
     {
       "path": "engine_tests/test_adapter.py",
@@ -490,6 +770,21 @@
       "path": "engine_tests/test_wiki_tools.py",
       "purpose": "wiki maintenance tests",
       "sha256": "a2da045cd2e4e57126e15f6af1125cfcbe071ea772b113187147484275d2b3c9"
+    },
+    {
+      "path": "src/bid_deep_engine/analysis/workunits.py",
+      "purpose": "restore, classify and link notice requirements against the frozen work-unit map",
+      "sha256": "c36861d38ed6ee04cff233cfe57bc4a74e6e0eb84336cc5acb441341bde3b437"
+    },
+    {
+      "path": "src/bid_deep_engine/analysis/prompts/units.md",
+      "purpose": "classify current notice requirements against existing work units",
+      "sha256": "a6936b52d305c4112c61f1fc1b185f8245dfc0969db1a7376a15fb0a5d69ce48"
+    },
+    {
+      "path": "engine_tests/test_workunits.py",
+      "purpose": "offline work-unit map, classification, evidence and pipeline coverage",
+      "sha256": "89ce95caf7d4a6c8a13acaea601c3da3f51a808e6b2f5af59f5fd9d5814d1bb9"
     }
   ],
   "excluded_transport_files": [
@@ -509,5 +804,5 @@
     "tests/test_claude_cli.py"
   ],
   "included_dirty_files": [],
-  "notes": "No CLI, A2A, task SQLite store, chat, source company data, credentials, telemetry or live transport. llm value/error types are extracted; config is type stub; tracing is offline seam."
+  "notes": "No CLI, A2A, task SQLite store, chat, source company data, credentials, telemetry or live transport. llm value/error types are extracted; config is type stub; tracing is offline seam. 2026-11-24 local change (portfolio): company/knowledge.py replaces the `### 요구사항 전체 목록(원문)` subsection of each selected portfolio page with the list lines sharing tokens with the notice requirements (<= PORTFOLIO_EXCERPT_CHARS 1500 per project; KnowledgeSelection.portfolio_excerpts, omitted from JSON when empty) and raises PORTFOLIO_BUDGET_CHARS 16000->30000, because wiki-ingested portfolio pages (10-22k chars) let only 1 of 5 related projects into 44 of 45 portfolio runs; listed as local_replacements. 2026-11-24 stage 2 adds notice classification and deterministic evidence linking from frozen work-unit Markdown pages, with bounded repair, analysis provenance and offline tests."
 }

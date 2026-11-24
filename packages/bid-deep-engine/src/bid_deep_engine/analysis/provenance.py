@@ -46,7 +46,7 @@ STAGE_INPUT_KEYS: dict[Stage, tuple[str, ...]] = {
     "facts": ("rfp", "prompts", "model_settings"),
     "gates": ("facts", "company", "confirmations", "as_of", "portfolio_knowledge"),
     "scores": ("facts", "company", "as_of"),
-    "fits": ("facts", "requirements", "company", "knowledge", "prompts", "model_settings"),
+    "fits": ("facts", "requirements", "company", "knowledge", "prompts", "model_settings", "work_units"),
     "synth": (
         "facts",
         "gates",
@@ -116,11 +116,17 @@ def _without_location_metadata(value: Any) -> Any:
     return value
 
 
-def stage_input_payload(stage: Stage, inputs: Mapping[str, str]) -> dict[str, Any]:
+def stage_input_payload(stage: Stage, inputs: Mapping[str, str | None]) -> dict[str, Any]:
     expected = STAGE_INPUT_KEYS[stage]
+    # Older match-v1 artifacts have no classification input.
+    if stage == "fits" and "work_units" not in inputs:
+        expected = expected[:-1]
     if set(inputs) != set(expected):
         raise ValueError(f"{stage} inputs must be exactly {expected!r}")
-    if any(not _HASH_RE.fullmatch(value) for value in inputs.values()):
+    if any(
+        key != "work_units" if value is None else not _HASH_RE.fullmatch(value)
+        for key, value in inputs.items()
+    ):
         raise ValueError("stage input values must be 64 lowercase hex hashes")
     return {
         "schema_version": 1,
@@ -130,7 +136,7 @@ def stage_input_payload(stage: Stage, inputs: Mapping[str, str]) -> dict[str, An
     }
 
 
-def stage_input_hash(stage: Stage, inputs: Mapping[str, str]) -> str:
+def stage_input_hash(stage: Stage, inputs: Mapping[str, str | None]) -> str:
     return canonical_hash(stage_input_payload(stage, inputs))
 
 
@@ -149,7 +155,7 @@ def stage_output_hash(stage: Stage, output: Any) -> str:
 def make_stage_stamp(
     stage: Stage,
     *,
-    inputs: Mapping[str, str],
+    inputs: Mapping[str, str | None],
     output: Any,
     parameters: StageParameters,
     computed_at: str,
@@ -170,7 +176,7 @@ def stage_stamp_matches(
     stage: Stage,
     stamp: StageStamp,
     *,
-    inputs: Mapping[str, str],
+    inputs: Mapping[str, str | None],
     output: Any,
 ) -> bool:
     """시각/환경 선호는 비교하지 않고 저장 당시 parameters와 현재 내용 계약만 검사한다."""
@@ -261,7 +267,7 @@ def requirements_hash(document: RfpDocument) -> str:
 def prompt_set_hash(stage: Literal["facts", "fits", "synth"], strategy: StrategyName) -> str:
     names = {
         "facts": ("system.md", "extract.md" if strategy == "single" else "extract_partial.md"),
-        "fits": ("system.md", "match.md"),
+        "fits": ("system.md", "match.md", "units.md"),
         "synth": ("system.md", "synth.md"),
     }[stage]
     files = sorted(
@@ -317,7 +323,9 @@ def _render_page(knowledge: Knowledge, selection: KnowledgeSelection, slug: str)
     return rendered.split("\n\n", 1)[1]
 
 
-def knowledge_input_hash(knowledge: Knowledge | None, selection: KnowledgeSelection | None) -> str:
+def knowledge_input_hash(
+    knowledge: Knowledge | None, selection: KnowledgeSelection | None, *, work_unit_evidence: str = ""
+) -> str:
     if knowledge is None or selection is None:
         if knowledge is not None or selection is not None:
             raise ValueError("knowledge and selection must both be active or inactive")
@@ -332,6 +340,8 @@ def knowledge_input_hash(knowledge: Knowledge | None, selection: KnowledgeSelect
             for slug in selection.pages
         ],
     }
+    if work_unit_evidence:
+        payload["work_unit_evidence"] = work_unit_evidence
     return canonical_hash(payload)
 
 
