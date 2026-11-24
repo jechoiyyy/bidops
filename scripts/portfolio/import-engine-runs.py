@@ -105,6 +105,11 @@ def collect(eval_dir: Path, label: str):
 
 def host_main(args) -> int:
     records, pending, skipped = collect(Path(args.eval_dir), args.label)
+    excluded = set(args.exclude_cases or [])
+    if excluded:
+        skipped += [{"case_id": r["case_id"], "run": r["run"], "status": "excluded_by_operator"}
+                    for r in records if r["case_id"] in excluded]
+        records = [r for r in records if r["case_id"] not in excluded]
     print(json.dumps({"ready": [f"{r['case_id']}/r{r['run']}:{r['status']}" for r in records],
                       "pending": [p["case_id"] for p in pending], "skipped": skipped}, ensure_ascii=False), flush=True)
     if args.dry_run or not records:
@@ -293,6 +298,7 @@ def main() -> int:
     parser.add_argument("--actor", default=ACTOR)
     parser.add_argument("--stack-env", default="/Users/temp/orca/bidops-portfolio-demo/env/portfolio-private/stack.env")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--exclude-cases", nargs="*", help="case ids to leave out (e.g. runs that found fewer requirements)")
     parser.add_argument("--apply")
     args = parser.parse_args()
     if args.apply:
