@@ -59,3 +59,110 @@
 }
 .company-wiki small { font-size: var(--bo-k-meta); }
 .wiki-excerpt { padding: 0.5em 1em; border-left: 2px solid var(--bo-line-soft); }
+
+/* 회사 근거 개요 — 2026-11-25 시안 A(요약 대시보드) */
+.wiki-ov { display: grid; gap: 16px; }
+.wiki-ov :is(h2, h3, h4, p, ul, dl) { margin: 0; }
+.wiki-ov ul { padding: 0; list-style: none; }
+.wiki-ov-empty { color: var(--color-text-secondary); }
+.wiki-lv { display: inline-flex; align-items: center; gap: 5px; font-size: var(--bo-k-tag); color: var(--color-text-secondary); white-space: nowrap; font-weight: 500; }
+.wiki-lv::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; box-sizing: border-box; }
+.wiki-lv.is-dot { margin-right: 6px; }
+.wiki-lv-confirmed::before { background: var(--color-success); }
+.wiki-lv-public::before { background: var(--color-info); }
+.wiki-lv-demo::before { background: var(--color-warning); border-radius: 2px; }
+.wiki-lv-estimate::before { border: 1.5px solid var(--color-warning); }
+.wiki-lv-none::before, .wiki-lv-other::before { border: 1.5px dashed var(--color-text-secondary); }
+
+.wiki-ov-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 420px); gap: 24px; align-items: end; padding-bottom: 18px; border-bottom: 1px solid var(--bo-line-soft); }
+.wiki-ov-name { font-size: var(--bo-k-display); display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.wiki-ov-name small { font-size: var(--bo-k-lead); font-weight: 500; color: var(--color-text-secondary); }
+.wiki-ov-id { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 8px !important; font-size: var(--bo-k-meta); color: var(--color-text-secondary); }
+.wiki-ov-id b { color: var(--color-text-primary); font-weight: 600; }
+.wiki-ov-trust-head { display: flex; justify-content: space-between; gap: 12px; font-size: var(--bo-k-tag); color: var(--color-text-secondary); font-weight: 600; margin-bottom: 6px !important; }
+.wiki-ov-bar { display: flex; gap: 2px; height: 10px; border-radius: 5px; overflow: hidden; background: var(--color-background-muted); }
+.wiki-ov-bar i { display: block; }
+.wiki-seg-confirmed { background: var(--color-success); }
+.wiki-seg-public { background: var(--color-info); }
+.wiki-seg-demo { background: var(--color-warning); }
+.wiki-seg-estimate { background: repeating-linear-gradient(45deg, var(--color-warning) 0 3px, var(--color-warning-muted) 3px 6px); }
+.wiki-seg-none { background: var(--color-border-emphasized); }
+.wiki-ov-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px !important; font-size: var(--bo-k-small); color: var(--color-text-secondary); }
+.wiki-ov-legend li { display: inline-flex; align-items: center; }
+.wiki-ov-legend b { color: var(--color-text-primary); margin-left: 4px; font-variant-numeric: tabular-nums; }
+
+.wiki-ov-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.wiki-ov-cards[data-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1380px) { .wiki-ov-cards[data-count="4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.wiki-ov-card, .wiki-ov-panel { border: 1px solid var(--color-border); border-radius: 10px; padding: 14px 16px 16px; background: var(--color-background-surface); min-width: 0; }
+.wiki-ov-card h3 { font-size: var(--bo-k-meta); font-weight: 600; color: var(--color-text-secondary); display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+.wiki-ov-card h3 a, .wiki-ov-panel h3 a { font-size: var(--bo-k-tag); font-weight: 500; }
+.wiki-ov-funnel { display: grid; gap: 7px; font-size: var(--bo-k-tag); }
+.wiki-ov-funnel div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; }
+.wiki-ov-funnel dd { margin: 0; font-weight: 600; }
+.wiki-ov-funnel span { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--color-background-muted); }
+.wiki-ov-funnel span i { display: block; height: 100%; border-radius: 3px; background: var(--color-text-secondary); }
+.wiki-ov-funnel div:last-child span i { background: var(--color-success); }
+.wiki-ov-foot { margin-top: 10px !important; font-size: var(--bo-k-small); color: var(--color-text-secondary); }
+.wiki-ov-revenue { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; align-items: end; min-height: 96px; }
+.wiki-ov-revenue li { display: grid; justify-items: center; gap: 4px; font-size: var(--bo-k-small); color: var(--color-text-secondary); text-align: center; }
+.wiki-ov-revenue b { color: var(--color-text-primary); font-size: var(--bo-k-tag); font-weight: 600; white-space: nowrap; }
+.wiki-ov-revenue i { display: block; width: 100%; max-width: 46px; border-radius: 4px 4px 0 0; background: var(--color-border-emphasized); }
+.wiki-ov-revenue li:last-child i { background: var(--color-text-secondary); }
+.wiki-ov-big { font-size: var(--bo-k-display); font-weight: 700; line-height: 1.2; }
+.wiki-ov-stack { display: flex; gap: 2px; height: 22px; border-radius: 5px; overflow: hidden; margin: 8px 0 6px !important; }
+.wiki-ov-stack i { display: grid; place-items: center; min-width: 0; overflow: hidden; white-space: nowrap; font-style: normal; font-size: var(--bo-k-small); font-weight: 600; color: var(--color-on-dark); background: var(--color-text-secondary); }
+.wiki-ov-stack i:first-child { background: var(--color-text-primary); }
+.wiki-ov-stack i:last-child { background: var(--color-border-emphasized); color: var(--color-text-primary); }
+.wiki-ov-kv { display: grid; gap: 3px; font-size: var(--bo-k-tag); }
+.wiki-ov-kv div { display: flex; justify-content: space-between; gap: 10px; }
+.wiki-ov-kv dt { color: var(--color-text-secondary); }
+.wiki-ov-kv dd { margin: 0; font-weight: 600; display: inline-flex; align-items: center; }
+.wiki-ov-regions { display: grid; gap: 6px; }
+.wiki-ov-regions li { display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 7px; background: var(--color-background-muted); font-size: var(--bo-k-tag); }
+.wiki-ov-regions b { font-weight: 600; }
+.wiki-ov-regions li.is-ok { background: var(--color-success-muted); }
+.wiki-ov-regions li.is-ok b { color: var(--color-text-green); }
+
+.wiki-ov-cols { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.wiki-ov-side { display: grid; gap: 16px; min-width: 0; }
+.wiki-ov-panel { padding: 16px 18px 18px; }
+.wiki-ov-panel > h3 { font-size: var(--bo-k-lead); display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin-bottom: 12px; }
+.wiki-ov-panel > h3 > span { font-size: var(--bo-k-tag); font-weight: 400; color: var(--color-text-secondary); }
+.wiki-ov-panel > h3 > a { margin-left: auto; }
+.wiki-ov-bucket + .wiki-ov-bucket { margin-top: 16px; }
+.wiki-ov-bucket h4 { font-size: var(--bo-k-tag); font-weight: 600; color: var(--color-text-secondary); margin-bottom: 8px; }
+.wiki-ov-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.wiki-ov-tile { border: 1px solid var(--color-border); border-radius: 8px; padding: 9px 11px; min-width: 0; }
+.wiki-ov-tile strong { display: block; font-size: var(--bo-k-tag); font-weight: 600; margin-bottom: 3px; }
+.wiki-ov-tile li { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; font-size: var(--bo-k-tag); color: var(--color-text-secondary); line-height: 1.5; }
+.wiki-ov-tile li .wiki-lv.is-dot { margin-right: 0; }
+.wiki-ov-tile em { font-style: normal; color: var(--color-text-primary); }
+.wiki-ov-clean { display: flex; flex-wrap: wrap; gap: 6px; }
+.wiki-ov-clean li { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 6px; background: var(--color-background-muted); font-size: var(--bo-k-tag); }
+.wiki-ov-policy { display: grid; gap: 8px; }
+.wiki-ov-policy div { padding-bottom: 8px; border-bottom: 1px solid var(--bo-line-soft); }
+.wiki-ov-policy div:last-child { border-bottom: 0; padding-bottom: 0; }
+.wiki-ov-policy dt { font-size: var(--bo-k-small); color: var(--color-text-secondary); display: flex; align-items: center; }
+.wiki-ov-policy dd { margin: 0; font-size: var(--bo-k-meta); font-weight: 600; }
+.wiki-ov-policy .is-nobid dd { font-weight: 500; color: var(--color-text-red); background: var(--color-error-muted); padding: 6px 9px; border-radius: 6px; margin-top: 2px; }
+.wiki-ov-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.wiki-ov-chips li { padding: 2px 9px; border: 1px solid var(--color-border); border-radius: 999px; font-size: var(--bo-k-tag); }
+.wiki-ov-panel > .wiki-ov-chips { margin-bottom: 12px; }
+.wiki-ov-solutions { display: grid; gap: 6px; font-size: var(--bo-k-tag); }
+.wiki-ov-solutions span { color: var(--color-text-secondary); }
+.wiki-ov-skills { display: grid; gap: 8px; font-size: var(--bo-k-tag); }
+.wiki-ov-skills div { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; align-items: start; }
+.wiki-ov-skills dt { color: var(--color-text-secondary); display: flex; align-items: center; }
+.wiki-ov-skills dd { margin: 0; }
+.wiki-ov-skills .wiki-ov-chips li { font-size: var(--bo-k-small); padding: 1px 8px; }
+.wiki-ov-log li { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--bo-line-soft); font-size: var(--bo-k-tag); }
+.wiki-ov-log li:last-child { border-bottom: 0; }
+.wiki-ov-log li > :is(time, span) { color: var(--color-text-secondary); }
+.wiki-ov-all { border: 1px solid var(--color-border); border-radius: 10px; margin: 0 !important; }
+.wiki-ov-all > summary { padding: 12px 18px; font-weight: 600; }
+.wiki-ov-all > summary span { font-weight: 400; color: var(--color-text-secondary); font-size: var(--bo-k-tag); margin-left: 6px; }
+.wiki-ov-all-body { padding: 0 18px 8px; }
+.wiki-ov-meanings { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 4px !important; font-size: var(--bo-k-small); color: var(--color-text-secondary); }
+.wiki-ov-meanings li { display: inline-flex; align-items: center; }
+.wiki-ov-sep { margin: 0 6px; color: var(--color-text-secondary); }

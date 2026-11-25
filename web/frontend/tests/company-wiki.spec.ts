@@ -23,13 +23,19 @@ test("프로필 이름표와 확인 수준을 읽고 기술 정보를 펼쳐요"
   await expect(main.getByRole("heading", { name: "예시 회사" })).toBeVisible();
   await expect(page.locator("header.topbar .topbar-view-note")).toHaveText("실적 5건 가운데 4건이 업무별 근거 지도에 들어 있어요");
   await expect(main).toContainText("마지막으로 바뀐 날 · 2026-11-22");
+  await expect(main.getByRole("img", { name: "확인됨 1개, 공개 자료 1개, 데모값 0개, 추정 1개, 표시 없음 2개" })).toBeVisible();
+  await expect(main.getByRole("article", { name: /근거 자료 범위/ })).toContainText("등록 실적5건");
+  // 프로필 값 전체는 접혀 있다가 펼치면 구역별 표로 읽는다.
+  const tables = main.getByRole("table", { name: "회사", exact: true });
+  await expect(tables).toBeHidden();
+  await main.getByText("프로필 값 전체 보기").click();
   for (const name of ["회사", "인력", "custom"]) await expect(main.getByRole("table", { name, exact: true })).toBeVisible();
-  for (const name of ["회사명 예시 회사 확인됨", "등록 건수 0건 공개 자료", "people.lead 미확인 표시 없음", "people.total 값 없음 추정"]) {
+  for (const name of ["회사명 예시 회사 확인됨", "등록 건수 0건 공개 자료", "people.lead 미확인 표시 없음", "people.total 값 없음 추정", "custom.value 값 없음 표시 없음"]) {
     await expect(main.getByRole("row", { name, exact: true })).toBeVisible();
   }
   for (const label of ["확인됨 · 담당자가 확인한 값", "공개 자료 · 홈페이지 등 공개된 자료에서 옮긴 값",
     "데모값 · 시연을 위해 임의로 넣은 값", "추정 · 다른 자료에서 추정한 값", "표시 없음 · 확인 수준이 기록되지 않은 값"]) {
-    await expect(main.getByRole("listitem").filter({ hasText: label })).toBeVisible();
+    await expect(main.getByRole("list", { name: "확인 수준의 뜻" }).getByRole("listitem").filter({ hasText: label })).toBeVisible();
   }
   const digestText = main.getByText(digest.slice(0, 12), { exact: true });
   await expect(digestText).toBeHidden();
@@ -37,6 +43,43 @@ test("프로필 이름표와 확인 수준을 읽고 기술 정보를 펼쳐요"
   await expect(digestText).toBeVisible();
   await expect(main.getByText(/위키 식별 이름 · sample/)).toContainText("이름표 · 사용");
   await expect(main.getByText(/규칙 1쪽/)).toBeVisible();
+});
+
+test("개요가 같은 대상의 값을 한 칸에 묶고 카드·방침·결격 사유를 값 그대로 보여요", async ({ page }) => {
+  const f = (path: string, label: string, display_value: string | null, level: string | null) => ({ path, label, value: display_value, display_value, level });
+  await mockWiki(page, { "/profile": { sections: [
+    { key: "company", label: "회사", facts: [f("company.name", "회사명", "예시 회사", "public"), f("company.ceo", "대표자", "홍길동", "public"),
+      f("company.revenue_krw.2024", "매출액 (2024년)", "28억 원", null), f("company.revenue_krw.2025", "매출액 (2025년)", "37억 6,927만 원", null)] },
+    { key: "registrations", label: "등록·인증", facts: [
+      f("registrations.venture.type", "벤처기업 유형", "혁신성장유형", "public"), f("registrations.venture.since", "벤처기업 확인 시기", "2023-05", "public"),
+      f("registrations.venture.valid_until", "벤처기업 유효기간", "2030-08-03", "demo"),
+      f("registrations.direct_production[1].status", "직접생산확인 · 운영위탁서비스", "유효", "confirmed"),
+      f("registrations.direct_production[1].item_no", "직접생산확인 · 운영위탁서비스 · 세부품명번호", "8111181101", null),
+      f("registrations.gs_cert", "GS 인증", "", "demo"), f("registrations.debarment", "부정당업자 제재", "해당 없음", "confirmed"),
+      f("registrations.new_thing", "새 등록", "있음", null)] },
+    { key: "people", label: "인력", facts: [f("people.total_tech_staff", "기술 인력 합계", "35명", "confirmed"),
+      f("people.headcount_by_grade.특급", "특급 기술자", "3명", null), f("people.headcount_by_grade.고급", "고급 기술자", "8명", null),
+      f("people.onsite_capacity.대구.ok", "대구 상주", "가능", null), f("people.onsite_capacity.대구.max_people", "대구 상주 가능 인원", "6명", null),
+      f("people.onsite_capacity.서울.ok", "서울 상주", "불가", null)] },
+    { key: "policy", label: "입찰 방침", facts: [f("policy.no_bid_if", "참여하지 않는 조건", "하드웨어가 주된 사업", "confirmed")] },
+  ] } });
+  await page.goto("/company");
+  const main = page.getByRole("main");
+  await expect(main.getByRole("article", { name: /매출액/ })).toContainText("37억 6,927만 원");
+  await expect(main.getByRole("article", { name: /기술 인력/ })).toContainText("35명");
+  await expect(main.getByRole("img", { name: "특급 기술자 3명, 고급 기술자 8명" })).toBeVisible();
+  await expect(main.getByRole("article", { name: /지역별 상주/ }).getByRole("listitem").first()).toHaveText("대구가능 · 6명");
+  const registrations = main.getByRole("region", { name: /등록·인증/ });
+  const venture = registrations.getByRole("listitem").filter({ has: page.getByText("벤처기업", { exact: true }) });
+  await expect(venture).toContainText("유형혁신성장유형");
+  await expect(venture).toContainText("확인 시기2023-05");
+  await expect(venture).toContainText("유효기간2030-08-03");
+  const production = registrations.getByRole("listitem").filter({ has: page.getByText("직접생산확인 · 운영위탁서비스", { exact: true }) });
+  await expect(production).toContainText("세부품명번호8111181101");
+  await expect(registrations.getByRole("heading", { name: "기타 등록·인증" })).toBeVisible();
+  await expect(registrations.getByRole("listitem").filter({ hasText: "GS 인증" })).toContainText("값 없음");
+  await expect(registrations.getByRole("heading", { name: "결격 사유" })).toBeVisible();
+  await expect(main.getByRole("region", { name: "입찰 방침" })).toContainText("하드웨어가 주된 사업");
 });
 
 test("변경 종류별 설명과 실적명 없는 기록을 읽어요", async ({ page }) => {
@@ -140,7 +183,9 @@ test("근거 지도가 없는 묶음은 날짜와 건수를 추정하지 않아�
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("회사 근거");
   await expect(page.locator("header.topbar .topbar-view-note")).toHaveText("실적 5건이 등록돼 있어요");
   await expect(page.getByText(/마지막으로 바뀐 날/)).toHaveCount(0);
-  await expect(page.getByRole("definition").filter({ hasText: "값 없음" })).toHaveCount(3);
+  const coverage = page.getByRole("article", { name: /근거 자료 범위/ });
+  await expect(coverage.getByRole("definition")).toHaveText(["5건", "4건", "값 없음"]);
+  await expect(coverage).not.toContainText("근거 지도 ·");
   await tab(page, "업무별 근거").click();
   await expect(page.getByText("업무별 근거 지도가 아직 없어요.")).toBeVisible();
 });

@@ -1,49 +1,14 @@
-import { TechnicalInfo } from "../common/TechnicalInfo";
 import { useState } from "react";
 import { Requirements, TopicDetail } from "./WikiEvidence";
 import { WikiSplit } from "./WikiSplit";
 import { WikiUpload } from "./WikiUpload";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { wiki, type WikiKind, type WikiProject, type WikiSummary } from "../../lib/companyWikiApi";
+import { wiki, type WikiKind, type WikiProject } from "../../lib/companyWikiApi";
 import { WikiBody, wikiUrl } from "./WikiBody";
 import { WikiState, wikiValue } from "./WikiState";
 
 const kinds = { rule: "규칙", capability: "역량", category: "분류", glossary: "용어집", portfolio: "실적" };
-const levels = new Map(Object.entries({ confirmed: "확인됨", demo: "데모값", public: "공개 자료", estimate: "추정" }));
-
-export function WikiOverview({ summary }: { summary: WikiSummary }) {
-  const profile = useQuery(wiki.profile);
-  const counts = summary.counts;
-  const stats = [
-    ["등록 실적", counts.portfolio_items, "건"], ["실적 원문 페이지", counts.portfolio_pages, "쪽"], ["요구사항까지 정리된 실적", counts.ingested_projects, "건"],
-    ["업무", counts.work_units, "가지"], ["근거 연결", counts.evidence_links, "건"],
-  ] as const;
-  return <section className="wiki-content">
-    <h2>{wikiValue(summary.company_name)}</h2>
-    {summary.last_changed && <p>마지막으로 바뀐 날 · <time>{summary.last_changed}</time></p>}
-    <dl className="wiki-stats">{stats.map(([label, value, unit]) =>
-      <div key={label}><dt>{label}</dt><dd>{value === null ? "값 없음" : value + unit}</dd></div>)}</dl>
-    <h2>프로필 값</h2>
-    {profile.error || !profile.data ? <WikiState error={profile.error}/> :
-      !profile.data.sections.length ? <p>등록된 프로필 값이 없어요.</p> : <>
-        <ul>{["확인됨 · 담당자가 확인한 값", "공개 자료 · 홈페이지 등 공개된 자료에서 옮긴 값",
-          "데모값 · 시연을 위해 임의로 넣은 값", "추정 · 다른 자료에서 추정한 값",
-          "표시 없음 · 확인 수준이 기록되지 않은 값"].map(text => <li key={text}>{text}</li>)}</ul>
-        {profile.data.sections.map(section => <table key={section.key}>
-          <caption>{section.label ?? section.key}</caption><thead><tr><th>항목</th><th>값</th><th>확인 수준</th></tr></thead>
-          <tbody>{section.facts.map(fact => <tr key={fact.path}><th scope="row">{fact.label ?? fact.path}</th>
-            <td>{wikiValue(fact.display_value)}</td><td>{fact.level === null ? "표시 없음" : levels.get(fact.level) ?? wikiValue(fact.level)}</td>
-          </tr>)}</tbody></table>)}</>}
-    <TechnicalInfo summary="기술 정보">
-      <p>묶음 판 · <code>{summary.bundle_sha256.slice(0, 12)}</code><br/>위키 식별 이름 · {summary.slug}<br/>
-        이름표 · {summary.labels_available ? "사용" : "사용 안 함"}</p>
-      <p>{Object.entries(counts.pages_by_kind).map(([kind, count]) => `${kinds[kind as WikiKind]} ${count}쪽`).join(" · ")}</p>
-      {profile.data?.sections.flatMap(section => section.facts.filter(fact => fact.label !== null)
-        .map(fact => <p key={fact.path}><small>{fact.label} · {fact.path}</small></p>))}
-    </TechnicalInfo>
-  </section>;
-}
 
 function Detail({ kind, slug }: { kind: WikiKind; slug: string }) {
   const page = useQuery(wiki.detail(kind, slug));
