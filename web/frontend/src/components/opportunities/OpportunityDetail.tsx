@@ -1,3 +1,4 @@
+import { formatActorName } from "../../lib/format";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -640,7 +641,7 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
                       ? "입력된 사유 없음" : "선택 사유 미확인"
                 ),
               },
-              { label: "결정 기록자", value: latestDecision?.claimed_name?.trim() || item.tracking_selected_by?.trim() || "미확인" },
+              { label: "결정 기록자", value: formatActorName(latestDecision?.claimed_name) || formatActorName(item.tracking_selected_by) || "미확인" },
               { label: "선택 시각", value: formatMoment(latestDecision?.decided_at ?? item.tracking_selected_at) },
             ]} />
             {holdText ? <p className="opportunity-caption">보류 재검토 기한 · {holdText} ({formatMoment(item.hold_review_due_at)})</p> : null}
@@ -685,8 +686,8 @@ export function OpportunityDetail({ intent = null, onDirtyChange, onSaved, oppor
         stateClassName="opportunity-tracking-summary"
         stateLabel="추적 상태"
         state={trackingMark(item.tracking_status)}
-        note={item.tracking_status === "미선택" ? undefined : item.tracking_selected_by?.trim()
-          ? `${item.tracking_selected_by} · ${formatMoment(item.tracking_selected_at)}`
+        note={item.tracking_status === "미선택" ? undefined : formatActorName(item.tracking_selected_by)
+          ? `${formatActorName(item.tracking_selected_by)} · ${formatMoment(item.tracking_selected_at)}`
           : "결정 기록자 미확인"}
         secondaryActions={action.run !== openTracking
           ? <Button label="추적 상태 변경" onClick={openTracking} size="md" variant="secondary" />

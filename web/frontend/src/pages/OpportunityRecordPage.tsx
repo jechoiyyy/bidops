@@ -1,3 +1,4 @@
+import { formatActorName } from "../lib/format";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
@@ -727,9 +728,9 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
             <section aria-labelledby="rec-tracking-title" className="workbench-record-section" data-testid="record-tracking">
               <h2 className="workbench-record-section-title" id="rec-tracking-title">추적 상태</h2>
               <p className="rec-tracking-sentence">{trackingSentence(item.tracking_status, item.tracking_selected_at)}</p>
-              {item.tracking_selected_by || item.tracking_reason ? (
+              {formatActorName(item.tracking_selected_by) || item.tracking_reason ? (
                 <p className="rec-side-note">
-                  {[item.tracking_selected_by, item.tracking_reason ? `사유: ${item.tracking_reason}` : null].filter(Boolean).join(" · ")}
+                  {[formatActorName(item.tracking_selected_by), item.tracking_reason ? `사유: ${item.tracking_reason}` : null].filter(Boolean).join(" · ")}
                 </p>
               ) : null}
             </section>
@@ -870,7 +871,7 @@ function OpportunityRecord({ opportunityId, tab }: { opportunityId: number; tab:
             tone: item.tracking_status === "계속 추적" ? "accent" : "neutral",
           }}
           note={[
-            item.tracking_selected_by,
+            formatActorName(item.tracking_selected_by),
             item.tracking_selected_at ? formatMoment(item.tracking_selected_at) : null,
           ].filter(Boolean).join(" · ")}
           secondaryActions={bidLink ? (

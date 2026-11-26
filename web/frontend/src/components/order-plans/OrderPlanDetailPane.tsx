@@ -1,3 +1,4 @@
+import { formatActorName } from "../../lib/format";
 import { ReviewPreviewHeader } from "../common/ReviewPrimitives";
 import { type Ref } from "react";
 import { Link } from "react-router-dom";
@@ -493,7 +494,7 @@ export function OrderPlanDetailPane({
             {selectedItem.tracking?.tracking_selected_by ? (
               <p className="c2l-detail-note">
                 <Text type="supporting" color="secondary" as="span">
-                  최근 추적 선택 · {selectedItem.tracking.tracking_selected_by} · {formatMoment(selectedItem.tracking.tracking_selected_at)} · 사유 <ReviewValue value={selectedItem.tracking.tracking_reason} nullLabel="사유 미제공" />
+                  최근 추적 선택 · {formatActorName(selectedItem.tracking.tracking_selected_by)} · {formatMoment(selectedItem.tracking.tracking_selected_at)} · 사유 <ReviewValue value={selectedItem.tracking.tracking_reason} nullLabel="사유 미제공" />
                 </Text>
               </p>
             ) : null}

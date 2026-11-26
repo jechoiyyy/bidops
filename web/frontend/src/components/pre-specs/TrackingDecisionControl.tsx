@@ -37,7 +37,7 @@ import {
 } from "../../lib/companyApi";
 import { generateRequestId } from "../../lib/requestId";
 import { originOf, trackingVariant } from "../../lib/opportunity";
-import { formatDateTime, present } from "../../lib/format";
+import { formatActorName, formatDateTime, present } from "../../lib/format";
 import type {
   OpportunityDetailResponse,
   OpportunityTrackingStatus,
@@ -225,7 +225,7 @@ function PreSpecTrackingDecisionControl({
   ) : (
     <p className="pre-spec-inherited-context">
       사유 {present(opportunityQuery.data.tracking_reason, "미확인")}
-      {" · "}{present(opportunityQuery.data.tracking_selected_by, "담당자 미확인")}
+      {" · "}{present(formatActorName(opportunityQuery.data.tracking_selected_by), "담당자 미확인")}
       {" · "}<time dateTime={opportunityQuery.data.tracking_selected_at ?? undefined}>
         {formatDateTime(opportunityQuery.data.tracking_selected_at)}
       </time>
@@ -365,7 +365,7 @@ function PreSpecTrackingDecisionControl({
           context: opportunityQuery.isSuccess && opportunityQuery.data?.id === opportunityId ? (
             <>
               {opportunityQuery.data.tracking_reason ? <>사유 {opportunityQuery.data.tracking_reason}{" · "}</> : null}
-              {present(opportunityQuery.data.tracking_selected_by, "담당자 미확인")}
+              {present(formatActorName(opportunityQuery.data.tracking_selected_by), "담당자 미확인")}
               {" · "}<time dateTime={opportunityQuery.data.tracking_selected_at ?? undefined}>
                 {formatDateTime(opportunityQuery.data.tracking_selected_at)}
               </time>

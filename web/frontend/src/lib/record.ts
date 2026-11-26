@@ -1,3 +1,4 @@
+import { formatActorName } from "./format";
 import { deadlineLabel } from "./deadline";
 import { daysUntil, DEADLINE_EMPHASIS_DAYS } from "./briefing";
 import { DECISION_AXIS_LABEL, TERM_SENSE } from "./glossary";
@@ -452,7 +453,7 @@ export function recordAttributes({ item, reps, notice, activityItems }: RecordAt
   const amountText = amount === null ? null : formatKoreanAmount(amount) || null;
 
   const bidDeadline = bid ? formatKstMinute(bid.deadline_at ?? notice?.deadline_at ?? null) : null;
-  const selectedBy = nonBlank(item.tracking_selected_by);
+  const selectedBy = nonBlank(formatActorName(item.tracking_selected_by));
   const tracking = item.tracking_status === "미선택"
     ? "미선택"
     : selectedBy ? `${item.tracking_status} · ${selectedBy}` : item.tracking_status;
@@ -469,7 +470,7 @@ export function recordAttributes({ item, reps, notice, activityItems }: RecordAt
     { key: "method", label: "계약방법", value: nonBlank(notice?.method), placeholder: "미공개" },
     { key: "joint", label: "공동수급", value: jointMethodOf(notice), placeholder: "미공개" },
     { key: "bid_deadline", label: "입찰 마감", value: bidDeadline, placeholder: "미공개" },
-    { key: "owner", label: "담당", value: ownerFromActivity(activityItems) ?? selectedBy, placeholder: "미지정" },
+    { key: "owner", label: "담당", value: formatActorName(ownerFromActivity(activityItems)) ?? selectedBy, placeholder: "미지정" },
     { key: "tracking", label: "추적", value: tracking, placeholder: "미공개" },
   ];
 }

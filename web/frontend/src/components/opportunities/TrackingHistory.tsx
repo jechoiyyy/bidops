@@ -1,3 +1,4 @@
+import { formatActorName } from "../../lib/format";
 import { linkRecordLabel } from "../../lib/opportunity";
 import type {
   OpportunityLinkView,
@@ -69,7 +70,7 @@ export function TrackingHistory({ decisions, events, links }: TrackingHistoryPro
                 ? "입력된 사유 없음" : "선택 사유 미확인"
             )}</p>
             <p className="opportunity-caption">
-              {entry.decision.claimed_name?.trim() || "기록자 미확인"} · {formatMoment(entry.decision.decided_at)}
+              {formatActorName(entry.decision.claimed_name) || "기록자 미확인"} · {formatMoment(entry.decision.decided_at)}
               {entry.decision.cleared_recheck_signal ? " · 재검토 신호 함께 해제" : ""}
             </p>
           </div>
@@ -84,7 +85,7 @@ export function TrackingHistory({ decisions, events, links }: TrackingHistoryPro
           <div>
             <p><strong>{recheckEventLabel(entry.event.kind)}</strong></p>
             <p className="opportunity-caption">
-              {entry.event.actor_kind === "system" ? "시스템" : entry.event.claimed_name?.trim() || "기록자 미확인"}
+              {entry.event.actor_kind === "system" ? "시스템" : formatActorName(entry.event.claimed_name) || "기록자 미확인"}
               {" · "}{formatMoment(entry.event.created_at)}
               {" · "}{evidenceText(entry.event.link_id, links)}
               {entry.event.note_present ? " · 메모 있음" : ""}

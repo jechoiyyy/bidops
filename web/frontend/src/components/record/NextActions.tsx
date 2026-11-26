@@ -1,3 +1,4 @@
+import { formatActorName, formatActorText } from "../../lib/format";
 import { Button } from "@astryxdesign/core/Button";
 import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
 import { initialOf, type OpenAction } from "../../lib/record";
@@ -41,10 +42,10 @@ export function NextActions({ actions, hasHistory, loading, failed, pendingNoteI
       {shown.length > 0 ? (
         <ul className="rec-next-list">
           {shown.map((action) => {
-            const owner = ownerOf(action);
+            const owner = formatActorName(ownerOf(action));
             return (
             <li className="rec-next-item" key={action.noteId}>
-              <span aria-hidden="true" className="rec-avatar" title={owner ? `담당 ${owner}` : action.actor ? `기록자 ${action.actor}` : undefined}>
+              <span aria-hidden="true" className="rec-avatar" title={owner ? `담당 ${owner}` : action.actor ? `기록자 ${formatActorText(action.actor)}` : undefined}>
                 {initialOf(owner ?? action.actor)}
               </span>
               <div className="rec-next-main">
@@ -55,7 +56,7 @@ export function NextActions({ actions, hasHistory, loading, failed, pendingNoteI
                   onChange={(checked) => { if (checked) onComplete(action.noteId); }}
                   value={pendingNoteId === action.noteId}
                 />
-                {action.detail ? <p className="rec-side-note">{action.detail}</p> : null}
+                {action.detail ? <p className="rec-side-note">{formatActorText(action.detail)}</p> : null}
               </div>
             </li>
             );

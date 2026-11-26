@@ -22,6 +22,24 @@ export function formatRunRange(
 }
 
 /**
+ * 담당자 표시 이름을 화면용으로 바꾼다. 시연을 위해 미리 넣어 둔 에이전트 결정은
+ * 이름이 `(에이전트)`로 끝나므로 `예시`로 구분해 사람이 한 결정으로 읽히지 않게 한다.
+ * 저장된 값은 바꾸지 않는 표시 전용 변환이다. 값이 비면 null을 돌려 호출부의
+ * `미확인` 문구가 그대로 작동한다.
+ */
+export function formatActorName(name: string | null | undefined): string | null {
+  const trimmed = name?.trim();
+  return trimmed ? formatActorText(trimmed) : null;
+}
+
+/** 문장 안에 섞인 `(에이전트)` 이름(예: `담당 루트랩 실무자(에이전트)`)에도 같은 표시를 붙인다. */
+export function formatActorText(text: string): string;
+export function formatActorText(text: string | null | undefined): string | null;
+export function formatActorText(text: string | null | undefined): string | null {
+  return text == null ? null : text.replace(/\s*[(（]에이전트[)）]/g, " · 예시 결정");
+}
+
+/**
  * 날짜·시각 하나를 로캘 기본 표기로 적는다(초 포함). null이면 `nullLabel`을 쓴다
  * (기본 `미확인`). 화면마다 null 문구의 뜻이 달라(`미확인`·`값 없음`·`기록 없음`)
  * 한 함수로 강제하지 않는다 — 대신 그 문구를 두 번째 인자로 받는다(U3, 중복 통합).

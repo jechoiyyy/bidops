@@ -1,3 +1,4 @@
+import { formatActorText } from "../../lib/format";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -41,8 +42,9 @@ const KIND_ICON: Record<string, ReactNode> = {
 
 export function ActivityItem({ item, now }: { item: OpportunityActivityItem; now: Date }) {
   const link = safeActivityLink(item.link);
-  const { lead, rest } = splitActor(item.title, item.actor, item.kind);
-  const person = item.actor?.trim() ? item.actor.trim() : null;
+  const actorText = formatActorText(item.actor);
+  const { lead, rest } = splitActor(formatActorText(item.title), actorText, item.kind);
+  const person = actorText?.trim() ? actorText.trim() : null;
   return (
     <li className="rec-activity" data-item-id={item.item_id} data-kind={item.kind}>
       {person ? (
@@ -56,7 +58,7 @@ export function ActivityItem({ item, now }: { item: OpportunityActivityItem; now
           {rest}
           {item.status_pill ? <StatusMark className="rec-activity-pill" mark={{ label: item.status_pill, tone: "neutral" }} /> : null}
         </p>
-        {item.detail ? <p className="rec-activity-detail">{item.detail}</p> : null}
+        {item.detail ? <p className="rec-activity-detail">{formatActorText(item.detail)}</p> : null}
         <p className="rec-activity-meta">
           <time dateTime={activityDateTimeAttr(item.at) ?? undefined}>{activityTimeLabel(item.at, now)}</time>
           {link ? (

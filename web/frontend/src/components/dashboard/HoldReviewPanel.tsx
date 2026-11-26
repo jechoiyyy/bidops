@@ -3,7 +3,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { Text } from "@astryxdesign/core/Text";
 import { ArrowRight, CircleAlert, LoaderCircle, RefreshCw, Search } from "lucide-react";
 import type { OpportunityListResponse } from "../../lib/types";
-import { formatNumber } from "../../lib/format";
+import { formatActorName, formatNumber } from "../../lib/format";
 import { primaryTitle } from "../opportunities/trackingFlow";
 import { DashboardPanel, LinkButton, Small } from "./DashboardPrimitives";
 import { DueText, WorkRow } from "./WorkPanels";
@@ -38,7 +38,7 @@ export function HoldReviewPanel({ data, isPending, isError, onRetry, overdueNote
     body = <ul className="dash-work-list">{items.map(item => {
       const due = holdReviewDueText(item, now);
       return <WorkRow key={item.id} to={`/opportunities/${item.id}`} title={primaryTitle(item)}
-        meta={`${item.tracking_reason?.trim() || "사유 미확인"} · ${item.tracking_selected_by?.trim() || "선택자 미확인"}`}
+        meta={`${item.tracking_reason?.trim() || "사유 미확인"} · ${formatActorName(item.tracking_selected_by) || "선택자 미확인"}`}
         end={<DueText text={due.text} urgent={due.urgent} />} />;
     })}</ul>;
   }

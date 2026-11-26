@@ -1,3 +1,4 @@
+import { formatActorName } from "../../lib/format";
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@astryxdesign/core/Button";
@@ -335,7 +336,7 @@ export function CandidateLinkDialog({
                       <li className="opportunity-dialog-item" key={state.id}>
                         <p><strong>사업 #{String(state.id).padStart(3, "0")} · {state.tracking_status}</strong></p>
                         <p className="opportunity-caption">
-                          선택자 · {state.tracking_selected_by?.trim() || "미확인"} · 선택 시각 · {formatMoment(state.tracking_selected_at)}
+                          선택자 · {formatActorName(state.tracking_selected_by) || "미확인"} · 선택 시각 · {formatMoment(state.tracking_selected_at)}
                         </p>
                         <p className="opportunity-caption">
                           재검토 신호 · {state.recheck_signal
