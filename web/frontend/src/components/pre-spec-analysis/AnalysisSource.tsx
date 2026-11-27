@@ -10,9 +10,23 @@ import { analysisDate, isOutsideWorkUnits, knowledgeName, knowledgeReadNotice, k
 export type PageLink = (evidence: EngineEvidence | null | undefined, label: string) => ReactNode;
 
 const gateNames: Record<string, string> = {
-  G2B_REGISTERED: "나라장터 등록", DEBARMENT: "부정당업자 제재", SW_BUSINESS_REPORT: "SW사업자 신고",
-  SME_CERT: "중소기업 확인", LARGE_CORP_EXCLUDED: "대기업 참여 제한",
-  MUTUAL_INVEST_GROUP_EXCLUDED: "상호출자제한 기업집단 제한", DIRECT_PRODUCTION: "직접생산 확인",
+  G2B_REGISTERED: "나라장터 입찰참가자격 등록",
+  INDUSTRY_CODE: "등록 업종 코드",
+  SW_BUSINESS_REPORT: "SW사업자 신고",
+  SME_CERT: "중소기업·소상공인 확인서",
+  DIRECT_PRODUCTION: "직접생산 확인",
+  LARGE_CORP_EXCLUDED: "대기업 참여 제한",
+  MUTUAL_INVEST_GROUP_EXCLUDED: "상호출자제한기업집단 참여 제한",
+  REGION_LIMIT: "참가 지역 제한",
+  DEBARMENT: "부정당업자 제재",
+  TAX_DELINQUENCY: "국세·지방세 체납",
+  PAST_PERFORMANCE: "유사 사업 수행 실적",
+  REQUIRED_CERT: "필수 인증",
+  OTHER: "원문 확인이 필요한 참가 조건",
+  STAFFING_CAPACITY: "투입 인력 규모",
+  ONSITE_LOCATION: "상주 근무 조건",
+  CONSORTIUM_CONDITION: "공동수급 조건",
+  INSOLVENCY: "부도·회생 상태",
 };
 const verdicts = { PASS: ["충족", "paw-ok"], FAIL: ["차단", "paw-err"], RISK: ["위험", "paw-warn"], UNKNOWN: ["미확인", "paw-warn"] };
 const overviewWarnings: Record<string, string> = {
@@ -65,8 +79,9 @@ export function AnalysisTerms({ analysis, pageLink, consortiumIssue, openIssue }
         <h3 className="paw-sub">참가 자격 (엔진 결정적 판정)</h3>
         <table className="paw-plain"><tbody>{gates.map((gate, i) => {
           const [label, tone] = verdicts[gate.verdict];
+          const name = Object.hasOwn(gateNames, gate.code) ? gateNames[gate.code] : "분류 확인 필요";
           const demoRow = gate.input_fields?.some((field) => demo?.some((path) => sameFieldPrefix(field, path)));
-          return <tr key={i}><th scope="row">{gateNames[gate.code] ?? gate.code}</th><td>
+          return <tr key={i}><th scope="row">{name}</th><td>
             <span className={`paw-chip ${tone}`}>{label}</span>{" "}
             {gate.evidence.length > 0 ? gate.evidence.map((evidence, j) => <span key={j}>{j > 0 && " "}{pageLink(evidence, "참가 자격 원문")}</span>)
               : pageLink(null, "참가 자격 원문")}

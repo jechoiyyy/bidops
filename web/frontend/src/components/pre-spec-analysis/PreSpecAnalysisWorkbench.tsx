@@ -292,6 +292,8 @@ function Workbench({ run, canAcknowledge = false, notice, item, shown, overviewU
   const overview = shown?.payload.business_overview ?? [];
   const tasks = shown?.payload.main_tasks ?? [];
   const budgetClaim = shown?.payload.budget_and_period.find((claim) => claim.text.includes("금액"));
+  const budgetOverviewPage = budgetClaim ? overviewEvidence(budgetClaim)
+    .find(({ page }) => page >= 1 && page <= pageCount)?.page : undefined;
   const period = shown?.payload.budget_and_period.find((claim) => claim.text.includes("기간"));
   const project = analysis.facts?.project;
   const budgetEvidence = project?.evidence.find((evidence) => /VAT|부가/.test(evidence.quote));
@@ -332,26 +334,29 @@ function Workbench({ run, canAcknowledge = false, notice, item, shown, overviewU
 
     <section className="paw-blk paw-brief" id="s-brief" aria-label="한눈에">
       <div>
-        <h3 className="paw-sub paw-purpose-head">사업 개요{shown?.reviewed_pages.length
-          ? <span>제안요청서 PDF {shown.reviewed_pages.join("·")}쪽 기준</span> : null}</h3>
-        {overview.length > 0
-          ? <ul className="paw-claims paw-purpose">{overview.map(claimItem)}</ul>
-          : <p className="paw-muted" role="status">{shown ? "검증된 결과에 사업 개요 문장이 없어요." : overviewUnavailable}</p>}
+        <div className="paw-overview">
+          <h3 className="paw-sub paw-purpose-head">사업 개요{shown?.reviewed_pages.length
+            ? <span>제안요청서 PDF {shown.reviewed_pages.join("·")}쪽 기준</span> : null}</h3>
+          {overview.length > 0
+            ? <ul className="paw-claims paw-purpose">{overview.map(claimItem)}</ul>
+            : <p className="paw-muted" role="status">{shown ? "검증된 결과에 사업 개요 문장이 없어요." : overviewUnavailable}</p>}
+          <h3 className="paw-sub">주요 과업 {shown ? `${tasks.length}건` : "미확인"}</h3>
+          <ol className="paw-claims paw-tasks">{tasks.map(claimItem)}</ol>
+          <h3 className="paw-sub paw-period">사업 기간</h3>
+          <p>{period?.text ?? "미확인"} {claimLinks(period, "제안요청서 사업기간")}</p>
+        </div>
         <h3 className="paw-sub">사업 금액 대조</h3>
         <div className="paw-bcmp">
           <div><div className="paw-k">사전규격 등록액</div><div className="paw-v">{registered == null ? "예산 미제공" : won(registered)}</div>
             <div className="paw-s">출처: 나라장터 사전규격 등록 정보({known(number)}) · 부가세 포함 여부 표시 없음</div></div>
           <div><div className="paw-k">제안요청서 사업금액</div><div className="paw-v">{projectAmount == null ? "미확인" : won(projectAmount)}
             <small>{project?.vat_included == null ? "부가가치세 포함 여부 미확인" : project.vat_included ? "부가가치세 포함" : "부가가치세 별도"}</small></div>
-            <div className="paw-s">출처: 제안요청서 {claimLinks(budgetClaim, "제안요청서 사업금액")}
-              {budgetEvidence && <> · 같은 금액 {pageLink(budgetEvidence, "제안요청서 사업금액(사업 개요 절)")}</>}</div></div>
+            <div className="paw-s">출처: 제안요청서 {budgetOverviewPage !== undefined
+              ? pdfPageLink(budgetOverviewPage, "제안요청서 사업금액")
+              : budgetEvidence && pageLink(budgetEvidence, "제안요청서 사업금액")}</div></div>
           <div className="paw-d"><b>차이 {diff === null ? "계산 불가" : won(Math.abs(diff))}</b>
             {diff === null || diff === 0 ? "" : diff > 0 ? " · 등록액이 더 커요" : " · 제안요청서 금액이 더 커요"} · 차이가 생긴 이유는 수집한 자료에 없어요.</div>
         </div>
-        <h3 className="paw-sub">주요 과업 {shown ? `${tasks.length}건` : "미확인"}</h3>
-        <ol className="paw-claims paw-tasks">{tasks.map(claimItem)}</ol>
-        <h3 className="paw-sub paw-period">사업 기간</h3>
-        <p>{period?.text ?? "미확인"} {claimLinks(period, "제안요청서 사업기간")}</p>
       </div>
       <div>
         <div className="paw-layers">

@@ -30,6 +30,7 @@ a.paw-pg { text-decoration: none; }
 section.paw-brief { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); gap: 0 40px; padding-top: 14px; }
 .paw-brief > div { min-width: 0; }
 .paw-brief > div + div { border-left: 1px solid var(--bo-line-soft); padding-left: 32px; }
+.paw-overview { margin-bottom: var(--spacing-4); }
 .paw-claims { list-style: none; padding: 0; margin: 0 0 14px; }
 .paw-claims li { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 3px 0; font-size: var(--bo-k-lead); line-height: 1.48; }
 .paw-claims.paw-tasks { counter-reset: t; }
