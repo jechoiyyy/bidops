@@ -147,8 +147,9 @@
 .dash-agenda-items { margin: 0; padding: 0; list-style: none; min-width: 0; container-type: inline-size; }
 .dash-agenda-item {
   display: grid;
-  grid-template-columns: minmax(0, calc(var(--spacing-12) * 14)) auto minmax(0, 1fr) calc(var(--spacing-12) * 2) calc(var(--spacing-12) * 3);
-  grid-template-areas: "main chain . time status";
+  /* 시각 칸이 남는 폭을 흡수하고 내용은 오른쪽에 붙는다(빈 열·고정 폭을 두지 않아 사업명이 덜 잘린다). */
+  grid-template-columns: minmax(0, calc(var(--spacing-12) * 14)) auto minmax(max-content, 1fr) calc(var(--spacing-12) * 3);
+  grid-template-areas: "main chain time status";
   align-items: center;
   gap: var(--spacing-1) var(--spacing-4);
   padding: var(--spacing-1-5, var(--spacing-1)) var(--spacing-4);
@@ -160,7 +161,7 @@
 .dash-agenda-status { grid-area: status; }
 @container (max-width: 960px) {
   .dash-agenda-item {
-    grid-template-columns: minmax(0, 1fr) calc(var(--spacing-12) * 2) calc(var(--spacing-12) * 3);
+    grid-template-columns: minmax(0, 1fr) max-content calc(var(--spacing-12) * 3);
     grid-template-areas: "main time status" "chain time status";
   }
   .dash-agenda-item > :is(.dash-agenda-chain, .dash-agenda-chain-empty) { justify-self: start; }
