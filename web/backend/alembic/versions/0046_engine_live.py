@@ -188,3 +188,4 @@ def downgrade():
     op.drop_constraint("ck_engine_run_quality", "engine_run", type_="check", schema=SCHEMA)
     op.create_check_constraint("ck_engine_run_quality", "engine_run",
                                "quality_status = 'mock_reference'", schema=SCHEMA)
+    op.execute("DELETE FROM bidops.screening_audit_event WHERE event_type='db.migration' AND target_id='0046_engine_live'")

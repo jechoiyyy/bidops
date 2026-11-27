@@ -346,6 +346,8 @@ TABLE_OWNER: dict[str, str] = {
     "engine_review_preview": DEEP_REVIEW,
     "engine_review_approval": DEEP_REVIEW,
     "engine_review_acknowledgment": DEEP_REVIEW,
+    "engine_call": DEEP_REVIEW,
+    "prespec_company_fit_mode": DEEP_REVIEW,
     "company_wiki_ingest_run": DEEP_REVIEW,
     "proposal_section": DEEP_REVIEW,
     "proposal_sentence_edit": DEEP_REVIEW,

@@ -165,6 +165,7 @@ def downgrade():
     op.drop_column("engine_run", "company_bundle_slug", schema=SCHEMA)
     for column in ("company_id", "profile_version_id"):
         op.alter_column("engine_run", column, nullable=False, schema=SCHEMA)
+    op.execute("DELETE FROM bidops.screening_audit_event WHERE event_type='db.migration' AND target_id='0045_engine_review'")
 
 
 def _engine_guard(*, wiki):

@@ -59,9 +59,10 @@ def downgrade():
     op.execute("""
         DO $$ BEGIN
           IF EXISTS (SELECT 1 FROM bidops.prespec_company_fit_attempt WHERE card_sha256 IS NOT NULL AND input_jsonb->>'judged_by' = 'model')
-          THEN RAISE EXCEPTION '0047 downgrade refuses while model card judgments exist'; END IF;
+          THEN RAISE EXCEPTION 'card lineage history must be preserved'; END IF;
         END $$;
     """)
     op.execute(f"DROP TRIGGER prespec_company_fit_mode_guard ON bidops.{TABLE}")
     op.drop_table(TABLE, schema=SCHEMA)
     op.execute("DROP FUNCTION bidops.guard_prespec_company_fit_mode()")
+    op.execute("DELETE FROM bidops.screening_audit_event WHERE event_type='db.migration' AND target_id='0047_company_fit_mode'")
