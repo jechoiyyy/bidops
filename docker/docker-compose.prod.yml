@@ -38,6 +38,11 @@ services:
     environment:
       # Literal deployment identity for the engine review startup guard.
       BIDOPS_ENV: prod
+      # 회사 핏 사업 범위 카드(ADR-0080). 카드 파일은 저장소 밖에 두며 값이 없으면 /dev/null이라
+      # 카드 lineage는 card_unavailable로 꺼진다. CARD_MODE는 배포 상한이고 실제 모드는 감사되는 모드 행이다.
+      BIDOPS_PRESPEC_COMPANY_FIT_CARD_PATH: /run/company-fit/business-scope-card.yaml
+      BIDOPS_PRESPEC_COMPANY_FIT_CARD_SHA256: ${BIDOPS_PRESPEC_COMPANY_FIT_CARD_SHA256:-}
+      BIDOPS_PRESPEC_COMPANY_FIT_CARD_MODE: ${BIDOPS_PRESPEC_COMPANY_FIT_CARD_MODE:-off}
       BIDOPS_VLLM_SCREENING_BASE_URL: ${BIDOPS_VLLM_SCREENING_BASE_URL:-}
       BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS: ${BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS:-}
       BIDOPS_VLLM_SCREENING_API_KEY: ${BIDOPS_VLLM_SCREENING_API_KEY:-EMPTY}
@@ -76,6 +81,7 @@ services:
     - ${BIDOPS_C2_CAPABILITIES_HOST_PATH:?set an explicit approved capabilities file path}:/run/c2/company-capabilities.json:ro
     - ${BIDOPS_C2_PROMPT_HOST_PATH:?set an explicit approved prompt file path}:/run/c2/order-plan-prompt.txt:ro
     - ./wiki:/app/company-bundle:ro
+    - ${BIDOPS_PRESPEC_COMPANY_FIT_CARD_HOST_PATH:-/dev/null}:/run/company-fit/business-scope-card.yaml:ro
   analysis-worker:
     <<: *production-app
     restart: unless-stopped
@@ -83,6 +89,11 @@ services:
     - model-egress
     environment:
       BIDOPS_ENV: prod
+      # 회사 핏 사업 범위 카드(ADR-0080). 카드 파일은 저장소 밖에 두며 값이 없으면 /dev/null이라
+      # 카드 lineage는 card_unavailable로 꺼진다. CARD_MODE는 배포 상한이고 실제 모드는 감사되는 모드 행이다.
+      BIDOPS_PRESPEC_COMPANY_FIT_CARD_PATH: /run/company-fit/business-scope-card.yaml
+      BIDOPS_PRESPEC_COMPANY_FIT_CARD_SHA256: ${BIDOPS_PRESPEC_COMPANY_FIT_CARD_SHA256:-}
+      BIDOPS_PRESPEC_COMPANY_FIT_CARD_MODE: ${BIDOPS_PRESPEC_COMPANY_FIT_CARD_MODE:-off}
       BIDOPS_ENGINE_COMPANY_BUNDLE_DIR: /app/company-bundle
       BIDOPS_ENGINE_COMPANY_BUNDLE_SLUG: ${BIDOPS_ENGINE_COMPANY_BUNDLE_SLUG:-rootlab}
       BIDOPS_COMPANY_WIKI_BACKUP_DIR: ${BIDOPS_COMPANY_WIKI_BACKUP_DIR:-}
@@ -110,6 +121,7 @@ services:
       BIDOPS_C2_PROMPT_PATH: /run/c2/order-plan-prompt.txt
     volumes:
     - ./wiki:/app/company-bundle:rw
+    - ${BIDOPS_PRESPEC_COMPANY_FIT_CARD_HOST_PATH:-/dev/null}:/run/company-fit/business-scope-card.yaml:ro
     - ./backups/company-wiki:/app/company-wiki-backups:rw
     - ${BIDOPS_C2_CAPABILITIES_HOST_PATH:?set an explicit approved capabilities file path}:/run/c2/company-capabilities.json:ro
     - ${BIDOPS_C2_PROMPT_HOST_PATH:?set an explicit approved prompt file path}:/run/c2/order-plan-prompt.txt:ro

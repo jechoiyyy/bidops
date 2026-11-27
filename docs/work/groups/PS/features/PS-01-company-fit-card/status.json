@@ -8,32 +8,35 @@
       "title": "카드 로더와 카드 lineage 입력",
       "model": "complex",
       "fingerprint": "f4c783992605eeb10f2464df7fb902563f7a0e3e3baa5e25329bf9ebf57a45d3",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-11-27T18:31:36+09:00",
+      "note": "MVP 6b4b19a + feat/engine-live-responses; tests in release image on PG17"
     },
     {
       "id": "STEP-002",
       "title": "migration 0044·ORM·권한",
       "model": "complex",
       "fingerprint": "ec0733981ea24ccffc889d70ee4508d0bb33a4b5a2fcba13d33abf8c8e7530ab",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-11-27T18:31:36+09:00",
+      "note": "MVP 6b4b19a + feat/engine-live-responses; tests in release image on PG17"
     },
     {
       "id": "STEP-003",
       "title": "모드 서비스·REST·CLI",
       "model": "complex",
       "fingerprint": "ede8334f8bf3097727c80b06ecf457320f1913b3f45ff59a3bf7d833c07ecdc8",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-11-27T18:31:36+09:00",
+      "note": "2026-11-27 feat/engine-live-responses f92b105d: migration 0047, mode service, GET/POST /mode, set-company-fit-mode CLI; tests/deep_review/test_company_fit_mode.py (sqlite+pg)"
     },
     {
       "id": "STEP-004",
       "title": "실행기 카드 분기와 공존 규칙",
       "model": "complex",
       "fingerprint": "5921d5c6a0b2ba8595aeb8bc1823348747449c2f3622e3335c71831736b07d4b",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-11-27T18:31:36+09:00",
       "history": [
         {
           "id": "STEP-004",
@@ -43,15 +46,16 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "MVP 6b4b19a + feat/engine-live-responses; tests in release image on PG17"
     },
     {
       "id": "STEP-005",
       "title": "회사 핏 응답 v2와 목록 프로젝션·정렬·필터",
       "model": "complex",
       "fingerprint": "e1bc614f4fcf61bed62965425264c8e465eb2ce62cc8843f80afafd6c7630c83",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-11-27T18:31:36+09:00",
       "history": [
         {
           "id": "STEP-005",
@@ -61,23 +65,25 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "MVP 6b4b19a + feat/engine-live-responses; tests in release image on PG17"
     },
     {
       "id": "STEP-006",
       "title": "상세 화면과 mock",
       "model": "standard",
       "fingerprint": "6d59b5466820fe4715d258d58d4118068ea43e9b6b259487fb907b516402bf49",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-11-27T18:31:36+09:00",
+      "note": "MVP 6b4b19a + feat/engine-live-responses; tests in release image on PG17"
     },
     {
       "id": "STEP-007",
       "title": "목록 열·필터·회사 핏순 정렬",
       "model": "standard",
       "fingerprint": "a97a1de7272442821d2333f380f49538b9aa1e6494ab07470b2613ca1657a73c",
-      "status": "stale",
-      "updated_at": null,
+      "status": "done",
+      "updated_at": "2026-11-27T18:31:36+09:00",
       "history": [
         {
           "id": "STEP-007",
@@ -87,23 +93,25 @@
           "status": "pending",
           "updated_at": null
         }
-      ]
+      ],
+      "note": "MVP 6b4b19a + feat/engine-live-responses; tests in release image on PG17"
     },
     {
       "id": "STEP-008",
       "title": "문서·ADR·운영 compose",
       "model": "standard",
       "fingerprint": "fe92ab1b87edfb772c7105a642b7056977483105f4de28316d148149a9516599",
-      "status": "pending",
-      "updated_at": null
+      "status": "done",
+      "updated_at": "2026-11-27T18:31:36+09:00",
+      "note": "ADR-0080, contracts/deep-review.md, operations/prespec-reference.md, prod compose card mount (/dev/null default)"
     },
     {
       "id": "STEP-009",
       "title": "측정 재현(승인 뒤 격리 스택)",
       "model": "standard",
       "fingerprint": "1585ae7f15f59c7fc2c1e680d1bf281c28601742d683d90416991fac32d94a29",
-      "status": "stale",
-      "updated_at": null,
+      "status": "pending",
+      "updated_at": "2026-11-27T18:31:36+09:00",
       "history": [
         {
           "id": "STEP-009",
@@ -131,7 +139,8 @@
             }
           ]
         }
-      ]
+      ],
+      "note": "replay_product.py written; run on isolated bidops-prespec1126 needs user approval (local Qwen calls)"
     }
   ],
   "proof": {
@@ -174,7 +183,43 @@
     {
       "at": "2026-11-27T12:20:20+09:00",
       "text": "단계 → review: 독립 검사 2회: 1차 차단1·주의14 반영, 재검사 주의15 반영(문구·계약 고정), 판단 3건은 기존 사용자 결정에서 도출해 기록"
+    },
+    {
+      "at": "2026-11-27T18:31:36+09:00",
+      "text": "단계 STEP-001 done: MVP 6b4b19a + feat/engine-live-responses; tests in release image on PG17"
+    },
+    {
+      "at": "2026-11-27T18:31:36+09:00",
+      "text": "단계 STEP-002 done: MVP 6b4b19a + feat/engine-live-responses; tests in release image on PG17"
+    },
+    {
+      "at": "2026-11-27T18:31:36+09:00",
+      "text": "단계 STEP-004 done: MVP 6b4b19a + feat/engine-live-responses; tests in release image on PG17"
+    },
+    {
+      "at": "2026-11-27T18:31:36+09:00",
+      "text": "단계 STEP-005 done: MVP 6b4b19a + feat/engine-live-responses; tests in release image on PG17"
+    },
+    {
+      "at": "2026-11-27T18:31:36+09:00",
+      "text": "단계 STEP-006 done: MVP 6b4b19a + feat/engine-live-responses; tests in release image on PG17"
+    },
+    {
+      "at": "2026-11-27T18:31:36+09:00",
+      "text": "단계 STEP-007 done: MVP 6b4b19a + feat/engine-live-responses; tests in release image on PG17"
+    },
+    {
+      "at": "2026-11-27T18:31:36+09:00",
+      "text": "단계 STEP-003 done: 2026-11-27 feat/engine-live-responses f92b105d: migration 0047, mode service, GET/POST /mode, set-company-fit-mode CLI; tests/deep_review/test_company_fit_mode.py (sqlite+pg)"
+    },
+    {
+      "at": "2026-11-27T18:31:36+09:00",
+      "text": "단계 STEP-008 done: ADR-0080, contracts/deep-review.md, operations/prespec-reference.md, prod compose card mount (/dev/null default)"
+    },
+    {
+      "at": "2026-11-27T18:31:36+09:00",
+      "text": "단계 STEP-009 pending: replay_product.py written; run on isolated bidops-prespec1126 needs user approval (local Qwen calls)"
     }
   ],
-  "updated_at": "2026-11-27T12:20:20+09:00"
+  "updated_at": "2026-11-27T18:31:36+09:00"
 }

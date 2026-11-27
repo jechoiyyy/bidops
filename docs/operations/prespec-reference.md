@@ -24,7 +24,26 @@ BIDOPS_ENGINE_COMPANY_BUNDLE_SLUG=rootlab
 | mock | `off`, `live`, `mock_reference`(overlay가 참조 모드 설정) |
 | prod | `off`, `live`. `mock_reference`는 참조 모드가 켜져 있어도 두 서비스 모두 기동 오류 |
 
-`BIDOPS_ENGINE_ANALYSIS_ENABLED`는 세 환경에서 `false` 또는 `true`를 받는다. 목업 승인으로 만든 실행을 analysis-worker가 claim하려면 두 서비스 모두 `true`를 받아야 한다. 운영은 live 경로가 인수될 때까지 `off`와 `false`를 사용한다. 현재 `live` 미리보기와 승인은 503 `engine_live_disabled`로 닫힌다.
+`BIDOPS_ENGINE_ANALYSIS_ENABLED`는 세 환경에서 `false` 또는 `true`를 받는다. 목업 승인으로 만든 실행을 analysis-worker가 claim하려면 두 서비스 모두 `true`를 받아야 한다. 운영은 live 경로를 켜기로 승인하기 전까지 `off`와 `false`를 사용한다.
+
+### live 엔진 검토 켜기 (ADR-0081, 각 단계 직전 사람 승인)
+
+live는 OpenAI Responses API(`gpt-6-luna`/high, 고정 주소)로 나간다. 아래 순서를 지키고, 앞 단계 승인은 다음 단계로 이어지지 않는다.
+
+1. **키 파일.** 엔진 전용 OpenAI project 키(지출 한도 설정)를 Git 밖 0600 파일로 둔다. `.env`에 `BIDOPS_ENGINE_OPENAI_KEY_FILE=<경로>`를 적고 `BIDOPS_COMPOSE_FEATURES`에 `engine-live`를 더한다(`luna,slack`과 쉼표로 함께 쓴다). 키는 analysis-worker의 `/run/secrets/engine_openai_key`에만 붙는다. web에는 없다.
+2. **상한.** `.env`에 시운전 값 `BIDOPS_ENGINE_LIVE_DAILY_NOTICE_CAP=1`, `BIDOPS_ENGINE_LIVE_DAILY_CALL_CAP=8`, `BIDOPS_ENGINE_LIVE_NOTICE_CALL_CAP=8`, `BIDOPS_ENGINE_LIVE_DAILY_USD_CAP=1`을 넣는다. 셋 중 하나라도 0이면 live 기동이 거부된다. `BIDOPS_ENGINE_LIVE_RESPONSES_URL`은 운영에 넣지 않는다(넣으면 기동 거부).
+3. **모드.** `BIDOPS_ENGINE_REVIEW_MODE=live`, `BIDOPS_ENGINE_ANALYSIS_ENABLED=true`로 web·analysis-worker를 함께 교체(`up -d --no-deps --no-build --force-recreate web analysis-worker`)하고 `docker compose config`·컨테이너 env로 값과 secret이 렌더됐는지 본다. `GET /api/feature-flags`의 `engine_review`가 `live`여야 한다.
+4. **첫 감독 시운전.** 담당자가 사전규격 상세에서 추적을 시작하거나 `분석 요청`을 누르고, `전송 자료 확인` 창에서 수신자(OpenAI Responses API · gpt-6-luna · 추론 high)·예정 호출·오늘 남은 상한을 읽고 승인한다. 실행 뒤 `engine_call` 행(호출 수·상태·토큰·USD)과 결과의 `live` 요약을 기록한다. 결과는 `unmeasured_reference`다.
+5. **되돌리기.** `BIDOPS_ENGINE_REVIEW_MODE=off`로 두 서비스를 다시 만들면 미리보기·승인·실행이 모두 닫힌다. 이미 대기 중인 live run은 analysis 스위치를 끄면 claim되지 않는다. `engine_call` 원장은 지우지 않는다.
+
+호출 하나의 결과를 모르면(전송 뒤 timeout·연결 끊김) 그 호출은 상한 한 칸을 쓰고 다시 보내지 않는다. 실행이 lease를 잃으면 남은 `reserved` 행은 `outcome_unknown`으로 닫힌다.
+
+### 회사 핏 카드 모드 켜기 (ADR-0080, 각 단계 직전 사람 승인)
+
+1. 카드 파일(Git 밖, 예: `env/company-fit/business-scope-card.v1.2.yaml`)을 두고 `.env`에 `BIDOPS_PRESPEC_COMPANY_FIT_CARD_HOST_PATH`, `BIDOPS_PRESPEC_COMPANY_FIT_CARD_SHA256`(파일 sha256), 상한 `BIDOPS_PRESPEC_COMPANY_FIT_CARD_MODE=suggest`를 넣는다. 카드 lineage는 `BIDOPS_PRESPEC_COMPANY_FIT_ENABLED=true`, `BIDOPS_PRESPEC_COMPANY_FIT_MODEL=local-agent-main`, 64자 overview revision, `BIDOPS_REFERENCE_WORKFLOW_MODE=true`도 필요하다. 참조 모드는 다른 흐름에도 걸리는 전역 스위치이므로 그 영향을 먼저 확인한다.
+2. web·analysis-worker를 교체하고 `GET /api/pre-specs/company-fit/mode`의 `reason_code`가 `switch_off`인지 본다(카드·모델 조건은 통과).
+3. web 컨테이너에서 `python -m app.deep_review.cli set-company-fit-mode --mode suggest --actor <이름> --reason <사유>`를 실행한다. 응답의 `effective`가 `true`이면 analysis-worker가 개요 완료 SW 공고를 하나씩 판정한다(로컬 Qwen 호출, 건당 약 50초).
+4. 끄기는 같은 CLI의 `--mode off`다. 행은 지우지 않는다.
 
 ## 사전규격 심층 검토 참조 실행
 
