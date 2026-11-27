@@ -1,7 +1,9 @@
-"""Versioned stdin/stdout boundary; only deterministic mock transport is exposed.
+"""Versioned stdin/stdout boundary: deterministic mock transport and the framed live mode.
 
 The upstream normalizer, three-pass pipeline, gates, scoring, quote verification,
-and readiness logic execute unchanged. No upstream live transport is packaged.
+and readiness logic execute unchanged. No upstream live transport is packaged: in
+`--live-ipc` mode every model call leaves this process only as a frame to the BidOps
+supervisor (`live.ipc`), which owns the network request and the key (ADR-0081).
 
 Input v1 projects BidOps company facts; input v2 carries the engine's own company files
 and knowledge tree, which are loaded and used as upstream does (`adapter.company_inputs`).
@@ -9,6 +11,7 @@ and knowledge tree, which are loaded and used as upstream does (`adapter.company
 
 from __future__ import annotations
 import json
+import os
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -42,6 +45,7 @@ from .company.provenance import CompanyEvidenceView
 from .company.schema import CompanyProfile, Company
 from .ingest.models import Block, RawDoc, RawMeta, NoticeBundle
 from .ingest.normalize import build
+from .live import ipc as live_ipc, responses as live_responses
 
 VERSION = "bid-deep-engine.v1"
 MAX_INPUT = 8 * 1024 * 1024
@@ -58,6 +62,11 @@ ERROR_CODES = frozenset(
         "company_bundle_invalid",
     }
 )
+LIVE_MODE = "live"
+# Upper bound of calls for one notice with the single strategy: extract, units (+1 repair), match,
+# synth. Without a work-unit map the units stage does not run.
+PLANNED_CALLS_WITH_UNITS = 5
+PLANNED_CALLS_WITHOUT_UNITS = 3
 
 
 @dataclass(frozen=True)
@@ -218,19 +227,14 @@ def document_from_blocks(payload):
     return bundle, build(bundle, raw, None)
 
 
-def execute(payload, *, mock_rules=()):
-    """Run the pipeline once. `mock_rules` is for tests only; `main` never passes it."""
-    if (
-        payload.get("schema_version") not in (INPUT_V1, INPUT_V2, INPUT_V3)
-        or payload.get("mode") != "mock_reference"
-    ):
-        raise EngineError("engine_live_not_approved")
+def _pipeline(payload, client_for, *, model, transport):
+    """Run the upstream pipeline once with `client_for(rfp)`; returns (company, rfp, result, artifacts)."""
     bundle, rfp = document_from_blocks(payload)
-    client = MockTransport(rfp, mock_rules)
+    client = client_for(rfp)
     with tempfile.TemporaryDirectory(prefix="bid-deep-engine-") as folder:
         root = Path(folder)
         # v1: the BidOps profile stays frozen in the payload and only the conservative
-        # projection reaches the engine. v2: the bundled company files are used as they are.
+        # projection reaches the engine. v2/v3: the bundled company files are used as they are.
         company = company_inputs(payload, root)
         source = root / "rfp.json"
         output = root / "analysis"
@@ -244,7 +248,7 @@ def execute(payload, *, mock_rules=()):
             output,
             client_factory=lambda: client,
             profile=company.profile,
-            model="mock_reference",
+            model=model,
             strategy="single",
             effort="high",
             passes=("extract", "match", "synth"),
@@ -253,44 +257,116 @@ def execute(payload, *, mock_rules=()):
             knowledge=company.knowledge,
             portfolio_texts=company.portfolio_texts,
             run_id=payload["slug"],
-            transport="mock_reference",
+            transport=transport,
         )
         artifacts = {p.name: json.loads(p.read_text()) for p in output.glob("*.json")}
-        analysis = artifacts.get("analysis.json")
-        if analysis is not None:
-            analysis["source_evidence"] = source_evidence(
-                analysis, payload, sections=rfp.sections
-            )
-            analysis["company_projection"] = company.record
-        failed = result.status == "failed"
-        return {
-            "schema_version": "bidops.engine-output.v1",
-            "engine_version": VERSION,
-            "quality_status": "mock_reference",
-            "status": "failed" if failed else "partial",
-            "error_code": "engine_pipeline_failed" if failed else None,
-            # Exception class name only; the upstream reason text may quote the source.
-            "error_class": type(result.cause).__name__
-            if failed and result.cause is not None
-            else None,
-            "warnings": [
-                "mock_reference_not_quality_evidence",
-                *(
-                    []
-                    if company.record["complete"]
-                    else ["company_profile_projection_incomplete"]
-                ),
-                "structure_projection_partial",
-                *result.warnings,
-            ],
-            "analysis": artifacts.get("analysis.json"),
-            "artifacts": artifacts,
-        }
+    analysis = artifacts.get("analysis.json")
+    if analysis is not None:
+        analysis["source_evidence"] = source_evidence(analysis, payload, sections=rfp.sections)
+        analysis["company_projection"] = company.record
+    return company, rfp, result, artifacts
+
+
+def execute(payload, *, mock_rules=()):
+    """Run the pipeline once. `mock_rules` is for tests only; `main` never passes it."""
+    if (
+        payload.get("schema_version") not in (INPUT_V1, INPUT_V2, INPUT_V3)
+        or payload.get("mode") != "mock_reference"
+    ):
+        raise EngineError("engine_live_not_approved")
+    company, _, result, artifacts = _pipeline(
+        payload, lambda rfp: MockTransport(rfp, mock_rules), model="mock_reference", transport="mock_reference",
+    )
+    failed = result.status == "failed"
+    return {
+        "schema_version": "bidops.engine-output.v1",
+        "engine_version": VERSION,
+        "quality_status": "mock_reference",
+        "status": "failed" if failed else "partial",
+        "error_code": "engine_pipeline_failed" if failed else None,
+        # Exception class name only; the upstream reason text may quote the source.
+        "error_class": type(result.cause).__name__
+        if failed and result.cause is not None
+        else None,
+        "warnings": [
+            "mock_reference_not_quality_evidence",
+            *(
+                []
+                if company.record["complete"]
+                else ["company_profile_projection_incomplete"]
+            ),
+            "structure_projection_partial",
+            *result.warnings,
+        ],
+        "analysis": artifacts.get("analysis.json"),
+        "artifacts": artifacts,
+    }
+
+
+def execute_live(payload, reader, writer):
+    """Live run over frames (ADR-0081). Only wiki-scoped input v3 with `mode=live` is accepted."""
+    if payload.get("schema_version") != INPUT_V3 or payload.get("mode") != LIVE_MODE:
+        raise EngineError("engine_live_not_approved")
+    client = live_ipc.FrameTransport(reader, writer, run_id=payload["slug"])
+    company, _, result, artifacts = _pipeline(
+        payload, lambda rfp: client, model=live_responses.MODEL, transport=live_responses.TRANSPORT,
+    )
+    analysis = artifacts.get("analysis.json")
+    failed = result.status == "failed" or analysis is None
+    return {
+        "schema_version": "bidops.engine-output.v1",
+        "engine_version": VERSION,
+        "quality_status": "unmeasured_reference",
+        "status": "failed" if failed else "completed",
+        "error_code": "engine_pipeline_failed" if failed else None,
+        "error_class": type(result.cause).__name__
+        if failed and result.cause is not None
+        else None,
+        "warnings": [
+            *([] if company.record["complete"] else ["company_profile_projection_incomplete"]),
+            "structure_projection_partial",
+            *result.warnings,
+        ],
+        "analysis": analysis,
+        "artifacts": artifacts,
+        "calls": client.seq,
+    }
+
+
+def plan_live(payload):
+    """Planned call bound and the exact first request of a live run, without any model call."""
+    plan = live_ipc.FirstRequestPlan()
+    company, rfp, _, _ = _pipeline(
+        payload, lambda rfp: plan, model=live_responses.MODEL, transport=live_responses.TRANSPORT,
+    )
+    if plan.first is None or plan.first_purpose != "extract":
+        raise EngineError("engine_pipeline_failed")
+    units = bool(rfp.requirements) and company.knowledge is not None and _has_work_unit_map(company.knowledge)
+    return {
+        "planned_calls": PLANNED_CALLS_WITH_UNITS if units else PLANNED_CALLS_WITHOUT_UNITS,
+        "first_request_sha256": live_responses.body_sha256(plan.first),
+        "first_request_chars": len(live_responses.canonical(plan.first).decode("utf-8")),
+        "wire_version": live_responses.WIRE_VERSION,
+        "transport": live_responses.TRANSPORT,
+        "model": live_responses.MODEL,
+        "reasoning_effort": live_responses.EFFORT,
+        "endpoint": live_responses.RESPONSES_URL,
+    }
+
+
+def _has_work_unit_map(knowledge):
+    from .analysis.workunits import parse_work_unit_map
+
+    return parse_work_unit_map(knowledge) is not None
 
 
 def preview(payload):
-    """Return local input metadata using the engine's loader and selection pipeline."""
-    if payload.get("schema_version") != INPUT_V3 or payload.get("mode") != "mock_reference":
+    """Return local input metadata using the engine's loader and selection pipeline.
+
+    For `mode=live` the preview also carries the live plan (`plan_live`), so the approval binds the
+    exact first request and the call bound before anything is sent.
+    """
+    if payload.get("schema_version") != INPUT_V3 or payload.get("mode") not in ("mock_reference", LIVE_MODE):
         raise EngineError("engine_live_not_approved")
     with tempfile.TemporaryDirectory(prefix="bid-deep-engine-preview-") as folder:
         company = company_inputs(payload, Path(folder))
@@ -307,7 +383,7 @@ def preview(payload):
             if company.knowledge is not None:
                 selection, rendered = prepare_knowledge(rfp, company.knowledge)
                 pages, skipped, chars = selection.pages, selection.skipped, len(rendered)
-        return {
+        result = {
             "schema_version": "bidops.engine-preview.v1",
             "company_name": company.profile.profile.company.name,
             "sections": sections,
@@ -315,6 +391,9 @@ def preview(payload):
             "wiki_pages_skipped": skipped,
             "wiki_chars": chars,
         }
+    if payload.get("mode") == LIVE_MODE and "blocks" in payload:
+        result["live"] = plan_live(payload)
+    return result
 
 
 def failure(code, error_class=None):
@@ -332,8 +411,41 @@ def failure(code, error_class=None):
     }
 
 
+def _live_main():
+    """`--live-ipc`: payload is the first stdin line; frames follow on the same pipes.
+
+    The original stdout descriptor is kept for frames and fd 1 is pointed at stderr, so nothing
+    the pipeline prints can be mistaken for a frame.
+    """
+    frames_out = os.fdopen(os.dup(1), "w", encoding="utf-8")
+    os.dup2(2, 1)
+    sys.stdout = sys.stderr
+    reader = sys.stdin
+    try:
+        line = reader.readline(MAX_INPUT + 1)
+        if len(line) > MAX_INPUT:
+            raise EngineError("input_too_large")
+        try:
+            payload = json.loads(line)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            raise EngineError("engine_input_invalid") from None
+        if not isinstance(payload, dict):
+            raise EngineError("engine_input_invalid")
+        result = execute_live(payload, reader, frames_out)
+    except EngineError as exc:
+        code = exc.code if exc.code in ERROR_CODES else "engine_pipeline_failed"
+        result = {**failure(code, type(exc).__name__), "quality_status": "unmeasured_reference"}
+    except Exception as exc:
+        result = {**failure("engine_pipeline_failed", type(exc).__name__), "quality_status": "unmeasured_reference"}
+    frames_out.write(json.dumps({"frame": "result", "output": result}, ensure_ascii=False) + "\n")
+    frames_out.flush()
+
+
 def main():
     # Source/model contents, exception messages and local paths are never emitted.
+    if sys.argv[1:] == ["--live-ipc"]:
+        _live_main()
+        return
     try:
         data = sys.stdin.buffer.read(MAX_INPUT + 1)
         if len(data) > MAX_INPUT:

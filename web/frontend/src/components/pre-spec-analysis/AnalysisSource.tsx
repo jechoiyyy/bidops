@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { WikiProject } from "../../lib/companyWikiApi";
 import type { EngineAnalysis, EngineEvidence, EngineRun } from "../../lib/engineApi";
+import type { EngineReviewResult } from "../../lib/engineReviewApi";
 import type { PdfQuoteLocation } from "../../lib/pdfQuoteLocator";
 import { qualityStatusLabel } from "../../lib/qualityStatus";
 import type { NoticeDetailResponse, PageOverviewFact, PageOverviewView } from "../../lib/types";
@@ -88,7 +89,7 @@ export function AnalysisTerms({ analysis, pageLink, consortiumIssue, openIssue }
 }
 
 interface SourceProps {
-  run: EngineRun;
+  run: EngineRun | EngineReviewResult;
   analysis: EngineAnalysis;
   shown: PageOverviewView | null;
   notice: NoticeDetailResponse;

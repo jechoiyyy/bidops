@@ -22,11 +22,22 @@ Commands
     run       run the engine; ``--mode mock`` calls no model, ``--mode live`` needs ``--approval``
     score     compare one label's runs with the gold
 
-Live runs send the RFP text and the frozen company evidence to codex-exec ``gpt-6-luna``/high,
-the single RL model identity. They fail closed unless an approval file names the model, the
-cases and a call cap, and the cap counts every call already recorded in the evaluation
-directory. Prompts and responses are written mode 0600 inside the run directory and nowhere
-else; stdout carries only identifiers, counts and hashes.
+Live runs send the RFP text and the frozen company evidence to ``gpt-6-luna``/high, the single RL
+model identity, through the OpenAI **Responses API** (``--transport responses``, the default; user
+decision 2026-11-27, ADR-0081). The text is split into a developer message (system) and user parts
+(document, instruction) with an explicit cache breakpoint after the document, so passes that share
+the document read it from cache. ``store`` is off and nothing is retried. The body is the same one
+the product's live engine path sends (``bid_deep_engine.live.responses``; parity is tested). The key
+comes from ``--openai-key-file`` (default the API-key codex home ``~/.codex-api/auth.json``, field
+``OPENAI_API_KEY``; a plain key file also works; the file must be mode 0600), else ``OPENAI_API_KEY``.
+
+codex-exec stays available only as an explicit ``--transport codex`` (needed for
+``--wiki-workspace``); its token usage is the ``turn.completed`` event and ``cost_basis`` stays
+``subscription``. Live runs fail closed unless an approval file names the model, the transport
+(``"openai_responses"``; older files saying ``"responses"`` are accepted), the cases and a call cap,
+and the cap counts every call already recorded in the evaluation directory. Prompts, responses and
+traces are written mode 0600 inside the run directory and nowhere else; stdout carries only
+identifiers, counts and hashes.
 
 Run with Python 3.12 and the engine's dependencies, for example:
 
@@ -58,6 +69,65 @@ SCORE_SCHEMA = "bidops.engine-eval-score.v1"
 APPROVAL_SCHEMA = "bidops.engine-eval-approval.v1"
 CALL_TIMEOUT_SECONDS = 1800
 PASSES = ("extract", "match", "synth")
+
+# API-equivalent price of the RL model. codex-exec runs on the ChatGPT subscription, so nothing is
+# billed per token; the ledger records what the same tokens would cost on the OpenAI API Standard
+# tier (``cost_basis="subscription"`` keeps that meaning, see the engine's ``analysis/spend.py``).
+# Source: https://developers.openai.com/api/docs/models/gpt-6-luna and
+# https://developers.openai.com/api/docs/pricing, checked 2026-11-26. Update source and values together.
+LUNA_PRICE_SOURCE = "openai-api-standard-2026-11-26"
+LUNA_USD_PER_MTOK = {"input": 0.10, "cached_input": 0.01, "cache_write": 0.125, "output": 0.50}
+# A request whose input exceeds this is billed for the whole request at 2x input/cache and 1.5x output.
+LUNA_LONG_CONTEXT_INPUT = 272_000
+LUNA_LONG_CONTEXT_MULTIPLIER = {"input": 2.0, "output": 1.5}
+CODEX_USAGE_KEYS = ("input_tokens", "cached_input_tokens", "cache_write_input_tokens", "output_tokens",
+                    "reasoning_output_tokens")
+
+
+def codex_usage(stream: bytes | None) -> dict | None:
+    """Sum the ``turn.completed`` usage of a ``codex exec --json`` event stream.
+
+    Codex reports ``input_tokens`` including ``cached_input_tokens`` and reports
+    ``reasoning_output_tokens`` beside ``output_tokens``. Returns ``None`` when no turn completed,
+    so a missing measurement is never recorded as zero tokens.
+    """
+    total = None
+    for line in (stream or b"").splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict) or event.get("type") != "turn.completed":
+            continue
+        usage = event.get("usage") if isinstance(event.get("usage"), dict) else {}
+        total = total or {key: 0 for key in CODEX_USAGE_KEYS}
+        total["turns"] = total.get("turns", 0) + 1
+        for key in CODEX_USAGE_KEYS:
+            value = usage.get(key)
+            total[key] += value if type(value) is int and value >= 0 else 0
+    return total
+
+
+def luna_api_equivalent(usage: dict) -> dict:
+    """Engine token fields and the API-equivalent USD of one ``codex exec`` call.
+
+    Cached and cache-write tokens are treated as parts of ``input_tokens``; output is priced on
+    ``output_tokens`` only (the reasoning count is kept beside it, not added). The long-context rate
+    is decided per call, which is one model request when the call ran no commands (``turns == 1``).
+    """
+    cached = min(usage["cached_input_tokens"], usage["input_tokens"])
+    written = min(usage["cache_write_input_tokens"], usage["input_tokens"] - cached)
+    fresh = usage["input_tokens"] - cached - written
+    long_context = usage["input_tokens"] > LUNA_LONG_CONTEXT_INPUT
+    m_in = LUNA_LONG_CONTEXT_MULTIPLIER["input"] if long_context else 1.0
+    m_out = LUNA_LONG_CONTEXT_MULTIPLIER["output"] if long_context else 1.0
+    p = LUNA_USD_PER_MTOK
+    usd = (
+        fresh * p["input"] * m_in + cached * p["cached_input"] * m_in + written * p["cache_write"] * m_in
+        + usage["output_tokens"] * p["output"] * m_out
+    ) / 1_000_000
+    return {"fresh_input_tokens": fresh, "cache_read_input_tokens": cached, "cache_write_input_tokens": written,
+            "output_tokens": usage["output_tokens"], "long_context": long_context, "usd": usd}
 
 
 class EvalError(RuntimeError):
@@ -394,6 +464,9 @@ class RecordingTransport:
         self.run_id = run_dir.name
         self.dry = dry
         self.index = 0
+        self.last_usage: dict | None = None  # codex_usage() of the current call, None if unmeasured
+        self.current_parts: tuple[str, str, str] | None = None  # (system, document, instruction) of the call
+        self.current_purpose: str | None = None
 
     def count_tokens(self, **kwargs) -> int:
         return sum(len(str(v)) for v in kwargs.values()) // 2
@@ -409,16 +482,24 @@ class RecordingTransport:
 
     def parse(self, output_model, *, purpose, system, document, instruction, slug, **kwargs):
         schema = json.dumps(output_model.model_json_schema(), ensure_ascii=False)
-        prompt = (
-            f"{system}\n\n# 문서\n\n{document}\n\n# 지시\n\n{instruction}\n\n# 출력 형식\n\n"
-            f"아래 JSON Schema를 따르는 JSON 객체 하나만 출력한다. 설명, 머리말, 코드 펜스를 붙이지 않는다.\n\n{schema}\n"
+        # The same text either as one prompt (codex) or as three parts (Responses API). The parts
+        # concatenate to exactly ``prompt``; only the message boundaries differ.
+        parts = (
+            system,
+            f"\n\n# 문서\n\n{document}",
+            f"\n\n# 지시\n\n{instruction}\n\n# 출력 형식\n\n"
+            f"아래 JSON Schema를 따르는 JSON 객체 하나만 출력한다. 설명, 머리말, 코드 펜스를 붙이지 않는다.\n\n{schema}\n",
         )
+        prompt = "".join(parts)
+        self.current_parts = parts
+        self.current_purpose = purpose
         self._before_call()
         self.index += 1
         stem = f"{self.index:02d}-{purpose}"
         calls = self.run_dir / "calls"
         _write_private(calls / f"{stem}.prompt.txt", prompt.encode("utf-8"))
         started = time.monotonic()
+        self.last_usage = None
         try:
             text = self._complete(prompt)
         except EvalError:
@@ -455,18 +536,37 @@ class RecordingTransport:
                 ),
             ) from None
         self._ledger(stem, purpose, prompt, text, "ok", started, None)
-        return self._llm.ParseResult(value, self._usage(), self.served_model(), "end_turn", record)
+        return self._llm.ParseResult(value, self._token_usage(), self.served_model(), "end_turn", record)
+
+    def _priced(self) -> dict | None:
+        return None if self.last_usage is None else luna_api_equivalent(self.last_usage)
+
+    def _token_usage(self):
+        priced = self._priced()
+        if priced is None:
+            return self._usage()
+        return self._usage(
+            input_tokens=priced["fresh_input_tokens"], output_tokens=priced["output_tokens"],
+            cache_read_input_tokens=priced["cache_read_input_tokens"],
+            cache_creation_5m=priced["cache_write_input_tokens"],
+        )
 
     def _record(self, purpose, started):
+        priced = self._priced()
         return self._llm.CallRecord(
             at=datetime.now(UTC).isoformat(timespec="seconds"), purpose=purpose, model=MODEL,
-            served_model=self.served_model(), price_model=None, cost_basis="subscription",
-            stop_reason="end_turn", input_tokens=0, output_tokens=0, cache_read_input_tokens=0,
-            cache_creation_5m=0, cache_creation_1h=0, input_tokens_counted=0, estimate_usd=None,
-            cost_usd=0.0, duration_ms=int((time.monotonic() - started) * 1000),
+            served_model=self.served_model(), price_model=None if priced is None else MODEL,
+            cost_basis="subscription", stop_reason="end_turn",
+            input_tokens=0 if priced is None else priced["fresh_input_tokens"],
+            output_tokens=0 if priced is None else priced["output_tokens"],
+            cache_read_input_tokens=0 if priced is None else priced["cache_read_input_tokens"],
+            cache_creation_5m=0 if priced is None else priced["cache_write_input_tokens"],
+            cache_creation_1h=0, input_tokens_counted=0, estimate_usd=None,
+            cost_usd=0.0 if priced is None else priced["usd"], duration_ms=int((time.monotonic() - started) * 1000),
         )
 
     def _ledger(self, stem, purpose, prompt, response, outcome, started, error_class, error_count=None):
+        priced = self._priced()
         entry = {
             "purpose": purpose,
             "outcome": outcome,
@@ -479,6 +579,11 @@ class RecordingTransport:
             "error_class": error_class,
             "validation_error_count": error_count,
             "at": datetime.now(UTC).isoformat(timespec="seconds"),
+            # Raw codex usage (None when the call was not measured) and its API-equivalent price.
+            "usage": self.last_usage,
+            "api_equivalent_usd": None if priced is None else priced["usd"],
+            "long_context": None if priced is None else priced["long_context"],
+            "price_source": None if priced is None else LUNA_PRICE_SOURCE,
         }
         _write_private(self.run_dir / "calls" / f"{stem}.call.json", json.dumps(entry, indent=1).encode("utf-8"))
 
@@ -524,21 +629,147 @@ class CodexLunaTransport(RecordingTransport):
                 "-o", str(out),
             ]
             if self.workspace_pages:
-                # Search mode: the model must look the wiki up itself, and the event stream is
-                # kept (private, in the run directory) to count the commands it really ran.
+                # Search mode: the model must look the wiki up itself.
                 prompt = WIKI_SEARCH_HEADER + prompt + WIKI_SEARCH_FOOTER
-                command.append("--json")
+            # The event stream is always kept (private, in the run directory): it carries the
+            # turn.completed token usage, and in search mode the commands the model really ran.
+            command.append("--json")
             command.append("-")
             done = subprocess.run(  # noqa: S603 - fixed argv, prompt on stdin
-                command, input=prompt.encode("utf-8"), stdout=subprocess.PIPE if self.workspace_pages else subprocess.DEVNULL,
+                command, input=prompt.encode("utf-8"), stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL, timeout=CALL_TIMEOUT_SECONDS, check=False,
             )
-            if self.workspace_pages:
-                trace = self.run_dir / "calls" / f"{self.index:02d}.trace.jsonl"
-                _write_private(trace, done.stdout or b"")
+            trace = self.run_dir / "calls" / f"{self.index:02d}.trace.jsonl"
+            _write_private(trace, done.stdout or b"")
+            self.last_usage = codex_usage(done.stdout)
             if done.returncode != 0 or not out.exists():
                 raise RuntimeError("codex_exec_failed")
             return out.read_text(encoding="utf-8")
+
+
+RESPONSES_URL = "https://api.openai.com/v1/responses"
+DEFAULT_OPENAI_KEY_FILE = "~/.codex-api/auth.json"
+RESPONSES_APPROVAL_TRANSPORTS = frozenset({"openai_responses", "responses"})
+
+
+def read_api_key(key_file: str | None) -> str:
+    """API key from a 0600 file (codex ``auth.json`` field ``OPENAI_API_KEY`` or a plain key file),
+    else the ``OPENAI_API_KEY`` environment variable. The key is never printed or written."""
+    if key_file:
+        path = Path(key_file).expanduser()
+        if path.is_file():
+            if path.stat().st_mode & 0o077:
+                raise EvalError("API key file must not be readable by group/others (chmod 600)")
+            text = path.read_text(encoding="utf-8").strip()
+            if path.suffix == ".json":
+                text = str(json.loads(text).get("OPENAI_API_KEY") or "").strip()
+            if text:
+                return text
+    key = os.environ.get("OPENAI_API_KEY") or ""
+    if not key:
+        raise EvalError("OPENAI_API_KEY is not set")
+    return key
+# Passes that send the same system + RFP document; the document part ends with an explicit cache
+# breakpoint so later passes read it instead of paying for it again. ``units`` sends another document.
+CACHED_DOCUMENT_PURPOSES = frozenset(PASSES)
+
+
+def responses_request(parts: tuple[str, str, str], *, purpose: str) -> dict:
+    """Responses API body: system as a developer message, document and instruction as user parts.
+
+    Explicit cache mode writes only at the breakpoint after the document; the instruction after it
+    is billed as uncached input with no cache-write charge. ``store`` is off.
+    """
+    system, document, instruction = parts
+    doc_part = {"type": "input_text", "text": document}
+    if purpose in CACHED_DOCUMENT_PURPOSES:
+        doc_part["prompt_cache_breakpoint"] = {"mode": "explicit"}
+    return {
+        "model": MODEL,
+        "reasoning": {"effort": EFFORT},
+        "store": False,
+        "prompt_cache_options": {"mode": "explicit", "ttl": "30m"},
+        "input": [
+            {"role": "developer", "content": [{"type": "input_text", "text": system}]},
+            {"role": "user", "content": [doc_part, {"type": "input_text", "text": instruction}]},
+        ],
+    }
+
+
+def responses_usage(body: dict) -> dict | None:
+    """Map a Responses API ``usage`` to the codex usage shape used by ``luna_api_equivalent``.
+
+    ``input_tokens`` includes cached reads and cache writes; ``output_tokens`` includes reasoning.
+    """
+    usage = body.get("usage")
+    if not isinstance(usage, dict):
+        return None
+    details = usage.get("input_tokens_details") or {}
+    out_details = usage.get("output_tokens_details") or {}
+
+    def count(value):
+        return value if type(value) is int and value >= 0 else 0
+
+    return {
+        "input_tokens": count(usage.get("input_tokens")),
+        "cached_input_tokens": count(details.get("cached_tokens")),
+        "cache_write_input_tokens": count(details.get("cache_write_tokens")),
+        "output_tokens": count(usage.get("output_tokens")),
+        "reasoning_output_tokens": count(out_details.get("reasoning_tokens")),
+        "turns": 1,
+    }
+
+
+def responses_text(body: dict) -> str:
+    """Concatenated ``output_text`` parts of the assistant message items."""
+    return "".join(
+        part.get("text", "")
+        for item in body.get("output") or [] if isinstance(item, dict) and item.get("type") == "message"
+        for part in item.get("content") or [] if isinstance(part, dict) and part.get("type") == "output_text"
+    )
+
+
+class ResponsesLunaTransport(RecordingTransport):
+    """``gpt-6-luna``/high over the OpenAI Responses API with an explicit cache breakpoint.
+
+    The default live transport (ADR-0081). The API key is never written; the raw response body is
+    kept (0600) beside the call ledger as ``calls/NN.response.json``.
+    """
+
+    transport_name = "openai_responses"
+
+    def __init__(self, llm, token_usage, run_dir, *, budget: _CallBudget, api_key: str, urlopen=None):
+        super().__init__(llm, token_usage, run_dir)
+        self.budget = budget
+        self._api_key = api_key
+        self._urlopen = urlopen
+
+    def _before_call(self) -> None:
+        self.budget.take()
+
+    def _complete(self, prompt: str) -> str:
+        import urllib.error  # noqa: PLC0415
+        import urllib.request  # noqa: PLC0415
+
+        body = responses_request(self.current_parts, purpose=self.current_purpose)
+        request = urllib.request.Request(
+            RESPONSES_URL, data=json.dumps(body, ensure_ascii=False).encode("utf-8"), method="POST",
+            headers={"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"},
+        )
+        opener = self._urlopen or urllib.request.urlopen
+        try:
+            with opener(request, timeout=CALL_TIMEOUT_SECONDS) as response:
+                raw = response.read()
+        except urllib.error.HTTPError as exc:
+            # Keep the API's error body (it carries no key) for diagnosis, then fail the call.
+            _write_private(self.run_dir / "calls" / f"{self.index:02d}.error.json", exc.read() or b"")
+            raise RuntimeError(f"responses_http_{exc.code}") from None
+        _write_private(self.run_dir / "calls" / f"{self.index:02d}.response.json", raw)
+        data = json.loads(raw)
+        self.last_usage = responses_usage(data)
+        if data.get("status") != "completed":
+            raise RuntimeError(f"responses_status_{data.get('status')}")
+        return responses_text(data)
 
 
 def _mock_client(runner, rfp):
@@ -652,17 +883,31 @@ def cmd_run(args) -> int:
         "model": MODEL if args.mode == "live" else "mock_reference", "reasoning_effort": EFFORT,
         "strategy": "single", "passes": list(PASSES),
     }
+    if args.mode == "live":
+        manifest["transport"] = "openai_responses" if args.transport == "responses" else "codex_exec"
+    if args.transport == "responses" and args.wiki_workspace:
+        raise EvalError("--wiki-workspace needs the codex transport")
     if manifest_path.exists():
         previous = _read_json(manifest_path)
-        if any(previous.get(k) != manifest[k] for k in ("mode", "engine_sha256", "model", "inputs") if k in previous):
-            raise EvalError("label already used with another engine tree or mode; choose a new label")
+        # Live labels written before the transport field existed were codex runs.
+        previous_transport = previous.get("transport", "codex_exec" if previous.get("mode") == "live" else None)
+        if (any(previous.get(k) != manifest[k] for k in ("mode", "engine_sha256", "model", "inputs") if k in previous)
+                or previous_transport != manifest.get("transport")):
+            raise EvalError("label already used with another engine tree, mode or transport; choose a new label")
     else:
         _write_private(manifest_path, json.dumps(manifest, indent=1).encode("utf-8"))
     budget = None
+    api_key = None
     if args.mode == "live":
         approval = _check_approval(Path(args.approval) if args.approval else None, cases)
+        if args.transport == "responses":
+            if approval.get("transport") not in RESPONSES_APPROVAL_TRANSPORTS:
+                raise EvalError("approval does not cover the Responses API transport")
+            api_key = read_api_key(args.openai_key_file)
+        elif approval.get("transport") not in (None, "codex_exec", "codex"):
+            raise EvalError("approval does not cover the codex transport")
         budget = _CallBudget(root, approval)
-        print(f"approval by={approval['approved_by']} cap={approval['max_calls']} used={budget.used()}")
+        print(f"approval by={approval['approved_by']} cap={approval['max_calls']} used={budget.used()} transport={manifest['transport']}")
     engine = _load_engine(src)
     runner, llm, _, token_usage = engine
     failed = 0
@@ -678,6 +923,10 @@ def cmd_run(args) -> int:
             run_dir.mkdir(parents=True)
             if args.mode == "mock":
                 client_for = lambda rfp: _mock_client(runner, rfp)  # noqa: E731
+            elif args.transport == "responses":
+                client_for = lambda rfp, d=run_dir: ResponsesLunaTransport(  # noqa: E731
+                    llm, token_usage, d, budget=budget, api_key=api_key,
+                )
             else:
                 client_for = lambda rfp, d=run_dir: CodexLunaTransport(  # noqa: E731
                     llm, token_usage, d, codex_bin=args.codex_bin, budget=budget,
@@ -903,6 +1152,12 @@ def main(argv=None) -> int:
     run.add_argument("--repeat", type=int, default=1)
     run.add_argument("--approval")
     run.add_argument("--codex-bin", default="codex")
+    run.add_argument("--openai-key-file", default=DEFAULT_OPENAI_KEY_FILE,
+                     help="0600 file holding the API key (codex auth.json or a plain key); falls back to OPENAI_API_KEY")
+    run.add_argument("--transport", choices=("codex", "responses"), default="responses",
+                     help="responses (default, required by policy): OpenAI Responses API with an explicit cache "
+                          "breakpoint after the document, needs a key and an approval with \"transport\": "
+                          "\"openai_responses\"; codex: codex exec, only when explicitly needed (--wiki-workspace)")
     run.add_argument("--wiki-workspace", action="store_true", help="put the case's frozen wiki in the model's read-only working directory")
     score = sub.add_parser("score")
     common(score, engine=False)

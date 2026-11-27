@@ -694,16 +694,16 @@
     {
       "path": "src/bid_deep_engine/ingest/normalize.py",
       "upstream_path": "src/bidops/ingest/normalize.py",
-      "replacement": "recognize verified ID labels, standalone related IDs and explicit table continuations",
+      "replacement": "recognize verified ID labels, standalone related IDs and explicit table continuations, read IDs written with a spaced hyphen (SFR - 001)",
       "upstream_sha256": "0a854d424e18167166dd01a67cafc98b67c1ac46277528c10cd4eb4c2e9fedf7",
-      "sha256": "09c5a5d2532ea2076c38aadeb7b141ae0710a72aa534d1a3c0edb7bc2e422c42"
+      "sha256": "c6a07b6bf03fd57c9f89a025d1836cad177533a170b503d13accbf24fee393ac"
     },
     {
       "path": "engine_tests/test_normalize.py",
       "upstream_path": "tests/test_normalize.py",
-      "replacement": "cover real requirement ID forms, cross references and explicit continuations",
+      "replacement": "cover real requirement ID forms, cross references and explicit continuations, spaced-hyphen IDs",
       "upstream_sha256": "b5e70eb0de7003fef44dcb65870cce92212b4aef8cae49893996142ca91877ef",
-      "sha256": "a49d8fd905ed467fdb8397d68f9696c36eb15d498b376fb0aff9b27987ef4167"
+      "sha256": "458bcdaa609206c677723bf391e0cd112e7b93afe5b1a0d27a3287a02b3be3b4"
     }
   ],
   "authored_files": [
@@ -714,8 +714,8 @@
     },
     {
       "path": "src/bid_deep_engine/runner.py",
-      "purpose": "bidops.engine-input.v1/output.v1 subprocess boundary and mock_reference transport",
-      "sha256": "da1a0fd49c8490601381befda44e6b1eb40120073389456a4240658a6ce9681c"
+      "purpose": "bidops.engine-input.v1/output.v1 subprocess boundary, mock_reference transport and the framed --live-ipc mode",
+      "sha256": "a7163d6a856489b6c7d5a17ea14de40aaba3a586cdb4b27702ecec3224e897a4"
     },
     {
       "path": "engine_tests/test_adapter.py",
@@ -761,6 +761,31 @@
       "path": "engine_tests/test_workunits.py",
       "purpose": "offline work-unit map, classification, evidence and pipeline coverage",
       "sha256": "89ce95caf7d4a6c8a13acaea601c3da3f51a808e6b2f5af59f5fd9d5814d1bb9"
+    },
+    {
+      "path": "src/bid_deep_engine/live/__init__.py",
+      "purpose": "live engine path package (ADR-0081): network-free request builder, framed answers and IPC transport",
+      "sha256": "47f6b3f233755f0b7310caa5feb9f54fd59b98d6b87a1937995cebbaa3dd00ca"
+    },
+    {
+      "path": "src/bid_deep_engine/live/responses.py",
+      "purpose": "OpenAI Responses API body, usage and price for gpt-6-luna/high, as evaluated 2026-11-27 (no network)",
+      "sha256": "696799a84313c06031d495a7daf65af3a15cfaa05675e3bf2585b42ad4192b80"
+    },
+    {
+      "path": "src/bid_deep_engine/live/framed.py",
+      "purpose": "prompt parts and JSON answer validation shared by text transports",
+      "sha256": "be1baeec8334e9c445752b05573513a1bd527be58b2f55d37377edcab0c688f7"
+    },
+    {
+      "path": "src/bid_deep_engine/live/ipc.py",
+      "purpose": "runner --live-ipc frame transport and the preview's first-request plan",
+      "sha256": "ce9bcf19ee3526067dde6c8f746369468403def7706df4cbe292cd212d3e87c9"
+    },
+    {
+      "path": "engine_tests/test_live.py",
+      "purpose": "live frame protocol, request body, preview binding and real-pipe runner tests",
+      "sha256": "62722cdec6de02c5972aa02c2f87d693c9cb74d1a1bb02b111b6332392505292"
     }
   ],
   "excluded_transport_files": [
