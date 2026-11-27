@@ -36,10 +36,17 @@ for (const width of [1280, 1440]) {
       // 상세 ④의 `회사 적합성` 열은 판정·사유·근거만 갖는다. 실행 정보는 ⑥의
       // 접힌 `기술 정보` 하나로 옮겼다(docs/0915_ui-redesign/spec.md:234, ADR-0066).
       const section = page.getByRole("region", { name: "회사 업무 부합 여부" });
-      await expect(section.getByText("불일치", { exact: true })).toBeVisible();
-      await expect(section.getByText("실제 과업과 회사 업무 범위가 달라요.")).toBeVisible();
-      // 품질 표식은 접힘과 무관하게 ④에서 그대로 보인다(지우면 안 되는 경고 ①).
-      await expect(section.getByText("참조 실행 · 품질 미측정")).toBeVisible();
+      const verdict = section.locator(".company-fit-verdict");
+      await expect(verdict).toHaveAttribute("data-tone", "mismatch");
+      await expect(verdict.locator(".company-fit-decision")).toHaveText("불일치");
+      await expect(verdict.getByText("실제 과업과 회사 업무 범위가 달라요.")).toBeVisible();
+      // 품질 표식은 접힘과 무관하게 ④ 판정 옆에 그대로 보인다(지우면 안 되는 경고 ①).
+      await expect(verdict.getByText("참조 실행 · 품질 미측정")).toBeVisible();
+      await expect(section.getByText("Claude 판정 · 참조")).toHaveCount(0);
+      // 근거는 번호 매긴 사유 + 공고 원문 인용 + `회사 기준`, 확인할 사항은 따로 모인다.
+      await expect(section.getByRole("region", { name: "판단 근거" }).getByText("회사 기준", { exact: true })).toBeVisible();
+      await expect(section.getByRole("region", { name: "판단 근거" })).toContainText("업무 범위 · 확인됨 — 합성 기업의 업무 시스템 구축");
+      await expect(section.getByRole("region", { name: "확인할 사항" })).toContainText("감리 수행 범위는 사람이 확인해야 해요.");
       await expect(section.getByText(explanation)).toBeVisible();
       await expect(section.getByText("본 계약의 과업은 정보시스템 감리예요.")).toBeVisible();
       await expect(section.getByRole("link", { name: "PDF 3페이지 ↗" })).toHaveAttribute("href", /\/overview\/runs\/overview-1\/pdf#page=3$/);
@@ -83,9 +90,10 @@ test("unknown, stale, no result and failed states stay distinct", async ({ page 
   await page.route("**/api/pre-specs/991/company-fit", route => route.fulfill({ json: data }));
   await page.goto("/pre-specs/991");
   const section = page.getByRole("region", { name: "회사 업무 부합 여부" });
-  await expect(section.getByText("판단 보류 · 정보 부족", { exact: true })).toBeVisible();
-  await expect(section.getByText("이전 입력 기준의 판정이에요.", { exact: false })).toBeVisible();
-  await expect(section.getByText("인용된 회사 정보가 없어요. 역량이 없다는 뜻이 아니에요.")).toBeVisible();
+  await expect(section.locator(".company-fit-decision")).toHaveText("판단 보류");
+  await expect(section.locator(".company-fit-verdict")).toHaveAttribute("data-tone", "unknown");
+  await expect(section.getByText("개요나 회사 기준이 바뀌기 전의 판정이에요.", { exact: false })).toBeVisible();
+  await expect(section.getByText("인용 없음 · 역량이 없다는 뜻은 아니에요")).toBeVisible();
   // 2026-11-19: 응답에 기존 심층 검토 id가 있어도 그 진입점은 그리지 않는다(사전규격 단계 수정안 §3 B).
   await expect(section.getByRole("link", { name: "심층 검토 열기" })).toHaveCount(0);
   await expect(section.locator('a[href^="/deep-reviews/"]')).toHaveCount(0);
@@ -94,17 +102,20 @@ test("unknown, stale, no result and failed states stay distinct", async ({ page 
   data.attempts[0].result!.reasons = [];
   data.attempts[0].is_current = true;
   await page.reload();
-  await expect(section.getByText("부합", { exact: true })).toBeVisible();
-  await expect(section.getByText("상세 사유가 저장되지 않았어요.")).toBeVisible();
+  await expect(section.locator(".company-fit-decision")).toHaveText("부합");
+  await expect(section.getByText("저장된 상세 근거가 없어요.")).toBeVisible();
   data.attempts[0].result = null;
   data.attempts[0].status = "needs_human_review";
   await page.reload();
-  await expect(section.getByText("검증 실패 · 사람 확인 필요", { exact: true })).toBeVisible();
-  await expect(section.getByText("검증을 통과한 판정 근거가 없어 결과를 사용할 수 없어요.")).toBeVisible();
+  await expect(section.locator(".company-fit-decision")).toHaveText("사람 확인 필요");
+  await expect(section.locator(".company-fit-verdict")).toHaveAttribute("data-tone", "pending");
+  await expect(section.getByText("근거를 확인할 수 없어 판정을 쓰지 않았어요. 담당자가 개요를 직접 확인해 주세요.")).toBeVisible();
+  // 결과가 없어도 참조 표식은 남는다.
+  await expect(section.getByText("참조 실행 · 품질 미측정")).toBeVisible();
   data.attempts[0].status = "failed";
   await page.reload();
-  await expect(section.getByText("실행 실패", { exact: true })).toBeVisible();
-  await expect(section.getByText("판정 결과가 생성되지 않았어요. 불일치로 처리하지 않아요.")).toBeVisible();
+  await expect(section.locator(".company-fit-decision")).toHaveText("판정 실패");
+  await expect(section.getByText("판정 결과가 만들어지지 않았어요. 불일치로 보지 않아요.")).toBeVisible();
   data.attempts = [];
   await page.reload();
   // 문장은 짧아졌지만 `판정 없음 ≠ 불일치`라는 뜻은 그대로 남는다(ADR-0055 D8).
@@ -143,7 +154,7 @@ test("failed fetch and wrong notice response show safe errors", async ({ page })
 
 // ── T12: 사업 범위 카드 lineage(PS-01) 상세 ─────────────────────────────────
 // mock 스위치 `?fit=`(tests/fixtures/company-fit-card.ts)가 카드 lineage 판정을 고른다.
-const ENGINE_SUGGESTION = "엔진 분석 추천: 회사 사업 범위와 맞는 사업입니다. 분석 요청은 담당자가 정합니다.";
+const ENGINE_SUGGESTION = "회사 사업 범위와 맞는 사업이에요. 추적을 시작하면 상세 분석을 요청할 수 있어요.";
 const VIEWPORTS = [{ width: 1280, height: 800 }, { width: 1440, height: 900 }, { width: 1920, height: 1080 }] as const;
 
 async function openCardFit(page: Page, query: string) {
@@ -152,7 +163,7 @@ async function openCardFit(page: Page, query: string) {
   await page.goto(`/pre-specs/991?${query}`);
   const section = page.getByRole("region", { name: "회사 업무 부합 여부" });
   // 로딩 자리(`불러오는 중`)가 아니라 판정이 그려진 뒤를 본다.
-  await expect(section.locator(".company-fit-heading strong")).toBeVisible();
+  await expect(section.locator(".company-fit-decision")).toBeVisible();
   return section;
 }
 
@@ -164,7 +175,8 @@ for (const viewport of VIEWPORTS) {
   test(`T12 카드 부합 판정은 범위·정책 이름·표식·추천을 보이고 기술 정보에 모드를 읽기로 둔다 (${viewport.width})`, async ({ page }) => {
     await page.setViewportSize(viewport);
     const section = await openCardFit(page, "fit=matched");
-    await expect(section.getByText("부합", { exact: true })).toBeVisible();
+    await expect(section.locator(".company-fit-decision")).toHaveText("부합");
+    await expect(section.locator(".company-fit-verdict")).toHaveAttribute("data-tone", "matched");
     await expect(section.getByText("공고 과업이 회사 사업 범위의 데이터 플랫폼 구축과 맞아요.")).toBeVisible();
     await expect(section.getByText("기존 데이터를 새 플랫폼으로 이관·검증하는 과업이 데이터 플랫폼 구축 범위에 들어요.")).toBeVisible();
     // 카드 근거는 이름만 보인다. value JSON(범위 summary)은 화면에 싣지 않는다.
@@ -172,8 +184,8 @@ for (const viewport of VIEWPORTS) {
     await expect(section.getByText("상주 조건", { exact: true })).toBeVisible();
     await expect(section).not.toContainText("공공 데이터 수집·이관·분석 플랫폼을 구축하고 운영한다.");
     await expect(section).not.toContainText("{");
-    await expect(section.getByText("판정 시점에 고정한 사업 범위 카드 기준", { exact: true }).first()).toBeVisible();
-    await expect(section.getByText("참조 실행 · 품질 미측정")).toBeVisible();
+    await expect(section.getByText("회사 기준", { exact: true }).first()).toBeVisible();
+    await expect(section.locator(".company-fit-verdict").getByText("참조 실행 · 품질 미측정")).toBeVisible();
     await expect(section.getByText("Claude 판정 · 참조")).toHaveCount(0);
     // 추천은 한 줄 문장이고 버튼·링크가 없다.
     const suggestion = section.getByText(ENGINE_SUGGESTION, { exact: true });
@@ -211,22 +223,23 @@ for (const viewport of VIEWPORTS) {
   test(`T12 판단 보류·불일치에는 추천이 없고 판정 전은 진행 상태만 보인다 (${viewport.width})`, async ({ page }) => {
     await page.setViewportSize(viewport);
     let section = await openCardFit(page, "fit=unknown");
-    await expect(section.getByText("판단 보류 · 정보 부족", { exact: true })).toBeVisible();
+    await expect(section.locator(".company-fit-decision")).toHaveText("판단 보류");
     await expect(section.getByText("섞인 사업 판단", { exact: true })).toBeVisible();
     await expect(section.getByText(ENGINE_SUGGESTION)).toHaveCount(0);
 
     await page.goto("/pre-specs/991?fit=mismatch");
     section = page.getByRole("region", { name: "회사 업무 부합 여부" });
-    await expect(section.getByText("불일치", { exact: true })).toBeVisible();
+    await expect(section.locator(".company-fit-decision")).toHaveText("불일치");
     await expect(section.getByText("수행하지 않는 사업", { exact: true })).toBeVisible();
     await expect(section.getByText(ENGINE_SUGGESTION)).toHaveCount(0);
 
     await page.goto("/pre-specs/991?fit=pending");
     section = page.getByRole("region", { name: "회사 업무 부합 여부" });
-    await expect(section.getByText("판정 중", { exact: true })).toBeVisible();
-    await expect(section.getByText("검증된 판정이 생성되면 과업과 회사 정보의 대조 근거를 표시해요.")).toBeVisible();
+    await expect(section.locator(".company-fit-decision")).toHaveText("판정 중");
+    await expect(section.getByText("판정이 끝나면 근거와 함께 보여 드려요.")).toBeVisible();
     await expect(section.locator(".company-fit-reasons")).toHaveCount(0);
-    await expect(section.locator(".company-fit-summary")).toHaveCount(0);
+    await expect(section.locator(".company-fit-body")).toHaveCount(0);
+    await expect(section.getByText("참조 실행 · 품질 미측정")).toBeVisible();
     await expect(section.getByText(ENGINE_SUGGESTION)).toHaveCount(0);
     await expectNoHorizontalOverflow(page);
   });
@@ -234,10 +247,9 @@ for (const viewport of VIEWPORTS) {
 
 test("T12 가져온 Claude 참조 판정은 품질 표식 옆에 `Claude 판정 · 참조`로 구분된다", async ({ page }) => {
   const section = await openCardFit(page, "fit=matched&judge=claude");
-  const heading = section.locator(".company-fit-heading");
-  await expect(heading.getByText("참조 실행 · 품질 미측정")).toBeVisible();
-  await expect(heading.getByText("Claude 판정 · 참조", { exact: true })).toBeVisible();
-  await expect(section.getByText("판단 사유 1 · Claude 참조 의견")).toBeVisible();
+  const verdict = section.locator(".company-fit-verdict");
+  await expect(verdict.getByText("참조 실행 · 품질 미측정")).toBeVisible();
+  await expect(verdict.getByText("Claude 판정 · 참조", { exact: true })).toBeVisible();
   await expect(section.getByText("모델 의견", { exact: false })).toHaveCount(0);
   await page.getByRole("button", { name: "기술 정보 · 주장 검증 진단, 고정 입력과 식별 해시, 회사 적합성 실행 정보" }).click();
   const facts = page.locator('.ps-collapsed dl[aria-label="현재 판정 실행 정보"]');

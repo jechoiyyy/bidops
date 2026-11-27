@@ -242,7 +242,7 @@ class PreSpecCompanyFitRunner:
         for row in session.scalars(expired.with_for_update(skip_locked=True)):
             self._finish(session, row, "failed", "lease_expired")
         session.commit()
-        card_state, card = card_mode_with_card(self.settings)
+        card_state, card = card_mode_with_card(self.settings, session)
         card_effective = bool(card_state["effective"] and card is not None)
         legacy_enabled = True
         if card_effective:

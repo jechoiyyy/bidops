@@ -422,7 +422,8 @@ def test_t9_router_returns_v2_json(session, tmp_path, monkeypatch):
     app.dependency_overrides[get_db] = lambda: session
     body = TestClient(app).get(f"/api/pre-specs/{notice.id}/company-fit").json()
     assert body["schema_version"] == "bidops.prespec-company-fit.v2"
-    assert set(body["mode"]) == {"mode", "effective", "reason_code", "card_version", "card_sha256", "prompt_version"}
+    assert set(body["mode"]) == {"mode", "effective", "reason_code", "card_version", "card_sha256", "prompt_version",
+                                 "set_by", "set_at"}
     assert body["engine_suggested"] is True
     assert body["attempts"][0]["lineage"] == "card"
     assert "business-scope-card.yaml" not in json.dumps(body)

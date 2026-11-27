@@ -67,3 +67,6 @@ web/frontend/test-results/
 web/frontend/playwright-report/
 /env/portfolio-private
 /docker/portfolio/company-bundle/
+
+# Business scope cards hold unpublished company answers and stay outside Git (ADR-0080).
+business-scope-card*.yaml

@@ -57,6 +57,8 @@ class PreviewReceipt(BaseModel):
     created_at: datetime
     expires_at: datetime
     manifest: dict[str, Any]
+    #: live 미리보기의 오늘(KST) 사용량·남은 상한. manifest digest 밖이다(ADR-0081).
+    budget: dict[str, Any] | None = None
 
 
 class ApprovalReceipt(BaseModel):
@@ -83,7 +85,7 @@ State = Literal["not_requested", "preparing", "blocked", "awaiting_approval", "q
 Reason = Literal["tracking_required", "documents_pending", "original_hwp_required",
                  "unsafe_document", "structure_unavailable", "company_bundle_unavailable",
                  "company_bundle_invalid", "engine_disabled", "engine_live_disabled",
-                 "budget_exhausted", "input_changed"]
+                 "budget_exhausted", "input_changed", "live_run_failed"]
 
 
 class ReviewState(BaseModel):

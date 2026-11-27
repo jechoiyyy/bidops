@@ -5412,6 +5412,8 @@ export async function mockEngineReview(page: Page, options: {
   initialState?: EngineReviewState;
   reason?: EngineReviewView["reason"];
   previewManifest?: Partial<EngineReviewPreview["manifest"]>;
+  /** live 미리보기 영수증의 `budget`(ADR-0081). digest 밖 값이다. */
+  previewBudget?: EngineReviewPreview["budget"];
   partialResultWarnings?: string[];
   autoPreparationOnRequest?: boolean;
   failFirstRequest?: boolean;
@@ -5599,7 +5601,8 @@ export async function mockEngineReview(page: Page, options: {
       if (options.previewError) { await error(route, 503, options.previewError); return; }
       const base = engineReviewPreviewFixture(id, Boolean(options.approvalConflict && previewReceipts.size > 0));
       const preview = previewReceipts.get(body.request_id)
-        ?? { ...base, manifest: { ...base.manifest, ...options.previewManifest } };
+        ?? { ...base, manifest: { ...base.manifest, ...options.previewManifest },
+          ...(options.previewBudget !== undefined ? { budget: options.previewBudget } : {}) };
       previewReceipts.set(body.request_id, preview);
       setState(id, "awaiting_approval", { preview });
       await fulfillJson(route, preview);

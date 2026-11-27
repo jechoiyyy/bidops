@@ -56,6 +56,39 @@ export interface EngineReviewManifest {
   wiki_pages_skipped: string[];
   wiki_chars: number;
   valid_from: string;
+  /** live 미리보기에만 있다(ADR-0081). 수신자·첫 요청·상한은 승인 digest에 들어간다. */
+  live?: EngineReviewLivePlan;
+}
+
+export interface EngineReviewLivePlan {
+  transport: "openai_responses";
+  model: string;
+  reasoning_effort: string;
+  endpoint: string;
+  wire_version: string;
+  first_request_sha256: string;
+  first_request_estimated_tokens: number;
+  planned_calls: number;
+  call_timeout_seconds: number;
+  store: false;
+  retries: 0;
+  price_source: string;
+  usd_per_mtok: Record<string, number>;
+  caps: { daily_notices: number; daily_calls: number; notice_calls: number; daily_usd: number };
+}
+
+/** 오늘(KST) 사용량과 남은 상한. 승인 digest 밖이며 미리보기를 연 시각의 값이다. */
+export interface EngineReviewBudget {
+  kst_date: string;
+  calls_today: number;
+  notices_today: number;
+  notice_calls: number;
+  usd_today: number;
+  remaining_calls_today: number;
+  remaining_notice_calls: number;
+  remaining_usd_today: number;
+  notice_allowed_today: boolean;
+  caps: EngineReviewLivePlan["caps"];
 }
 
 export interface EngineReviewPreview {
@@ -64,6 +97,7 @@ export interface EngineReviewPreview {
   created_at: string;
   expires_at: string;
   manifest: EngineReviewManifest;
+  budget?: EngineReviewBudget | null;
 }
 
 interface ApprovalReceipt {
@@ -92,7 +126,7 @@ export type EngineReviewState =
 export type EngineReviewReason =
   | "tracking_required" | "documents_pending" | "original_hwp_required" | "unsafe_document"
   | "structure_unavailable" | "company_bundle_unavailable" | "company_bundle_invalid"
-  | "engine_disabled" | "engine_live_disabled" | "budget_exhausted" | "input_changed";
+  | "engine_disabled" | "engine_live_disabled" | "budget_exhausted" | "input_changed" | "live_run_failed";
 
 /** EngineRunView for wiki-scoped runs. Company-scoped callers keep their existing type. */
 export interface EngineReviewResult extends Omit<EngineRun,

@@ -43,7 +43,7 @@ if [[ -z "${BIDOPS_COMPOSE_FEATURES+x}" && -r "${envs[1]}" ]]; then
   features="$(awk -F= '$1 == "BIDOPS_COMPOSE_FEATURES" {value=$2} END {print value}' "${envs[1]}" | tr -d "\\\"'\r ")"
 fi
 if [[ ( "$BIDOPS_ENV" == mock || "$COMPOSE_PROJECT_NAME" == bidops-portfolio ) && -n "$features" ]]; then
-  printf 'Mock does not allow external Luna or Slack capabilities\n' >&2; exit 2
+  printf 'Mock does not allow external Luna, Slack or engine-live capabilities\n' >&2; exit 2
 fi
 IFS=, read -r -a feature_list <<< "${features:-none}"
 for feature in "${feature_list[@]}"; do
@@ -51,7 +51,8 @@ for feature in "${feature_list[@]}"; do
     none) ;;
     luna) files+=(-f docker/docker-compose.luna.yml) ;;
     slack) files+=(-f docker/docker-compose.slack-egress.yml) ;;
-    *) printf 'Unknown BIDOPS_COMPOSE_FEATURES value (allowed: luna,slack)\n' >&2; exit 2 ;;
+    engine-live) files+=(-f docker/docker-compose.engine-live.yml) ;;
+    *) printf 'Unknown BIDOPS_COMPOSE_FEATURES value (allowed: luna,slack,engine-live)\n' >&2; exit 2 ;;
   esac
 done
 # Native document conversion must not run under Rosetta's RLIMIT_DATA failure.

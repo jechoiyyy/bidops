@@ -127,7 +127,7 @@ class CompanyFitViewV2(CompanyFitView):
 
 
 class CompanyFitCardMode(RuntimeContractModel):
-    """카드 모드 실효 상태 (C4, MVP: env 스위치라 ``set_by``·``set_at``이 없다)."""
+    """카드 모드 실효 상태 (C4). ``mode``·``set_by``·``set_at``은 최신 모드 행이며 행이 없으면 off·null이다."""
 
     mode: Literal["off", "suggest"]
     effective: bool
@@ -135,6 +135,14 @@ class CompanyFitCardMode(RuntimeContractModel):
     card_version: str | None
     card_sha256: str | None
     prompt_version: str
+    set_by: str | None = None
+    set_at: datetime | None = None
+
+
+class CompanyFitModeCommand(RuntimeContractModel):
+    mode: str
+    reason: str | None = None
+    request_id: UUID
 
 
 class CompanyFitResponse(RuntimeContractModel):

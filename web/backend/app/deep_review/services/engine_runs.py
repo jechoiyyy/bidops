@@ -1,8 +1,9 @@
 """BidOps authority → frozen input → WorkJob → isolated engine → immutable result.
 
-No policy activation, live model transport, company write, or human review write.
-The offline baseline is always mock_reference and its conservative projection
-remains partial, including when every engine stage completed successfully.
+No policy activation, company write, or human review write. The offline baseline is
+mock_reference and its conservative projection remains partial, including when every
+engine stage completed successfully. A wiki-scoped run approved from a live preview
+(ADR-0078) runs through `engine_live` (ADR-0081) and is labelled unmeasured_reference.
 """
 
 from __future__ import annotations
@@ -461,6 +462,7 @@ def _queue_run(session, frozen, *, request_id, actor):
     company_id = frozen.get("company_id")
     company_profile = frozen.get("profile_version_id")
     wiki_only = frozen["schema_version"] == "bidops.engine-input.v3"
+    quality = "unmeasured_reference" if frozen.get("mode") == "live" else "mock_reference"
     row = EngineRun(
         id=run_id,
         request_id=request_id,
@@ -471,7 +473,7 @@ def _queue_run(session, frozen, *, request_id, actor):
         company_bundle_slug=bundled["slug"] if wiki_only else None,
         company_bundle_sha256=bundled["bundle_sha256"] if wiki_only else None,
         engine_version=ENGINE_VERSION,
-        quality_status="mock_reference",
+        quality_status=quality,
         status="queued",
         input_sha256=_sha(frozen),
         input_payload=frozen,
@@ -487,7 +489,8 @@ def _queue_run(session, frozen, *, request_id, actor):
             aggregate_id=str(run_id),
             safe_metadata={
                 "engine_version": ENGINE_VERSION,
-                "quality_status": "mock_reference",
+                "quality_status": quality,
+                "mode": frozen.get("mode"),
                 "input_sha256": row.input_sha256,
                 "company_bundle_sha256": bundled["bundle_sha256"] if bundled else None,
             },
@@ -507,8 +510,10 @@ def _queue_run(session, frozen, *, request_id, actor):
     return row
 
 
-def wiki_input(session, notice, bundle, *, company, rows, locations):
+def wiki_input(session, notice, bundle, *, company, rows, locations, mode="mock_reference"):
     """Freeze the same documents for v3 without resolving a registered company."""
+    if mode not in {"mock_reference", "live"}:
+        raise EngineRunError("engine_live_not_approved")
     primary, documents, blocks = freeze_documents(
         session, bundle, rows=rows, structure_locations=locations,
     )
@@ -516,7 +521,7 @@ def wiki_input(session, notice, bundle, *, company, rows, locations):
         "schema_version": "bidops.engine-input.v3",
         "engine_version": ENGINE_VERSION,
         "engine_sha256": engine_digest(),
-        "mode": "mock_reference",
+        "mode": mode,
         "slug": str(uuid4()),
         "title": notice.title or "공고명 미확인",
         "notice_id": notice.id,
@@ -532,7 +537,9 @@ def create_wiki_run(session, frozen, *, request_id, actor):
     """Queue exactly the revalidated v3 snapshot in the caller's transaction."""
     if not engine_analysis_enabled():
         raise EngineRunError("engine_analysis_disabled", 503)
-    if frozen["schema_version"] != "bidops.engine-input.v3" or frozen["mode"] != "mock_reference":
+    if frozen["schema_version"] != "bidops.engine-input.v3" or frozen["mode"] not in {"mock_reference", "live"}:
+        raise EngineRunError("engine_live_not_approved")
+    if frozen["mode"] == "live" and getattr(get_settings(), "engine_review_mode", "off") != "live":
         raise EngineRunError("engine_live_not_approved")
     return _queue_run(session, frozen, request_id=request_id, actor=actor)
 
@@ -646,6 +653,49 @@ def invoke_engine(payload):
     return result
 
 
+LIVE_ERROR_CODES = RUNNER_ERROR_CODES | frozenset({"engine_pipeline_failed"})
+
+
+def check_live_output(result):
+    """Shape of a live runner output after the supervisor (`engine_live.run`)."""
+    from .engine_live import SUPERVISOR_CODES  # noqa: PLC0415
+
+    if (
+        not isinstance(result, dict)
+        or result.get("schema_version") != "bidops.engine-output.v1"
+        or result.get("engine_version") != ENGINE_VERSION
+        or result.get("quality_status") != "unmeasured_reference"
+        or result.get("status") not in {"completed", "failed"}
+        or not isinstance(result.get("live"), dict)
+    ):
+        raise EngineRunError("engine_output_invalid")
+    if result["status"] == "completed" and (
+        not isinstance(result.get("analysis"), dict) or result.get("error_code") is not None
+    ):
+        raise EngineRunError("engine_output_invalid")
+    if result["status"] == "failed" and result.get("error_code") not in (LIVE_ERROR_CODES | SUPERVISOR_CODES):
+        raise EngineRunError("engine_output_invalid")
+    error_class = result.get("error_class")
+    if error_class is not None and not (isinstance(error_class, str) and _ERROR_CLASS.fullmatch(error_class)):
+        result["error_class"] = None
+    return result
+
+
+def invoke_live(session, *, run_id, job_id, fence, worker_id, frozen, post=None):
+    """Live branch of the worker. `post` replaces the HTTP call in tests only."""
+    from . import engine_live  # noqa: PLC0415
+
+    if frozen.get("engine_sha256") != engine_digest():
+        raise EngineRunError("engine_version_changed")
+    try:
+        result = engine_live.run(session, run_id=run_id, job_id=job_id, fence=fence, worker_id=worker_id,
+                                 frozen=frozen, package_root=package_root(),
+                                 **({"post": post} if post is not None else {}))
+    except engine_live.LiveRunError as error:
+        raise EngineRunError(error.code) from None
+    return check_live_output(result)
+
+
 def _log_failure(run_id, worker_id, code, error_class):
     """Only identifiers, a defined code and an exception class name are logged."""
     logger.warning(
@@ -695,7 +745,7 @@ def _store_result(session, result, run_id, store):
     return digest
 
 
-def run_once(session: Session, worker_id: str, *, store=None, invoke=invoke_engine):
+def run_once(session: Session, worker_id: str, *, store=None, invoke=invoke_engine, live_invoke=None):
     # Switch off: the slot claims nothing and queued runs stay as they are.
     if not engine_analysis_enabled():
         return False
@@ -728,6 +778,10 @@ def run_once(session: Session, worker_id: str, *, store=None, invoke=invoke_engi
             row.status = "failed"
             row.error_code = "lease_expired"
             row.completed_at = now
+        if row is not None and (row.input_payload or {}).get("mode") == "live":
+            from .engine_live import close_reserved_calls  # noqa: PLC0415
+
+            close_reserved_calls(session, row.id)
         session.commit()
         return True
     if row.status != "queued":
@@ -738,7 +792,9 @@ def run_once(session: Session, worker_id: str, *, store=None, invoke=invoke_engi
         return True
     job.status = "running"
     job.lease_owner = worker_id
-    job.lease_expires_at = now + timedelta(seconds=120)
+    live = (row.input_payload or {}).get("mode") == "live"
+    job.lease_expires_at = now + timedelta(
+        seconds=(get_settings().engine_live_call_timeout_seconds + 120) if live else 120)
     job.lease_fence += 1
     job.attempt_count += 1
     row.status = "running"
@@ -753,7 +809,12 @@ def run_once(session: Session, worker_id: str, *, store=None, invoke=invoke_engi
     try:
         if _sha(frozen) != digest:
             raise EngineRunError("input_hash_mismatch")
-        result = invoke(frozen)
+        if live:
+            result = (live_invoke or invoke_live)(
+                session, run_id=run_id, job_id=job_id, fence=fence, worker_id=worker_id, frozen=frozen,
+            )
+        else:
+            result = invoke(frozen)
     except EngineRunError as error:
         failure = (error.code, type(error).__name__)
     except Exception as error:
@@ -763,7 +824,7 @@ def run_once(session: Session, worker_id: str, *, store=None, invoke=invoke_engi
         result = {
             "schema_version": "bidops.engine-output.v1",
             "engine_version": ENGINE_VERSION,
-            "quality_status": "mock_reference",
+            "quality_status": "unmeasured_reference" if live else "mock_reference",
             "status": "failed",
             "error_code": failure[0],
             "warnings": [],

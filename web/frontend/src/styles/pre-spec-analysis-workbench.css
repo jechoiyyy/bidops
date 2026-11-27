@@ -369,6 +369,6 @@ dl.paw-source-meta .paw-code { font-family: ui-monospace, Menlo, monospace; font
 }
 
 /* 엔진 검토 결과 확인·실행 경고(RL-11 단계 2, 2026-11-27 작업대로 이식) */
-.paw-review-ack { margin-top: var(--spacing-2); }
+.paw-review-ack { margin-top: var(--spacing-2); display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-2); }
 .paw-warning-details { margin-top: var(--spacing-1); overflow-wrap: anywhere; }
 .paw-warning-details ul { padding-inline-start: var(--spacing-4); }

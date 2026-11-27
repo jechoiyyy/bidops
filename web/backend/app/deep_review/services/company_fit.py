@@ -229,17 +229,23 @@ def _card_model_binding(settings) -> tuple[str, str] | None:
     return model, revision
 
 
-def card_mode_with_card(settings=None) -> tuple[dict[str, Any], BusinessScopeCard | None]:
-    """MVP C4 실효 상태와 (조건 4·5를 통과한) 카드.
+def card_mode_with_card(settings=None, session=None) -> tuple[dict[str, Any], BusinessScopeCard | None]:
+    """C4 실효 상태와 (조건 4·5를 통과한) 카드.
 
     평가 순서: ``company_fit_disabled`` → ``company_fit_reference_only`` →
     ``company_fit_model_unavailable`` → 카드(``card_unavailable``·
-    ``card_sha256_mismatch``) → ``switch_off``(env ``off``). 카드 정보는 앞 조건과
-    상관없이 따로 읽어 채운다. 모델 호출은 없다.
+    ``card_sha256_mismatch``) → ``switch_off``(env 상한이 ``off``이거나 최신 모드 행이
+    없거나 ``off``) → ``switch_bound_to_other_card`` → ``switch_bound_to_other_prompt``.
+    카드 정보는 앞 조건과 상관없이 따로 읽어 채운다. 모델 호출은 없다. ``session``이
+    없으면 모드 행을 읽을 수 없으므로 ``switch_off``다(fail closed).
     """
 
+    from .company_fit_mode import latest_row  # noqa: PLC0415
+
     settings = settings or get_settings()
-    mode = getattr(settings, "prespec_company_fit_card_mode", "off")
+    cap = getattr(settings, "prespec_company_fit_card_mode", "off")
+    row = latest_row(session)
+    mode = row.mode if row is not None else "off"
     card, card_reason = card_or_reason(settings)
     reason: str | None = None
     if not settings.prespec_company_fit_enabled:
@@ -250,19 +256,32 @@ def card_mode_with_card(settings=None) -> tuple[dict[str, Any], BusinessScopeCar
         reason = "company_fit_model_unavailable"
     elif card_reason is not None:
         reason = card_reason
-    elif mode != "suggest":
+    elif cap != "suggest" or mode != "suggest":
         reason = CARD_MODE_OFF_REASON
+    elif row.card_sha256 != (card.card_sha256 if card else None):
+        reason = "switch_bound_to_other_card"
+    elif row.prompt_version != PROMPT_VERSION_CARD:
+        reason = "switch_bound_to_other_prompt"
     state = {
         "mode": mode, "effective": reason is None, "reason_code": reason,
         "card_version": card.card_version if card else None,
         "card_sha256": card.card_sha256 if card else None,
         "prompt_version": PROMPT_VERSION_CARD,
+        "set_by": row.set_by if row is not None else None,
+        "set_at": row.set_at if row is not None else None,
     }
     return state, card
 
 
-def card_mode_state(settings=None) -> dict[str, Any]:
-    return card_mode_with_card(settings)[0]
+def card_mode_state(settings=None, session=None) -> dict[str, Any]:
+    return card_mode_with_card(settings, session)[0]
+
+
+def suggestion_requested(settings=None, session=None) -> bool:
+    """`엔진 분석 추천` 표시 조건의 모드 부분: env 상한과 최신 모드 행이 모두 `suggest`."""
+    settings = settings or get_settings()
+    row_mode = card_mode_state(settings, session)["mode"]
+    return getattr(settings, "prespec_company_fit_card_mode", "off") == "suggest" and row_mode == "suggest"
 
 
 def card_current_flags(
@@ -355,7 +374,7 @@ def card_fit_summaries(
     ids = list(dict.fromkeys(int(value) for value in notice_ids))
     latest = latest_card_attempts(session, ids)
     flags = card_current_flags(session, list(latest.values()), settings=settings, runs=runs) if latest else {}
-    suggest = getattr(settings, "prespec_company_fit_card_mode", "off") == "suggest"
+    suggest = suggestion_requested(settings, session)
     out: dict[int, dict[str, Any]] = {}
     for notice_id in ids:
         row = latest.get(notice_id)
@@ -585,7 +604,7 @@ def gate_reasons(
         return {notice_id: "company_fit_reference_only" for notice_id in notice_ids}
     # PS-01: 카드 모드가 실효인 동안 회사 핏은 추천만 한다. 회사 핏을 통한 심층
     # 자동 시작은 등급과 상관없이 일어나지 않는다.
-    if card_mode_state(settings)["effective"]:
+    if card_mode_state(settings, session)["effective"]:
         return {notice_id: SUGGEST_ONLY_REASON for notice_id in notice_ids}
     current = runs if runs is not None else current_runs(session, notice_ids)
     attempts = latest_attempts(session, notice_ids)
@@ -690,7 +709,7 @@ def company_fit_view(session: Session, notice_id: int) -> CompanyFitResponse:
     engine_suggested = bool(
         first is not None and first.lineage == "card" and first.status == "completed" and first.is_current
         and first.result is not None and first.result.decision == "matched"
-        and getattr(settings, "prespec_company_fit_card_mode", "off") == "suggest"
+        and suggestion_requested(settings, session)
     )
     fields = auto_preparation_fields(session, [notice_id]).get(notice_id, {})
     deep_id = session.scalar(
@@ -701,7 +720,7 @@ def company_fit_view(session: Session, notice_id: int) -> CompanyFitResponse:
     )
     return CompanyFitResponse(notice_id=notice_id, attempts=views,
         automation_enabled=settings.prespec_company_fit_enabled and settings.reference_workflow_mode,
-        mode=CompanyFitCardMode(**card_mode_state(settings)), engine_suggested=engine_suggested,
+        mode=CompanyFitCardMode(**card_mode_state(settings, session)), engine_suggested=engine_suggested,
         auto_deep_review_reason=fields.get("auto_preparation_reason"), deep_review_id=deep_id)
 
 

@@ -1823,3 +1823,18 @@ def test_engine_review_runtime_grants_keep_worker_and_backup_read_only() -> None
                     assert not _column_privilege(connection, "worker", "engine_review_request", column, "UPDATE")
         finally:
             engine.dispose()
+
+
+def test_engine_call_ledger_is_written_only_by_the_worker_and_finished_once() -> None:
+    assert "engine_call" in _table_grants("app", "SELECT")
+    assert "engine_call" not in _table_grants("app", "INSERT")
+    assert "engine_call" in _table_grants("worker", "SELECT")
+    assert "engine_call" in _table_grants("worker", "INSERT")
+    for role in ("app", "worker"):
+        assert "engine_call" not in _table_grants(role, "UPDATE")
+        assert "engine_call" not in _table_grants(role, "DELETE")
+    assert _column_update_grant("worker", "engine_call") == {
+        "state", "finished_at", "http_status", "response_status", "response_sha256", "served_model",
+        "input_tokens", "cached_input_tokens", "cache_write_input_tokens", "output_tokens",
+        "reasoning_output_tokens", "usd", "duration_ms", "error_class",
+    }

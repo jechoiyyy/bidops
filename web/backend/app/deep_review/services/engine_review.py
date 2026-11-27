@@ -34,10 +34,10 @@ def review_mode():
 
 
 def _mode_error(mode, *, preview=False):
+    # `live` previews and approvals are open (ADR-0081); what leaves is bounded by the approved
+    # manifest, the KST caps and the worker's key. Without the analysis switch nothing runs.
     if mode == "off":
         return "engine_disabled"
-    if preview and mode == "live":
-        return "engine_live_disabled"
     if not engine_runs.engine_analysis_enabled():
         return "engine_disabled"
     return None
@@ -164,11 +164,28 @@ def _request_receipt(row):
     return wire.RequestReceipt.model_validate(row)
 
 
-def _preview_receipt(row):
+def _preview_receipt(row, session=None):
+    budget = None
+    if session is not None and row.mode == "live":
+        from . import engine_live  # noqa: PLC0415
+
+        budget = engine_live.budget_snapshot(
+            session, notice_id=row.manifest["notice_id"], today=engine_live.kst_today(_now()),
+        )
     return wire.PreviewReceipt(
         preview_id=row.id, manifest_sha256=row.manifest_sha256, created_at=row.created_at,
-        expires_at=row.expires_at, manifest=row.manifest,
+        expires_at=row.expires_at, manifest=row.manifest, budget=budget,
     )
+
+
+def _require_live_budget(session, notice_id, planned_calls):
+    """A live approval is refused when today's caps leave no room for this notice's planned calls."""
+    from . import engine_live  # noqa: PLC0415
+
+    budget = engine_live.budget_snapshot(session, notice_id=notice_id, today=engine_live.kst_today(_now()))
+    if (not budget["notice_allowed_today"] or budget["remaining_calls_today"] < planned_calls
+            or budget["remaining_notice_calls"] < planned_calls or budget["remaining_usd_today"] <= 0):
+        raise EngineRunError("budget_exhausted")
 
 
 def _approval_receipt(session, row):
@@ -213,10 +230,23 @@ def _publishable(run, freshness):
     return run and run.status in RESULT_STATUSES and freshness == "current" and run.result_payload
 
 
+LIVE_RUN_FAILURES = frozenset({
+    "engine_live_key_unavailable", "engine_live_not_approved", "engine_live_deadline",
+    "engine_live_process_failed", "engine_live_output_invalid", "engine_live_lease_lost",
+    "engine_live_audit_failed", "http_error", "response_incomplete", "outcome_unknown",
+    "frame_invalid", "frame_order_invalid", "frame_body_invalid", "frame_document_changed",
+    "request_too_large", "planned_calls_exceeded", "engine_pipeline_failed", "lease_expired",
+    "engine_execution_failed", "engine_output_invalid", "engine_version_changed",
+})
+
+
 def _readiness_reason(error_code):
     if error_code in {"company_bundle_unavailable", "company_bundle_invalid", "unsafe_document",
-                      "original_hwp_required", "documents_pending", "structure_unavailable"}:
+                      "original_hwp_required", "documents_pending", "structure_unavailable",
+                      "budget_exhausted", "input_changed"}:
         return error_code
+    if error_code in LIVE_RUN_FAILURES:
+        return "live_run_failed"
     return "structure_unavailable"
 
 
@@ -347,7 +377,7 @@ def review_states(session, notice_ids):
         return wire.ReviewState(
             state="awaiting_approval", next_action="approve" if tracking == TRACKING else None,
             reason=None if tracking == TRACKING else "tracking_required",
-            preview=_preview_receipt(preview) if preview else None, **fields,
+            preview=_preview_receipt(preview, session) if preview else None, **fields,
         )
 
     return {notice_id: project(notice_id) for notice_id in ids}
@@ -515,13 +545,13 @@ def create_preview(session, notice_id, payload, actor):
             preview = EngineReviewPreview(
                 id=uuid4(), review_request_id=row.id, bundle_id=UUID(manifest["bundle_id"]),
                 manifest=manifest, manifest_sha256=inputs.digest(manifest), mode=manifest["mode"],
-                planned_calls=0, created_by=actor, created_at=now, expires_at=now + TTL,
+                planned_calls=manifest["planned_calls"], created_by=actor, created_at=now, expires_at=now + TTL,
             )
             session.add(preview)
             _audit(session, "preview_created", actor, preview.id, payload.request_id,
                    notice_id=notice_id, manifest_sha256=preview.manifest_sha256)
         _save_replay(session, "preview", notice_id, payload.request_id, actor, fingerprint, preview.id)
-    result = _preview_receipt(preview)
+    result = _preview_receipt(preview, session)
     session.commit()
     return result
 
@@ -553,6 +583,8 @@ def approve(session, notice_id, payload, actor):
     else:
         now = _now()
         frozen = _check_manifest(session, notice, row, preview, payload.manifest_sha256, now=now)
+        if preview.mode == "live":
+            _require_live_budget(session, notice_id, preview.planned_calls)
         # Receipt and WorkJob are flushed and committed together. A separate
         # engine request UUID keeps the existing company API's keyspace intact.
         run = engine_runs.create_wiki_run(session, frozen, request_id=uuid4(), actor=actor)

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Path as ApiPath
+from fastapi import APIRouter, Depends, Header, Path as ApiPath, Response
 from fastapi.responses import JSONResponse
 from pydantic import StrictBool, BaseModel, ConfigDict, ValidationError
 from sqlalchemy import select
@@ -35,9 +35,10 @@ from ..models import (
     DocumentBundle,
     DocumentBundleItem,
 )
-from ..schemas.company_fit import CompanyFitResponse
+from ..schemas.company_fit import CompanyFitCardMode, CompanyFitModeCommand, CompanyFitResponse
 from ..schemas.deep_reviews import DeepReviewPreviewView, AttemptView, DeepReviewView, OpportunityDeepReviewsResponse
-from ..services.company_fit import company_fit_view
+from ..services.company_fit import card_mode_state, company_fit_view
+from ..services.company_fit_mode import CompanyFitModeError, set_mode
 from ..services.company_projection import is_company_review
 from ..services.deep_reviews import DeepReviewService, DeepReviewServiceError
 from ..services.document_bundles import BundleServiceError, PageOverviewError, validate_actor
@@ -238,6 +239,42 @@ def create_deep_review_attempt(
 # --- 사전규격 화면이 부르는 조회 (명세 §5.3: 경로는 pre_specs, 제공 모듈은 deep_review) ---
 # 개요 검토 REST는 routers/overviews.py에 있다. 이 router에는 회사 핏 조회만 남는다.
 pre_spec_overview_router = APIRouter(prefix="/api/pre-specs", tags=["pre-specs"])
+
+
+def _mode_error(error) -> JSONResponse:
+    return JSONResponse(status_code=error.status, content={"error": {
+        "code": error.code, "message": "회사 적합성 모드를 바꿀 수 없어요", "details": error.details,
+    }})
+
+
+@pre_spec_overview_router.get("/company-fit/mode", response_model=CompanyFitCardMode)
+def get_company_fit_mode(session: Session = Depends(get_db)):
+    """C4 실효 상태(PS-01 C8). 화면은 회사 핏 응답의 `mode`만 읽는다."""
+    return card_mode_state(None, session)
+
+
+@pre_spec_overview_router.post("/company-fit/mode", response_model=CompanyFitCardMode,
+                               responses={201: {"model": CompanyFitCardMode}})
+def post_company_fit_mode(
+    payload: CompanyFitModeCommand,
+    response: Response,
+    session: Session = Depends(get_db),
+    actor: str | None = Header(default=None, alias="X-BidOps-Actor-Name"),
+    actor_format: str | None = Header(default=None, alias="X-BidOps-Actor-Name-Format"),
+):
+    try:
+        name = validate_actor(actor, actor_format)
+        state, created = set_mode(session, mode=payload.mode, reason=payload.reason,
+                                  request_id=payload.request_id, actor=name)
+    except CompanyFitModeError as error:
+        session.rollback()
+        return _mode_error(error)
+    except BundleServiceError as error:
+        session.rollback()
+        return JSONResponse(status_code=error.status_code, content={"error": {
+            "code": error.code, "message": str(error), "details": None}})
+    response.status_code = 201 if created else 200
+    return state
 
 
 @pre_spec_overview_router.get("/{notice_id}/company-fit", response_model=CompanyFitResponse)

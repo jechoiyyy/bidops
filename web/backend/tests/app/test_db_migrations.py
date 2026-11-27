@@ -92,6 +92,7 @@ ALL_TABLES = frozenset(
     + ("engine_run", "company_wiki_ingest_run")
     + ("engine_review_request", "engine_review_preview", "engine_review_approval",
        "engine_review_acknowledgment")
+    + ("engine_call", "prespec_company_fit_mode")
 )
 
 
@@ -1813,6 +1814,44 @@ def test_0045_review_migration_round_trips_empty_and_refuses_review_history() ->
             refused = run_alembic(database_url, "downgrade", "0044_company_fit_card_lineage")
             assert refused.returncode != 0
             assert "refuses to discard engine review data" in refused.stderr
+            assert _scalar(engine, "SELECT version_num FROM bidops.alembic_version") == "0045_engine_review"
+        finally:
+            engine.dispose()
+
+
+def test_0046_live_migration_round_trips_empty_and_refuses_live_history() -> None:
+    from sqlalchemy import create_engine
+
+    with temporary_database(upgrade_to="0045_engine_review") as database_url:
+        engine = create_engine(database_url)
+        try:
+            up = run_alembic(database_url, "upgrade", "0046_engine_live")
+            assert up.returncode == 0, up.stderr
+            assert "engine_call" in _tables(engine)
+            down = run_alembic(database_url, "downgrade", "0045_engine_review")
+            assert down.returncode == 0, down.stderr
+            assert "engine_call" not in _tables(engine)
+            up = run_alembic(database_url, "upgrade", "0046_engine_live")
+            assert up.returncode == 0, up.stderr
+            assert _scalar(engine, "SELECT version_num FROM bidops.alembic_version") == "0046_engine_live"
+        finally:
+            engine.dispose()
+
+
+def test_0047_company_fit_mode_round_trips_empty() -> None:
+    from sqlalchemy import create_engine
+
+    with temporary_database(upgrade_to="0046_engine_live") as database_url:
+        engine = create_engine(database_url)
+        try:
+            up = run_alembic(database_url, "upgrade", "0047_company_fit_mode")
+            assert up.returncode == 0, up.stderr
+            assert "prespec_company_fit_mode" in _tables(engine)
+            down = run_alembic(database_url, "downgrade", "0046_engine_live")
+            assert down.returncode == 0, down.stderr
+            assert "prespec_company_fit_mode" not in _tables(engine)
+            up = run_alembic(database_url, "upgrade", "head")
+            assert up.returncode == 0, up.stderr
             assert _scalar(engine, "SELECT version_num FROM bidops.alembic_version") == ALEMBIC_HEAD
         finally:
             engine.dispose()

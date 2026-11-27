@@ -1,43 +1,112 @@
-/* docs/0915_ui-redesign/spec.md §2.3: 카드 안 구분선은 --color-background-muted 1px */
-.company-fit,.company-fit-assessment{display:grid;gap:var(--spacing-3);min-width:0;overflow-wrap:anywhere}
-.company-fit{padding-block:var(--spacing-4);border-top:var(--border-width) solid var(--color-background-muted)}
-.company-fit h3,.company-fit h4{margin:0;font-size:var(--bo-type-section-title)}
-.company-fit p{margin:0;white-space:pre-wrap}
-.company-fit-heading,.company-fit-links{display:flex;align-items:center;flex-wrap:wrap;gap:var(--spacing-3)}
-.company-fit-note{color:var(--color-text-secondary)}
-.company-fit-suggestion{font-weight:600;color:var(--color-text-primary)}
-.company-fit-notice{display:grid;gap:var(--spacing-2);padding:var(--spacing-3);background:var(--color-background-body);border-radius:var(--radius-inner)}
-.company-fit-reasons{margin:0;padding-left:var(--spacing-5)}
-.company-fit-reasons>li{padding-block:var(--spacing-3);border-bottom:var(--border-width) solid var(--color-background-muted)}
-.company-fit-evidence{display:grid;grid-template-columns:96px minmax(0,1fr);gap:var(--spacing-2);margin-bottom:0}
-.company-fit-evidence dt{color:var(--color-text-secondary)}
-.company-fit-evidence dd{display:grid;gap:var(--spacing-2);margin:0}
-.company-fit a{color:var(--color-text-accent);text-decoration:underline}
-.company-fit summary{cursor:pointer;font-weight:600}
-.company-fit-reasons-details{display:grid;gap:var(--spacing-3);min-width:0}
-.company-fit-reasons-details>summary{padding-block:var(--spacing-2);border-bottom:var(--border-width) solid var(--color-background-muted)}
-.company-fit-reasons-details .company-fit-evidence{overflow-wrap:anywhere}
+/* 사전규격의 회사 적합성. 색은 테마 토큰만 읽고, 판정은 색과 함께 글자로도 말한다.
+ * docs/0915_ui-redesign/spec.md §2.3: 카드 안 구분선은 --color-background-muted 1px */
+.company-fit { display: grid; gap: var(--spacing-3); min-width: 0; overflow-wrap: anywhere; }
+.company-fit p { margin: 0; }
+.company-fit-muted { color: var(--color-text-secondary); font-size: var(--bo-type-caption); }
+.company-fit-error { display: flex; align-items: center; flex-wrap: wrap; gap: var(--spacing-3); color: var(--color-error); }
+.company-fit-assessment { display: grid; gap: var(--spacing-3); min-width: 0; }
 
-/* 사전규격 상세(승인 시안): 회사 핏 카드는 시안의 `.sec` 카드 모양을 쓰고,
- * 요약 판정은 옆 `현재 판단` 카드의 `.ps-vbox` 안에서 그린다. */
-.ps-record .company-fit { padding: 0; border: 0; }
-.ps-record .company-fit > .company-fit-note { color: var(--color-text-secondary); font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
-.ps-record .company-fit > details { display: grid; gap: var(--spacing-3); min-width: 0; }
-.ps-record .company-fit > details > summary { font-size: var(--bo-type-body); line-height: 1.5; font-weight: 600; }
-.ps-record .company-fit .company-fit-notice {
-  display: grid;
-  gap: var(--spacing-0-5);
-  padding: var(--spacing-3) var(--spacing-3);
-  border-radius: var(--ps-radius-chip);
+/* 판정 한 줄: 판정 이름 + 요약 문장 + 참조 표식 */
+.company-fit-verdict {
+  --fit-tone: var(--color-text-secondary);
+  --fit-tone-bg: var(--color-background-muted);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-4);
+  min-width: 0;
+  padding: var(--spacing-3) var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-inline-start: var(--spacing-1) solid var(--fit-tone);
+  border-radius: var(--radius-element);
+  background: var(--color-background-surface);
+}
+.company-fit-verdict[data-tone="matched"] { --fit-tone: var(--color-success); --fit-tone-bg: var(--color-accent-muted); }
+.company-fit-verdict[data-tone="unknown"] { --fit-tone: var(--color-warning); --fit-tone-bg: var(--color-warning-muted); }
+.company-fit-decision {
+  flex-shrink: 0;
+  padding: var(--spacing-0-5) var(--spacing-3);
+  border-radius: var(--radius-full, 999em);
+  background: var(--fit-tone-bg);
+  color: var(--fit-tone);
+  font-size: var(--bo-type-list-title);
+  font-weight: 700;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.company-fit-verdict-body { display: grid; gap: var(--spacing-2); min-width: 0; align-self: center; }
+.company-fit-summary { color: var(--color-text-primary); font-size: var(--bo-type-body); line-height: 1.6; }
+.company-fit-marks { display: inline-flex; align-items: center; vertical-align: middle; flex-wrap: wrap; gap: var(--spacing-2); }
+.company-fit-notice {
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-inner);
   background: var(--color-background-body);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+}
+
+/* 근거 + 확인할 사항 두 칸 */
+.company-fit-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--spacing-5); align-items: start; min-width: 0; }
+.company-fit-body.has-checks { grid-template-columns: minmax(0, 1fr) minmax(calc(var(--spacing-12) * 5), 32%); }
+.company-fit-sub { display: flex; align-items: baseline; gap: var(--spacing-2); margin: 0 0 var(--spacing-2); font-size: var(--bo-type-body); font-weight: 600; }
+.company-fit-count { color: var(--color-text-secondary); font-size: var(--bo-type-caption); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.company-fit-reasons { display: grid; gap: var(--spacing-3); margin: 0; padding: 0; list-style: none; }
+.company-fit-reason {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--spacing-3);
+  padding-block-start: var(--spacing-3);
+  border-top: var(--border-width) solid var(--color-background-muted);
+}
+.company-fit-reason:first-child { padding-block-start: 0; border-top: 0; }
+.company-fit-reason-no {
+  display: inline-grid;
+  place-items: center;
+  width: var(--spacing-6);
+  height: var(--spacing-6);
+  border-radius: 50%;
+  background: var(--color-background-muted);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-type-caption);
+  font-weight: 700;
+}
+.company-fit-reason-body { display: grid; gap: var(--spacing-2); min-width: 0; }
+.company-fit-reason-text { font-size: var(--bo-type-body); line-height: 1.6; }
+.company-fit-quotes { display: grid; gap: var(--spacing-1-5, var(--spacing-1)); margin: 0; padding: 0; list-style: none; }
+.company-fit-quotes > li {
+  padding-inline-start: var(--spacing-3);
+  border-inline-start: var(--border-width) solid var(--color-border);
   color: var(--color-text-secondary);
   font-size: var(--bo-type-caption);
   line-height: var(--bo-type-caption-leading);
 }
-.ps-record .company-fit .company-fit-notice strong { color: var(--color-text-primary); }
-.ps-record .company-fit-reasons > li { border-bottom-color: color-mix(in srgb, var(--color-background-muted) 45%, var(--color-background-surface)); }
-.ps-record .company-fit :is(p, li, dd, dt) { font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
-.ps-record .company-fit .company-fit-assessment { display: grid; gap: var(--spacing-3); min-width: 0; }
+.company-fit-page { color: var(--color-text-accent); white-space: nowrap; }
+a.company-fit-page { text-decoration: underline; text-underline-offset: var(--spacing-0-5); }
+.company-fit-basis { display: flex; align-items: center; flex-wrap: wrap; gap: var(--spacing-1-5, var(--spacing-1)); font-size: var(--bo-type-caption); }
+.company-fit-basis-label { color: var(--color-text-secondary); font-weight: 600; margin-inline-end: var(--spacing-1); }
+.company-fit-basis-empty { color: var(--color-text-secondary); }
+
+.company-fit-checks {
+  padding: var(--spacing-3) var(--spacing-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-element);
+  background: var(--color-background-muted);
+}
+.company-fit-checks ul { display: grid; gap: var(--spacing-2); margin: 0; padding-inline-start: var(--spacing-5); list-style: disc; }
+.company-fit-checks li { font-size: var(--bo-type-body); line-height: 1.55; }
+.company-fit-checks li::marker { color: var(--color-warning); }
+.company-fit a:focus-visible { outline: var(--focus-outline-width) solid var(--color-accent); outline-offset: var(--spacing-0-5); }
+
+.company-fit-previous { display: grid; gap: var(--spacing-3); min-width: 0; }
+.company-fit-previous > summary { cursor: pointer; font-weight: 600; }
+
+/* 상세 `회사 관련성 참고`의 좁은 가운데 열(compact). 판정 이름을 요약 위에 쌓고, 확인할 사항은
+ * 근거 아래로 내린다 — 두 칸을 두면 1280에서 근거 문장이 몇 글자씩 끊긴다(PS-01 MVP, 1280 확인). */
+.company-fit.is-compact .company-fit-verdict { flex-direction: column; gap: var(--spacing-2); padding: var(--spacing-2) var(--spacing-3); }
+.company-fit.is-compact .company-fit-verdict-body { align-self: stretch; }
+.company-fit.is-compact .company-fit-body.has-checks { grid-template-columns: minmax(0, 1fr); gap: var(--spacing-3); }
+.company-fit.is-compact .company-fit-checks { padding: var(--spacing-2) var(--spacing-3); }
+.ps-record .company-fit.is-compact :is(.company-fit-reason-text, .company-fit-checks li) { font-size: var(--bo-type-caption); line-height: var(--bo-type-caption-leading); }
 
 /* ⑥ 접힌 `기술 정보` 안의 회사 적합성 실행 정보(ADR-0066 결정 1 `이동`).
  * ④ 안의 접힘이 아니라 접힌 곳 안의 한 덩어리이므로 자기 여백만 갖는다. */
@@ -47,7 +116,3 @@
 .company-fit-execution-facts{display:grid;gap:var(--spacing-1);margin:0;min-width:0}
 .company-fit-execution-facts dt{font-weight:500}
 .company-fit-execution-facts dd{margin:0;min-width:0;overflow-wrap:anywhere}
-/* 상세 상단 세 열 가운데(회사 적합성)는 폭이 좁다. 근거 이름 열(96px)을 두면 근거 문장이
- * 몇 글자씩 끊기므로, 이 열에서는 이름을 문장 위에 쌓는다(PS-01 MVP, 1280 확인). */
-.ps-record-briefing .company-fit-evidence { grid-template-columns: minmax(0, 1fr); gap: var(--spacing-1); }
-.ps-record-briefing .company-fit-evidence dd + dt { margin-top: var(--spacing-2); }

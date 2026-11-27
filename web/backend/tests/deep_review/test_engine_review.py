@@ -504,10 +504,15 @@ def test_wiki_bundle_unreadable_is_unknown_and_registered_v2_preserves_currentne
     assert engine_runs.get_run(db, v2.id).input_currentness == "current"
 
 
-def test_rule_11_off_and_rule_12_live_fail_closed(db, client, ready, monkeypatch):
+def test_rule_11_off_fails_closed_and_rule_12_live_needs_caps(db, client, ready, monkeypatch):
+    # 2026-11-27 (ADR-0081): live previews are open once caps are configured; without them the
+    # settings refuse to load, so nothing can be previewed or sent (tests/deep_review/test_engine_live.py).
     notice_id, _ = ready
     frozen = ready_for_approval(client, notice_id)
-    for mode, code in (("off", "engine_disabled"), ("live", "engine_live_disabled")):
+    monkeypatch.setenv("BIDOPS_ENGINE_REVIEW_MODE", "live")
+    with pytest.raises(Exception, match="CAP"):
+        Settings()
+    for mode, code in (("off", "engine_disabled"),):
         monkeypatch.setenv("BIDOPS_ENGINE_REVIEW_MODE", mode)
         get_settings.cache_clear()
         error(post(client, notice_id, "previews"), 503, code)

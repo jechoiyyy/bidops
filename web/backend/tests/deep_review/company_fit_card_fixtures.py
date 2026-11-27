@@ -94,8 +94,14 @@ def write_card(path: Path, card: Any = None) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def card_env(monkeypatch, tmp_path: Path, *, mode: str = "suggest", card: Any = None) -> Path:
-    """카드 lineage가 실효가 되는 설정(모델 binding 포함)."""
+def card_env(monkeypatch, tmp_path: Path, *, mode: str = "suggest", card: Any = None,
+             mode_row: bool = True) -> Path:
+    """카드 lineage가 실효가 되는 설정(모델 binding 포함).
+
+    env 값은 배포 상한이다. 실효에는 최신 모드 행(PS-01 C8)도 `suggest`여야 하므로, 기본으로는
+    지금 카드에 묶인 `suggest` 행이 있는 것처럼 둔다. 실제 행의 기록·감사·결속 규칙은
+    `tests/deep_review/test_company_fit_mode.py`가 DB로 검사한다. `mode_row=False`면 행이 없다.
+    """
 
     path = tmp_path / "business-scope-card.yaml"
     sha = write_card(path, card)
@@ -112,6 +118,16 @@ def card_env(monkeypatch, tmp_path: Path, *, mode: str = "suggest", card: Any = 
     }.items():
         monkeypatch.setenv(key, value)
     get_settings.cache_clear()
+    from types import SimpleNamespace  # noqa: PLC0415
+
+    from app.deep_review.services import company_fit_mode  # noqa: PLC0415
+    from app.deep_review.services.company_fit import PROMPT_VERSION_CARD  # noqa: PLC0415
+
+    if mode_row and mode == "suggest":
+        monkeypatch.setattr(company_fit_mode, "latest_row", lambda session: SimpleNamespace(
+            mode="suggest", prompt_version=PROMPT_VERSION_CARD, set_by="fixture", set_at=None,
+            card_sha256=hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None,
+        ))
     return path
 
 

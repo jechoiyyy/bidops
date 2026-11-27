@@ -276,12 +276,29 @@ class Settings(BaseSettings):
     prespec_overview_enabled: bool = Field(default=False, validation_alias="BIDOPS_PRESPEC_OVERVIEW_ENABLED")
     #: 분석 엔진(bid-deep-engine, ADR-0074) mock 참조 실행의 생성 API와 합성 worker 슬롯.
     #: 꺼져 있으면 생성은 503 `engine_analysis_disabled`, worker 슬롯은 claim하지 않는다.
-    #: 기존 실행 조회는 감사용으로 열어 둔다. 켜도 mock_reference뿐이며 live 전송은 없다.
+    #: 기존 실행 조회는 감사용으로 열어 둔다. live 전송은 `BIDOPS_ENGINE_REVIEW_MODE=live`와 아래
+    #: 상한·키가 모두 있을 때만 사람이 승인한 공고에 한해 나간다(ADR-0078·ADR-0081).
     engine_analysis_enabled: bool = Field(default=False, validation_alias="BIDOPS_ENGINE_ANALYSIS_ENABLED")
     engine_review_mode: Literal["off", "mock_reference", "live"] = Field(
         default="off", validation_alias="BIDOPS_ENGINE_REVIEW_MODE"
     )
     deployment_environment: str = Field(default="", validation_alias="BIDOPS_ENV")
+    #: live 엔진 검토(ADR-0081, OpenAI Responses API `gpt-6-luna`/high). 상한은 KST 날짜 기준이며
+    #: 0이면 그 상한으로 아무것도 보내지 않는다. live 모드에서는 셋 다 양수여야 기동한다.
+    engine_live_daily_notice_cap: int = Field(default=0, ge=0, validation_alias="BIDOPS_ENGINE_LIVE_DAILY_NOTICE_CAP")
+    engine_live_daily_call_cap: int = Field(default=0, ge=0, validation_alias="BIDOPS_ENGINE_LIVE_DAILY_CALL_CAP")
+    engine_live_notice_call_cap: int = Field(default=0, ge=0, le=8, validation_alias="BIDOPS_ENGINE_LIVE_NOTICE_CALL_CAP")
+    #: 하루 기록 비용 상한(USD). 결과를 모르는 호출은 `engine_live_unknown_call_usd`로 센다.
+    engine_live_daily_usd_cap: float = Field(default=0.0, ge=0, validation_alias="BIDOPS_ENGINE_LIVE_DAILY_USD_CAP")
+    engine_live_unknown_call_usd: float = Field(default=0.2, ge=0, validation_alias="BIDOPS_ENGINE_LIVE_UNKNOWN_CALL_USD")
+    engine_live_call_timeout_seconds: int = Field(default=600, ge=30, le=1800, validation_alias="BIDOPS_ENGINE_LIVE_CALL_TIMEOUT_SECONDS")
+    engine_live_run_deadline_seconds: int = Field(default=1800, ge=60, le=7200, validation_alias="BIDOPS_ENGINE_LIVE_RUN_DEADLINE_SECONDS")
+    #: 한 요청의 추정 입력 토큰(문자 수/2) 상한. 넘으면 보내기 전에 멈춘다(chunking 없음).
+    engine_live_max_request_tokens: int = Field(default=320_000, ge=1, validation_alias="BIDOPS_ENGINE_LIVE_MAX_REQUEST_TOKENS")
+    #: API 키 파일(compose secret). analysis-worker에만 마운트하며 web은 읽지 않는다.
+    engine_live_key_file: str = Field(default="/run/secrets/engine_openai_key", validation_alias="BIDOPS_ENGINE_LIVE_KEY_FILE")
+    #: 비우면 고정 주소 `https://api.openai.com/v1/responses`. 다른 값은 운영(prod)에서 기동을 거부한다(격리 시험의 가짜 서버 전용).
+    engine_live_responses_url: str = Field(default="", validation_alias="BIDOPS_ENGINE_LIVE_RESPONSES_URL")
     #: 분석 엔진에 넘길 회사 자료 폴더와 회사 slug. 폴더에는 원본 엔진 형식의
     #: `<slug>.yaml`·`<slug>.portfolio.yaml`·`<slug>.provenance.yaml`과 회사 위키 `<slug>/`가 있다
     #: (저장소 밖 로컬 사본 `wiki/`). 둘 다 있으면 실행 입력이 `bidops.engine-input.v2`가 되어
@@ -440,6 +457,14 @@ class Settings(BaseSettings):
                 raise ValueError("BIDOPS_ENGINE_REVIEW_MODE=mock_reference is forbidden in prod")
             if not self.reference_workflow_mode:
                 raise ValueError("BIDOPS_ENGINE_REVIEW_MODE=mock_reference requires BIDOPS_REFERENCE_WORKFLOW_MODE=true")
+        if self.engine_review_mode == "live" and min(
+            self.engine_live_daily_notice_cap, self.engine_live_daily_call_cap, self.engine_live_notice_call_cap,
+        ) <= 0:
+            raise ValueError("BIDOPS_ENGINE_REVIEW_MODE=live requires positive BIDOPS_ENGINE_LIVE_*_CAP values")
+        if self.engine_review_mode == "live" and self.engine_live_daily_usd_cap <= 0:
+            raise ValueError("BIDOPS_ENGINE_REVIEW_MODE=live requires a positive BIDOPS_ENGINE_LIVE_DAILY_USD_CAP")
+        if self.engine_live_responses_url and self.deployment_environment == "prod":
+            raise ValueError("BIDOPS_ENGINE_LIVE_RESPONSES_URL is forbidden in prod")
         if self.data_dir is None:
             self.data_dir = self.bidops_root / "web" / "data"
         if self.attachments_dir is None:

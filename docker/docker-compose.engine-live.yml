@@ -1,0 +1,16 @@
+# Explicit opt-in (BIDOPS_COMPOSE_FEATURES=engine-live): live engine review over the OpenAI
+# Responses API (ADR-0081). Only analysis-worker gets the key; web never reads it. The request URL
+# is fixed in code (https://api.openai.com/v1/responses); prod refuses an override.
+# Turning the feature on sends nothing by itself: a run still needs BIDOPS_ENGINE_REVIEW_MODE=live,
+# BIDOPS_ENGINE_ANALYSIS_ENABLED=true, positive caps and a human-approved live preview.
+services:
+  analysis-worker:
+    environment:
+      BIDOPS_ENGINE_LIVE_KEY_FILE: /run/secrets/engine_openai_key
+      # Isolated trials only (a fake Responses server); a non-empty value refuses to start in prod.
+      BIDOPS_ENGINE_LIVE_RESPONSES_URL: ${BIDOPS_ENGINE_LIVE_RESPONSES_URL:-}
+    secrets:
+      - engine_openai_key
+secrets:
+  engine_openai_key:
+    file: ${BIDOPS_ENGINE_OPENAI_KEY_FILE:?dedicated OpenAI project key file required (mode 0600)}

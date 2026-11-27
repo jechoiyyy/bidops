@@ -662,3 +662,18 @@ GRANT SELECT ON TABLE bidops.engine_review_approval TO worker;
 GRANT SELECT ON TABLE bidops.engine_review_acknowledgment TO app;
 GRANT INSERT ON TABLE bidops.engine_review_acknowledgment TO app;
 GRANT SELECT ON TABLE bidops.engine_review_acknowledgment TO worker;
+
+-- Company-fit card mode switch (PS-01 C8): web records append-only rows; the worker reads them.
+GRANT SELECT ON TABLE bidops.prespec_company_fit_mode TO app;
+GRANT INSERT ON TABLE bidops.prespec_company_fit_mode TO app;
+GRANT SELECT ON TABLE bidops.prespec_company_fit_mode TO worker;
+
+-- Live engine call ledger (ADR-0081): only the analysis worker's supervisor reserves a row before
+-- each request and records its outcome once; web reads it for the remaining budget.
+GRANT SELECT ON TABLE bidops.engine_call TO app;
+GRANT SELECT ON TABLE bidops.engine_call TO worker;
+GRANT INSERT ON TABLE bidops.engine_call TO worker;
+GRANT UPDATE (state, finished_at, http_status, response_status, response_sha256, served_model,
+    input_tokens, cached_input_tokens, cache_write_input_tokens, output_tokens,
+    reasoning_output_tokens, usd, duration_ms, error_class)
+    ON bidops.engine_call TO worker;

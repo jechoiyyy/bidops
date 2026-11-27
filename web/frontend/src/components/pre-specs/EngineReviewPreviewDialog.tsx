@@ -5,7 +5,7 @@ import { DialogHeader } from "@astryxdesign/core/Dialog";
 import { Dialog } from "../common/WorkspaceDialog";
 import { Facts } from "../common/Facts";
 import { StatusMark } from "../common/Marks";
-import { engineReviewApi, type EngineReviewPreview } from "../../lib/engineReviewApi";
+import { engineReviewApi, type EngineReviewBudget, type EngineReviewLivePlan, type EngineReviewPreview } from "../../lib/engineReviewApi";
 import { engineReviewErrorCode, engineReviewReason } from "../../lib/engineReviewCopy";
 import { generateRequestId } from "../../lib/requestId";
 import { refreshEngineReview } from "../../lib/useEngineReview";
@@ -40,6 +40,32 @@ function WikiPages({ label, slugs }: { label: string; slugs: string[] }) {
   );
 }
 
+const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+
+/** live 미리보기의 수신자·호출·상한(ADR-0081). 값은 서버 manifest·budget 그대로다. */
+function liveFacts(live: EngineReviewLivePlan, budget: EngineReviewBudget | null) {
+  return [
+    { label: "수신", value: (
+      <>
+        <span>OpenAI Responses API · {live.model} · 추론 {live.reasoning_effort}</span>
+        <p>저장하지 않음(store=false) · 재시도 없음 · 호출당 최대 {Math.round(live.call_timeout_seconds / 60)}분</p>
+      </>
+    ) },
+    { label: "호출 수", value: (
+      <>
+        <span>예정 최대 {live.planned_calls}회 · 첫 요청 약 {live.first_request_estimated_tokens.toLocaleString("ko-KR")}토큰</span>
+        <p>공고당 상한 {live.caps.notice_calls}회 · 하루 {live.caps.daily_notices}건·{live.caps.daily_calls}회·{usd.format(live.caps.daily_usd)}</p>
+      </>
+    ) },
+    { label: "오늘 남은 상한", value: budget ? (
+      <>
+        <span>호출 {budget.remaining_calls_today}회 · 비용 {usd.format(budget.remaining_usd_today)}</span>
+        {budget.notice_allowed_today ? null : <p>오늘은 이미 다른 공고를 분석해서 이 공고는 승인할 수 없어요.</p>}
+      </>
+    ) : null },
+  ];
+}
+
 function PreviewFacts({ preview }: { preview: EngineReviewPreview }) {
   const { manifest } = preview;
   const sections = manifest.sections;
@@ -65,8 +91,10 @@ function PreviewFacts({ preview }: { preview: EngineReviewPreview }) {
             <p>선택한 위키 {manifest.wiki_pages.length}쪽 · 발췌 {manifest.wiki_chars.toLocaleString("ko-KR")}자 · 분량 때문에 빠진 위키 {manifest.wiki_pages_skipped.length}쪽</p>
           </>
         ) },
-        { label: "수신", value: `${manifest.mode} · ${manifest.model}` },
-        { label: "호출 수", value: `예정 ${manifest.planned_calls}회 · 남은 상한 ${manifest.remaining_calls}회` },
+        ...(manifest.live ? liveFacts(manifest.live, preview.budget ?? null) : [
+          { label: "수신", value: `${manifest.mode} · ${manifest.model}` },
+          { label: "호출 수", value: `예정 ${manifest.planned_calls}회 · 남은 상한 ${manifest.remaining_calls}회` },
+        ]),
         { label: "유효 시각", value: <time dateTime={preview.expires_at}>{kst.format(new Date(preview.expires_at))} (KST)</time> },
       ]} />
       {sections.length > 0 ? (

@@ -193,7 +193,7 @@ def test_t3_mode_reason_order(tmp_path, monkeypatch):
     state = _state()
     assert state == {"mode": "suggest", "effective": True, "reason_code": None,
                      "card_version": "bidops.business-scope-card.v1.2", "card_sha256": sha,
-                     "prompt_version": "prespec-company-fit-v3.1"}
+                     "prompt_version": "prespec-company-fit-v3.1", "set_by": "fixture", "set_at": None}
 
     monkeypatch.setenv("BIDOPS_PRESPEC_COMPANY_FIT_CARD_MODE", "off")
     assert _state()["reason_code"] == "switch_off"
@@ -209,7 +209,8 @@ def test_t3_mode_reason_order(tmp_path, monkeypatch):
     monkeypatch.setenv("BIDOPS_PRESPEC_COMPANY_FIT_ENABLED", "false")
     state = _state()
     assert state["reason_code"] == "company_fit_disabled" and state["effective"] is False
-    assert state["mode"] == "off"
+    # C4: `mode` is the latest recorded switch row (here the fixture's suggest row), not the env cap.
+    assert state["mode"] == "suggest"
 
 
 def test_t3_card_fields_are_filled_even_when_an_earlier_condition_fails(tmp_path, monkeypatch):

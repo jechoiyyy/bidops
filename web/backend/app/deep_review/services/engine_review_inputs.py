@@ -238,9 +238,11 @@ def freeze(session, notice, company):
             raise EngineRunError("original_hwp_required") from None
         if hashlib.sha256(raw).hexdigest() != item.content_sha256:
             raise EngineRunError("unsafe_document")
+    live = getattr(get_settings(), "engine_review_mode", "off") == "live"
     try:
         frozen = engine_runs.wiki_input(
             session, notice, bundle, company=company, rows=rows, locations=locations,
+            mode="live" if live else "mock_reference",
         )
     except (AssetError, DocumentProcessingError, ValueError) as error:
         if isinstance(error, EngineRunError) and error.code != "structure_hash_mismatch":
@@ -253,6 +255,7 @@ def freeze(session, notice, company):
             raise EngineRunError("structure_unavailable") from None
         raise
     frozen["company_name"] = selected["company_name"]
+    plan = _live_plan(selected) if live else None
     manifest = {
         "schema_version": "bidops.engine-review-manifest.v1",
         "input_schema_version": frozen["schema_version"],
@@ -264,11 +267,11 @@ def freeze(session, notice, company):
         "engine_version": frozen["engine_version"],
         "engine_sha256": frozen["engine_sha256"],
         "mode": frozen["mode"],
-        "policy": "mock_reference",
+        "policy": plan["transport"] if plan else "mock_reference",
         "strategy": "single",
-        "model": "mock_reference",
-        "planned_calls": 0,
-        "remaining_calls": 0,
+        "model": plan["model"] if plan else "mock_reference",
+        "planned_calls": plan["planned_calls"] if plan else 0,
+        "remaining_calls": plan["caps"]["notice_calls"] if plan else 0,
         "company_bundle_slug": company["slug"],
         "company_bundle_sha256": company["bundle_sha256"],
         "documents": [
@@ -280,4 +283,55 @@ def freeze(session, notice, company):
         ],
         **{key: selected[key] for key in ("sections", "wiki_pages", "wiki_pages_skipped", "wiki_chars")},
     }
+    if plan:
+        manifest["live"] = plan
     return frozen, manifest
+
+
+def _live_plan(selected):
+    """The engine's own plan for a live run plus the fixed recipient and caps (ADR-0081).
+
+    Everything here is part of the approved manifest digest: the recipient, wire version, the
+    exact first request hash, the call bound, the per-call timeout and the caps. Remaining budget
+    changes during the day and is reported beside the receipt, not inside the digest.
+    """
+    from . import engine_live_wire as live_wire  # noqa: PLC0415
+
+    plan = selected.get("live")
+    if (
+        not isinstance(plan, dict)
+        or plan.get("transport") != live_wire.TRANSPORT
+        or plan.get("model") != live_wire.MODEL
+        or plan.get("reasoning_effort") != live_wire.EFFORT
+        or plan.get("wire_version") != live_wire.WIRE_VERSION
+        or plan.get("endpoint") != live_wire.RESPONSES_URL
+        or type(plan.get("planned_calls")) is not int
+        or not 1 <= plan["planned_calls"] <= 8
+        or not isinstance(plan.get("first_request_sha256"), str)
+        or len(plan["first_request_sha256"]) != 64
+    ):
+        raise EngineRunError("engine_unavailable", 503)
+    settings = get_settings()
+    if plan["first_request_chars"] // 2 > settings.engine_live_max_request_tokens:
+        raise EngineRunError("request_too_large", 422)
+    return {
+        "transport": plan["transport"],
+        "model": plan["model"],
+        "reasoning_effort": plan["reasoning_effort"],
+        "endpoint": plan["endpoint"],
+        "wire_version": plan["wire_version"],
+        "first_request_sha256": plan["first_request_sha256"],
+        "first_request_estimated_tokens": plan["first_request_chars"] // 2,
+        "planned_calls": min(plan["planned_calls"], settings.engine_live_notice_call_cap),
+        "call_timeout_seconds": settings.engine_live_call_timeout_seconds,
+        "store": False,
+        "retries": 0,
+        "price_source": live_wire.PRICE_SOURCE,
+        "usd_per_mtok": dict(live_wire.USD_PER_MTOK),
+        "caps": {
+            "daily_notices": settings.engine_live_daily_notice_cap,
+            "daily_calls": settings.engine_live_daily_call_cap,
+            "notice_calls": settings.engine_live_notice_call_cap,
+            "daily_usd": settings.engine_live_daily_usd_cap,
+        },
+    }

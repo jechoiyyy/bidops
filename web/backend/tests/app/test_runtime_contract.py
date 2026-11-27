@@ -384,8 +384,15 @@ def test_engine_review_switches_are_shared_and_production_identity_is_fixed():
     ("prod", "mock_reference", "false", "mock_reference is forbidden in prod"),
     ("prod", "off", "false", None),
     ("prod", "live", "false", None),
+    ("prod", "live-without-caps", "false", "requires positive BIDOPS_ENGINE_LIVE_"),
 ])
 def test_engine_review_startup_validation(monkeypatch, deployment, mode, reference, error):
+    # Live needs positive caps (ADR-0081); without them settings refuse to load.
+    if mode == "live":
+        for name, value in (("DAILY_NOTICE_CAP", "1"), ("DAILY_CALL_CAP", "8"), ("NOTICE_CALL_CAP", "8"),
+                            ("DAILY_USD_CAP", "1")):
+            monkeypatch.setenv(f"BIDOPS_ENGINE_LIVE_{name}", value)
+    mode = "live" if mode == "live-without-caps" else mode
     monkeypatch.setenv("BIDOPS_ENV", deployment)
     monkeypatch.setenv("BIDOPS_ENGINE_REVIEW_MODE", mode)
     monkeypatch.setenv("BIDOPS_ENGINE_ANALYSIS_ENABLED", "true")

@@ -43,7 +43,7 @@ test("1440 첫 화면에 사업 개요·금액 대조·과업·세 층·사유�
   const panel = page.locator(".app-content");
   await expect(panel).toHaveAttribute("data-reading-width", "analysis");
   await expect(tabs(page).getByRole("link")).toHaveText([
-    "한눈에", `쟁점${analysis.risks?.length}`, `요구사항${analysis.fits.length}`, `자격·계약${analysis.gates.length}`, "원문·처리 정보",
+    "한눈에", "회사 적합성", `쟁점${analysis.risks?.length}`, `요구사항${analysis.fits.length}`, `자격·계약${analysis.gates.length}`, "원문·처리 정보",
   ]);
   await expect(tabs(page).getByRole("link", { name: "한눈에" })).toHaveAttribute("aria-current", "location");
   await expect(page.getByTestId("page-header-facts").locator("dt")).toHaveText([
@@ -51,6 +51,10 @@ test("1440 첫 화면에 사업 개요·금액 대조·과업·세 층·사유�
   ]);
   await expect(page.locator("#page-header-actions")).toContainText("참조");
   const brief = page.locator("#s-brief");
+  // 판정이 없는 건도 회사 적합성 층과 근거 구역이 보인다. 판정 없음은 불일치가 아니다.
+  await expect(brief.locator(".paw-layer").first()).toContainText("회사 적합성");
+  await expect(brief.locator(".paw-fit strong")).toHaveText("판정 없음");
+  await expect(page.getByRole("region", { name: "회사 적합성 판정" })).toContainText("회사 적합성 판정 없음 · 불일치 아님");
   await expect(brief.locator(".paw-bcmp")).toContainText("차이 10,000,000원 · 등록액이 더 커요");
   await expect(brief.getByRole("heading", { name: /^사업 개요/ })).toBeVisible();
   await expect(brief.locator(".paw-purpose > li > span:first-child")).toHaveText(analysisOverviewResult.business_overview.map(({ text }) => text));
@@ -337,3 +341,41 @@ test("총괄표 기대 수가 없거나 읽은 수가 같으면 빠진 수 알�
   await openAnalysis(page, "#s-reqs");
   await expect(page.locator("#s-reqs .paw-req-warn")).toHaveCount(0);
 });
+
+// 회사 적합성 탭(포트폴리오 표시 결정 이식, 2026-11-27). 참조 표식(품질 미측정·Claude 판정)은 층과 구역 모두에 남고,
+// 분석이 이미 있는 화면이므로 추적 시작 안내는 없다. 세 폭에서 구역이 가로로 넘치지 않는다.
+for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900 }, { width: 1920, height: 1080 }]) {
+  test(`${viewport.width}px 회사 적합성 탭은 판정·참조 표식·근거·확인할 사항을 보이고 추천 안내를 숨긴다`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await mockApi(page);
+    await mockEngineAnalysis(page, "completed", NOTICE_ID);
+    await page.goto(`/pre-specs/${NOTICE_ID}?fit=matched&judge=claude`);
+    const layer = page.locator("#s-brief .paw-fit");
+    await expect(layer.locator("strong")).toHaveText("부합");
+    await expect(layer).toContainText("Claude 판정 · 참조 · 개요 기준");
+    await expect(layer.getByText("참조 실행 · 품질 미측정")).toBeVisible();
+    await expect(layer.locator(".company-fit-marks").getByText("Claude 판정 · 참조", { exact: true })).toBeVisible();
+    await expect(layer).toContainText("공고 과업이 회사 사업 범위의 데이터 플랫폼 구축과 맞아요.");
+
+    await layer.getByRole("button", { name: "근거 보기 →" }).click();
+    await expect(tabs(page).getByRole("link", { name: "회사 적합성" })).toHaveAttribute("aria-current", "location");
+    const block = page.getByRole("region", { name: "회사 적합성 판정" });
+    const verdict = block.locator(".company-fit-verdict");
+    await expect(verdict).toHaveAttribute("data-tone", "matched");
+    await expect(verdict.locator(".company-fit-decision")).toHaveText("부합");
+    await expect(verdict.getByText("참조 실행 · 품질 미측정")).toBeVisible();
+    await expect(verdict.getByText("Claude 판정 · 참조", { exact: true })).toBeVisible();
+    await expect(block.getByRole("region", { name: "판단 근거" }).getByText("데이터 플랫폼 구축·운영", { exact: true })).toBeVisible();
+    await expect(block.getByRole("region", { name: "확인할 사항" })).toContainText("상주 인력 규모와 기간은 사람이 확인해야 해요.");
+    await expect(block.getByText("추적을 시작하면 상세 분석을 요청할 수 있어요.", { exact: false })).toHaveCount(0);
+    await expect(block.getByRole("button", { name: /분석/ })).toHaveCount(0);
+
+    const overflow = await block.evaluate((element) => {
+      const canvas = document.querySelector(".page-canvas")!;
+      return Math.max(document.documentElement.scrollWidth - innerWidth, canvas.scrollWidth - canvas.clientWidth, element.scrollWidth - element.clientWidth);
+    });
+    expect(overflow).toBeLessThanOrEqual(1);
+    const shotDir = process.env.FIT_SHOT_DIR;
+    if (shotDir) await page.screenshot({ path: `${shotDir}/workbench-fit-${viewport.width}.png` });
+  });
+}

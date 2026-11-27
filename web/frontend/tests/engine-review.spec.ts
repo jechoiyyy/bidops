@@ -12,7 +12,8 @@ const PREPARING_NOTE = "첨부 원문을 준비하고 있어요";
 const REQUEST_PREPARATION_NOTE = "분석 요청으로 원문을 준비하고 있어요.";
 const UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const footer = (page: Page) => page.locator("#page-footer");
-const resultSummary = (page: Page) => page.getByRole("region", { name: "분석 결과 요약", exact: true });
+// 분석 결과는 작업대(2026-11-25)의 `한눈에` 구역이 요약한다(옛 `분석 결과 요약`·`#pa-summary`).
+const resultSummary = (page: Page) => page.getByRole("region", { name: "한눈에", exact: true });
 const readButton = (scope: Locator) => scope.getByRole("button", { name: "읽음으로 표시", exact: true });
 const previewBar = (page: Page) => page.locator("#pre-specs-tracking-target");
 const row = (page: Page, id: number) => page.locator(`tr.pre-specs-row[data-row-key="${id}"]`);
@@ -50,7 +51,7 @@ test("1. off는 상세·목록 미리보기·일괄 추적·오늘 할 일의 �
   await setSidebarActor(page, ACTOR);
   await expect(startButton(footer(page))).toBeEnabled();
   await expect(page.getByText(START_NOTE, { exact: true })).toHaveCount(0);
-  await expect(page.locator("#pa-summary")).toHaveCount(0);
+  await expect(page.locator("#s-brief")).toHaveCount(0);
 
   await page.goto(LIST);
   await row(page, NOTICE_ID).click();
@@ -110,8 +111,8 @@ for (const entry of decisionCases) {
       await expect(secondary).toHaveClass(/\bsecondary\b/);
     } else await expect(secondary).toHaveCount(0);
 
-    if (entry.result) await expect(page.locator("#pa-summary")).toBeVisible();
-    else await expect(page.locator("#pa-summary")).toHaveCount(0);
+    if (entry.result) await expect(page.locator("#s-brief")).toBeVisible();
+    else await expect(page.locator("#s-brief")).toHaveCount(0);
     if (entry.state === "result_ready") {
       await expect(readButton(resultSummary(page))).toBeVisible();
       await expect(bar.getByRole("group", { name: "추적 결정" }).getByRole("button"))
@@ -144,6 +145,39 @@ test("2. 목록 미리보기에서 추적을 시작하고 이미 추적 중인 �
   expect(trace.trackingPatches).toHaveLength(1);
   expect(trace.calls.filter((call) => call.command === "requests").map((call) => call.body?.origin))
     .toEqual(["tracking_start", "manual"]);
+});
+
+test("3b. live 자료 확인 창은 수신자·예정 호출·상한·오늘 남은 상한을 보여 준다 (ADR-0081)", async ({ page }) => {
+  const caps = { daily_notices: 1, daily_calls: 8, notice_calls: 8, daily_usd: 1 };
+  const live = {
+    transport: "openai_responses" as const, model: "gpt-6-luna", reasoning_effort: "high",
+    endpoint: "https://api.openai.com/v1/responses", wire_version: "bidops.engine-live-wire.v1",
+    first_request_sha256: "f".repeat(64), first_request_estimated_tokens: 95_000, planned_calls: 5,
+    call_timeout_seconds: 600, store: false as const, retries: 0 as const,
+    price_source: "openai-api-standard-2026-11-26", usd_per_mtok: { input: 0.1 }, caps,
+  };
+  const budget = {
+    kst_date: "2026-11-27", calls_today: 0, notices_today: 0, notice_calls: 0, usd_today: 0,
+    remaining_calls_today: 8, remaining_notice_calls: 8, remaining_usd_today: 1, notice_allowed_today: true, caps,
+  };
+  const { setState } = await mockEngineReview(page, {
+    mode: "live",
+    previewManifest: { mode: "live", policy: "openai_responses", model: "gpt-6-luna", planned_calls: 5, remaining_calls: 8, live },
+    previewBudget: budget,
+  });
+  await page.goto(DETAIL);
+  await setSidebarActor(page, ACTOR);
+  setState(NOTICE_ID, "awaiting_approval");
+  const dialog = await openPreview(page);
+  await expect(dialog.locator(".workbench-mark").filter({ hasText: "실제 전송이에요." })).toBeVisible();
+  for (const value of [
+    "OpenAI Responses API · gpt-6-luna · 추론 high", "저장하지 않음(store=false) · 재시도 없음 · 호출당 최대 10분",
+    "예정 최대 5회 · 첫 요청 약 95,000토큰", "공고당 상한 8회 · 하루 1건·8회·$1.00", "호출 8회 · 비용 $1.00",
+  ]) {
+    await expect(dialog).toContainText(value);
+  }
+  await expect(dialog).not.toContainText("모의 실행이에요");
+  await expect(dialog).not.toContainText("이 공고는 승인할 수 없어요");
 });
 
 test("3. 추적 시작부터 자료 승인과 분석 결과를 거쳐 계속 추적을 저장하고 읽음을 남긴다", async ({ page }) => {
@@ -193,8 +227,9 @@ test("3. 추적 시작부터 자료 승인과 분석 결과를 거쳐 계속 추
   ]);
   if (!process.env.BIDOPS_MOCK_UI) expect(assets).toEqual([]);
   setState(NOTICE_ID, "result_ready");
-  await expect(page.locator("#pa-summary")).toBeVisible();
-  await expect(page.getByText("mock 참조", { exact: true })).toBeVisible();
+  await expect(page.locator("#s-brief")).toBeVisible();
+  // 품질 표식은 머리글·한눈에·원문 정보에 모두 있다. 결과 요약 안의 표식을 본다.
+  await expect(resultSummary(page).getByText("mock 참조", { exact: true })).toBeVisible();
   if (!process.env.BIDOPS_MOCK_UI) expect(assets.some((url) => url.endsWith(".js"))).toBe(true);
 
   await bar.getByRole("button", { name: "계속 추적", exact: true }).click();
@@ -210,7 +245,7 @@ test("3. 추적 시작부터 자료 승인과 분석 결과를 거쳐 계속 추
   await readButton(resultSummary(page)).click();
   await expect(bar.getByText("결과 읽음", { exact: true })).toBeVisible();
   await expect(readButton(resultSummary(page))).toHaveCount(0);
-  await expect(page.locator("#pa-summary")).toBeVisible();
+  await expect(page.locator("#s-brief")).toBeVisible();
   expect(trace.order).toEqual(["tracking", "requests", "previews", "approvals", "tracking", "acknowledgments"]);
   expect(trace.calls.filter((call) => call.command === "acknowledgments")).toEqual([
     { command: "acknowledgments", noticeId: NOTICE_ID, body: { result_id: "5f0b9a7e-2c1d-4e8f-9a6b-000000000b01", request_id: expect.stringMatching(UUID) }, actor: ACTOR },
@@ -417,7 +452,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     setState(NOTICE_ID, "result_ready");
     await page.goto(DETAIL);
     await setSidebarActor(page, ACTOR);
-    await expect(page.locator("#pa-summary")).toBeVisible();
+    await expect(page.locator("#s-brief")).toBeVisible();
     await footer(page).getByRole("button", { name: "계속 추적", exact: true }).click();
     await footer(page).getByRole("combobox", { name: "선택 사유", exact: true }).click();
     await page.getByRole("option", { name: "기타 · 직접 입력", exact: true }).click();
@@ -524,7 +559,7 @@ test("부분 결과의 실행 경고는 업무 문장으로 한 번씩 보이고
     expect((await notice.innerText()).split(message)).toHaveLength(2);
   }
 
-  const details = summary.locator("details.pa-warning-details");
+  const details = summary.locator("details.paw-warning-details");
   const raw = [...new Set(warnings)];
   for (const warning of raw) {
     await expect(notice).not.toContainText(warning);
@@ -539,8 +574,8 @@ test("결과 요약의 읽음 버튼이 차단·자격 조건 본문과 겹치�
   await page.setViewportSize({ width: 1440, height: 900 });
   await mockEngineReview(page, { tracking: "계속 추적", initialState: "result_ready" });
   await page.goto(DETAIL);
-  const readLine = resultSummary(page).locator(".pa-summary-review");
-  const gates = page.locator("#pa-gates");
+  const readLine = resultSummary(page).locator(".paw-review-ack");
+  const gates = page.locator("#s-issues");
   await expect(readButton(readLine)).toBeVisible();
   await expect(readButton(footer(page))).toHaveCount(0);
   await gates.scrollIntoViewIfNeeded();

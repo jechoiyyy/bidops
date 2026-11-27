@@ -356,7 +356,7 @@ def test_model_has_exact_closed_table_set():
         "assumption_stage",
         "company_fit_policy_version",
     )
-    assert len(Base.metadata.tables) == 115
+    assert len(Base.metadata.tables) == 117
     assert set(Base.metadata.tables) == set(
         LEGACY_TABLES + NEW_TABLES + SCREENING_RUNTIME_TABLES + IDENTITY_TABLES
         + ATTACHMENT_FETCH_TABLES + REVISION_TABLES
@@ -372,6 +372,7 @@ def test_model_has_exact_closed_table_set():
         + PROPOSAL_TABLES
         + ("engine_run", "company_wiki_ingest_run")
         + ("engine_review_request", "engine_review_preview", "engine_review_approval", "engine_review_acknowledgment")
+        + ("engine_call", "prespec_company_fit_mode")
     )
     assert isinstance(Base.metadata.tables["run"].c.screening_basis.type, Text)
     assert "fk_evidence_document_bundle_scope" in {

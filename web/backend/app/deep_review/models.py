@@ -3002,7 +3002,9 @@ class EngineRun(Base):
     __table_args__ = (
         UniqueConstraint("request_id", name="uq_engine_run_request"),
         CheckConstraint("status IN ('queued','running','completed','partial','failed')", name="ck_engine_run_status"),
-        CheckConstraint("quality_status = 'mock_reference'", name="ck_engine_run_quality"),
+        # PostgreSQL also ties the label to `input_payload.mode` (0046_engine_live): live runs are
+        # `unmeasured_reference`, mock runs `mock_reference`.
+        CheckConstraint("quality_status IN ('mock_reference','unmeasured_reference')", name="ck_engine_run_quality"),
         CheckConstraint(
             "(company_id IS NOT NULL AND profile_version_id IS NOT NULL AND "
             "company_bundle_slug IS NULL AND company_bundle_sha256 IS NULL) OR "
@@ -3109,7 +3111,10 @@ class EngineReviewPreview(Base):
     __table_args__ = (
         UniqueConstraint("review_request_id", "manifest_sha256", name="uq_engine_review_preview_manifest"),
         CheckConstraint("mode IN ('mock_reference','live')", name="ck_engine_review_preview_mode"),
-        CheckConstraint("planned_calls >= 0", name="ck_engine_review_preview_calls"),
+        CheckConstraint(
+            "(mode = 'mock_reference' AND planned_calls = 0) OR (mode = 'live' AND planned_calls BETWEEN 1 AND 8)",
+            name="ck_engine_review_preview_calls",
+        ),
     )
     id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
     review_request_id: Mapped[uuid_module.UUID] = mapped_column(_fk("engine_review_request.id", ondelete="RESTRICT"))
@@ -3149,3 +3154,76 @@ class EngineReviewAcknowledgment(Base):
     acknowledged_by: Mapped[str] = mapped_column(String(128))
     acknowledged_at: Mapped[datetime] = mapped_column(AwareDateTime())
     request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True))
+
+
+
+class PreSpecCompanyFitMode(Base):
+    """Append-only company-fit card mode switch (PS-01 C4·C8). The latest row is the requested mode."""
+    __tablename__ = "prespec_company_fit_mode"
+    __table_args__ = (
+        UniqueConstraint("request_id", name="uq_prespec_company_fit_mode_request"),
+        CheckConstraint("mode IN ('off','suggest')", name="ck_prespec_company_fit_mode_value"),
+        CheckConstraint("mode <> 'suggest' OR (card_version IS NOT NULL AND card_sha256 IS NOT NULL)",
+                        name="ck_prespec_company_fit_mode_card"),
+        CheckConstraint(dual("card_sha256 IS NULL OR (length(card_sha256) = 64 AND card_sha256 NOT GLOB '*[^0-9a-f]*')"),
+                        name="ck_prespec_company_fit_mode_sha"),
+        CheckConstraint("length(trim(set_by)) > 0 AND length(trim(prompt_version)) > 0 AND "
+                        "(reason IS NULL OR length(trim(reason)) > 0)", name="ck_prespec_company_fit_mode_text"),
+        Index("ix_bidops_prespec_company_fit_mode_set_at", "set_at", "id"),
+    )
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    mode: Mapped[str] = mapped_column(String(16), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    card_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    card_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    set_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    set_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+    request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+
+class EngineCall(Base):
+    """One request the live engine supervisor sent (ADR-0081). Reserved before sending, finished once."""
+    __tablename__ = "engine_call"
+    __table_args__ = (
+        UniqueConstraint("engine_run_id", "seq", name="uq_engine_call_run_seq"),
+        CheckConstraint("seq BETWEEN 1 AND 8", name="ck_engine_call_seq"),
+        CheckConstraint("purpose IN ('extract','units','match','synth')", name="ck_engine_call_purpose"),
+        CheckConstraint(
+            "state IN ('reserved','completed','http_error','incomplete','transport_error','outcome_unknown')",
+            name="ck_engine_call_state",
+        ),
+        CheckConstraint(
+            "(state = 'reserved' AND finished_at IS NULL) OR (state <> 'reserved' AND finished_at IS NOT NULL)",
+            name="ck_engine_call_finished",
+        ),
+        CheckConstraint("usd IS NULL OR usd >= 0", name="ck_engine_call_usd"),
+        Index("ix_bidops_engine_call_kst_date", "kst_date"),
+        Index("ix_bidops_engine_call_notice", "notice_id"),
+    )
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    engine_run_id: Mapped[uuid_module.UUID] = mapped_column(_fk("engine_run.id", ondelete="RESTRICT"), nullable=False)
+    notice_id: Mapped[int] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), nullable=False)
+    seq: Mapped[int] = mapped_column(Integer, nullable=False)
+    purpose: Mapped[str] = mapped_column(String(16), nullable=False)
+    transport: Mapped[str] = mapped_column(String(32), nullable=False)
+    model: Mapped[str] = mapped_column(String(64), nullable=False)
+    kst_date: Mapped[date] = mapped_column(Date, nullable=False)
+    state: Mapped[str] = mapped_column(String(16), nullable=False)
+    request_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    worker_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    lease_fence: Mapped[int] = mapped_column(Integer, nullable=False)
+    reserved_at: Mapped[datetime] = mapped_column(AwareDateTime(), nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(AwareDateTime(), nullable=True)
+    http_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    response_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    response_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    served_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cached_input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cache_write_input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reasoning_output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_class: Mapped[str | None] = mapped_column(String(64), nullable=True)

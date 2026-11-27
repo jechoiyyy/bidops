@@ -10,6 +10,7 @@ import { createEngineRiskLinker } from "../../lib/engineRiskLinks";
 import type { EngineAnalysis, EngineEvidence, EngineRun } from "../../lib/engineApi";
 import type { EngineReviewResult } from "../../lib/engineReviewApi";
 import { EngineReviewReadAction } from "../pre-specs/EngineReviewDecisionBar";
+import { CompanyFitMarks, CompanyFitSection, DECISION_LABEL as FIT_DECISION_LABEL, STATUS_LABEL as FIT_STATUS_LABEL, companyFitJudgeLabel, useCompanyFit } from "../pre-specs/CompanyFitSection";
 import { createPdfQuoteLocator, normalizePdfQuote } from "../../lib/pdfQuoteLocator";
 import { qualityStatusLabel } from "../../lib/qualityStatus";
 import type { NoticeDetailResponse, PageOverviewFact, PageOverviewView, PreSpecListItem } from "../../lib/types";
@@ -19,7 +20,7 @@ import { AnalysisSource, AnalysisTerms, type PageLink } from "./AnalysisSource";
 import "../../styles/pre-spec-analysis-workbench.css";
 
 const noRisks: NonNullable<EngineAnalysis["risks"]> = [];
-const sections = ["brief", "issues", "reqs", "terms", "source"] as const;
+const sections = ["brief", "fit", "issues", "reqs", "terms", "source"] as const;
 type Section = typeof sections[number];
 type IssueFilter = "all" | "why" | "pre" | "high";
 
@@ -89,6 +90,7 @@ export function PreSpecAnalysisWorkbench(props: Props) {
 
 function Workbench({ run, canAcknowledge = false, notice, item, shown, overviewUnavailable, number, bidNotice, originalFilename, process, analysis }: Props & { analysis: EngineAnalysis }) {
   const root = useRef<HTMLDivElement>(null);
+  const fit = useCompanyFit(notice.id);
   const [active, setActive] = useState<Section>("brief");
   const [issueFilter, setIssueFilter] = useState<IssueFilter>("all");
   const [openIssues, setOpenIssues] = useState<ReadonlySet<number>>(() => new Set());
@@ -307,8 +309,14 @@ function Workbench({ run, canAcknowledge = false, notice, item, shown, overviewU
   const claimItem = (claim: PageOverviewFact, i: number) =>
     <li key={i}><span>{claim.text}</span><span>{claimLinks(claim)}</span></li>;
 
-  const tabLabels = ["한눈에", "쟁점", "요구사항", "자격·계약", "원문·처리 정보"];
-  const tabCounts = [null, risks.length, requirements.length, analysis.gates.length, null];
+  const tabLabels = ["한눈에", "회사 적합성", "쟁점", "요구사항", "자격·계약", "원문·처리 정보"];
+  const tabCounts = [null, null, risks.length, requirements.length, analysis.gates.length, null];
+  // 회사 적합성 한 줄 요약. 조회 실패·구조 불일치는 `판정 없음`과 다른 상태다(판정 없음 ≠ 불일치).
+  const fitAttempt = fit.isValid ? fit.currentAttempt : null;
+  const fitHeadline = fit.query.isPending ? "확인 중"
+    : fit.query.isError || !fit.isValid ? "확인할 수 없음"
+      : fitAttempt === null ? "판정 없음"
+        : fitAttempt.result ? FIT_DECISION_LABEL[fitAttempt.result.decision] : FIT_STATUS_LABEL[fitAttempt.status];
 
   return <div ref={root} className="paw-workbench">
     <PageHeaderActions><span className="paw-chip">{quality}</span></PageHeaderActions>
@@ -347,13 +355,21 @@ function Workbench({ run, canAcknowledge = false, notice, item, shown, overviewU
       </div>
       <div>
         <div className="paw-layers">
+          <div className="paw-layer paw-fit"><div className="paw-who"><b>회사 적합성</b>{fitAttempt ? companyFitJudgeLabel(fitAttempt) : "판정"} · 개요 기준</div><div className="paw-val">
+            <strong>{fitHeadline}</strong> {fitAttempt ? <CompanyFitMarks attempt={fitAttempt} /> : null}
+            {" "}<button type="button" className="paw-jump" onClick={() => go("fit")}>근거 보기 →</button>
+            {fitAttempt?.result ? <div className="paw-layer-note">{fitAttempt.result.summary}</div> : null}
+            {fitAttempt && !fitAttempt.is_current ? <div className="paw-layer-note">개요나 회사 기준이 바뀌기 전의 판정이에요.</div> : null}
+          </div></div>
           <div className="paw-layer paw-engine"><div className="paw-who"><b>엔진 참고 의견</b>분석 엔진</div><div className="paw-val">
             <strong>{decision[analysis.recommendation.decision]}</strong> <span className="paw-chip paw-model">참고</span> <span className="paw-chip">{quality}</span>
             <div className="paw-layer-note">요구사항 {sourceFound == null ? "건수 미확인" : `${sourceFound}건`} 중 {judged == null ? "판정 건수 미확인" : `${judged}건 판정`} · {analysisDate(run.completed_at)} 분석. 의견은 결정이 아니에요.</div>
-            {runWarnings.messages.length > 0 && <div className="paw-layer-note" role="note">{runWarnings.messages.join(" · ")}</div>}
+            {(run.status === "partial" || runWarnings.messages.length > 0) && <div className="paw-layer-note" role="note">
+              {[run.status === "partial" ? "부분 결과예요" : null, ...runWarnings.messages].filter(Boolean).join(" · ")}</div>}
             {runWarnings.details.length > 0 && <details className="paw-warning-details"><summary>실행 경고 기술 정보</summary>
               <ul>{runWarnings.details.map((warning) => <li key={warning}><code>{warning}</code></li>)}</ul></details>}
-            {canAcknowledge && <div className="paw-review-ack"><EngineReviewReadAction key={run.id} noticeId={run.notice_id} resultId={run.id} /></div>}
+            {canAcknowledge && <div className="paw-review-ack"><span className="paw-chip">결과 확인</span>
+              <EngineReviewReadAction key={run.id} noticeId={run.notice_id} resultId={run.id} /></div>}
           </div></div>
           <div className="paw-layer"><div className="paw-who"><b>추적 판단</b>사람 · 지금 정해요</div><div className="paw-val">
             <strong>{tracking}</strong> <span className="paw-layer-note">· {openedOpportunity?.tracking_selected_by ?? "미확인"} · {analysisDate(openedOpportunity?.tracking_selected_at, false)}</span>
@@ -384,6 +400,11 @@ function Workbench({ run, canAcknowledge = false, notice, item, shown, overviewU
           <button type="button" className="paw-jump" onClick={() => go("issues")}>쟁점 {risks.length}건 모두 보기 →</button>
         </div>
       </div>
+    </section>
+
+    <section className="paw-blk" id="s-fit" aria-label="회사 적합성 판정">
+      <div className="paw-blk-h"><h2>회사 적합성</h2><span className="paw-n">개요의 과업과 회사 사업 범위를 대조한 판정</span></div>
+      <CompanyFitSection noticeId={notice.id} showSuggestion={false} />
     </section>
 
     <section className="paw-blk" id="s-issues" aria-label="쟁점">
