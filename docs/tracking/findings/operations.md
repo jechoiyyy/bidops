@@ -469,7 +469,7 @@
 - 영향: 최종 Go/No-Go 목록의 사업명·기관은 표시되지만 비교/결정 상태는 조회 실패로 남는다. UI는 이를 미결정·변경 없음·0건으로 바꾸지 않는다. 계산 worker가 아직 없는 문제와는 별개의 조회 장애다.
 - 현재 범위에서 해결하지 않은 이유: 이번 변경은 승인 시안의 프론트엔드 구현과 서버 UI 반영이다. 조회 장애는 DB 역할별 테이블·operation 권한 설계, 격리 PostgreSQL 회귀, 운영 권한 적용이 함께 필요한 백엔드 변경이다. UI 반영 과정에서 임의 blanket grant, migration, 실제 결정 쓰기는 수행하지 않았다.
 - 후속: 입찰 delta 조회·비교 생성·attempt 재시도·append-only 최종 결정 경로별 app/worker 권한을 검토해 allowlist와 역할 검사를 추가하고, 기존 결정의 UPDATE/DELETE가 거부되는 것을 확인한 뒤 해당 권한을 적용한다. 실제 API의 정상 조회와 권한 경계를 다시 확인한다.
-- 화면 및 검증 증거: `/home/jechoi/design-previews/bidops-ui-implementation-20260907/live/verification.json`.
+- 화면 및 검증 증거: `<preview-dir>/bidops-ui-implementation-20260907/live/verification.json`.
 
 ## v4 PDF snapshot/input bounded 단계 상태 (2026-09-08)
 

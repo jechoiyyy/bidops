@@ -445,7 +445,7 @@ test("유사 실적은 수집 탐색 신호와 판정 검토 결과를 따로 �
 
   const retrieved = performance.locator(".performance-matches-block").filter({ hasText: "수집 탐색 신호" }).locator("tbody tr");
   await expect(retrieved).toHaveCount(1);
-  await expect(retrieved.first()).toContainText("블록체인 실증서비스 개발지원사업");
+  await expect(retrieved.first()).toContainText("가상 블록체인 서비스 실증 사례 O");
   // 유사도는 소수 2자리 모델 점수다.
   await expect(retrieved.first().locator("td").nth(1)).toHaveText("0.67");
   await expect(retrieved.first()).toContainText("42쪽");

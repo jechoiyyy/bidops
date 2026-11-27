@@ -78,7 +78,7 @@ TF-IDF, Ollama BGE-M3 dense representation, 로컬 Qwen을 한 명령으로 실�
 
 ### 실행 전 준비
 
-- 저장소 루트(`/home/jechoi/projects/bidops`)에서 실행한다.
+- 저장소 루트(`<repo>`)에서 실행한다.
 - `BIDOPS_G2B_API_KEY`는 신규 수집 때만 필요하다. 기존 raw를 재사용하면 필요하지 않다.
 - `BIDOPS_OLLAMA_BASE_URL`에는 승인된 Ollama endpoint를 넣는다.
 - `--prompt-file`은 symlink가 아닌 비어 있지 않은 승인 prompt 파일이어야 한다. 스크립트가 SHA-256을 계산해 실행별 methods 설정 사본에 묶는다.
@@ -91,7 +91,7 @@ TF-IDF, Ollama BGE-M3 dense representation, 로컬 Qwen을 한 명령으로 실�
 ### 첫 실행: 신규 나라장터 수집
 
 ```bash
-cd /home/jechoi/projects/bidops
+cd <repo>
 
 export BIDOPS_OLLAMA_BASE_URL=http://192.168.0.139:11434
 export BIDOPS_G2B_API_KEY='환경에서 주입한 키'
@@ -117,7 +117,7 @@ PROMPT_FILE="$PWD/experiments/order-plan-screening/review-inputs/prompts/order-p
 
 ./experiments/order-plan-screening/run-local-comparison.sh \
   --run-id order-plan-replay-v2 \
-  --from-raw /home/jechoi/projects/bidops/data/experiments/order-plan-screening/<기존-run-id>/raw \
+  --from-raw <repo>/data/experiments/order-plan-screening/<기존-run-id>/raw \
   --approved-by 'jechoi' \
   --approve-capabilities \
   --prompt-file "$PROMPT_FILE" \
