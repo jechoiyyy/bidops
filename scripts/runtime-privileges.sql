@@ -357,6 +357,9 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA bidops TO app;
 GRANT SELECT ON TABLE
     bidops.alembic_version,
     bidops.notice,
+    -- PS-01 card lineage reads each notice's first collection time
+    -- (`BIDOPS_PRESPEC_COMPANY_FIT_CARD_OBSERVED_FROM`). Read only.
+    bidops.notice_observation,
     bidops.judgment,
     bidops.judgment_revision,
     bidops.review,

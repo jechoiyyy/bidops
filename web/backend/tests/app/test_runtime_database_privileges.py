@@ -1029,6 +1029,8 @@ def test_effective_runtime_role_matrix_and_future_defaults() -> None:
                         assert not _table_privilege(
                             connection, "worker", table, privilege
                         )
+                # PS-01 card lineage cutoff reads first collection times (read only).
+                assert _table_privilege(connection, "worker", "notice_observation", "SELECT")
                 for table in ("judgment", "judgment_revision", "review", "review_revision"):
                     assert _table_privilege(connection, "worker", table, "SELECT")
                 for role in ("app", "worker"):
