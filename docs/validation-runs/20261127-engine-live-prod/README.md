@@ -51,3 +51,14 @@
 | 포트폴리오 화면 | main `d812377`: 오늘 할 일 화면(`feat/today-c2`·`feat/today-polish`), 사이드바 제품 이름만, 검증 표시 한국어만, 헤더 수집 상태에서 경고 건수 제거, 참가 자격 이름 쉬운 말·개요/과업/기간 묶음·예산 출처(포트폴리오 `40a2bf16`에서 엔진 결과 로더는 뺌). 고정 시계·스냅샷 안내·가져온 판정은 넣지 않았다 |
 | 검증 | `tsc -b` 통과. Playwright 299개 중 279 통과·19 skip(mock 서버 전용)·1 실패. 실패한 `overflow.spec.ts:91`(1280px 사전규격 당일 마감·예산)은 이 작업 전 `0dda610`에서도 실패한다. mock 서버에서 `prespec-analysis-view` 19개 통과. backend 회사 핏·설정 170개, 권한 39개(PostgreSQL), compose 28개 통과 |
 | 운영 이미지 | `bidops:main-20261127-d812377`(main에서 직접 빌드, 별도 release 브랜치 불필요). 세 컨테이너 교체, health·화면·사전규격·workload·수집 상태 200, 오류 로그 0줄. 제공 번들에 `함께 볼 것`·새 자격 이름이 있고 `시연용 스냅샷`은 없다. `.env` 사본 `backups/env-prod-before-fit-cutoff-20261127`·`backups/env-prod-before-portfolio-screens-20261127` |
+
+## 엔진 live P5~P7 (22:10~22:32 KST)
+
+사용자 결정: 키는 테스트에 쓴 `~/.codex-api` 키를 그대로 쓰고 한도는 사용자가 OpenAI 쪽에 따로 설정했다.
+
+| 단계 | 결과 |
+|---|---|
+| P5 키 | `auth.json`의 `OPENAI_API_KEY`만 뽑아 `~/.codex-api/bidops-engine.key`(0600)에 두고 `.env`에 `BIDOPS_COMPOSE_FEATURES=engine-live`, `BIDOPS_ENGINE_OPENAI_KEY_FILE`. 처음에 저장소 안 `env/engine-live/`에 만들었다가 gitignore 대상이 아니어서 1분 안에 저장소 밖으로 옮겼다(커밋 없음). secret은 analysis-worker에만 붙고 web에는 없다. worker의 TCP 443 egress(`bidops_model-egress`) 확인 |
+| P6 live | `BIDOPS_ENGINE_ANALYSIS_ENABLED=true`, `BIDOPS_ENGINE_REVIEW_MODE=live`, 상한 하루 1건·8회·$1, 공고당 8회. web·analysis-worker 재생성, 엔진 건수 0(이전 `engine_disabled`), 호출 0 |
+| P7 감독 실행 | 담당자 최정인이 tailnet 화면에서 #4153(RE100 재생E사용 관리시스템)을 추적 시작 → 미리보기(예정 5회) 승인. 실행 13:28:18Z~13:32:09Z(3분 51초), 호출 4회(extract·units 1·match·synth) 모두 HTTP 200, `served_model=gpt-6-luna`, 합계 **$0.0562**(입력 521,802·캐시 179,518·출력 35,893 토큰). 첫 요청 sha256 = 승인 manifest의 `first_request_sha256`. 결과 `completed`·`unmeasured_reference`, 조회 상태 `result_ready`, 오늘 할 일의 `분석 결과 확인` 1건. 요구사항 57건(같은 공고 제품 밖 도구 실행과 같음, 도구는 5회 $0.0611), 권고 `CONDITIONAL_GO`, 경고 `structure_projection_partial` |
+| 남은 것 | P8 사람 채점·인수. 품질 합격으로 적지 않는다 |
