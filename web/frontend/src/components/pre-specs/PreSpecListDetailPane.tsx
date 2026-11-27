@@ -9,13 +9,14 @@ import { StickyDecisionHeader } from "../common/ReviewPrimitives";
 import { PreSpecAgencyFeature, PreSpecExclusionRecord } from "./PreSpecAgency";
 import {
   TrackingDecisionControl,
-  updateTrackingProjection,
+  type PreSpecTrackingDecisionControlProps,
 } from "./TrackingDecisionControl";
 import { useCurrentPageOverview } from "./PageOverviewSection";
 import { DeadlineMark } from "./PreSpecListRow";
 import { api } from "../../lib/api";
 import { formatDateTime } from "../../lib/format";
 import { readPreSpecLifecycle } from "../../lib/noticeLifecycle";
+import { preSpecAutoPreparationReasonLabel } from "../../lib/preSpecAutoPreparation";
 import { formatPreSpecCaution, preSpecCautions } from "../../lib/preSpecCautions";
 import { preSpecDetailUrl } from "../../lib/preSpecSelectionReview";
 import {
@@ -100,7 +101,7 @@ export function PreSpecDetail({
   onReviewExclusion?: () => void;
   listSearch: string;
   onDirtyChange: (dirty: boolean) => void;
-  onSaved: (saved: Parameters<typeof updateTrackingProjection>[2]) => void;
+  onSaved: PreSpecTrackingDecisionControlProps["onSaved"];
   onOpenDetail?: () => void;
 }) {
   const noticePk = item.notice_pk;
@@ -171,7 +172,9 @@ export function PreSpecDetail({
     verification: overviewValid ? pageOverview.verification : null,
     deepReviewUnknownCount: null,
   });
-  const showCaution = caution.count > 0 || payload !== null;
+  const preparationNote = item.auto_preparation_reason === "engine_review_request" && caution.count === 0
+    ? preSpecAutoPreparationReasonLabel(item.auto_preparation_reason) : null;
+  const showCaution = caution.count > 0 || payload !== null || preparationNote !== null;
 
   // 연결이 없으면 `사업기회 미연결`, 연결은 있는데 값이 없으면 `미확인`이다.
   // 둘 중 어느 것도 사람이 고른 `미선택`으로 바꾸지 않는다.
@@ -308,7 +311,7 @@ export function PreSpecDetail({
             때만 색을 쓰고, 없을 때는 같은 줄을 중립으로 둔다. */}
         <p className={`pre-specs-detail-caution${caution.tone === "caution" ? " is-caution" : ""}${showCaution ? "" : " is-source-only"}`}>
           {showCaution ? (
-            <span className="pre-specs-detail-caution-text">{formatPreSpecCaution(caution)}</span>
+            <span className="pre-specs-detail-caution-text">{preparationNote ?? formatPreSpecCaution(caution)}</span>
           ) : null}
           <Link className="pre-specs-detail-caution-link" to={`${detailUrl}#${EVIDENCE_ANCHOR}`}>
             {payload ? "근거 보기 →" : "원문·첨부 보기 →"}

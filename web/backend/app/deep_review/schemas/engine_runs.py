@@ -16,7 +16,7 @@ class EngineRunCreate(BaseModel):
 class EngineRunView(BaseModel):
     id: UUID
     request_id: UUID
-    company_id: UUID
+    company_id: UUID | None
     notice_id: int
     bundle_id: UUID
     engine_version: str
@@ -25,10 +25,12 @@ class EngineRunView(BaseModel):
     status: Literal["queued", "running", "completed", "partial", "failed"]
     engine_sha256: str
     input_currentness: Literal["current", "stale", "unknown"]
-    profile_version_id: UUID
-    profile_sha256: str
-    graph_version_id: UUID
-    graph_sha256: str
+    profile_version_id: UUID | None
+    profile_sha256: str | None
+    graph_version_id: UUID | None
+    graph_sha256: str | None
+    company_bundle_slug: str | None = None
+    company_bundle_sha256: str | None = None
     documents: list[dict[str, str]]
     input_sha256: str
     created_at: datetime

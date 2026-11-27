@@ -319,3 +319,21 @@ def test_invalid_company_bundle_fails_with_a_defined_code(mutate):
         runner.execute(payload)
     assert caught.value.code == "company_bundle_invalid"
     assert caught.value.code in runner.ERROR_CODES
+
+
+def test_v3_runs_and_previews_using_only_the_engine_company_bundle():
+    payload = make_bundle_payload()
+    payload["schema_version"] = "bidops.engine-input.v3"
+    payload["company_bundle"]["slug"] = "synthetic"
+    for key in ("company_id", "company_name", "profile_version_id", "profile_sha256",
+                "profile_payload", "graph_version_id", "graph_sha256", "graph_nodes"):
+        payload.pop(key, None)
+    preview = runner.preview(payload)
+    result = runner.execute(payload)
+    assert result["status"] == "partial"
+    analysis = result["analysis"]
+    assert preview["wiki_pages"] == analysis["knowledge"]["pages"]
+    assert preview["wiki_chars"] == analysis["knowledge"]["chars"] > 0
+    assert preview["company_name"]
+    assert preview["sections"]
+    assert analysis["company_projection"]["source_profile_sha256"] is None

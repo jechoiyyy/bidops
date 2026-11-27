@@ -103,10 +103,10 @@ def engine_digest():
     ).hexdigest()
 
 
-def currentness_many(session, rows):
+def currentness_many(session, rows, *, wiki_identity=None):
     if not rows:
         return {}
-    company_ids = {r.company_id for r in rows}
+    company_ids = {r.company_id for r in rows if r.company_id is not None}
     notice_ids = {r.notice_id for r in rows}
     bindings = {
         b.company_id: b
@@ -143,22 +143,48 @@ def currentness_many(session, rows):
         code_digest = engine_digest()
     except EngineRunError:
         code_digest = None
+    wiki_rows = [row for row in rows if row.company_id is None]
+    wiki_changed = set()
+    if wiki_rows:
+        wiki_changed = set(session.scalars(
+            select(DocumentBundleItem.bundle_id)
+            .join(DocumentVersion, DocumentVersion.id == DocumentBundleItem.document_version_id)
+            .where(DocumentBundleItem.bundle_id.in_([row.bundle_id for row in wiki_rows]),
+                   DocumentBundleItem.document_version_version != DocumentVersion.version)
+        ))
+    if wiki_identity is None and wiki_rows:
+        try:
+            wiki = company_bundle()
+            if wiki:
+                wiki_identity = (get_settings().engine_company_bundle_slug, wiki["bundle_sha256"])
+        except EngineRunError:
+            pass
     result = {}
     for row in rows:
         payload = row.input_payload
-        binding = bindings.get(row.company_id)
         ids = {UUID(d["document_version_id"]) for d in payload["documents"]}
         stale = (
-            binding is None
-            or str(binding.profile_version_id) != str(row.profile_version_id)
-            or str(binding.graph_version_id) != payload["graph_version_id"]
-            or latest.get(row.notice_id) != row.bundle_id
+            latest.get(row.notice_id) != row.bundle_id
             or not ids.issubset(current_docs)
             or (code_digest is not None and code_digest != payload["engine_sha256"])
         )
-        result[row.id] = (
-            "stale" if stale else "unknown" if code_digest is None else "current"
-        )
+        unknown = code_digest is None
+        if row.company_id is None:
+            if wiki_identity is None:
+                result[row.id] = "unknown"
+                continue
+            stale |= (
+                wiki_identity != (row.company_bundle_slug, row.company_bundle_sha256)
+                or row.bundle_id in wiki_changed
+            )
+        else:
+            binding = bindings.get(row.company_id)
+            stale |= (
+                binding is None
+                or str(binding.profile_version_id) != str(row.profile_version_id)
+                or str(binding.graph_version_id) != payload["graph_version_id"]
+            )
+        result[row.id] = "stale" if stale else "unknown" if unknown else "current"
     return result
 
 
@@ -175,9 +201,11 @@ def view(session, row, freshness=None):
         engine_sha256=frozen["engine_sha256"],
         input_currentness=freshness or currentness_many(session, [row])[row.id],
         profile_version_id=row.profile_version_id,
-        profile_sha256=frozen["profile_sha256"],
-        graph_version_id=frozen["graph_version_id"],
-        graph_sha256=frozen["graph_sha256"],
+        profile_sha256=frozen.get("profile_sha256"),
+        graph_version_id=frozen.get("graph_version_id"),
+        graph_sha256=frozen.get("graph_sha256"),
+        company_bundle_slug=row.company_bundle_slug,
+        company_bundle_sha256=row.company_bundle_sha256,
         documents=frozen["documents"],
         quality_status=row.quality_status,
         status=row.status,
@@ -248,6 +276,101 @@ def company_bundle():
     return bundle
 
 
+def check_document(item, doc, struct, notice_id):
+    if (
+        not doc
+        or doc.notice_id != notice_id
+        or doc.safety_status != "safe"
+        or item.safety_status_at_confirmation != "safe"
+    ):
+        raise EngineRunError("unsafe_document")
+    if (
+        not struct
+        or struct.document_version_id != doc.id
+        or struct.validation_status != "ready"
+        or struct.payload_sha256 != item.structure_payload_sha256
+        or struct.source_sha256 != item.content_sha256
+    ):
+        raise EngineRunError("structure_unavailable")
+    return Path(item.original_filename).suffix.lower().lstrip(".")
+
+
+def freeze_documents(session, bundle, *, rows=None, structure_locations=None):
+    """Read ordered, pinned structure versions for either engine entry point."""
+    notice_id = bundle.notice_id
+    if rows is None:
+        items = session.scalars(
+            select(DocumentBundleItem)
+            .where(DocumentBundleItem.bundle_id == bundle.id)
+            .order_by(DocumentBundleItem.ordinal)
+        ).all()
+        if not items:
+            raise EngineRunError("structure_unavailable")
+        rows = (
+            (item, session.get(DocumentVersion, item.document_version_id),
+             session.get(DocumentStructure, item.structure_id_at_confirmation))
+            for item in items
+        )
+    documents = []
+    blocks = []
+    primary = None
+    for item, doc, struct in rows:
+        ext = check_document(item, doc, struct, notice_id)
+        if ext in {"hwp", "hwpx"} and primary is None:
+            primary = ext
+        documents.append(
+            {
+                "document_version_id": str(doc.id),
+                "source_sha256": item.content_sha256,
+                "structure_id": str(struct.id),
+                "structure_sha256": struct.payload_sha256,
+            }
+        )
+        if structure_locations is not None:
+            location = structure_locations.get((struct.payload_content_object_id, "structure"))
+        else:
+            location = session.scalar(
+                select(ContentObjectLocation)
+                .where(
+                    ContentObjectLocation.content_object_id
+                    == struct.payload_content_object_id,
+                    ContentObjectLocation.namespace_key == "structure",
+                    ContentObjectLocation.status == "verified",
+                )
+                .order_by(ContentObjectLocation.verified_at.desc())
+                .limit(1)
+            )
+        if location is None:
+            raise EngineRunError("structure_unavailable")
+        raw, _ = read_object(
+            "structure", location.object_key, version_id=location.object_version_id
+        )
+        if hashlib.sha256(raw).hexdigest() != struct.payload_sha256:
+            raise EngineRunError("structure_hash_mismatch")
+        structure = validate_structure(json.loads(raw))
+        if (
+            structure["document_version_id"] != str(doc.id)
+            or structure["source_sha256"] != item.content_sha256
+        ):
+            raise EngineRunError("structure_unavailable")
+        for block in structure["blocks"]:
+            blocks.append(
+                {
+                    "document_version_id": str(doc.id),
+                    "block_key": block["block_key"],
+                    "text": block["text"],
+                    "page": block["page"],
+                    "type": block["type"],
+                    "attributes": block["attributes"],
+                }
+            )
+    if primary is None:
+        raise EngineRunError("original_hwp_required")
+    if not blocks:
+        raise EngineRunError("structure_unavailable")
+    return primary, documents, blocks
+
+
 def create(session: Session, *, company_id: UUID, notice_id: int, payload, actor: str):
     # The switch is checked before idempotent replay and before any read.
     if not engine_analysis_enabled():
@@ -280,84 +403,7 @@ def create(session: Session, *, company_id: UUID, notice_id: int, payload, actor
         raise EngineRunError("not_found", 404)
     if bundle.status != "ready":
         raise EngineRunError("bundle_not_ready")
-    items = session.scalars(
-        select(DocumentBundleItem)
-        .where(DocumentBundleItem.bundle_id == bundle.id)
-        .order_by(DocumentBundleItem.ordinal)
-    ).all()
-    if not items:
-        raise EngineRunError("structure_unavailable")
-    documents = []
-    blocks = []
-    primary = None
-    for item in items:
-        doc = session.get(DocumentVersion, item.document_version_id)
-        struct = session.get(DocumentStructure, item.structure_id_at_confirmation)
-        if (
-            not doc
-            or doc.notice_id != notice_id
-            or doc.safety_status != "safe"
-            or item.safety_status_at_confirmation != "safe"
-        ):
-            raise EngineRunError("unsafe_document")
-        if (
-            not struct
-            or struct.document_version_id != doc.id
-            or struct.validation_status != "ready"
-            or struct.payload_sha256 != item.structure_payload_sha256
-            or struct.source_sha256 != item.content_sha256
-        ):
-            raise EngineRunError("structure_unavailable")
-        ext = Path(item.original_filename).suffix.lower().lstrip(".")
-        if ext in {"hwp", "hwpx"} and primary is None:
-            primary = ext
-        documents.append(
-            {
-                "document_version_id": str(doc.id),
-                "source_sha256": item.content_sha256,
-                "structure_id": str(struct.id),
-                "structure_sha256": struct.payload_sha256,
-            }
-        )
-        location = session.scalar(
-            select(ContentObjectLocation)
-            .where(
-                ContentObjectLocation.content_object_id
-                == struct.payload_content_object_id,
-                ContentObjectLocation.namespace_key == "structure",
-                ContentObjectLocation.status == "verified",
-            )
-            .order_by(ContentObjectLocation.verified_at.desc())
-            .limit(1)
-        )
-        if location is None:
-            raise EngineRunError("structure_unavailable")
-        raw, _ = read_object(
-            "structure", location.object_key, version_id=location.object_version_id
-        )
-        if hashlib.sha256(raw).hexdigest() != struct.payload_sha256:
-            raise EngineRunError("structure_hash_mismatch")
-        structure = validate_structure(json.loads(raw))
-        if (
-            structure["document_version_id"] != str(doc.id)
-            or structure["source_sha256"] != item.content_sha256
-        ):
-            raise EngineRunError("structure_unavailable")
-        for block in structure["blocks"]:
-            blocks.append(
-                {
-                    "document_version_id": str(doc.id),
-                    "block_key": block["block_key"],
-                    "text": block["text"],
-                    "page": block["page"],
-                    "type": block["type"],
-                    "attributes": block["attributes"],
-                }
-            )
-    if primary is None:
-        raise EngineRunError("original_hwp_required")
-    if not blocks:
-        raise EngineRunError("structure_unavailable")
+    primary, documents, blocks = freeze_documents(session, bundle)
     run_id = uuid4()
     bundled = company_bundle()
     frozen = {
@@ -388,15 +434,42 @@ def create(session: Session, *, company_id: UUID, notice_id: int, payload, actor
         # stay bound by id and hash above but their bodies are not part of this input.
         del frozen["profile_payload"], frozen["graph_nodes"]
         frozen["company_bundle"] = bundled
+    row = _queue_run(session, frozen, request_id=payload.request_id, actor=actor)
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        previous = session.scalar(
+            select(EngineRun).where(EngineRun.request_id == payload.request_id)
+        )
+        if previous and (
+            previous.company_id,
+            previous.notice_id,
+            previous.bundle_id,
+            previous.created_by_name,
+        ) == (company_id, notice_id, payload.bundle_id, actor):
+            return view(session, previous)
+        raise EngineRunError("idempotency_conflict") from None
+    return view(session, row)
+
+
+def _queue_run(session, frozen, *, request_id, actor):
     if len(canonical_json_bytes(frozen)) > MAX_INPUT:
         raise EngineRunError("input_too_large", 422)
+    run_id = UUID(frozen["slug"])
+    bundled = frozen.get("company_bundle")
+    company_id = frozen.get("company_id")
+    company_profile = frozen.get("profile_version_id")
+    wiki_only = frozen["schema_version"] == "bidops.engine-input.v3"
     row = EngineRun(
         id=run_id,
-        request_id=payload.request_id,
-        company_id=company_id,
-        notice_id=notice_id,
-        bundle_id=bundle.id,
-        profile_version_id=company.profile.id,
+        request_id=request_id,
+        company_id=UUID(company_id) if company_id else None,
+        notice_id=frozen["notice_id"],
+        bundle_id=UUID(frozen["bundle_id"]),
+        profile_version_id=UUID(company_profile) if company_profile else None,
+        company_bundle_slug=bundled["slug"] if wiki_only else None,
+        company_bundle_sha256=bundled["bundle_sha256"] if wiki_only else None,
         engine_version=ENGINE_VERSION,
         quality_status="mock_reference",
         status="queued",
@@ -418,7 +491,7 @@ def create(session: Session, *, company_id: UUID, notice_id: int, payload, actor
                 "input_sha256": row.input_sha256,
                 "company_bundle_sha256": bundled["bundle_sha256"] if bundled else None,
             },
-            request_id=str(payload.request_id),
+            request_id=str(request_id),
         )
     )
     session.add(
@@ -431,22 +504,37 @@ def create(session: Session, *, company_id: UUID, notice_id: int, payload, actor
             max_attempts=1,
         )
     )
-    try:
-        session.commit()
-    except IntegrityError:
-        session.rollback()
-        previous = session.scalar(
-            select(EngineRun).where(EngineRun.request_id == payload.request_id)
-        )
-        if previous and (
-            previous.company_id,
-            previous.notice_id,
-            previous.bundle_id,
-            previous.created_by_name,
-        ) == (company_id, notice_id, payload.bundle_id, actor):
-            return view(session, previous)
-        raise EngineRunError("idempotency_conflict") from None
-    return view(session, row)
+    return row
+
+
+def wiki_input(session, notice, bundle, *, company, rows, locations):
+    """Freeze the same documents for v3 without resolving a registered company."""
+    primary, documents, blocks = freeze_documents(
+        session, bundle, rows=rows, structure_locations=locations,
+    )
+    return {
+        "schema_version": "bidops.engine-input.v3",
+        "engine_version": ENGINE_VERSION,
+        "engine_sha256": engine_digest(),
+        "mode": "mock_reference",
+        "slug": str(uuid4()),
+        "title": notice.title or "공고명 미확인",
+        "notice_id": notice.id,
+        "bundle_id": str(bundle.id),
+        "documents": documents,
+        "primary_format": primary,
+        "blocks": blocks,
+        "company_bundle": company,
+    }
+
+
+def create_wiki_run(session, frozen, *, request_id, actor):
+    """Queue exactly the revalidated v3 snapshot in the caller's transaction."""
+    if not engine_analysis_enabled():
+        raise EngineRunError("engine_analysis_disabled", 503)
+    if frozen["schema_version"] != "bidops.engine-input.v3" or frozen["mode"] != "mock_reference":
+        raise EngineRunError("engine_live_not_approved")
+    return _queue_run(session, frozen, request_id=request_id, actor=actor)
 
 
 def list_runs(session, company_id, notice_id, *, limit=20, offset=0):
@@ -473,17 +561,17 @@ def get_run(session, run_id):
     return view(session, row)
 
 
-def invoke_engine(payload):
+def _invoke(payload, *args, verify_digest=True):
     """No inherited API credentials, shell, fallback, or network client."""
     package = package_root()
-    if payload.get("engine_sha256") != engine_digest():
+    if verify_digest and payload.get("engine_sha256") != engine_digest():
         raise EngineRunError("engine_version_changed")
     # Worker receives fixed bounded files, not source-supplied paths/commands.
     # stderr is captured and discarded: it may quote source or company text.
     with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
         try:
             done = subprocess.run(
-                [sys.executable, "-m", "bid_deep_engine.runner"],
+                [sys.executable, "-m", "bid_deep_engine.runner", *args],
                 input=canonical_json_bytes(payload),
                 stdout=stdout,
                 stderr=stderr,
@@ -510,6 +598,32 @@ def invoke_engine(payload):
         raise EngineRunError("engine_output_invalid") from None
     if not isinstance(result, dict):
         raise EngineRunError("engine_output_invalid")
+    return result
+
+
+def preview_input(payload):
+    """Run only local company/document validation and wiki selection."""
+    if len(canonical_json_bytes(payload)) > MAX_INPUT:
+        raise EngineRunError("input_too_large", 422)
+    try:
+        result = _invoke(payload, "--preview", verify_digest="engine_sha256" in payload)
+    except EngineRunError as error:
+        if error.code == "engine_version_changed":
+            raise
+        raise EngineRunError("engine_unavailable", 503) from None
+    if result.get("schema_version") != "bidops.engine-preview.v1":
+        code = result.get("error_code")
+        if code in {"company_bundle_invalid", "structure_unavailable", "invalid_table_coordinates",
+                    "table_too_large", "engine_pipeline_failed"}:
+            raise EngineRunError(code)
+        if code == "input_too_large":
+            raise EngineRunError(code, 422)
+        raise EngineRunError("engine_unavailable", 503)
+    return result
+
+
+def invoke_engine(payload):
+    result = _invoke(payload)
     if (
         result.get("schema_version") != "bidops.engine-output.v1"
         or result.get("engine_version") != ENGINE_VERSION

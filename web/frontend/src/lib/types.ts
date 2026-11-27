@@ -2323,17 +2323,21 @@ export type WorkloadKey =
   | "blocking_items_open"
   | "order_plan_new_priority"
   | "company_attention"
-  | "briefing_pending";
+  | "briefing_pending"
+  | "engine_approval_pending"
+  | "engine_result_pending";
 export interface WorkloadItem {
   key: WorkloadKey;
   count: number | null;
   unavailable_reason: string | null;
 }
-/** `GET /api/feature-flags`(contracts.md "기능 스위치", 2026-11-18). 참·거짓만 싣는다. */
+/** `GET /api/feature-flags`의 런타임 기능 스위치. */
+export type EngineReviewMode = "off" | "mock_reference" | "live";
 export interface FeatureFlagsResponse {
   schema_version: "feature-flags.v1";
   rl_analysis: boolean;
   prespec_overview: boolean;
+  engine_review: EngineReviewMode;
 }
 
 export interface WorkloadResponse {

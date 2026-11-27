@@ -9,7 +9,7 @@ from ...core.schema_base import AwareDateTime, RuntimeContractModel
 #: 뒤 다섯은 실무자 대시보드 패널 계약(ADR-0067)이 더했다 — 세는 키 넷과 그중 둘의
 #: 합계 하나다. `human_check_required`가 그 합계이며 바로 뒤 두 하위 건수를 더한
 #: 값이고, 하나라도 `null`이면 합계도 `null`(`sub_count_unavailable`)이다.
-#: 마지막 `company_attention`(RL-00)은 실회사 활성 그래프의 `proposed`+`unknown`
+#: `company_attention`(RL-00)은 실회사 활성 그래프의 `proposed`+`unknown`
 #: 비evidence 노드 수이며 deep_review가 센다. 짝 목록 REST가 없는 ADR-0067 예외다
 #: (화면은 profile facts로 직접 센다). 실회사가 없으면 `null`(`provider_absent`).
 #: 그 뒤 `briefing_pending`(RL-01)은 가장 최근 브리핑의 `reaction=대기` 추천 수이며
@@ -17,6 +17,7 @@ from ...core.schema_base import AwareDateTime, RuntimeContractModel
 #: 2026-11-19: `pre_spec_deep_review_ready`가 `pre_spec_actionable`(사전규격 목록 기본 보기,
 #: 검토할 항목·마감 전/미확인)과 `pre_spec_needs_check`(확인 필요, 같은 구간) 둘로 바뀌었다.
 #: lifecycle이 목록 질의 그 자체로 세며 개요 projection 제공자가 없으면 `null`이다.
+#: RL-11 분석 승인 대기와 결과 확인 건수 두 키는 `briefing_pending` 뒤에 붙는다.
 WorkloadKey = Literal[
     "order_plan_pending",
     "pre_spec_actionable",
@@ -31,6 +32,8 @@ WorkloadKey = Literal[
     "order_plan_new_priority",
     "company_attention",
     "briefing_pending",
+    "engine_approval_pending",
+    "engine_result_pending",
 ]
 
 

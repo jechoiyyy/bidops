@@ -45,6 +45,7 @@ const REASON_LABEL: Record<string, string> = {
   ...COMPANY_FIT_REASON_LABEL,
   // 자동 문서 준비 자격이 없다 — 개요 자동 검토가 꺼져 있거나 SW사업대상이 아니다
   // (`우선 검토` 등급 규칙은 그대로지만 C-1 판정이 돌지 않아 등급은 없다).
+  engine_review_request: "분석 요청으로 원문을 준비하고 있어요.",
   grade_not_priority: "자동 문서 준비 대상이 아니에요.",
   deadline_passed_untracked: "의견 마감이 지났고 추적 중이 아니라 자동으로 처리하지 않아요. 추적을 시작하면 처리해요.",
   awaiting_fetch: "첨부 원문 취득이 끝나지 않았어요.",

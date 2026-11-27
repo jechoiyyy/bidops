@@ -909,7 +909,7 @@ export const api = {
   getWorkload: (options?: ReadRequestOptions) => request<WorkloadResponse>("/workload", options),
   getDailyCollectionStatus: (options?: ReadRequestOptions) =>
     request<DailyCollectionStatusResponse>("/daily-collection-status", options),
-  /** `GET /api/feature-flags` — 환경 스위치의 참·거짓만(contracts.md "기능 스위치"). */
+  /** `GET /api/feature-flags` — 환경 기능 스위치(contracts.md "기능 스위치"). */
   getFeatureFlags: (options?: ReadRequestOptions) => request<FeatureFlagsResponse>("/feature-flags", options),
 
   /** RL-01 가장 최근 브리핑. 없으면 404 `briefing_not_found`. */

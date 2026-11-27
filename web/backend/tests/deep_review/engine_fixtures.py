@@ -21,6 +21,7 @@ from app.lifecycle.models import Notice
 from app.deep_review.models import (
     ContentObject,
     ContentObjectLocation,
+    ContentScan,
     DocumentVersion,
     DocumentStructure,
     DocumentBlock,
@@ -90,15 +91,17 @@ def synthetic_engine_hwpx():
     return output.getvalue()
 
 
-def seed_engine_input(session: Session):
-    prepared = _prepared_real(slug="engine-synthetic", name="엔진 검증 합성회사")
-    company = import_company_knowledge(session, prepared, actor="engine-e2e")
-    activate_company_knowledge(
-        session,
-        company_id=company.company_id,
-        graph_version_id=company.graph_version_id,
-        actor="engine-e2e",
-    )
+def seed_engine_input(session: Session, *, register_company=True):
+    company = None
+    if register_company:
+        prepared = _prepared_real(slug="engine-synthetic", name="엔진 검증 합성회사")
+        company = import_company_knowledge(session, prepared, actor="engine-e2e")
+        activate_company_knowledge(
+            session,
+            company_id=company.company_id,
+            graph_version_id=company.graph_version_id,
+            actor="engine-e2e",
+        )
     notice = Notice(
         notice_key=f"engine-fixture:{uuid4()}",
         source_type="pre_spec",
@@ -134,6 +137,10 @@ def seed_engine_input(session: Session):
             verified_at=datetime.now(UTC),
         )
     )
+    session.add(ContentScan(
+        content_object_id=content.id, scanner="fixture", scanner_version="1",
+        status="clean", safe_result={},
+    ))
     doc = DocumentVersion(
         id=uuid4(),
         notice_id=notice.id,
@@ -251,7 +258,7 @@ def seed_engine_input(session: Session):
     )
     session.commit()
     return {
-        "company_id": company.company_id,
+        "company_id": company.company_id if company else None,
         "notice_id": notice.id,
         "bundle_id": bundle.id,
     }

@@ -35,6 +35,12 @@ import {
   type CompanyTrackingUpdateRequest,
   type Uuid,
 } from "../../lib/companyApi";
+import {
+  ENGINE_TRACKING_START_NOTE, EngineReviewDecisionBar, EngineReviewDialog,
+  EngineReviewFeedback, EngineReviewPreviewActions, EngineReviewReadAction,
+} from "./EngineReviewDecisionBar";
+import { useEngineReviewDecision } from "./useEngineReviewDecision";
+import { refreshEngineReview } from "../../lib/useEngineReview";
 import { generateRequestId } from "../../lib/requestId";
 import { originOf, trackingVariant } from "../../lib/opportunity";
 import { formatActorName, formatDateTime, present } from "../../lib/format";
@@ -60,7 +66,7 @@ import type {
  * 심층 검토가 정상 완료돼도 다시 묻지 않는다. 이 배열을 늘리면 그 결정이 깨진다.
  *
  * **예외(2026-11-21 사용자 결정, 결정 6 개정은 문서 작업이 기록한다):** 사전규격 상세의 `분석 완료` 화면
- * (엔진 분석 결과가 있는 건, 지금은 mock 빌드 전용) 하단 띠만 `TRACKING_DECISION_STATUSES_AFTER_ANALYSIS`
+ * (ADR-0078 결과 확인 및 기존 회사 mock 경로) 하단 띠만 `TRACKING_DECISION_STATUSES_AFTER_ANALYSIS`
  * 세 가지를 고른다. 그 띠가 `barStatuses`로 받는다. 이 배열(분석 전 화면·목록)은 그대로 하나다.
  */
 export const TRACKING_DECISION_STATUSES: OpportunityTrackingStatus[] = ["계속 추적"];
@@ -132,7 +138,8 @@ export interface PreSpecTrackingDecisionControlProps {
   onRetry: () => void;
   /** 저장에 성공하면 호출자가 자신의 query cache를 갱신한다. 화면마다
    * queryKey 모양이 다르므로 캐시 반영은 이 컴포넌트가 대신하지 않는다. */
-  onSaved: (saved: OpportunityDetailResponse) => void;
+  onSaved: (saved: OpportunityDetailResponse, engineStart?: "requested" | "failed") => void;
+  wrapBar?: (bar: ReactNode) => ReactNode;
   /** 상세 화면과 목록 화면에서 heading level이 다를 수 있어 호출자가 정한다. */
   headingLevel?: "h3" | "h4";
   /** 첨부 취득 집계(PreSpecDocumentSummary)와 긴 설명을 생략하는 밀도 변형.
@@ -203,6 +210,7 @@ function PreSpecTrackingDecisionControl({
   noticeNumber,
   previewActions,
   barStatuses,
+  wrapBar,
 }: PreSpecTrackingDecisionControlProps) {
   const Heading = headingLevel;
   const queryClient = useQueryClient();
@@ -238,17 +246,19 @@ function PreSpecTrackingDecisionControl({
   // 저장 사유는 `trackingReasonValue`가 고른다. `기타` 키는 API에 보내지 않는다.
   const [choice, setChoice] = useState("");
   // 분석 완료 화면 띠에서 사람이 고른 상태. 미리 골라 두지 않는다.
-  const multiStatus = presentation === "bar" && barStatuses !== undefined && barStatuses.length > 1;
-  const directStart = (preview || bar) && !multiStatus;
   const [picked, setPicked] = useState<TrackingDecisionStatus | null>(null);
   const [custom, setCustom] = useState("");
   const [actorName, setActorName] = useState("");
   // 하단 띠는 담당자 입력 칸을 두지 않고 사이드바 담당자 칸 하나의 값을 쓴다(ADR-0076 결정 2·10).
   const rememberedActor = useRememberedActorName();
   const effectiveActor = bar || preview ? rememberedActor : actorName;
+  const engine = useEngineReviewDecision(item?.notice_pk ?? null, (bar || preview) && !!item, effectiveActor);
+  const engineResultReady = engine.view?.state === "result_ready" && engine.view.next_action === "review_result";
+  const availableStatuses = engine.enabled && engineResultReady ? TRACKING_DECISION_STATUSES_AFTER_ANALYSIS : barStatuses;
+  const multiStatus = bar && (engine.enabled ? engineResultReady : (barStatuses?.length ?? 0) > 1);
+  const directStart = (preview || bar) && !multiStatus;
   const [problem, setProblem] = useState<ApiErrorDescription | null>(null);
-  // `종료`만 되돌릴 수 없다. 이 화면은 `계속 추적`만 저장하므로(ADR-0046 결정 6) 확인 단계가 열릴
-  // 일은 없지만, 같은 규칙을 다른 경로와 함께 둔다. 요약은 열 때의 값을 얼려 둔다.
+  // `종료`는 결과 검토에서만 고를 수 있다. 확인 창의 요약은 열 때의 값을 고정한다.
   const [endConfirm, setEndConfirm] = useState<ReturnType<typeof trackingEndConfirmContent> | null>(null);
   const reasonValue = trackingReasonValue(choice, custom);
 
@@ -283,12 +293,16 @@ function PreSpecTrackingDecisionControl({
   }, [dirty, onDirtyChange]);
 
   const mutation = useMutation({
-    mutationFn: (status: TrackingDecisionStatus) => api.updateOpportunityTrackingStatus(
-      item?.opportunity_id as number,
-      directStart ? { tracking_status: status } : { tracking_status: status, reason: reasonValue },
-      effectiveActor,
-    ),
-    onSuccess: (saved) => {
+    mutationFn: async (status: TrackingDecisionStatus) => {
+      const saved = await api.updateOpportunityTrackingStatus(
+        item?.opportunity_id as number,
+        directStart ? { tracking_status: status } : { tracking_status: status, reason: reasonValue },
+        effectiveActor,
+      );
+      // A successful reason-free PATCH confirms the locked transition from 미선택.
+      return { saved, startsReview: engine.enabled && directStart && saved.tracking_status === "계속 추적", actor: effectiveActor };
+    },
+    onSuccess: async ({ saved, startsReview, actor }) => {
       if (!item) return;
       // 저장이 끝났으므로 잃을 입력이 없다. 부르는 화면이 저장 뒤 곧바로 이동할 수 있는데,
       // 그 시점의 dirty 계산은 아직 이전 렌더 값이라 먼저 푼다.
@@ -299,8 +313,13 @@ function PreSpecTrackingDecisionControl({
       setPicked(null);
       setActorName("");
       setProblem(null);
-      // 추적 결정은 추적만 정한다(2026-11-19). 분석 실행 승인으로 이어지지 않는다.
-      onSaved(saved);
+      if (startsReview) {
+        const requested = await engine.requestReview("tracking_start", actor);
+        onSaved(saved, requested ? "requested" : "failed");
+      } else {
+        onSaved(saved);
+        if (engine.enabled) void refreshEngineReview(queryClient, item.notice_pk);
+      }
     },
     onError: (caught: unknown) => {
       // 서버 응답 본문에는 provider·검증 상세가 실릴 수 있다. 화면에 내는 것은
@@ -326,7 +345,9 @@ function PreSpecTrackingDecisionControl({
     : multiStatus && picked === null && !mutation.isPending
       ? "추적 상태(계속 추적·보류·종료)를 골라 주세요."
       : directStart
-        ? mutation.isPending ? "저장 중이에요." : effectiveActor.trim() ? null : "담당자 이름을 입력해 주세요."
+        ? mutation.isPending ? "저장 중이에요."
+          : engine.flagsPending ? "기능 설정을 확인 중이에요."
+          : effectiveActor.trim() ? null : "담당자 이름을 입력해 주세요."
         : trackingInputBlockedReason({ choice, custom, actorName: effectiveActor, pending: mutation.isPending });
   const ready = hasOpportunity && disabledReason === null;
   const problemFeedback = problem ? directStart
@@ -337,6 +358,57 @@ function PreSpecTrackingDecisionControl({
   useEffect(() => {
     onDecisionStateChange?.({ ready, disabledReason, hasForm, saveLabel });
   }, [disabledReason, hasForm, onDecisionStateChange, ready, saveLabel]);
+
+  if (engine.enabled && item && !isPending && !isError && !multiStatus) {
+    const starting = hasOpportunity && hasForm && !recorded
+      && (engine.view === undefined || (engine.view.state === "not_requested" && engine.view.next_action !== "request"))
+      && !engine.queryError && !engine.requestFailure && !engine.requestPending;
+    const decisionBar = (
+      <EngineReviewDecisionBar
+        engine={engine}
+        variant={bar ? "bar" : "preview"}
+        opportunityId={opportunityId}
+        actorAction={<TrackingActorButton actor={effectiveActor.trim()} disabled={mutation.isPending} />}
+        start={starting ? {
+          status: currentStatusLabel,
+          action: <>
+            <TrackingDecisionActions
+              statuses={TRACKING_DECISION_STATUSES as TrackingDecisionStatus[]}
+              current={currentStatus}
+              disabledReasonId="pre-spec-tracking-save-disabled"
+              isDisabled={!ready}
+              pendingStatus={mutation.isPending ? mutation.variables ?? null : null}
+              onDecide={(status) => { if (ready && !mutation.isPending) mutation.mutate(status); }}
+            />
+            {disabledReason ? <DisabledReason className="visually-hidden" id="pre-spec-tracking-save-disabled">{disabledReason}</DisabledReason> : null}
+          </>,
+        } : null}
+      />
+    );
+    return (
+      <>
+        {starting || engine.requestFailure || problemFeedback || previewActions ? (
+          <div className="engine-review-supplement">
+            <div className="engine-review-supplement-inner">
+              {starting ? <p className="engine-review-message">{ENGINE_TRACKING_START_NOTE}</p> : null}
+              <EngineReviewFeedback engine={engine} />
+              {problemFeedback}
+              {previewActions ? (
+                <EngineReviewPreviewActions>
+                  {previewActions}
+                  {engineResultReady && engine.view?.current_result ? (
+                    <EngineReviewReadAction noticeId={item.notice_pk} resultId={engine.view.current_result.id} />
+                  ) : null}
+                </EngineReviewPreviewActions>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+        {wrapBar ? wrapBar(decisionBar) : decisionBar}
+        <EngineReviewDialog engine={engine} noticeId={item.notice_pk} />
+      </>
+    );
+  }
 
   if (bar) {
     const decision = multiStatus && serverRecorded && opportunityQuery.data?.id === opportunityId
@@ -349,8 +421,9 @@ function PreSpecTrackingDecisionControl({
         ? new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeZone: "Asia/Seoul" }).format(new Date(selectedAt))
         : null,
     ].filter(Boolean).join(" · ");
-    return (
+    const decisionBar = (
       <TrackingDecisionBarLayout
+        engineResult={engine.enabled && engineResultReady}
         state={isPending ? { kind: "loading" } : isError || !item ? { kind: "error", onRetry } : !hasOpportunity ? {
           kind: "unlinked",
           afterAnalysis: multiStatus,
@@ -379,13 +452,14 @@ function PreSpecTrackingDecisionControl({
           currentStatusLabel,
           disabledReason,
           actor: effectiveActor.trim(),
+          showActorNote: !engine.enabled,
           savedMessage: multiStatus ? savedDecision?.message ?? null : null,
           decisionContext,
-          // 세 상태를 고르는 띠는 "상태를 골라 주세요" 안내를 화면 글줄로 두지 않는다(띠 높이 73px 유지). 세 단추가 그 안내이고
+          // 세 상태를 고르는 띠는 "상태를 골라 주세요" 안내를 화면 글줄로 두지 않는다(띠 높이 56px 이내). 세 단추가 그 안내이고
           // 이유 문장은 저장 단추의 aria-describedby 대상으로 남는다(낭독기용).
           choices: multiStatus ? (
             <div className="ps-decision-bar-choices" role="group" aria-label="추적 결정">
-              {TRACKING_DECISION_ORDER.filter((status) => barStatuses?.includes(status)).map((status) => (
+              {TRACKING_DECISION_ORDER.filter((status) => availableStatuses?.includes(status)).map((status) => (
                 <button
                   key={status}
                   type="button"
@@ -467,6 +541,7 @@ function PreSpecTrackingDecisionControl({
         ) : null}
       />
     );
+    return wrapBar ? wrapBar(decisionBar) : decisionBar;
   }
 
   if (isPending) {
@@ -701,13 +776,14 @@ type TrackingDecisionBarState =
   | { kind: "error"; onRetry: () => void }
   | { kind: "unlinked"; afterAnalysis: boolean; disabledReason: string; currentStatus: OpportunityTrackingStatus | null }
   | { kind: "recorded"; headline: string; statusLabel: string; context: ReactNode; opportunityId: number }
-  | { kind: "input"; currentStatusLabel: string; disabledReason: string | null; actor: string; savedMessage: string | null; decisionContext: string; choices: ReactNode };
+  | { kind: "input"; currentStatusLabel: string; disabledReason: string | null; actor: string; showActorNote: boolean; savedMessage: string | null; decisionContext: string; choices: ReactNode };
 
 /**
  * 하단 결정 띠의 배치(2026-11-21 시안 `.decision-bar`). 규칙·문구·저장은 `PreSpecTrackingDecisionControl`이 정하고
  * 여기는 한 줄 배치만 한다: 왼쪽 두 줄(상태 · 경계 문장) / 선택 사유 / 주 버튼. 화면의 주 버튼은 이 띠의 하나뿐이다.
  */
 function TrackingDecisionBarLayout({
+  engineResult,
   state,
   inputs,
   actions,
@@ -715,6 +791,7 @@ function TrackingDecisionBarLayout({
   problem,
   dialog,
 }: {
+  engineResult: boolean;
   state: TrackingDecisionBarState;
   inputs: ReactNode;
   actions: ReactNode;
@@ -722,12 +799,10 @@ function TrackingDecisionBarLayout({
   problem: ReactNode;
   dialog: ReactNode;
 }) {
-  const heading = <h2 className="visually-hidden" id="pre-spec-tracking-decision-title">추적 결정</h2>;
   const frame = (body: ReactNode, modifier: string) => (
-    <section className={`pre-spec-tracking-decision is-bar ${modifier}`} aria-labelledby="pre-spec-tracking-decision-title">
-      {heading}
+    <div className={`pre-spec-tracking-decision is-bar ${modifier}${engineResult ? " is-engine-review-result" : ""}`}>
       {body}
-    </section>
+    </div>
   );
 
   if (state.kind === "loading") {
@@ -791,6 +866,8 @@ function TrackingDecisionBarLayout({
     );
   }
 
+  const showResultActor = engineResult && !state.actor;
+  const showCurrentStatus = !showResultActor && (!engineResult || !state.savedMessage);
   return frame(
     <>
       <form
@@ -802,17 +879,23 @@ function TrackingDecisionBarLayout({
       >
         <div className="ps-decision-bar-text">
           <div className="ps-decision-bar-status">
-            {state.savedMessage ? <strong role="status">{state.savedMessage}</strong> : null}
-            {state.savedMessage ? <span className="ps-decision-bar-sep" aria-hidden="true"> · </span> : null}
-            {state.choices ? <strong>현재 추적 상태 {state.currentStatusLabel}</strong> : (
+            {state.savedMessage && !showResultActor ? (
+              <strong role="status" className={engineResult ? "engine-review-saved" : undefined} title={engineResult ? state.savedMessage : undefined}>
+                {state.savedMessage}
+              </strong>
+            ) : null}
+            {state.savedMessage && !engineResult ? <span className="ps-decision-bar-sep" aria-hidden="true"> · </span> : null}
+            {showCurrentStatus && (state.choices ? <strong>현재 추적 상태 {state.currentStatusLabel}</strong> : (
               <StatusMark mark={{ label: `추적 상태 ${state.currentStatusLabel}`, tone: "neutral" }} />
-            )}
+            ))}
             {state.disabledReason ? (
               <DisabledReason className="visually-hidden" id="pre-spec-tracking-save-disabled">{state.disabledReason}</DisabledReason>
-            ) : (
+            ) : state.showActorNote ? (
               <p className="ps-decision-bar-note">{state.actor} 이름으로 기록해요</p>
-            )}
-            {!state.actor || !state.disabledReason ? <TrackingActorButton actor={state.actor} /> : null}
+            ) : null}
+            {showResultActor || (state.showActorNote && (!state.actor || !state.disabledReason)) ? (
+              <TrackingActorButton actor={state.actor} />
+            ) : null}
           </div>
           {state.decisionContext && (
             <p className="ps-decision-bar-context" title={state.decisionContext}>{state.decisionContext}</p>

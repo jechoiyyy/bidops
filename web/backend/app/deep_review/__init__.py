@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any
 #: 이름은 공개하지 않는다 — 공개하면 조립 계층이 startup에서 부를 수 있게 되고
 #: 그것은 §9가 금지한 일이다(`tests/app/test_module_boundaries.py`의 startup 검사).
 _EXPORTS: dict[str, tuple[str, str]] = {
+    "engine_review_router": (".routers.engine_review", "router"),
     "engine_runs_router": (".routers.engine_runs", "router"),
     "company_wiki_router": (".routers.company_wiki", "router"),
     "company_wiki_ingests_router": (".routers.company_wiki_ingests", "router"),

@@ -121,9 +121,8 @@ test("읽기 폭은 상세에 표시되고 고정 슬롯 #page-footer는 추적 
   expect(await page.locator("#page-footer").evaluate((element) => element.getBoundingClientRect().height)).toBe(0);
 });
 
-// 운영 번들에는 분석 완료 화면이 들어가지 않는다(`BIDOPS_REVIEW_MOCK`이 false로 접혀 동적 import가 사라진다).
-// 빌드 산출물의 JS·CSS에서 그 화면의 문구·선택자를 찾는다. 소스에 그 문구가 있음을 먼저 확인해 검사가 헛돌지 않게 한다.
-test("운영 번들에 분석 완료 화면의 문구와 선택자가 없다", async () => {
+// ADR-0078은 운영 번들에서 결과 화면을 지연 로드한다. off에서 네트워크로 받지 않는지는 engine-review.spec.ts가 검사한다.
+test("운영 번들에서 분석 완료 화면은 별도 JS·CSS 조각에만 들어간다", async () => {
   test.skip(Boolean(process.env.BIDOPS_MOCK_UI), "개발 mock 서버 실행에서는 운영 번들을 검사하지 않는다.");
   // 다른 화면(회사 사전규격 등)도 쓰는 문구(`요구사항 대응`)는 뺐다. 이 화면에만 있는 문구·선택자만 본다.
   const needles = ["엔진 참고 의견", "먼저 확인할 쟁점", "paw-tabs", "paw-workbench", "paw-issue-jump", "쪽 번호를 붙인 방법"];
@@ -135,14 +134,20 @@ test("운영 번들에 분석 완료 화면의 문구와 선택자가 없다", a
   const outDir = join(process.cwd(), process.env.PW_OUT_DIR ?? "dist");
   const files = readdirSync(join(outDir, "assets")).filter((name) => /\.(js|css)$/.test(name));
   expect(files.length, `${outDir}/assets에 빌드 산출물이 있어야 해요`).toBeGreaterThan(0);
-  for (const name of files) {
+  const lazyFiles = files.filter((name) => name.startsWith("PreSpecAnalysisView-"));
+  expect(lazyFiles.some((name) => name.endsWith(".js"))).toBe(true);
+  expect(lazyFiles.some((name) => name.endsWith(".css"))).toBe(true);
+  const lazyText = lazyFiles.map((name) => readFileSync(join(outDir, "assets", name), "utf8")).join("\n");
+  for (const needle of needles) expect(lazyText).toContain(needle);
+  for (const name of files.filter((file) => !lazyFiles.includes(file))) {
     const text = readFileSync(join(outDir, "assets", name), "utf8");
     for (const needle of needles) expect(text.includes(needle), `${name}에 ${needle}`).toBe(false);
   }
 });
 
-test("운영 번들의 사전규격 상세에는 분석 완료 구역이 없다", async ({ page }) => {
+test("엔진 검토가 꺼진 운영 번들의 사전규격 상세에는 분석 완료 구역이 없다", async ({ page }) => {
   test.skip(Boolean(process.env.BIDOPS_MOCK_UI), "개발 mock 서버에서는 분석 완료 화면이 켜진다.");
+  await mockFeatureFlags(page, { rl_analysis: false, prespec_overview: true, engine_review: "off" });
   await page.goto("/pre-specs/991?analysis=completed");
   await expect(page.locator("#ps-summary")).toBeVisible();
   await expect(page.locator(".paw-workbench, .paw-tabs, .paw-drawer")).toHaveCount(0);

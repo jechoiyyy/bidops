@@ -86,10 +86,12 @@ unavailable. Parser defects and RL-05 rejection are not promoted by this work.
 Synthetic E2E seeds use real HWPX fixture bytes and the existing bounded extractor;
 they do not constitute antivirus, native rendering or actual model quality evidence.
 
-## 프로세스 파일 계약
+## 위키 범위 v3와 프로세스 파일 계약
 
 분석 adapter는 stdin의 `schema_version=bidops.engine-input.v1` JSON과 stdout의 `schema_version=bidops.engine-output.v1` JSON만 교환한다. 입력은 mode=mock_reference, engine_version/engine_sha256, run slug, 공고/회사/bundle 식별자, profile/graph 버전·hash, 원문·구조 document lineage, 순서를 보존한 구조 block/table을 고정한다. 입력은 8MiB 상한이며 하위 프로세스는 자격증명 없이 실행되고 timeout은90초다. 소비자는 버전·엔진 hash·mock 표식·결과 상태를 검증한다.
 
 회사 자료 폴더(`BIDOPS_ENGINE_COMPANY_BUNDLE_DIR`)와 회사 slug(`BIDOPS_ENGINE_COMPANY_BUNDLE_SLUG`)가 모두 설정되면 입력은 `schema_version=bidops.engine-input.v2`다. v2는 `profile_payload`·`graph_nodes` 본문 대신 `company_bundle`을 싣는다: `profile_file`(프로필 파일 이름), `files`(`<slug>.yaml`·`<slug>.*.yaml`의 이름 → 본문), `knowledge`(회사 위키 `<slug>/` 아래 `.md`의 상대 경로 → 본문, 깊이 2 이하), `bundle_sha256`(앞의 세 항목의 canonical JSON sha256). profile/graph 버전·hash 바인딩은 v1과 같이 남는다. 엔진은 digest를 다시 계산하고 원본 로더로 프로필·출처 sidecar·위키를 읽어, 공고마다 위키 발췌를 골라 대조·종합에 쓴다. 출력의 `analysis.company_projection`은 `source=company_bundle`, `complete=true`, `bundle_sha256`, `knowledge_hash`를 담고 `analysis.knowledge`에 선택한 유형·페이지가 남는다. 폴더를 설정했는데 읽을 수 없으면 생성은 409 `company_bundle_unavailable`, 묶음이 엔진 검증을 통과하지 못하면 실행은 `company_bundle_invalid`로 실패한다. 묶음 digest는 `engine_run.queued` 감사 메타데이터에 `company_bundle_sha256`으로 남는다.
+
+[사전규격 엔진 검토](engine-review.md)는 회사 등록 없이 `bidops.engine-input.v3` 실행을 만든다. v3는 v2의 회사 바인딩 다섯 필드를 생략하고 `company_bundle.slug`와 `bundle_sha256`을 동결한다. `EngineRunView`의 `company_id`, `profile_version_id`, `profile_sha256`, `graph_version_id`, `graph_sha256`은 v3에서 `null`이고 `company_bundle_slug`, `company_bundle_sha256`을 제공한다. v3의 묶음이 변경되면 `stale`, 묶음을 읽을 수 없으면 `unknown`이다.
 
 출력은 engine_version, quality_status=mock_reference, status=partial|failed, nullable error_code/error_class/analysis, warnings, artifacts를 포함한다. error_code는 위 runner 코드 목록 중 하나이고 error_class는 예외 클래스 이름(식별자)뿐이다. 소비자는 목록 밖 코드를 engine_output_invalid로 거부하고 식별자가 아닌 error_class는 버린다. 부분 결과의 analysis는 원본 Analysis schema를 따른다. 입력과 구조의 불완전한 projection은 warning을 유지한다. 원본 경로·회사 원문·프롬프트·하위 프로세스 stderr를 API 오류에 반환하지 않는다. 정밀 schema/변환은 `packages/bid-deep-engine/src/bid_deep_engine/runner.py`와 backend `services/engine_runs.py`가 소유하며 원본 revision은 패키지 UPSTREAM manifest를 따른다.

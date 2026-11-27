@@ -68,7 +68,7 @@ from ...core.api_errors import (
 CREATE_BUNDLE_RETRIES = 3
 #: 묶음 생성의 등급 자격 검사를 건너뛰는 촉발: 운영자 로컬 원본 연결(RL-03 결정 B15)과
 #: RL 분석이 켜진 상태의 브리핑 추천 SW=Y 사전규격(결정 B18). 안전 검사·확정 fence는 그대로다.
-ELIGIBILITY_OVERRIDE_TRIGGERS = frozenset({"operator_local_original", "briefing_recommendation"})
+ELIGIBILITY_OVERRIDE_TRIGGERS = frozenset({"operator_local_original", "briefing_recommendation", "engine_review_request"})
 DOCUMENT_ROLES = {"공고", "정정", "제안요청서", "과업지시서", "내역서", "제출서식", "부록", "기타"}
 
 

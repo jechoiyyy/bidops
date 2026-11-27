@@ -118,6 +118,16 @@ function DashboardWorkspace() {
     return !item || item.count === null ? "미확인" : formatNumber(item.count);
   };
   const workloadBasis = snapshotTime(workloadQuery.data?.generated_at, "Asia/Seoul");
+  const engineTasks = [
+    { key: "engine_approval_pending", label: "분석 승인 대기" },
+    { key: "engine_result_pending", label: "결과 확인" },
+  ] as const;
+  const engineCounts = engineTasks.flatMap(({ key, label }): DashCount[] => {
+    const count = workloadItem(key)?.count;
+    return count == null ? [] : [{
+      key, label, value: `${formatNumber(count)}건`, basis: "사전규격 · 추적 중", to: "/pre-specs?workspace=tracking",
+    }];
+  });
 
   const briefingQuery = useQuery({
     queryKey: ["briefing", "latest"],
@@ -218,7 +228,7 @@ function DashboardWorkspace() {
     <DailyCollectionStatus collectionStatus={<CollectionStatus data={collectionQuery.data} failed={collectionQuery.isError} />} />
 
     <DashboardBlock id="check" title="확인할 것">
-      <CountStrip label="확인할 것 건수" items={[holdCount, ...checkCounts]} />
+      <CountStrip label="확인할 것 건수" items={[holdCount, ...checkCounts, ...engineCounts]} />
       <div className="dash-work-grid">
         <HumanCheckPanel failed={overviewFailedQuery.data} attention={overviewAttentionQuery.data} blocking={blockingQuery.data}
           state={humanCheckState}

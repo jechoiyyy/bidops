@@ -8,6 +8,8 @@ import { wiki } from "../../lib/companyWikiApi";
 import { remainingDeadlineDays } from "../../lib/deadline";
 import { createEngineRiskLinker } from "../../lib/engineRiskLinks";
 import type { EngineAnalysis, EngineEvidence, EngineRun } from "../../lib/engineApi";
+import type { EngineReviewResult } from "../../lib/engineReviewApi";
+import { EngineReviewReadAction } from "../pre-specs/EngineReviewDecisionBar";
 import { createPdfQuoteLocator, normalizePdfQuote } from "../../lib/pdfQuoteLocator";
 import { qualityStatusLabel } from "../../lib/qualityStatus";
 import type { NoticeDetailResponse, PageOverviewFact, PageOverviewView, PreSpecListItem } from "../../lib/types";
@@ -26,12 +28,46 @@ const rank = { H: 0, M: 1, L: 2 };
 const fitLabel = { FULL: "충족", PARTIAL: "부분", GAP: "부족", UNKNOWN: "미확인" };
 const decision = { GO: "참여 검토", CONDITIONAL_GO: "조건부 참여 검토", NO_GO: "참여 비권장" };
 const legend = "사유·전제와 리스크의 연결은 엔진 출력이 아니라 화면이 문장을 대조해 붙였어요.";
+const RUN_WARNING_COPY: Record<string, string> = {
+  mock_reference_not_quality_evidence: "모의 실행 결과예요. 품질 근거로 쓰지 않아요.",
+  structure_projection_partial: "문서 구조의 일부만 반영됐어요.",
+  company_profile_projection_incomplete: "회사 프로필의 일부만 반영됐어요.",
+};
+const SKIPPED_WIKI_WARNING = "knowledge: pages skipped by budget: ";
+
+/** 실행 경고를 짧은 문장으로 묶는다. 원문 코드는 접힌 기술 정보에서 그대로 보인다(RL-11 단계 2). */
+export function summarizeRunWarnings(warnings: readonly string[]) {
+  const details = [...new Set(warnings)];
+  const skippedPages = new Set<string>();
+  const messages: string[] = [];
+  let otherCount = 0;
+  for (const warning of details) {
+    if (Object.hasOwn(RUN_WARNING_COPY, warning)) {
+      messages.push(RUN_WARNING_COPY[warning]);
+      continue;
+    }
+    if (warning.startsWith(SKIPPED_WIKI_WARNING)) {
+      const slugs = warning.slice(SKIPPED_WIKI_WARNING.length).split(",").map((slug) => slug.trim()).filter(Boolean);
+      if (slugs.length > 0) {
+        for (const slug of slugs) skippedPages.add(slug);
+        continue;
+      }
+    }
+    otherCount += 1;
+  }
+  if (skippedPages.size) messages.push(`회사 위키 ${skippedPages.size}쪽은 분량 때문에 빠졌어요.`);
+  if (otherCount) messages.push(`그 밖의 경고 ${otherCount}건`);
+  return { messages, details };
+}
+
 function won(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
 }
 
 interface Props {
-  run: EngineRun;
+  run: EngineRun | EngineReviewResult;
+  /** 엔진 검토 결과가 확인 대기(`review_result`)면 `결과 확인` 동작을 보인다. */
+  canAcknowledge?: boolean;
   notice: NoticeDetailResponse;
   item?: PreSpecListItem;
   shown: PageOverviewView | null;
@@ -51,7 +87,7 @@ export function PreSpecAnalysisWorkbench(props: Props) {
   return run.analysis && <Workbench {...props} analysis={run.analysis} />;
 }
 
-function Workbench({ run, notice, item, shown, overviewUnavailable, number, bidNotice, originalFilename, process, analysis }: Props & { analysis: EngineAnalysis }) {
+function Workbench({ run, canAcknowledge = false, notice, item, shown, overviewUnavailable, number, bidNotice, originalFilename, process, analysis }: Props & { analysis: EngineAnalysis }) {
   const root = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState<Section>("brief");
   const [issueFilter, setIssueFilter] = useState<IssueFilter>("all");
@@ -99,6 +135,7 @@ function Workbench({ run, notice, item, shown, overviewUnavailable, number, bidN
   const deadline = notice.deadline_at ? remainingDeadlineDays(new Date(notice.deadline_at), new Date()) : NaN;
   const countdown = Number.isFinite(deadline) ? deadline < 0 ? "마감 지남" : deadline === 0 ? "D-day" : `D-${deadline}` : null;
   const quality = qualityStatusLabel(run.quality_status);
+  const runWarnings = summarizeRunWarnings(run.warnings);
 
   usePageHeader({
     title: known(notice.title, "사업명 미확인"),
@@ -313,6 +350,10 @@ function Workbench({ run, notice, item, shown, overviewUnavailable, number, bidN
           <div className="paw-layer paw-engine"><div className="paw-who"><b>엔진 참고 의견</b>분석 엔진</div><div className="paw-val">
             <strong>{decision[analysis.recommendation.decision]}</strong> <span className="paw-chip paw-model">참고</span> <span className="paw-chip">{quality}</span>
             <div className="paw-layer-note">요구사항 {sourceFound == null ? "건수 미확인" : `${sourceFound}건`} 중 {judged == null ? "판정 건수 미확인" : `${judged}건 판정`} · {analysisDate(run.completed_at)} 분석. 의견은 결정이 아니에요.</div>
+            {runWarnings.messages.length > 0 && <div className="paw-layer-note" role="note">{runWarnings.messages.join(" · ")}</div>}
+            {runWarnings.details.length > 0 && <details className="paw-warning-details"><summary>실행 경고 기술 정보</summary>
+              <ul>{runWarnings.details.map((warning) => <li key={warning}><code>{warning}</code></li>)}</ul></details>}
+            {canAcknowledge && <div className="paw-review-ack"><EngineReviewReadAction key={run.id} noticeId={run.notice_id} resultId={run.id} /></div>}
           </div></div>
           <div className="paw-layer"><div className="paw-who"><b>추적 판단</b>사람 · 지금 정해요</div><div className="paw-val">
             <strong>{tracking}</strong> <span className="paw-layer-note">· {openedOpportunity?.tracking_selected_by ?? "미확인"} · {analysisDate(openedOpportunity?.tracking_selected_at, false)}</span>
@@ -405,7 +446,7 @@ function Workbench({ run, notice, item, shown, overviewUnavailable, number, bidN
       </div>
     </section>
 
-    <AnalysisRequirements fits={requirements} knowledge={analysis.knowledge} workUnits={analysis.work_units} readProjectCount={readProjectCount}
+    <AnalysisRequirements fits={requirements} counts={analysis.requirement_counts} knowledge={analysis.knowledge} workUnits={analysis.work_units} readProjectCount={readProjectCount}
       judged={judged} portfolio={portfolio} wikiNames={wikiNames}
       target={reqTarget} go={() => go("reqs")} locate={locate} locating={locating} pageLink={pageLink}
       related={(fit) => issues.filter((issue) => issue.same.includes(fit)).map(({ index, risk }) =>

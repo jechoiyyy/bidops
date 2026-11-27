@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import exists, not_, or_, select
+from sqlalchemy import and_, exists, not_, or_, select
 from sqlalchemy.sql.elements import ColumnElement
 
 from ...core.config import get_settings
@@ -214,10 +214,18 @@ def attachment_claim_scope_predicate(fetch_table: Any, now: datetime) -> ColumnE
             BriefingItem.stage == "pre_spec",
         )
     )
+    from .engine_review_scope import open_review_request_predicate
+
+    open_review = open_review_request_predicate(Notice.id)
     in_scope_attachments = (
         select(Attachment.id)
         .join(Notice, Notice.id == Attachment.notice_id)
-        .where(or_(auto_processing_predicate(Notice.id, now), briefing_recommended))
+        .where(or_(
+            open_review,
+            and_(fetch_table.eligibility_reason != "engine_review_request",
+                 or_(auto_processing_predicate(Notice.id, now), briefing_recommended)),
+        ))
+        .correlate(fetch_table)
     )
     return or_(
         fetch_table.eligibility_reason == "priority_grade",

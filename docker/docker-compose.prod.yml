@@ -36,6 +36,8 @@ services:
     networks:
     - model-egress
     environment:
+      # Literal deployment identity for the engine review startup guard.
+      BIDOPS_ENV: prod
       BIDOPS_VLLM_SCREENING_BASE_URL: ${BIDOPS_VLLM_SCREENING_BASE_URL:-}
       BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS: ${BIDOPS_VLLM_SCREENING_ALLOWED_HOSTS:-}
       BIDOPS_VLLM_SCREENING_API_KEY: ${BIDOPS_VLLM_SCREENING_API_KEY:-EMPTY}
@@ -80,6 +82,7 @@ services:
     networks:
     - model-egress
     environment:
+      BIDOPS_ENV: prod
       BIDOPS_ENGINE_COMPANY_BUNDLE_DIR: /app/company-bundle
       BIDOPS_ENGINE_COMPANY_BUNDLE_SLUG: ${BIDOPS_ENGINE_COMPANY_BUNDLE_SLUG:-rootlab}
       BIDOPS_COMPANY_WIKI_BACKUP_DIR: ${BIDOPS_COMPANY_WIKI_BACKUP_DIR:-}

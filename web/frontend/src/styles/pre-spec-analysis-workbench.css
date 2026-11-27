@@ -101,6 +101,8 @@ section.paw-brief { display: grid; grid-template-columns: minmax(0, 1.12fr) minm
 .paw-reqbar .paw-count { font-size: var(--bo-k-meta); color: var(--color-text-secondary); }
 .paw-kn { font-size: var(--bo-k-tag); color: var(--color-text-secondary); background: var(--color-background-muted); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; }
 .paw-kn b { color: var(--color-text-primary); }
+.paw-req-warn { font-size: var(--bo-k-tag); color: var(--color-warning); background: var(--bo-warning-subtle); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; }
+.paw-req-warn b { color: inherit; }
 .paw-reqgrid { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 0; border: 1px solid var(--bo-line-soft); border-radius: 10px; overflow: hidden; height: calc(100vh - 290px); min-height: 460px; }
 .paw-reqlist { overflow: auto; min-height: 0; min-width: 0; border-right: 1px solid var(--bo-line-soft); }
 .paw-one { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -365,3 +367,8 @@ dl.paw-source-meta .paw-code { font-family: ui-monospace, Menlo, monospace; font
   .paw-reqgrid { grid-template-columns: minmax(0, 1fr) 480px; }
   .paw-reqlist .record-table col:nth-child(4) { width: 240px !important; }
 }
+
+/* 엔진 검토 결과 확인·실행 경고(RL-11 단계 2, 2026-11-27 작업대로 이식) */
+.paw-review-ack { margin-top: var(--spacing-2); }
+.paw-warning-details { margin-top: var(--spacing-1); overflow-wrap: anywhere; }
+.paw-warning-details ul { padding-inline-start: var(--spacing-4); }

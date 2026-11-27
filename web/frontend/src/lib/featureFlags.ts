@@ -11,7 +11,7 @@ import type { FeatureFlagsResponse } from "./types";
  *   그대로 둔다(신호가 없다고 기능을 숨기지 않는다).
  */
 export type FeatureState = "on" | "off" | "unknown";
-export type FeatureKey = Exclude<keyof FeatureFlagsResponse, "schema_version">;
+export type FeatureKey = Exclude<keyof FeatureFlagsResponse, "schema_version" | "engine_review">;
 
 export const FEATURE_OFF_LABEL = "이 환경에서 꺼져 있음";
 
@@ -28,5 +28,7 @@ export function useFeatureFlags() {
   };
   /** 신호가 정해졌는가(성공 또는 실패). 기다릴 필요가 없으면 `true`다. */
   const settled = query.isSuccess || query.isError;
-  return { state, settled };
+  const engineReview = query.data?.engine_review;
+  const engineReviewMode = engineReview === "mock_reference" || engineReview === "live" ? engineReview : "off";
+  return { state, settled, engineReviewMode };
 }

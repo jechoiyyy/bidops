@@ -9,6 +9,9 @@ import shlex
 import subprocess
 
 import pytest
+from pydantic import ValidationError
+
+from app.core.config import Settings
 
 ROOT = Path(__file__).resolve().parents[4]
 
@@ -35,10 +38,10 @@ def invoke(env, *args):
     return subprocess.run([str(ROOT / "scripts/compose.sh"), *args], cwd=ROOT, env=env, capture_output=True, text=True)
 
 
-def render(env, mode):
+def render(env, mode, *services):
     if not shutil.which("docker"):
         pytest.skip("Docker Compose CLI is required for render-only checks")
-    result = invoke({**env, "BIDOPS_ENV": mode}, "config", "--format", "json")
+    result = invoke({**env, "BIDOPS_ENV": mode}, "config", "--format", "json", *services)
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout)
 
@@ -97,6 +100,51 @@ def test_modes_preserve_identity_and_boundaries(selection_env, mode, project, po
         assert "prespec-egress" not in config["networks"]
     if mode == "mock":
         assert services["web"]["environment"]["BIDOPS_ANALYSIS_PROVIDER"] == "mock"
+
+
+@pytest.mark.parametrize(("mode", "review_mode"), [
+    ("dev", "mock_reference"), ("mock", "mock_reference"), ("prod", "live"),
+])
+def test_engine_switches_render_for_web_and_analysis_worker(selection_env, mode, review_mode):
+    names = ("web", "analysis-worker")
+    defaults = render(selection_env, mode, *names)["services"]
+    for name in names:
+        environment = defaults[name]["environment"]
+        assert environment["BIDOPS_ENGINE_REVIEW_MODE"] == "off"
+        assert environment["BIDOPS_ENGINE_ANALYSIS_ENABLED"] == "false"
+
+    path = Path(selection_env["BIDOPS_ENV_FILE"])
+    with path.open("a") as env_file:
+        env_file.write(
+            f"\nBIDOPS_ENGINE_REVIEW_MODE={review_mode}\n"
+            "BIDOPS_ENGINE_ANALYSIS_ENABLED=true\n"
+            f"BIDOPS_REFERENCE_WORKFLOW_MODE={'true' if mode == 'dev' else 'false'}\n"
+        )
+    enabled = render(selection_env, mode, *names)["services"]
+    for name in names:
+        environment = enabled[name]["environment"]
+        assert environment["BIDOPS_ENGINE_REVIEW_MODE"] == review_mode
+        assert environment["BIDOPS_ENGINE_ANALYSIS_ENABLED"] == "true"
+        assert environment["BIDOPS_REFERENCE_WORKFLOW_MODE"] == ("false" if mode == "prod" else "true")
+
+
+def test_production_rendered_mock_engine_review_fails_startup(selection_env, monkeypatch):
+    names = ("web", "analysis-worker")
+    config = render({
+        **selection_env,
+        "BIDOPS_ENGINE_REVIEW_MODE": "mock_reference",
+        "BIDOPS_ENGINE_ANALYSIS_ENABLED": "true",
+        "BIDOPS_REFERENCE_WORKFLOW_MODE": "true",
+    }, "prod", *names)
+    for name in names:
+        environment = config["services"][name]["environment"]
+        assert environment["BIDOPS_ENV"] == "prod"
+        assert environment["BIDOPS_REFERENCE_WORKFLOW_MODE"] == "true"
+        for key in ("BIDOPS_ENV", "BIDOPS_ENGINE_REVIEW_MODE", "BIDOPS_ENGINE_ANALYSIS_ENABLED",
+                    "BIDOPS_REFERENCE_WORKFLOW_MODE"):
+            monkeypatch.setenv(key, environment[key])
+        with pytest.raises(ValidationError, match="mock_reference is forbidden in prod"):
+            Settings(_env_file=None)
 
 
 @pytest.mark.parametrize("settings", [

@@ -1709,3 +1709,55 @@ def test_parser_b_last_item_tail_variants(tail):
     )
     reqs, _ = parse_requirements_from_text(blocks, lambda _i: None)
     assert reqs[0].details == "가 내용○"
+
+
+# 실제 상세표(R26BD00305325, 2026-11-27): ID를 `SFR - 002`처럼 하이픈 앞뒤에 공백을 두고 적는다.
+# 기대 수(요약표 60)는 세면서 상세표 ID를 읽지 못해 4개만 뽑던 문제의 회귀 시험이다.
+def test_detail_table_reads_ids_written_with_spaced_hyphen():
+    t = raw_table(
+        [
+            ["고유번호", "SFR - 002"],
+            ["요구사항 분류", "기능 요구사항"],
+            ["요구사항 명칭", "사용량 분석자료 등록 기능"],
+            ["요구사항상세설명", "정의", "정해진 입력자료 양식에 맞춘 엑셀자료를 업로드하는 기능"],
+            ["세부내용", "❍ 수도미터 사용량 자료 업로드"],
+        ]
+    )
+    assert classify_table(t.rows) == "requirement_detail"
+    (req,), _warnings = parse_tables([t])
+    assert (req.id, req.category, req.name) == ("SFR-002", "SFR", "사용량 분석자료 등록 기능")
+
+
+@pytest.mark.parametrize("written", ["SFR - 002", "SFR -002", "SFR- 002", "SFR-002", "SFR - A - 04"])
+def test_detail_table_id_hyphen_spacing_variants(written):
+    t = raw_table([["요구사항 고유번호", written], ["요구사항 명칭", "가"], ["세부내용", "나"]])
+    (req,), _warnings = parse_tables([t])
+    assert req.id == written.replace(" ", "")
+
+
+def test_detail_rows_read_ids_written_with_spaced_hyphen():
+    t = raw_table(
+        [
+            ["요구사항 고유번호", "요구사항 명칭", "정의"],
+            ["세부내용", "", ""],
+            ["COR - 001", "제약사항 일반", "준수 사항"],
+            ["- 관련 법령 준수", "", ""],
+            ["COR - 002", "보안 제약", "보안 지침"],
+        ]
+    )
+    reqs, _warnings = parse_tables([t])
+    assert [r.id for r in reqs] == ["COR-001", "COR-002"]
+
+
+def test_spaced_hyphen_folding_does_not_touch_prose():
+    t = raw_table(
+        [
+            ["요구사항 고유번호", "SFR - 003"],
+            ["요구사항 명칭", "기간 분석 (2026 - 2027)"],
+            ["세부내용", "SFR - 001 참조"],
+        ]
+    )
+    (req,), _warnings = parse_tables([t])
+    assert req.id == "SFR-003"
+    assert req.name == "기간 분석 (2026 - 2027)"
+    assert req.details == "SFR - 001 참조"

@@ -43,6 +43,7 @@ from .auto_preparation import (
     maybe_auto_prepare,
 )
 from .effective_grade import attachment_claim_scope_predicate, priority_notice_ids
+from .engine_review_scope import open_review_notice_ids
 
 
 SOURCE_SYSTEM = "g2b"
@@ -237,6 +238,7 @@ def refresh_fetch_eligibility(
         if notice_id not in sw_notice_ids and not tracked_connections.get(notice_id)
     )
     priority_ids = priority_notice_ids(session, grade_candidates) if grade_candidates else frozenset()
+    review_ids = open_review_notice_ids(session, candidate_notice_ids)
     created = 0
     next_attempt_at = utc_now()
     for attachment in candidates:
@@ -244,7 +246,7 @@ def refresh_fetch_eligibility(
         sw = _sw_business_object(notice)
         tracked = bool(tracked_connections.get(notice.id))
         priority = notice.id in priority_ids
-        if not sw and not tracked and not priority:
+        if not sw and not tracked and not priority and notice.id not in review_ids:
             continue
         # §5 결합 규칙: 기존 사유가 등급 사유보다 우선한다. 등급은 아무 사유도
         # 없을 때만 `priority_grade`로 나타나고, SW·추적과 겹치면 그쪽 사유가
@@ -257,6 +259,8 @@ def refresh_fetch_eligibility(
             else "tracked_order_plan"
             if tracked
             else "priority_grade"
+            if priority
+            else "engine_review_request"
         )
         row = existing.get(attachment.id)
         if row is not None:

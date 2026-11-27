@@ -1785,3 +1785,41 @@ def test_engine_run_grants_keep_inputs_and_human_review_immutable() -> None:
     for role in ('app','worker'):
         assert 'engine_run' not in _table_grants(role,'UPDATE')
         assert 'engine_run' not in _table_grants(role,'DELETE')
+
+
+ENGINE_REVIEW_TABLES = {
+    "engine_review_request", "engine_review_preview", "engine_review_approval",
+    "engine_review_acknowledgment",
+}
+
+
+def test_engine_review_grants_are_append_only_except_request_closure() -> None:
+    assert ENGINE_REVIEW_TABLES <= _table_grants("app", "SELECT")
+    assert ENGINE_REVIEW_TABLES <= _table_grants("app", "INSERT")
+    assert ENGINE_REVIEW_TABLES <= _table_grants("worker", "SELECT")
+    assert not ENGINE_REVIEW_TABLES & _table_grants("worker", "INSERT")
+    for role in ("app", "worker"):
+        for privilege in ("UPDATE", "DELETE"):
+            assert not ENGINE_REVIEW_TABLES & _table_grants(role, privilege)
+    assert _column_update_grant("app", "engine_review_request") == {"closed_at", "closed_reason", "closed_by"}
+
+
+@requires_postgres
+def test_engine_review_runtime_grants_keep_worker_and_backup_read_only() -> None:
+    _ensure_roles()
+    with temporary_database() as database_url:
+        engine = _apply_policy(database_url)
+        try:
+            with engine.connect() as connection:
+                for table in ENGINE_REVIEW_TABLES:
+                    for role in ("app", "worker", "ro_backup"):
+                        assert _table_privilege(connection, role, table, "SELECT")
+                        assert _table_privilege(connection, role, table, "INSERT") == (role == "app")
+                        assert not _table_privilege(connection, role, table, "UPDATE")
+                        assert not _table_privilege(connection, role, table, "DELETE")
+                        assert not _column_privilege(connection, role, table, "id", "UPDATE")
+                for column in ("closed_at", "closed_reason", "closed_by"):
+                    assert _column_privilege(connection, "app", "engine_review_request", column, "UPDATE")
+                    assert not _column_privilege(connection, "worker", "engine_review_request", column, "UPDATE")
+        finally:
+            engine.dispose()

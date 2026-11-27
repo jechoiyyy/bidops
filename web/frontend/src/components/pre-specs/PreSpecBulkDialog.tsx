@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useId, useRef, useState } from "react";
 import { InternationalizationProvider } from "@astryxdesign/core/i18n";
 import koKR from "@astryxdesign/core/locales/ko-KR.json";
@@ -14,6 +15,11 @@ import {
   type BulkReasonDraft,
 } from "../common/BulkReasonField";
 import { api } from "../../lib/api";
+import { engineReviewApi, type EngineReviewBatchResult } from "../../lib/engineReviewApi";
+import { engineReviewReason } from "../../lib/engineReviewCopy";
+import { useFeatureFlags } from "../../lib/featureFlags";
+import { generateRequestId } from "../../lib/requestId";
+import { engineReviewKey } from "../../lib/useEngineReview";
 import { describeApiError, type ApiErrorDescription } from "../../lib/apiErrors";
 import type { PreSpecReviewExclusionStatus } from "../../lib/types";
 import "../../styles/bulk-dialog.css";
@@ -75,13 +81,30 @@ function actorProblem(value: string): string | null {
   return null;
 }
 
+function analysisBatchSummary(items: EngineReviewBatchResult[]) {
+  const reasons = new Map<string | null, number>();
+  let requested = 0;
+  for (const item of items) {
+    if (item.outcome === "ineligible") reasons.set(item.reason, (reasons.get(item.reason) ?? 0) + 1);
+    else requested += 1;
+  }
+  const details = [...reasons].map(([code, count]) => {
+    const reason = engineReviewReason(code);
+    return `${reason.message}${reason.code ? ` · ${reason.code}` : ""} ${count}건`;
+  });
+  return `분석 요청 ${requested}건 · 요청 못 함 ${items.length - requested}건${details.length ? ` (${details.join(" · ")})` : ""}`;
+}
+
 export function PreSpecBulkDialog({ ids, status, onClose, onSaved }: {
   ids: number[];
   status: PreSpecBulkAction;
   onClose: () => void;
-  onSaved: (handledIds: number[], message?: string) => Promise<void>;
+  onSaved: (handledIds: number[], message?: string, requestedIds?: number[]) => Promise<void>;
 }) {
   const copy = COPY[status];
+  const queryClient = useQueryClient();
+  const flags = useFeatureFlags();
+  const requestAnalysis = status === "track" && flags.engineReviewMode !== "off";
   const [actor, setActor] = useState("");
   const [reason, setReason] = useState<BulkReasonDraft>(() => emptyBulkReason(copy.reasonField?.options ?? []));
   const [pending, setPending] = useState(false);
@@ -94,7 +117,7 @@ export function PreSpecBulkDialog({ ids, status, onClose, onSaved }: {
     : ids.length > MAX_IDS
       ? `한 번에 ${MAX_IDS}건까지 처리할 수 있어요. 선택을 줄여 주세요.`
       : (copy.reasonField ? bulkReasonError(reason, copy.reasonField.requiredError) : null) ?? actorProblem(actor);
-  const valid = blocker === null;
+  const valid = blocker === null && (status !== "track" || flags.settled);
 
   async function submit() {
     if (submitting.current || !valid) return;
@@ -106,9 +129,30 @@ export function PreSpecBulkDialog({ ids, status, onClose, onSaved }: {
       if (status === "track") {
         const { items } = await api.startSelectedPreSpecs(body);
         const handled = items.filter(item => item.outcome !== "unavailable");
-        const started = items.filter(item => item.outcome === "started").length;
-        await onSaved(handled.map(item => item.notice_id),
-          `추적 시작 ${started}건 · 기존 결정 유지 ${handled.length - started}건 · 연결 확인 필요 ${items.length - handled.length}건`);
+        const startedIds = items.filter(item => item.outcome === "started").map(item => item.notice_id);
+        const started = startedIds.length;
+        let requestedIds: number[] = [];
+        let summary = `추적 시작 ${started}건 · 기존 결정 유지 ${handled.length - started}건 · 연결 확인 필요 ${items.length - handled.length}건`;
+        if (requestAnalysis) {
+          let analysisSummary = analysisBatchSummary([]);
+          if (started > 0) {
+            try {
+              const batch = await engineReviewApi.batch({
+                request_id: generateRequestId(), origin: "tracking_start", notice_ids: startedIds,
+              }, body.actor_name);
+              analysisSummary = analysisBatchSummary(batch.items);
+              requestedIds = batch.items.filter((item) => item.outcome !== "ineligible").map((item) => item.notice_id);
+            } catch {
+              analysisSummary = "분석 요청은 올리지 못했어요";
+            }
+            for (const id of startedIds) {
+              if (!requestedIds.includes(id)) void queryClient.invalidateQueries({ queryKey: engineReviewKey(id) });
+            }
+            if (requestedIds.length === 0) void queryClient.invalidateQueries({ queryKey: ["workload"] });
+          }
+          summary += ` · ${analysisSummary}`;
+        }
+        await onSaved(handled.map(item => item.notice_id), summary, requestedIds);
       } else {
         const { items } = await api.changePreSpecReviewExclusions({ ...body, status, reason: bulkReasonText(reason) });
         await onSaved(items.map(item => item.notice_id));
@@ -137,6 +181,7 @@ export function PreSpecBulkDialog({ ids, status, onClose, onSaved }: {
               <strong>{copy.summaryHead} {count}건</strong>
               <span className="bulk-dialog-summary-detail">{copy.summaryDetail}</span>
             </div>
+            {requestAnalysis ? <p>추적을 시작한 공고에 분석 요청을 올려요. 전송은 공고마다 따로 승인해요.</p> : null}
             <div className="bulk-dialog-fields">
               {copy.reasonField && (
                 <BulkReasonField

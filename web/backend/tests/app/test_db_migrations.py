@@ -90,6 +90,8 @@ ALL_TABLES = frozenset(
     + CARD_ANALYSIS_TABLES
     + PROPOSAL_TABLES
     + ("engine_run", "company_wiki_ingest_run")
+    + ("engine_review_request", "engine_review_preview", "engine_review_approval",
+       "engine_review_acknowledgment")
 )
 
 
@@ -1771,6 +1773,46 @@ def test_0041_downgrades_when_empty_and_refuses_to_discard_rows() -> None:
             refused = run_alembic(database_url, "downgrade", "0040_card_analysis")
             assert refused.returncode != 0
             assert "refuses to discard proposal_draft" in refused.stderr
+            assert _scalar(engine, "SELECT version_num FROM bidops.alembic_version") == ALEMBIC_HEAD
+        finally:
+            engine.dispose()
+
+
+def test_0045_review_migration_round_trips_empty_and_refuses_review_history() -> None:
+    from sqlalchemy import create_engine
+
+    with temporary_database(upgrade_to="0044_company_fit_card_lineage") as database_url:
+        engine = create_engine(database_url)
+        try:
+            review_tables = {
+                "engine_review_request", "engine_review_preview", "engine_review_approval",
+                "engine_review_acknowledgment",
+            }
+            up = run_alembic(database_url, "upgrade", "0045_engine_review")
+            assert up.returncode == 0, up.stderr
+            assert review_tables <= _tables(engine)
+            down = run_alembic(database_url, "downgrade", "0044_company_fit_card_lineage")
+            assert down.returncode == 0, down.stderr
+            assert not review_tables & _tables(engine)
+            up = run_alembic(database_url, "upgrade", "0045_engine_review")
+            assert up.returncode == 0, up.stderr
+            with engine.begin() as connection:
+                notice_id = connection.scalar(text(
+                    "INSERT INTO bidops.notice (notice_key,source_type) "
+                    "VALUES ('engine-review:0045','pre_spec') RETURNING id"
+                ))
+                owner_id = connection.scalar(text(
+                    "INSERT INTO bidops.opportunity (first_registered_stage) "
+                    "VALUES ('pre_spec') RETURNING id"
+                ))
+                connection.execute(text(
+                    "INSERT INTO bidops.engine_review_request "
+                    "(id,notice_id,opportunity_id,company_bundle_slug,origin,requested_by,requested_at,request_id) "
+                    "VALUES (:id,:notice,:owner,'rootlab','manual','reviewer',CURRENT_TIMESTAMP,:request)"
+                ), {"id": uuid4(), "notice": notice_id, "owner": owner_id, "request": uuid4()})
+            refused = run_alembic(database_url, "downgrade", "0044_company_fit_card_lineage")
+            assert refused.returncode != 0
+            assert "refuses to discard engine review data" in refused.stderr
             assert _scalar(engine, "SELECT version_num FROM bidops.alembic_version") == ALEMBIC_HEAD
         finally:
             engine.dispose()

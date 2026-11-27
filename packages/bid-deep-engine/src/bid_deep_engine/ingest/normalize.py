@@ -367,6 +367,14 @@ _REQ_BASE_ID_RE = re.compile(REQUIREMENT_BASE_ID)
 _REQ_ID_RE = re.compile(rf"(?<![A-Za-z0-9]){REQ_ID}(?![A-Za-z0-9-])")
 _REQ_ID_FULL = re.compile(rf"^{REQ_ID}$")
 _WS = re.compile(r"\s+")
+# 실제 상세표는 ID를 `SFR - 001`처럼 하이픈 앞뒤에 공백을 두고 적기도 한다(R26BD00305325).
+# 대문자·숫자 사이 하이픈의 공백만 접어 `SFR-001`로 읽는다. 본문 서술은 바꾸지 않고 일치 판정에만 쓴다.
+_ID_HYPHEN_SPACE = re.compile(r"(?<=[A-Z0-9])[ \t]*-[ \t]*(?=[A-Z0-9])")
+
+
+def _compact_ids(text: str) -> str:
+    """요구사항 ID의 하이픈 앞뒤 공백을 접는다(`SFR - 001` → `SFR-001`)."""
+    return _ID_HYPHEN_SPACE.sub("-", text)
 
 _DETAIL_ID_LABEL = re.compile(r"요구사항\s*(고유)?\s*번호|고유번호")
 _RELATED_REQ_LABEL = re.compile(r"^관련\s*요구사항\s*:?$")
@@ -469,7 +477,7 @@ def _id_label_values(grid: list[list[_Cell]]) -> list[_Pos]:
     out = []
     for r, c in _labels(grid, "id"):
         vp = _value_pos(grid, r, c)
-        if vp is not None and _REQ_ID_RE.search(grid[vp[0]][vp[1]].raw):
+        if vp is not None and _REQ_ID_RE.search(_compact_ids(grid[vp[0]][vp[1]].raw)):
             out.append(vp)
     return out
 
@@ -483,7 +491,7 @@ def _id_cell_count(grid: list[list[_Cell]]) -> int:
         if (vp := _value_pos(grid, r, c)) is not None
     }
     cells = set(_id_label_values(grid))
-    cells.update((r, c) for r, c in _positions(grid) if _REQ_ID_FULL.match(grid[r][c].norm))
+    cells.update((r, c) for r, c in _positions(grid) if _REQ_ID_FULL.match(_compact_ids(grid[r][c].norm)))
     return len(cells - references)
 
 
@@ -506,7 +514,7 @@ def classify_table(rows: list[list[str]]) -> TableKind:
             return "requirement_detail"
     if grid and _matches_all(TABLE_KEYWORDS["requirement_summary"], [_squash(c.norm) for c in grid[0]]):
         return "requirement_summary"
-    id_rows = sum(1 for row in grid if any(_REQ_ID_RE.search(c.norm) for c in row))
+    id_rows = sum(1 for row in grid if any(_REQ_ID_RE.search(_compact_ids(c.norm)) for c in row))
     if id_rows >= LIST_MIN_ID_ROWS:
         return "requirement_list"
     for kind in ("evaluation_scores", "staffing", "commercial_sw", "schedule"):
@@ -546,7 +554,7 @@ def _parse_detail_table(
         return None
     id_pos = label_ids[0]
     id_text = grid[id_pos[0]][id_pos[1]].raw
-    match = _REQ_ID_RE.search(id_text)
+    match = _REQ_ID_RE.search(_compact_ids(id_text))
     assert match is not None
     req_id = match.group(0)
 
@@ -608,13 +616,13 @@ def _parse_detail_rows(table: RawTable, section_id: str | None) -> list[Requirem
     starts = []
     for index, row in enumerate(table.rows[2:], start=2):
         id_col = header["id"]
-        if id_col < len(row) and _REQ_ID_FULL.fullmatch(row[id_col].strip()):
+        if id_col < len(row) and _REQ_ID_FULL.fullmatch(_compact_ids(row[id_col].strip())):
             starts.append(index)
 
     requirements = []
     for start, stop in zip(starts, starts[1:] + [len(table.rows)]):
         row = table.rows[start]
-        req_id = row[header["id"]].strip()
+        req_id = _compact_ids(row[header["id"]].strip())
         base_id = _requirement_base_id(req_id)
         name = row[header["name"]].strip() if header["name"] < len(row) else ""
         definition = row[header["definition"]].strip() if header["definition"] < len(row) else ""
@@ -957,7 +965,7 @@ def expected_requirement_count(
         if not table.rows or "ID" not in table.rows[0]:
             break
         col = table.rows[0].index("ID")
-        ids = [row[col].strip() for row in table.rows[1:] if len(row) > col and row[col].strip()]
+        ids = [_compact_ids(row[col].strip()) for row in table.rows[1:] if len(row) > col and row[col].strip()]
         reported = _summary_count(table.rows)
         if (
             not ids
@@ -1008,7 +1016,7 @@ def _listed_ids(tables: list[RawTable], kinds: dict[str, TableKind]) -> list[str
             continue
         for row in table.rows:
             for cell in row:
-                for m in _REQ_ID_RE.finditer(cell):
+                for m in _REQ_ID_RE.finditer(_compact_ids(cell)):
                     if m.group(0) not in out:
                         out.append(m.group(0))
     return out

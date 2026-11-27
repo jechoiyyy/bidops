@@ -66,7 +66,7 @@ class AttachmentFetch(Base):
         ),
         CheckConstraint(
             "eligibility_reason IN ('sw_business_object','tracked_order_plan','both',"
-            "'priority_grade')",
+            "'priority_grade','engine_review_request')",
             name="ck_attachment_fetch_eligibility_reason",
         ),
         CheckConstraint(
@@ -3003,13 +3003,22 @@ class EngineRun(Base):
         UniqueConstraint("request_id", name="uq_engine_run_request"),
         CheckConstraint("status IN ('queued','running','completed','partial','failed')", name="ck_engine_run_status"),
         CheckConstraint("quality_status = 'mock_reference'", name="ck_engine_run_quality"),
+        CheckConstraint(
+            "(company_id IS NOT NULL AND profile_version_id IS NOT NULL AND "
+            "company_bundle_slug IS NULL AND company_bundle_sha256 IS NULL) OR "
+            "(company_id IS NULL AND profile_version_id IS NULL AND "
+            "company_bundle_slug IS NOT NULL AND company_bundle_sha256 IS NOT NULL)",
+            name="ck_engine_run_company_scope",
+        ),
     )
     id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
     request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
-    company_id: Mapped[uuid_module.UUID] = mapped_column(_fk("company.id", ondelete="RESTRICT"), nullable=False)
+    company_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("company.id", ondelete="RESTRICT"), nullable=True)
     notice_id: Mapped[int] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), nullable=False)
     bundle_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_bundle.id", ondelete="RESTRICT"), nullable=False)
-    profile_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("profile_version.id", ondelete="RESTRICT"), nullable=False)
+    profile_version_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("profile_version.id", ondelete="RESTRICT"), nullable=True)
+    company_bundle_slug: Mapped[str | None] = mapped_column(Text)
+    company_bundle_sha256: Mapped[str | None] = mapped_column(String(64))
     engine_version: Mapped[str] = mapped_column(String(64), nullable=False)
     quality_status: Mapped[str] = mapped_column(String(32), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -3066,3 +3075,77 @@ class CompanyWikiIngestRun(Base):
     decided_at: Mapped[datetime | None] = mapped_column(AwareDateTime())
     applied_at: Mapped[datetime | None] = mapped_column(AwareDateTime())
     heartbeat_at: Mapped[datetime | None] = mapped_column(AwareDateTime())
+
+
+class EngineReviewRequest(Base):
+    __tablename__ = "engine_review_request"
+    __table_args__ = (
+        CheckConstraint("origin IN ('tracking_start','manual')", name="ck_engine_review_origin"),
+        CheckConstraint(
+            "(closed_at IS NULL AND closed_reason IS NULL AND closed_by IS NULL) OR "
+            "(closed_at IS NOT NULL AND closed_reason IS NOT NULL AND closed_by IS NOT NULL "
+            "AND closed_reason IN ('tracking_ended','dismissed','superseded'))",
+            name="ck_engine_review_closed",
+        ),
+        UniqueConstraint("request_id", name="uq_engine_review_request_id"),
+        Index("uq_engine_review_open_notice", "notice_id", unique=True,
+              postgresql_where=text("closed_at IS NULL"), sqlite_where=text("closed_at IS NULL")),
+    )
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    notice_id: Mapped[int] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), index=True)
+    opportunity_id: Mapped[int] = mapped_column(_fk("opportunity.id", ondelete="RESTRICT"))
+    company_bundle_slug: Mapped[str] = mapped_column(Text)
+    origin: Mapped[str] = mapped_column(String(16))
+    requested_by: Mapped[str] = mapped_column(String(128))
+    requested_at: Mapped[datetime] = mapped_column(AwareDateTime())
+    request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True))
+    closed_at: Mapped[datetime | None] = mapped_column(AwareDateTime())
+    closed_reason: Mapped[str | None] = mapped_column(String(16))
+    closed_by: Mapped[str | None] = mapped_column(String(128))
+
+
+class EngineReviewPreview(Base):
+    __tablename__ = "engine_review_preview"
+    __table_args__ = (
+        UniqueConstraint("review_request_id", "manifest_sha256", name="uq_engine_review_preview_manifest"),
+        CheckConstraint("mode IN ('mock_reference','live')", name="ck_engine_review_preview_mode"),
+        CheckConstraint("planned_calls >= 0", name="ck_engine_review_preview_calls"),
+    )
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    review_request_id: Mapped[uuid_module.UUID] = mapped_column(_fk("engine_review_request.id", ondelete="RESTRICT"))
+    bundle_id: Mapped[uuid_module.UUID] = mapped_column(_fk("document_bundle.id", ondelete="RESTRICT"))
+    manifest: Mapped[dict] = mapped_column(JSONB_COMPAT)
+    manifest_sha256: Mapped[str] = mapped_column(String(64))
+    mode: Mapped[str] = mapped_column(String(16))
+    planned_calls: Mapped[int] = mapped_column(Integer)
+    created_by: Mapped[str] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(AwareDateTime())
+    expires_at: Mapped[datetime] = mapped_column(AwareDateTime())
+
+
+class EngineReviewApproval(Base):
+    __tablename__ = "engine_review_approval"
+    __table_args__ = (
+        UniqueConstraint("preview_id", name="uq_engine_review_approved_preview"),
+        UniqueConstraint("request_id", name="uq_engine_review_approval_id"),
+        UniqueConstraint("engine_run_id", name="uq_engine_review_approved_run"),
+    )
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    preview_id: Mapped[uuid_module.UUID] = mapped_column(_fk("engine_review_preview.id", ondelete="RESTRICT"))
+    approved_by: Mapped[str] = mapped_column(String(128))
+    approved_at: Mapped[datetime] = mapped_column(AwareDateTime())
+    request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True))
+    engine_run_id: Mapped[uuid_module.UUID] = mapped_column(_fk("engine_run.id", ondelete="RESTRICT"))
+
+
+class EngineReviewAcknowledgment(Base):
+    __tablename__ = "engine_review_acknowledgment"
+    __table_args__ = (
+        UniqueConstraint("engine_run_id", name="uq_engine_review_acknowledged_run"),
+        UniqueConstraint("request_id", name="uq_engine_review_acknowledgment_id"),
+    )
+    id: Mapped[uuid_module.UUID] = _uuid_column(primary_key=True)
+    engine_run_id: Mapped[uuid_module.UUID] = mapped_column(_fk("engine_run.id", ondelete="RESTRICT"))
+    acknowledged_by: Mapped[str] = mapped_column(String(128))
+    acknowledged_at: Mapped[datetime] = mapped_column(AwareDateTime())
+    request_id: Mapped[uuid_module.UUID] = mapped_column(Uuid(as_uuid=True))

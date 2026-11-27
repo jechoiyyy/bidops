@@ -1,6 +1,6 @@
 # 외부 계약
 
-2026-10-21 기준 현재 RL 계약은 아래 색인의 브리핑(v2), 레코드 활동/노트, 카드 기반 참여 판정, 제안서 초안 문서와 각 도메인 DTO·validator를 따른다. 카드 판정 import 기본 정책은 v11, 역할·종합 출력 계약은 v3이며 과거 버전 파일·행은 보존한다. 코드 DB head는 `0041_proposal_draft`다. 계약의 존재와 실제 인수·운영 활성화는 [현황](tracking/status.md)에서 구분한다.
+2026-10-21 기준 현재 RL 계약은 아래 색인의 브리핑(v2), 레코드 활동/노트, 카드 기반 참여 판정, 제안서 초안 문서와 각 도메인 DTO·validator를 따른다. 카드 판정 import 기본 정책은 v11, 역할·종합 출력 계약은 v3이며 과거 버전 파일·행은 보존한다. 코드 DB head는 `0045_engine_review`다. 계약의 존재와 실제 인수·운영 활성화는 [현황](tracking/status.md)에서 구분한다.
 
 아래 Ollama **참조 적재** 제약은 해당 import 프로필에만 적용한다. 게이트를 통과한 Mac C-2 v5의 제품 실행·활성화는 [ADR-0072](tracking/decisions/0072-c2-mac-litellm-ollama.md)와 C-2 정책 REST 계약을 따른다.
 
@@ -35,6 +35,7 @@ C-1 `candidate_selection`의 기존 `collect-candidate.v2 / candidate_pool_all /
 | 실회사 근거·브리핑·카드 판정·제안서 | [RL](contracts/rl.md) |
 | 생애주기 목록·추적·레코드 활동/노트·입찰 delta | [생애주기 REST](contracts/lifecycle-rest.md) |
 | C-2 정책·품질 게이트·일일 스위치 | [C-2](contracts/c2.md) |
+| 사전규격 엔진 검토 요청·승인·읽음 | [엔진 검토](contracts/engine-review.md) |
 | 사전규격 개요 run·결과 | [개요 검토](contracts/prespec-overview.md) |
 | PDF snapshot·회사 핏·심층 artifact·Luna 참조 정책 | [문서·심층 검토](contracts/deep-review.md) |
 | subprocess·불변 파일·적재·DB migration | [파이프라인·DB](contracts/pipeline-db.md) |
@@ -67,7 +68,7 @@ C-1 `candidate_selection`의 기존 `collect-candidate.v2 / candidate_pool_all /
 ### 기능 스위치 `GET /api/feature-flags` (2026-11-18)
 
 - core가 소유하며 `BIDOPS_MODULES`와 무관하게 항상 있다(`/api/demo-config`와 같은 자리). 읽기 전용이고 다른 method는 405다. seed·migration·enqueue를 하지 않는다.
-- 응답: `{"schema_version":"feature-flags.v1","rl_analysis":bool,"prespec_overview":bool,"engine_analysis":bool}`. `rl_analysis`=`BIDOPS_RL_ANALYSIS_ENABLED`, `prespec_overview`=`BIDOPS_PRESPEC_OVERVIEW_ENABLED`, `engine_analysis`=`BIDOPS_ENGINE_ANALYSIS_ENABLED`(2026-11-19 추가, [엔진 실행 계약](contracts/engine-runs.md)). 값은 참·거짓뿐이며 비밀값·host·모델 이름·정책 경로를 싣지 않는다.
+- 응답: `{"schema_version":"feature-flags.v1","rl_analysis":bool,"prespec_overview":bool,"engine_analysis":bool,"engine_review":"off"|"mock_reference"|"live"}`. `rl_analysis`=`BIDOPS_RL_ANALYSIS_ENABLED`, `prespec_overview`=`BIDOPS_PRESPEC_OVERVIEW_ENABLED`, `engine_analysis`=`BIDOPS_ENGINE_ANALYSIS_ENABLED`(2026-11-19 추가, [엔진 실행 계약](contracts/engine-runs.md)). `engine_review`=`BIDOPS_ENGINE_REVIEW_MODE`([엔진 검토 계약](contracts/engine-review.md)). 비밀값·host·모델 이름·정책 경로를 싣지 않는다.
 - 소비자(관리 화면)는 `false`인 기능을 요청 전에 "이 환경에서 꺼져 있음"으로 보이고 요청 control을 막는다(설계고도화안 C-4). `true`는 그 기능의 다른 전제(실회사 등록·정책 행·전송 승인)가 갖춰졌다는 뜻이 아니며 각 API는 지금처럼 fail closed한다. 조회에 실패하면 화면은 켜져 있다고 가정하지 않고 기존 오류 경로를 그대로 쓴다.
 
 ### 목록 검색 `q`
@@ -99,7 +100,7 @@ C-1 `candidate_selection`의 기존 `collect-candidate.v2 / candidate_pool_all /
 run 행이 아직 없으면 `null`이다(개요 검토 미시작). `overview_status_counts`(추가)는
 `{status, count}[]`로, 10개 계약값과 `status=null`(run 행 없음) 총 11개 항목이 이 목록 조회의
 필터(`sw_only`·`business_division`·`origin`·`q`)는 전부 반영하되 `limit`/`offset`과 무관하게 **필터에 일치하는 전체 건수**를 담아 항상 존재한다(건수 0인 항목도 포함). 클라이언트는 반환된 `items`(현재 페이지)만 그룹에 채우고 그룹 헤더 건수는 `overview_status_counts`를 표시해 페이지네이션과 그룹 건수 표시를 분리한다. 응답에는 object key·로컬 경로·URL을 넣지 않는다.
-  item에는 등급과 자동 문서 준비 필드 다섯이 더 있다([ADR-0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)). nullable `grade`, nullable `grade_source=screening_judgment|human_review`, 비 null `auto_preparation_status`(기본 `not_applicable`), nullable `auto_preparation_reason`, nullable `latest_deep_review_id`다. `grade`가 `null`이면 판정도 사람 정정도 없다는 뜻이고 그때 `grade_source`도 `null`이다 — 둘 중 하나만 채우거나 "없음"을 특정 등급으로 접지 않는다. `auto_preparation_status`는 `not_applicable|waiting_attachments|bundle_draft|bundle_ready|overview_running|deep_review_started|overview_settled|blocked` 여덟 값이며(2026-11-19: `overview_settled`의 옛 이름은 `deep_review_ready_for_click`이다. 저장되지 않는 파생값이라 이름만 바뀌었고 목록 술어·다음 행동은 이 값을 보지 않는다) `not_applicable`은 "대상이 아님"이지 "알 수 없음"이 아니다. `auto_preparation_reason`은 안전 코드이며 어휘는 `grade_not_priority`, `deadline_passed_untracked`(2026-11-19: 개요 플래그로 자격이 열리는 `SW사업대상=Y`이지만 의견 마감이 지났고 사업기회가 추적 중이 아니어서 자동 처리 범위 밖), `awaiting_fetch`, `no_ready_document`, `attachments_failed`(취득 행이 모두 `차단`·`실패`로 끝났고 준비된 문서가 없어 `blocked`가 된 경우), `bundle_has_blocking_issues`, `bundle_unchanged`, `human_bundle_draft`, `processing_failed`와 문서 묶음 service가 내는 안전 코드다. 2026-11-19부터 `overview_settled`는 사유 없이(`null`) 나간다 — 옛 `deep_review_ready_for_click`에 붙던 기존 자동 심층 시작 사유(`not_sw_business`, `bundle_not_auto_ready`, `overview_not_completed`, `service_unavailable`, `manual_request_required`, `company_fit_*`)는 목록 투영에 싣지 않고, 그 판단은 쓰기 경로(`maybe_auto_start_deep_review`)에만 남는다. 이 다섯 값은 저장된 열이 아니라 조회 시점의 파생값이며 공고 수와 무관한 상수 회 조회로 계산한다. 등급과 상태 필터는 아래 누적 탐색 계약에 따라 서버에서 적용한다.
+  item에는 등급과 자동 문서 준비 필드 다섯이 더 있다([ADR-0049](tracking/decisions/0049-prespec-auto-preparation-and-auto-deep-review.md)). nullable `grade`, nullable `grade_source=screening_judgment|human_review`, 비 null `auto_preparation_status`(기본 `not_applicable`), nullable `auto_preparation_reason`, nullable `latest_deep_review_id`다. `grade`가 `null`이면 판정도 사람 정정도 없다는 뜻이고 그때 `grade_source`도 `null`이다 — 둘 중 하나만 채우거나 "없음"을 특정 등급으로 접지 않는다. `auto_preparation_status`는 `not_applicable|waiting_attachments|bundle_draft|bundle_ready|overview_running|deep_review_started|overview_settled|blocked` 여덟 값이며(2026-11-19: `overview_settled`의 옛 이름은 `deep_review_ready_for_click`이다. 저장되지 않는 파생값이라 이름만 바뀌었고 목록 술어·다음 행동은 이 값을 보지 않는다) `not_applicable`은 "대상이 아님"이지 "알 수 없음"이 아니다. `auto_preparation_reason`은 안전 코드이며 어휘는 `grade_not_priority`, `deadline_passed_untracked`(2026-11-19: 개요 플래그로 자격이 열리는 `SW사업대상=Y`이지만 의견 마감이 지났고 사업기회가 추적 중이 아니어서 자동 처리 범위 밖), `awaiting_fetch`, `no_ready_document`, `engine_review_request`([열린 요청의 문서 준비](contracts/lifecycle-rest.md#결정-대기-집계와-큐-응답)), `attachments_failed`(취득 행이 모두 `차단`·`실패`로 끝났고 준비된 문서가 없어 `blocked`가 된 경우), `bundle_has_blocking_issues`, `bundle_unchanged`, `human_bundle_draft`, `processing_failed`와 문서 묶음 service가 내는 안전 코드다. 2026-11-19부터 `overview_settled`는 사유 없이(`null`) 나간다 — 옛 `deep_review_ready_for_click`에 붙던 기존 자동 심층 시작 사유(`not_sw_business`, `bundle_not_auto_ready`, `overview_not_completed`, `service_unavailable`, `manual_request_required`, `company_fit_*`)는 목록 투영에 싣지 않고, 그 판단은 쓰기 경로(`maybe_auto_start_deep_review`)에만 남는다. 이 다섯 값은 저장된 열이 아니라 조회 시점의 파생값이며 공고 수와 무관한 상수 회 조회로 계산한다. 등급과 상태 필터는 아래 누적 탐색 계약에 따라 서버에서 적용한다.
   사전규격 검토 제외 확장(PoC, additive): item에
   `review_exclusion_status=included|excluded`(비 null), `review_exclusion_actor_name`,
   `review_exclusion_reason`, `review_exclusion_changed_at`(timezone 포함 시각)을 추가한다.

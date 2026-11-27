@@ -647,3 +647,18 @@ GRANT UPDATE (status, updated_at, error_code, worker_id, heartbeat_at, requireme
     ON bidops.company_wiki_ingest_run TO worker;
 
 COMMIT;
+
+-- Engine review receipts are append-only. Requests can only be closed once.
+GRANT SELECT ON TABLE bidops.engine_review_request TO app;
+GRANT INSERT ON TABLE bidops.engine_review_request TO app;
+GRANT UPDATE (closed_at, closed_reason, closed_by) ON bidops.engine_review_request TO app;
+GRANT SELECT ON TABLE bidops.engine_review_request TO worker;
+GRANT SELECT ON TABLE bidops.engine_review_preview TO app;
+GRANT INSERT ON TABLE bidops.engine_review_preview TO app;
+GRANT SELECT ON TABLE bidops.engine_review_preview TO worker;
+GRANT SELECT ON TABLE bidops.engine_review_approval TO app;
+GRANT INSERT ON TABLE bidops.engine_review_approval TO app;
+GRANT SELECT ON TABLE bidops.engine_review_approval TO worker;
+GRANT SELECT ON TABLE bidops.engine_review_acknowledgment TO app;
+GRANT INSERT ON TABLE bidops.engine_review_acknowledgment TO app;
+GRANT SELECT ON TABLE bidops.engine_review_acknowledgment TO worker;

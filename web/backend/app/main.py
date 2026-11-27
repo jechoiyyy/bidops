@@ -72,6 +72,7 @@ _ROUTER_REGISTRATION: tuple[tuple[str, str], ...] = (
     ("screening", "schedule_router"),
     ("deep_review", "document_bundles_router"),
     ("deep_review", "engine_runs_router"),
+    ("deep_review", "engine_review_router"),
     ("deep_review", "company_wiki_router"),
     ("deep_review", "company_wiki_ingests_router"),
     ("deep_review", "deep_reviews_router"),
@@ -400,7 +401,7 @@ def create_app(modules=None, *, mount_frontend: bool = True) -> FastAPI:
     @application.get("/api/feature-flags", include_in_schema=False)
     def feature_flags() -> dict[str, object]:
         # 설계고도화안 C-4(2026-11-18): 꺼진 기능을 실패 뒤가 아니라 처음부터 "이 환경에서
-        # 꺼져 있음"으로 보이게 하는 읽기 전용 신호. 환경 스위치의 참·거짓만 낸다 —
+        # 꺼져 있음"으로 보이게 하는 읽기 전용 신호. 환경 스위치의 공개 값만 낸다 —
         # 비밀값·host·모델 이름·정책 경로는 싣지 않는다. 켜져 있다는 값은 그 기능의
         # 다른 전제(회사 등록·정책 행·승인)가 갖춰졌다는 뜻이 아니며, 각 API가 여전히
         # fail closed한다. 읽기는 seed·migration·enqueue를 하지 않는다.
@@ -410,6 +411,7 @@ def create_app(modules=None, *, mount_frontend: bool = True) -> FastAPI:
             "rl_analysis": bool(getattr(settings, "rl_analysis_enabled", False)),
             "prespec_overview": bool(getattr(settings, "prespec_overview_enabled", False)),
             "engine_analysis": bool(getattr(settings, "engine_analysis_enabled", False)),
+            "engine_review": getattr(settings, "engine_review_mode", "off"),
         }
 
     for owner, router_name in _ROUTER_REGISTRATION:

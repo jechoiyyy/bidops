@@ -1,0 +1,122 @@
+.engine-review-supplement {
+  min-width: 0;
+  padding: var(--spacing-1) var(--shell-canvas-inline-padding);
+  background: var(--color-background-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+}
+
+.engine-review-supplement-inner {
+  max-width: var(--shell-reading-width, none);
+  margin-inline: auto;
+}
+
+.engine-review-message {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.engine-review-saved {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.engine-review-preview-status {
+  margin: 0;
+  padding: var(--spacing-1) var(--spacing-8);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
+  overflow-wrap: anywhere;
+}
+
+.engine-review-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+}
+
+.engine-review-preview-actions .pre-specs-detail-open {
+  padding-inline: var(--spacing-2);
+  white-space: nowrap;
+}
+
+.app-shell .pre-specs-page .engine-review-decision.is-preview {
+  flex-wrap: nowrap;
+  min-height: var(--bo-k-control-row);
+  padding-block: var(--spacing-1);
+}
+
+#page-footer .engine-review-decision.is-bar {
+  flex-wrap: nowrap;
+  min-height: var(--bo-k-control-row);
+  padding: 0;
+  border: 0;
+}
+
+.engine-review-decision .workbench-decision-state {
+  column-gap: var(--spacing-2);
+  row-gap: 0;
+}
+
+.engine-review-decision .workbench-decision-status {
+  flex-wrap: nowrap;
+}
+
+.engine-review-decision .workbench-decision-actions {
+  flex: 0 0 auto;
+}
+
+.engine-review-decision .workbench-decision-note {
+  flex-basis: 100%;
+  line-height: 1.5;
+}
+
+.bulk-dialog.engine-review-preview {
+  min-height: 0;
+}
+
+.engine-review-preview > :not(.bulk-dialog-body) {
+  flex-shrink: 0;
+}
+
+.engine-review-preview .bulk-dialog-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+/* The dialog's body line is taller than the small Astryx token. */
+.engine-review-preview .engine-review-preview-mode {
+  height: auto;
+  flex-shrink: 0;
+  padding-block: var(--spacing-0-5);
+}
+
+.engine-review-preview .facts ul,
+.engine-review-preview-details ul {
+  margin: 0;
+  padding-inline-start: var(--spacing-4);
+}
+
+.engine-review-preview-details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.engine-review-preview-details > :is(p, ul):not(:first-child) {
+  margin-block-start: var(--spacing-2);
+}
+
+#page-footer .is-engine-review-result .ps-decision-bar-choices {
+  width: clamp(185px, 16vw, 240px);
+}
+
+#page-footer .is-engine-review-result.is-decide .ps-decision-bar-reason-field > * {
+  width: clamp(150px, 13vw, 200px);
+}

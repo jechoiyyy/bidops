@@ -3,7 +3,11 @@
 import re
 from pathlib import Path
 
+import pytest
 import yaml
+from pydantic import ValidationError
+
+from app.core.config import Settings
 
 
 ROOT = Path(__file__).parents[4]
@@ -360,6 +364,39 @@ def test_non_http_workers_disable_the_shared_web_image_healthcheck():
     compose = yaml.safe_load((ROOT / "docker/docker-compose.yml").read_text(encoding="utf-8"))
     for name in ("document-worker", "analysis-worker"):
         assert compose["services"][name]["healthcheck"] == {"disable": True}
+
+
+def test_engine_review_switches_are_shared_and_production_identity_is_fixed():
+    base = yaml.safe_load((ROOT / "docker/docker-compose.yml").read_text(encoding="utf-8"))
+    prod = yaml.safe_load((ROOT / "docker/docker-compose.prod.yml").read_text(encoding="utf-8"))
+    for name in ("web", "analysis-worker"):
+        environment = base["services"][name]["environment"]
+        assert environment["BIDOPS_ENGINE_REVIEW_MODE"] == "${BIDOPS_ENGINE_REVIEW_MODE:-off}"
+        assert environment["BIDOPS_ENGINE_ANALYSIS_ENABLED"] == "${BIDOPS_ENGINE_ANALYSIS_ENABLED:-false}"
+        assert prod["services"][name]["environment"]["BIDOPS_ENV"] == "prod"
+
+
+@pytest.mark.parametrize(("deployment", "mode", "reference", "error"), [
+    ("dev", "mock_reference", "true", None),
+    ("mock", "mock_reference", "true", None),
+    ("dev", "mock_reference", "false", "requires BIDOPS_REFERENCE_WORKFLOW_MODE=true"),
+    ("prod", "mock_reference", "true", "mock_reference is forbidden in prod"),
+    ("prod", "mock_reference", "false", "mock_reference is forbidden in prod"),
+    ("prod", "off", "false", None),
+    ("prod", "live", "false", None),
+])
+def test_engine_review_startup_validation(monkeypatch, deployment, mode, reference, error):
+    monkeypatch.setenv("BIDOPS_ENV", deployment)
+    monkeypatch.setenv("BIDOPS_ENGINE_REVIEW_MODE", mode)
+    monkeypatch.setenv("BIDOPS_ENGINE_ANALYSIS_ENABLED", "true")
+    monkeypatch.setenv("BIDOPS_REFERENCE_WORKFLOW_MODE", reference)
+    if error:
+        with pytest.raises(ValidationError, match=error):
+            Settings(_env_file=None)
+    else:
+        settings = Settings(_env_file=None)
+        assert settings.engine_review_mode == mode
+        assert settings.engine_analysis_enabled is True
 
 
 def test_mock_reference_override_has_no_model_egress_or_external_provider_gate():

@@ -1,0 +1,128 @@
+{
+  "schema_version": 2,
+  "feature": "RL-11-live-prespec-engine",
+  "phase": "review",
+  "steps": [
+    {
+      "id": "STEP-001",
+      "title": "위키 출처·사실·실적 대응 고정",
+      "model": "complex",
+      "fingerprint": "c54b863260e3a0bc00d705547e0038f9b5d161e0155aecf32d5ea27b2e2acbcc",
+      "status": "stale",
+      "updated_at": "2026-11-20T13:39:13+09:00",
+      "history": [
+        {
+          "id": "STEP-001",
+          "title": "위키 출처·사실·실적 대응 고정",
+          "model": "complex",
+          "fingerprint": "ac35dff3f79866736b631aed1d98341bf02e9e50c985e5de15dbe00dec6673ff",
+          "status": "pending",
+          "updated_at": null
+        },
+        {
+          "id": "STEP-001",
+          "title": "위키 출처·사실·실적 대응 고정",
+          "model": "complex",
+          "fingerprint": "57af34ab21de6cc0b1456ce7b64c01778f2ae74ea55b813e45a5a3b06e8f2fa9",
+          "status": "pending",
+          "updated_at": "2026-11-20T13:39:13+09:00",
+          "history": [
+            {
+              "id": "STEP-001",
+              "title": "위키 출처·사실·실적 대응 고정",
+              "model": "complex",
+              "fingerprint": "ac35dff3f79866736b631aed1d98341bf02e9e50c985e5de15dbe00dec6673ff",
+              "status": "pending",
+              "updated_at": null
+            }
+          ],
+          "note": "명세에 추가한 발견·연결 경로를 포함해 구현 착수 대기."
+        }
+      ],
+      "note": "명세에 추가한 발견·연결 경로를 포함해 구현 착수 대기."
+    },
+    {
+      "id": "STEP-002",
+      "title": "원문 정규화·장문·차단 검증",
+      "model": "complex",
+      "fingerprint": "f7381e689c916c00091ccdd05d5c703bc4453594c6dfcdb2188b74d651d4bb56",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-003",
+      "title": "승인·감사·Luna 연결",
+      "model": "complex",
+      "fingerprint": "7b1c665aa688c2fb49f98f6027ae2d2b2a9432ac83ee012009fcdebd353504e3",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-004",
+      "title": "실제 공고 비교와 표시 경로 결정",
+      "model": "complex",
+      "fingerprint": "70ae55687ed56a18bdb501cb7e5da51479e584d06fb8f3751f6d1b2ebe9be83b",
+      "status": "pending",
+      "updated_at": null
+    },
+    {
+      "id": "STEP-005",
+      "title": "상세 화면 연결·실무자 인수",
+      "model": "complex",
+      "fingerprint": "7cea5d809d1c116b1183ceb691e318742cf1a78468048f9d79cd86d9119c256b",
+      "status": "pending",
+      "updated_at": null
+    }
+  ],
+  "proof": {
+    "docs": {
+      "result": "pending"
+    },
+    "tests": {
+      "result": "pending"
+    },
+    "postgres": {
+      "result": "pending"
+    },
+    "frontend": {
+      "result": "pending"
+    },
+    "api_guard": {
+      "result": "pending"
+    },
+    "real_data_run": {
+      "result": "pending"
+    }
+  },
+  "notes": [
+    {
+      "at": "2026-11-20T13:15:09+09:00",
+      "text": "생성 (drafting)"
+    },
+    {
+      "at": "2026-11-20T13:25:42+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-11-20T13:28:12+09:00",
+      "text": "단계 → drafting: 독립 검토에서 live IPC·REST/DB·위키 승인 산출물·차단 필드·사람 인수 계약을 착수 전에 확정해야 함을 확인. 계획과 UI 설계는 작성됨."
+    },
+    {
+      "at": "2026-11-20T13:38:51+09:00",
+      "text": "plan 작업 ID 동기화"
+    },
+    {
+      "at": "2026-11-20T13:39:01+09:00",
+      "text": "단계 → review: 최종 사용자 흐름·승인 및 게시 계약·화면·인수 사례 명세 작성. 제품 구현과 실제 전송은 별도 요청 대상."
+    },
+    {
+      "at": "2026-11-20T13:39:13+09:00",
+      "text": "단계 STEP-001 pending: 명세에 추가한 발견·연결 경로를 포함해 구현 착수 대기."
+    },
+    {
+      "at": "2026-11-22T12:49:08+09:00",
+      "text": "plan 작업 ID 동기화"
+    }
+  ],
+  "updated_at": "2026-11-22T12:49:08+09:00"
+}

@@ -16,17 +16,18 @@ def _client(monkeypatch: pytest.MonkeyPatch, **settings: object) -> TestClient:
     return TestClient(main_module.create_app(modules=("lifecycle",), mount_frontend=False))
 
 
-def test_feature_flags_default_off_and_booleans_only(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_feature_flags_default_off_and_public_values_only(monkeypatch: pytest.MonkeyPatch) -> None:
     client = _client(monkeypatch)
     response = client.get("/api/feature-flags")
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-store"
-    # 설정이 없으면 꺼짐이다. 값은 참·거짓만이며 다른 키(host·모델·경로)는 없다.
+    # 설정이 없으면 꺼짐이다. 공개 스위치만 있으며 다른 키(host·모델·경로)는 없다.
     assert response.json() == {
         "schema_version": "feature-flags.v1",
         "rl_analysis": False,
         "prespec_overview": False,
         "engine_analysis": False,
+        "engine_review": "off",
     }
 
 
@@ -36,6 +37,7 @@ def test_feature_flags_reflect_environment_switches_without_leaking_settings(mon
         rl_analysis_enabled=True,
         prespec_overview_enabled=True,
         engine_analysis_enabled=True,
+        engine_review_mode="live",
         model_name="secret-model",
         g2b_api_key="secret-key",
         database_url="postgresql://user:pass@db/bidops",
@@ -47,6 +49,7 @@ def test_feature_flags_reflect_environment_switches_without_leaking_settings(mon
         "rl_analysis": True,
         "prespec_overview": True,
         "engine_analysis": True,
+        "engine_review": "live",
     }
     for secret in ("secret-model", "secret-key", "pass@db"):
         assert secret not in response.text

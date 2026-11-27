@@ -8,6 +8,24 @@
 
 현재 운영의 마지막 확인은 2026-10-19다. 아래 참조 절차의 과거 실행 상태는 현재 스위치 상태가 아니다. 신규 실행에서 당시 승인을 재사용하지 않는다.
 
+## 격리 스택의 사전규격 엔진 검토
+
+Compose는 web과 analysis-worker에 같은 `BIDOPS_ENGINE_REVIEW_MODE`와 `BIDOPS_ENGINE_ANALYSIS_ENABLED`를 전달한다. 기본값은 각각 `off`와 `false`다. mock 시운전에서는 선택한 `env/mock.env`에 아래 값을 넣는다. mock overlay가 참조 모드를 켜고 로컬 `./wiki`를 회사 묶음으로 마운트한다.
+
+```dotenv
+BIDOPS_ENGINE_REVIEW_MODE=mock_reference
+BIDOPS_ENGINE_ANALYSIS_ENABLED=true
+BIDOPS_ENGINE_COMPANY_BUNDLE_SLUG=rootlab
+```
+
+| 환경 | 허용되는 `BIDOPS_ENGINE_REVIEW_MODE` |
+|---|---|
+| dev | `off`, `live`, `mock_reference`(선택한 `env/dev.env`에 `BIDOPS_REFERENCE_WORKFLOW_MODE=true` 필요) |
+| mock | `off`, `live`, `mock_reference`(overlay가 참조 모드 설정) |
+| prod | `off`, `live`. `mock_reference`는 참조 모드가 켜져 있어도 두 서비스 모두 기동 오류 |
+
+`BIDOPS_ENGINE_ANALYSIS_ENABLED`는 세 환경에서 `false` 또는 `true`를 받는다. 목업 승인으로 만든 실행을 analysis-worker가 claim하려면 두 서비스 모두 `true`를 받아야 한다. 운영은 live 경로가 인수될 때까지 `off`와 `false`를 사용한다. 현재 `live` 미리보기와 승인은 503 `engine_live_disabled`로 닫힌다.
+
 ## 사전규격 심층 검토 참조 실행
 
 이 절은 사전규격 하나를 **수집 → 판정 → 첨부 취득 → 자동 문서 준비 → 개요 검토 → 심층

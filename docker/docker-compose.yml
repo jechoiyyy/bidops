@@ -24,6 +24,10 @@ x-clamav-env: &clamav-env
   BIDOPS_CLAMAV_PORT: "3310"
   BIDOPS_CLAMAV_TIMEOUT_SECONDS: "15"
 
+x-engine-review-env: &engine-review-env
+  BIDOPS_ENGINE_REVIEW_MODE: "${BIDOPS_ENGINE_REVIEW_MODE:-off}"
+  BIDOPS_ENGINE_ANALYSIS_ENABLED: "${BIDOPS_ENGINE_ANALYSIS_ENABLED:-false}"
+
 x-worker-database-url: &worker-database-url
   "postgresql+psycopg://worker:${BIDOPS_WORKER_PASSWORD:?set an external worker password}@postgres:5432/bidops"
 
@@ -131,7 +135,7 @@ services:
       clamav: { condition: service_started }
       document-worker: { condition: service_started }
     environment:
-      <<: [*object-store-env, *quarantine-env, *clamav-env]
+      <<: [*object-store-env, *quarantine-env, *clamav-env, *engine-review-env]
       BIDOPS_ROOT: /app
       BIDOPS_DATABASE_URL: "postgresql+psycopg://app:${BIDOPS_APP_PASSWORD:?set an external app password}@postgres:5432/bidops"
       BIDOPS_OPENAI_ENABLED: "false"
@@ -217,7 +221,7 @@ services:
       postgres: { condition: service_healthy }
       minio: { condition: service_started }
     environment:
-      <<: [*object-store-env, *clamav-env]
+      <<: [*object-store-env, *clamav-env, *engine-review-env]
       BIDOPS_ROOT: /app
       BIDOPS_DATABASE_URL: *worker-database-url
       BIDOPS_VLLM_BASE_URL: "${BIDOPS_VLLM_BASE_URL:-http://127.0.0.1:8000/v1}"

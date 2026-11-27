@@ -20,6 +20,7 @@ import { SkeletonBlock, SkeletonPanel } from "../components/common/Skeleton";
 import { PreSpecDocumentSummary, TRACKING_DECISION_STATUSES_AFTER_ANALYSIS, TrackingDecisionControl, updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
 import { OPPORTUNITY_TRACKING_REASONS } from "../components/opportunities/TrackingStatusDialog";
 import type { EngineRun } from "../lib/engineApi";
+import { useEngineReview } from "../lib/useEngineReview";
 import { PreSpecBriefingSection } from "../components/pre-specs/PreSpecBriefingSection";
 import { PreSpecVerdictColumn, usePreSpecVerdict } from "../components/pre-specs/PreSpecVerdictColumn";
 import { PreSpecAttachmentList } from "../components/pre-specs/PreSpecAttachmentList";
@@ -80,19 +81,14 @@ import "../styles/pre-spec-detail-erp.css";
 
 
 /**
- * `분석 완료` 화면(2026-11-21 시안 b1~b3)은 **mock 빌드 전용**이다. `BIDOPS_REVIEW_MOCK`이 `false`로 접히는 운영
- * 빌드에서는 아래 동적 import가 사라져 그 모듈의 코드·문구·CSS가 운영 번들에 들어가지 않는다(엔진 mock 패널과 같은 경계).
+ * 분석 결과 화면(2026-11-21 시안 b1~b3, 작업대 2026-11-25)은 지연 로드한다. 운영에서는 엔진 검토(ADR-0078)의
+ * `current_result`가 있을 때만 그린다. 회사 mock probe는 mock·포트폴리오 빌드 전용이며 운영 번들에 들어가지 않는다.
  */
-// Portfolio build (BIDOPS_PORTFOLIO_ANALYSIS) also compiles this view, but not the engine mock panel below.
-const loadAnalysisView = import.meta.env.BIDOPS_REVIEW_MOCK || import.meta.env.BIDOPS_PORTFOLIO_ANALYSIS
-  ? () => import("../components/pre-spec-analysis/PreSpecAnalysisView")
-  : null;
-const PreSpecEngineAnalysisProbe = loadAnalysisView
+const loadAnalysisView = () => import("../components/pre-spec-analysis/PreSpecAnalysisView");
+const PreSpecEngineAnalysisProbe = import.meta.env.BIDOPS_REVIEW_MOCK || import.meta.env.BIDOPS_PORTFOLIO_ANALYSIS
   ? lazy(() => loadAnalysisView().then((module) => ({ default: module.PreSpecEngineAnalysisProbe })))
   : null;
-const PreSpecAnalysisWorkbench = loadAnalysisView
-  ? lazy(() => loadAnalysisView().then((module) => ({ default: module.PreSpecAnalysisWorkbench })))
-  : null;
+const PreSpecAnalysisWorkbench = lazy(() => loadAnalysisView().then((module) => ({ default: module.PreSpecAnalysisWorkbench })));
 
 function recordDateTime(value: string | null): string {
   if (!value || Number.isNaN(Date.parse(value))) return "미확인";
@@ -275,20 +271,22 @@ function PreSpecTrackingBar({
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const onSaved = (saved: OpportunityDetailResponse) => {
-    queryClient.setQueryData<PreSpecListResponse>(
-      ["pre-spec-detail", noticeId],
-      (current) => updateTrackingProjection(current, noticeId, saved),
-    );
-    queryClient.setQueriesData<PreSpecListResponse>(
-      { queryKey: ["pre-specs"] },
-      (current) => updateTrackingProjection(current, noticeId, saved),
-    );
-    void queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", noticeId] });
-    void queryClient.invalidateQueries({ queryKey: ["pre-specs"] });
+  const onSaved = (saved: OpportunityDetailResponse, engineStart?: "requested" | "failed") => {
+    if (engineStart !== "requested") {
+      queryClient.setQueryData<PreSpecListResponse>(
+        ["pre-spec-detail", noticeId],
+        (current) => updateTrackingProjection(current, noticeId, saved),
+      );
+      queryClient.setQueriesData<PreSpecListResponse>(
+        { queryKey: ["pre-specs"] },
+        (current) => updateTrackingProjection(current, noticeId, saved),
+      );
+      void queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", noticeId] });
+      void queryClient.invalidateQueries({ queryKey: ["pre-specs"] });
+    }
     void queryClient.invalidateQueries({ queryKey: ["opportunity", saved.id] });
     const review = readPreSpecSelectionReview(params.toString(), noticeId);
-    if (review && window.location.pathname === `/pre-specs/${noticeId}` &&
+    if (!engineStart && review && window.location.pathname === `/pre-specs/${noticeId}` &&
         new URLSearchParams(window.location.search).toString() === params.toString()) {
       const next = review.orderedNoticeIds[review.orderedNoticeIds.indexOf(noticeId) + 1];
       if (next !== undefined) navigate(preSpecDetailUrl(next, review.listSearch, review.reviewId));
@@ -296,26 +294,27 @@ function PreSpecTrackingBar({
   };
   return (
     <PageFooterBar>
-      <div className="ps-decision-bar" data-astryx-theme="bidops" role="region" aria-label="추적 결정">
-        <div className="ps-decision-bar-inner" id="ps-tracking-bar">
-          <InternationalizationProvider locale="ko-KR" messages={{ "ko-KR": koKR }}>
-            <TrackingDecisionControl
-              key={`${noticeId}:${afterAnalysis ? "after-analysis" : "before-analysis"}`}
-              compact
-              presentation="bar"
-              noticeNumber={noticeNumber}
-              // 세 상태를 고르는 자리는 사업기회 추적 상태 변경과 같은 사유 예시를 쓴다(상태별로 나누지 않는 한 목록).
-              reasonPresets={afterAnalysis ? OPPORTUNITY_TRACKING_REASONS : undefined}
-              barStatuses={afterAnalysis ? TRACKING_DECISION_STATUSES_AFTER_ANALYSIS : undefined}
-              item={item}
-              isPending={isPending}
-              isError={isError}
-              onRetry={onRetry}
-              onSaved={onSaved}
-            />
-          </InternationalizationProvider>
-        </div>
-      </div>
+      <InternationalizationProvider locale="ko-KR" messages={{ "ko-KR": koKR }}>
+        <TrackingDecisionControl
+          key={`${noticeId}:${afterAnalysis ? "after-analysis" : "before-analysis"}`}
+          compact
+          presentation="bar"
+          noticeNumber={noticeNumber}
+          // 세 상태를 고르는 자리는 사업기회 추적 상태 변경과 같은 사유 예시를 쓴다(상태별로 나누지 않는 한 목록).
+          reasonPresets={OPPORTUNITY_TRACKING_REASONS}
+          barStatuses={afterAnalysis ? TRACKING_DECISION_STATUSES_AFTER_ANALYSIS : undefined}
+          item={item}
+          isPending={isPending}
+          isError={isError}
+          onRetry={onRetry}
+          onSaved={onSaved}
+          wrapBar={(bar) => (
+            <div className="ps-decision-bar" data-astryx-theme="bidops" role="region" aria-label="추적 결정">
+              <div className="ps-decision-bar-inner" id="ps-tracking-bar">{bar}</div>
+            </div>
+          )}
+        />
+      </InternationalizationProvider>
     </PageFooterBar>
   );
 }
@@ -476,10 +475,14 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
   const pendingScrollRef = useRef<string | null>(null);
   // 개요 입력 범위가 이미 정해진 건의 범위 확인(절 후보 표)은 눌렀을 때만 연다.
   const [rangeOpen, setRangeOpen] = useState(false);
-  // 분석 완료 화면(mock 빌드 전용): 최신 엔진 run이 완료·부분 완료이고 `analysis`가 있으면 그 run이다.
-  const [engineRun, setEngineRun] = useState<EngineRun | null>(null);
+  // 회사 mock probe(mock·포트폴리오 빌드 전용)가 찾은 최신 엔진 run. 엔진 검토가 켜진 환경에서는 쓰지 않는다.
+  const [companyMockRun, setCompanyMockRun] = useState<EngineRun | null>(null);
   // 개요 자동 검토가 이 환경에서 꺼져 있으면 실행 기록이 없는 이유를 먼저 말한다(설계고도화안 C-4).
-  const overviewFeature = useFeatureFlags().state("prespec_overview");
+  const flags = useFeatureFlags();
+  const engineReviewEnabled = flags.engineReviewMode !== "off";
+  const engineReview = useEngineReview(noticeId, engineReviewEnabled && projectionItem !== undefined, false);
+  const engineRun = engineReviewEnabled ? engineReview.data?.current_result ?? null : companyMockRun;
+  const overviewFeature = flags.state("prespec_overview");
   const overviewOff = overviewFeature === "off";
   // 문제 상태에서 열린 `처리 상태·기술 정보`는 관련 블록만 먼저 보이고 나머지는 이 토글 뒤에 둔다(시안 c `?open=1`).
   // 조건부 렌더링이다 — 안의 문서 준비 패널은 닫힌 동안 그리지 않는다(Astryx `Collapsible`을 쓰지 않는 이유와 같다).
@@ -692,7 +695,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
   const preliminary = preSpecItem?.display_assessment.source === "preliminary_assessment" ? preSpecItem.display_assessment : null;
   const relevanceVisible = verdict.hasValue || currentCompanyFitAttempt !== null || preliminary !== null;
   // 분석 완료 화면(mock 빌드 전용). 회사 관련성 참고 구역은 이 화면의 구성(시안 b)에 없으므로 처리 상태 안으로 간다.
-  const analysisView = engineRun !== null && PreSpecAnalysisWorkbench !== null;
+  const analysisView = engineRun?.analysis != null;
   const showRelevanceSection = relevanceVisible && !analysisView;
   // `처리 상태·기술 정보` 제목 줄 오른쪽 요약 한 줄. 서버 상태 이름을 그대로 잇고 새 판단을 만들지 않는다.
   // 문제 상태에서는 멈춘 단계를 말로 적는다(안내와 같은 표). 꺼진 기능 표시는 그대로 붙는다.
@@ -1049,12 +1052,13 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
 
   return (
     <Fragment>
-      {PreSpecEngineAnalysisProbe ? (
-        <Suspense fallback={null}><PreSpecEngineAnalysisProbe noticeId={noticeId} onChange={setEngineRun} /></Suspense>
+      {PreSpecEngineAnalysisProbe && flags.settled && !engineReviewEnabled ? (
+        <Suspense fallback={null}><PreSpecEngineAnalysisProbe noticeId={noticeId} onChange={setCompanyMockRun} /></Suspense>
       ) : null}
-      {analysisView && engineRun && PreSpecAnalysisWorkbench ? (
+      {analysisView && engineRun ? (
         <Suspense fallback={<SkeletonPanel label="분석 결과를 불러오는 중" lines={4} />}>
           <PreSpecAnalysisWorkbench run={engineRun} notice={notice} item={preSpecItem}
+            canAcknowledge={engineReviewEnabled && engineReview.data?.state === "result_ready" && engineReview.data.next_action === "review_result"}
             shown={pageOverviewValid ? currentResult : null}
             overviewUnavailable={pageOverviewQuery.isPending ? "사업 개요를 불러오는 중이에요."
               : !pageOverviewValid ? "사업 개요를 불러오지 못했어요."
@@ -1249,7 +1253,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
         isPending={preSpecProjectionQuery.isPending}
         isError={preSpecProjectionQuery.isError}
         onRetry={() => { void preSpecProjectionQuery.refetch(); }}
-        afterAnalysis={analysisView}
+        afterAnalysis={analysisView && !engineReviewEnabled}
       />
     </Fragment>
   );

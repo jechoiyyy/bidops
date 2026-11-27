@@ -38,6 +38,7 @@ import {
   validObservedDate, validOverviewView, validSort, validTrackingDecision, validTrackingStatus,
   validWorkspace, workspaceOf, type WorkspaceKey,
 } from "../lib/preSpecViews";
+import { refreshEngineReviewAfterRequests } from "../lib/useEngineReview";
 import { PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL } from "../lib/preSpecAutoPreparation";
 import { PreSpecBulkDialog, type PreSpecBulkAction } from "../components/pre-specs/PreSpecBulkDialog";
 import { PreSpecDetail } from "../components/pre-specs/PreSpecListDetailPane";
@@ -233,6 +234,8 @@ export function PreSpecsPage() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [selectionMessage, setSelectionMessage] = useState<string | null>(null);
   const [selectedPk, setSelectedPk] = useState<number | null>(null);
+  const activePreview = useRef<number | null>(null);
+  activePreview.current = selectedPk;
   const listRef = useRef<HTMLDivElement | null>(null);
   const scrollRestoredRef = useRef(false);
   const boundaryLandingRef = useRef<{ offset: number; direction: "next" | "previous" } | null>(null);
@@ -535,7 +538,7 @@ export function PreSpecsPage() {
     });
   }
 
-  async function bulkSaved(ids: number[], message?: string) {
+  async function bulkSaved(ids: number[], message?: string, requestedIds: number[] = []) {
     setSelectionMessage(message ?? null);
     exclusionLanding.current = { offset, active: selectedPk, index: items.findIndex((item) => item.notice_pk === selectedPk), order: itemKeys };
     selection.applyResult(ids, bulkTarget?.generation);
@@ -543,13 +546,15 @@ export function PreSpecsPage() {
     // Remove the discarded tracking draft even when the active row remains visible.
     setTrackingFormVersion((version) => version + 1);
     setBulkTarget(null);
+    const requested = new Set(requestedIds);
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["pre-specs"] }),
+      requested.size > 0 ? refreshEngineReviewAfterRequests(queryClient, requestedIds)
+        : queryClient.invalidateQueries({ queryKey: ["pre-specs"] }),
       ...(bulkTarget?.status === "track" ? [
         queryClient.invalidateQueries({ queryKey: ["opportunity"] }),
         queryClient.invalidateQueries({ queryKey: ["opportunities"] }),
       ] : []),
-      ...ids.map((id) => queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", id] })),
+      ...ids.filter((id) => !requested.has(id)).map((id) => queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", id] })),
     ]);
   }
 
@@ -1094,19 +1099,29 @@ export function PreSpecsPage() {
                   listSearch={listSearch}
                   onOpenDetail={() => openDetail(selectedItem.notice_pk)}
                   onDirtyChange={setTrackingDirty}
-                  onSaved={(saved) => {
+                  onSaved={(saved, engineStart) => {
                     const noticePk = selectedItem.notice_pk;
-                    queryClient.setQueryData<PreSpecListResponse>(
-                      ["pre-spec-detail", noticePk],
-                      (current) => updateTrackingProjection(current, noticePk, saved),
-                    );
-                    queryClient.setQueriesData<PreSpecListResponse>(
-                      { queryKey: ["pre-specs"] },
-                      (current) => updateTrackingProjection(current, noticePk, saved),
-                    );
+                    if (engineStart !== "requested") {
+                      queryClient.setQueryData<PreSpecListResponse>(
+                        ["pre-spec-detail", noticePk],
+                        (current) => updateTrackingProjection(current, noticePk, saved),
+                      );
+                      queryClient.setQueriesData<PreSpecListResponse>(
+                        { queryKey: ["pre-specs"] },
+                        (current) => updateTrackingProjection(current, noticePk, saved),
+                      );
+                      void queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", noticePk] });
+                      void queryClient.invalidateQueries({ queryKey: ["pre-specs"] });
+                    }
                     void queryClient.invalidateQueries({ queryKey: ["pre-spec-overview-pages", noticePk] });
-                    void queryClient.invalidateQueries({ queryKey: ["pre-spec-detail", noticePk] });
-                    void queryClient.invalidateQueries({ queryKey: ["pre-specs"] });
+                    const leavesView = workspace === "actionable" || workspace === "needs_check"
+                      || trackingDecision === "pending" || (trackingStatus && trackingStatus !== "계속 추적");
+                    if (engineStart === "failed" && leavesView && activePreview.current === noticePk
+                        && window.location.pathname === "/pre-specs"
+                        && new URLSearchParams(window.location.search).toString() === searchParams.toString()) {
+                      // 저장된 건은 미결정 보기를 떠난다. 같은 공고의 띠에 요청 재시도를 남긴다.
+                      navigate(preSpecDetailUrl(noticePk, listSearch));
+                    }
                     void queryClient.invalidateQueries({ queryKey: ["opportunity", saved.id] });
                   }}
                 />

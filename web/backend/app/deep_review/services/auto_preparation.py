@@ -73,6 +73,7 @@ OPERATOR_LOCAL_ORIGINAL_TRIGGER = "operator_local_original"
 #: RL-03 브리핑 추천 준비 촉발(결정 B18). RL 분석이 켜져 있고 추천을 받은 SW=Y 사전규격일
 #: 때만 묶음 생성의 등급 자격을 건너뛴다(안전 검사·확정 fence는 그대로).
 BRIEFING_RECOMMENDATION_TRIGGER = "briefing_recommendation"
+ENGINE_REVIEW_REQUEST_TRIGGER = "engine_review_request"
 
 #: 자동 확정만 남기는 감사 이벤트 (명세 §8).
 AUTO_CONFIRM_ACTION = "document_bundle.auto_confirm"
@@ -791,6 +792,10 @@ def maybe_auto_prepare(
                     ).distinct()
                 ).all())
             eligible = frozenset(eligible | briefing_only)
+        from .engine_review_scope import open_review_notice_ids
+
+        requested_only = open_review_notice_ids(session, set(pre_spec_ids) - eligible)
+        eligible = frozenset(eligible | requested_only)
         if trigger == OPERATOR_LOCAL_ORIGINAL_TRIGGER:
             eligible = frozenset(eligible | set(pre_spec_ids))
     except Exception:
@@ -840,7 +845,9 @@ def maybe_auto_prepare(
                             review_id=review_id,
                             deep_review_service=deep_review_service,
                             trigger=trigger or (
-                                "briefing_recommendation" if notice_id in briefing_trigger else None
+                                BRIEFING_RECOMMENDATION_TRIGGER if notice_id in briefing_trigger
+                                else ENGINE_REVIEW_REQUEST_TRIGGER if notice_id in requested_only
+                                else None
                             ),
                             rl_verdict_settings=rl_verdict_settings,
                             rl_verdict_now=rl_verdict_now,
@@ -850,6 +857,8 @@ def maybe_auto_prepare(
                                 # briefing_only = 추천받은 SW=Y 사전규격 중 등급 자격이 없던 것
                                 else BRIEFING_RECOMMENDATION_TRIGGER
                                 if rl_enabled and notice_id in briefing_trigger
+                                else ENGINE_REVIEW_REQUEST_TRIGGER
+                                if notice_id in requested_only
                                 else None
                             ),
                         )
@@ -901,6 +910,7 @@ def _status_for(
     has_ready_document: bool = False,
     is_eligible: bool | None = None,
     out_of_auto_scope: bool = False,
+    eligible_by_engine_request: bool = False,
 ) -> tuple[str, str | None]:
     """(`auto_preparation_status`, `auto_preparation_reason`)를 정한다.
 
@@ -916,7 +926,8 @@ def _status_for(
     판정을 쓰도록 호출부가 그 helper의 결과를 그대로 넘긴다. ``None``이면 등급만
     보는 기본 규칙(개요 플래그 off와 같은 판정)으로 되돌아간다. `out_of_auto_scope`는
     같은 helper가 "자동 처리 범위 밖"으로 뺀 공고이며 사유를
-    `deadline_passed_untracked`로 바꾼다.
+    `deadline_passed_untracked`로 바꾼다. 열린 엔진 요청은 문서 준비 자격을
+    별도로 열며, 취득 상태나 묶음으로 설명할 수 없을 때 그 요청을 사유로 표시한다.
 
     `attachments_failed`는 "취득 행이 하나 이상 있고 모두 종결됐으며 그중
     `차단`·`실패`가 있다"이고, `has_ready_document`는 safe·구조 준비 문서가
@@ -953,7 +964,7 @@ def _status_for(
         if is_eligible is not None
         else (grade is not None and grade.is_priority)
     )
-    if not eligible:
+    if not eligible and not eligible_by_engine_request:
         if out_of_auto_scope:
             return "not_applicable", REASON_DEADLINE_PASSED_UNTRACKED
         return "not_applicable", REASON_GRADE_NOT_PRIORITY
@@ -963,7 +974,9 @@ def _status_for(
         # 취득이 전부 끝났는데 쓸 문서가 없다. 운영자가 "기다리는 중"으로
         # 읽지 않도록 멈춘 상태로 보여 준다.
         return "blocked", REASON_ATTACHMENTS_FAILED
-    return "waiting_attachments", REASON_NO_READY_DOCUMENT
+    return "waiting_attachments", (
+        ENGINE_REVIEW_REQUEST_TRIGGER if eligible_by_engine_request else REASON_NO_READY_DOCUMENT
+    )
 
 
 def auto_preparation_fields(
@@ -988,7 +1001,9 @@ def auto_preparation_fields(
     # 목록이 말하는 상태와 실제 준비 결과가 갈리지 않도록 자격은 쓰기 경로와
     # **같은 helper**가 판정한다 (MVP 완화·자동 처리 범위 포함).
     eligibility = overview_eligibility(session, ids, grades=grades)
-    eligible_ids = eligibility.eligible
+    from .engine_review_scope import open_review_notice_ids
+
+    engine_request_only_ids = open_review_notice_ids(session, set(ids) - eligibility.eligible)
 
     # 같은 한 번의 순회로 두 가지를 센다: 아직 끝나지 않은 취득 행이 있는가와,
     # 취득 행이 전부 종결됐는데 그중 `차단`·`실패`가 있는가. 두 번째가 있으면
@@ -1084,8 +1099,9 @@ def auto_preparation_fields(
             has_pending_fetch=notice_id in pending_by_notice,
             attachments_failed=notice_id in failed_only_by_notice,
             has_ready_document=notice_id in ready_document_notices,
-            is_eligible=notice_id in eligible_ids,
+            is_eligible=notice_id in eligibility.eligible,
             out_of_auto_scope=notice_id in eligibility.out_of_auto_scope,
+            eligible_by_engine_request=notice_id in engine_request_only_ids,
         )
         fields[notice_id] = {
             # 판정도 정정도 없으면 `None`이다. 0이나 특정 등급으로 접지 않는다.

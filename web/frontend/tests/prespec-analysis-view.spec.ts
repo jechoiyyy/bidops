@@ -321,3 +321,19 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     expect(Math.max(geometry.page, geometry.canvas, geometry.list)).toBeLessThanOrEqual(1);
   });
 }
+
+test("엔진이 읽은 요구사항이 총괄표보다 적으면 요구사항 구역에 빠진 수를 알린다", async ({ page }) => {
+  await mockApi(page);
+  const run = await mockEngineAnalysis(page, "completed", NOTICE_ID);
+  // R26BD00305325: 상세표 ID가 `SFR - 001`처럼 적혀 엔진이 총괄표 60건 중 4건만 읽었던 사례.
+  run.analysis!.requirement_counts = { source_found: 4, analysis_input: 4, source_expected: 60 };
+  await page.goto(`/pre-specs/${NOTICE_ID}#s-reqs`);
+  const warning = page.locator("#s-reqs .paw-req-warn");
+  await expect(warning).toHaveText("문서의 요구사항 총괄표에는 60건이 있는데 엔진은 4건만 읽었어요. 빠진 56건은 판정되지 않았으니 원문에서 확인하세요.");
+  await expect(warning).toHaveAttribute("role", "status");
+});
+
+test("총괄표 기대 수가 없거나 읽은 수가 같으면 빠진 수 알림이 없다", async ({ page }) => {
+  await openAnalysis(page, "#s-reqs");
+  await expect(page.locator("#s-reqs .paw-req-warn")).toHaveCount(0);
+});

@@ -10,6 +10,7 @@ provenance, triggers and the append-only policy table.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from copy import deepcopy
 import json
 import logging
@@ -514,9 +515,19 @@ def _expect(engine, statement_or_patch, match: str, *, row_id: UUID | None = Non
                 _copy_attempt(connection, row_id, statement_or_patch)
 
 
+@contextmanager
+def _isolated_company_fit_settings():
+    try:
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            yield monkeypatch
+    finally:
+        # Restore the environment before invalidating the cached demo settings.
+        get_settings.cache_clear()
+
+
 @requires_postgres
-def test_pg_0036_constraints_triggers_and_policy_immutability(monkeypatch) -> None:
-    with migrated_engine() as engine:
+def test_pg_0036_constraints_triggers_and_policy_immutability() -> None:
+    with _isolated_company_fit_settings() as monkeypatch, migrated_engine() as engine:
         with Session(engine) as session:
             world = build_world(session, monkeypatch)
             other = import_company(session, "demo-public-si")
@@ -527,7 +538,6 @@ def test_pg_0036_constraints_triggers_and_policy_immutability(monkeypatch) -> No
             session.commit()
             row_id = row.id
             assert session.scalar(text("SELECT version_num FROM bidops.alembic_version")) == ALEMBIC_HEAD
-            assert ALEMBIC_HEAD == "0044_company_fit_card_lineage"
 
             # A consistent copy is accepted (sanity for the helpers below).
             with engine.begin() as connection:
@@ -615,7 +625,6 @@ def test_pg_0036_constraints_triggers_and_policy_immutability(monkeypatch) -> No
                 "SELECT column_name FROM information_schema.columns WHERE table_schema = 'bidops' "
                 "AND table_name = 'deep_review_approval'")))
             assert "company_id" in approval_columns
-        get_settings.cache_clear()
 
 
 @requires_postgres

@@ -8,7 +8,7 @@ import type {
   OrderPlanListItem, OrderPlanListResponse, OrderPlanListScope, OrderPlanScreeningExecutionSummary, OrderPlanScreeningErrorCode,
   OrderPlanTracking, OrderPlanBulkPreviewResponse, OrderPlanBulkStartResponse, OrderPlanBulkEndResponse,
   OverviewEnvelope, OverviewRun, PractitionerVerdictView, PreSpecDisplayAssessment, ProposalDraft, ProposalSectionKey, PreSpecListItem, PreSpecOrderPlanCandidatesResponse,
-  RunSummary, WorkloadKey, WorkloadResponse,
+  EngineReviewMode, OpportunityDetailResponse, RunSummary, WorkloadKey, WorkloadResponse,
 } from "../src/lib/types";
 import { searchKey, searchMatches } from "../src/lib/search";
 import { currentKstMonth, isJudgmentFailure, orderPlanUnjudgedKind } from "../src/components/order-plans/orderPlanReviewFacts";
@@ -58,6 +58,9 @@ import {
 import { RL_COMPANY_ID, rlAttentionCount, rlContextView, rlFacts, rlProfileView, type RlFact } from "./fixtures/company-rl";
 import { analysisOverviewResult, analysisPageText, analysisWikiProject, DOCUMENT_VERSION_ID, engineAnalysisRunFixture } from "./fixtures/engine-analysis";
 import type { EngineRun } from "../src/lib/engineApi";
+import type {
+  EngineReviewBatchResult, EngineReviewPreview, EngineReviewResult, EngineReviewState, EngineReviewView,
+} from "../src/lib/engineReviewApi";
 import { briefingFixture, previousBriefingFixture } from "./fixtures/briefing";
 import { NOTICE_FIXTURES, RECORD_FIXTURES, RECORD_NOW, RELATED_BY_NOTICE, type RecordFixture } from "./fixtures/opportunity-record";
 import { VERDICT_COMPANY_ID, noneView, pageBlocks, runningView } from "./fixtures/verdict";
@@ -103,7 +106,7 @@ const WORKLOAD_KEYS: WorkloadKey[] = [
   "order_plan_pending", "pre_spec_actionable", "pre_spec_needs_check", "tracking_action_required",
   "tracking_hold_review_due", "bid_final_decision_pending", "tracking_deadline_imminent",
   "human_check_required", "overview_human_review", "blocking_items_open", "order_plan_new_priority",
-  "company_attention", "briefing_pending",
+  "company_attention", "briefing_pending", "engine_approval_pending", "engine_result_pending",
 ];
 function workloadResponse(page: Page): WorkloadResponse {
   const providers = workloadProviders.get(page);
@@ -2153,7 +2156,12 @@ export const inheritedPreSpecOpportunity = {
   tracking_selected_at: "2026-08-20T09:00:00Z",
 };
 
-export async function mockPreSpecs(page: Page): Promise<void> {
+export async function mockPreSpecs(page: Page, options?: {
+  items: readonly PreSpecListItem[];
+  tracking: ReadonlyMap<number, OpportunityTrackingStatus>;
+  preparation?: ReadonlyMap<number, Pick<PreSpecListItem, "auto_preparation_status" | "auto_preparation_reason">>;
+}): Promise<void> {
+  const fixtures = options?.items ?? visualPreSpecItems;
   let currentTrackingStatus = visualPreSpecItems[0].tracking_status;
   // 헤더의 수집 상태(공고 트랙). spec이 `mockDailyCollectionStatus`로 덮을 수 있게 먼저 건다.
   await page.route("**/api/daily-collection-status", (route) => fulfillJson(route, dailyCollectionStatusResponse()));
@@ -2207,8 +2215,17 @@ export async function mockPreSpecs(page: Page): Promise<void> {
       const fitSwitch = companyFitSwitch(page);
       // 표본 공고는 상세(`notice_pk`) 조회에는 언제나 답한다. 목록 전체에는 스위치가 켜졌을 때만 든다.
       const fitSamples = fitSwitch !== null || url.searchParams.has("notice_pk") ? companyFitListItems : [];
-      const candidateItems = [...visualPreSpecItems, ...fitSamples]
-        .map((item) => item.notice_pk === 991 ? { ...item, tracking_status: opportunityFixtures.get(page)?.find((entry) => entry.id === 202)?.tracking_status ?? currentTrackingStatus } : item)
+      const candidateItems = [...fixtures, ...(options ? [] : fitSamples)]
+        .map((item) => {
+          if (options) return {
+            ...item,
+            ...options.preparation?.get(item.notice_pk),
+            tracking_status: options.tracking.get(item.notice_pk) ?? item.tracking_status,
+          };
+          return item.notice_pk === 991
+            ? { ...item, tracking_status: opportunityFixtures.get(page)?.find((entry) => entry.id === 202)?.tracking_status ?? currentTrackingStatus }
+            : item;
+        })
         .map((item) => withCompanyFitSwitch(item, fitSwitch))
         .filter((item) => !url.searchParams.has("notice_pk") || item.notice_pk === requestedNoticePk)
         .filter((item) => !companyFitFilter || (item.company_fit?.group ?? "pending") === companyFitFilter)
@@ -5163,7 +5180,7 @@ export async function mockOpportunityRecord(page: Page): Promise<OpportunityReco
 //   기본키"). 공용 회차 목록 뒤에 덧붙여 다른 화면의 기본 회차를 바꾸지 않는다.
 // - 실행: `GET /api/order-plan-screening/executions?source_run_id=`의 `execution-list-response.v2`.
 //   항목 모양은 `c2Execution`(screening `ExecutionSummary`와 같은 필드)이다.
-// - 기능 스위치: `app/main.py` `GET /api/feature-flags`와 같은 세 키다.
+// - 기능 스위치: `app/main.py`의 `GET /api/feature-flags` 응답과 같은 키다.
 // ─────────────────────────────────────────────────────────────────────────
 
 export function dailyPlanRunFixture(basisDate: string, generatedAt: string): RunSummary {
@@ -5216,8 +5233,8 @@ export async function mockDailyPlanRuns(
   });
 }
 
-export async function mockFeatureFlags(page: Page, flags: { rl_analysis: boolean; prespec_overview: boolean }): Promise<void> {
-  await page.route("**/api/feature-flags", (route) => fulfillJson(route, { schema_version: "feature-flags.v1", ...flags }));
+export async function mockFeatureFlags(page: Page, flags: { rl_analysis: boolean; prespec_overview: boolean; engine_review?: EngineReviewMode }): Promise<void> {
+  await page.route("**/api/feature-flags", (route) => fulfillJson(route, { schema_version: "feature-flags.v1", engine_review: "off", ...flags }));
 }
 
 /** 991 사전규격의 개요 run이 아직 없는 상태(`overview_review_status=null`). 개요 꺼짐 안내 검사가 쓴다. */
@@ -5329,4 +5346,301 @@ export async function openProcessSectionFully(page: Page) {
   const rest = page.locator("#ps-process-body .ps-process-rest-toggle");
   if ((await rest.count()) > 0 && (await rest.getAttribute("aria-expanded")) === "false") await rest.click();
   if ((await rest.count()) > 0) await expect(page.locator("#ps-process-rest-body")).toBeVisible();
+}
+
+const ENGINE_REVIEW_AT = "2026-11-24T01:00:00Z";
+const ENGINE_REVIEW_MOCK_ID = "5f0b9a7e-2c1d-4e8f-9a6b-000000000e00";
+const ENGINE_REVIEW_COMPANY_DIGEST = "f12345".repeat(10) + "f123";
+
+type ReviewRequestReceipt = NonNullable<EngineReviewView["request"]>;
+type ReviewRequestBody = { request_id: string; origin: ReviewRequestReceipt["origin"] };
+type ReviewCommand = { request_id: string; preview_id?: string; manifest_sha256?: string; result_id?: string; notice_ids?: number[]; origin?: ReviewRequestReceipt["origin"] };
+
+function engineReviewResultFixture(noticeId: number, stale = false, variant: "completed" | "partial" = "completed"): EngineReviewResult {
+  return {
+    ...engineAnalysisRunFixture(variant, RL_COMPANY_ID, noticeId),
+    company_id: null, profile_version_id: null, profile_sha256: null, graph_version_id: null, graph_sha256: null,
+    company_bundle_slug: "rootlab", company_bundle_sha256: ENGINE_REVIEW_COMPANY_DIGEST,
+    input_currentness: stale ? "stale" : "current",
+  };
+}
+
+export function engineReviewPreviewFixture(noticeId: number, refreshed = false): EngineReviewPreview {
+  const base = engineReviewResultFixture(noticeId);
+  return {
+    preview_id: refreshed ? "5f0b9a7e-2c1d-4e8f-9a6b-000000000e02" : "5f0b9a7e-2c1d-4e8f-9a6b-000000000e01",
+    manifest_sha256: (refreshed ? "b" : "a").repeat(64),
+    created_at: refreshed ? "2026-11-24T01:15:00Z" : ENGINE_REVIEW_AT,
+    expires_at: refreshed ? "2026-11-25T01:15:00Z" : "2026-11-25T01:00:00Z",
+    manifest: {
+      schema_version: "bidops.engine-review-manifest.v1",
+      input_schema_version: "bidops.engine-input.v3",
+      notice_id: noticeId,
+      title: "신규 지능형 행정 지원 사전규격",
+      bundle_id: base.bundle_id,
+      bundle_revision: 1,
+      primary_format: "hwpx",
+      engine_version: base.engine_version,
+      engine_sha256: base.engine_sha256,
+      mode: "mock_reference",
+      policy: "mock_reference",
+      strategy: "single",
+      model: "mock_reference",
+      planned_calls: 0,
+      remaining_calls: 0,
+      company_bundle_slug: "rootlab",
+      company_bundle_sha256: ENGINE_REVIEW_COMPANY_DIGEST,
+      documents: [{
+        document_version_id: base.documents[0].document_version_id,
+        source_sha256: base.documents[0].source_sha256,
+        structure_id: base.documents[0].structure_id,
+        structure_sha256: base.documents[0].structure_sha256,
+        version: 1, filename: "제안요청서.hwpx", page_count: 12,
+      }],
+      sections: [{ id: "S001", heading: "사업 범위", page_start: 2, page_end: 4 }],
+      wiki_pages: ["capabilities"],
+      wiki_pages_skipped: ["portfolio-extra"],
+      wiki_chars: 1250,
+      valid_from: refreshed ? "2026-11-24T01:15:00+00:00" : "2026-11-24T01:00:00+00:00",
+    },
+  };
+}
+
+export async function mockEngineReview(page: Page, options: {
+  mode?: EngineReviewMode;
+  tracking?: OpportunityTrackingStatus;
+  initialState?: EngineReviewState;
+  reason?: EngineReviewView["reason"];
+  previewManifest?: Partial<EngineReviewPreview["manifest"]>;
+  partialResultWarnings?: string[];
+  autoPreparationOnRequest?: boolean;
+  failFirstRequest?: boolean;
+  previewError?: "engine_disabled" | "engine_live_disabled" | "engine_unavailable";
+  approvalConflict?: "preview_expired" | "input_changed";
+  batchError?: boolean;
+  batchIneligible?: number;
+  batchItems?: boolean;
+  workload?: { approvals: number | null; results: number | null };
+} = {}) {
+  const mode = options.mode ?? "mock_reference";
+  const noticeId = 992;
+  const tracking = new Map<number, OpportunityTrackingStatus>([[noticeId, options.tracking ?? "미선택"]]);
+  const preparation = new Map<number, Pick<PreSpecListItem, "auto_preparation_status" | "auto_preparation_reason">>();
+  if (options.autoPreparationOnRequest) {
+    preparation.set(noticeId, { auto_preparation_status: "not_applicable", auto_preparation_reason: "grade_not_priority" });
+  }
+  const items = [...visualPreSpecItems];
+  if (options.batchItems) {
+    tracking.set(991, "미선택");
+    items.push({ ...visualPreSpecItems[1], notice_pk: 994, opportunity_id: 79, tracking_status: "보류", pre_spec_no: "PRE-994", title: "이미 보류한 사전규격" });
+  }
+  const trace: {
+    calls: { command: string; noticeId: number | null; body: ReviewCommand | null; actor: string }[];
+    trackingPatches: { noticeId: number; body: { tracking_status: OpportunityTrackingStatus; reason?: string }; actor: string }[];
+    bulkStarts: { notice_ids: number[]; actor_name: string }[];
+    order: string[];
+  } = { calls: [], trackingPatches: [], bulkStarts: [], order: [] };
+
+  const views = new Map<number, EngineReviewView>();
+  const storedRequests = new Map<string, ReviewRequestReceipt>();
+  const previewReceipts = new Map<string, EngineReviewPreview>();
+  const requestReceipt = (id: number, body: ReviewRequestBody, actor: string): ReviewRequestReceipt => ({
+    id: ENGINE_REVIEW_MOCK_ID, notice_id: id, opportunity_id: items.find((item) => item.notice_pk === id)!.opportunity_id!,
+    company_bundle_slug: "rootlab", origin: body.origin, requested_by: actor, requested_at: ENGINE_REVIEW_AT,
+    request_id: body.request_id, closed_at: null, closed_reason: null, closed_by: null,
+  });
+  function resultFixture(id: number, stale = false) {
+    const warnings = options.partialResultWarnings;
+    const result = engineReviewResultFixture(id, stale, warnings ? "partial" : "completed");
+    return warnings ? { ...result, warnings } : result;
+  }
+  function setState(id: number, state: EngineReviewState, overrides: Partial<EngineReviewView> = {}) {
+    const status = tracking.get(id);
+    const old = views.get(id);
+    const result = state === "result_ready" || state === "acknowledged" || state === "stale"
+      ? resultFixture(id, state === "stale") : null;
+    const notTracked = status !== "계속 추적" && status !== "보류";
+    const stateFields: Partial<Record<EngineReviewState, Partial<EngineReviewView>>> = {
+      not_requested: {
+        next_action: status === "계속 추적" ? "request" : null,
+        reason: notTracked ? "tracking_required" : null,
+        preview: null,
+      },
+      preparing: { reason: "documents_pending", preview: null },
+      blocked: { next_action: "resolve_exception", reason: "original_hwp_required" },
+      awaiting_approval: status === "보류" ? { reason: "tracking_required" } : { next_action: "approve" },
+      result_ready: { next_action: "review_result" },
+      stale: { next_action: status === "계속 추적" ? "request" : null, reason: "input_changed" },
+    };
+    const view: EngineReviewView = {
+      state, next_action: null, reason: null,
+      request: state === "not_requested" ? null : old?.request ?? requestReceipt(id, { request_id: ENGINE_REVIEW_MOCK_ID, origin: "manual" }, "최담당"),
+      preview: old?.preview ?? null, current_result: result, review_receipt: null,
+      ...stateFields[state],
+      ...(state === "acknowledged" && result ? { review_receipt: {
+        acknowledgment_id: ENGINE_REVIEW_MOCK_ID, result_id: result.id, request_id: ENGINE_REVIEW_MOCK_ID,
+        acknowledged_by: "최담당", acknowledged_at: ENGINE_REVIEW_AT,
+      } } : {}),
+      ...overrides,
+    };
+    if (options.autoPreparationOnRequest && id === noticeId && state === "preparing" && overrides.request) {
+      preparation.set(id, { auto_preparation_status: "waiting_attachments", auto_preparation_reason: "engine_review_request" });
+    }
+    views.set(id, view);
+    return view;
+  }
+
+  const error = (route: Route, status: number, code: string) =>
+    fulfillJson(route, { error: { code, message: "시험 응답", details: { reason: code } } }, status);
+
+  await mockApi(page);
+  await mockPreSpecs(page, { items, tracking, preparation });
+  if (options.autoPreparationOnRequest) {
+    await page.route(`**/api/notices/${noticeId}/document-bundles`, (route) => fulfillJson(route, { items: [] }));
+  }
+  await mockFeatureFlags(page, { rl_analysis: false, prespec_overview: true, engine_review: mode });
+  for (const [key, count] of [
+    ["engine_approval_pending", options.workload?.approvals ?? null],
+    ["engine_result_pending", options.workload?.results ?? null],
+  ] as const) {
+    workloadProvider(page, key, () => ({ count, unavailable_reason: count === null ? "provider_absent" : null }));
+  }
+  if (options.initialState) setState(noticeId, options.initialState, options.reason ? { reason: options.reason } : {});
+
+  await page.route((url) => /^\/api\/notices\/\d+$/.test(url.pathname), async (route) => {
+    const item = items.find((entry) => entry.notice_pk === Number(new URL(route.request().url()).pathname.split("/").at(-1)));
+    if (!item || route.request().method() !== "GET") { await route.fallback(); return; }
+    await fulfillJson(route, {
+      ...visualPreSpecNotice,
+      id: item.notice_pk, title: item.title, agency: item.agency, published_at: item.published_at,
+      deadline_at: item.deadline_at, budget: item.budget, lifecycle: { pre_spec_no: item.pre_spec_no },
+    });
+  });
+
+  await page.route("**/api/opportunities/*/tracking-status", async (route) => {
+    const request = route.request();
+    const id = Number(new URL(request.url()).pathname.split("/").at(-2));
+    const item = items.find((entry) => entry.opportunity_id === id);
+    if (request.method() !== "PATCH" || !item) { await route.fallback(); return; }
+    const body = request.postDataJSON() as typeof trace.trackingPatches[number]["body"];
+    const actor = fixtureActor(request.headers());
+    trace.trackingPatches.push({ noticeId: item.notice_pk, body, actor });
+    trace.order.push("tracking");
+    if (!actor) { await error(route, 400, "actor_name_required"); return; }
+    const previous = tracking.get(item.notice_pk) ?? item.tracking_status;
+    if (!body.reason && previous !== "미선택") { await error(route, 409, "tracking_start_conflict"); return; }
+    tracking.set(item.notice_pk, body.tracking_status);
+    if (!views.has(item.notice_pk) || views.get(item.notice_pk)?.state === "not_requested") setState(item.notice_pk, "not_requested");
+    const saved: OpportunityDetailResponse = {
+      ...inheritedPreSpecOpportunity, id,
+      first_registered_stage: "pre_spec", links: [],
+      tracking_status: body.tracking_status, tracking_reason: body.reason ?? null,
+      tracking_selected_by: actor, tracking_selected_at: ENGINE_REVIEW_AT,
+    };
+    await fulfillJson(route, saved);
+  });
+
+  await page.route("**/api/opportunities/pre-spec-tracking/bulk-start", async (route) => {
+    const body = route.request().postDataJSON() as typeof trace.bulkStarts[number];
+    trace.bulkStarts.push(body);
+    trace.order.push("bulk-start");
+    await fulfillJson(route, { items: body.notice_ids.map((id) => {
+      const item = items.find((entry) => entry.notice_pk === id);
+      if (item?.opportunity_id == null) return { notice_id: id, outcome: "unavailable" };
+      if ((tracking.get(id) ?? item.tracking_status) !== "미선택") return { notice_id: id, outcome: "already_decided" };
+      tracking.set(id, "계속 추적");
+      setState(id, "not_requested");
+      return { notice_id: id, outcome: "started" };
+    }) });
+  });
+
+  await page.route((url) => /\/api\/pre-specs\/(?:\d+\/)?engine-review(?:\/|$)/.test(url.pathname), async (route) => {
+    const request = route.request();
+    const match = new URL(request.url()).pathname.match(/^\/api\/pre-specs\/(?:(\d+)\/)?engine-review(?:\/([^/]+))?$/)!;
+    const id = match[1] ? Number(match[1]) : null;
+    const command = match[2] ?? "get";
+    const actor = fixtureActor(request.headers());
+    const body = request.method() === "POST" ? request.postDataJSON() as ReviewCommand : null;
+    trace.calls.push({ command, noticeId: id, body, actor });
+    if (command === "get" && id !== null) {
+      await fulfillJson(route, mode === "off" ? setState(id, "not_requested", { next_action: null, reason: "engine_disabled" })
+        : views.get(id) ?? setState(id, "not_requested"));
+      return;
+    }
+    trace.order.push(command);
+    if (mode === "off") { await error(route, 503, "engine_disabled"); return; }
+    if (!actor || !body || !uuidPattern.test(body.request_id)) { await error(route, 400, "actor_name_required"); return; }
+    if (command === "requests:batch" && id === null && body.notice_ids && body.origin === "tracking_start") {
+      if (options.batchError) { await error(route, 503, "engine_unavailable"); return; }
+      const results: EngineReviewBatchResult[] = body.notice_ids.map((notice_id) => {
+        if (options.batchIneligible === notice_id) return { notice_id, outcome: "ineligible", request: null, reason: "company_bundle_invalid" };
+        const receipt = requestReceipt(notice_id, { request_id: body.request_id, origin: "tracking_start" }, actor);
+        setState(notice_id, "preparing", { request: receipt });
+        return { notice_id, outcome: "requested", request: receipt, reason: null };
+      });
+      await fulfillJson(route, { items: results });
+      return;
+    }
+    if (id === null) { await error(route, 404, "not_found"); return; }
+    if (command === "requests" && body.origin) {
+      if (options.failFirstRequest && trace.calls.filter((call) => call.command === command).length === 1) {
+        await error(route, 503, "engine_unavailable");
+        return;
+      }
+      if (tracking.get(id) !== "계속 추적") { await error(route, 409, "tracking_required"); return; }
+      const existing = storedRequests.get(body.request_id);
+      const receipt = existing ?? requestReceipt(id, { request_id: body.request_id, origin: body.origin }, actor);
+      storedRequests.set(body.request_id, receipt);
+      setState(id, "preparing", { request: receipt });
+      await fulfillJson(route, { request: receipt, state: "preparing" }, existing ? 200 : 201);
+      return;
+    }
+    if (command === "previews") {
+      if (options.previewError) { await error(route, 503, options.previewError); return; }
+      const base = engineReviewPreviewFixture(id, Boolean(options.approvalConflict && previewReceipts.size > 0));
+      const preview = previewReceipts.get(body.request_id)
+        ?? { ...base, manifest: { ...base.manifest, ...options.previewManifest } };
+      previewReceipts.set(body.request_id, preview);
+      setState(id, "awaiting_approval", { preview });
+      await fulfillJson(route, preview);
+      return;
+    }
+    if (command === "approvals") {
+      if (tracking.get(id) !== "계속 추적") { await error(route, 409, "tracking_required"); return; }
+      const preview = views.get(id)?.preview;
+      if (!preview || body.preview_id !== preview.preview_id || body.manifest_sha256 !== preview.manifest_sha256) {
+        await error(route, 409, "input_changed");
+        return;
+      }
+      if (options.approvalConflict && previewReceipts.size === 1) {
+        await error(route, 409, options.approvalConflict);
+        return;
+      }
+      setState(id, "running");
+      await fulfillJson(route, { approval_id: ENGINE_REVIEW_MOCK_ID, run_id: resultFixture(id).id, state: "queued" }, 202);
+      return;
+    }
+    if (command === "dismissals") {
+      const view = views.get(id);
+      if (!view?.request || body.preview_id !== view.preview?.preview_id) { await error(route, 409, "input_changed"); return; }
+      setState(id, "not_requested", { preview: null });
+      await fulfillJson(route, { dismissal_id: ENGINE_REVIEW_MOCK_ID, request: {
+        ...view.request, closed_at: ENGINE_REVIEW_AT, closed_by: actor, closed_reason: "dismissed",
+      } });
+      return;
+    }
+    if (command === "acknowledgments") {
+      const result = views.get(id)?.current_result;
+      if (!result || body.result_id !== result.id) { await error(route, 409, "input_changed"); return; }
+      const receipt = {
+        acknowledgment_id: ENGINE_REVIEW_MOCK_ID, result_id: result.id, request_id: body.request_id,
+        acknowledged_at: ENGINE_REVIEW_AT, acknowledged_by: actor,
+      };
+      setState(id, "acknowledged", { review_receipt: receipt });
+      await fulfillJson(route, receipt);
+      return;
+    }
+    await error(route, 404, "not_found");
+  });
+  return { trace, tracking, setState };
 }

@@ -19,6 +19,7 @@ from .company.schema import CompanyProfile
 
 INPUT_V1 = "bidops.engine-input.v1"
 INPUT_V2 = "bidops.engine-input.v2"
+INPUT_V3 = "bidops.engine-input.v3"
 _YAML_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\.ya?ml")
 _PAGE_PART = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
@@ -174,7 +175,7 @@ def company_inputs(payload, workdir):
     the knowledge excerpt chosen per notice and the portfolio texts the gates compare are
     the upstream behavior. v1 keeps the conservative projection.
     """
-    if payload.get("schema_version") == INPUT_V2:
+    if payload.get("schema_version") in (INPUT_V2, INPUT_V3):
         bundle = payload.get("company_bundle")
         if not isinstance(bundle, dict):
             raise EngineError("company_bundle_invalid")

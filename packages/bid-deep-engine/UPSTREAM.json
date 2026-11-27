@@ -710,12 +710,12 @@
     {
       "path": "src/bid_deep_engine/adapter.py",
       "purpose": "BidOps company projection, table/block projection and source locators",
-      "sha256": "3683117d2da045f74f93b65685d73afcf64935aa3450a89c1e3aa7113e25b1f0"
+      "sha256": "feb11ccab3572ecd0c90d29d30fe6d0c649d77e6b8d67e846cf159a7747d1797"
     },
     {
       "path": "src/bid_deep_engine/runner.py",
       "purpose": "bidops.engine-input.v1/output.v1 subprocess boundary and mock_reference transport",
-      "sha256": "0b3b3668f8fb505bc0111e738e28a365f22d77d966e81bd7b52aab88bd04f323"
+      "sha256": "da1a0fd49c8490601381befda44e6b1eb40120073389456a4240658a6ce9681c"
     },
     {
       "path": "engine_tests/test_adapter.py",
@@ -730,7 +730,7 @@
     {
       "path": "engine_tests/test_runner.py",
       "purpose": "runner boundary tests (readiness, mock transport, error codes)",
-      "sha256": "68e4641c053f43c96c8ed1d35152bf2a7f5554d89f15171f8e31b961b183fbdf"
+      "sha256": "da3a3e1a04d0ad20d200b0279d47ce519fa1b0f062aa5fa5deea08bb5980319d"
     },
     {
       "path": "engine_tests/ingest_writer.py",

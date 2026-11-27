@@ -278,6 +278,10 @@ class Settings(BaseSettings):
     #: 꺼져 있으면 생성은 503 `engine_analysis_disabled`, worker 슬롯은 claim하지 않는다.
     #: 기존 실행 조회는 감사용으로 열어 둔다. 켜도 mock_reference뿐이며 live 전송은 없다.
     engine_analysis_enabled: bool = Field(default=False, validation_alias="BIDOPS_ENGINE_ANALYSIS_ENABLED")
+    engine_review_mode: Literal["off", "mock_reference", "live"] = Field(
+        default="off", validation_alias="BIDOPS_ENGINE_REVIEW_MODE"
+    )
+    deployment_environment: str = Field(default="", validation_alias="BIDOPS_ENV")
     #: 분석 엔진에 넘길 회사 자료 폴더와 회사 slug. 폴더에는 원본 엔진 형식의
     #: `<slug>.yaml`·`<slug>.portfolio.yaml`·`<slug>.provenance.yaml`과 회사 위키 `<slug>/`가 있다
     #: (저장소 밖 로컬 사본 `wiki/`). 둘 다 있으면 실행 입력이 `bidops.engine-input.v2`가 되어
@@ -431,6 +435,11 @@ class Settings(BaseSettings):
             raise ValueError("mock analysis provider requires reference workflow mode")
         if self.screening_provider == "mock" and not self.reference_workflow_mode:
             raise ValueError("mock screening provider requires reference workflow mode")
+        if self.engine_review_mode == "mock_reference":
+            if self.deployment_environment == "prod":
+                raise ValueError("BIDOPS_ENGINE_REVIEW_MODE=mock_reference is forbidden in prod")
+            if not self.reference_workflow_mode:
+                raise ValueError("BIDOPS_ENGINE_REVIEW_MODE=mock_reference requires BIDOPS_REFERENCE_WORKFLOW_MODE=true")
         if self.data_dir is None:
             self.data_dir = self.bidops_root / "web" / "data"
         if self.attachments_dir is None:

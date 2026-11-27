@@ -214,6 +214,8 @@ def test_workload_registration_counts_unlinked_non_sw_prespecs(queue_session, mo
         "overview_human_review": WorkloadCount(1),
         # RL-00: deep_review가 값을 세는 `company_attention`. 실회사가 없으면 제공자 부재다.
         "company_attention": WorkloadCount(None, "provider_absent"),
+        "engine_approval_pending": WorkloadCount(None, "engine_disabled"),
+        "engine_result_pending": WorkloadCount(None, "engine_disabled"),
     }
     assert registry.notice_ids_for_auto_preparation_status(session, [ready.id], "not_applicable") == []
 
@@ -423,6 +425,8 @@ def test_workload_empty_counts_are_integer_zero(queue_session):
         "bid_final_decision_pending": WorkloadCount(0),
         "overview_human_review": WorkloadCount(0),
         "company_attention": WorkloadCount(None, "provider_absent"),
+        "engine_approval_pending": WorkloadCount(None, "engine_disabled"),
+        "engine_result_pending": WorkloadCount(None, "engine_disabled"),
     }
 
 

@@ -79,7 +79,9 @@
 - 문서 준비 화면은 upload, scan, convert, structure, bundle confirm을 구분하고 실패 stage와 안전한 retry action을 보여야 한다.
 - 심층 검토 실패 재시작은 기존 attempt를 덮지 않으며 새 attempt가 생긴다는 점을 확인시킨다.
 - 향후 opportunity 화면은 plan, pre-spec, bid의 공식 연결과 사람 확인 대기 후보를 시각적으로 구분한다.
-- 사전규격 보고서 뒤 `계속 추적|보류|종료`와 입찰공고 뒤 최종 `Go/No-Go`를 같은 버튼 집합으로 재사용하지 않는다. 사전규격 상세의 하단 결정 띠는 분석 전에는 `추적 시작`만 두고, 분석 결과를 보여 주는 화면(mock 빌드 전용)에서만 세 상태를 고른다(`docs/business-rules.md`).
+- 사전규격 보고서 뒤 `계속 추적|보류|종료`와 입찰공고 뒤 최종 `Go/No-Go`를 같은 버튼 집합으로 재사용하지 않는다.
+  ADR-0078에 따라 사전규격 상세·목록 미리보기·일괄 시작에서 추적 저장이 성공하면 분석 요청을 올린다. 담당자가 공고별 전송 자료를 확인한 뒤 따로 승인한다.
+  분석 요청·승인·결과 확인은 추적 상태와 최종 Go/No-Go를 바꾸지 않는다. `engine_review=off`이면 기존 추적 시작 화면과 동작을 유지한다.
 - 사업 추적·최종 Go/No-Go 목록도 같은 `RecordTable`과 `useRowKeyboardNavigation`으로 ↑↓ 행 이동을
   갖는다(경계에서 페이지를 넘긴다). 2026-11-23까지 쓰던 "첫 열 버튼이 `rowProps`를 받는" 방식은
   없앴고 네 목록이 모두 행(`tr.opportunity-row`·`tr.gng-row`·`tr.c2l-row`·`tr.pre-specs-row`) 방식이다(ADR-0077).
@@ -104,7 +106,7 @@
 - 색은 `bidops` 테마(무드보드 파생, ADR-0048 → ADR-0073·ADR-0076 개정)가 정본이다. 화면은 토큰만 읽고 `:root`나 화면 CSS에서 `--color-*`를 재정의하지 않는다. 유일한 예외는 `styles/shell-relaxed.css`의 이행용 token bridge이며 새 색 값을 만들지 않는다. 색을 바꾸려면 `src/themes/bidops/bidopsTheme.ts`를 고치고 `astryx theme build`를 다시 돌린다.
 - 셸(ADR-0076, 2026-11-19): 바탕 위 흰 패널 한 장이고 화면 제목은 패널 헤더가 그린다. 화면은 `usePageHeader`
   (`components/shell/PageHeaderContext.tsx`)로 화면 이름·문장형 제목·설명(·상태 표식·사실 줄)을 **문자열로만** 올리고,
-  액션은 `PageHeaderActions`, 보기 탭·검색 줄은 `PageHeaderTabs` portal로, 패널 아래 결정 입력은 `PageFooterBar` portal(셸의 고정 슬롯 `#page-footer`)로 보낸다. 슬롯이 비면 자리를 차지하지 않는다. **슬롯은 추적 결정 전용이며 개요 범위 확정 같은 다른 할 일을 넣지 않는다**(사전규격 상세와 사업기회 레코드가 쓴다). 목록·관리 화면의 미리보기 칸 바닥에 있는 결정 띠(`DecisionBar`)는 이 슬롯과 별개 부품이다. 페이지에 `<h1>`이나 제목 줄을 다시
+  액션은 `PageHeaderActions`, 보기 탭·검색 줄은 `PageHeaderTabs` portal로, 패널 아래 결정 입력은 `PageFooterBar` portal(셸의 고정 슬롯 `#page-footer`)로 보낸다. 슬롯이 비면 자리를 차지하지 않는다. **슬롯은 추적 결정과 ADR-0078 사전규격 분석 조작에 쓰며 개요 범위 확정 같은 다른 할 일을 넣지 않는다**(사전규격 상세와 사업기회 레코드가 쓴다). 목록·관리 화면의 미리보기 칸 바닥에 있는 결정 띠(`DecisionBar`)는 이 슬롯과 별개 부품이다. 페이지에 `<h1>`이나 제목 줄을 다시
   두지 않는다. 설명에는 고정 설명·주의 문구를 넣지 않고 그 순간의 데이터를 말하는 문장만 넣는다(2026-11-20 사용자
   요청, ADR-0076 결정 12 — 경계 문장은 본문 결정 영역의 보조 문구가 진다). 문장의 숫자는 이미 받은 값(목록 total·탭 건수)으로만 만들고, 없으면 숫자 없는 문장을 쓴다. 목록|상세
   화면은 route metadata `canvas: "flush"`로 패널 끝까지 채우고 목록은 60%, 미리보기는 40%다(ADR-0077, `--shell-list-width`).

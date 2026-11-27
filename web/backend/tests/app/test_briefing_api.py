@@ -390,7 +390,9 @@ def test_slack_path_uses_the_same_service_with_via_slack(session, plans) -> None
 
 def _pending(client):
     items = client.get("/api/workload").json()["items"]
-    assert [item["key"] for item in items][-2:] == ["company_attention", "briefing_pending"]
+    assert [item["key"] for item in items[-4:]] == [
+        "company_attention", "briefing_pending", "engine_approval_pending", "engine_result_pending",
+    ]
     [item] = [item for item in items if item["key"] == "briefing_pending"]
     return item["count"], item["unavailable_reason"]
 

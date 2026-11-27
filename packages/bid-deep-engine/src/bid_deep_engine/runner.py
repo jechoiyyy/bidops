@@ -30,12 +30,14 @@ from .analysis.schemas import (
 from .adapter import (
     INPUT_V1,
     INPUT_V2,
+    INPUT_V3,
     EngineError,
     company_inputs,
     project_company,
     source_evidence,
     raw_blocks,
 )
+from .company.knowledge import prepare_knowledge
 from .company.provenance import CompanyEvidenceView
 from .company.schema import CompanyProfile, Company
 from .ingest.models import Block, RawDoc, RawMeta, NoticeBundle
@@ -219,7 +221,7 @@ def document_from_blocks(payload):
 def execute(payload, *, mock_rules=()):
     """Run the pipeline once. `mock_rules` is for tests only; `main` never passes it."""
     if (
-        payload.get("schema_version") not in (INPUT_V1, INPUT_V2)
+        payload.get("schema_version") not in (INPUT_V1, INPUT_V2, INPUT_V3)
         or payload.get("mode") != "mock_reference"
     ):
         raise EngineError("engine_live_not_approved")
@@ -286,6 +288,35 @@ def execute(payload, *, mock_rules=()):
         }
 
 
+def preview(payload):
+    """Return local input metadata using the engine's loader and selection pipeline."""
+    if payload.get("schema_version") != INPUT_V3 or payload.get("mode") != "mock_reference":
+        raise EngineError("engine_live_not_approved")
+    with tempfile.TemporaryDirectory(prefix="bid-deep-engine-preview-") as folder:
+        company = company_inputs(payload, Path(folder))
+        sections = []
+        pages = []
+        skipped = []
+        chars = 0
+        if "blocks" in payload:
+            _, rfp = document_from_blocks(payload)
+            sections = [
+                section.model_dump(include={"id", "heading", "page_start", "page_end"})
+                for section in rfp.sections
+            ]
+            if company.knowledge is not None:
+                selection, rendered = prepare_knowledge(rfp, company.knowledge)
+                pages, skipped, chars = selection.pages, selection.skipped, len(rendered)
+        return {
+            "schema_version": "bidops.engine-preview.v1",
+            "company_name": company.profile.profile.company.name,
+            "sections": sections,
+            "wiki_pages": pages,
+            "wiki_pages_skipped": skipped,
+            "wiki_chars": chars,
+        }
+
+
 def failure(code, error_class=None):
     """A failed envelope that carries only a defined code and an exception class name."""
     return {
@@ -313,7 +344,7 @@ def main():
             raise EngineError("engine_input_invalid") from None
         if not isinstance(payload, dict):
             raise EngineError("engine_input_invalid")
-        result = execute(payload)
+        result = preview(payload) if sys.argv[1:] == ["--preview"] else execute(payload)
     except EngineError as exc:
         code = exc.code if exc.code in ERROR_CODES else "engine_pipeline_failed"
         result = failure(code, type(exc).__name__)

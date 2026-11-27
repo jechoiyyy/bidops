@@ -173,6 +173,7 @@ class DeepReviewWorkloadProjection:
     def workload_counts(self, session: Any) -> Mapping[str, WorkloadCount]:
         from .company_knowledge import company_attention_count
         from .decision_queue import decision_queue
+        from .engine_review import workload_counts as engine_review_counts
 
         notice_ids = session.scalars(select(Notice.id).where(Notice.source_type == "pre_spec")).all()
         projection = PreSpecOverviewDocumentProjection()
@@ -188,6 +189,7 @@ class DeepReviewWorkloadProjection:
             ),
             # RL-00 사이드바 "회사 근거" pill. 실회사·활성 binding이 없으면 null과 사유다.
             "company_attention": WorkloadCount(*company_attention_count(session)),
+            **engine_review_counts(session),
         }
 
 

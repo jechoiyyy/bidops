@@ -31,6 +31,8 @@ function period(project: WikiProject) {
 interface Props {
   fits: Requirement[];
   judged?: number;
+  /** 엔진이 문서에서 읽은 요구사항 수와 총괄표의 기대 수. 읽은 수가 적으면 빠진 것을 알린다. */
+  counts?: EngineAnalysis["requirement_counts"];
   knowledge: EngineAnalysis["knowledge"];
   workUnits: EngineAnalysis["work_units"];
   readProjectCount: number | null;
@@ -45,7 +47,7 @@ interface Props {
 }
 
 export function AnalysisRequirements({
-  fits, judged, knowledge, workUnits, readProjectCount, portfolio, wikiNames, target, go, locate, locating, pageLink, related,
+  fits, judged, counts, knowledge, workUnits, readProjectCount, portfolio, wikiNames, target, go, locate, locating, pageLink, related,
 }: Props) {
   const [filter, setFilter] = useState<Filter>("all");
   const [group, setGroup] = useState("all");
@@ -159,6 +161,9 @@ export function AnalysisRequirements({
   return <section className="paw-blk" id="s-reqs" aria-label="요구사항 비교">
     <div className="paw-blk-h"><h2>요구사항 대응</h2><span className="paw-n">{fits.length}건 · 엔진 판정 {judged == null ? "미확인" : `${judged}건`}</span>
       <span className="paw-aside">행을 고르면 오른쪽에 원문 발췌·회사 근거·보완 방안이 나와요 · ↑↓로 이동</span></div>
+    {counts?.source_expected != null && counts.source_found < counts.source_expected &&
+      <p className="paw-req-warn" role="status">문서의 요구사항 총괄표에는 <b>{counts.source_expected}건</b>이 있는데 엔진은 <b>{counts.source_found}건</b>만 읽었어요.
+        빠진 {counts.source_expected - counts.source_found}건은 판정되지 않았으니 원문에서 확인하세요.</p>}
     <p className="paw-kn">{workUnits?.status === "classified" ? workUnitsNotice(workUnits)
       : knowledge?.skipped.length === 0 ? knowledgeReadNotice(knowledge.pages.length, readProjectCount)
       : <>{knowledge ? <>회사 근거는 위키 <b>{knowledge.pages.length}쪽</b>만 분석에 들어갔고 <b>{knowledge.skipped.length}쪽</b>은 분석 분량 제한으로 빠졌어요
