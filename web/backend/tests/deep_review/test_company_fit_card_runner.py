@@ -530,3 +530,55 @@ def test_import_cli_exit_codes(engine, session, tmp_path, monkeypatch, capsys):
     assert json.loads(capsys.readouterr().out)["skipped"][0]["reason"] == "already_imported"
     session.expire_all()
     assert len(_card_rows(session)) == 1
+
+
+def test_t5_enqueue_skips_notices_collected_before_the_observed_from_cutoff(session, tmp_path, monkeypatch):
+    """2026-11-27 user decision: already-collected notices are never judged; only later collections."""
+
+    from app.lifecycle.models import NoticeObservation, Run
+
+    card_env(monkeypatch, tmp_path)
+    cutoff = NOW - timedelta(hours=6)
+    monkeypatch.setenv("BIDOPS_PRESPEC_COMPANY_FIT_CARD_OBSERVED_FROM", cutoff.isoformat())
+    get_settings.cache_clear()
+    runs: dict[str, Run] = {}
+
+    def observe(notice, *moments):
+        # One observation per (notice, run): each collection moment is its own run.
+        for moment in moments:
+            run_id = f"lifecycle-cutoff--{moment:%Y%m%dT%H%M%S}Z"
+            if run_id not in runs:
+                runs[run_id] = Run(id=run_id, generated_at=moment)
+                session.add(runs[run_id])
+                session.flush()
+            session.add(NoticeObservation(notice_id=notice.id, run_id=run_id, observed_at=moment))
+        session.flush()
+
+    old = add_notice(session)                       # first seen before the cutoff
+    observe(old, cutoff - timedelta(days=3))
+    reobserved = add_notice(session)                # seen again after the cutoff, but first seen before
+    observe(reobserved, cutoff - timedelta(days=1), cutoff + timedelta(hours=1))
+    new = add_notice(session)                       # first seen after the cutoff
+    observe(new, cutoff + timedelta(hours=2))
+    at_cutoff = add_notice(session)                 # boundary is inclusive
+    observe(at_cutoff, cutoff)
+    never_seen = add_notice(session)                # no observation at all: not judged
+    session.commit()
+
+    assert _drain_enqueue(session) == {new.id, at_cutoff.id}
+    assert {old.id, reobserved.id, never_seen.id}.isdisjoint({row.notice_id for row in _card_rows(session)})
+
+    # An empty value keeps the previous behaviour (no cutoff).
+    monkeypatch.setenv("BIDOPS_PRESPEC_COMPANY_FIT_CARD_OBSERVED_FROM", "")
+    get_settings.cache_clear()
+    assert get_settings().prespec_company_fit_card_observed_from is None
+    assert _drain_enqueue(session) == {new.id, at_cutoff.id, old.id, reobserved.id, never_seen.id}
+
+
+def test_observed_from_must_carry_a_timezone(monkeypatch):
+    monkeypatch.setenv("BIDOPS_PRESPEC_COMPANY_FIT_CARD_OBSERVED_FROM", "2026-11-27T21:15:00")
+    get_settings.cache_clear()
+    with pytest.raises(ValueError):
+        get_settings()
+    monkeypatch.delenv("BIDOPS_PRESPEC_COMPANY_FIT_CARD_OBSERVED_FROM")
+    get_settings.cache_clear()

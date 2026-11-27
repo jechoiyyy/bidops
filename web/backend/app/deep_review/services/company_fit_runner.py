@@ -27,7 +27,7 @@ import json
 from typing import Any, Callable
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from ...core.config import get_settings
@@ -35,7 +35,7 @@ from ...core.model_client import ModelClient, ModelInvocationError, strip_leadin
 from ...core.models import AuditEvent
 from ...core.object_store import EncryptedModelResponseStore
 from ...lifecycle import lock_notice
-from ...lifecycle.models import Notice
+from ...lifecycle.models import Notice, NoticeObservation
 from ..models import DeepReview, DocumentBundle, PreSpecCompanyFitAttempt
 from .auto_preparation import _auto_start_scope, maybe_auto_start_deep_review
 from .company_fit import (CONTRACT, JUDGED_BY_MODEL, card_current_flags, card_mode_with_card,
@@ -55,6 +55,12 @@ from .model_retry import (
     validation_retry_metadata,
 )
 from .overview_runs import current_runs
+
+
+def _aware(value: datetime) -> datetime:
+    """SQLite returns naive UTC timestamps; PostgreSQL returns aware ones."""
+
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def _now():
@@ -193,6 +199,17 @@ class PreSpecCompanyFitRunner:
         sw = sw_business_notice_ids(session, ids)
         in_scope = auto_processing_notice_ids(session, ids, now=now)
         candidates = [notice_id for notice_id in ids if notice_id in sw and notice_id in in_scope]
+        observed_from = self.settings.prespec_company_fit_card_observed_from
+        if observed_from is not None and candidates:
+            # Notices already collected before the cutoff are never judged by the card lineage.
+            first_seen = dict(session.execute(
+                select(NoticeObservation.notice_id, func.min(NoticeObservation.observed_at))
+                .where(NoticeObservation.notice_id.in_(candidates))
+                .group_by(NoticeObservation.notice_id)
+            ).all())
+            candidates = [notice_id for notice_id in candidates
+                          if first_seen.get(notice_id) is not None
+                          and _aware(first_seen[notice_id]) >= observed_from]
         sources = overview_inputs(session, candidates)
         existing = set(session.scalars(select(PreSpecCompanyFitAttempt.input_sha256).where(
             PreSpecCompanyFitAttempt.company_id.is_(None), PreSpecCompanyFitAttempt.card_sha256.is_not(None))))

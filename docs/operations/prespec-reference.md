@@ -40,7 +40,7 @@ live는 OpenAI Responses API(`gpt-6-luna`/high, 고정 주소)로 나간다. 아
 
 ### 회사 핏 카드 모드 켜기 (ADR-0080, 각 단계 직전 사람 승인)
 
-1. 카드 파일(Git 밖, 예: `env/company-fit/business-scope-card.v1.2.yaml`)을 두고 `.env`에 `BIDOPS_PRESPEC_COMPANY_FIT_CARD_HOST_PATH`, `BIDOPS_PRESPEC_COMPANY_FIT_CARD_SHA256`(파일 sha256), 상한 `BIDOPS_PRESPEC_COMPANY_FIT_CARD_MODE=suggest`를 넣는다. 카드 lineage는 `BIDOPS_PRESPEC_COMPANY_FIT_ENABLED=true`, `BIDOPS_PRESPEC_COMPANY_FIT_MODEL=local-agent-main`, 64자 overview revision, `BIDOPS_REFERENCE_WORKFLOW_MODE=true`도 필요하다. 참조 모드는 다른 흐름에도 걸리는 전역 스위치이므로 그 영향을 먼저 확인한다.
+1. 카드 파일(Git 밖, 예: `env/company-fit/business-scope-card.v1.2.yaml`)을 두고 `.env`에 `BIDOPS_PRESPEC_COMPANY_FIT_CARD_HOST_PATH`, `BIDOPS_PRESPEC_COMPANY_FIT_CARD_SHA256`(파일 sha256), 상한 `BIDOPS_PRESPEC_COMPANY_FIT_CARD_MODE=suggest`를 넣는다. 이미 수집된 공고를 판정하지 않으려면 `BIDOPS_PRESPEC_COMPANY_FIT_CARD_OBSERVED_FROM`(시간대 포함 ISO 시각, 예 `2026-11-27T21:15:00+09:00`)을 넣는다. 첫 관측이 그 시각 이전인 공고는 대상에서 빠진다(2026-11-27 사용자 결정, 비우면 하한 없음). 카드 lineage는 `BIDOPS_PRESPEC_COMPANY_FIT_ENABLED=true`, `BIDOPS_PRESPEC_COMPANY_FIT_MODEL=local-agent-main`, 64자 overview revision, `BIDOPS_REFERENCE_WORKFLOW_MODE=true`도 필요하다. 참조 모드는 다른 흐름에도 걸리는 전역 스위치이므로 그 영향을 먼저 확인한다.
 2. web·analysis-worker를 교체하고 `GET /api/pre-specs/company-fit/mode`의 `reason_code`가 `switch_off`인지 본다(카드·모델 조건은 통과).
 3. web 컨테이너에서 `python -m app.deep_review.cli set-company-fit-mode --mode suggest --actor <이름> --reason <사유>`를 실행한다. 응답의 `effective`가 `true`이면 analysis-worker가 개요 완료 SW 공고를 하나씩 판정한다(로컬 Qwen 호출, 건당 약 50초).
 4. 끄기는 같은 CLI의 `--mode off`다. 행은 지우지 않는다.

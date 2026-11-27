@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Literal
 from uuid import UUID
 
-from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
+from pydantic import AliasChoices, AwareDatetime, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -324,6 +324,12 @@ class Settings(BaseSettings):
     prespec_company_fit_card_mode: Literal["off", "suggest"] = Field(
         default="off", validation_alias="BIDOPS_PRESPEC_COMPANY_FIT_CARD_MODE"
     )
+    #: 카드 lineage 대상의 수집 하한(시간대 포함 ISO 시각). 첫 관측(`notice_observation.observed_at`의
+    #: 최솟값)이 이 시각 이전인 공고, 즉 이미 수집돼 있던 공고는 판정하지 않는다(2026-11-27 사용자
+    #: 결정 "이미 수집된 것은 다시 작업하지 않고 이후 수집분만"). 비우면 하한이 없다.
+    prespec_company_fit_card_observed_from: AwareDatetime | None = Field(
+        default=None, validation_alias="BIDOPS_PRESPEC_COMPANY_FIT_CARD_OBSERVED_FROM"
+    )
     vllm_deep_review_base_url: str = Field(default="", validation_alias="BIDOPS_VLLM_DEEP_REVIEW_BASE_URL")
     vllm_deep_review_allowed_hosts: str = Field(default="", validation_alias="BIDOPS_VLLM_DEEP_REVIEW_ALLOWED_HOSTS")
     vllm_deep_review_api_key: SecretStr = Field(default_factory=lambda: SecretStr(""), validation_alias="BIDOPS_VLLM_DEEP_REVIEW_API_KEY")
@@ -424,6 +430,7 @@ class Settings(BaseSettings):
         "demo_deep_review_policy_version_id",
         "rl_deep_review_policy_version_id",
         "proposal_policy_version_id",
+        "prespec_company_fit_card_observed_from",
         mode="before",
     )
     @classmethod
