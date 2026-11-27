@@ -67,9 +67,9 @@ test("1. off는 상세·목록 미리보기·일괄 추적·오늘 할 일의 �
   expect(trace.trackingPatches).toEqual([{ noticeId: NOTICE_ID, body: { tracking_status: "계속 추적" }, actor: ACTOR }]);
 
   await page.goto("/");
-  const check = page.getByRole("list", { name: "확인할 것 건수" });
-  await expect(check.getByRole("link", { name: /사전규격 확인 필요/ })).toBeVisible();
-  await expect(check.getByRole("link", { name: /분석 승인 대기|결과 확인/ })).toHaveCount(0);
+  const also = page.getByRole("navigation", { name: "함께 볼 것" });
+  await expect(also).toBeVisible();
+  await expect(also).not.toContainText(/분석 승인 대기|분석 결과 확인/);
   expect(trace.calls).toEqual([]);
   if (!process.env.BIDOPS_MOCK_UI) expect(analysisAssets).toEqual([]);
 });
@@ -413,9 +413,18 @@ test("7. 오늘 할 일의 분석 건수에서 기존 추적 중 보기로 이�
 test("7. 오늘 할 일에서 0건을 보이고 null인 분석 건수 칸은 숨긴다", async ({ page }) => {
   await mockEngineReview(page, { workload: { approvals: 0, results: null } });
   await page.goto("/");
-  const check = page.getByRole("list", { name: "확인할 것 건수" });
-  await expect(check.getByRole("link", { name: /분석 승인 대기 0건/ })).toBeVisible();
-  await expect(check.getByRole("link", { name: /결과 확인/ })).toHaveCount(0);
+  const also = page.getByRole("navigation", { name: "함께 볼 것" });
+  // 0건은 링크 대신 `… 0건` 한 줄에 모이고, null(셀 수 없음)인 칸은 아예 없다.
+  await expect(also.locator(".dash-also-zero")).toContainText("분석 승인 대기");
+  await expect(also).not.toContainText("분석 결과 확인");
+});
+
+test("7b. 오늘 할 일에서 분석 건수가 있으면 추적 중 사전규격으로 가는 링크를 보인다", async ({ page }) => {
+  await mockEngineReview(page, { workload: { approvals: 2, results: 1 } });
+  await page.goto("/");
+  const also = page.getByRole("navigation", { name: "함께 볼 것" });
+  await expect(also.getByRole("link", { name: "분석 승인 대기 2건", exact: true })).toHaveAttribute("href", "/pre-specs?workspace=tracking");
+  await expect(also.getByRole("link", { name: "분석 결과 확인 1건", exact: true })).toBeVisible();
 });
 
 async function expectBarFits(bar: Locator) {
