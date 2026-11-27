@@ -62,3 +62,7 @@
 | P6 live | `BIDOPS_ENGINE_ANALYSIS_ENABLED=true`, `BIDOPS_ENGINE_REVIEW_MODE=live`, 상한 하루 1건·8회·$1, 공고당 8회. web·analysis-worker 재생성, 엔진 건수 0(이전 `engine_disabled`), 호출 0 |
 | P7 감독 실행 | 담당자 최정인이 tailnet 화면에서 #4153(RE100 재생E사용 관리시스템)을 추적 시작 → 미리보기(예정 5회) 승인. 실행 13:28:18Z~13:32:09Z(3분 51초), 호출 4회(extract·units 1·match·synth) 모두 HTTP 200, `served_model=gpt-6-luna`, 합계 **$0.0562**(입력 521,802·캐시 179,518·출력 35,893 토큰). 첫 요청 sha256 = 승인 manifest의 `first_request_sha256`. 결과 `completed`·`unmeasured_reference`, 조회 상태 `result_ready`, 오늘 할 일의 `분석 결과 확인` 1건. 요구사항 57건(같은 공고 제품 밖 도구 실행과 같음, 도구는 5회 $0.0611), 권고 `CONDITIONAL_GO`, 경고 `structure_projection_partial` |
 | 남은 것 | P8 사람 채점·인수. 품질 합격으로 적지 않는다 |
+
+## P8 사람 판정 (22:40 KST)
+
+사용자가 #4153 결과를 화면에서 보고 "맞아"로 판정했다(1건, 요구사항·적합성·위험·확인할 자료 전체에 대한 한 줄 판정, 항목별 채점 아님). 화면의 `결과 확인`(감사 기록)은 아직 누르지 않아 조회 상태는 `result_ready`다. **1건 판정이라 품질 측정·인수 근거가 아니다.** 상한 상향은 별도 결정이다.
