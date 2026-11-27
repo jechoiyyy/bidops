@@ -221,6 +221,23 @@ def test_capability_selection_is_persisted_in_selected_env_and_mock_blocks_it(se
     assert invoke({**selection_env, "BIDOPS_ENV": "mock"}, "config", "--quiet").returncode == 2
 
 
+def test_engine_live_feature_mounts_the_key_only_into_analysis_worker(selection_env):
+    """ADR-0081: the OpenAI key is a compose secret of analysis-worker only; web never gets it."""
+    path = Path(selection_env["BIDOPS_ENV_FILE"])
+    path.write_text(path.read_text() + '\nBIDOPS_COMPOSE_FEATURES="engine-live"\n'
+                    'BIDOPS_ENGINE_OPENAI_KEY_FILE=/tmp/synthetic-openai-key\n')
+    result = invoke(selection_env, "config", "--format", "json", "web", "analysis-worker")
+    assert result.returncode == 0, result.stderr
+    rendered = json.loads(result.stdout)
+    worker, web = rendered["services"]["analysis-worker"], rendered["services"]["web"]
+    assert [secret["source"] for secret in worker["secrets"]] == ["engine_openai_key"]
+    assert worker["environment"]["BIDOPS_ENGINE_LIVE_KEY_FILE"] == "/run/secrets/engine_openai_key"
+    assert not web.get("secrets") and "BIDOPS_ENGINE_LIVE_KEY_FILE" not in web["environment"]
+    for service in (web, worker):
+        assert service["environment"]["BIDOPS_ENGINE_LIVE_DAILY_NOTICE_CAP"] == "0"
+    assert invoke({**selection_env, "BIDOPS_ENV": "mock"}, "config", "--quiet").returncode == 2
+
+
 def test_local_env_generation_is_private_exclusive_and_never_production(tmp_path):
     scripts = tmp_path / "scripts"
     scripts.mkdir()
