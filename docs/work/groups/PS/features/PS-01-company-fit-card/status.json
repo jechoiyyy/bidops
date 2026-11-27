@@ -110,8 +110,8 @@
       "title": "측정 재현(승인 뒤 격리 스택)",
       "model": "standard",
       "fingerprint": "1585ae7f15f59c7fc2c1e680d1bf281c28601742d683d90416991fac32d94a29",
-      "status": "pending",
-      "updated_at": "2026-11-27T18:31:36+09:00",
+      "status": "done",
+      "updated_at": "2026-11-27T21:07:59+09:00",
       "history": [
         {
           "id": "STEP-009",
@@ -140,7 +140,7 @@
           ]
         }
       ],
-      "note": "replay_product.py written; run on isolated bidops-prespec1126 needs user approval (local Qwen calls)"
+      "note": "2026-11-27 격리 스택 제품 경로 재현 14/22, matched 3/3·재현율 3/6 (probe 17/22). 운영 suggest 켜고 관찰. docs/validation-runs/20261127-engine-live-prod"
     }
   ],
   "proof": {
@@ -219,7 +219,11 @@
     {
       "at": "2026-11-27T18:31:36+09:00",
       "text": "단계 STEP-009 pending: replay_product.py written; run on isolated bidops-prespec1126 needs user approval (local Qwen calls)"
+    },
+    {
+      "at": "2026-11-27T21:07:59+09:00",
+      "text": "단계 STEP-009 done: 2026-11-27 격리 스택 제품 경로 재현 14/22, matched 3/3·재현율 3/6 (probe 17/22). 운영 suggest 켜고 관찰. docs/validation-runs/20261127-engine-live-prod"
     }
   ],
-  "updated_at": "2026-11-27T18:31:36+09:00"
+  "updated_at": "2026-11-27T21:07:59+09:00"
 }
