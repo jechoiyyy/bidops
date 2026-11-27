@@ -1,0 +1,192 @@
+import { DECISION_REVIEW_LABELS } from "../bid-delta/labels";
+import { remainingDeadlineDays } from "../../lib/deadline";
+import { formatActorName } from "../../lib/format";
+import type { BidDeltaDecisionQueueItem, OpportunityListItem } from "../../lib/types";
+import { LIFECYCLE_STAGES, isConfirmedLink, primaryAgency, primaryTitle, stageOfLink, type LifecycleStage } from "../opportunities/trackingFlow";
+import { DEADLINE_URGENT_DAYS, imminentDeadline } from "./dashboardData";
+
+/**
+ * 오늘 할 일의 마감 일정(2026-11-27 시안 C2, `docs/1127_today-simplify/`).
+ *
+ * 마감 임박 추적 건과 최종 Go/No-Go 대기를 **한국 날짜별로** 묶는다. 화면은 서버가 준
+ * 링크·대기열 값을 옮겨 적을 뿐이며 새 판정을 만들지 않는다.
+ * - 마감은 `imminentDeadline`이 고른 링크 하나(ADR-0067 결정 4)이고, 예산도 그 링크의 값이다.
+ * - 단계 진행은 **확정된 연결이 있는 단계**와 지금 마감이 걸린 단계만 표시한다. 연결이 없는
+ *   단계를 지났다고 적지 않는다.
+ */
+
+export type ChainState = "linked" | "current" | "absent";
+export interface ChainStep { key: string; label: string; state: ChainState }
+
+export interface AgendaItem {
+  key: string;
+  kind: "tracking" | "final";
+  to: string;
+  title: string;
+  agency: string;
+  amount: string;
+  deadlineAt: string | null;
+  /** `의견등록 마감`·`입찰 마감`·`마감 종류 미확인`. */
+  deadlineKind: string;
+  /** 한국 시각 `HH:MM`. 마감이 없으면 `null`. */
+  time: string | null;
+  chain: ChainStep[];
+  status: string;
+  /** 상태 아래 한 줄(담당자 또는 결정 단계). */
+  statusNote: string | null;
+}
+
+export interface AgendaDay {
+  type: "day";
+  key: string;
+  /** `11.28` */
+  date: string;
+  /** `토요일` */
+  weekday: string;
+  /** `오늘`·`내일`·`D-n`·`마감 지남` */
+  due: string;
+  urgent: boolean;
+  items: AgendaItem[];
+}
+export interface AgendaGap { type: "gap"; key: string; label: string }
+export interface AgendaUnknown { type: "unknown"; key: string; items: AgendaItem[] }
+export type AgendaEntry = AgendaDay | AgendaGap | AgendaUnknown;
+
+const KST_PARTS = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" });
+const KST_TIME = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const WEEKDAYS = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
+const DAY_MS = 86_400_000;
+
+function kstDay(time: number): number {
+  const parts = KST_PARTS.formatToParts(new Date(time));
+  const part = (type: string) => Number(parts.find(item => item.type === type)?.value);
+  return Date.UTC(part("year"), part("month") - 1, part("day")) / DAY_MS;
+}
+
+function dayLabel(day: number): string {
+  const date = new Date(day * DAY_MS);
+  return `${String(date.getUTCMonth() + 1).padStart(2, "0")}.${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
+/** 빈 날 범위. 같은 달이면 뒤쪽 월을 생략한다(`12.01~06`). */
+function gapLabel(from: number, to: number): string {
+  const left = dayLabel(from), right = dayLabel(to);
+  return left.slice(0, 3) === right.slice(0, 3) ? `${left}~${right.slice(3)}` : `${left}~${right}`;
+}
+
+/** 원 단위 금액을 `5억 9,200만 원`처럼 줄인다. 만 원 미만은 반올림하며 정확한 값은 상세 화면이 적는다. */
+export function compactWon(value: number): string {
+  if (!Number.isFinite(value)) return "값 없음";
+  if (Math.abs(value) < 10_000) return `${value.toLocaleString("ko-KR")}원`;
+  const man = Math.round(value / 10_000);
+  const eok = Math.floor(man / 10_000);
+  const rest = man % 10_000;
+  if (eok === 0) return `${rest.toLocaleString("ko-KR")}만 원`;
+  return rest === 0 ? `${eok.toLocaleString("ko-KR")}억 원` : `${eok.toLocaleString("ko-KR")}억 ${rest.toLocaleString("ko-KR")}만 원`;
+}
+
+function timeOf(value: string | null): string | null {
+  const at = value === null ? Number.NaN : Date.parse(value);
+  return Number.isFinite(at) ? KST_TIME.format(new Date(at)) : null;
+}
+
+const CURRENT_LABEL: Record<LifecycleStage, string> = {
+  발주계획: "발주계획",
+  사전규격: "사전규격 의견등록",
+  입찰공고: "입찰공고 마감",
+};
+
+/** 추적 건의 단계 진행: 처음 연결된 단계부터 입찰공고까지. */
+export function trackingChain(item: OpportunityListItem, current: LifecycleStage | null): ChainStep[] {
+  const linked = new Set<LifecycleStage>();
+  for (const link of item.links) {
+    if (!isConfirmedLink(link)) continue;
+    const stage = stageOfLink(link);
+    if (stage) linked.add(stage);
+  }
+  const start = LIFECYCLE_STAGES.findIndex(stage => stage === current || linked.has(stage));
+  if (start < 0) return [];
+  return LIFECYCLE_STAGES.slice(start).map((stage): ChainStep => ({
+    key: stage,
+    label: stage === current ? CURRENT_LABEL[stage] : stage,
+    state: stage === current ? "current" : linked.has(stage) ? "linked" : "absent",
+  }));
+}
+
+export function trackingAgendaItem(item: OpportunityListItem, now: number): AgendaItem {
+  const due = imminentDeadline(item, now);
+  return {
+    key: `tracking-${item.id}`,
+    kind: "tracking",
+    to: `/opportunities/${item.id}`,
+    title: primaryTitle(item),
+    agency: primaryAgency(item),
+    amount: due?.budget == null ? "예산 미제공" : `예산 ${compactWon(due.budget)}`,
+    deadlineAt: due?.deadlineAt ?? null,
+    deadlineKind: due?.kind ?? "마감 종류 미확인",
+    time: timeOf(due?.deadlineAt ?? null),
+    chain: trackingChain(item, due?.stage ?? null),
+    status: item.tracking_status,
+    statusNote: formatActorName(item.tracking_selected_by),
+  };
+}
+
+export function finalAgendaItem(item: BidDeltaDecisionQueueItem): AgendaItem {
+  const estimated = item.estimated_price === null ? Number.NaN : Number(item.estimated_price);
+  return {
+    key: `final-${item.opportunity_id}`,
+    kind: "final",
+    to: `/go-no-go?selected=${item.opportunity_id}`,
+    title: item.title?.trim() || "제목 미확인",
+    agency: item.agency?.trim() || "발주기관 미확인",
+    amount: Number.isFinite(estimated) ? `추정가격 ${compactWon(estimated)}` : "추정가격 미제공",
+    deadlineAt: item.deadline_at,
+    deadlineKind: "입찰 마감",
+    time: timeOf(item.deadline_at),
+    chain: [
+      { key: "입찰공고", label: "입찰공고", state: item.bid_notice_external_id ? "linked" : "absent" },
+      { key: "go-no-go", label: "Go/No-Go 결정", state: "current" },
+    ],
+    status: item.review_state ? DECISION_REVIEW_LABELS[item.review_state] : "상태 미확인",
+    statusNote: "최종 결정 대기",
+  };
+}
+
+function dueText(days: number): string {
+  if (days < 0) return "마감 지남";
+  if (days === 0) return "오늘";
+  return days === 1 ? "내일" : `D-${days}`;
+}
+
+/**
+ * 날짜별 묶음. 날짜 사이의 빈 날은 한 줄(`gap`)로 접고, 마감을 읽지 못한 항목은 맨 끝
+ * `unknown` 묶음에 둔다(지어낸 날짜에 두지 않는다).
+ */
+export function buildAgenda(items: readonly AgendaItem[], now: number): AgendaEntry[] {
+  const byDay = new Map<number, AgendaItem[]>();
+  const unknown: AgendaItem[] = [];
+  for (const item of items) {
+    const at = item.deadlineAt === null ? Number.NaN : Date.parse(item.deadlineAt);
+    if (!Number.isFinite(at)) { unknown.push(item); continue; }
+    const day = kstDay(at);
+    byDay.set(day, [...(byDay.get(day) ?? []), item]);
+  }
+  const entries: AgendaEntry[] = [];
+  let previous: number | null = null;
+  for (const day of [...byDay.keys()].sort((a, b) => a - b)) {
+    if (previous !== null && day - previous > 1) {
+      const from = previous + 1, to = day - 1;
+      entries.push({ type: "gap", key: `gap-${from}`, label: from === to ? dayLabel(from) : gapLabel(from, to) });
+    }
+    const dayItems = (byDay.get(day) ?? []).sort((a, b) => Date.parse(a.deadlineAt ?? "") - Date.parse(b.deadlineAt ?? "") || a.title.localeCompare(b.title, "ko"));
+    const first = Date.parse(dayItems[0]?.deadlineAt ?? "");
+    const days = remainingDeadlineDays(new Date(first), new Date(now));
+    entries.push({
+      type: "day", key: `day-${day}`, date: dayLabel(day), weekday: WEEKDAYS[new Date(day * DAY_MS).getUTCDay()] ?? "",
+      due: dueText(days), urgent: days >= 0 && days <= DEADLINE_URGENT_DAYS, items: dayItems,
+    });
+    previous = day;
+  }
+  if (unknown.length) entries.push({ type: "unknown", key: "unknown", items: unknown });
+  return entries;
+}

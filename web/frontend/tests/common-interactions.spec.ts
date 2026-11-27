@@ -327,18 +327,17 @@ test("주소마다 활성 사이드바 항목은 정확히 하나다", async ({ 
   }
 });
 
-// 승인된 대시보드는 누적 업무 4곳을 회차 자료 위에 고정한다.
-// 설계고도화안 C-8: 옛 단계 바로가기 네 칸의 건수는 세 묶음의 건수 띠로 옮겼다. 네 업무 목록으로 가는
-// 길은 그 띠의 건수 칸이다(`data-count`).
+// 오늘 할 일(2026-11-27 시안 C2): 요약 줄과 함께 볼 것의 건수 링크(`data-count`)가 각 업무 목록으로 가는 길이다.
+// 발주계획·사전규격 기본 보기 건수는 사이드바가 보여 주므로 화면에 다시 두지 않는다.
 const DECISION_STRIP_TARGETS = [
-  { key: "order-plan-relevant", pathname: "/order-plans" },
-  { key: "pre-spec-actionable", pathname: "/pre-specs" },
-  { key: "action-required", pathname: "/opportunities" },
+  { key: "deadline", pathname: "/opportunities" },
+  { key: "pre-spec-needs-check", pathname: "/pre-specs" },
+  { key: "new-order-plan", pathname: "/order-plans" },
   { key: "go-no-go", pathname: "/go-no-go" },
 ];
-const countLink = (page: Page, key: string) => page.locator(`.dash-count-item[data-count="${key}"]`).getByRole("link");
+const countLink = (page: Page, key: string) => page.locator(`.dash-page a[data-count="${key}"]`);
 
-test("대시보드 건수 칸에서 네 업무 각각으로 이동할 수 있다(회차 선택 상태)", async ({ page }) => {
+test("대시보드 건수 링크에서 네 업무 각각으로 이동할 수 있다(회차 선택 상태)", async ({ page }) => {
   await mockApi(page);
   for (const target of DECISION_STRIP_TARGETS) {
     await page.goto("/?run=20260817-20260823--20260824T090927.138116Z");
@@ -348,25 +347,25 @@ test("대시보드 건수 칸에서 네 업무 각각으로 이동할 수 있다
   }
 });
 
-// 건수 칸 = 링크한 목록 기본 보기의 건수(설계고도화안 C-1·C-8). 칸의 수와 도착한 목록의 수를 대조한다.
-test("사전규격 건수 칸은 목록 기본 보기(검토할 항목·마감 전)의 건수이고 같은 보기를 연다", async ({ page }) => {
+// 건수 링크 = 링크한 목록 기본 보기의 건수(설계고도화안 C-1·C-8). 칸의 수와 도착한 목록의 수를 대조한다.
+test("멈춘 것 건수는 사전규격 확인 필요 보기의 건수이고 같은 보기를 연다", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
-  const item = countLink(page, "pre-spec-actionable");
-  await expect(item).toContainText(/검토할 항목\d+건/);
-  const count = Number((await item.textContent())?.match(/검토할 항목(\d+)건/)?.[1]);
-  await expect(item).toHaveAttribute("href", "/pre-specs");
+  const item = countLink(page, "pre-spec-needs-check");
+  await expect(item).toHaveText(/^\d+건$/);
+  const count = Number((await item.textContent())?.match(/(\d+)건/)?.[1]);
+  await expect(item).toHaveAttribute("href", "/pre-specs?workspace=needs_check");
   await item.click();
   await expect.poll(() => new URL(page.url()).pathname).toBe("/pre-specs");
-  await expect(page.getByRole("button", { name: /검토할 항목/ }).first()).toContainText(String(count));
+  await expect(page.getByRole("button", { name: /확인 필요/ }).first()).toContainText(String(count));
 });
 
-test("Go/No-Go 건수 칸은 목록 기본 보기(검토 대상)의 건수이고 같은 보기를 연다", async ({ page }) => {
+test("Go/No-Go 건수 링크는 목록 기본 보기(검토 대상)의 건수이고 같은 보기를 연다", async ({ page }) => {
   await mockApi(page);
   await page.goto("/");
   const item = countLink(page, "go-no-go");
-  await expect(item).toContainText(/Go\/No-Go\d+건/);
-  const count = Number((await item.textContent())?.match(/Go\/No-Go(\d+)건/)?.[1]);
+  await expect(item).toContainText(/Go\/No-Go \d+건/);
+  const count = Number((await item.textContent())?.match(/Go\/No-Go (\d+)건/)?.[1]);
   await expect(item).toHaveAttribute("href", "/go-no-go");
   await item.click();
   await expect(page.getByRole("button", { name: /검토 대상/ }).first()).toContainText(String(count));
@@ -381,28 +380,13 @@ test("회차가 없어도 누적 업무와 공고 판정 이력으로 이동할 
 
 test("누적 집계 미확인을 0으로 접지 않는다", async ({ page }) => {
   await mockApi(page);
-  // 서버가 건수를 낼 수 없다고 답한 칸과 목록 조회가 실패한 칸은 0으로 접히지 않고 미확인으로 남아야 한다.
-  await mockWorkload(page, { generated_at: "2026-09-01T09:00:00Z", items: [
-    { key: "order_plan_pending", count: 24, unavailable_reason: null },
-    { key: "pre_spec_actionable", count: null, unavailable_reason: "provider_absent" },
-    { key: "pre_spec_needs_check", count: null, unavailable_reason: "provider_absent" },
-    { key: "tracking_action_required", count: null, unavailable_reason: "provider_absent" },
-    { key: "tracking_hold_review_due", count: 2, unavailable_reason: null },
-    { key: "bid_final_decision_pending", count: null, unavailable_reason: null },
-    { key: "tracking_deadline_imminent", count: 4, unavailable_reason: null },
-    { key: "human_check_required", count: null, unavailable_reason: "sub_count_unavailable" },
-    { key: "overview_human_review", count: null, unavailable_reason: null },
-    { key: "blocking_items_open", count: 3, unavailable_reason: null },
-    { key: "order_plan_new_priority", count: 6, unavailable_reason: null },
-  ] });
+  // 목록 조회가 실패한 건수 링크는 0으로 접히지 않고 미확인으로 남아야 한다.
   await page.route((url) => url.pathname === "/api/pre-specs", (route) => route.fulfill({ status: 503, json: { detail: "합성 장애" } }));
   await page.route((url) => url.pathname === "/api/bid-delta/decision-queue", (route) => route.fulfill({ status: 503, json: { detail: "합성 장애" } }));
   await page.goto("/");
-  const unmeasured = page.locator(".dash-count-item").filter({ hasText: "미확인" });
-  // 사전규격 목록 실패(검토할 항목·확인 필요·개요 사람 확인·새 사전규격)와 Go/No-Go 대기열 실패.
-  // 사업기회 조치 필요는 workload가 아니라 목록 total을 쓰므로 provider 없음의 영향을 받지 않는다.
-  // 2026-11-19: 옛 `개요 실패` 칸 자리에 `사전규격 확인 필요` 칸이 왔다(같은 목록 실패로 미확인).
-  await expect(unmeasured).toHaveCount(5);
+  const unmeasured = page.locator(".dash-page a[data-count]").filter({ hasText: "미확인" });
+  // 사전규격 목록 실패(확인 필요·새 사전규격·개요 사람 확인)와 Go/No-Go 대기열 실패.
+  await expect(unmeasured).toHaveCount(4);
   for (const item of await unmeasured.all()) await expect(item).not.toContainText("0건");
 });
 

@@ -609,14 +609,14 @@ test("T10: 날짜 이동 — 이전 브리핑은 직전 평일이고 최신 브�
   await expect(second.getByRole("link", { name: "이전 브리핑" })).toHaveAttribute("href", `/briefing?date=${BRIEFING_DATE}`);
 });
 
-test("오늘 할 일에서 브리핑 추천을 열고 브리핑이 없으면 영역을 표시하지 않는다", async ({ page }) => {
+test("오늘 할 일에서 브리핑으로 가고 브리핑이 없으면 링크를 표시하지 않는다", async ({ page }) => {
   await mockApi(page);
   await mockBriefing(page);
   await page.goto("/");
-  const briefing = page.locator('[data-block="briefing"]');
-  await expect(briefing.getByRole("link", { name: "브리핑과 반응 이력 열기" })).toHaveAttribute("href", "/briefing");
-  await briefing.getByRole("link", { name: new RegExp(TITLE[1]) }).click();
-  await expect(peek(page)).toContainText(TITLE[1]);
+  // 오늘 할 일(2026-11-27 시안 C2)은 브리핑 목록을 싣지 않고 `함께 볼 것` 줄에 브리핑으로 가는 링크 하나만 둔다.
+  const briefing = page.locator('.dash-also a[data-count="briefing"]');
+  await expect(briefing).toHaveAttribute("href", `/briefing?date=${BRIEFING_DATE}`);
+  await briefing.click();
   expect(new URL(page.url()).searchParams.get("date")).toBe(BRIEFING_DATE);
   await expect(page.locator('aside.sidebar [aria-current="page"]')).toHaveText("오늘 할 일");
 
@@ -630,7 +630,7 @@ test("오늘 할 일에서 브리핑 추천을 열고 브리핑이 없으면 영
   const unavailable = second.waitForResponse((response) => new URL(response.url()).pathname === "/api/briefings/latest");
   await second.goto("/");
   expect((await unavailable).status()).toBe(404);
-  await expect(second.locator('[data-block="briefing"]')).toHaveCount(0);
+  await expect(second.locator('.dash-also a[data-count="briefing"]')).toHaveCount(0);
 });
 
 // 실무 화면 DOM에 운영 정보가 없어야 한다(ui-spec §5, spec "표시 금지").

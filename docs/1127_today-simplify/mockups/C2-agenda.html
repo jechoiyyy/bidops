@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>시안 C2 · 요약 줄 + 사업기회 마감 일정</title>
+<link rel="stylesheet" href="./shell.css">
+<script src="./shell.js"></script>
+<style>
+.wrap{display:flex;flex-direction:column;gap:16px}
+.sum{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.sum a{padding:12px 20px;display:flex;align-items:baseline;gap:10px}
+.sum a + a{border-left:1px solid var(--line)}
+.sum a:hover{background:var(--fill)}
+.sum .v{font-size:24px;font-weight:700}
+.sum .k{font-weight:600}
+.sum .cap{margin-left:auto;font-size:12.5px}
+.sum a.hot .v{color:var(--danger)}
+.sec-h{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+.sec-h .cap{margin-right:auto}
+
+.agenda{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.day{display:grid;grid-template-columns:96px minmax(0,1fr);border-top:1px solid var(--line)}
+.day:first-child{border-top:0}
+.rail{padding:10px 14px;background:var(--fill);display:flex;flex-direction:column;gap:0;border-right:1px solid var(--line)}
+.rail b{font-size:20px;line-height:1.2;font-variant-numeric:tabular-nums}
+.rail .cap{font-size:12px}
+.rail .d{font-size:12.5px;font-weight:700;color:var(--text-2);margin-top:2px}
+.rail .d.hot{color:var(--danger)}
+.day.quiet .rail{padding:6px 14px;flex-direction:row;align-items:baseline;gap:6px}
+.day.quiet .rail b{font-size:13px}
+.day.quiet .nil{margin:0;padding:6px 16px;font-size:12.5px;color:var(--text-3)}
+.opps{list-style:none;margin:0;padding:0}
+.opp{display:grid;grid-template-columns:minmax(0,1fr) 300px 92px 96px;gap:16px;align-items:center;padding:8px 16px}
+.opp + .opp{border-top:1px solid var(--line-soft)}
+.opp:hover{background:#FBFAF9}
+.opp .who{display:flex;flex-direction:column;min-width:0}
+.opp .ttl{font-size:14.5px}
+.opp .meta b{color:var(--text-1);font-weight:600}
+/* 단계 진행: 발주계획 → 사전규격 → 입찰공고 */
+.chain{display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap}
+.chain .s{padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--text-3)}
+.chain .s.done{border-color:transparent;background:var(--fill);color:var(--text-2)}
+.chain .s.now{border-color:var(--danger);color:var(--danger);font-weight:700;background:var(--danger-tint)}
+.chain .s.now.gng{border-color:var(--brand);color:var(--brand-tint-text);background:var(--brand-tint)}
+.chain i{width:8px;height:1px;background:var(--line);display:inline-block}
+.time{font-size:12.5px;color:var(--text-2);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.time b{display:block;color:var(--text-1);font-size:13px}
+.st{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.st .meta{font-size:11.5px}
+.foot{display:flex;gap:24px;align-items:center;padding:10px 16px;border-radius:10px;background:var(--fill);font-size:13px}
+.foot .k{font-weight:700}
+.foot a{text-decoration:underline;text-underline-offset:2px}
+</style>
+</head>
+<body data-top='<span class="health"><span class="led warn"></span>11-26 수집 완료 · 공고 적재 경고 388건 <a href="#">실행 상태</a></span>'>
+<template id="body">
+<section class="wrap">
+  <nav class="sum" aria-label="오늘 요약">
+    <a class="hot" href="#"><span class="k">결정할 것</span><span class="v num">8</span><span class="cap">마감 7일 이내 7 · Go/No-Go 1</span></a>
+    <a href="#"><span class="k">멈춘 것</span><span class="v num">22</span><span class="cap">개요 실패·취소 · 문서 준비 중단</span></a>
+    <a href="#"><span class="k">새로 들어온 것</span><span class="v num">249</span><span class="cap">발주계획 93 · 사전규격 156</span></a>
+  </nav>
+
+  <section>
+    <div class="sec-h"><h2 class="h2">추적 중인 사업 · 이번 주 마감</h2><span class="cap">마감일별 · 빨간 칸이 지금 다가오는 단계</span><a class="more" href="#">사업기회 전체</a></div>
+    <div class="agenda">
+      <div class="day"><div class="rail"><b>11.28</b><span class="cap">토요일</span><span class="d hot">내일</span></div>
+        <ul class="opps">
+          <li class="opp"><span class="who"><a class="ttl" href="#">AI 기반 LMS 및 스마트자기관리시스템 통합플랫폼 구축 사업</a><span class="meta">한성대학교 · 예산 <b>5억 9,200만 원</b></span></span>
+            <span class="chain"><span class="s done">발주계획 ✓</span><i></i><span class="s now">사전규격 의견등록</span><i></i><span class="s">입찰공고</span></span>
+            <span class="time"><b>23:59</b>의견등록 마감</span><span class="st"><span class="tag">계속 추적</span><span class="meta">예시 결정</span></span></li>
+          <li class="opp"><span class="who"><a class="ttl" href="#">RE100 이행관리 체계 개편에 따른 재생E사용 관리시스템 기능 개발</a><span class="meta">한국에너지공단 · 예산 <b>5,500만 원</b></span></span>
+            <span class="chain"><span class="s done">발주계획 ✓</span><i></i><span class="s now">사전규격 의견등록</span><i></i><span class="s">입찰공고</span></span>
+            <span class="time"><b>23:59</b>의견등록 마감</span><span class="st"><span class="tag">계속 추적</span><span class="meta">예시 결정</span></span></li>
+          <li class="opp"><span class="who"><a class="ttl" href="#">2027년도 식품진흥원 플랫폼 운영 및 유지관리 용역</a><span class="meta">조달청 · 예산 <b>12억 6,404만 원</b></span></span>
+            <span class="chain"><span class="s done">발주계획 ✓</span><i></i><span class="s now">사전규격 의견등록</span><i></i><span class="s">입찰공고</span></span>
+            <span class="time"><b>23:59</b>의견등록 마감</span><span class="st"><span class="tag">계속 추적</span><span class="meta">예시 결정</span></span></li>
+        </ul></div>
+      <div class="day"><div class="rail"><b>11.29</b><span class="cap">일요일</span><span class="d hot">D-2</span></div>
+        <ul class="opps">
+          <li class="opp"><span class="who"><a class="ttl" href="#">2027년 에너지효율개선사업 관리시스템 최적화 및 유지보수 용역</a><span class="meta">(재)한국에너지재단 · 예산 <b>1억 5,600만 원</b></span></span>
+            <span class="chain"><span class="s done">발주계획 ✓</span><i></i><span class="s now">사전규격 의견등록</span><i></i><span class="s">입찰공고</span></span>
+            <span class="time"><b>23:59</b>의견등록 마감</span><span class="st"><span class="tag">계속 추적</span><span class="meta">예시 결정</span></span></li>
+          <li class="opp"><span class="who"><a class="ttl" href="#">2027년 AI 기반 아동·청소년 온라인 성착취 탐지·신고 시스템 운영 및 유지관리</a><span class="meta">한국여성인권진흥원 · 예산 <b>1억 5,000만 원</b></span></span>
+            <span class="chain"><span class="s done">발주계획 ✓</span><i></i><span class="s now">사전규격 의견등록</span><i></i><span class="s">입찰공고</span></span>
+            <span class="time"><b>23:59</b>의견등록 마감</span><span class="st"><span class="tag">계속 추적</span><span class="meta">예시 결정</span></span></li>
+        </ul></div>
+      <div class="day"><div class="rail"><b>11.30</b><span class="cap">월요일</span><span class="d hot">D-3</span></div>
+        <ul class="opps">
+          <li class="opp"><span class="who"><a class="ttl" href="#">2027년 부정훈련관리시스템(TFDS) 유지보수</a><span class="meta">조달청 서울지방조달청 · 예산 <b>1억 1,497만 원</b></span></span>
+            <span class="chain"><span class="s done">발주계획 ✓</span><i></i><span class="s now">사전규격 의견등록</span><i></i><span class="s">입찰공고</span></span>
+            <span class="time"><b>23:59</b>의견등록 마감</span><span class="st"><span class="tag">계속 추적</span><span class="meta">예시 결정</span></span></li>
+          <li class="opp"><span class="who"><a class="ttl" href="#">2027년 교통AI빅데이터 융합플랫폼 유지보수</a><span class="meta">조달청 강원지방조달청 · 예산 <b>2억 1,099만 원</b></span></span>
+            <span class="chain"><span class="s done">발주계획 ✓</span><i></i><span class="s now">사전규격 의견등록</span><i></i><span class="s">입찰공고</span></span>
+            <span class="time"><b>23:59</b>의견등록 마감</span><span class="st"><span class="tag">계속 추적</span><span class="meta">예시 결정</span></span></li>
+        </ul></div>
+      <div class="day quiet"><div class="rail"><b>12.1 ~ 12.6</b></div><p class="nil">마감 없음</p></div>
+      <div class="day"><div class="rail"><b>12.7</b><span class="cap">월요일</span><span class="d">D-10</span></div>
+        <ul class="opps">
+          <li class="opp"><span class="who"><a class="ttl" href="#">2027년 거제시 홈페이지 통합 유지관리 용역</a><span class="meta">경상남도 거제시 · 추정가격 <b>8,007만 원</b></span></span>
+            <span class="chain"><span class="s done">사전규격 ✓</span><i></i><span class="s done">입찰공고 ✓</span><i></i><span class="s now gng">Go/No-Go 결정</span></span>
+            <span class="time"><b>14:00</b>입찰 마감</span><span class="st"><span class="tag warn">미결정</span><span class="meta">최종 결정 대기</span></span></li>
+        </ul></div>
+    </div>
+  </section>
+
+  <div class="foot">
+    <span class="k">함께 볼 것</span>
+    <span>개요 실패 <a href="#">2건</a></span>
+    <span>개요 사람 확인 <a href="#">10건</a></span>
+    <span class="cap" style="margin-left:auto">보류 재검토·확인 항목 미답변·조치 필요 0건은 숨겼어요</span>
+  </div>
+</section>
+</template>
+</body>
+</html>

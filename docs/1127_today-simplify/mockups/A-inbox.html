@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>시안 A · 할 일 한 줄 목록</title>
+<link rel="stylesheet" href="./shell.css">
+<script src="./shell.js"></script>
+<style>
+.wrap{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.lead{display:flex;align-items:baseline;gap:12px}
+.lead .big{font-size:22px;font-weight:700}
+.lead .big em{font-style:normal;color:var(--brand)}
+.grp-h{display:flex;align-items:baseline;gap:10px;padding:0 4px 6px;border-bottom:1px solid var(--line)}
+.grp-h h2{font-size:14px;margin:0}
+.grp-h .cap{margin-right:auto}
+.rows{list-style:none;margin:0;padding:0}
+.row{display:grid;grid-template-columns:78px minmax(0,1fr) 150px 120px;align-items:center;gap:16px;padding:6px 4px;border-bottom:1px solid var(--line-soft)}
+.row:hover{background:var(--fill)}
+.row .who{display:flex;flex-direction:column;min-width:0}
+.row .act{justify-self:end}
+.row > .tag{justify-self:start}
+.row.sum{grid-template-columns:78px minmax(0,1fr) auto}
+.row.sum .ttl{font-weight:500}
+.row.sum .ttl b{font-weight:700}
+.empty{font-size:13px;color:var(--text-2);padding:8px 4px}
+</style>
+</head>
+<body data-top='<span class="health"><span class="led warn"></span>11-26 수집 완료 · 공고 적재 경고 388건 <a href="#">실행 상태</a></span>'>
+<template id="body">
+<section class="wrap">
+  <div class="lead">
+    <span class="big">오늘 처리할 일 <em class="num">10</em>건</span>
+    <span class="cap">마감 7일 이내 7건 · Go/No-Go 1건 · 개요 실패 2건 · 13:00 기준</span>
+  </div>
+
+  <section>
+    <div class="grp-h"><h2>마감 다가오는 결정</h2><span class="cap">마감순</span><a class="more" href="#">사업기회</a></div>
+    <ul class="rows">
+      <li class="row"><span class="dday hot">내일</span><span class="who"><span class="ttl">AI 기반 LMS 및 스마트자기관리시스템 통합플랫폼 구축 사업</span><span class="meta">한성대학교 · 계속 추적</span></span><span class="tag">의견등록 마감</span><a class="act more" href="#">열기</a></li>
+      <li class="row"><span class="dday hot">내일</span><span class="who"><span class="ttl">RE100 이행관리 체계 개편에 따른 재생E사용 관리시스템 기능 개발</span><span class="meta">한국에너지공단 · 계속 추적</span></span><span class="tag">의견등록 마감</span><a class="act more" href="#">열기</a></li>
+      <li class="row"><span class="dday hot">내일</span><span class="who"><span class="ttl">2027년도 식품진흥원 플랫폼 운영 및 유지관리 용역</span><span class="meta">조달청 · 계속 추적</span></span><span class="tag">의견등록 마감</span><a class="act more" href="#">열기</a></li>
+      <li class="row"><span class="dday hot">D-2</span><span class="who"><span class="ttl">2027년 에너지효율개선사업 관리시스템 최적화 및 유지보수 용역</span><span class="meta">(재)한국에너지재단 · 계속 추적</span></span><span class="tag">의견등록 마감</span><a class="act more" href="#">열기</a></li>
+      <li class="row"><span class="dday hot">D-2</span><span class="who"><span class="ttl">2027년 AI 기반 아동·청소년 온라인 성착취 탐지·신고 시스템 운영 및 유지관리</span><span class="meta">한국여성인권진흥원 · 계속 추적</span></span><span class="tag">의견등록 마감</span><a class="act more" href="#">열기</a></li>
+      <li class="row"><span class="dday">D-10</span><span class="who"><span class="ttl">2027년 거제시 홈페이지 통합 유지관리 용역</span><span class="meta">경상남도 거제시 · 추정가격 8,007만 원 · 미결정</span></span><span class="tag">입찰 마감</span><span class="act tag go">Go/No-Go 결정</span></li>
+      <li class="row sum"><span class="cap">외</span><span class="ttl">7일 이내 마감 추적 건 <b>2건</b> 더</span><a class="more" href="#">모두 보기</a></li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="grp-h"><h2>멈춘 것</h2><span class="cap">사람이 다시 돌려야 진행돼요</span><a class="more" href="#">사전규격 확인 필요</a></div>
+    <ul class="rows">
+      <li class="row"><span class="tag bad">실패</span><span class="who"><span class="ttl">울산과학기술원 2027년 ERP 통합 유지보수</span><span class="meta">사전규격 · 개요 검토 실패</span></span><span></span><span class="act tag">다시 시도</span></li>
+      <li class="row"><span class="tag bad">실패</span><span class="who"><span class="ttl">분산자원 통합관리 HMI 서비스 개발</span><span class="meta">사전규격 · 개요 검토 실패</span></span><span></span><span class="act tag">다시 시도</span></li>
+      <li class="row sum"><span class="cap">함께</span><span class="ttl">개요 사람 확인 <b>10건</b> · 문서 준비 중단 포함 확인 필요 <b>22건</b></span><a class="more" href="#">목록 열기</a></li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="grp-h"><h2>어제 이후 새로 들어온 것</h2><span class="cap">11-26 이후 첫 수집 · 아직 추적 결정 전</span></div>
+    <ul class="rows">
+      <li class="row sum"><span class="cap">새로</span><span class="ttl">관련 발주계획 <b>93건</b> · SW 사전규격 <b>156건</b></span><span class="cap"><a class="more" href="#">발주계획</a> &nbsp; <a class="more" href="#">사전규격</a></span></li>
+    </ul>
+  </section>
+</section>
+</template>
+</body>
+</html>

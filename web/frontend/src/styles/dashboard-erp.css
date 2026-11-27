@@ -1,186 +1,59 @@
-/* 건수 띠, 업무 표, 일일 수집과 확인 구역을 셸 패널 한 장에 그린다. */
+/* 오늘 할 일(2026-11-27 시안 C2): 요약 줄 · 추적 중인 사업 마감 일정 · 함께 볼 것 한 줄.
+ * 치수는 프로젝트·Astryx 토큰을 쓰고 색은 bidops 테마 토큰만 읽는다. */
 .app-shell[data-astryx-theme="bidops"] .page-canvas:has(> .dash-page) { overflow-x: hidden; }
-.dash-header-actions { margin-left: auto; }
-.dash-page { --bo-type-list: var(--bo-type-list-title); --bo-line: var(--border-width); color: var(--color-text-primary); font-size: var(--bo-type-body); line-height: 1.5; }
+.dash-page { --bo-line: var(--border-width); color: var(--color-text-primary); font-size: var(--bo-type-body); line-height: 1.5; }
 .dash-page .astryx-text { font: inherit; color: inherit; }
 .dash-page .astryx-heading { margin: 0; font-family: inherit; font-weight: var(--font-weight-semibold); }
-.dash-page h2 { font-size: var(--bo-type-page-title); }
-.dash-page .dash-small { font-size: var(--bo-type-caption); line-height: 1.5; color: var(--color-text-secondary); }.dash-page .astryx-token { font-size: var(--bo-type-caption); min-height: var(--spacing-6); height: auto; border-radius: var(--radius-inner); white-space: nowrap; }
-.dash-page .astryx-selector, .dash-page .astryx-field-label { font-size: var(--bo-type-body); }
+.dash-page .dash-small { font-size: var(--bo-type-caption); line-height: 1.5; color: var(--color-text-secondary); }
+.dash-page .astryx-token { font-size: var(--bo-type-caption); min-height: var(--spacing-6); height: auto; border-radius: var(--radius-inner); white-space: nowrap; }
 :is(.dash-page, .dash-header-actions) svg { width: var(--spacing-4); height: var(--spacing-4); flex-shrink: 0; }
 .dash-page :is(a, button):focus-visible { outline: var(--focus-outline-width) solid var(--color-accent); outline-offset: var(--spacing-0-5); }
-.dash-header-actions { display: flex; align-items: center; gap: var(--spacing-2); min-width: 0; }
-/* Desktop ERP dashboard. Shell and typography are shared with the approved
- * six-page previews. Dimensions use project or Astryx tokens; color belongs to bidops. */
 .dash-page {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 100%;
   min-width: 0;
-  gap: var(--spacing-3);
+  gap: var(--spacing-4);
 }
-.dash-block { display: flex; flex-direction: column; gap: var(--spacing-2); min-width: 0; }
-.dash-block + .dash-block { margin-top: var(--spacing-2); }
-.dash-block-head { display: flex; align-items: baseline; gap: var(--spacing-3); min-width: 0; }
-.dash-page .dash-block-head h2 { font-size: var(--bo-type-list); white-space: nowrap; }
-.dash-block-actions {
+
+/* ── 헤더: 수집 상태 한 줄 + 새로고침 ─────────────────────────────── */
+.dash-header-actions { display: flex; align-items: center; gap: var(--spacing-2); min-width: 0; margin-left: auto; }
+.dash-health { position: relative; min-width: 0; }
+.dash-health > summary {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  margin-inline-start: auto;
-}
-.dash-count-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(calc(var(--spacing-12) * 3), 1fr));
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border-block: 1px solid var(--bo-line-soft);
-  overflow: hidden;
-}
-.dash-count-item { min-width: 0; }
-.dash-count-item + .dash-count-item { border-inline-start: 1px solid var(--bo-line-soft); }
-.dash-count-cell {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-0-5);
-  height: 100%;
-  padding: var(--spacing-2) var(--spacing-4);
-  min-width: 0;
-  color: var(--color-text-primary);
-  text-decoration: none;
-}
-a.dash-count-cell:hover { background: var(--color-accent-muted); }
-a.dash-count-cell:hover .dash-count-value { text-decoration: underline; }
-a.dash-count-cell:focus-visible { outline-offset: calc(0 - var(--focus-outline-width)); }
-.dash-page .dash-count-value { font-size: var(--bo-type-list); font-weight: 600; font-variant-numeric: tabular-nums; }
-.dash-count-cell.is-static .dash-count-value { color: var(--color-text-secondary); font-weight: 500; }
-.dash-work-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--spacing-3);
-  min-width: 0;
-}
-.dash-work-grid > .dash-work-wide { grid-column: 1 / -1; }
-.dash-panel {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-}
-.dash-panel-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-2);
-  padding: var(--spacing-1) var(--spacing-2);
-  border-bottom: 1px solid var(--bo-line-soft);
-  flex-shrink: 0;
-}
-.dash-page .dash-panel-head h3 { font-size: var(--bo-type-section-title); white-space: nowrap; }
-.dash-panel-body:empty { display: none; }
-.dash-panel-body { flex: 1; min-height: 0; min-width: 0; }
-.dash-panel-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--spacing-1) var(--spacing-2);
-  min-height: var(--spacing-8);
-  padding-inline: var(--spacing-2);
-  flex-shrink: 0;
-}
-.dash-decisions-table .record-table tbody tr { cursor: auto; }
-.dash-decisions-table .record-table-title a {
-  color: inherit;
-  text-decoration: underline;
-  text-underline-offset: var(--spacing-0-5);
-}
-.dash-decisions-table .record-table-title a:focus-visible {
-  outline-offset: calc(-1 * var(--focus-outline-width));
-}
-.dash-decision-status {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  margin: 0;
-  padding: var(--spacing-2) var(--spacing-3);
+  max-width: calc(var(--spacing-12) * 12);
+  padding: var(--spacing-1) var(--spacing-3);
+  border-radius: var(--radius-full, 999em);
+  background: var(--color-background-muted);
   color: var(--color-text-secondary);
-  font-size: var(--bo-k-meta);
+  font-size: var(--bo-type-caption);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  list-style: none;
 }
-.dash-decision-status[role="alert"] { color: var(--color-error); }
-.dash-decision-scope { overflow-wrap: anywhere; }
-.dash-cell-stack { display: grid; gap: var(--spacing-1); min-width: 0; }
-
-.dash-page .dash-panel-foot > .dash-small { min-width: 0; }
-
-/* 누적 업무 패널의 행. 목록은 상위 5건이고 오른쪽 칸은 D-day 또는 표식 하나다. */
-.dash-work-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.dash-work-item + .dash-work-item { border-top: var(--bo-line) solid var(--color-background-muted); }
-.dash-work-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-3);
-  padding: var(--spacing-2) var(--spacing-4);
-  color: inherit;
-  text-decoration: none;
-}
-.dash-work-row:hover { background: var(--color-accent-muted); }
-.dash-work-row:hover .dash-work-title { text-decoration: underline; }
-.dash-page .dash-work-title { font-size: var(--bo-type-list); font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
-.dash-work-end { display: flex; align-items: center; gap: var(--spacing-2); flex-shrink: 0; font-variant-numeric: tabular-nums; }
-/* 3일 이내는 굵기와 색을 함께 바꾼다. D-day 숫자 자체가 정보를 실으므로 색만으로
- * 전달하지 않는다(web/frontend/AGENTS.md). */
-.dash-page .dash-work-due-urgent { color: var(--color-error); font-weight: 600; }
-.dash-work-panel .dash-panel-body > :is(.empty-state, .skeleton-panel) { margin: var(--spacing-3) var(--spacing-4); }
-.dash-work-panel .dash-panel-body > .skeleton-panel { padding: 0; }
-
-/* 보류 재검토(spec §8·§11.2). 회차와 무관한 누적 패널이며 M6부터 업무 패널 격자 안에
- * 있다. 행은 S1부터 다른 업무 패널과 같은 `WorkRow`이므로 행 규칙을 따로 두지 않고,
- * 표가 만들던 가로 스크롤(`overflow-x: auto`)도 없앴다. */
-.dash-panel-title { display: flex; align-items: baseline; gap: var(--spacing-3); min-width: 0; }
-.dash-hold-state { display: flex; align-items: center; gap: var(--spacing-2); padding: var(--spacing-2) var(--spacing-4); }
-.dash-hold-state > svg { color: var(--color-text-secondary); }
-.dash-hold-state-error { color: var(--color-error); }
-.dash-hold-state-error > svg { color: var(--color-error); }
-.dash-hold-state > .astryx-button { margin-left: var(--spacing-2); }
-
-.dash-page [data-block="today"] .dash-count-strip {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: var(--spacing-3);
-  border: 0;
-  background: transparent;
-}
-
-.dash-page [data-block="today"] .dash-count-item {
-  border: 1px solid var(--color-border);
+.dash-health > summary::-webkit-details-marker { display: none; }
+.dash-health > summary:hover { color: var(--color-text-primary); }
+.dash-health > summary:focus-visible { outline: var(--focus-outline-width) solid var(--color-accent); outline-offset: var(--spacing-0-5); }
+.dash-health-led { width: var(--spacing-2); height: var(--spacing-2); border-radius: 50%; background: var(--color-accent); flex-shrink: 0; }
+.dash-health[data-state="warning"] .dash-health-led { background: var(--color-warning); }
+.dash-health-pop {
+  position: absolute;
+  top: calc(100% + var(--spacing-2));
+  right: 0;
+  z-index: 30;
+  width: min(calc(var(--spacing-12) * 16), 80vw);
+  padding: var(--spacing-1);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-element);
   background: var(--color-background-surface);
-  overflow: hidden;
+  box-shadow: var(--shadow-med);
 }
-
-.dash-page [data-block="today"] .dash-count-cell {
-  padding: var(--spacing-4);
-}
-
-.dash-page [data-block="today"] .dash-count-value {
-  color: var(--color-text-accent);
-  font-size: var(--bo-k-display);
-  font-weight: 700;
-}
-
-.dash-page [data-block="check"] .dash-count-item + .dash-count-item {
-  border-inline-start-color: var(--color-background-muted);
-}
-
-/* 공통 규칙(panel-density.css)이 이 묶음을 옅은 채움 블록으로 바꾸므로, 글자가 채움 가장자리에 붙지 않게
-   다른 채움 블록과 같은 안쪽 여백을 준다. */
-.dash-page .daily-collection {
-  padding: var(--spacing-2) var(--spacing-4);
-}
-
+.dash-health-pop .daily-collection { margin: 0; padding: var(--spacing-2) var(--spacing-3); }
 .dash-collection-status {
   display: flex;
   flex-wrap: wrap;
@@ -188,14 +61,148 @@ a.dash-count-cell:focus-visible { outline-offset: calc(0 - var(--focus-outline-w
   margin: 0;
   padding: var(--spacing-2) 0;
   list-style: none;
-  border-block-end: 1px solid var(--bo-line-soft);
+  border-block-end: 1px solid var(--color-border);
   color: var(--color-text-secondary);
   font-size: var(--bo-k-meta);
 }
+.dash-collection-status li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-2); }
 
-.dash-collection-status li {
+/* ── 요약 줄 ─────────────────────────────────────────────────────── */
+.dash-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-element);
+  background: var(--color-background-surface);
+  overflow: hidden;
+}
+.dash-summary-cell { display: flex; flex-direction: column; gap: var(--spacing-0-5); padding: var(--spacing-2) var(--spacing-5); min-width: 0; }
+.dash-summary-cell + .dash-summary-cell { border-inline-start: var(--border-width) solid var(--color-border); }
+.dash-summary-lead { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 var(--spacing-3); min-width: 0; }
+.dash-page .dash-summary-title { font-weight: var(--font-weight-semibold); white-space: nowrap; }
+.dash-summary-main {
+  color: var(--color-text-primary);
+  font-size: var(--bo-k-display);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.dash-summary-main:hover { text-decoration: underline; }
+.dash-summary-cell.is-hot .dash-summary-main { color: var(--color-error); }
+.dash-summary-aside { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--spacing-3); min-width: 0; }
+.dash-summary-extra {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-0-5);
+  white-space: nowrap;
+}
+.dash-summary-lead .dash-summary-extra { font-size: var(--bo-type-list-title); line-height: calc(var(--bo-k-display) * 1.25); }
+
+/* ── 마감 일정 ───────────────────────────────────────────────────── */
+.dash-block { display: flex; flex-direction: column; gap: var(--spacing-2); min-width: 0; }
+.dash-block-head { display: flex; align-items: baseline; gap: var(--spacing-3); min-width: 0; }
+.dash-page .dash-block-head h2 { font-size: var(--bo-type-list-title); white-space: nowrap; }
+.dash-block-actions { display: flex; align-items: center; gap: var(--spacing-2); margin-inline-start: auto; }
+
+.dash-agenda {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-element);
+  overflow: hidden;
+}
+.dash-agenda-day {
+  display: grid;
+  grid-template-columns: calc(var(--spacing-12) * 2) minmax(0, 1fr);
+  min-width: 0;
+}
+.dash-agenda-day + .dash-agenda-day { border-top: var(--border-width) solid var(--color-border); }
+.dash-agenda-rail {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-inline-end: var(--border-width) solid var(--color-border);
+  background: var(--color-background-muted);
+}
+.dash-agenda-rail > strong { font-size: var(--bo-type-list-title); font-variant-numeric: tabular-nums; line-height: 1.3; }
+.dash-agenda-due { margin-top: var(--spacing-0-5); color: var(--color-text-secondary); font-size: var(--bo-type-caption); font-weight: 700; }
+.dash-agenda-due.is-urgent { color: var(--color-error); }
+.dash-agenda-day.is-gap .dash-agenda-rail { padding-block: var(--spacing-1); }
+.dash-agenda-day.is-gap .dash-agenda-rail > strong { font-size: var(--bo-type-caption); }
+.dash-agenda-gap-text { align-self: center; padding-inline: var(--spacing-4); }
+
+.dash-agenda-items { margin: 0; padding: 0; list-style: none; min-width: 0; }
+.dash-agenda-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto calc(var(--spacing-12) * 2) calc(var(--spacing-12) * 3);
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-1-5, var(--spacing-1)) var(--spacing-4);
+  min-width: 0;
+}
+.dash-agenda-item + .dash-agenda-item { border-top: var(--border-width) solid var(--color-background-muted); }
+.dash-agenda-item:hover { background: var(--color-accent-muted); }
+.dash-agenda-main { display: flex; flex-direction: column; min-width: 0; }
+.dash-agenda-main > .dash-small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-agenda-title {
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-list);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.dash-agenda-title:hover { text-decoration: underline; }
+
+/* 단계 진행. 지금 단계는 테두리·굵기·문구(`의견등록`·`마감`·`결정`)로도 구분한다(색만으로 전달하지 않는다). */
+.dash-agenda-chain { display: flex; align-items: center; gap: var(--spacing-1); margin: 0; padding: 0; list-style: none; white-space: nowrap; }
+.dash-agenda-step {
+  padding: 0 var(--spacing-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-full, 999em);
+  color: var(--color-text-disabled);
+  font-size: var(--bo-type-caption);
+  line-height: 1.6;
+}
+.dash-agenda-step[data-state="linked"] { border-color: transparent; background: var(--color-background-muted); color: var(--color-text-secondary); }
+.dash-agenda-step[data-state="current"] { border-color: var(--color-error-edge); background: var(--color-error-bg); color: var(--color-error); font-weight: 700; }
+.dash-agenda-item[data-kind="final"] .dash-agenda-step[data-state="current"] { border-color: var(--color-accent); background: var(--color-accent-muted); color: var(--color-text-accent); }
+
+.dash-agenda-time { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dash-agenda-time > strong { font-size: var(--bo-type-body); }
+.dash-agenda-status { display: flex; flex-direction: column; align-items: flex-end; gap: var(--spacing-0-5); min-width: 0; }
+.dash-agenda-note { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.dash-agenda-body > :is(.empty-state, .skeleton-panel) { margin: 0; }
+.dash-agenda-status-line {
+  display: flex;
   align-items: center;
   gap: var(--spacing-2);
+  margin: 0;
+  padding: var(--spacing-1) var(--spacing-1);
+  color: var(--color-text-secondary);
+  font-size: var(--bo-k-meta);
 }
+.dash-agenda-status-line[role="alert"] { color: var(--color-error); }
+
+/* ── 함께 볼 것 ──────────────────────────────────────────────────── */
+.dash-also {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--spacing-1) var(--spacing-5);
+  padding: var(--spacing-2) var(--spacing-4);
+  border-radius: var(--radius-element);
+  background: var(--color-background-muted);
+  font-size: var(--bo-type-body);
+}
+.dash-also-title { font-weight: 700; }
+.dash-also-link { color: var(--color-text-primary); text-decoration: underline; text-underline-offset: var(--spacing-0-5); white-space: nowrap; }
+.dash-also-zero { margin-inline-start: auto; }

@@ -50,9 +50,9 @@ test("공통 셸이 로컬 글꼴과 기능 아이콘 접근성을 지킨다", a
   expect(unnamedButtons).toEqual([]);
 });
 
-// 설계고도화안 C-8: 옛 단계 바로가기 네 칸 대신 세 묶음의 건수 띠다. 띠는 묶음마다 한 줄이고,
+// 오늘 할 일(2026-11-27 시안 C2): 요약 줄 세 칸은 한 줄이고,
 // 건수를 못 받은 칸은 0이 아니라 `미확인`이다.
-test("대시보드 건수 띠는 묶음마다 한 줄이고 이름이 잘리지 않으며 미확인을 0으로 접지 않는다", async ({ page }) => {
+test("대시보드 요약 줄은 한 줄이고 칸 이름이 잘리지 않으며 확인 중으로 멈추지 않는다", async ({ page }) => {
   await mockWorkload(page, { generated_at: "2026-09-01T09:00:00Z", items: [
     { key: "order_plan_pending", count: 24, unavailable_reason: null },
     { key: "pre_spec_actionable", count: null, unavailable_reason: "provider_absent" },
@@ -67,14 +67,12 @@ test("대시보드 건수 띠는 묶음마다 한 줄이고 이름이 잘리지 
     { key: "order_plan_new_priority", count: 6, unavailable_reason: null },
   ] });
   await page.goto(`/?run=${encodeURIComponent(RUN_ID)}`);
-  const strips = page.locator(".dash-count-strip");
-  await expect(strips).toHaveCount(3);
-  await expect(page.locator(".dash-count-value").filter({ hasText: "확인 중" })).toHaveCount(0);
-  for (const strip of await strips.all()) {
-    const tops = await strip.locator(".dash-count-item").evaluateAll(items => items.map(item => Math.round(item.getBoundingClientRect().top)));
-    expect(new Set(tops).size).toBe(1);
-  }
-  const clipped = await page.locator(".dash-count-label").evaluateAll(labels => labels
+  const cells = page.locator(".dash-summary-cell");
+  await expect(cells).toHaveCount(3);
+  await expect(page.locator(".dash-page a[data-count]").filter({ hasText: "확인 중" })).toHaveCount(0);
+  const tops = await cells.evaluateAll(items => items.map(item => Math.round(item.getBoundingClientRect().top)));
+  expect(new Set(tops).size).toBe(1);
+  const clipped = await page.locator(".dash-summary-title").evaluateAll(labels => labels
     .filter(label => label.scrollWidth - label.clientWidth > 1).map(label => label.textContent));
   expect(clipped).toEqual([]);
 });

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>시안 B · 세 칸 보드</title>
+<link rel="stylesheet" href="./shell.css">
+<script src="./shell.js"></script>
+<style>
+.board{display:grid;grid-template-columns:1.35fr 1fr 0.8fr;gap:16px;align-items:start}
+.col{border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;min-width:0}
+.col-h{padding:16px 18px 12px;display:flex;flex-direction:column;gap:2px;border-bottom:1px solid var(--line-soft)}
+.col-h .k{font-size:13px;color:var(--text-2);font-weight:600}
+.col-h .v{font-size:30px;font-weight:700;line-height:1.2}
+.col-h .v small{font-size:15px;font-weight:600;margin-left:2px}
+.col-h .cap{font-size:12.5px}
+.col.hot .col-h .v{color:var(--danger)}
+.items{list-style:none;margin:0;padding:4px 0}
+.it{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 18px}
+.it + .it{border-top:1px solid var(--line-soft)}
+.it .who{display:flex;flex-direction:column;min-width:0}
+.col-f{margin-top:auto;padding:10px 18px 14px;border-top:1px solid var(--line-soft);display:flex;justify-content:space-between;align-items:center}
+.stat{display:flex;justify-content:space-between;align-items:baseline;padding:14px 18px}
+.stat + .stat{border-top:1px solid var(--line-soft)}
+.stat .k{font-weight:600}
+.stat .k .meta{display:block;font-weight:400}
+.stat .v{font-size:22px;font-weight:700}
+.quiet{padding:14px 18px;font-size:13px;color:var(--text-2);border-top:1px solid var(--line-soft)}
+</style>
+</head>
+<body data-top='<span class="health"><span class="led warn"></span>11-26 수집 완료 · 공고 적재 경고 388건 <a href="#">실행 상태</a></span>'>
+<template id="body">
+<section class="board">
+  <article class="col hot">
+    <header class="col-h"><span class="k">결정할 것</span><span class="v num">8<small>건</small></span><span class="cap">마감 7일 이내 추적 건 7 · 최종 Go/No-Go 1</span></header>
+    <ul class="items">
+      <li class="it"><span class="who"><span class="ttl">AI 기반 LMS 및 스마트자기관리시스템 통합플랫폼 구축 사업</span><span class="meta">의견등록 마감 · 한성대학교</span></span><span class="dday hot">내일</span></li>
+      <li class="it"><span class="who"><span class="ttl">RE100 이행관리 체계 개편에 따른 재생E사용 관리시스템 기능 개발</span><span class="meta">의견등록 마감 · 한국에너지공단</span></span><span class="dday hot">내일</span></li>
+      <li class="it"><span class="who"><span class="ttl">2027년도 식품진흥원 플랫폼 운영 및 유지관리 용역</span><span class="meta">의견등록 마감 · 조달청</span></span><span class="dday hot">내일</span></li>
+      <li class="it"><span class="who"><span class="ttl">2027년 에너지효율개선사업 관리시스템 최적화 및 유지보수 용역</span><span class="meta">의견등록 마감 · (재)한국에너지재단</span></span><span class="dday hot">D-2</span></li>
+      <li class="it"><span class="who"><span class="ttl">2027년 거제시 홈페이지 통합 유지관리 용역</span><span class="meta"><span class="tag go">Go/No-Go</span> 입찰 마감 · 거제시 · 8,007만 원</span></span><span class="dday">D-10</span></li>
+    </ul>
+    <footer class="col-f"><span class="cap">외 3건</span><a class="more" href="#">사업기회 마감순</a></footer>
+  </article>
+
+  <article class="col">
+    <header class="col-h"><span class="k">멈춘 것</span><span class="v num">22<small>건</small></span><span class="cap">개요 실패·취소 · 문서 준비 중단</span></header>
+    <ul class="items">
+      <li class="it"><span class="who"><span class="ttl">울산과학기술원 2027년 ERP 통합 유지보수</span><span class="meta">개요 검토 실패</span></span><span class="tag bad">실패</span></li>
+      <li class="it"><span class="who"><span class="ttl">분산자원 통합관리 HMI 서비스 개발</span><span class="meta">개요 검토 실패</span></span><span class="tag bad">실패</span></li>
+      <li class="it"><span class="who"><span class="ttl">등급판정체계 개편 정보시스템 구축 감리 사업</span><span class="meta">개요 · 사람 확인 필요</span></span><span class="tag warn">확인</span></li>
+    </ul>
+    <p class="quiet">개요 사람 확인 10건 · 보류 재검토·확인 항목 미답변은 없어요</p>
+    <footer class="col-f"><span class="cap"></span><a class="more" href="#">사전규격 확인 필요</a></footer>
+  </article>
+
+  <article class="col">
+    <header class="col-h"><span class="k">새로 들어온 것</span><span class="cap">11-26 이후 첫 수집 · 추적 결정 전</span></header>
+    <a class="stat" href="#"><span class="k">발주계획<span class="meta">모델 관련</span></span><span class="v num">93</span></a>
+    <a class="stat" href="#"><span class="k">사전규격<span class="meta">SW사업대상</span></span><span class="v num">156</span></a>
+    <p class="quiet">목록과 분류는 각 화면에서 봐요.</p>
+  </article>
+</section>
+</template>
+</body>
+</html>
