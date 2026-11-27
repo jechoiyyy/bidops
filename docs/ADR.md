@@ -5,7 +5,7 @@
 | 문서 상태 | 현재 결정 기준선·통합 색인 |
 | 기준일 | 2026-09-21 |
 | 범위 | 수집, 선별, 사전규격 검토, 심층 검토, 입찰공고 추적, 운영·보안 |
-| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051·0053~0054·0056~0068·0069~0078, ADR-0039~0041·0046~0048·0055(구 `docs/design/ADR.md`, git 이력에서 확인) |
+| 상세 결정 정본 | [`docs/tracking/decisions/`](tracking/decisions/)의 ADR-0001~0038·0042~0045·0049~0051·0053~0054·0056~0068·0069~0078·0080~0081, ADR-0039~0041·0046~0048·0055(구 `docs/design/ADR.md`, git 이력에서 확인) |
 | 함께 읽을 문서 | [`PRD.md`](PRD.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`contracts.md`](contracts.md) |
 
 이 문서는 여러 시점에 작성된 결정 기록을 현재 관점에서 읽기 위한 통합 ADR이다. 각 결정의
@@ -358,3 +358,5 @@ ADR-0021은 “운영 제품 전에 동일 모집단과 사람 정답으로 비�
 - [ADR-0076 관리 화면 셸을 바탕 위 흰 패널 한 장과 패널 헤더로](tracking/decisions/0076-kstyle-panel-shell.md) (2026-11-19 사용자 승인): 최종 시안 4장(`docs/1119_kstyle-shell/mockups/`)대로 228px 면 없는 사이드바 + 흰 패널(1px·radius 12) + 패널 헤더(화면 이름·문장형 `<h1>`·설명·둥근 칸 탭, `usePageHeader`), 상세는 `‹ 목록` 배치(옛 breadcrumb 폐기). ADR-0048의 라이트 중립색을 따뜻한 회색(본문 `#1B1B1A`·보조 `#5E5D5A`·경계 `#E4E3E0`·fill `#F6F5F3`)으로, purple을 모델 판단 정보색으로, `--shadow-low`를 옅은 선으로 개정. 강조·의미색과 대비 게이트는 그대로. 2026-11-20 후속: 나머지 화면 안쪽·해요체 문구·읽기 전용 수집 기준일 API(`GET /api/daily-collection-status`)·pixel 기준선 갱신. 구현은 브랜치 `worktree-agent-a72925add1c17cfca`(main 병합 전).
 - [ADR-0077 관리 화면의 목록·관리·상세를 표 작업대 배치와 공용 틀로](tracking/decisions/0077-table-workbench-layout.md) (2026-11-23 사용자 결정): 목록은 Astryx `Table` 조합 방식의 `RecordTable` 하나(행 `<tr>`이 키보드 계약을 짐), 목록 60% | 미리보기 40%, 결정 띠 `DecisionBar`, 관리 화면은 왼쪽 `SectionNav`, 읽기 상세는 본문 + 오른쪽 정보 열(`RecordFrame`). 색·글꼴·셸은 그대로. ADR-0076의 목록 폭·선택 행과 `approved-layout.md`의 분할·행·관리 탭을 대체
 - [ADR-0078 엔진 분석은 사람이 추적을 시작한 사전규격에만 요청된다](tracking/decisions/0078-engine-review-on-tracking-start.md) (2026-11-24 사용자 결정, 구현 전): 분석 요청은 사전규격의 추적 시작(단건·일괄)이나 `분석 요청` 단추에서만 생기고, 외부 전송은 공고마다 동결된 자료를 읽고 따로 승인한다. RL-11의 자동 후보 경로는 구현하지 않으며 추적 API는 바꾸지 않는다. 실제 전송·운영 활성화·품질 인수는 열리지 않는다.
+- [ADR-0080 사전규격 회사 핏은 사업 범위 카드와 로컬 모델로 판정하고, 부합은 추천만 한다](tracking/decisions/0080-prespec-company-fit-card.md) (2026-11-27 사용자 결정): 카드 v1.2 + 프롬프트 v3.1 + LiteLLM `local-agent-main`, 모드 `off|suggest`는 env 상한 + 감사되는 모드 행(REST·CLI), `matched`는 추천 표시만, 참조 표식 유지. 운영 모드 전환·품질 인수는 열리지 않는다.
+- [ADR-0081 제품의 엔진 live 분석은 OpenAI Responses API로 직접 호출한다](tracking/decisions/0081-engine-live-responses-api.md) (2026-11-27 사용자 결정): `runner --live-ipc` frame → analysis-worker supervisor만 키·HTTP를 갖고, 측정한 body(명시 캐시 경계, `store=false`, 재시도 없음)를 보낸다. 공고별 승인 manifest에 첫 요청 hash·상한을 묶고, `engine_call` 원장과 KST 상한(시운전 1건·8회·$1)으로 막는다. codex-runner 경로는 그대로다.

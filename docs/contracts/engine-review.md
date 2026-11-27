@@ -9,7 +9,17 @@
 | `BIDOPS_ENGINE_REVIEW_MODE` | `off` | dev·mock은 `off`, `live`, `mock_reference`를 허용한다. `mock_reference`는 `BIDOPS_REFERENCE_WORKFLOW_MODE=true`가 필요하며 mock overlay가 이 값을 설정한다. prod에는 `off`, `live`만 허용한다. |
 | `BIDOPS_ENGINE_ANALYSIS_ENABLED` | `false` | 세 환경 모두 `false` 또는 `true`를 받는다. 목업 승인과 worker claim에는 두 서비스 모두 `true`가 필요하다. |
 
-알 수 없는 검토 모드는 기동 시 오류다. prod overlay의 고정된 `BIDOPS_ENV=prod` 설정은 참조 모드와 관계없이 `mock_reference` 기동을 거부한다. 목업은 외부 호출을 0회로 고정한다. `live` 미리보기와 승인은 503 `engine_live_disabled`를 반환한다.
+알 수 없는 검토 모드는 기동 시 오류다. prod overlay의 고정된 `BIDOPS_ENV=prod` 설정은 참조 모드와 관계없이 `mock_reference` 기동을 거부한다. 목업은 외부 호출을 0회로 고정한다.
+
+### live (2026-11-27, ADR-0081)
+
+`live`는 `BIDOPS_ENGINE_LIVE_DAILY_NOTICE_CAP`·`_DAILY_CALL_CAP`·`_NOTICE_CALL_CAP`(≤8)·`_DAILY_USD_CAP`이 모두 양수여야 기동한다. `BIDOPS_ENGINE_LIVE_RESPONSES_URL`은 비우면 고정 주소이고 prod에서는 값이 있으면 기동을 거부한다. 키(`BIDOPS_ENGINE_LIVE_KEY_FILE`, compose secret)는 analysis-worker에만 있다.
+
+- live 미리보기의 동결 입력은 `mode=live`이고 manifest의 `policy`는 `openai_responses`, `model`은 `gpt-6-luna`, `planned_calls`는 엔진 계획(작업 단위 지도가 있으면 5, 없으면 3)과 공고당 상한 중 작은 값, `remaining_calls`는 공고당 상한이다. `manifest.live`는 `{transport, model, reasoning_effort, endpoint, wire_version, first_request_sha256, first_request_estimated_tokens, planned_calls, call_timeout_seconds, store:false, retries:0, price_source, usd_per_mtok, caps}`이며 digest에 들어간다. 첫 요청 추정 토큰이 `BIDOPS_ENGINE_LIVE_MAX_REQUEST_TOKENS`(32만)를 넘으면 422 `request_too_large`다.
+- 미리보기 영수증의 `budget`은 그 시각의 KST 사용량·남은 상한이며 digest 밖이다.
+- 승인은 오늘 남은 건수·호출·비용이 예정 호출을 감당하지 못하면 409 `budget_exhausted`다.
+- live run의 결과는 `quality_status=unmeasured_reference`, `status=completed|failed`이며 `result_payload.live={transport, model, reasoning_effort, calls, usd, price_source}`가 붙는다. 실패한 live run의 조회 `reason`은 `budget_exhausted`이거나 `live_run_failed`다.
+- 호출마다 `engine_call` 행이 남는다(append-only, `reserved` → `completed|http_error|incomplete|transport_error|outcome_unknown` 한 번). app은 읽기만, worker만 쓴다.
 
 ## REST
 
@@ -60,8 +70,8 @@ HWP/HWPX 추출 구조의 쪽 수는 HWPX XML 구역 수다. 이 미리보기 �
 | 404 | `not_found` |
 | 409 | `tracking_required`, `notice_not_latest`, `review_excluded`, `request_required`, `company_bundle_unavailable`, `company_bundle_invalid`, `documents_pending`, `original_hwp_required`, `unsafe_document`, `structure_unavailable`, `preview_expired`, `input_changed`, `idempotency_conflict`, 요청 등록의 `engine_disabled`(목업 실행 스위치 꺼짐) |
 | 422 | `input_too_large`, 잘못된 본문 |
-| 503 | `engine_disabled`, `engine_live_disabled`, `engine_unavailable` |
+| 503 | `engine_disabled`, `engine_unavailable` (`engine_live_disabled`는 2026-11-27 뒤 쓰지 않는다) |
 
-조회 `reason`의 어휘는 `tracking_required`, `documents_pending`, `original_hwp_required`, `unsafe_document`, `structure_unavailable`, `company_bundle_unavailable`, `company_bundle_invalid`, `engine_disabled`, `engine_live_disabled`, `budget_exhausted`, `input_changed`다. `off`의 조회는 `not_requested`와 `engine_disabled`를 반환한다.
+조회 `reason`의 어휘는 `tracking_required`, `documents_pending`, `original_hwp_required`, `unsafe_document`, `structure_unavailable`, `company_bundle_unavailable`, `company_bundle_invalid`, `engine_disabled`, `engine_live_disabled`, `budget_exhausted`, `input_changed`, `live_run_failed`다. `off`의 조회는 `not_requested`와 `engine_disabled`를 반환한다.
 
 `0045_engine_review`는 `engine_review_request`, `engine_review_preview`, `engine_review_approval`, `engine_review_acknowledgment`를 추가한다. 미리보기·승인·읽음 영수증은 불변이다. 요청은 `tracking_ended\|dismissed\|superseded` 사유로 한 번 닫을 수 있다. 건너뛰기 영수증은 닫힘과 해당 감사 이벤트를 참조한다. 감사는 `engine_review.requested`, `.preview_created`, `.approved`, `.dismissed`, `.closed`, `.acknowledged`이며 담당자, 식별자, 안전한 메타데이터를 저장한다.
