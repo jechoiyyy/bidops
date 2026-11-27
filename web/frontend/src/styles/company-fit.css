@@ -5,6 +5,7 @@
 .company-fit p{margin:0;white-space:pre-wrap}
 .company-fit-heading,.company-fit-links{display:flex;align-items:center;flex-wrap:wrap;gap:var(--spacing-3)}
 .company-fit-note{color:var(--color-text-secondary)}
+.company-fit-suggestion{font-weight:600;color:var(--color-text-primary)}
 .company-fit-notice{display:grid;gap:var(--spacing-2);padding:var(--spacing-3);background:var(--color-background-body);border-radius:var(--radius-inner)}
 .company-fit-reasons{margin:0;padding-left:var(--spacing-5)}
 .company-fit-reasons>li{padding-block:var(--spacing-3);border-bottom:var(--border-width) solid var(--color-background-muted)}
@@ -46,3 +47,7 @@
 .company-fit-execution-facts{display:grid;gap:var(--spacing-1);margin:0;min-width:0}
 .company-fit-execution-facts dt{font-weight:500}
 .company-fit-execution-facts dd{margin:0;min-width:0;overflow-wrap:anywhere}
+/* 상세 상단 세 열 가운데(회사 적합성)는 폭이 좁다. 근거 이름 열(96px)을 두면 근거 문장이
+ * 몇 글자씩 끊기므로, 이 열에서는 이름을 문장 위에 쌓는다(PS-01 MVP, 1280 확인). */
+.ps-record-briefing .company-fit-evidence { grid-template-columns: minmax(0, 1fr); gap: var(--spacing-1); }
+.ps-record-briefing .company-fit-evidence dd + dt { margin-top: var(--spacing-2); }

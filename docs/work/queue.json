@@ -93,6 +93,11 @@
         "RL-10-compare-blockers"
       ],
       "added_at": "2026-11-20T13:25:42+09:00"
+    },
+    {
+      "feature": "PS-01-company-fit-card",
+      "depends_on": [],
+      "added_at": "2026-11-27T12:20:30+09:00"
     }
   ]
 }

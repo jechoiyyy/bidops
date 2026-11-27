@@ -208,6 +208,11 @@ class OverviewDocumentProjection(Protocol):
         없으면 `None`이고 그때 `grade_source`도 `None`이다 — 둘을 특정 값으로
         접지 않는다.
 
+        키 `company_fit`(PS-01 C6)은 회사 핏 요약 dict
+        `{group, decision, status, is_current, engine_suggested}`이다. `group`은
+        `matched|unknown|pending|mismatch`이고 목록의 `company_fit` 필터·`sort=fit`이
+        같은 값을 읽는다. 키가 없으면 목록은 그 공고를 `pending`으로 본다.
+
         `document_counts`와 같은 계약이다: 호출부가 넘긴 `notice_ids` 만큼을
         **상수 회 조회**로 처리하고 공고당 조회를 만들지 않는다. 없는 공고는
         빠뜨린다(호출부가 부재 기본값으로 채운다).

@@ -1,0 +1,3694 @@
+{
+ "judged_by": "claude_reference",
+ "card_sha256": "28750478a0b1adb8245b0547d9f398f84561e543418162def2e4803e9d06eb22",
+ "note": "Claude(opus-5-5) 재판정 2026-11-27, 카드 v1.2 + 지시문 v3.1, 이전 판정 비공개 상태로 독립 판정, 모델 호출 없음",
+ "rows": [
+  {
+   "notice_id": 4147,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "행정정보시스템 운영과 함께 서버·통신장비·보안시스템·전산기기 유지관리가 넓게 포함된 통합유지관리로, 카드 경계상 하드웨어·네트워크 비중이 큰 통합유지관리는 확인 대상이다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "과업 대상에 하드웨어, 전산기기, 통신장비, 보안시스템, 기반시설장비와 상용SW 유지관리가 함께 들어 있어 웹·플랫폼 응용SW 유지관리 범위를 넘는다. 카드는 HW·NW 비중이 큰 통합유지관리를 unknown으로 정한다.",
+      "notice_refs": [
+       "main_tasks:3",
+       "main_tasks:6",
+       "main_tasks:5"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "홈페이지·온나라 등 행정정보시스템 운영과 헬프데스크·관제·정보보안 관리도 포함되어 있으나, 응용SW 유지관리와 장비 유지관리 중 어느 쪽이 주된 과업인지 개요만으로 판단할 수 없다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops",
+       "policy:mixed-scope"
+      ]
+     }
+    ],
+    "verification_items": [
+     "사업비 중 하드웨어·통신장비·보안장비 유지관리와 응용SW 운영의 비중",
+     "홈페이지 등 응용시스템 유지관리가 별도 과업으로 구분되는지",
+     "상주 인력 요구 여부와 근무 장소"
+    ]
+   }
+  },
+  {
+   "notice_id": 4149,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "운영 중인 통합연구관리시스템의 응용SW 유지관리·위탁운영이 주된 과업이라 유지관리·위탁운영 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "주된 과업이 통합연구관리시스템 운영·안정화, 장애처리, 프로그램 수정 보완과 기능 개선이므로 웹·플랫폼 응용SW 유지관리·위탁운영 범위와 맞는다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "main_tasks:3",
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "상용S/W 유지관리는 시스템 유지관리에 딸린 범위로 함께 적혀 있고, 상주 인력 투입은 요구되지만 개요에 상주 장소가 지정되지 않아 상주 정책상 상주로 보지 않는다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:6"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops",
+       "policy:onsite"
+      ]
+     }
+    ],
+    "verification_items": [
+     "상주 인력의 근무 장소가 발주기관(분당서울대학교병원)인지와 상주 필수 여부",
+     "상용S/W 유지관리가 사업비에서 차지하는 비중",
+     "인력 자격 요건(정보처리기사 소지 전문인력) 충족 여부"
+    ]
+   }
+  },
+  {
+   "notice_id": 4150,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "mismatch",
+    "summary": "주된 과업이 CCTV 설비와 서버·네트워크 등 하드웨어 장비의 장애예방점검·수리여서 회사가 하지 않는 하드웨어 유지관리 사업에 해당한다.",
+    "reasons": [
+     {
+      "kind": "scope_mismatch",
+      "explanation": "과업이 CCTV통합안전센터의 보안·서버·네트워크 장비와 현장 CCTV 설비의 점검·수리·기술지원으로, 하드웨어·전산장비 유지관리가 주된 과업인 사업이라는 회사 제외 기준에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "business_overview:0"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "유지관리 요원 상주가 과업에 들어 있으나 개요에 상주 장소와 필수 여부가 적혀 있지 않아 상주 조건은 판단하지 않았다.",
+      "notice_refs": [
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "policy:onsite"
+      ]
+     }
+    ],
+    "verification_items": [
+     "개요 밖 본문에 응용SW 유지관리 과업이 별도로 있는지 확인",
+     "유지관리 요원 상주 장소와 필수 여부 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4151,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "온라인 매체 구매와 광고 집행·홍보가 주된 과업이라 카드의 사업 범위에 들지 않고 콘텐츠 운영 주의 조건에 가까워 사람이 확인해야 한다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "주된 과업은 온라인 매체 구매, 광고집행 리포트, 유튜브 예산 운영 KPI 제시로 광고·홍보 대행 성격이며 카드의 어느 scope includes에도 해당하지 않는다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:2",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:homepage-build",
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "캠페인 영상과 온라인 콘텐츠 확산이 사업 목적이어서 콘텐츠 제작·운영이 주된 용역이라는 회사 주의 조건에 해당할 수 있다.",
+      "notice_refs": [
+       "business_overview:1",
+       "business_overview:3"
+      ],
+      "company_refs": [
+       "policy:caution"
+      ]
+     }
+    ],
+    "verification_items": [
+     "온라인 광고·매체 구매 대행 사업에 참여할 의사와 수행 근거가 있는지 확인",
+     "과업에 웹·플랫폼 개발이나 운영이 포함되는지 제안요청서 전체에서 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4153,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "운영 중인 재생에너지 사용 확인서 발급관리 시스템에 신규 확인서 발급 기능을 추가하고 기존 기능을 개선하는 사업으로, 응용시스템 기능 추가·개선 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "기존 재생에너지 사용 확인서 발급관리 기능을 개선하고 혼소설비 사용확인서·PPA 확인서 발급 기능을 새로 개발하는 과업은 운영 중인 응용시스템의 기능 추가·개선에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:enhancement"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "이행수단별 신청·검증·발급 기능과 확인서 중복 발급 방지는 증명서 발급 업무시스템 개발과 같은 성격이다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:business-system"
+      ]
+     }
+    ],
+    "verification_items": [
+     "기존 시스템을 구축·운영한 업체와 소스 인수 조건"
+    ]
+   }
+  },
+  {
+   "notice_id": 4154,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "운영 중인 해외안전여행 홈페이지와 모바일 앱의 유지관리·기능 개선이 주된 과업이라 유지관리 범위와 앱 고도화 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "홈페이지 장애 대응·시스템 연계·운영 프로그램 유지관리가 주된 과업이므로 홈페이지 유지관리를 포함하는 유지관리·위탁운영 범위와 맞는다.",
+      "notice_refs": [
+       "notice:title",
+       "main_tasks:0"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "최신 스마트폰 운영체제·단말기 대응과 UI 개선 등 기능 개선은 모바일 앱의 기기 호환과 기능 고도화 범위와 맞는다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:mobile-app"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "인력 상주는 사업 종료 후 인수인계 지원으로만 적혀 있고 상주 장소가 지정되지 않아 상주 정책상 상주로 보지 않는다.",
+      "notice_refs": [
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "policy:onsite"
+      ]
+     }
+    ],
+    "verification_items": [
+     "Arc-GIS 등 지도 서비스 유지관리의 기술 범위와 비중",
+     "PL급 인력 상주의 장소·기간과 필수 여부",
+     "모바일 앱 보안 취약점 점검·조치의 수행 방식"
+    ]
+   }
+  },
+  {
+   "notice_id": 4155,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "학교 무선 네트워크 장애 조치와 스마트기기 점검이 주된 과업이어서 웹·플랫폼 응용SW 유지관리 범위로 볼 수 없어 사람 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "주된 과업이 학교 무선망 장애 진단·조치, 무선 AP·스위치 설치 지원, 스마트기기 점검으로 네트워크 운영에 가깝고, 유지관리 대상이 웹·플랫폼 응용SW가 아니면 unknown이라는 카드 경계에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:2",
+       "main_tasks:6"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "무선 AP·POE 스위치 설치·교체 지원이 일부 들어 있어 장비 정비 비중이 큰지 개요만으로는 알 수 없다.",
+      "notice_refs": [
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "policy:mixed-scope"
+      ]
+     }
+    ],
+    "verification_items": [
+     "네트워크 운영·현장 기술지원 용역 수행 의향과 협력사 구성 확인",
+     "장비 설치·교체 지원이 과업에서 차지하는 비중 확인",
+     "테크매니저 현장 지원 인력의 근무 방식 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4156,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "mismatch",
+    "summary": "학교 무선 네트워크 장비 점검·설치·교체와 단말기 재배치가 주된 과업이라 하드웨어·네트워크 장비 정비를 하지 않는 회사 정책에 해당한다.",
+    "reasons": [
+     {
+      "kind": "scope_mismatch",
+      "explanation": "주된 과업이 학교 무선 네트워크 점검·장애 조치와 무선장비(AP, POE)의 설치·이전·교체로, 네트워크 장비 정비·교체가 주된 과업이면 no-bid라는 유지관리 범위 경계와 회사 정책에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_mismatch",
+      "explanation": "스마트 단말기·충전함 재배치와 스마트기기 점검도 하드웨어 관리 과업이며 웹·플랫폼 응용SW 유지관리가 아니다.",
+      "notice_refs": [
+       "main_tasks:2",
+       "business_overview:1"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "테크매니저 인력 운영 외에 응용SW 개발·유지관리 과업이 있는지 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4157,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "운영 중인 산책앱 걸어용의 앱·서버 운영과 유지관리, 기능 개선이 주된 과업으로 플랫폼 응용SW 유지관리와 앱 고도화 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "걸어용 시스템의 안정적 운영과 유지관리, Android/iOS 앱 및 서버 모니터링·장애 조치·보안 패치 대응은 플랫폼 응용SW 유지관리에 해당한다.",
+      "notice_refs": [
+       "business_overview:2",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "걸음수·자전거 운동 정보 수집 정확도 개선과 서비스 고도화 방안 수립은 앱 기능 고도화 범위와 맞는다.",
+      "notice_refs": [
+       "main_tasks:4",
+       "main_tasks:0"
+      ],
+      "company_refs": [
+       "scope:mobile-app"
+      ]
+     }
+    ],
+    "verification_items": [
+     "행사 홍보부스 운영 등 현장 지원 인력의 범위와 횟수",
+     "이용자 민원 응대가 상주 인력을 요구하는지"
+    ]
+   }
+  },
+  {
+   "notice_id": 4160,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "mismatch",
+    "summary": "PC·전산실 전산장비의 운영과 유지관리가 주된 과업이어서 하드웨어·전산장비 유지관리를 하지 않는 정책에 해당한다.",
+    "reasons": [
+     {
+      "kind": "scope_mismatch",
+      "explanation": "사무용 및 전산실 전산장비의 운영과 유지관리가 주요 과업으로 적혀 있어 하드웨어·전산장비 유지관리가 주된 과업인 사업에 해당한다.",
+      "notice_refs": [
+       "notice:title",
+       "business_overview:1",
+       "main_tasks:0"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_mismatch",
+      "explanation": "상용 솔루션·보안 솔루션 유지관리는 웹·플랫폼 응용SW 유지관리가 아니라 상용SW 유지보수여서 유지관리 범위의 근거가 되지 않는다.",
+      "notice_refs": [
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "과업지시서 전체에서 응용SW 유지관리 과업이 있는지 여부"
+    ]
+   }
+  },
+  {
+   "notice_id": 4162,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "거제시 통합 누리집과 관련 웹서비스의 연차 유지관리가 주된 과업으로 회사의 홈페이지 유지관리 범위와 일치한다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "과업이 통합 누리집과 관련 웹서비스의 프로그램 수정·보완, 콘텐츠 등록·수정, 운영지원으로 카드의 홈페이지 유지관리·웹 응용SW 유지관리 항목과 일치한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "business_overview:0"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "다른 사업으로 구축된 홈페이지·CMS·통합예약 등의 유지관리를 넘겨받는 형태이며, 카드는 다른 업체가 구축한 시스템의 유지관리를 넘겨받는 것도 범위 안으로 본다.",
+      "notice_refs": [
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "서버·네트워크·상용솔루션 장애는 해당 유지관리 업체와 협조해 대응하도록 되어 있어 하드웨어 정비가 주된 과업이 아니다.",
+      "notice_refs": [
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "policy:mixed-scope"
+      ]
+     }
+    ],
+    "verification_items": [
+     "유지관리 대상 상용 소프트웨어의 종류와 회사 담당 범위 확인",
+     "AI 검색·챗봇 서비스 유지관리에 필요한 기술 범위 확인",
+     "상주 근무 요구 여부와 장소 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4163,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "보안관제가 주된 과업이며 유지관리 범위 경계가 보안관제를 unknown으로 정하고 있어 사람이 확인해야 한다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "사이버위협 실시간 탐지·분석, 침해사고 대응, 보안관제 시스템 모니터링이 주된 과업인데 회사 유지관리 범위의 경계는 보안관제·네트워크 운영을 unknown으로 둔다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:5"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "관제 전문인력 배치가 요구되지만 개요에 상주 장소가 지정되어 있지 않아 상주 정책 판단은 확인이 필요하다.",
+      "notice_refs": [
+       "main_tasks:4",
+       "business_overview:3"
+      ],
+      "company_refs": [
+       "policy:onsite",
+       "policy:caution"
+      ]
+     }
+    ],
+    "verification_items": [
+     "보안관제 용역 수행 인력과 실적 보유 여부 확인",
+     "관제 인력의 근무 장소와 상주 필수 여부 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4164,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "mismatch",
+    "summary": "구청 정보통신망·보안시스템·사무기기 등 장비 유지보수 일체가 주된 과업으로, 회사가 하지 않는 하드웨어·전산장비 유지관리 사업에 해당한다.",
+    "reasons": [
+     {
+      "kind": "scope_mismatch",
+      "explanation": "과업이 정보통신망, 인터넷전화, 정보보안시스템, 다기능사무기기 등 유지보수대상 장비의 유지보수 일체와 H/W 장애처리여서 하드웨어·전산장비 유지관리가 주된 사업이다.",
+      "notice_refs": [
+       "business_overview:0",
+       "main_tasks:0",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_mismatch",
+      "explanation": "보안 관제와 회선 점검·신설 지원도 포함되어 웹·플랫폼 응용SW 유지관리와는 다른 성격이다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "응용SW 유지관리 과업이 별도로 포함되어 있는지"
+    ]
+   }
+  },
+  {
+   "notice_id": 4167,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "보안시스템·네트워크 유지보수 사업으로 보이나 개요에 세부 과업이 없고, 보안·네트워크 운영은 유지관리 범위의 경계상 확인 대상이다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "사업명과 목적이 보안시스템 및 네트워크의 안정적 운영이며, 유지관리 범위는 보안관제·네트워크 운영을 확인 대상으로 정하고 있다.",
+      "notice_refs": [
+       "notice:title",
+       "business_overview:0",
+       "business_overview:1"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "과업 항목에는 계약 조건을 정한다는 문장만 있어 장비 정비·부품 교체가 주된 과업인지, 응용SW가 포함되는지 개요만으로 판단할 수 없다.",
+      "notice_refs": [
+       "main_tasks:0"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "유지보수 대상 보안시스템·네트워크 장비 목록과 응용SW 포함 여부",
+     "장비 정비·부품 교체·예비장비 공급이 주된 과업인지 여부",
+     "상주 인력 요구와 근무 장소"
+    ]
+   }
+  },
+  {
+   "notice_id": 4170,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "정보시스템 운용자 인력을 투입해 배전설계 시스템을 유지운영하는 인력지원 용역이어서 단순 인력 파견 여부를 사람이 확인해야 한다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "사업이 정보시스템 운용자 인력을 투입해 역무를 수행하는 인력지원 형태로, 단순 인력 파견·상주 운영 인력만 요구하는 용역이라는 회사 주의 조건에 해당할 수 있다.",
+      "notice_refs": [
+       "business_overview:0",
+       "notice:title"
+      ],
+      "company_refs": [
+       "policy:caution"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "배전설계 시스템 유지운영이 웹·플랫폼 응용SW 유지관리인지, 장기배전계획·설계공사비 품질관리 같은 현업 업무 지원인지 개요만으로는 알 수 없다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "개요에 근무 장소와 상주 필수 여부가 적혀 있지 않다.",
+      "notice_refs": [
+       "business_overview:0"
+      ],
+      "company_refs": [
+       "policy:onsite"
+      ]
+     }
+    ],
+    "verification_items": [
+     "인력 투입 근무 장소와 상주 필수 여부 확인",
+     "배전설계 시스템이 웹·플랫폼 응용SW인지 확인",
+     "인력지원 용역 참여 방침 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4171,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "배전설비 GIS 유지운영과 자료추출 인력지원이 주된 과업으로, 회사 카드에서 GIS는 비보유 기술이고 인력 지원 성격이라 사람이 확인해야 한다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "GIS 설계·준공도면·설비도 데이터모델링 유지 운영과 자료 추출이 주된 업무인데 카드는 대규모 GIS를 비보유 기술로 정하고 있다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:data-platform"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "사업명이 인력지원이고 정보시스템 운용자 투입 기준으로 금액이 산정되어 단순 인력 파견 성격의 주의 조건에 해당할 수 있다.",
+      "notice_refs": [
+       "notice:title",
+       "budget_and_period:2"
+      ],
+      "company_refs": [
+       "policy:caution"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "WEB-GIS 응용 API 개발이 일부 포함되지만 주된 과업인지 개요만으로 판단할 수 없다.",
+      "notice_refs": [
+       "main_tasks:4",
+       "main_tasks:5"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "GIS 배전설비 업무 수행 인력·역량 보유 여부 확인",
+     "인력 상주 장소와 근무 형태 확인",
+     "응용 API 개발 비중 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4173,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "운영 중인 에너지효율개선사업 관리시스템의 실행환경 업그레이드, 기능 추가·개선과 유지보수·운영이 주된 과업으로 응용SW 유지관리와 고도화 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "관리시스템의 유지보수·운영과 과거 사업 완료 시스템 운영은 웹·플랫폼 응용SW 유지관리에 해당한다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "PHP 실행환경 버전 업그레이드와 소스코드 호환성 개선, 사업관리시스템 기능 추가 및 개선은 운영 중인 응용시스템의 기능 개선에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:enhancement"
+      ]
+     }
+    ],
+    "verification_items": [
+     "상주 인력 요구 여부와 근무 장소"
+    ]
+   }
+  },
+  {
+   "notice_id": 4174,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "서버·네트워크·보안장비·PC 정비 비중이 큰 도서관 전산시스템 통합유지관리여서 유지관리 범위의 경계상 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "서버와 전산실 운영장비의 예방 정비·장애복구, 네트워크·보안장비 점검이 과업의 중심이어서 하드웨어·네트워크 비중이 큰 통합유지관리에 해당한다.",
+      "notice_refs": [
+       "notice:title",
+       "main_tasks:0",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "소프트웨어 정기 점검과 PC 정비·OS 설치 지원도 있으나 웹·플랫폼 응용SW 유지관리인지 알 수 없고, 하드웨어 정비가 주된 과업이면 하지 않는 사업에 해당할 수 있다.",
+      "notice_refs": [
+       "main_tasks:2",
+       "main_tasks:3",
+       "business_overview:2"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "policy:mixed-scope"
+      ]
+     }
+    ],
+    "verification_items": [
+     "유지관리 대상 소프트웨어가 도서관리 응용시스템·홈페이지인지 상용·시스템SW인지",
+     "하드웨어 정비와 소프트웨어 유지관리의 사업비 비중",
+     "부품 교체·예비장비 공급 의무 여부"
+    ]
+   }
+  },
+  {
+   "notice_id": 4175,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "소방청 SNS 채널 운영과 콘텐츠 기획·제작이 주된 과업이어서 콘텐츠 운영 용역으로 사람 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "주된 과업이 SNS 채널 운영, 콘텐츠 기획·제작, 프로모션과 광고송출로, 디자인·영상·콘텐츠 제작이나 콘텐츠 운영이 주된 용역이라는 회사 주의 조건에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "policy:caution"
+      ]
+     }
+    ],
+    "verification_items": [
+     "소셜미디어 콘텐츠 운영 용역 참여 방침 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4176,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "제대군인전직지원시스템의 응용 서비스 기능 유지관리와 장애대응·기능개선이 주된 과업으로 웹·플랫폼 응용SW 유지관리 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "정보시스템의 운영 및 유지관리, 장애대응과 기능개선이 사업 목적이며 이는 웹·플랫폼 응용SW 유지관리·유지보수 범위에 해당한다.",
+      "notice_refs": [
+       "business_overview:0",
+       "business_overview:1"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "추천 및 검색엔진 등 서비스 기능 유지관리, 정기점검 수행·보고, 연계점검이 과업이며 회사 유지관리 범위의 오류 수정·정기 점검·월간 보고 유형과 맞는다. 상용SW 유지관리는 응용 시스템 유지관리에 딸린 형태다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "상주 여부와 근무 장소 확인",
+     "개발서버 등 인프라 관리의 범위와 하드웨어 비중 확인",
+     "국가정보자원관리원 환경 운영 요건 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4178,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "전력량계·계기시공·수전설비 등 내선계기 유지운영 인력지원 사업으로, 카드의 어느 사업 범위에도 들지 않고 인력 지원 성격이라 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "주요 역무가 전력량계관리, 계기시공관리, 수전설비관리, AMI통신공사 유지운영으로 웹·플랫폼 응용SW가 아닌 배전·계기 업무이며 카드의 어느 scope에도 들지 않는다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "사업명이 인력지원이어서 단순 인력 파견·상주 운영 인력 용역일 가능성이 있으며 이는 회사 주의 조건에 해당한다.",
+      "notice_refs": [
+       "notice:title",
+       "business_overview:0"
+      ],
+      "company_refs": [
+       "policy:caution"
+      ]
+     }
+    ],
+    "verification_items": [
+     "과업이 인력 파견·상주 형태인지와 근무 장소",
+     "응용SW 개발·유지관리 과업이 포함되는지"
+    ]
+   }
+  },
+  {
+   "notice_id": 4179,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "mismatch",
+    "summary": "구독형 전자책·오디오북 등 전자자료 콘텐츠를 제공하고 이용 실적으로 정산하는 사업이어서 콘텐츠 자체를 구매·납품하는 사업에 해당한다.",
+    "reasons": [
+     {
+      "kind": "scope_mismatch",
+      "explanation": "무제한 전자책 이용 서비스, 오디오북 종량제 이용, 최신 자료 업데이트 제공이 주된 과업이어서 콘텐츠 자체를 구매해 납품하는 사업에 해당한다.",
+      "notice_refs": [
+       "notice:title",
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "scope:data-platform"
+      ]
+     },
+     {
+      "kind": "scope_mismatch",
+      "explanation": "서비스 플랫폼·관리자 시스템 제공이 있으나 콘텐츠 제공에 딸린 것으로 보이며, 이용 실적에 따른 정산 구조도 콘텐츠 납품 성격을 보여 준다.",
+      "notice_refs": [
+       "main_tasks:5",
+       "budget_and_period:0"
+      ],
+      "company_refs": [
+       "policy:no-bid"
+      ]
+     }
+    ],
+    "verification_items": [
+     "플랫폼·관리자 시스템 제공이 별도 개발 과업인지 기존 상용 서비스 제공인지"
+    ]
+   }
+  },
+  {
+   "notice_id": 4180,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "운용자 인력을 전남 나주 지정장소에 투입하는 인력지원 용역이어서 인력 파견·대구 밖 상주 조건을 사람이 확인해야 한다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "사업이 정보시스템 운용자 인력을 투입하는 인력지원 형태로, 단순 인력 파견·상주 운영 인력만 요구하는 용역이라는 회사 주의 조건에 해당할 수 있다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "policy:caution"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "근무장소가 전남 나주의 지정장소로 대구 밖이지만, 개요 문구만으로는 상주가 반드시 필요한지 확정되지 않아 제외 조건으로 확정하지 않았다.",
+      "notice_refs": [
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "policy:onsite"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "K-BEMS·SG-TOS 시스템 유지운영과 배전 유지운영 업무가 웹·플랫폼 응용SW 유지관리인지 개요만으로는 알 수 없다.",
+      "notice_refs": [
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "나주 지정장소 상주가 필수인지 본문 확인",
+     "K-BEMS·SG-TOS 시스템의 성격과 유지운영 범위 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4181,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "하천관리시스템 응용프로그램과 그에 딸린 GIS 소프트웨어의 정기점검·장애처리·기술지원이 주된 과업으로 웹·플랫폼 응용SW 유지관리 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "유지관리 범위가 응용프로그램과 GIS S/W의 정기·수시 예방점검, 장애처리, 기술지원, 사용자 교육이며 웹GIS엔진과 WAS 기반 응용시스템의 유지관리로 회사 유지관리 범위와 맞는다.",
+      "notice_refs": [
+       "business_overview:0",
+       "business_overview:1",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "수행인력 상주 요구가 있으나 개요에 상주 장소가 지정되어 있지 않아 회사 상주 정책상 상주로 보지 않는다.",
+      "notice_refs": [
+       "main_tasks:5"
+      ],
+      "company_refs": [
+       "policy:onsite",
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "상주 인력의 근무 장소가 대구 밖인지와 상주 필수 여부 확인",
+     "상용 GIS 소프트웨어 NexGEN 유지관리 가능 여부 확인",
+     "신규자료 DB검수·로딩 업무량 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4182,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "노후 LMS를 학습경험플랫폼으로 고도화하고 생성형 AI 기능을 넣어 통합플랫폼으로 구축하는 사업으로, 노후 응용 모듈 재구축과 업무시스템 AI 적용 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "기존 LMS의 노후화와 기능 한계를 극복해 LXP로 고도화하고 학생역량관리·상담 관리를 구축하는 과업은 노후 응용 모듈 재구축과 기능 추가에 해당한다.",
+      "notice_refs": [
+       "business_overview:1",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:enhancement"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "RAG 및 LLM 기반 AI Tutor와 자연어 검색 도입은 생성형 AI 기능을 업무시스템에 적용하는 범위와 맞는다.",
+      "notice_refs": [
+       "business_overview:3"
+      ],
+      "company_refs": [
+       "scope:ai"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "기존 데이터 이관·무결성 검증과 교내 시스템 연계·동기화는 외부 시스템 연계 확대와 데이터 이관 범위에 해당한다.",
+      "notice_refs": [
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:enhancement",
+       "scope:data-platform"
+      ]
+     }
+    ],
+    "verification_items": [
+     "AI 에듀테크가 대규모 AI 모델 학습을 요구하는지",
+     "LMS 분야 수행 실적 요건 여부"
+    ]
+   }
+  },
+  {
+   "notice_id": 4183,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "운영 중인 국가유산 디지털 서비스의 유지관리·운영지원과 기능 개선이 주된 과업이라 유지관리·위탁운영 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "국가유산 대국민 데이터·콘텐츠 제공 시스템의 유지관리와 운영지원, 정기점검·장애조치·기능 개선이 주된 과업이므로 플랫폼 위탁운영·응용SW 유지관리 범위와 맞는다.",
+      "notice_refs": [
+       "business_overview:1",
+       "main_tasks:0",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "신규 데이터 등록·정비·제공은 데이터 플랫폼의 데이터 이관·개방 업무와 맞는다.",
+      "notice_refs": [
+       "business_overview:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:data-platform"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "전문인력 기관 상주가 적혀 있으나 필수 문구와 구체적 상주 장소가 개요에 없어 상주 정책상 대구 밖 필수 상주로 보지 않는다.",
+      "notice_refs": [
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "policy:onsite"
+      ]
+     }
+    ],
+    "verification_items": [
+     "전문인력 상주의 장소·인원과 필수 여부",
+     "국가유산 AI 해설 서비스 운영지원이 챗봇 지식베이스 구축·운영을 포함하는지와 그 비중",
+     "제한경쟁입찰의 참가 자격 제한 내용"
+    ]
+   }
+  },
+  {
+   "notice_id": 4184,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "디지털 식품정보 플랫폼과 푸드e음의 서비스 운영과 기능 유지관리가 주된 과업으로 회사의 플랫폼 유지관리·위탁운영 범위와 일치한다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "과업이 디지털 식품정보 플랫폼과 푸드e음의 주요 서비스 운영과 기능 유지관리로, 카드의 웹·플랫폼 응용SW 유지관리와 플랫폼 위탁운영 항목과 일치한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1",
+       "business_overview:0"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "통합회원·인증 등 공통 기능과 시스템 간 연계 기능의 운영·유지관리, 개선 요구사항 도출도 응용SW 유지관리에 드는 과업이다.",
+      "notice_refs": [
+       "main_tasks:4",
+       "main_tasks:5"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "클라우드 자원 모니터링과 장애 대응은 운영 중인 플랫폼에 딸린 과업으로, 공공 클라우드 기반 응용시스템 운영 항목에 들고 클라우드 인프라 임차가 주된 과업은 아니다.",
+      "notice_refs": [
+       "main_tasks:2",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:cloud-saas",
+       "policy:mixed-scope"
+      ]
+     }
+    ],
+    "verification_items": [
+     "클라우드 환경의 제공 주체와 운영 책임 범위 확인",
+     "상주 근무 요구 여부와 장소 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4185,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "웹진 시스템 운영이 일부 있으나 공식 블로그·SNS·카카오톡 채널 운영과 홍보 콘텐츠 제작이 주된 과업이라 콘텐츠 운영 주의 조건에 해당한다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "시 공식 블로그·SNS·카카오톡 채널 운영과 연계 홍보·이벤트 기획이 주된 과업이며 콘텐츠 운영이 주된 용역이라는 회사 주의 조건에 해당한다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "main_tasks:2",
+       "main_tasks:3",
+       "business_overview:2"
+      ],
+      "company_refs": [
+       "policy:caution"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "웹진 시스템 운영 및 보안관리는 홈페이지 유지관리와 겹치지만 사업 전체에서 차지하는 비중을 개요만으로 판단할 수 없다.",
+      "notice_refs": [
+       "main_tasks:0"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "웹진 시스템 운영과 콘텐츠·SNS 운영의 과업 비중 확인",
+     "콘텐츠 제작·SNS 운영 수행 의사 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4186,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "AI 서·논술형 평가 지원 솔루션을 도입해 학교 평가 운영을 지원하는 사업으로, 회사가 이런 솔루션을 보유하거나 공급한 근거가 카드에 없어 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "사업이 이미 갖춘 AI 기반 서·논술형 평가 지원 솔루션을 제공하고 단기간에 도입하는 구조로 보이며, 카드의 자체 SaaS는 통합평가관리시스템 등이어서 학생 서·논술형 평가 솔루션과 일치하는지 알 수 없다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "budget_and_period:1"
+      ],
+      "company_refs": [
+       "scope:cloud-saas",
+       "scope:business-system"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "CBT 평가 시행과 AI 자동채점은 생성형 AI를 업무시스템에 적용하는 범위와 닿아 있으나, 자동채점 모델 보유 여부는 카드로 판단할 수 없다.",
+      "notice_refs": [
+       "main_tasks:2",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:ai"
+      ]
+     }
+    ],
+    "verification_items": [
+     "완성된 솔루션 보유가 참여 조건인지",
+     "AI 자동채점 기능을 자체 개발·공급할 수 있는지",
+     "교사 연수·기술지원 등 운영 지원의 범위"
+    ]
+   }
+  },
+  {
+   "notice_id": 4188,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "운영 중인 서초구 홈페이지의 유지관리와 개선이 주된 과업이라 홈페이지 유지관리를 포함하는 유지관리 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "대표 홈페이지와 관리자 사이트의 안정적 유지관리, 정기 점검, 콘텐츠 수정 보완이 주된 과업이므로 홈페이지 유지관리·운영 지원 범위와 맞는다.",
+      "notice_refs": [
+       "notice:title",
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "테스트 서버 구축과 JAVA 버전 업그레이드는 홈페이지 유지관리에 딸린 개선 작업으로 주된 과업 판단을 바꾸지 않는다.",
+      "notice_refs": [
+       "main_tasks:3",
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "policy:mixed-scope",
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "개발자 상주가 적혀 있으나 개요에 상주 장소가 지정되지 않아 상주 정책상 상주로 보지 않는다.",
+      "notice_refs": [
+       "main_tasks:5"
+      ],
+      "company_refs": [
+       "policy:onsite"
+      ]
+     }
+    ],
+    "verification_items": [
+     "전담 개발자 상주의 근무 장소와 필수 여부",
+     "홈페이지 솔루션 종류가 상용 CMS 등 상용 제품인지 여부",
+     "배너 등 콘텐츠 제작 업무의 비중"
+    ]
+   }
+  },
+  {
+   "notice_id": 4189,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "피지컬AI 안전관리·스마트 주차·빅데이터 플랫폼을 묶은 스마트빌리지 구축 사업으로 장비 비중과 주된 과업을 개요만으로 판단할 수 없다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "피지컬AI 기반 안전관리 시스템 구축은 카드의 AI 분석·시각화 플랫폼이나 추천 서비스 항목과 구체적으로 일치하지 않는다.",
+      "notice_refs": [
+       "main_tasks:0"
+      ],
+      "company_refs": [
+       "scope:ai"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "빅데이터 통합플랫폼 구축이 들어 있으나 다른 과업과 견준 비중과 데이터 플랫폼의 구체 내용이 개요에 없다.",
+      "notice_refs": [
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:data-platform"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "한옥마을·공영주차장을 대상지로 한 안전관리·스마트 주차 구축은 현장 장비 도입 비중이 클 수 있어 하드웨어 구매가 사업비의 주인지 확인이 필요하다.",
+      "notice_refs": [
+       "business_overview:1",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "policy:caution",
+       "policy:mixed-scope"
+      ]
+     }
+    ],
+    "verification_items": [
+     "사업비 중 장비·센서 구매와 SW 개발의 비중 확인",
+     "피지컬AI 안전관리 시스템의 구체 기능과 필요 기술 확인",
+     "대기업 참여 허용 여부와 컨소시엄 필요성 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4190,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "미디어아트 영상콘텐츠 제작·라이트업·경관조명 조성과 행사 운영이 주된 과업이라 카드의 사업 범위에 들지 않고 콘텐츠 제작 주의 조건에 해당한다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "미디어파사드 영상콘텐츠 제작·구축과 미디어아트 콘텐츠 기획·제작이 주된 과업으로 디자인·영상·콘텐츠 제작 단독 용역이라는 회사 주의 조건에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "policy:caution"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "라이트업·파노라마 맵핑, 야간경관조명 조성, 행사·체험프로그램 운영은 카드의 어느 scope includes에도 해당하지 않는다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "main_tasks:4",
+       "main_tasks:5"
+      ],
+      "company_refs": [
+       "scope:homepage-build",
+       "scope:goods-supply"
+      ]
+     }
+    ],
+    "verification_items": [
+     "미디어아트·조명 시공 과업에 참여할 의사와 협력사 구성 가능 여부 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4365,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "SNS 채널 기획·운영과 웹진·뉴스레터 콘텐츠 제작이 주된 과업인 홍보 콘텐츠 운영 용역으로, 회사 주의 조건에 해당한다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "과업이 SNS 채널 기획·운영, 홍보 제작물 기획·제작·배포, 웹진 발행과 뉴스레터 운영으로 콘텐츠 제작·운영이 주된 용역이며 이는 회사 주의 조건에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "policy:caution"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "SNS 기자단 선발·운영과 이벤트·마케팅 전략 수행은 카드의 어느 SW 사업 범위에도 들지 않는다.",
+      "notice_refs": [
+       "main_tasks:2",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:homepage-build"
+      ]
+     }
+    ],
+    "verification_items": [
+     "웹진·뉴스레터 발행에 시스템 개발·유지관리 과업이 포함되는지",
+     "콘텐츠 운영 용역 참여 의사"
+    ]
+   }
+  },
+  {
+   "notice_id": 4366,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "엑셀 기반 분석 도구를 웹 기반 프로그램으로 개발해 사용량 데이터 등록·분석 결과를 표출하는 과업이라 업무 통계·시각화 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "사용량 데이터 등록, 항목별·총괄 분석결과 표출 기능을 갖춘 웹 기반 프로그램 개발이 주된 과업이므로 업무 통계·대시보드·시각화 범위와 맞는다.",
+      "notice_refs": [
+       "business_overview:1",
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:data-platform"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "사용자 등록·관리와 권한을 받은 사용자만 쓰는 웹 기반 구현은 공공 업무시스템 개발에서 다루는 응용 개발 형태와 같다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:business-system",
+       "scope:data-platform"
+      ]
+     }
+    ],
+    "verification_items": [
+     "유역수도망 접속 환경에서 개발·설치해야 하는 기술 조건",
+     "분석 로직(수도미터 검정·적정구경 등) 정의를 발주기관이 제공하는지 여부"
+    ]
+   }
+  },
+  {
+   "notice_id": 4369,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "유아학비지원시스템의 응용SW 유지관리와 운영 지원이 주된 과업으로 회사의 웹·플랫폼 응용SW 유지관리 범위와 일치한다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "주된 과업이 유아학비지원시스템의 응용 소프트웨어 유지관리와 운영 지원으로, 카드의 웹·플랫폼 응용SW 유지관리·유지보수 항목과 일치한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "청구·정산 운영 지원, 사용자 교육, 사용자 종합지원은 카드의 운영 지원 과업에 든다.",
+      "notice_refs": [
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "하드웨어·시스템 소프트웨어 점검 같은 물적기반 유지관리가 섞여 있으나 응용SW 유지관리에 일부 섞인 하드웨어 정비는 matched를 막지 않는다는 회사 규칙에 따른다.",
+      "notice_refs": [
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "policy:mixed-scope"
+      ]
+     }
+    ],
+    "verification_items": [
+     "물적기반 유지관리의 비중과 협력사 수행 가능 여부 확인",
+     "외부 기관 연계 운영에 필요한 요건 확인",
+     "상주 근무 요구 여부와 장소 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4370,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "e재정배움 응용프로그램 수정·개발과 기능개선·운영 관리가 주된 과업으로 웹·플랫폼 응용SW 유지관리 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "응용프로그램 수정·개발, DB 재구성, 통합시스템 기능개선 및 운영·관리, 기술 지원이 과업이며 기능개선이 섞인 연차 유지관리로 회사 유지관리 범위와 맞는다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "main_tasks:3",
+       "main_tasks:5",
+       "business_overview:1"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops",
+       "scope:enhancement"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "민간 클라우드 환경에 맞춘 응용프로그램 최적화는 클라우드 기반 응용시스템 운영 범위와 연결된다.",
+      "notice_refs": [
+       "main_tasks:0"
+      ],
+      "company_refs": [
+       "scope:cloud-saas"
+      ]
+     }
+    ],
+    "verification_items": [
+     "민간 클라우드 환경의 종류가 회사 운영 경험 목록 안인지 확인",
+     "콘텐츠 업로드 작업 비중 확인",
+     "상용 SW 유지관리 범위 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4371,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "mismatch",
+    "summary": "CCTV통합관제시스템의 서버·네트워크·부대장비와 현장 CCTV 유지보수가 주된 과업으로, 회사가 하지 않는 하드웨어·전산장비 유지관리 사업에 해당한다.",
+    "reasons": [
+     {
+      "kind": "scope_mismatch",
+      "explanation": "사업범위가 CCTV통합관제시스템(서버,네트워크,부대장비 등) 유지보수와 현장 CCTV 유지관리 및 보수여서 하드웨어·전산장비 유지관리가 주된 과업이다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "policy:no-bid"
+      ]
+     },
+     {
+      "kind": "scope_mismatch",
+      "explanation": "제조사·공급사 기술지원협약과 장비 점검·장애처리 중심의 통합유지보수 체계는 웹·플랫폼 응용SW 유지관리와 다르다.",
+      "notice_refs": [
+       "main_tasks:2",
+       "main_tasks:3",
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "관제 응용SW 유지관리가 별도 과업으로 포함되는지"
+    ]
+   }
+  },
+  {
+   "notice_id": 4372,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "디지털행정 시스템의 대상과 과업 내용이 개요에 거의 없고, 데이터 수집·AI 객체인식·택시 장착장비 정비가 섞여 범위를 판단할 수 없다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "과업 항목에 데이터 수집, AI 객체인식, 시스템 운영 유지관리가 적혀 있으나 대상 시스템이 웹·플랫폼 응용SW인지 개요만으로 알 수 없다.",
+      "notice_refs": [
+       "notice:title",
+       "main_tasks:0"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops",
+       "scope:ai"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "택시 장착장비의 장착·탈착과 현장 정비가 포함되며, 이 정비가 외부 전문업체 이용 가능 범위로만 적혀 있어 하드웨어 비중을 판단할 수 없다.",
+      "notice_refs": [
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "policy:mixed-scope",
+       "policy:no-bid"
+      ]
+     }
+    ],
+    "verification_items": [
+     "디지털행정 시스템의 구성(응용SW·데이터 수집 장비·AI 모델)과 주된 과업",
+     "AI 객체인식 모델의 학습·운영이 과업에 포함되는지 여부",
+     "택시 장착장비 현장 정비의 사업비 비중"
+    ]
+   }
+  },
+  {
+   "notice_id": 4373,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "국회방송 제작·아카이브·송출 시스템의 장비 정비 중심 통합 유지보수로 보여 응용SW 비중을 사람이 확인해야 한다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "과업이 방송 운영시스템의 보수정비와 장비 정상 동작 유지, 장애 현장 도착·복구로 하드웨어 비중이 큰 통합유지관리에 가까우며, 카드는 이런 통합유지관리를 unknown으로 둔다.",
+      "notice_refs": [
+       "business_overview:1",
+       "main_tasks:1",
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "보도정보·방송정보 시스템 같은 응용 시스템도 대상에 들어 있어 장비 정비가 주된 과업인지 응용SW 유지관리가 주인지 개요만으로는 가를 수 없다.",
+      "notice_refs": [
+       "main_tasks:0"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "policy:mixed-scope"
+      ]
+     }
+    ],
+    "verification_items": [
+     "유지보수 대상 중 방송 장비와 응용 소프트웨어의 비중 확인",
+     "현장 방문 점검·장애 출동 요건과 근무 장소 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4374,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "방화벽·IPS·DDoS 장비 등 보안솔루션 하드웨어와 소프트웨어의 통합유지보수가 주된 과업이라 유지관리 범위 경계상 사람이 확인해야 한다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "대상이 SIEM 등 보안 소프트웨어와 방화벽·IPS·DDoS 장비 등 보안솔루션 하드웨어이며, 유지관리 대상이 웹·플랫폼 응용SW가 아니거나 HW·NW 비중이 큰 통합유지관리는 unknown이라는 경계에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "보안패치·엔진 업데이트·취약점 점검 지원이 과업이며 보안관제 시스템 운영과 겹쳐 회사 실적 범위로 판단할 수 없다.",
+      "notice_refs": [
+       "main_tasks:4",
+       "main_tasks:5",
+       "business_overview:0"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops",
+       "policy:no-bid"
+      ]
+     }
+    ],
+    "verification_items": [
+     "보안솔루션 하드웨어 유지보수 비중과 협력사 구성 가능 여부 확인",
+     "상주 유지보수 인력의 근무 장소 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4375,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "오피넷 등 웹·앱 정보시스템과 공사 홈페이지의 요청사항 처리, 장애 대응, 기능 개선이 주된 과업인 응용시스템 통합 유지관리로 유지관리 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "과업 대상이 페트로넷, 오피넷, 오피넷 스마트폰 앱, 공사 홈페이지 등 응용시스템이고 요청사항 처리·장애 대응·안정화 유지를 수행하므로 웹·플랫폼 응용SW 유지관리에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "정부 및 담당자 요구에 따른 서비스 기능 개선은 유지관리에 섞인 기능개선으로 유지관리 범위에서 함께 본다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "business_overview:1"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops",
+       "scope:enhancement"
+      ]
+     }
+    ],
+    "verification_items": [
+     "사업 금액과 대기업 참여 허용 여부",
+     "상주 인력 요구 여부와 근무 장소",
+     "하드웨어 유지관리가 포함되는지"
+    ]
+   }
+  },
+  {
+   "notice_id": 4379,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "대구센터 가상서버와 OS·WEB·WAS·DBMS 같은 시스템 소프트웨어 운영이 주된 과업이어서 클라우드 인프라 운영으로 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "가상서버 운영·자원 관리와 시스템 소프트웨어 운영이 주된 과업으로, 클라우드 인프라 운영이 주된 과업이면 확인 대상이라는 범위 경계에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:cloud-saas"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "유지관리 대상이 웹·플랫폼 응용SW가 아니라 시스템 소프트웨어와 전산장비여서 유지관리 범위로 판단할 수 없다.",
+      "notice_refs": [
+       "business_overview:2",
+       "main_tasks:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "G-클라우드 전환 기술지원·컨설팅이 포함되고 사업 금액이 커서 대형 사업 기피 조건에 해당하는지 확인이 필요하다.",
+      "notice_refs": [
+       "main_tasks:3",
+       "budget_and_period:1"
+      ],
+      "company_refs": [
+       "policy:caution"
+      ]
+     }
+    ],
+    "verification_items": [
+     "대기업 참여 허용 여부와 컨소시엄 구성 필요성",
+     "대구센터 상주 인원 규모(대구 상주 가능 인원 초과 여부)",
+     "시스템 소프트웨어 운영 인력·기술 보유 여부"
+    ]
+   }
+  },
+  {
+   "notice_id": 4380,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "업무망·인터넷망 전용회선 서비스 공급이 주된 과업으로 회사 사업 범위 어디에도 들지 않아 사람 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "과업이 전용회선과 인터넷 회선 구축, 기관 간 회선 연결, 공인IP 제공으로 통신 회선 서비스이며 카드의 어느 사업 범위 includes와도 일치하지 않는다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops",
+       "scope:cloud-saas"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "회선 구축이 통신공사·네트워크 납품 성격이면 회사 주의 조건에 해당할 수 있다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "business_overview:0"
+      ],
+      "company_refs": [
+       "policy:caution"
+      ]
+     }
+    ],
+    "verification_items": [
+     "전용회선 서비스 공급 사업 참여 방침과 필요 자격 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4381,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "mismatch",
+    "summary": "모두의 한국어 정보화 사업들에 대한 통합 감리가 주된 과업이라 정보시스템 감리 용역을 하지 않는 회사 정책에 해당한다.",
+    "reasons": [
+     {
+      "kind": "scope_mismatch",
+      "explanation": "사업은 제3자 관점에서 정보시스템 구축·운영 사항을 점검하는 통합 감리이며 정보시스템 감리 용역은 회사가 하지 않는 사업이다.",
+      "notice_refs": [
+       "notice:title",
+       "business_overview:1"
+      ],
+      "company_refs": [
+       "policy:no-bid"
+      ]
+     },
+     {
+      "kind": "scope_mismatch",
+      "explanation": "계정인증 개선·기능개선·모바일 웹 개발은 감리 대상 사업일 뿐 이 계약의 수행 과업이 아니다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "policy:no-bid"
+      ]
+     }
+    ],
+    "verification_items": [
+     "감리 대상 사업 중 회사가 별도로 참여할 수 있는 개발 사업이 있는지 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4382,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "운영 중인 AI 탐지·신고 시스템의 정기 점검, 장애 조치, 기능 변경과 모니터링이 주된 과업인 응용시스템 운영·유지관리로 유지관리 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "시스템 정기 점검, 장애 조치, 화면·기능·통계 항목 변경, 환경 변화 대응과 월간 보고는 웹·플랫폼 응용SW 유지관리에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "API 연계 구조 유지와 AI 탐지 판정 모델 성능 모니터링, 통계용 데이터 마트 생성·변경은 AI 기반 분석 기능을 갖춘 플랫폼 운영과 업무 통계 범위에 해당한다.",
+      "notice_refs": [
+       "main_tasks:2",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:ai",
+       "scope:data-platform"
+      ]
+     }
+    ],
+    "verification_items": [
+     "자가학습 AI 모델 성능 검증이 모델 학습 역량을 요구하는지",
+     "클라우드 인프라 운영 협력의 범위"
+    ]
+   }
+  },
+  {
+   "notice_id": 4385,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "대구센터 클라우드 자원풀·보안장비·네트워크 장비 운영이 주된 과업인 인프라 운영 사업이어서 범위 경계상 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "가상화풀·통합스토리지·통합백업 같은 클라우드 자원풀 운영이 주된 과업이어서 클라우드 인프라 운영이 주된 과업이면 확인 대상이라는 경계에 해당한다.",
+      "notice_refs": [
+       "main_tasks:2",
+       "main_tasks:6"
+      ],
+      "company_refs": [
+       "scope:cloud-saas"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "방화벽·IDS 등 보안장비와 라우터·스위치 등 네트워크 장비 운영, 하드웨어 예방 점검이 포함돼 하드웨어·네트워크 비중이 큰 통합유지관리에 해당한다.",
+      "notice_refs": [
+       "main_tasks:3",
+       "main_tasks:4",
+       "main_tasks:5"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops",
+       "policy:no-bid"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "유지관리 대상 규모가 크고 사업 금액이 커서 대형 사업 기피 조건에 해당하는지 확인이 필요하다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "budget_and_period:0"
+      ],
+      "company_refs": [
+       "policy:caution"
+      ]
+     }
+    ],
+    "verification_items": [
+     "하드웨어 정비·부품 교체가 주된 과업인지 여부",
+     "대기업 참여 허용 여부와 컨소시엄 구성 필요성",
+     "대구센터 상주 인원 규모"
+    ]
+   }
+  },
+  {
+   "notice_id": 4386,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "대구시 소셜미디어 채널 운영과 콘텐츠 제작이 주된 과업이어서 콘텐츠 운영 용역으로 사람 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "주된 과업이 소셜미디어 채널 운영, 시민기자단 운영, 콘텐츠 제작·편집과 마케팅으로, 콘텐츠 제작이나 콘텐츠 운영이 주된 용역이라는 회사 주의 조건에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "policy:caution"
+      ]
+     }
+    ],
+    "verification_items": [
+     "소셜미디어 콘텐츠 운영 용역 참여 방침 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4391,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "mismatch",
+    "summary": "재난관측 CCTV·전광판·수위·강우 관측설비 등 현장 장비 유지보수와 예비품 확보가 주된 과업이라 하드웨어 유지관리를 하지 않는 회사 정책에 해당한다.",
+    "reasons": [
+     {
+      "kind": "scope_mismatch",
+      "explanation": "유지보수 대상이 CCTV카메라, 재난문자전광판, 수위관측설비, 강우량 센서 등 현장 장비이며 하드웨어·전산장비 유지관리가 주된 과업인 사업은 회사가 하지 않는다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:2",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_mismatch",
+      "explanation": "장애 복구를 위한 예비품 확보와 장비 정기점검이 요구되어 하드웨어 정비가 주된 과업인 경우로 본다.",
+      "notice_refs": [
+       "main_tasks:6",
+       "main_tasks:7"
+      ],
+      "company_refs": [
+       "policy:mixed-scope",
+       "policy:no-bid"
+      ]
+     }
+    ],
+    "verification_items": [
+     "관련 정보시스템·프로그램 유지보수가 별도 과업으로 분리되는지 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4392,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "mismatch",
+    "summary": "CCTV통합관제시스템 장비 점검·장애처리와 현장 CCTV 유지관리가 주된 과업으로, 회사가 하지 않는 하드웨어·전산장비 유지관리 사업에 해당한다.",
+    "reasons": [
+     {
+      "kind": "scope_mismatch",
+      "explanation": "과업이 통합관제시스템 점검과 장애처리, 주요장비 보증수리·교체를 위한 기술지원협약, 고소 작업 차량을 운영하는 현장 CCTV 유지관리로 하드웨어·전산장비 유지관리가 주된 사업이다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "policy:no-bid"
+      ]
+     },
+     {
+      "kind": "scope_mismatch",
+      "explanation": "관제센터 장비와 소프트웨어 관리, 예방·수시점검 중심의 유지보수는 웹·플랫폼 응용SW 유지관리와 다르다.",
+      "notice_refs": [
+       "business_overview:2",
+       "business_overview:3"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "관제센터 기술인력 상주 조건과 근무 장소"
+    ]
+   }
+  },
+  {
+   "notice_id": 4393,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "mismatch",
+    "summary": "질병데이터ON 플랫폼 구축을 위한 정보화전략계획(ISP) 수립 사업이어서 하지 않는 컨설팅 용역에 해당한다.",
+    "reasons": [
+     {
+      "kind": "scope_mismatch",
+      "explanation": "사업이 정보화전략계획(ISP) 수립이며 과업이 기술 동향 분석, 현황 분석, 아키텍처·로드맵 제시, 후속 사업 제안요청서 작성이어서 ISP 같은 컨설팅 용역에 해당한다.",
+      "notice_refs": [
+       "notice:title",
+       "business_overview:0",
+       "main_tasks:3",
+       "main_tasks:5"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "scope:business-system"
+      ]
+     },
+     {
+      "kind": "scope_mismatch",
+      "explanation": "데이터 통합 활용 플랫폼은 후속 구축사업의 대상이며 이 사업에는 개발이 없어 데이터 플랫폼 범위로 바꾸어 보지 않는다.",
+      "notice_refs": [
+       "business_overview:2",
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "scope:data-platform",
+       "policy:no-bid"
+      ]
+     }
+    ],
+    "verification_items": [
+     "후속 플랫폼 구축사업의 발주 시기와 참여 제한 여부"
+    ]
+   }
+  },
+  {
+   "notice_id": 4395,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "업무시스템 전체를 클라우드로 이관·재구축하는 사업으로 클라우드 인프라 경험과 사업 규모를 개요만으로 판단할 수 없다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "과업이 미전환 업무시스템 전체의 클라우드 이관·재구축이며, 카드는 목록 밖 인프라 경험을 근거 없음으로 두어 해당 클라우드 환경 경험을 확인해야 한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:cloud-saas"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "응용 재구축과 데이터 이관은 고도화·데이터 이관 항목과 일부 겹치지만, 전환 대상 시스템의 수와 사업비가 개요에 없어 주된 과업과 규모를 가를 수 없다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:enhancement",
+       "scope:data-platform"
+      ]
+     }
+    ],
+    "verification_items": [
+     "K-ECP 클라우드 환경의 성격과 회사 수행 경험 확인",
+     "전환 대상 시스템 수와 사업비, 대기업 참여 허용 여부 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4397,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "시도교육청 공통모듈·통합인증·Open API 개발 사업이나 카드의 어느 scope includes와 구체적으로 맞는지와 대형 SI 여부를 개요만으로 판단할 수 없다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "표준 모듈·Open API 개발, 통합인증 고도화, 데이터 자동 연계는 고도화·연계 확대와 일부 겹치지만 교수학습 플랫폼 공통모듈 개발이 회사 scope includes에 구체적으로 들어 있지 않다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:enhancement",
+       "scope:business-system"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "국가 주도로 다수 과제를 추진하는 대규모 사업이어서 대기업 참여가 허용되는 전국 대형 SI인지 확인이 필요하다.",
+      "notice_refs": [
+       "business_overview:3",
+       "main_tasks:2",
+       "budget_and_period:1"
+      ],
+      "company_refs": [
+       "policy:caution"
+      ]
+     }
+    ],
+    "verification_items": [
+     "대기업 참여 허용 여부와 컨소시엄 구성 필요 여부 확인",
+     "교수학습 플랫폼·통합인증 개발 수행 근거 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 4398,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "국가정보자원관리원 대구센터의 가상서버·시스템 소프트웨어 운영과 장애 복구가 주된 과업인 클라우드 인프라 운영 사업으로, 카드 경계상 확인 대상이다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "과업이 가상서버 운영·자원 관리와 OS, WEB, WAS, DBMS 등 시스템 소프트웨어 운영·유지관리여서 클라우드 인프라 운영이 주된 과업이며 카드는 이를 unknown으로 정한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:cloud-saas"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "유지관리 대상이 웹·플랫폼 응용SW가 아니라 전산장비와 시스템 소프트웨어이고 G-클라우드 전환 기술지원·컨설팅도 포함된다.",
+      "notice_refs": [
+       "business_overview:2",
+       "main_tasks:2",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "사업 규모에 맞는 대기업·컨소시엄 참여 조건",
+     "대구센터 상주 인력 규모",
+     "응용SW 유지관리 과업 포함 여부"
+    ]
+   }
+  },
+  {
+   "notice_id": 6377,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "기관 누리집과 도박문제 정보시스템 같은 업무시스템의 운영·유지관리와 기능 개선이 주된 과업이라 유지관리·위탁운영 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "도박문제 정보시스템의 유지·관리, 장애관리, 변경관리와 Help desk 운영은 웹·플랫폼 응용SW 유지관리·위탁운영 범위와 맞는다.",
+      "notice_refs": [
+       "business_overview:1",
+       "main_tasks:0"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "통계 기능 개선, 실명 인증 기능 확대, 통합플랫폼 이용자 편의성 개선은 응용SW 유지관리에 딸린 기능 개선이다.",
+      "notice_refs": [
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops",
+       "scope:enhancement"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "그룹웨어·ERP 안정화와 서버·네트워크·보안장비 통합 유지관리가 섞여 있으나 사업 목적이 누리집·업무시스템 운영이어서 혼합 과업 규칙상 주된 과업 판단을 막지 않는다.",
+      "notice_refs": [
+       "main_tasks:2",
+       "business_overview:2"
+      ],
+      "company_refs": [
+       "policy:mixed-scope",
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "서버·네트워크·보안장비 유지관리의 사업비 비중",
+     "그룹웨어·ERP가 상용 제품인지와 유지관리 방식",
+     "정보보안 감사 등 평가 기술지원의 범위",
+     "상주 인력 요구와 근무 장소"
+    ]
+   }
+  },
+  {
+   "notice_id": 6378,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "버스정보안내단말기와 통신·보안장비를 포함한 버스정보시스템 통합 유지보수로 장비 비중이 커 사람 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "유지관리 대상에 버스정보안내단말기·키오스크·통신장비·보안장비가 들어 있고 단말 정기점검·세척까지 포함돼 하드웨어 비중이 큰 통합유지관리에 가까우며, 카드는 이를 unknown으로 둔다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "BIS 응용 S/W 운영관리와 노선·정류소 DB 관리도 과업에 있어 응용SW 유지관리와 장비 정비 중 무엇이 주된 과업인지 개요만으로 가를 수 없다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "policy:mixed-scope",
+       "policy:no-bid"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "상주인력을 통한 장애 대처가 언급되나 상주 장소와 필수 여부가 개요에 없다.",
+      "notice_refs": [
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "policy:onsite"
+      ]
+     }
+    ],
+    "verification_items": [
+     "단말·통신장비 정비와 응용SW 유지관리의 비중 확인",
+     "상주 인력 요구 여부와 장소 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 6380,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "mismatch",
+    "summary": "CCTV통합관제센터의 서버·스토리지·현장 CCTV 정비점검과 장애처리가 주된 과업이라 하드웨어 유지관리를 하지 않는 회사 정책에 해당한다.",
+    "reasons": [
+     {
+      "kind": "scope_mismatch",
+      "explanation": "유지보수 대상이 관제센터 시스템과 현장 CCTV이며 서버, 스토리지, CCTV카메라 등 주요 장비와 부대설비를 포함해 전산장비 유지관리가 주된 과업이다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "business_overview:0"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_mismatch",
+      "explanation": "정비점검·장애처리를 수행하는 현장 CCTV 기술자 상주 운영이 요구되어 응용SW 유지관리가 아닌 장비 정비 과업으로 본다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "policy:mixed-scope"
+      ]
+     }
+    ],
+    "verification_items": [
+     "관제센터 응용SW 유지관리가 과업에 포함되는지 확인",
+     "상주 요원의 근무 장소와 상주 필수 여부 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 6381,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "교통사고분석시스템 등 웹·모바일 서비스 유지관리와 교통사고 데이터 정제·품질관리가 주된 과업으로 응용SW 유지관리와 데이터 품질 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "TAAS 운영지원·장애조치, WEB서비스시스템·교통사고정보개방시스템·모바일 서비스·지역 교통안전정보포털 유지관리는 웹·플랫폼 응용SW 유지관리에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "Tableau 기반 분석·시각화 시스템 운영, 교통사고정보 정제, 공공데이터 품질관리 수준진단 대응과 표준관리체계 정비는 데이터 품질·표준화와 시각화 범위에 해당한다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "main_tasks:3",
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "scope:data-platform"
+      ]
+     }
+    ],
+    "verification_items": [
+     "GIS분석시스템 유지관리의 규모와 GIS 전문 기술 요구 수준",
+     "연간교통사고DB 구축이 데이터 자체 구매·납품인지",
+     "상주 인력 요구 여부와 근무 장소"
+    ]
+   }
+  },
+  {
+   "notice_id": 6384,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "종합 광고대행사를 선정하는 광고전략·홍보물 제작 사업이어서 콘텐츠 제작 용역 주의 조건에 해당하고 어느 사업 범위에도 들지 않는다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "홍보전략 수립·운영, 홍보물 기획·제작, 광고 콘텐츠·메시지 개발이 주된 과업이어서 디자인·콘텐츠 제작 단독 용역 주의 조건에 해당한다.",
+      "notice_refs": [
+       "notice:title",
+       "main_tasks:0",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "policy:caution"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "예산 대부분이 광고매체 집행 예산이고 정보시스템 개발·운영 과업이 개요에 없어 회사 사업 범위와 대조할 근거가 없다.",
+      "notice_refs": [
+       "budget_and_period:2",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:homepage-build",
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "과업에 홈페이지·디지털 채널 구축 같은 정보시스템 과업이 있는지 여부",
+     "광고대행 자격 요건과 회사 참여 의사"
+    ]
+   }
+  },
+  {
+   "notice_id": 6385,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "결제대행사로서 특허수수료 전자지불 서비스를 제공하는 사업으로 회사 사업 범위 어디에도 들지 않아 사람 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "사업이 결제대행사와 수납관리·정산 용역 계약을 맺는 방식으로, 전자지불 수단 제공 자체가 주된 과업이며 카드의 업무시스템 예약·신청·결제 개발 항목과는 성격이 다르다.",
+      "notice_refs": [
+       "business_overview:2",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:business-system"
+      ]
+     }
+    ],
+    "verification_items": [
+     "결제대행(PG) 사업자 자격 요건 확인",
+     "통합 수납관리시스템 구축 과업의 범위 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 6386,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "빅데이터 플랫폼 운영·대시보드 개발은 데이터 플랫폼 범위와 맞지만 생성형AI RAG 저장소와 질의·답변 서비스 운영이 주된 과업에 들어 있어 사람이 확인해야 한다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "데이터레이크 데이터 최신화·정제, 데이터 분석·시각화, 대시보드 개발은 빅데이터 플랫폼 운영과 대시보드·시각화 범위에 해당한다.",
+      "notice_refs": [
+       "main_tasks:3",
+       "main_tasks:5",
+       "business_overview:1"
+      ],
+      "company_refs": [
+       "scope:data-platform",
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "생성형AI 기반 RAG 저장소와 질의·답변 등 생성형AI 서비스 운영·유지관리가 주요 과업이며, 카드는 챗봇 지식베이스 구축·운영이 주된 과업이면 unknown으로 정한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:ai"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "AI 기반 분석 보고서·혼잡예측 서비스 운영도 포함되어 AI 서비스 운영 비중을 개요만으로 판단할 수 없다.",
+      "notice_refs": [
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:ai"
+      ]
+     }
+    ],
+    "verification_items": [
+     "RAG 저장소·생성형AI 서비스 운영이 사업에서 차지하는 비중 확인",
+     "생성형AI 서비스 유지관리 수행 근거 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 6390,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "꿈it(잇)다 시스템의 응용소프트웨어 유지관리와 오류 수정·기능 개선이 주된 과업으로 웹·플랫폼 응용SW 유지관리 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "유지관리 대상이 시스템의 응용소프트웨어 및 DBMS이고 정기 점검, 장애 예방, 홈페이지 오류 수정과 기능 개선을 수행하므로 응용SW 유지관리에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:2",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "정기 점검·장애 처리 보고와 운영자 교육, 담당자 요구사항 기술 지원도 유지관리 범위의 정기 점검·운영 지원과 맞는다.",
+      "notice_refs": [
+       "main_tasks:6",
+       "main_tasks:7",
+       "main_tasks:8"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "상주 인력 요구 여부와 근무 장소"
+    ]
+   }
+  },
+  {
+   "notice_id": 6392,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "mismatch",
+    "summary": "사업명과 달리 개요상 PC·모니터·통신장비 등 전산장비 유지보수와 예비부품·대체장비 확보가 주된 과업이어서 하지 않는 사업에 해당한다.",
+    "reasons": [
+     {
+      "kind": "scope_mismatch",
+      "explanation": "업무용 PC, 모니터, 노트북, 보안장비, 통신장비의 유지관리·운영이 주된 과업이어서 하드웨어·전산장비 유지관리가 주된 사업에 해당한다.",
+      "notice_refs": [
+       "business_overview:0",
+       "business_overview:2",
+       "main_tasks:0",
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_mismatch",
+      "explanation": "예비부품과 대체장비 확보, 전산실·랜 시설 유지관리가 과업에 있어 전산장비 정비·예비장비 공급 성격이 분명하다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "policy:no-bid"
+      ]
+     }
+    ],
+    "verification_items": [
+     "공고 제목(항로표지 관리운영시스템 유지관리)과 개요 사업명(전산장비 유지보수)이 다른 이유와 첨부 문서가 맞는지 여부"
+    ]
+   }
+  },
+  {
+   "notice_id": 6393,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "사업전용망의 정보시스템·정보보호시스템·전산실 시설 유지관리로 네트워크·보안 인프라 중심이어서 사람 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "과업이 사업전용망의 정보시스템, 정보보호시스템, 전산실 제반시설 유지관리와 보안 취약점 개선으로, 보안·네트워크 운영이나 하드웨어·네트워크 비중이 큰 통합유지관리를 unknown으로 둔 카드 경계에 해당한다.",
+      "notice_refs": [
+       "main_tasks:2",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "장비 정비·부품 교체가 주된 과업인지 개요만으로는 알 수 없다.",
+      "notice_refs": [
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "policy:no-bid"
+      ]
+     }
+    ],
+    "verification_items": [
+     "유지관리 대상 중 응용SW와 네트워크·보안장비의 비중 확인",
+     "제조사 기술지원 체계 확보 요건 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 6394,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "mismatch",
+    "summary": "도로전광판·검지기·CCTV 등 지능형교통시스템 현장설비 유지관리가 주된 과업이라 하드웨어 유지관리를 하지 않는 회사 정책에 해당한다.",
+    "reasons": [
+     {
+      "kind": "scope_mismatch",
+      "explanation": "과업 범위가 도로전광판(VMS), 구간검지기(AVI), 교통정보수집장치, 교통·버스승강장 CCTV 등 현장설비 유지관리로 하드웨어 유지관리가 주된 과업이다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:3",
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_mismatch",
+      "explanation": "유지보수용 공구·계측 장비·차량과 KS 규격 자재 확보가 요구되어 장비 정비·부품 교체 성격이 뚜렷하다.",
+      "notice_refs": [
+       "main_tasks:6",
+       "business_overview:0"
+      ],
+      "company_refs": [
+       "policy:no-bid"
+      ]
+     }
+    ],
+    "verification_items": [
+     "센터 운영 SW 유지관리가 별도로 포함되는지 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 6396,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "부정훈련관리시스템의 오류 보완, 장애 처리, 데이터 연계 수정과 기능 보완이 주된 과업인 응용SW 유지보수로 유지관리 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "TFDS의 기능별 오류 보완, 장애 처리, 레포팅 연계 데이터 수정·기능 보완과 버전·이력 관리는 웹·플랫폼 응용SW 유지관리에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "중계서버 테이블 연계 수정과 정합성 검증, 기술 지원과 교육 지원도 응용시스템 유지관리 범위와 맞는다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "main_tasks:2",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "제한경쟁입찰의 참가 자격 제한 조건",
+     "상주 인력 요구 여부와 근무 장소"
+    ]
+   }
+  },
+  {
+   "notice_id": 6398,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "대구센터 클라우드 자원풀·보안장비·네트워크 장비 운영이 주된 과업인 인프라 운영 사업이어서 범위 경계상 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "가상화풀·통합스토리지·통합백업 같은 클라우드 자원풀 운영이 주된 과업이어서 클라우드 인프라 운영이 주된 과업이면 확인 대상이라는 경계에 해당한다.",
+      "notice_refs": [
+       "main_tasks:2",
+       "main_tasks:6"
+      ],
+      "company_refs": [
+       "scope:cloud-saas"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "방화벽·IDS 등 보안장비와 라우터·스위치 등 네트워크 장비 운영, 하드웨어 예방 점검이 포함돼 하드웨어·네트워크 비중이 큰 통합유지관리에 해당한다.",
+      "notice_refs": [
+       "main_tasks:3",
+       "main_tasks:4",
+       "main_tasks:5"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops",
+       "policy:no-bid"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "유지관리 대상 규모가 크고 사업 금액이 커서 대형 사업 기피 조건에 해당하는지 확인이 필요하다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "budget_and_period:0"
+      ],
+      "company_refs": [
+       "policy:caution"
+      ]
+     }
+    ],
+    "verification_items": [
+     "하드웨어 정비·부품 교체가 주된 과업인지 여부",
+     "대기업 참여 허용 여부와 컨소시엄 구성 필요성",
+     "대구센터 상주 인원 규모"
+    ]
+   }
+  },
+  {
+   "notice_id": 6400,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "mismatch",
+    "summary": "서버 장비 통합 유지보수와 대체장비·부품 비치가 주된 과업이어서 회사가 하지 않는 하드웨어 유지관리 사업에 해당한다.",
+    "reasons": [
+     {
+      "kind": "scope_mismatch",
+      "explanation": "과업이 차세대 정보시스템 서버의 통합 유지보수와 장애 예방점검이며, 대체장비와 관련부품을 확보해 비치해야 해 하드웨어 유지관리·부품 교체·예비장비 납품이 주된 사업이라는 회사 제외 기준에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:2",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "개요 밖 본문에 응용SW 유지관리 과업이 있는지 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 6402,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "운영 중인 시설관리시스템의 설계·정산 기능 구축, 모바일 서비스 고도화, 대시보드 구축이 주된 과업으로 시스템 고도화·기능개선 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "기존 시설관리시스템에 설계·정산 지원 기능을 구축하고 정산 기능을 추가하는 것은 운영 중인 응용시스템의 기능 추가·개선과 고도화에 해당한다.",
+      "notice_refs": [
+       "business_overview:0",
+       "business_overview:1",
+       "main_tasks:0",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:enhancement"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "참여기술자용 모바일 시스템 고도화와 모바일 개선은 앱 기능 개발·고도화 범위와 맞는다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "business_overview:2"
+      ],
+      "company_refs": [
+       "scope:mobile-app",
+       "scope:enhancement"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "감독원과 참여기술자 간 현황공유 대시보드 구축은 업무 통계·대시보드·시각화 범위에 해당한다.",
+      "notice_refs": [
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:data-platform"
+      ]
+     }
+    ],
+    "verification_items": [
+     "모바일 시스템이 앱인지 모바일 웹인지 확인",
+     "GIS·도면 조회기능 개선 범위 확인",
+     "사업 예산과 상주 조건 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 6404,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "관광 SNS 채널 콘텐츠 제작·운영과 홍보 이벤트가 주된 과업인 콘텐츠 운영 용역으로, 회사 주의 조건에 해당한다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "과업이 SNS 홍보전략 수립, 콘텐츠 제작·배포, 인플루언서 협업 콘텐츠 제작으로 콘텐츠 제작·운영이 주된 용역이며 이는 회사 주의 조건에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "policy:caution"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "이벤트·광고와 서포터즈 모집·운영은 카드의 어느 SW 사업 범위에도 들지 않는다.",
+      "notice_refs": [
+       "main_tasks:3",
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "scope:homepage-build"
+      ]
+     }
+    ],
+    "verification_items": [
+     "시스템 개발·유지관리 과업이 포함되는지",
+     "콘텐츠 운영 용역 참여 의사"
+    ]
+   }
+  },
+  {
+   "notice_id": 6405,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "정보시스템 장비의 H/W·운영S/W 장애조치와 점검이 주된 통합유지보수여서 응용SW 유지관리인지, 하드웨어 정비 사업인지 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "과업이 유지보수 대상 장비의 H/W·운영S/W 장애조치, 보안패치, 정기 점검으로 이루어져 하드웨어 비중이 큰 통합유지관리에 해당한다.",
+      "notice_refs": [
+       "business_overview:1",
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "웹·플랫폼 응용SW 유지관리 과업은 개요에 보이지 않고, 하드웨어 정비가 주된 과업이면 하지 않는 사업에 해당할 수 있어 개요만으로 판단할 수 없다.",
+      "notice_refs": [
+       "main_tasks:3",
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "policy:mixed-scope"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "상주인력을 통한 장애대처가 적혀 있으나 장소와 필수 여부가 개요에 없다.",
+      "notice_refs": [
+       "main_tasks:5"
+      ],
+      "company_refs": [
+       "policy:onsite"
+      ]
+     }
+    ],
+    "verification_items": [
+     "유지보수 대상 장비 목록과 응용SW 포함 여부",
+     "하드웨어 정비·부품 교체의 사업비 비중",
+     "상주 인력의 장소·인원과 필수 여부"
+    ]
+   }
+  },
+  {
+   "notice_id": 7280,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "해상풍력 입지정보망의 클라우드 전환·기능 개선과 공간정보 분석자료 생산이 섞여 있어 GIS 비중을 사람이 확인해야 한다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "공간정보 최신화, 통항·조업활동 밀집도 분석자료와 어획량 분포도 같은 정보도 생산이 과업에 들어 있으며, 카드는 대규모 GIS를 비보유 기술로 둔다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:data-platform"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "입지분석 도구의 메인화면 개편·검색 기능 개선과 운영·유지관리는 고도화·유지관리 범위와 겹치지만, 클라우드 전환과 분석자료 생산을 포함한 전체에서 주된 과업을 개요만으로 가를 수 없다.",
+      "notice_refs": [
+       "main_tasks:3",
+       "main_tasks:4",
+       "main_tasks:0"
+      ],
+      "company_refs": [
+       "scope:enhancement",
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "사업비와 사업기간이 입찰공고서에 따른다고만 되어 있어 규모를 알 수 없다.",
+      "notice_refs": [
+       "budget_and_period:0"
+      ],
+      "company_refs": [
+       "policy:mixed-scope"
+      ]
+     }
+    ],
+    "verification_items": [
+     "공간정보 분석·정보도 생산에 필요한 GIS 기술 수준과 협력사 필요성 확인",
+     "클라우드 전환 대상 환경 확인",
+     "사업비와 사업기간 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 7283,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "mismatch",
+    "summary": "건설관리시스템 서버 전산기와 주변기기의 예방정비·부품수리·교체가 주된 과업이라 하드웨어 유지관리를 하지 않는 회사 정책에 해당한다.",
+    "reasons": [
+     {
+      "kind": "scope_mismatch",
+      "explanation": "유지보수 대상이 서버 전산기와 주변기기이며 예방정비, 부품수리 및 교체 등 고장 복구가 주된 과업으로 하드웨어·전산장비 유지관리·부품 교체 사업에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:3",
+       "main_tasks:6"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_mismatch",
+      "explanation": "국외 현장에서의 장애처리 지원도 요구되어 응용SW 유지관리와 다른 장비 정비 사업으로 본다.",
+      "notice_refs": [
+       "main_tasks:7",
+       "notice:title"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "policy:onsite"
+      ]
+     }
+    ],
+    "verification_items": [
+     "국외 현장 지원의 방식과 빈도 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 7284,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "Oracle 제품군 등 상용 시스템S/W의 유지보수가 단독 과업인 사업으로, 카드 경계상 상용SW 유지보수 단독 사업은 확인 대상이다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "유지보수 대상이 Oracle 제품군, Citrix 등 상용 시스템S/W이고 예방정비·장애처리·성능 조정을 수행하므로 상용SW 라이선스 유지보수 단독 사업에 해당하며 카드는 이를 unknown으로 정한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "소프트웨어나 아키텍처 변경이 없는 단순·정형적인 사업으로 명시되어 응용SW 개발·개선 과업이 보이지 않는다.",
+      "notice_refs": [
+       "business_overview:2"
+      ],
+      "company_refs": [
+       "scope:enhancement"
+      ]
+     }
+    ],
+    "verification_items": [
+     "해당 상용SW 제조사 기술지원 자격 요구 여부",
+     "응용 플랫폼 유지관리 과업이 함께 있는지"
+    ]
+   }
+  },
+  {
+   "notice_id": 7286,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "IBM EAI 상용 시스템SW 단독 유지보수 사업이어서 상용SW 유지보수 단독은 확인 대상이라는 유지관리 범위 경계에 해당한다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "유지보수 대상이 IBM 제조사의 EAI 시스템S/W(Webmethod)이고 예방정비·장애처리가 과업이어서 상용SW 유지보수 단독 사업에 해당한다.",
+      "notice_refs": [
+       "notice:title",
+       "main_tasks:0",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "연중무휴 유지보수와 성능 분석·조정, 보안취약점 조치가 요구되나 회사의 해당 제품 기술 근거가 카드에 없어 개요만으로 판단할 수 없다.",
+      "notice_refs": [
+       "main_tasks:2",
+       "main_tasks:3",
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "Webmethod EAI 제품 기술 인력·제조사 지원 확보 가능 여부",
+     "제조사 기술지원 계약이나 공급사 자격 요구 여부"
+    ]
+   }
+  },
+  {
+   "notice_id": 7289,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "국립공주대학교 모바일 앱의 기능 고도화와 iOS·Android 하이브리드 앱 재구축이 주된 과업으로 회사의 모바일 앱 개발·고도화 범위와 일치한다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "과업이 로그인·PUSH 등 주요 기능 고도화와 iOS·Android 모바일 앱 재구축으로, 카드의 앱 기능 개발·고도화 항목과 일치한다.",
+      "notice_refs": [
+       "business_overview:1",
+       "business_overview:2",
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "scope:mobile-app"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "다양한 모바일 기기 호환성 확보가 과업에 있어 카드의 모바일 OS·기기 호환 항목과 일치한다.",
+      "notice_refs": [
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:mobile-app"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "UI/UX 개선과 맞춤형 정보 제공·추천 기능 구현은 카드의 사용성 개선과 추천 서비스 항목과 맞는다.",
+      "notice_refs": [
+       "main_tasks:0"
+      ],
+      "company_refs": [
+       "scope:enhancement",
+       "scope:ai"
+      ]
+     }
+    ],
+    "verification_items": [
+     "AI크눙이 다국어 질의응답 연동 범위가 챗봇 지식베이스 구축을 포함하는지 확인",
+     "앱 스토어 등록·배포 주체 확인",
+     "최적 인프라 구성 제안에 장비 도입이 포함되는지 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 7290,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "다수 BEMS를 통합하는 캠퍼스 에너지 관리(CEMS) 플랫폼 구축은 카드의 어느 scope includes에도 구체적으로 들지 않아 사람이 확인해야 한다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "캠퍼스 단위 에너지 효율화와 Fast DR 자원 확보를 위한 CEMS 플랫폼 구축이 주된 과업인데 에너지 관리 시스템 구축은 회사 scope includes에 없다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "business_overview:0"
+      ],
+      "company_refs": [
+       "scope:data-platform",
+       "scope:business-system"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "건물 에너지 통합 관리 기술의 확장과 표준·개방형 구조 구축이 요구되나 개요만으로는 웹 플랫폼 개발과 설비 연동의 비중을 판단할 수 없다.",
+      "notice_refs": [
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:data-platform"
+      ]
+     }
+    ],
+    "verification_items": [
+     "BEMS 연동·에너지 관리 도메인 수행 근거 확인",
+     "설비·장비 도입 비중 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 7291,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "버스정보시스템 센터 장비와 정류소 버스정보안내기 유지보수, 기반정보 DB 관리가 섞인 통합유지관리로, 하드웨어 비중이 커 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "센터시스템 하드웨어·네트워크장비 점검·장애처리와 버스정보안내기 이전·철거·재설치·보수가 포함되어 HW·NW 비중이 큰 통합유지관리에 해당하며 카드는 이를 unknown으로 정한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "노선·정류소 기반정보 DB 관리와 소프트웨어 유지관리도 있으나, 장비 정비가 주된 과업이면 회사가 하지 않는 사업이므로 비중을 개요만으로 판단할 수 없다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "business_overview:1"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "policy:mixed-scope"
+      ]
+     }
+    ],
+    "verification_items": [
+     "사업비 중 버스정보안내기·센터 장비 정비와 응용SW 유지관리의 비중",
+     "현장 장비 작업을 협력사 범위로 나눌 수 있는지",
+     "상주 인력 요구 여부와 근무 장소"
+    ]
+   }
+  },
+  {
+   "notice_id": 7293,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "서버·네트워크·RFID·무인대출기 등 장비와 도서관리 시스템·홈페이지·앱이 섞인 통합유지보수로 하드웨어 비중이 커 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "유지보수 대상에 서버, 네트워크, 보안 시스템, RFID 자동화 시스템, 무인대출·반납기 등 장비가 많아 하드웨어·네트워크 비중이 큰 통합유지관리에 해당한다.",
+      "notice_refs": [
+       "notice:title",
+       "main_tasks:0",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops",
+       "policy:no-bid"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "홈페이지 및 모바일 앱 유지보수도 포함돼 일부는 응용SW 유지관리 범위와 겹치지만, 그 비중이 개요에 없어 혼합 과업 규칙으로 주된 과업을 정할 수 없다.",
+      "notice_refs": [
+       "main_tasks:0"
+      ],
+      "company_refs": [
+       "policy:mixed-scope",
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "장비 유지보수와 홈페이지·앱 유지보수의 사업비 비중",
+     "도서관리 시스템(알파스)이 상용 제품인지 여부",
+     "부품 교체·대체장비 공급 의무와 상주 요구"
+    ]
+   }
+  },
+  {
+   "notice_id": 7294,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "이동통신사·카카오 연동 메시지 대량 발송 서비스 제공이 주된 과업으로 회사 사업 범위 어디에도 들지 않아 사람 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "과업이 무중단 문자메시지 발송 시스템 운영과 이동통신사·카카오 연동 발송 서비스 제공으로, 카드의 어느 사업 범위 includes와도 구체적으로 일치하지 않는다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops",
+       "scope:cloud-saas"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "운영 웹페이지와 서비스 DB 연동 유지가 일부 들어 있으나 메시지 발송 서비스에 딸린 기능으로 보인다.",
+      "notice_refs": [
+       "main_tasks:2",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:business-system"
+      ]
+     }
+    ],
+    "verification_items": [
+     "메시지 발송 서비스 사업자 자격과 이동통신사 연동 요건 확인",
+     "회사 보유 서비스로 공급 가능한지 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 7296,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "mismatch",
+    "summary": "유동인구 데이터 자체를 구매해 납품하는 것이 주된 과업이라 데이터·콘텐츠 구매 납품을 하지 않는 회사 정책에 해당한다.",
+    "reasons": [
+     {
+      "kind": "scope_mismatch",
+      "explanation": "공단이 유동인구 데이터를 통합 구매하는 사업이며 데이터 납품이 과업이어서 데이터 자체를 구매해 납품하는 사업이라는 회사 제외 정책에 해당한다.",
+      "notice_refs": [
+       "business_overview:0",
+       "main_tasks:0",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "scope:data-platform"
+      ]
+     }
+    ],
+    "verification_items": [
+     "데이터 납품 외에 데이터 플랫폼 구축·운영 과업이 있는지 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 7297,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "전자책 뷰어·저작 플랫폼 북나비의 응용SW 유지관리와 기능 개선이 주된 과업으로 웹·플랫폼 응용SW 유지관리 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "북나비 시스템의 장애 대응과 응용SW 유지관리, 관리자 페이지 기능 유지관리는 웹·플랫폼 응용SW 유지관리에 해당한다.",
+      "notice_refs": [
+       "business_overview:0",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "전자책 뷰어 및 저작도구 기능 개선·업데이트와 보안 취약점 제거는 유지관리에 섞인 기능개선으로 유지관리 범위에서 본다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "전자책 표준 저작·출판 지원에 필요한 전문 기술 수준",
+     "상주 인력 요구 여부와 근무 장소"
+    ]
+   }
+  },
+  {
+   "notice_id": 7298,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "운영 중인 학사정보시스템을 바탕으로 입시 원서접수·학사운영 기능을 고도화하는 과업이라 업무시스템 개발과 고도화 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "기존 학사정보시스템의 메뉴·기능·업무 프로세스를 분석해 학사운영 관리 기능을 고도화하는 과업은 응용시스템 기능 추가·개선 범위와 맞는다.",
+      "notice_refs": [
+       "notice:title",
+       "main_tasks:0",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "scope:enhancement"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "입시요강, 원서접수, 합격자 관리 등 입시업무 기능 개발은 온라인 접수·심사 시스템 범위와 맞는다.",
+      "notice_refs": [
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:business-system"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "통합인증 연계와 데이터 연계체계 구축은 외부 시스템 연계 확대에 해당하고, 반응형 웹 구현도 회사 범위에 든다.",
+      "notice_refs": [
+       "main_tasks:4",
+       "main_tasks:6"
+      ],
+      "company_refs": [
+       "scope:enhancement",
+       "scope:homepage-build"
+      ]
+     }
+    ],
+    "verification_items": [
+     "기존 USG공유대학 학사정보시스템을 다른 업체가 구축했는지와 소스·인수 조건",
+     "학사 DB 신규 구성의 범위와 짧은 사업 기간 내 수행 가능성"
+    ]
+   }
+  },
+  {
+   "notice_id": 7299,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "대구시 뉴스룸 운영 용역으로 뉴스 콘텐츠 업데이트·뉴스레터 발행이 섞인 콘텐츠 운영 성격이어서 사람 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "보도자료·사진·영상 콘텐츠 업데이트와 뉴스레터 제작·발행이 과업에 들어 있어, 인터넷방송·뉴스룸 같은 콘텐츠 운영이 주된 용역이라는 회사 주의 조건에 해당한다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "notice:title"
+      ],
+      "company_refs": [
+       "policy:caution"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "뉴스룸 웹사이트 디자인·검색 기능 개선과 뉴스 솔루션 유지관리도 있어 홈페이지 유지관리 성격이 일부 있으나 콘텐츠 운영과의 비중을 개요만으로 가를 수 없다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops",
+       "scope:homepage-build"
+      ]
+     }
+    ],
+    "verification_items": [
+     "콘텐츠 업데이트·뉴스레터 제작과 웹 기능 개선·유지관리의 비중 확인",
+     "온라인 뉴스 솔루션이 상용 솔루션인지 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 7300,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "mismatch",
+    "summary": "빅데이터센터 서버·네트워크 장비·네트워크 보안장비 유지보수가 주된 과업이라 하드웨어 유지관리를 하지 않는 회사 정책에 해당한다.",
+    "reasons": [
+     {
+      "kind": "scope_mismatch",
+      "explanation": "서버, 네트워크 장비, 네트워크 보안장비의 관리 및 유지보수와 데이터 통신망 유지보수가 주된 과업으로 하드웨어·전산장비 유지관리 사업에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:1",
+       "business_overview:2"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_mismatch",
+      "explanation": "백신 SW 업데이트와 장애 대응은 장비 유지보수에 딸린 과업이며 빅데이터 플랫폼 응용SW 운영이 과업으로 드러나지 않는다.",
+      "notice_refs": [
+       "main_tasks:2",
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "policy:mixed-scope",
+       "scope:data-platform"
+      ]
+     }
+    ],
+    "verification_items": [
+     "빅데이터 플랫폼 응용SW 유지관리가 포함되는지 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 7302,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "산림경영활동 데이터의 품질진단체계 운영, 정기 모니터링과 품질기준 적용 지원이 주된 과업으로 데이터 품질 진단·개선 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "산림 데이터를 대상으로 완전성·유효성·일관성 등 품질진단규칙에 따른 진단체계를 운영·고도화하는 과업은 데이터 품질 진단·개선에 해당한다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "business_overview:2"
+      ],
+      "company_refs": [
+       "scope:data-platform"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "신규·변경 등록 데이터의 정기·수시 모니터링과 표준화·AI-Ready 기반 마련은 데이터 표준화·품질관리 범위와 맞는다.",
+      "notice_refs": [
+       "main_tasks:3",
+       "business_overview:3"
+      ],
+      "company_refs": [
+       "scope:data-platform"
+      ]
+     }
+    ],
+    "verification_items": [
+     "공간정보 정합성 진단에 필요한 GIS 기술 수준",
+     "품질기준 컨설팅·전문운영조직 구성 요구 인력과 상주 조건"
+    ]
+   }
+  },
+  {
+   "notice_id": 7304,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "mismatch",
+    "summary": "CCTV 자가통신망 광전송장비의 점검·장애복구와 대체장비 지원이 주된 과업이어서 하지 않는 전산장비 유지관리 사업에 해당한다.",
+    "reasons": [
+     {
+      "kind": "scope_mismatch",
+      "explanation": "광전송장비의 예방점검·정기점검과 유지보수에 따른 대체장비 지원이 주된 과업이어서 네트워크 장비 정비·예비장비 공급이 주된 사업에 해당한다.",
+      "notice_refs": [
+       "notice:title",
+       "main_tasks:0",
+       "main_tasks:3"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_mismatch",
+      "explanation": "관련 프로그램 설치·업그레이드와 선로감시시스템 GIS노드 현행화는 장비 유지보수에 딸린 업무로 보여 응용SW 유지관리 근거가 되지 않는다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "policy:mixed-scope"
+      ]
+     }
+    ],
+    "verification_items": [
+     "선로감시시스템 등 소프트웨어 과업의 비중"
+    ]
+   }
+  },
+  {
+   "notice_id": 7305,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "운영 중인 장애인건강보건관리시스템에 돌봄통합지원정보시스템 연계 기능을 추가하는 기능개선 사업으로 회사의 고도화·기능개선 범위와 일치한다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "사업이 운영 중인 장애인건강보건관리시스템의 기능개선으로, 기관정보 송신기능과 의뢰 접수·회신 기능 개발은 카드의 응용시스템 기능 추가·개선 항목과 일치한다.",
+      "notice_refs": [
+       "business_overview:0",
+       "main_tasks:0",
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:enhancement"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "돌봄통합지원정보시스템과의 서비스·대상자 의뢰 체계 구축은 카드의 외부 시스템 연계 확대 항목과 일치한다.",
+      "notice_refs": [
+       "business_overview:4",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:enhancement"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "대상자 의뢰 목록 관리와 의뢰 항목 자동 생성 같은 사용자 편의 기능은 카드의 사용성 개선 항목에 든다.",
+      "notice_refs": [
+       "main_tasks:3",
+       "main_tasks:5"
+      ],
+      "company_refs": [
+       "scope:enhancement"
+      ]
+     }
+    ],
+    "verification_items": [
+     "기존 시스템 구축 업체와 소스 인수 조건 확인(타사 구축 시스템 인수 경험은 카드상 확인 필요)",
+     "상주 근무 요구 여부와 장소 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 7308,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "PC·사무기기 지원, 장비 패치·대체장비 교체, 클라우드 임차 운영이 섞인 통합유지관리라 유지관리·클라우드 범위 경계상 사람이 확인해야 한다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "장비 패치설치, 대체장비 교체, PC·복합기·프린터 설치·운영 지원이 포함되어 HW·NW 비중이 큰 통합유지관리는 unknown이라는 유지관리 범위 경계에 해당할 수 있다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "main_tasks:2",
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "일자리재단 포털 운영을 위한 전산 인프라의 클라우드 임차와 운영이 필요하며 카드는 클라우드 인프라 임차·운영이 주된 과업이면 unknown으로 정한다.",
+      "notice_refs": [
+       "business_overview:3",
+       "business_overview:1"
+      ],
+      "company_refs": [
+       "scope:cloud-saas"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "보안진단·취약점 제거·시큐어코딩 점검이 포함되나 응용SW 유지관리 비중은 개요만으로 판단할 수 없다.",
+      "notice_refs": [
+       "main_tasks:3",
+       "main_tasks:0"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     }
+    ],
+    "verification_items": [
+     "포털 등 응용SW 유지관리와 하드웨어·사무기기 지원의 과업 비중 확인",
+     "클라우드 임차 대상과 운영 범위 확인",
+     "상주 인력 요구 여부 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 7309,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "matched",
+    "summary": "건축주택 종합정보시스템의 데이터 정합성·표준화·품질개선과 정보광장 기능개선이 주된 과업으로 데이터 플랫폼 운영과 응용SW 유지관리 범위에 든다.",
+    "reasons": [
+     {
+      "kind": "scope_match",
+      "explanation": "ODS/DW/DM 최신성 유지와 데이터 정합성 관리, 데이터 일원화·표준화·품질개선을 통한 보고서 표출은 데이터 표준화·품질 개선과 시각화 범위에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:data-platform"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "정보광장의 대시민 정보 활용 기능개선과 현황차트 보완은 운영 중인 응용시스템 유지관리에 섞인 기능개선에 해당한다.",
+      "notice_refs": [
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "scope_match",
+      "explanation": "공통인프라 상용소프트웨어 정기점검과 서버 이전 설치 지원은 응용 플랫폼 유지관리에 딸린 부분으로 보아 판단을 막지 않는다.",
+      "notice_refs": [
+       "main_tasks:3",
+       "main_tasks:4"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops",
+       "policy:mixed-scope"
+      ]
+     }
+    ],
+    "verification_items": [
+     "공통인프라 상용소프트웨어 유지관리의 비중",
+     "상주 인력 요구 여부와 근무 장소"
+    ]
+   }
+  },
+  {
+   "notice_id": 7310,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "서버·보안·네트워크·자동화장비가 대부분인 도서관 정보화시스템 통합 유지보수여서 하드웨어 비중이 커 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "유지보수 대상이 서버, 스토리지, 보안장비, 네트워크장비, 자동화장비, 부대장비가 대부분이어서 하드웨어·네트워크 비중이 큰 통합유지관리에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:7"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "부품설치·구성변경, 정보시스템실 운영환경 지원이 포함돼 하드웨어 정비가 주된 과업일 수 있으나, 소프트웨어 유지관리 비중이 개요만으로 확인되지 않는다.",
+      "notice_refs": [
+       "main_tasks:2",
+       "main_tasks:3",
+       "main_tasks:5"
+      ],
+      "company_refs": [
+       "policy:no-bid",
+       "policy:mixed-scope"
+      ]
+     }
+    ],
+    "verification_items": [
+     "유지보수 대상 소프트웨어가 도서관리 응용시스템·홈페이지인지 상용·시스템SW인지",
+     "하드웨어 정비·부품 교체의 사업비 비중",
+     "전담 기술인력의 상주 여부와 장소"
+    ]
+   }
+  },
+  {
+   "notice_id": 7311,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "mismatch",
+    "summary": "관세청 인공지능 모델 개발 사업에 대한 감리 용역이어서 회사가 하지 않는 정보시스템 감리 사업에 해당한다.",
+    "reasons": [
+     {
+      "kind": "scope_mismatch",
+      "explanation": "제안요청서가 인공지능 기반 통합위험선별 모델 개발 사업의 감리 용역이며, 정보시스템 감리 용역은 회사가 하지 않는 사업이다. 감리 대상 사업의 AI 개발을 수행 과업으로 보지 않는다.",
+      "notice_refs": [
+       "business_overview:0",
+       "main_tasks:0",
+       "notice:title"
+      ],
+      "company_refs": [
+       "policy:no-bid"
+      ]
+     }
+    ],
+    "verification_items": [
+     "공고가 감리 용역 단독인지 최종 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 7314,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "인터넷방송 영상 콘텐츠 제작·송출과 상주 전문인력 운영이 주된 과업이라 인터넷방송 운영 주의 조건에 해당해 사람이 확인해야 한다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "시정뉴스·생중계·숏폼 등 인터넷방송 영상 콘텐츠 제작·송출이 주된 과업이며 인터넷방송 같은 콘텐츠 운영이 주된 용역이라는 회사 주의 조건에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "business_overview:0"
+      ],
+      "company_refs": [
+       "policy:caution"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "편집PD·촬영·작가·아나운서 등 상주 전문인력 운영이 요구되지만 개요에 상주 장소가 지정되어 있지 않다.",
+      "notice_refs": [
+       "main_tasks:1"
+      ],
+      "company_refs": [
+       "policy:onsite",
+       "policy:caution"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "웹사이트·유튜브 채널 관리와 구조 개선이 일부 있으나 홈페이지 구축·유지관리가 주된 과업인지 판단할 수 없다.",
+      "notice_refs": [
+       "main_tasks:2"
+      ],
+      "company_refs": [
+       "scope:maintenance-ops",
+       "scope:homepage-build"
+      ]
+     }
+    ],
+    "verification_items": [
+     "인터넷방송 운영 용역 참여 의사 확인",
+     "상주 인력의 근무 장소와 상주 필수 여부 확인"
+    ]
+   }
+  },
+  {
+   "notice_id": 7317,
+   "result": {
+    "schema_version": "bidops.prespec-company-fit-result.v1",
+    "decision": "unknown",
+    "summary": "방화벽·DDoS·IPS 등 보안장비와 네트워크 스위치 교체가 주된 과업인 장비 도입 사업으로, 실적이 없는 장비 구매에 해당해 확인이 필요하다.",
+    "reasons": [
+     {
+      "kind": "information_gap",
+      "explanation": "과업이 방화벽, DDoS, IPS 장비 교체와 L3·L2 스위치 교체로 보안·네트워크 장비 도입이 주된 사업이며 이는 실적이 없는 종류의 장비 구매로 회사 주의 조건에 해당한다.",
+      "notice_refs": [
+       "main_tasks:0",
+       "main_tasks:4",
+       "main_tasks:5"
+      ],
+      "company_refs": [
+       "policy:caution",
+       "scope:goods-supply"
+      ]
+     },
+     {
+      "kind": "information_gap",
+      "explanation": "네트워크 운영 컨설팅 방안 제시가 함께 있으나 응용SW 개발·유지관리 과업은 보이지 않는다.",
+      "notice_refs": [
+       "main_tasks:1",
+       "business_overview:1"
+      ],
+      "company_refs": [
+       "scope:enhancement"
+      ]
+     }
+    ],
+    "verification_items": [
+     "사업비 중 장비 구매 비중",
+     "응용SW 개발·연계 과업이 포함되는지"
+    ]
+   }
+  }
+ ]
+}

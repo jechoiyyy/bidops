@@ -4,7 +4,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { api } from "../../lib/api";
 import { TERM_SENSE } from "../../lib/glossary";
 import { qualityStatusLabel } from "../../lib/qualityStatus";
-import type { CompanyFitAttempt, CompanyFitResponse } from "../../lib/types";
+import type { CompanyFitAttempt, CompanyFitMode, CompanyFitResponse } from "../../lib/types";
 import "../../styles/company-fit.css";
 
 export const decisions = { matched: "부합", mismatch: "불일치", unknown: `${TERM_SENSE.judgmentWithheld} · 정보 부족` };
@@ -18,6 +18,15 @@ export const statuses = { queued: "판정 대기", running: "판정 중", comple
  * 은 검증 대기 상태로 보존한다). */
 export const NO_CURRENT_ATTEMPT_NOTICE = "회사 적합성 판정 없음 · 불일치 아님";
 
+/** 카드 lineage 부합 + 추천 모드에서만 서버가 `engine_suggested`를 준다(PS-01 C5). 표시만 하며
+ * 버튼·링크를 두지 않는다 — 분석 요청은 사람의 추적 시작·클릭에서만 나온다(ADR-0078 결정 1). */
+export const ENGINE_SUGGESTION_NOTICE = "엔진 분석 추천: 회사 사업 범위와 맞는 사업입니다. 분석 요청은 담당자가 정합니다.";
+
+/** 가져온 Claude 참조 판정(PS-01 MVP 2)은 모델 결과와 구분해 품질 표식 옆에 적는다. */
+export const CLAUDE_REFERENCE_LABEL = "Claude 판정 · 참조";
+
+const MODE_LABEL: Record<CompanyFitMode["mode"], string> = { off: "꺼짐", suggest: "추천" };
+
 
 function valueText(value: unknown): string {
   return value === null ? "미확인" : typeof value === "string" ? value : JSON.stringify(value);
@@ -25,12 +34,14 @@ function valueText(value: unknown): string {
 
 export function CompanyFitVerdict({ attempt }: { attempt: CompanyFitAttempt }) {
   const result = attempt.result;
+  const companyBasis = attempt.lineage === "card" ? "사업 범위 카드" : "회사 프로필";
   return <>
     <div className="company-fit-heading">
       <strong>{result ? decisions[result.decision] : statuses[attempt.status]}</strong>
       <Token label={qualityStatusLabel(attempt.quality_status)} size="sm" />
+      {attempt.judged_by === "claude_reference" ? <Token label={CLAUDE_REFERENCE_LABEL} size="sm" /> : null}
     </div>
-    {!attempt.is_current && <p role="status" className="company-fit-notice">이전 입력 기준의 판정이에요. 현재 개요·회사 프로필·정책과 일치하는지 확인이 필요해요.</p>}
+    {!attempt.is_current && <p role="status" className="company-fit-notice">이전 입력 기준의 판정이에요. 현재 개요·{companyBasis}·정책과 일치하는지 확인이 필요해요.</p>}
     {result ? <p className="company-fit-summary">{result.summary}</p> : <p>{attempt.status === "failed" ? "판정 결과가 생성되지 않았어요. 불일치로 처리하지 않아요." : attempt.status === "needs_human_review" ? "검증을 통과한 판정 근거가 없어 결과를 사용할 수 없어요." : "검증된 판정이 생성되면 과업과 회사 정보의 대조 근거를 표시해요."}</p>}
   </>;
 }
@@ -41,7 +52,7 @@ export function CompanyFitReasons({ attempt }: { attempt: CompanyFitAttempt }) {
   return <ol className="company-fit-reasons">
         {result.reasons.length === 0 && <li>상세 사유가 저장되지 않았어요.</li>}
         {result.reasons.map((reason, index) => <li key={index}>
-          <p><strong>판단 사유 {index + 1} · 모델 의견</strong></p>
+          <p><strong>판단 사유 {index + 1} · {attempt.judged_by === "claude_reference" ? "Claude 참조 의견" : "모델 의견"}</strong></p>
           <p>{reason.explanation}</p>
           <dl className="company-fit-evidence">
             <dt>공고 과업 근거</dt><dd>{reason.notice_refs.map(ref => {
@@ -58,9 +69,14 @@ export function CompanyFitReasons({ attempt }: { attempt: CompanyFitAttempt }) {
             })}</dd>
             <dt>회사 정보 근거</dt><dd>{reason.company_refs.length ? reason.company_refs.map(ref => {
               const fact = attempt.company_facts.find(item => item.ref === ref);
-              return fact ? <p key={ref}>{fact.fact_key} · {fact.status === "confirmed" ? "확인됨" : "확인 필요"} — {valueText(fact.value)}</p> : <p key={ref}>근거를 확인할 수 없어요.</p>;
+              if (!fact) return <p key={ref}>근거를 확인할 수 없어요.</p>;
+              // 카드 lineage는 범위·정책의 이름만 보인다(value JSON은 화면에 싣지 않는다, PS-01 C1).
+              // 이름이 없으면 ref를 그대로 적고 다른 이름을 지어내지 않는다.
+              if (attempt.lineage === "card") return <p key={ref}>{attempt.company_fact_labels?.[ref] ?? ref}</p>;
+              return <p key={ref}>{fact.fact_key} · {fact.status === "confirmed" ? "확인됨" : "확인 필요"} — {valueText(fact.value)}</p>;
             }) : <p>인용된 회사 정보가 없어요. 역량이 없다는 뜻이 아니에요.</p>}
-            <p>판정 시점에 고정한 승인 프로필 기준</p></dd>
+            {/* 카드 버전·식별 해시는 기술 정보가 전문으로 갖는다. 여기서는 기준의 종류만 말한다. */}
+            <p>{attempt.lineage === "card" ? "판정 시점에 고정한 사업 범위 카드 기준" : "판정 시점에 고정한 승인 프로필 기준"}</p></dd>
           </dl>
         </li>)}
       </ol>
@@ -89,8 +105,15 @@ export function CompanyFitExecutionInfo({ attempt, label }: { attempt: CompanyFi
       <div><dt>프롬프트</dt><dd>{attempt.prompt_version}</dd></div>
       <div><dt>개요 ID</dt><dd className="mono">{attempt.overview_id}</dd></div>
       <div><dt>개요 식별 해시</dt><dd className="mono">{attempt.overview_sha256}</dd></div>
-      <div><dt>회사 프로필 버전</dt><dd className="mono">{attempt.profile_version_id}</dd></div>
-      <div><dt>회사 프로필 식별 해시</dt><dd className="mono">{attempt.profile_sha256}</dd></div>
+      {attempt.lineage === "card" ? <>
+        <div><dt>판정 기준</dt><dd>사업 범위 카드</dd></div>
+        <div><dt>판정 주체</dt><dd>{attempt.judged_by === "claude_reference" ? CLAUDE_REFERENCE_LABEL : attempt.judged_by === "model" ? "모델" : "미확인"}</dd></div>
+        <div><dt>카드 버전</dt><dd className="mono">{attempt.card_version ?? "미확인"}</dd></div>
+        <div><dt>카드 식별 해시</dt><dd className="mono">{attempt.card_sha256 ?? "미확인"}</dd></div>
+      </> : <>
+        <div><dt>회사 프로필 버전</dt><dd className="mono">{attempt.profile_version_id ?? "미확인"}</dd></div>
+        <div><dt>회사 프로필 식별 해시</dt><dd className="mono">{attempt.profile_sha256 ?? "미확인"}</dd></div>
+      </>}
       <div><dt>정책 식별 해시</dt><dd className="mono">{attempt.policy_digest}</dd></div>
       <div><dt>모델 버전</dt><dd className="mono">{attempt.model_revision}</dd></div>
       <div><dt>입력 토큰</dt><dd>{attempt.prompt_tokens ?? "미측정"}</dd></div>
@@ -108,18 +131,37 @@ export function CompanyFitExecutionInfo({ attempt, label }: { attempt: CompanyFi
  * 조회 실패·구조 불일치는 "실행 기록 없음"과 다른 상태이므로 문장을 나눈다
  * (`unknown`·`null`을 확인 완료로 바꾸지 않는다).
  */
+/** 카드 lineage 모드(PS-01 C4)의 읽기 전용 표시. 바꾸는 조작은 화면에 없다(모드 변경은 운영 절차). */
+export function CompanyFitModeInfo({ mode }: { mode: CompanyFitMode }) {
+  return <div className="company-fit-execution">
+    <h4>회사 핏 모드</h4>
+    <dl className="company-fit-execution-facts" aria-label="회사 핏 모드">
+      <div><dt>모드</dt><dd>{MODE_LABEL[mode.mode] ?? mode.mode}</dd></div>
+      <div><dt>실행기 적용</dt><dd>{mode.effective ? "적용 중" : "적용 안 됨"}</dd></div>
+      <div><dt>사유 코드</dt><dd className="mono">{mode.reason_code ?? "없음"}</dd></div>
+      <div><dt>카드 버전</dt><dd className="mono">{mode.card_version ?? "확인 불가"}</dd></div>
+      <div><dt>카드 식별 해시</dt><dd className="mono">{mode.card_sha256 ?? "확인 불가"}</dd></div>
+      <div><dt>프롬프트 버전</dt><dd className="mono">{mode.prompt_version}</dd></div>
+    </dl>
+  </div>;
+}
+
 export function CompanyFitExecutionSection({
   current,
   previous,
   state,
+  mode = null,
 }: {
   current: CompanyFitAttempt | null;
   previous: CompanyFitAttempt[];
   /** 조회 중·확인 불가·정상은 서로 다른 상태다. 한 문장으로 합치지 않는다. */
   state: "pending" | "unavailable" | "ready";
+  /** 응답의 `mode`. 화면은 `GET /mode`를 부르지 않는다(PS-01 C5). */
+  mode?: CompanyFitMode | null;
 }) {
   return <section className="company-fit-execution-section" aria-label="회사 적합성 실행 정보">
     <h3>회사 적합성 실행 정보</h3>
+    {state === "ready" && mode ? <CompanyFitModeInfo mode={mode} /> : null}
     {state === "pending"
       ? <p role="status">회사 적합성 판정을 불러오는 중이에요.</p>
       : state === "unavailable"
@@ -134,9 +176,10 @@ export function CompanyFitExecutionSection({
   </section>;
 }
 
-function Assessment({ attempt }: { attempt: CompanyFitAttempt }) {
+function Assessment({ attempt, suggested = false }: { attempt: CompanyFitAttempt; suggested?: boolean }) {
   return <div className="company-fit-assessment">
     <CompanyFitVerdict attempt={attempt} />
+    {suggested ? <p className="company-fit-suggestion" role="note">{ENGINE_SUGGESTION_NOTICE}</p> : null}
     <CompanyFitReasons attempt={attempt} />
     <CompanyFitVerificationItems attempt={attempt} />
   </div>;
@@ -161,7 +204,7 @@ export function useCompanyFit(noticeId: number | null): CompanyFitState {
   const data = query.data ?? null;
   const isValid = data !== null
     && noticeId !== null
-    && data.schema_version === "bidops.prespec-company-fit.v1"
+    && data.schema_version === "bidops.prespec-company-fit.v2"
     && data.notice_id === noticeId
     && !data.attempts.some(a => a.notice_id !== noticeId || (a.result && a.result.schema_version !== "bidops.prespec-company-fit-result.v1"));
   const currentAttempt = data?.attempts[0] ?? null;
@@ -197,7 +240,7 @@ export function CompanyFitSection({ noticeId, compact = false }: { noticeId: num
       <Button label="회사 적합성 다시 불러오기" size="sm" onClick={() => { void query.refetch(); }} />
     </div> : !isValid || data === null ?
       <p role="alert">판정 응답의 공고 또는 구조가 일치하지 않아 표시하지 않아요.</p> : <>
-        {currentAttempt ? <Assessment attempt={currentAttempt} /> : <p>{NO_CURRENT_ATTEMPT_NOTICE}</p>}
+        {currentAttempt ? <Assessment attempt={currentAttempt} suggested={data.engine_suggested} /> : <p>{NO_CURRENT_ATTEMPT_NOTICE}</p>}
         <CompanyFitAutomationNotice data={data} />
         {previousAttempts.length > 0 && <details><summary>이전 판정 {previousAttempts.length}건</summary>
           {previousAttempts.map(attempt => <Assessment key={attempt.id} attempt={attempt} />)}

@@ -37,6 +37,8 @@ const COMPANY_FIT_REASON_LABEL: Record<string, string> = {
   company_fit_needs_human_review: "회사 적합성 근거 검증에 실패하여 사람 확인이 필요해요.",
   company_fit_validation_failed: "회사 적합성 근거 검증에 실패하여 사람 확인이 필요해요.",
   company_fit_reference_only: "참조 판정으로는 운영 자동 시작 조건을 충족할 수 없어요.",
+  // PS-01 C8 공존 규칙: 카드 모드가 실효인 동안 모든 공고에 이 사유가 온다. 문구는 spec 그대로다.
+  company_fit_suggest_only: "회사 핏은 추천만 하며 심층 검토를 자동으로 시작하지 않습니다",
 };
 
 const REASON_LABEL: Record<string, string> = {

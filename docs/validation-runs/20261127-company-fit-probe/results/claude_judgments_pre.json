@@ -1,0 +1,202 @@
+{
+ "judge": "claude-opus-5-5 (this session)",
+ "fixed_before_model_results": "2026-11-27 KST, before the local-model probe run",
+ "basis": "same notice_facts as the probe (inputs_1126.jsonl) + business-scope-card v1 draft semantics",
+ "results": [
+  {
+   "notice_id": 3,
+   "decision": "mismatch",
+   "refs": [
+    "policy:no-bid",
+    "policy:onsite"
+   ],
+   "why": "서버 22식·주변기기 14식 예방정비·부품수리·교체가 주된 과업(하드웨어 정비). 국외(UAE) 현장 장애처리 포함."
+  },
+  {
+   "notice_id": 4,
+   "decision": "unknown",
+   "refs": [],
+   "why": "Oracle 등 상용 시스템SW 유지보수(제조사 기술지원 성격). 카드의 응용SW 유지관리와 다른 종류이나 비수행 근거도 없음."
+  },
+  {
+   "notice_id": 6,
+   "decision": "unknown",
+   "refs": [],
+   "why": "IBM webMethods EAI 상용 SW 유지보수, 24x365. 4번과 같은 이유."
+  },
+  {
+   "notice_id": 9,
+   "decision": "matched",
+   "refs": [
+    "scope:mobile-app",
+    "scope:enhancement"
+   ],
+   "why": "iOS·Android 하이브리드 앱 재구축·기능 고도화, SSO 연계. 앱 기능 개발·고도화에 해당."
+  },
+  {
+   "notice_id": 10,
+   "decision": "unknown",
+   "refs": [],
+   "why": "다수 BEMS 통합 CEMS(에너지 관리·Fast DR) 플랫폼 구축. 에너지 제어 도메인은 카드에 없음."
+  },
+  {
+   "notice_id": 11,
+   "decision": "mismatch",
+   "refs": [
+    "policy:no-bid"
+   ],
+   "why": "센터 HW·SW·네트워크 점검과 버스정보안내기(BIT) 이전·철거·재설치·보수가 주된 과업. DB 관리가 일부 있으나 장비 정비 비중이 큼(경계 사례)."
+  },
+  {
+   "notice_id": 13,
+   "decision": "mismatch",
+   "refs": [
+    "policy:no-bid"
+   ],
+   "why": "10개 도서관의 서버·네트워크·RFID·무인대출반납기 등 장비 유지보수가 주된 과업. 홈페이지·앱은 일부."
+  },
+  {
+   "notice_id": 14,
+   "decision": "unknown",
+   "refs": [],
+   "why": "이동통신사·카카오 연동 문자·알림톡 대량발송 서비스 제공. 메시지 발송 사업자 업무는 카드에 없음."
+  },
+  {
+   "notice_id": 16,
+   "decision": "unknown",
+   "refs": [],
+   "why": "유동인구 데이터 구매·납품. 데이터 상품 공급은 카드에 없음(Q3)."
+  },
+  {
+   "notice_id": 17,
+   "decision": "matched",
+   "refs": [
+    "scope:maintenance-ops"
+   ],
+   "why": "전자책 뷰어·저작 플랫폼 응용SW 유지관리·기능 개선(대구). 확인: 특정 제품(북나비)의 소스·제조사 의존 여부."
+  },
+  {
+   "notice_id": 18,
+   "decision": "matched",
+   "refs": [
+    "scope:enhancement",
+    "scope:business-system"
+   ],
+   "why": "학사정보시스템 고도화(입시·학적·수강·성적), SSO·API 연계, 반응형 웹."
+  },
+  {
+   "notice_id": 19,
+   "decision": "unknown",
+   "refs": [],
+   "why": "뉴스룸 웹 디자인·기능 개선과 솔루션 유지관리가 있으나 보도자료·사진·영상 업데이트와 주간 뉴스레터 제작 비중이 큼(policy:avoid 경계, Q4)."
+  },
+  {
+   "notice_id": 20,
+   "decision": "mismatch",
+   "refs": [
+    "policy:no-bid"
+   ],
+   "why": "서버·네트워크 장비·보안장비·통신망 유지보수가 주된 과업."
+  },
+  {
+   "notice_id": 22,
+   "decision": "matched",
+   "refs": [
+    "scope:data-platform"
+   ],
+   "why": "산림 데이터 35종 품질진단·모니터링·품질기준 확산·헬프데스크 운영. 데이터 품질 진단·개선에 해당."
+  },
+  {
+   "notice_id": 24,
+   "decision": "mismatch",
+   "refs": [
+    "policy:no-bid"
+   ],
+   "why": "CCTV 자가통신망 광전송장비 점검·대체장비 지원이 주된 과업."
+  },
+  {
+   "notice_id": 25,
+   "decision": "matched",
+   "refs": [
+    "scope:enhancement",
+    "scope:business-system"
+   ],
+   "why": "운영 중 시스템의 연계·의뢰 접수·회신·대상자 관리 기능 개선."
+  },
+  {
+   "notice_id": 28,
+   "decision": "mismatch",
+   "refs": [
+    "policy:no-bid"
+   ],
+   "why": "정보화 자원 운영·장비 패치·PC·복합기 설치 지원·대체장비 교체·클라우드 임차 등 인프라 통합유지관리가 주. 응용SW 유지관리 비중이 드러나지 않음(경계 사례)."
+  },
+  {
+   "notice_id": 29,
+   "decision": "matched",
+   "refs": [
+    "scope:data-platform",
+    "scope:maintenance-ops"
+   ],
+   "why": "DW/DM 최신성·정합성 관리, 정보광장 기능개선, 데이터 표준화·품질개선 운영. 확인: 서울 상주 필수 여부(policy:onsite)."
+  },
+  {
+   "notice_id": 30,
+   "decision": "mismatch",
+   "refs": [
+    "policy:no-bid"
+   ],
+   "why": "382식(서버·네트워크 48·자동화장비 71·부대장비 139 등) 장비 유지보수·부품설치·항온항습 지원이 주된 과업."
+  },
+  {
+   "notice_id": 31,
+   "decision": "unknown",
+   "refs": [],
+   "why": "정보시스템 감리 용역. 감리 대상 사업을 수행 과업으로 보지 않음. 감리 수행 여부는 카드에 없음(Q1)."
+  },
+  {
+   "notice_id": 34,
+   "decision": "mismatch",
+   "refs": [
+    "policy:onsite",
+    "policy:avoid"
+   ],
+   "why": "인터넷방송 영상 제작·송출과 PD·촬영·아나운서 상주 인력 운영(광주). 대구 밖 상주 필수 + 콘텐츠 제작."
+  },
+  {
+   "notice_id": 37,
+   "decision": "mismatch",
+   "refs": [
+    "policy:no-bid"
+   ],
+   "why": "방화벽·DDoS·IPS·L2/L3 스위치 도입·교체가 주된 과업(장비 구매)."
+  }
+ ],
+ "tally": {
+  "matched": 6,
+  "mismatch": 9,
+  "unknown": 7
+ },
+ "v1_1_addendum": {
+  "recorded": "before model results, after card v1.1",
+  "changes": [
+   {
+    "notice_id": 37,
+    "from": "mismatch",
+    "to": "unknown",
+    "why": "장비 구매 주는 v1.1에서 policy:caution(estimate)으로 이동"
+   },
+   {
+    "notice_id": 28,
+    "from": "mismatch",
+    "to": "unknown",
+    "why": "HW·NW 비중 큰 통합유지관리는 v1.1 maintenance boundary상 unknown(Q10)"
+   }
+  ],
+  "tally_v1_1": {
+   "matched": 6,
+   "mismatch": 7,
+   "unknown": 9
+  }
+ }
+}

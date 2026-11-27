@@ -15,6 +15,20 @@ import { currentKstMonth, isJudgmentFailure, orderPlanUnjudgedKind } from "../sr
 import { sortByCollectionRank, sortForBrowse, sortForReview } from "./fixtures/order-plan-review-order";
 import { clickReadyUnlinkedPreSpec, decisionQueueItems, opportunityDeepReviews, opportunityTrackingHistory } from "./fixtures/lifecycle-v2";
 import {
+  COMPANY_FIT_FIXTURE_CHOICES,
+  NO_CARD_FIT,
+  cardCompanyFitResponse,
+  cardFitSummary,
+  cardMode,
+  companyFitListItems,
+  companyFitRank,
+  companyFitSampleChoice,
+  companyFitSampleTitle,
+  defaultCompanyFitResponse,
+  type CompanyFitFixtureChoice,
+  type CompanyFitJudge,
+} from "./fixtures/company-fit-card";
+import {
   COMPANY_FIXTURES,
   COMPANY_NOTICE_FIXTURES,
   companyAttemptView,
@@ -1420,6 +1434,7 @@ export const visualPreSpecItems: PreSpecListItem[] = [
     first_observed_at: "2026-09-14T00:00:00Z",
     last_observed_at: "2026-09-15T00:00:00Z",
     next_action: "confirm_overview",
+    company_fit: NO_CARD_FIT,
   },
   {
     review_exclusion_status: "included",
@@ -1455,9 +1470,57 @@ export const visualPreSpecItems: PreSpecListItem[] = [
     first_observed_at: "2026-09-14T00:00:00Z",
     last_observed_at: "2026-09-14T00:00:00Z",
     next_action: null,
+    company_fit: NO_CARD_FIT,
   },
   clickReadyUnlinkedPreSpec,
 ];
+
+// ── 회사 핏 v2(PS-01) 화면 스위치 ─────────────────────────────────────────
+// 화면 주소의 `?fit=matched|unknown|mismatch|pending`(+ `&judge=claude`)이 상세 회사 핏 응답을
+// 고르고, 목록에 네 그룹 표본(`companyFitListItems`)을 더한다. 개발 mock 서버는 Referer를
+// `page.url()`로 준다. 목록 → 상세 이동은 목록 전용 질의만 넘기므로(`preSpecListSearch`) 한 번 본
+// 스위치를 page마다 기억하고 `?fit=off`로 끈다. Playwright는 테스트마다 page가 새로 생긴다.
+type CompanyFitSwitch = { choice: CompanyFitFixtureChoice; judge: CompanyFitJudge };
+const companyFitSwitches = new WeakMap<object, CompanyFitSwitch | null>();
+
+export function companyFitSwitch(page: Page): CompanyFitSwitch | null {
+  let params: URLSearchParams | null = null;
+  try { params = new URL(page.url()).searchParams; } catch { params = null; }
+  const raw = params?.get("fit") ?? null;
+  if (raw === "off") companyFitSwitches.set(page, null);
+  else if (raw && (COMPANY_FIT_FIXTURE_CHOICES as readonly string[]).includes(raw)) {
+    companyFitSwitches.set(page, {
+      choice: raw as CompanyFitFixtureChoice,
+      judge: params?.get("judge") === "claude" ? "claude_reference" : "model",
+    });
+  }
+  return companyFitSwitches.get(page) ?? null;
+}
+
+/** 상세 회사 핏 응답. 표본 공고는 자기 그룹, 그 밖의 공고는 스위치 값을 쓴다. 스위치가 없으면 기본 v2 응답이다. */
+function companyFitResponseFor(page: Page, noticeId: number) {
+  const fitSwitch = companyFitSwitch(page);
+  const sampleChoice = companyFitSampleChoice(noticeId);
+  if (sampleChoice === undefined && fitSwitch === null) return defaultCompanyFitResponse(noticeId);
+  const choice = sampleChoice === undefined ? fitSwitch!.choice : sampleChoice;
+  // 카드 attempt가 아직 없는 표본(판정 전): 모드는 추천이지만 attempt가 없다.
+  if (choice === null) {
+    return { ...defaultCompanyFitResponse(noticeId), automation_enabled: true, mode: cardMode(), auto_deep_review_reason: "company_fit_suggest_only" };
+  }
+  return cardCompanyFitResponse({
+    noticeId,
+    title: companyFitSampleTitle(noticeId) ?? visualPreSpecItems.find((item) => item.notice_pk === noticeId)?.title ?? "사업명 미확인",
+    choice,
+    judge: fitSwitch?.judge ?? "model",
+    overviewId: overviewCompletedRunFixture.id,
+  });
+}
+
+/** 목록 항목의 회사 핏 요약. 스위치가 켜지면 표본이 아닌 공고도 상세와 같은 그룹을 보인다. */
+function withCompanyFitSwitch(item: PreSpecListItem, fitSwitch: CompanyFitSwitch | null): PreSpecListItem {
+  if (fitSwitch === null || companyFitSampleChoice(item.notice_pk) !== undefined) return item;
+  return { ...item, company_fit: cardFitSummary(fitSwitch.choice) };
+}
 
 // 사전규격 개요 검토 상태 10값 + null(개요 검토 미시작) — PLAN.md 3단계
 // 게이트("10값이 모두 그룹으로 표현됨")를 목업에서도 항상 채운다.
@@ -1776,6 +1839,12 @@ function deadlineScopeCounts(
 }
 
 function compareFixtureItems(left: PreSpecListItem, right: PreSpecListItem, sort: string | null): number {
+  // 서버 `sort=fit`(PS-01 C7): 그룹 순위 → 기존 deadline 정렬식 → id 오름차순.
+  if (sort === "fit") {
+    const rank = companyFitRank(left) - companyFitRank(right);
+    if (rank !== 0) return rank;
+    return compareFixtureItems(left, right, "deadline");
+  }
   const leftValue = sort === "deadline" ? left.deadline_at : sort === "observed" ? left.last_observed_at : left.published_at;
   const rightValue = sort === "deadline" ? right.deadline_at : sort === "observed" ? right.last_observed_at : right.published_at;
   if (leftValue === null && rightValue !== null) return 1;
@@ -2130,9 +2199,19 @@ export async function mockPreSpecs(page: Page): Promise<void> {
     const url = new URL(request.url());
     if (url.pathname === "/api/pre-specs" && request.method() === "GET") {
       const requestedNoticePk = Number(url.searchParams.get("notice_pk"));
-      const candidateItems = visualPreSpecItems
+      const companyFitFilter = url.searchParams.get("company_fit");
+      if (companyFitFilter !== null && !["matched", "unknown", "pending", "mismatch"].includes(companyFitFilter)) {
+        await fulfillJson(route, { detail: "company_fit is invalid" }, 422);
+        return;
+      }
+      const fitSwitch = companyFitSwitch(page);
+      // 표본 공고는 상세(`notice_pk`) 조회에는 언제나 답한다. 목록 전체에는 스위치가 켜졌을 때만 든다.
+      const fitSamples = fitSwitch !== null || url.searchParams.has("notice_pk") ? companyFitListItems : [];
+      const candidateItems = [...visualPreSpecItems, ...fitSamples]
         .map((item) => item.notice_pk === 991 ? { ...item, tracking_status: opportunityFixtures.get(page)?.find((entry) => entry.id === 202)?.tracking_status ?? currentTrackingStatus } : item)
+        .map((item) => withCompanyFitSwitch(item, fitSwitch))
         .filter((item) => !url.searchParams.has("notice_pk") || item.notice_pk === requestedNoticePk)
+        .filter((item) => !companyFitFilter || (item.company_fit?.group ?? "pending") === companyFitFilter)
         .filter((item) => url.searchParams.get("sw_only") === "false" || item.sw_business_status === "Y" || item.kept_by_tracking)
         .filter((item) => !url.searchParams.get("auto_preparation_status") || item.auto_preparation_status === url.searchParams.get("auto_preparation_status"))
         .filter((item) => !url.searchParams.get("business_division") || item.business_division === url.searchParams.get("business_division"))
@@ -2213,6 +2292,27 @@ export async function mockPreSpecs(page: Page): Promise<void> {
       return;
     }
     await route.fallback();
+  });
+  // 회사 핏 표본 공고의 상세(목록 값에서 옮긴 최소 공고)와 빈 문서 묶음.
+  await page.route(/\/api\/notices\/91\d\d(\/document-bundles)?$/, async (route) => {
+    const match = new URL(route.request().url()).pathname.match(/^\/api\/notices\/(\d+)(\/document-bundles)?$/);
+    const sample = match ? companyFitListItems.find((item) => item.notice_pk === Number(match[1])) : undefined;
+    if (!match || !sample || route.request().method() !== "GET") { await route.fallback(); return; }
+    if (match[2]) { await fulfillJson(route, { items: [] }); return; }
+    await fulfillJson(route, {
+      ...visualPreSpecNotice,
+      id: sample.notice_pk,
+      notice_key: `pre-spec:${sample.notice_pk}`,
+      title: sample.title,
+      agency: sample.agency,
+      published_at: sample.published_at,
+      deadline_at: sample.deadline_at,
+      budget: sample.budget,
+      url: null,
+      lifecycle: { pre_spec_no: sample.pre_spec_no },
+      qualification_flags: { sw_business_status: "Y" },
+      attachment_count: 1,
+    });
   });
   await page.route("**/api/notices/991/document-bundles", async (route) => {
     if (route.request().method() === "GET") {
@@ -2606,10 +2706,16 @@ export async function mockApi(page: Page): Promise<void> {
   await page.route("**/api/**", async (route) => {
     const pathname = new URL(route.request().url()).pathname;
     const fitMatch = pathname.match(/^\/api\/pre-specs\/(\d+)\/company-fit$/);
-    if (fitMatch) { await fulfillJson(route, { schema_version: "bidops.prespec-company-fit.v1", notice_id: Number(fitMatch[1]), attempts: [], automation_enabled: false, auto_deep_review_reason: "company_fit_disabled", deep_review_id: null }); return; }
-    // 개요 run이 없는 공고가 기본값이다. 없는 것을 실패로 보이게 하지 않는다.
+    // 회사 핏 v2(PS-01). `?fit=`가 없으면 attempt 없음·자동 판정 비활성의 기본 응답이다.
+    if (fitMatch) { await fulfillJson(route, companyFitResponseFor(page, Number(fitMatch[1]))); return; }
+    // 개요 run이 없는 공고가 기본값이다. 없는 것을 실패로 보이게 하지 않는다. 회사 핏 표본은
+    // 개요가 완료된 공고라(카드 판정의 입력) 완료 envelope을 준다.
     const overviewMatch = pathname.match(/^\/api\/pre-specs\/(\d+)\/overview$/);
-    if (overviewMatch) { await fulfillJson(route, overviewAbsentEnvelope(Number(overviewMatch[1]))); return; }
+    if (overviewMatch) {
+      const id = Number(overviewMatch[1]);
+      await fulfillJson(route, companyFitSampleChoice(id) !== undefined ? overviewCompletedEnvelope(id) : overviewAbsentEnvelope(id));
+      return;
+    }
 
     if (pathname === "/api/workload") { await fulfillJson(route, workloadResponse(page)); return; }
     if (pathname === "/api/daily-collection-status") { await fulfillJson(route, dailyCollectionStatusResponse()); return; }

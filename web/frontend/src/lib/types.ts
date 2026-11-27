@@ -227,7 +227,21 @@ export type PreSpecDeadlineScope = "current" | "passed" | "all";
 /** 2026-11-19: `review_overview`(개요 확인) — 완료된 개요를 읽고 추적을 정한다. 옛
  * `open_deep_review`·`decide_tracking`은 나오지 않는다. */
 export type PreSpecNextAction = "confirm_overview" | "review_overview";
-export type PreSpecSort = "published" | "deadline" | "observed";
+/** `fit`(회사 핏순, PS-01): 회사 핏 그룹(부합 → 판단 보류 → 판정 전 → 불일치) → 마감 정렬식 → id. */
+export type PreSpecSort = "published" | "deadline" | "observed" | "fit";
+
+/** 목록의 회사 핏 그룹(PS-01 C6). 최신 카드 lineage attempt로 서버가 정한다. 화면은 다시 계산하지 않는다. */
+export type PreSpecCompanyFitGroup = "matched" | "unknown" | "pending" | "mismatch";
+
+/** 목록 항목의 회사 핏 요약(PS-01 C6). `null`은 프로젝션 확장이 등록되지 않았다는 뜻이다. */
+export interface PreSpecCompanyFitSummary {
+  group: PreSpecCompanyFitGroup;
+  /** 최신 카드 attempt가 completed이고 재검증을 통과했을 때만 값이 있다(현재가 아니어도). */
+  decision: "matched" | "mismatch" | "unknown" | null;
+  status: "queued" | "running" | "completed" | "failed" | "needs_human_review" | null;
+  is_current: boolean;
+  engine_suggested: boolean;
+}
 
 /** 사전규격 응답의 `grade`가 어디서 왔는가. 사람 정정이 있으면 `human_review`,
  * 판정만 있으면 `screening_judgment`, 둘 다 없으면 `null`(등급도 `null`)이다. */
@@ -341,6 +355,8 @@ export interface PreSpecListItem {
   last_observed_at: string | null;
   /** 서버가 정한 탐색용 다음 행동. 새 업무 상태가 아니다. */
   next_action: PreSpecNextAction | null;
+  /** 회사 핏(사업 범위 카드) 요약(PS-01 C6). 확장이 없으면 `null`이며 서버는 그 공고를 `pending`으로 정렬·필터한다. */
+  company_fit: PreSpecCompanyFitSummary | null;
 }
 
 /** 개요 검토 상태 그룹 하나의 전체 건수. `limit`/`offset`과 무관하게 현재
@@ -388,6 +404,7 @@ export interface PreSpecListQuery {
   observed_from?: string | null;
   observed_to?: string | null;
   deadline_status?: PreSpecDeadlineStatus | null;
+  company_fit?: PreSpecCompanyFitGroup | null;
   q?: string | null;
   sort?: PreSpecSort | null;
   limit?: number | null;
@@ -2469,8 +2486,18 @@ export interface CompanyFitAttempt {
   overview_id: string;
   document_version_id: string;
   overview_sha256: string;
-  profile_version_id: string;
-  profile_sha256: string;
+  /** `profile`은 승인 프로필 lineage, `card`는 사업 범위 카드 lineage(PS-01, 2026-11-27)다. */
+  lineage: "profile" | "card";
+  /** 카드 lineage만 값이 있다. */
+  card_version: string | null;
+  card_sha256: string | null;
+  /** 카드 lineage의 판정 주체. 가져온 Claude 참조 판정은 `claude_reference`다. 프로필 lineage는 `null`. */
+  judged_by: "model" | "claude_reference" | null;
+  /** 카드 근거 ref의 화면 표시 이름. 프로필 lineage는 `null`. */
+  company_fact_labels: Record<string, string> | null;
+  /** 카드 lineage는 `null`이다. */
+  profile_version_id: string | null;
+  profile_sha256: string | null;
   policy_digest: string;
   model_name: string;
   model_revision: string;
@@ -2485,11 +2512,25 @@ export interface CompanyFitAttempt {
   latency_ms: number | null;
 }
 
+/** 회사 핏(카드 lineage) 모드 실효 상태(PS-01 C4, MVP는 env 스위치). 화면은 읽기만 한다. */
+export interface CompanyFitMode {
+  mode: "off" | "suggest";
+  effective: boolean;
+  reason_code: string | null;
+  card_version: string | null;
+  card_sha256: string | null;
+  prompt_version: string;
+}
+
 export interface CompanyFitResponse {
-  schema_version: "bidops.prespec-company-fit.v1";
+  schema_version: "bidops.prespec-company-fit.v2";
   notice_id: number;
   attempts: CompanyFitAttempt[];
+  /** v1 정의 그대로다(어느 lineage든 자동 판정이 도는가). 카드 모드는 `mode`로만 읽는다. */
   automation_enabled: boolean;
+  mode: CompanyFitMode;
+  /** 카드 lineage 현재 판정이 부합이고 모드가 추천이면 true. 표시만 하며 분석 요청은 사람이 정한다. */
+  engine_suggested: boolean;
   auto_deep_review_reason: string | null;
   deep_review_id: string | null;
 }

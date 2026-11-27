@@ -12,6 +12,13 @@ and branches on ``company_id``:
   fit policy, and validated by the v2 validator.  No synthetic result, no
   automatic deep review.  While ``BIDOPS_DEMO_ENABLED`` is false, company rows
   are neither claimed nor changed.
+* ``company_id IS NULL AND card_sha256 IS NOT NULL`` -- PS-01 business scope
+  card: while the card mode is effective (C4) one notice per poll is enqueued
+  (SW사업대상, automatic processing scope, verified overview; the C-1 grade is
+  never read), claimed rows are re-checked (C9 + model binding), sent with the
+  seven model-input keys and the v3.1 card policy, and validated by the v1
+  validator.  Card rows never start a deep review.  While the card mode is
+  effective the profile lineage is paused (no enqueue, no claim).
 """
 from __future__ import annotations
 
@@ -20,7 +27,7 @@ import json
 from typing import Any, Callable
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from ...core.config import get_settings
@@ -31,10 +38,12 @@ from ...lifecycle import lock_notice
 from ...lifecycle.models import Notice
 from ..models import DeepReview, DocumentBundle, PreSpecCompanyFitAttempt
 from .auto_preparation import _auto_start_scope, maybe_auto_start_deep_review
-from .company_fit import (CONTRACT, company_attempt_policy, company_audit_metadata, company_current_flags,
-                          company_fit_contract, company_fit_enabled, configured_binding, current_flags,
-                          digest, fit_policy, frozen_input, overview_inputs, validate_company_fit_result,
-                          validate_result)
+from .company_fit import (CONTRACT, JUDGED_BY_MODEL, card_current_flags, card_mode_with_card,
+                          card_model_input, company_attempt_policy, company_audit_metadata,
+                          company_current_flags, company_fit_contract, company_fit_enabled,
+                          configured_binding, current_flags, digest, fit_policy, frozen_card_input,
+                          frozen_input, overview_inputs, validate_company_fit_result, validate_result)
+from .company_fit_card import BusinessScopeCard
 from .company_fit_policy import COMPANY_FIT_STAGE
 from .effective_grade import priority_notice_ids
 from .input_versions import resolve_active_versions
@@ -52,17 +61,25 @@ def _now():
     return datetime.now(UTC)
 
 
+def attempt_audit_metadata(row: PreSpecCompanyFitAttempt, retry: dict | None = None) -> dict:
+    """Legacy metadata keys stay exactly as before; card and company rows add identities."""
+
+    if row.company_id is not None:
+        return company_audit_metadata(row, retry)
+    metadata = {"notice_id": row.notice_id, "status": row.status, "reason_code": row.error_code,
+                "input_sha256": row.input_sha256, "quality_status": row.quality_status,
+                "validation_retry": dict(retry) if retry else None}
+    if row.card_sha256 is not None:
+        inputs = row.input_jsonb if isinstance(row.input_jsonb, dict) else {}
+        metadata.update(lineage="card", card_version=row.card_version, card_sha256=row.card_sha256,
+                        judged_by=inputs.get("judged_by"))
+    return metadata
+
+
 def _audit(session: Session, row: PreSpecCompanyFitAttempt, retry: dict | None = None):
-    # Legacy metadata keys stay exactly as before; company rows add identities.
-    metadata = (
-        {"notice_id": row.notice_id, "status": row.status, "reason_code": row.error_code,
-         "input_sha256": row.input_sha256, "quality_status": row.quality_status,
-         "validation_retry": dict(retry) if retry else None}
-        if row.company_id is None else company_audit_metadata(row, retry)
-    )
     session.add(AuditEvent(actor_kind="system", claimed_name="company-fit", action="prespec_company_fit.attempt",
         aggregate_type="prespec_company_fit_attempt", aggregate_id=str(row.id),
-        safe_metadata=metadata))
+        safe_metadata=attempt_audit_metadata(row, retry)))
 
 
 def _metrics(response) -> dict:
@@ -106,7 +123,8 @@ class PreSpecCompanyFitRunner:
         existing_inputs = set(
             session.scalars(
                 select(PreSpecCompanyFitAttempt.input_sha256).where(
-                    PreSpecCompanyFitAttempt.company_id.is_(None)
+                    PreSpecCompanyFitAttempt.company_id.is_(None),
+                    PreSpecCompanyFitAttempt.card_sha256.is_(None),
                 )
             )
         )
@@ -135,12 +153,70 @@ class PreSpecCompanyFitRunner:
                 select(PreSpecCompanyFitAttempt.id).where(
                     PreSpecCompanyFitAttempt.input_sha256 == input_hash,
                     PreSpecCompanyFitAttempt.company_id.is_(None),
+                    PreSpecCompanyFitAttempt.card_sha256.is_(None),
                 )
             ):
                 continue
             row = PreSpecCompanyFitAttempt(id=uuid4(), company_id=None, notice_id=notice_id, document_version_id=source.document_id,
                 overview_run_id=source.id,
                 profile_version_id=profile.id, deep_policy_version_id=policy.id,
+                input_jsonb=inputs, input_sha256=input_hash, policy_digest=inputs["policy_digest"],
+                model_name=inputs["model_name"], model_revision=inputs["model_revision"],
+                quality_status=source.quality_status, status="queued", created_at=self.clock())
+            session.add(row)
+            _audit(session, row)
+            session.commit()
+            return
+        session.commit()
+
+    def _enqueue_card(self, session: Session, card: BusinessScopeCard, now) -> None:
+        """Freeze at most one card lineage attempt (spec "상태 값과 실패 처리").
+
+        Targets: pre-spec notices that are SW사업대상, inside the automatic
+        processing scope at ``now`` and have a verified current overview.  The
+        C-1 grade is never read.  Order: the pre-spec list deadline order, then
+        notice id.  A notice whose card input already exists (any status, so a
+        failed or expired input is never retried) or whose input is too large is
+        skipped without blocking later notices.
+        """
+
+        from ...lifecycle import pre_spec_deadline_sort_expression
+        from .effective_grade import auto_processing_notice_ids, sw_business_notice_ids
+
+        model, revision, _legacy_policy = configured_binding(self.settings)
+        bucket, future_deadline, past_deadline = pre_spec_deadline_sort_expression(now)
+        ids = list(session.scalars(
+            select(Notice.id).where(Notice.source_type == "pre_spec")
+            .order_by(bucket.asc(), future_deadline.asc().nulls_last(), past_deadline.desc().nulls_last(),
+                      Notice.id.asc())
+        ))
+        sw = sw_business_notice_ids(session, ids)
+        in_scope = auto_processing_notice_ids(session, ids, now=now)
+        candidates = [notice_id for notice_id in ids if notice_id in sw and notice_id in in_scope]
+        sources = overview_inputs(session, candidates)
+        existing = set(session.scalars(select(PreSpecCompanyFitAttempt.input_sha256).where(
+            PreSpecCompanyFitAttempt.company_id.is_(None), PreSpecCompanyFitAttempt.card_sha256.is_not(None))))
+        for notice_id in candidates:
+            source = sources.get(notice_id)
+            if source is None:
+                continue
+            try:
+                inputs = frozen_card_input(session, notice_id, source, card, model_name=model,
+                                           model_revision=revision, judged_by=JUDGED_BY_MODEL)
+            except (ValueError, TypeError):
+                # company_fit_input_too_large: skip, never block the next notice.
+                continue
+            input_hash = digest(inputs)
+            if input_hash in existing:
+                continue
+            lock_notice(session, notice_id)
+            if session.scalar(select(PreSpecCompanyFitAttempt.id).where(
+                    PreSpecCompanyFitAttempt.input_sha256 == input_hash)):
+                continue
+            row = PreSpecCompanyFitAttempt(
+                id=uuid4(), company_id=None, notice_id=notice_id, document_version_id=source.document_id,
+                overview_run_id=source.id, profile_version_id=None, deep_policy_version_id=None,
+                card_version=card.card_version, card_sha256=card.card_sha256,
                 input_jsonb=inputs, input_sha256=input_hash, policy_digest=inputs["policy_digest"],
                 model_name=inputs["model_name"], model_revision=inputs["model_revision"],
                 quality_status=source.quality_status, status="queued", created_at=self.clock())
@@ -166,19 +242,39 @@ class PreSpecCompanyFitRunner:
         for row in session.scalars(expired.with_for_update(skip_locked=True)):
             self._finish(session, row, "failed", "lease_expired")
         session.commit()
+        card_state, card = card_mode_with_card(self.settings)
+        card_effective = bool(card_state["effective"] and card is not None)
         legacy_enabled = True
-        try:
-            self._enqueue_one(session)
-        except Exception:
-            session.rollback()
-            # The legacy queue is unavailable (as before, its rows wait), but an
-            # explicitly enqueued company row still has its own frozen binding.
+        if card_effective:
+            # PS-01 coexistence: the profile lineage is paused while the card mode
+            # is effective (no `_enqueue_one`, its queued rows are not claimed).
             legacy_enabled = False
-        claim = select(PreSpecCompanyFitAttempt).where(PreSpecCompanyFitAttempt.status == "queued")
-        if not legacy_enabled:
-            claim = claim.where(PreSpecCompanyFitAttempt.company_id.is_not(None))
-        if not company_enabled:
-            claim = claim.where(PreSpecCompanyFitAttempt.company_id.is_(None))
+            try:
+                self._enqueue_card(session, card, now)
+            except Exception:
+                # The card queue has its own failure boundary; queued rows still run.
+                session.rollback()
+        else:
+            try:
+                self._enqueue_one(session)
+            except Exception:
+                session.rollback()
+                # The legacy queue is unavailable (as before, its rows wait), but an
+                # explicitly enqueued company row still has its own frozen binding.
+                legacy_enabled = False
+        lineages = []
+        if legacy_enabled:
+            lineages.append(and_(PreSpecCompanyFitAttempt.company_id.is_(None),
+                                 PreSpecCompanyFitAttempt.card_sha256.is_(None)))
+        if card_effective:
+            lineages.append(and_(PreSpecCompanyFitAttempt.company_id.is_(None),
+                                 PreSpecCompanyFitAttempt.card_sha256.is_not(None)))
+        if company_enabled:
+            lineages.append(PreSpecCompanyFitAttempt.company_id.is_not(None))
+        if not lineages:
+            session.rollback()
+            return False
+        claim = select(PreSpecCompanyFitAttempt).where(PreSpecCompanyFitAttempt.status == "queued", or_(*lineages))
         row = session.scalar(claim.order_by(PreSpecCompanyFitAttempt.created_at, PreSpecCompanyFitAttempt.id)
                              .with_for_update(skip_locked=True).limit(1))
         if row is None:
@@ -186,6 +282,8 @@ class PreSpecCompanyFitRunner:
             return False
         if row.company_id is not None:
             return self._run_company(session, row, worker_id, now)
+        if row.card_sha256 is not None:
+            return self._run_card(session, row, worker_id, now)
         attempt_id, notice_id = row.id, row.notice_id
         if not self._eligible(session, row):
             self._finish(session, row, "failed", "inputs_changed")
@@ -345,6 +443,52 @@ class PreSpecCompanyFitRunner:
                 owned_client.close()
         self._store(session, attempt_id, worker_id, status, error, result, raw, first_raw, retry, metrics)
         # Company fits never start a deep review; Luna analysis is a separate request.
+        return True
+
+    def _card_eligible(self, session: Session, row: PreSpecCompanyFitAttempt) -> bool:
+        """C9 currentness plus the model binding the runner will call (MVP 3)."""
+
+        inputs = row.input_jsonb if isinstance(row.input_jsonb, dict) else {}
+        if inputs.get("judged_by") != JUDGED_BY_MODEL:
+            return False
+        try:
+            model, revision, _legacy_policy = configured_binding(self.settings)
+        except (ValueError, OSError):
+            return False
+        if row.model_name != model or row.model_revision != revision:
+            return False
+        return bool(card_current_flags(session, [row], settings=self.settings).get(row.id))
+
+    def _run_card(self, session: Session, row: PreSpecCompanyFitAttempt, worker_id: str, now) -> bool:
+        """Execute one claimed card attempt from its frozen input only."""
+
+        attempt_id = row.id
+        if not self._card_eligible(session, row):
+            self._finish(session, row, "failed", "inputs_changed")
+            session.commit()
+            return True
+        row.status = "running"
+        row.lease_owner = worker_id
+        row.lease_expires_at = now + timedelta(seconds=600)
+        inputs = row.input_jsonb
+        _audit(session, row)
+        session.commit()
+        result, raw, first_raw, retry, metrics = None, None, None, None, {}
+        status, error = "completed", None
+        try:
+            if self.client is None:
+                self.client = ModelClient.for_purpose("overview", model=inputs["model_name"],
+                                                     settings=self.settings, output_contract=CONTRACT)
+            identity = self.client.verify_identity()
+            if identity.model != inputs["model_name"] or identity.revision != inputs["model_revision"]:
+                raise ValueError("model_binding_changed")
+            status, error, result, raw, first_raw, retry, metrics = self._invoke_validated(
+                self.client, card_model_input(inputs), inputs["fit_policy"], inputs, validate_result, {}
+            )
+        except Exception:
+            status, error = "failed", "company_fit_execution_failed"
+        self._store(session, attempt_id, worker_id, status, error, result, raw, first_raw, retry, metrics)
+        # Card fits only suggest; they never start a deep review (ADR-0078 결정 1).
         return True
 
     def _company_eligible(self, session: Session, row: PreSpecCompanyFitAttempt) -> bool:

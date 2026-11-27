@@ -1,4 +1,5 @@
 import { searchKey } from "./search";
+import type { PreSpecCompanyFitGroup } from "./types";
 
 /**
  * Pure state, persistence, and ordering helpers for the list review surfaces.
@@ -521,6 +522,8 @@ export function preSpecsFilterFingerprint(filters: {
   deadlineStatus?: string;
   /** 검토할 항목의 마감 구간(ADR-0064). 의미 필터이므로 전환하면 선택을 비운다. */
   deadlineScope?: string;
+  /** 회사 핏 그룹 필터(PS-01). 의미 필터다. 값이 없을 때는 키를 넣지 않아 예전 fingerprint와 같다. */
+  companyFit?: string;
   q: string;
 }): string {
   const normalized = {
@@ -539,6 +542,7 @@ export function preSpecsFilterFingerprint(filters: {
     observedTo: filters.observedTo ?? "",
     deadlineStatus: filters.deadlineStatus ?? "",
     deadlineScope: filters.deadlineScope ?? "current",
+    ...(filters.companyFit ? { companyFit: filters.companyFit } : {}),
     q: searchKey(filters.q),
   };
   return `pre-specs:${canonicalizeFilterValue(normalized)}`;
@@ -570,11 +574,23 @@ export function sortOrderPlanItems<T extends OrderPlanSortable>(items: readonly 
     .map(({ item }) => item);
 }
 
+export type PreSpecSelectionSort = "published" | "deadline" | "observed" | "fit";
+
+/** 회사 핏순 그룹 순위(PS-01 C7). 서버 정렬과 같다. 키가 없으면 판정 전(2)이다. */
+const COMPANY_FIT_GROUP_RANK: Record<PreSpecCompanyFitGroup, number> = {
+  matched: 0,
+  unknown: 1,
+  pending: 2,
+  mismatch: 3,
+};
+
 export interface PreSpecSelectionSortMetadata {
   id: ListSelectionId;
   published_at: string | null;
   deadline_at: string | null;
   last_observed_at?: string | null;
+  /** 회사 핏 그룹(PS-01 C6). 예전에 저장된 선택에는 없다. */
+  company_fit_group?: PreSpecCompanyFitGroup;
 }
 
 export function isPreSpecSelectionSortMetadata(value: unknown): value is PreSpecSelectionSortMetadata {
@@ -582,11 +598,18 @@ export function isPreSpecSelectionSortMetadata(value: unknown): value is PreSpec
   const record = value as Record<string, unknown>;
   const keys = Object.keys(record).sort();
   const hasObserved = keys.includes("last_observed_at");
-  const expectedKeys = hasObserved
-    ? ["deadline_at", "id", "last_observed_at", "published_at"]
-    : ["deadline_at", "id", "published_at"];
+  const hasFitGroup = keys.includes("company_fit_group");
+  const expectedKeys = [
+    ...(hasFitGroup ? ["company_fit_group"] : []),
+    "deadline_at",
+    "id",
+    ...(hasObserved ? ["last_observed_at"] : []),
+    "published_at",
+  ];
   return keys.length === expectedKeys.length
     && expectedKeys.every((key, index) => keys[index] === key)
+    && (!hasFitGroup || (typeof record.company_fit_group === "string"
+      && Object.prototype.hasOwnProperty.call(COMPANY_FIT_GROUP_RANK, record.company_fit_group)))
     && isListSelectionId(record.id)
     && (record.published_at === null || (typeof record.published_at === "string" && normalizeTimestamp(record.published_at) !== null))
     && (record.deadline_at === null || (typeof record.deadline_at === "string" && normalizeTimestamp(record.deadline_at) !== null))
@@ -692,17 +715,26 @@ function compareDeadlineTimestamp(left: string | null, right: string | null): nu
   return leftValue < rightValue ? -1 : 1;
 }
 
+function companyFitRank(item: PreSpecSelectionSortMetadata): number {
+  return COMPANY_FIT_GROUP_RANK[item.company_fit_group ?? "pending"];
+}
+
 export function comparePreSpecMetadata(
   left: PreSpecSelectionSortMetadata,
   right: PreSpecSelectionSortMetadata,
-  sort: "published" | "deadline" | "observed",
+  sort: PreSpecSelectionSort,
 ): number {
   if (!isPreSpecSelectionSortMetadata(left) || !isPreSpecSelectionSortMetadata(right)) {
     throw new Error("사전규격 정렬 메타데이터가 올바르지 않아요.");
   }
+  // 회사 핏순: 그룹 순위 → 마감 정렬식 → id 오름차순(서버 `sort=fit`과 같다).
+  if (sort === "fit") {
+    const rankResult = companyFitRank(left) - companyFitRank(right);
+    if (rankResult !== 0) return rankResult < 0 ? -1 : 1;
+  }
   const timestampResult = sort === "published"
     ? compareNullableTimestamp(left.published_at, right.published_at, -1)
-    : sort === "deadline"
+    : sort === "deadline" || sort === "fit"
       ? compareDeadlineTimestamp(left.deadline_at, right.deadline_at)
       // Old persisted selections predate observed metadata. Treat their
       // missing value as null so adding the recent sort does not invalidate
@@ -718,7 +750,7 @@ export function comparePreSpecMetadata(
 
 export function sortPreSpecMetadata(
   items: readonly PreSpecSelectionSortMetadata[],
-  sort: "published" | "deadline" | "observed",
+  sort: PreSpecSelectionSort,
 ): PreSpecSelectionSortMetadata[] {
   for (const item of items) {
     if (!isPreSpecSelectionSortMetadata(item)) {

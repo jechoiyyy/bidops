@@ -129,7 +129,8 @@ def _legacy_shape(payload: dict) -> dict:
     item_fields = {"first_observed_at", "last_observed_at", "next_action",
                    "review_exclusion_status", "review_exclusion_actor_name",
                    "review_exclusion_reason", "review_exclusion_changed_at",
-                   "demand_agency", "display_assessment", "latest_deep_review_status"}
+                   "demand_agency", "display_assessment", "latest_deep_review_status",
+                   "company_fit"}
     normalized: dict = {}
     for scenario, response in payload.items():
         response_copy = dict(response)

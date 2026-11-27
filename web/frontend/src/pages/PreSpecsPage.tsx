@@ -31,10 +31,11 @@ import {
 import { updateTrackingProjection } from "../components/pre-specs/TrackingDecisionControl";
 import { api } from "../lib/api";
 import {
-  AUTO_PREPARATION_FILTER_VALUES, DEADLINE_SCOPE_OPTIONS, DEADLINE_STATUS_OPTIONS,
+  AUTO_PREPARATION_FILTER_VALUES, COMPANY_FIT_GROUP_LABEL, COMPANY_FIT_GROUP_OPTIONS,
+  DEADLINE_SCOPE_OPTIONS, DEADLINE_STATUS_OPTIONS,
   SORT_OPTIONS, TRACKING_STATUS_OPTIONS, VIEWS, WORKSPACES,
-  originLabel, titleOf, validAutoPreparationStatus, validDeadlineScope, validDeadlineStatus,
-  validObservedDate, validOverviewView, validTrackingDecision, validTrackingStatus,
+  originLabel, titleOf, validAutoPreparationStatus, validCompanyFitGroup, validDeadlineScope, validDeadlineStatus,
+  validObservedDate, validOverviewView, validSort, validTrackingDecision, validTrackingStatus,
   validWorkspace, workspaceOf, type WorkspaceKey,
 } from "../lib/preSpecViews";
 import { PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL } from "../lib/preSpecAutoPreparation";
@@ -58,6 +59,7 @@ import { buildSourceRunOptions } from "../lib/runOptions";
 import { searchKey } from "../lib/search";
 import type {
   PreSpecReviewExclusionStatus,
+  PreSpecListItem,
   PreSpecListResponse,
   PreSpecOrigin,
   PreSpecSort,
@@ -107,8 +109,16 @@ function validOrigin(value: string | null): PreSpecOrigin | "" {
   return value && ORIGINS.includes(value as PreSpecOrigin) ? (value as PreSpecOrigin) : "";
 }
 
-function validSort(value: string | null): PreSpecSort | "" {
-  return value === "deadline" || value === "observed" || value === "published" ? value : "";
+/** 선택 검토 순서용 정렬 키. 회사 핏 요약이 없으면 `company_fit_group`을 싣지 않는다(키 없음 = 판정 전).
+ * 전체 선택·로드 반영·행 체크 세 곳이 같은 값을 쓴다. */
+function selectionSortMetadata(item: PreSpecListItem): PreSpecSelectionSortMetadata {
+  return {
+    id: item.notice_pk,
+    published_at: item.published_at,
+    deadline_at: item.deadline_at,
+    last_observed_at: item.last_observed_at ?? null,
+    ...(item.company_fit ? { company_fit_group: item.company_fit.group } : {}),
+  };
 }
 
 function readOffset(value: string | null): number {
@@ -158,6 +168,7 @@ export function PreSpecsPage() {
   const autoPreparationStatus = validAutoPreparationStatus(searchParams.get("auto_preparation_status"));
   const trackingDecision = validTrackingDecision(searchParams.get("tracking_decision"));
   const trackingStatus = validTrackingStatus(searchParams.get("tracking_status"));
+  const companyFit = validCompanyFitGroup(searchParams.get("company_fit"));
   const hasLegacyView = searchParams.has("view");
   const hasLegacyDashboardFilter = !searchParams.has("workspace")
     && LEGACY_DASHBOARD_FILTER_KEYS.some((key) => searchParams.has(key));
@@ -212,6 +223,7 @@ export function PreSpecsPage() {
     observedTo,
     deadlineStatus,
     deadlineScope,
+    companyFit,
     q: queryText,
   });
 
@@ -304,12 +316,13 @@ export function PreSpecsPage() {
       observed_from: rawObservedFrom || null,
       observed_to: rawObservedTo || null,
       deadline_status: deadlineStatus || null,
+      company_fit: companyFit || null,
       q: queryText || null,
       sort,
       limit: PAGE_SIZE,
       offset,
     }),
-    [reviewExclusion, autoPreparationStatus, businessDivision, deadlineScope, deadlineStatus, offset, origin, overviewView, queryText, rawObservedFrom, rawObservedTo, sort, sourceRunId, swOnly, trackingDecision, trackingStatus, workspace],
+    [reviewExclusion, autoPreparationStatus, businessDivision, companyFit, deadlineScope, deadlineStatus, offset, origin, overviewView, queryText, rawObservedFrom, rawObservedTo, sort, sourceRunId, swOnly, trackingDecision, trackingStatus, workspace],
   );
   const result = useQuery({
     ...preSpecPageOptions(listQuery, searchKey(queryText)),
@@ -345,7 +358,7 @@ export function PreSpecsPage() {
   const isDefaultView = workspace === "actionable" && swOnly && !businessDivision && !origin && !queryText
     && !autoPreparationStatus && !trackingDecision && !trackingStatus && !sourceRunId
     && !rawObservedFrom && !rawObservedTo && !deadlineStatus && deadlineScope === "current"
-    && overviewView === "all" && !requestedSort && sort === "deadline" && offset === 0;
+    && overviewView === "all" && !companyFit && !requestedSort && sort === sortForWorkspace("actionable") && offset === 0;
 
   const itemKeys = useMemo(() => items.map((item) => item.notice_pk), [items]);
   const selectedItem = items.find((item) => item.notice_pk === selectedPk) ?? null;
@@ -359,12 +372,7 @@ export function PreSpecsPage() {
   const selectCurrentPage = useCallback(() => {
     const metadataById: Record<string, PreSpecSelectionSortMetadata> = {};
     for (const item of items) {
-      metadataById[String(item.notice_pk)] = {
-        id: item.notice_pk,
-        published_at: item.published_at,
-        deadline_at: item.deadline_at,
-        last_observed_at: item.last_observed_at ?? null,
-      };
+      metadataById[String(item.notice_pk)] = selectionSortMetadata(item);
     }
     selection.selectMany(items.map((item) => item.notice_pk), metadataById);
   }, [items, selection.selectMany]);
@@ -373,12 +381,7 @@ export function PreSpecsPage() {
   // never intersected with the current page, so off-page checks survive.
   useEffect(() => {
     for (const item of loadedItems) {
-      selection.setSortMetadata(item.notice_pk, {
-        id: item.notice_pk,
-        published_at: item.published_at,
-        deadline_at: item.deadline_at,
-        last_observed_at: item.last_observed_at ?? null,
-      });
+      selection.setSortMetadata(item.notice_pk, selectionSortMetadata(item));
     }
   }, [loadedItems, selection.setSortMetadata]);
 
@@ -623,6 +626,7 @@ export function PreSpecsPage() {
       observed_to: null,
       deadline_status: null,
       deadline_scope: null,
+      company_fit: null,
       q: null,
       sort: null,
       view: null,
@@ -664,6 +668,7 @@ export function PreSpecsPage() {
     if (isDefaultView) return "SW 중심 기본 보기에 맞는 항목이 없어요. 전체 보기는 SW사업대상과 무관한 사전규격까지 명시적으로 요청해요.";
     if (overviewView !== "all") return `현재 개요 상태 보기와 필터에 맞는 사전규격이 없어요. 보기를 바꾸거나 조건을 넓혀 보세요.`;
     if (swOnly) return "SW 중심 기본 보기와 추가 필터가 함께 적용되어 있어요. 기본값으로 돌아가거나 조건을 조정해 보세요.";
+    if (companyFit) return `회사 핏 ${COMPANY_FIT_GROUP_LABEL[companyFit]} 조건에 맞는 사전규격이 없어요. 회사 핏 필터를 풀거나 조건을 넓혀 보세요.`;
     if (autoPreparationStatus || trackingDecision || trackingStatus || sourceRunId || observedFrom || observedTo || deadlineStatus) {
       return "현재 선택한 업무구분·구분·추적·관측·마감 조건에 맞는 누적 데이터가 없어요.";
     }
@@ -690,6 +695,7 @@ export function PreSpecsPage() {
     Boolean(trackingStatus),
     Boolean(deadlineStatus),
     Boolean(autoPreparationStatus),
+    Boolean(companyFit),
     Boolean(trackingDecision),
     Boolean(sourceRunId),
   ].filter(Boolean).length;
@@ -715,6 +721,7 @@ export function PreSpecsPage() {
   if (trackingStatus) addFilter("tracking_status", `추적 상태 · ${trackingStatus}`);
   if (deadlineStatus) addFilter("deadline_status", `마감 상태 · ${DEADLINE_STATUS_OPTIONS.find((option) => option.value === deadlineStatus)?.label ?? deadlineStatus}`);
   if (autoPreparationStatus) addFilter("auto_preparation_status", `자동 준비 · ${PRE_SPEC_AUTO_PREPARATION_STATUS_LABEL[autoPreparationStatus]}`);
+  if (companyFit) addFilter("company_fit", `회사 핏 · ${COMPANY_FIT_GROUP_LABEL[companyFit]}`);
   if (trackingDecision) addFilter("tracking_decision", "추적 결정 · 대기");
   if (sourceRunId && selectedRunLabel) addFilter("source_run_id", `수집 회차 · ${selectedRunLabel}`);
 
@@ -858,6 +865,17 @@ export function PreSpecsPage() {
                 ]}
                 value={autoPreparationStatus || ALL_OPTION}
                 onChange={(value) => updateSearchParams({ auto_preparation_status: value === ALL_OPTION ? null : value })}
+              />
+              {/* 회사 핏 그룹(PS-01 C7)은 서버 질의 인자다 — 페이지 전에 좁히고 건수에도 걸린다. */}
+              <Selector
+                label="회사 핏"
+                size="sm"
+                options={[
+                  { value: ALL_OPTION, label: "전체" },
+                  ...COMPANY_FIT_GROUP_OPTIONS.map((value) => ({ value, label: COMPANY_FIT_GROUP_LABEL[value] })),
+                ]}
+                value={companyFit || ALL_OPTION}
+                onChange={(value) => updateSearchParams({ company_fit: value === ALL_OPTION ? null : value })}
               />
             </WorkspaceFilterGroup>
             <WorkspaceFilterGroup title="추적·일정">
@@ -1020,12 +1038,7 @@ export function PreSpecsPage() {
                 selection={{
                   getChecked: (item) => selection.selectedIdSet.has(item.notice_pk),
                   getLabel: (item) => `사전규격 선택 · ${titleOf(item)}`,
-                  onCheckedChange: (item) => selection.toggle(item.notice_pk, {
-                    id: item.notice_pk,
-                    published_at: item.published_at,
-                    deadline_at: item.deadline_at,
-                    last_observed_at: item.last_observed_at ?? null,
-                  }),
+                  onCheckedChange: (item) => selection.toggle(item.notice_pk, selectionSortMetadata(item)),
                 }}
                 state={result.isPending ? {
                   kind: "loading", label: "사전규격 목록을 불러오는 중이에요.", lines: 3, showLabel: true,

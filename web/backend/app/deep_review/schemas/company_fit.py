@@ -109,10 +109,40 @@ class CompanyFitView(RuntimeContractModel):
     latency_ms: int | None
 
 
+class CompanyFitViewV2(CompanyFitView):
+    """사전규격 회사 핏 응답 v2의 attempt (PS-01 C5).
+
+    ``CompanyFitView``(v1)는 회사 lineage 응답(``CompanyScopedFitView``)이 그대로 쓰므로
+    바꾸지 않는다. v2는 lineage·카드 신원·판정 주체·카드 근거 표시 이름을 더하고,
+    카드 lineage에는 없는 프로필 신원을 nullable로 둔다.
+    """
+
+    lineage: Literal["profile", "card"]
+    profile_version_id: UUID | None
+    profile_sha256: str | None
+    card_version: str | None
+    card_sha256: str | None
+    judged_by: Literal["model", "claude_reference"] | None
+    company_fact_labels: dict[str, str] | None
+
+
+class CompanyFitCardMode(RuntimeContractModel):
+    """카드 모드 실효 상태 (C4, MVP: env 스위치라 ``set_by``·``set_at``이 없다)."""
+
+    mode: Literal["off", "suggest"]
+    effective: bool
+    reason_code: str | None
+    card_version: str | None
+    card_sha256: str | None
+    prompt_version: str
+
+
 class CompanyFitResponse(RuntimeContractModel):
-    schema_version: Literal["bidops.prespec-company-fit.v1"] = "bidops.prespec-company-fit.v1"
+    schema_version: Literal["bidops.prespec-company-fit.v2"] = "bidops.prespec-company-fit.v2"
     notice_id: int
-    attempts: list[CompanyFitView]
+    attempts: list[CompanyFitViewV2]
     automation_enabled: bool
+    mode: CompanyFitCardMode
+    engine_suggested: bool
     auto_deep_review_reason: str | None
     deep_review_id: UUID | None

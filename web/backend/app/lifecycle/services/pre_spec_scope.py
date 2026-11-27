@@ -15,7 +15,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import and_, exists, select
+from sqlalchemy import and_, case, exists, select
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -35,6 +35,25 @@ def deadline_passed_expression(now: datetime, deadline_column: Any = None) -> Co
 
     column = Notice.deadline_at if deadline_column is None else deadline_column
     return and_(column.is_not(None), column < now)
+
+
+def deadline_sort_expression(now: datetime, deadline_column: Any = None) -> tuple[Any, Any, Any]:
+    """사전규격 목록 `sort=deadline`의 정렬식 세 조각 ``(bucket, future, past)``.
+
+    마감 전은 오름차순, 마감 경과는 내림차순, 마감 미확인(null)은 맨 뒤다. 호출부는
+    ``bucket.asc(), future.asc().nulls_last(), past.desc().nulls_last()`` 순서로 쓴다.
+    사전규격 회사 핏 카드 enqueue(deep_review)가 같은 순서를 쓰도록 공개한다.
+    """
+
+    column = Notice.deadline_at if deadline_column is None else deadline_column
+    bucket = case(
+        (column.is_(None), 2),
+        (column >= now, 0),
+        else_=1,
+    )
+    future_value = case((column >= now, column), else_=None)
+    past_value = case((column < now, column), else_=None)
+    return bucket, future_value, past_value
 
 
 def tracked_notice_predicate(notice_id: Any) -> ColumnElement[bool]:
@@ -63,5 +82,6 @@ def tracked_notice_predicate(notice_id: Any) -> ColumnElement[bool]:
 __all__ = [
     "TRACKING_ACTIVE_STATUSES",
     "deadline_passed_expression",
+    "deadline_sort_expression",
     "tracked_notice_predicate",
 ]

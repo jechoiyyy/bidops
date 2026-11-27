@@ -139,8 +139,13 @@ class PreSpecOverviewDocumentProjection:
         fields = {notice_id: dict(value) for notice_id, value in auto_preparation_fields(session, ids).items()}
         runs = current_runs(session, ids)
         assessments = display_assessments(session, ids, latest_runs=runs)
+        # 회사 핏 요약(PS-01 C6)은 최신 카드 lineage attempt로만 정한다.
+        from .company_fit import card_fit_summaries
+
+        fits = card_fit_summaries(session, ids, runs=runs)
         for notice_id in ids:
             fields.setdefault(notice_id, {})["display_assessment"] = assessments[notice_id]
+            fields[notice_id]["company_fit"] = fits[notice_id]
         return fields
 
     def notice_ids_for_auto_preparation_status(

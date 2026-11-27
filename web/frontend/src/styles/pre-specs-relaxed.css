@@ -463,6 +463,29 @@
   line-height: var(--bo-type-caption-leading);
 }
 
+/* 회사 핏 한 줄(PS-01) — 사업 규모 줄과 같은 글자 단이다. 추천은 글자로만 말하고 버튼이 아니다. */
+.pre-specs-detail-fit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--bo-type-caption);
+  line-height: var(--bo-type-caption-leading);
+}
+
+.pre-specs-detail-fit-suggested {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.pre-specs-row-fit {
+  display: inline-flex;
+  white-space: nowrap;
+}
+
 .pre-specs-detail-scale-label,
 .pre-specs-detail-scale > [aria-hidden="true"] {
   flex: 0 0 auto;

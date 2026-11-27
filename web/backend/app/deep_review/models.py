@@ -2232,10 +2232,26 @@ event.listen(CompanyFitPolicyVersion, "before_delete", _reject_company_fit_polic
 
 
 _FIT_HEX = "length({0}) = 64 AND {0} NOT GLOB '*[^0-9a-f]*'"
+#: ``ck_prespec_company_fit_policy_scope`` since 0044 (shared with the migration).
+PRESPEC_COMPANY_FIT_POLICY_SCOPE_SQL = (
+    "(company_id IS NULL AND card_sha256 IS NULL"
+    " AND profile_version_id IS NOT NULL AND deep_policy_version_id IS NOT NULL"
+    " AND company_fit_policy_version_id IS NULL AND card_version IS NULL)"
+    " OR (company_id IS NULL AND card_sha256 IS NOT NULL"
+    " AND card_version IS NOT NULL AND length(card_sha256) = 64"
+    " AND profile_version_id IS NULL AND deep_policy_version_id IS NULL"
+    " AND company_fit_policy_version_id IS NULL AND graph_version_id IS NULL)"
+    " OR (company_id IS NOT NULL AND card_sha256 IS NULL AND card_version IS NULL"
+    " AND deep_policy_version_id IS NULL AND company_fit_policy_version_id IS NOT NULL)"
+)
 
 
 class PreSpecCompanyFitAttempt(Base):
     """Frozen inputs and a fenced lifecycle; terminal attempts are immutable.
+
+    ``company_id IS NULL AND card_sha256 IS NOT NULL`` rows (0044, PS-01) are the
+    business scope card lineage: no profile/analysis policy, a frozen
+    ``bidops.prespec-company-fit-input.v2`` input bound to the card file hash.
 
     ``company_id IS NULL`` rows are the legacy single-company lineage
     (analysis policy FK, required 64-hex model revision).  Company rows
@@ -2266,9 +2282,11 @@ class PreSpecCompanyFitAttempt(Base):
             ondelete="RESTRICT",
             name="fk_prespec_company_fit_graph_scope",
         ),
+        # Three lineages (0044, PS-01): profile (company NULL, card NULL), business
+        # scope card (company NULL, card NOT NULL) and company (DEMO-03).  The card
+        # sha256 hex check lives in the PostgreSQL insert guard.
         CheckConstraint(
-            "(company_id IS NULL AND deep_policy_version_id IS NOT NULL AND company_fit_policy_version_id IS NULL) "
-            "OR (company_id IS NOT NULL AND deep_policy_version_id IS NULL AND company_fit_policy_version_id IS NOT NULL)",
+            PRESPEC_COMPANY_FIT_POLICY_SCOPE_SQL,
             name="ck_prespec_company_fit_policy_scope",
         ),
         CheckConstraint(
@@ -2300,7 +2318,11 @@ class PreSpecCompanyFitAttempt(Base):
     notice_id: Mapped[int] = mapped_column(_fk("notice.id", ondelete="RESTRICT"), nullable=False)
     document_version_id: Mapped[uuid_module.UUID] = mapped_column(nullable=False)
     overview_run_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("prespec_overview_run.id", ondelete="RESTRICT"), nullable=True)
-    profile_version_id: Mapped[uuid_module.UUID] = mapped_column(_fk("profile_version.id", ondelete="RESTRICT"), nullable=False)
+    #: NULL only on business scope card rows (0044); see ``ck_prespec_company_fit_policy_scope``.
+    profile_version_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("profile_version.id", ondelete="RESTRICT"), nullable=True)
+    #: Business scope card rows only (PS-01): ``schema_version`` and file SHA-256 of the card.
+    card_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    card_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     #: Legacy (company_id IS NULL) rows only; see ``ck_prespec_company_fit_policy_scope``.
     deep_policy_version_id: Mapped[uuid_module.UUID | None] = mapped_column(_fk("analysis_policy_version.id", ondelete="RESTRICT"), nullable=True)
     #: Company rows only: the purpose-specific immutable fit policy.

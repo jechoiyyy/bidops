@@ -979,6 +979,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
           current={currentCompanyFitAttempt}
           previous={previousCompanyFitAttempts}
           state={companyFitQuery.isPending ? "pending" : companyFitData === null ? "unavailable" : "ready"}
+          mode={companyFitData?.mode ?? null}
         />
       </Collapsible>
     </div>

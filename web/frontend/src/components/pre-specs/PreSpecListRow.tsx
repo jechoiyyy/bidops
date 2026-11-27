@@ -6,6 +6,8 @@ import { formatDateTime } from "../../lib/format";
 import {
   attachmentAttention,
   budgetLabel,
+  companyFitGroupOf,
+  companyFitMark,
   exactBudget,
   overviewStatusLabel,
   overviewStatusTone,
@@ -49,6 +51,15 @@ function PreSpecStatus({ item, hideUntracked }: { item: PreSpecListItem; hideUnt
   );
 }
 
+/** 회사 핏 그룹 한 칸(PS-01 C6). 값은 서버 그룹 그대로이고 판정이 없으면 `판정 전`이다. */
+function PreSpecCompanyFit({ item }: { item: PreSpecListItem }) {
+  return (
+    <span className="pre-specs-row-fit" data-fit-group={companyFitGroupOf(item)}>
+      <StatusMark mark={companyFitMark(item)} />
+    </span>
+  );
+}
+
 export function preSpecColumns(hideUntracked: boolean): RecordTableColumn<PreSpecListItem>[] {
   return [
     {
@@ -73,6 +84,10 @@ export function preSpecColumns(hideUntracked: boolean): RecordTableColumn<PreSpe
     {
       key: "overview", header: "개요 상태", width: 92,
       renderCell: (item) => <PreSpecStatus item={item} hideUntracked={hideUntracked} />,
+    },
+    {
+      key: "fit", header: "회사 핏", width: 76, className: "pre-specs-row-fit-cell",
+      renderCell: (item) => <PreSpecCompanyFit item={item} />,
     },
     {
       key: "deadline", header: "의견 마감", width: 132, className: "pre-specs-row-date",

@@ -6,8 +6,10 @@ import {
   PRE_SPEC_OVERVIEW_NOT_STARTED_LABEL,
   PRE_SPEC_OVERVIEW_STATUS_LABEL,
 } from "./preSpecOverviewStatus";
+import type { MarkTone } from "../components/common/Marks";
 import type {
   PreSpecAutoPreparationStatus,
+  PreSpecCompanyFitGroup,
   PreSpecListItem,
   PreSpecDeadlineStatus,
   PreSpecOverviewView,
@@ -43,7 +45,8 @@ export const WORKSPACES: readonly WorkspaceDefinition[] = [
     key: "actionable",
     label: PRE_SPEC_TERM.actionable,
     description: "개요를 읽고 추적을 정할 건(개요 완료·개요 확인 필요, 추적 결정 없음)",
-    defaultSort: "deadline",
+    // PS-01: 회사 핏 부합 → 판단 보류 → 판정 전 → 불일치, 그룹 안은 마감 임박순(서버 정렬).
+    defaultSort: "fit",
   },
   {
     key: "needs_check",
@@ -92,7 +95,45 @@ export const SORT_OPTIONS: readonly { value: PreSpecSort; label: string }[] = [
   { value: "published", label: "게시 최신순" },
   { value: "deadline", label: "마감 임박순" },
   { value: "observed", label: "최근 관측순" },
+  { value: "fit", label: "회사 핏순" },
 ];
+
+export function validSort(value: string | null): PreSpecSort | "" {
+  return SORT_OPTIONS.some((option) => option.value === value) ? value as PreSpecSort : "";
+}
+
+/** 목록 회사 핏 그룹(PS-01 C6) 표시. 그룹은 서버가 정하고 화면은 옮기기만 한다. */
+export const COMPANY_FIT_GROUP_LABEL: Record<PreSpecCompanyFitGroup, string> = {
+  matched: "부합",
+  unknown: "판단 보류",
+  pending: "판정 전",
+  mismatch: "불일치",
+};
+
+/** 불일치는 실패가 아니고 판정 전도 문제가 아니다 — 성공·실패 의미색을 쓰지 않는다. 문구가 뜻을 진다. */
+const COMPANY_FIT_GROUP_TONE: Record<PreSpecCompanyFitGroup, MarkTone> = {
+  matched: "accent",
+  unknown: "warning",
+  pending: "neutral",
+  mismatch: "neutral",
+};
+
+/** 필터·라벨 순서는 회사 핏순과 같다. */
+export const COMPANY_FIT_GROUP_OPTIONS: readonly PreSpecCompanyFitGroup[] = ["matched", "unknown", "pending", "mismatch"];
+
+export function validCompanyFitGroup(value: string | null): PreSpecCompanyFitGroup | "" {
+  return COMPANY_FIT_GROUP_OPTIONS.includes(value as PreSpecCompanyFitGroup) ? value as PreSpecCompanyFitGroup : "";
+}
+
+/** 요약이 없으면(확장 미등록) 서버는 그 공고를 `pending`으로 정렬·필터한다. 표시도 같은 그룹을 쓴다. */
+export function companyFitGroupOf(item: Pick<PreSpecListItem, "company_fit">): PreSpecCompanyFitGroup {
+  return item.company_fit?.group ?? "pending";
+}
+
+export function companyFitMark(item: Pick<PreSpecListItem, "company_fit">): { label: string; tone: MarkTone } {
+  const group = companyFitGroupOf(item);
+  return { label: COMPANY_FIT_GROUP_LABEL[group], tone: COMPANY_FIT_GROUP_TONE[group] };
+}
 
 export const DEADLINE_STATUS_OPTIONS: readonly { value: PreSpecDeadlineStatus; label: string }[] = [
   { value: "open", label: "마감 전" },

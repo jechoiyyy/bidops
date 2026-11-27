@@ -10,6 +10,8 @@
 - ``activate-company-knowledge``: 회사의 active profile/graph binding을 갱신한다.
 - ``import-company-fit-policy``: 승인된 DEMO 회사 핏 policy 파일을 불변 행으로 등록한다(활성화 없음).
 - ``enqueue-company-fit``: 회사·공고 한 건의 회사 핏 attempt를 동결 입력과 함께 대기열에 넣는다(worker 역할).
+- ``import-company-fit-judgments``: Claude 참조 판정 묶음을 사업 범위 카드 lineage의
+  ``completed`` 회사 핏 행으로 가져온다(PS-01 MVP, worker 역할, 모델 호출 없음).
 - ``enqueue-overview``: 사전규격 공고 한 건의 개요 run을 대기열에 넣는다.
 - ``prepare-overviews``: 이미 적재된 사전규격의 자동 준비를 한 번에 돌린다.
 - ``close-overview-run``: 활성 개요 run 하나를 사람이 닫는다.
@@ -70,6 +72,10 @@ _SUBCOMMANDS: dict[str, tuple[str, str]] = {
     "enqueue-company-fit": (
         ".enqueue_company_fit",
         "회사·공고 한 건의 회사 핏 attempt를 동결 입력과 함께 대기열에 넣는다 (worker 역할)",
+    ),
+    "import-company-fit-judgments": (
+        ".import_company_fit_judgments",
+        "Claude 참조 판정 묶음을 카드 lineage 회사 핏 행으로 가져온다 (worker 역할, 모델 호출 없음)",
     ),
     "enqueue-overview": (
         ".enqueue_overview",

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
   mockApi,
+  mockPreSpecs as mockFixturePreSpecs,
   inheritedPreSpecOpportunity,
   overviewCompletedEnvelope,
   overviewCompletedRunFixture,
@@ -622,8 +623,10 @@ test("workspace 기본 정렬과 수동 정렬은 URL·목록 머리에 반영�
   const trace = await mockPreSpecs(page);
   await page.goto("/pre-specs");
 
+  // PS-01: 검토할 항목의 기본 정렬은 회사 핏순이다.
   const listHead = page.locator(".pre-specs-list-head");
-  await expect(listHead).toContainText("마감 임박순");
+  await expect(listHead).toContainText("회사 핏순");
+  await expect.poll(() => trace.listQueries.at(-1)?.get("sort")).toBe("fit");
 
   await page.getByRole("button", { name: "상세 필터", exact: true }).click();
   await page.getByRole("combobox", { name: "표시 순서" }).click();
@@ -633,11 +636,16 @@ test("workspace 기본 정렬과 수동 정렬은 URL·목록 머리에 반영�
   await expect.poll(() => trace.listQueries.at(-1)?.get("sort")).toBe("published");
   await expect(listHead).toContainText("게시 최신순");
 
-  // workspace 기본값(마감 임박순)으로 되돌리면 URL에서 인자가 사라진다.
+  // workspace 기본값(회사 핏순)으로 되돌리면 URL에서 인자가 사라진다.
   await page.getByRole("combobox", { name: "표시 순서" }).click();
-  await page.getByRole("option", { name: "마감 임박순", exact: true }).click();
+  await page.getByRole("option", { name: "회사 핏순", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.has("sort")).toBe(false);
+  await expect(listHead).toContainText("회사 핏순");
+
+  // 다른 탭의 기본값은 그대로다(확인 필요 = 마감 임박순).
+  await page.locator(".pre-specs-views").getByRole("button", { name: /^확인 필요/ }).click();
   await expect(listHead).toContainText("마감 임박순");
+  await expect.poll(() => trace.listQueries.at(-1)?.get("sort")).toBe("deadline");
 });
 
 // 제목은 셸 상단바가 그리고 페이지는 같은 이름을 다시 쓰지 않는다. 페이지 상태를
@@ -1783,4 +1791,163 @@ test("선택 검토는 저장 실패 시 머물고 성공 시에만 다음 공�
   await save.click();
   await expect(page).toHaveURL(url => url.pathname + url.search === "/pre-specs/991" + search);
   await expect(page.getByRole("navigation", { name: "사전규격 선택 순회" })).toContainText("2 / 2");
+});
+
+// ── T13: 회사 핏 열·필터·회사 핏순(PS-01) ────────────────────────────────────
+// 공용 mock(`tests/api-mock.ts`)의 `?fit=` 스위치가 네 그룹 표본(9101~9106)을 목록에 더한다.
+const FIT_ORDER = [
+  "통합 데이터 플랫폼 고도화 사전규격", // 부합, 09-05
+  "공공 데이터 개방 포털 구축 사전규격", // 부합, 09-08
+  "행정 장비 도입과 연계 구축 사전규격", // 판단 보류
+  "민원 처리 시스템 개선 사전규격", // 판정 전(실행 중), 09-02
+  "지역 정보화 전략 수립 사전규격", // 판정 전(attempt 없음), 마감 미확인
+  "청사 영상장비 유지보수 사전규격", // 불일치
+];
+const DEADLINE_ORDER = [
+  "민원 처리 시스템 개선 사전규격",
+  "행정 장비 도입과 연계 구축 사전규격",
+  "청사 영상장비 유지보수 사전규격",
+  "통합 데이터 플랫폼 고도화 사전규격",
+  "공공 데이터 개방 포털 구축 사전규격",
+  "지역 정보화 전략 수립 사전규격",
+];
+
+async function rowTitles(page: Page): Promise<string[]> {
+  return page.locator("tr.pre-specs-row .pre-specs-row-title").allTextContents();
+}
+
+function trackListQueries(page: Page): URLSearchParams[] {
+  const queries: URLSearchParams[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/pre-specs" && !url.searchParams.has("notice_pk")) queries.push(url.searchParams);
+  });
+  return queries;
+}
+
+test("T13 검토할 항목은 회사 핏순이 기본이고 회사 핏 열이 네 라벨을 보이며 1280에서 잘리지 않는다", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const queries = trackListQueries(page);
+  await mockFixturePreSpecs(page);
+  await page.goto("/pre-specs?fit=matched");
+  await expect(page.locator(".pre-specs-list-head")).toContainText("회사 핏순");
+  await expect.poll(() => queries.at(-1)?.get("sort")).toBe("fit");
+  await expect.poll(() => rowTitles(page)).toEqual(FIT_ORDER);
+
+  const table = page.getByRole("table", { name: "사전규격", exact: true });
+  await expect(table.getByRole("columnheader", { name: "회사 핏" })).toBeVisible();
+  await expect(page.locator("tr.pre-specs-row .pre-specs-row-fit")).toHaveText(["부합", "부합", "판단 보류", "판정 전", "판정 전", "불일치"]);
+
+  // 회사 핏 열을 더해도 헤더·값 칸이 잘리지 않는다(사업명·기관은 원래 한 줄 말줄임 열이라 뺀다).
+  const clipped = await table.evaluate((element) => {
+    const out: string[] = [];
+    for (const cell of element.querySelectorAll<HTMLElement>("th")) {
+      if (cell.scrollWidth > cell.clientWidth + 1) out.push(`th:${cell.textContent}`);
+    }
+    for (const selector of [".pre-specs-row-budget", ".pre-specs-row-state", ".pre-specs-row-fit", ".pre-specs-row-date"]) {
+      for (const cell of element.querySelectorAll<HTMLElement>(selector)) {
+        const box = cell.getBoundingClientRect();
+        const td = cell.closest("td")!.getBoundingClientRect();
+        if (cell.scrollWidth > cell.clientWidth + 1 || box.right > td.right + 1) out.push(`${selector}:${cell.textContent}`);
+      }
+    }
+    return out;
+  });
+  expect(clipped).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+
+  // 미리보기는 판정 한 줄과 추천 표시만 한다(버튼 없음).
+  await selectPreSpecRow(page, FIT_ORDER[0]);
+  const fitLine = page.locator(".pre-specs-detail-fit");
+  await expect(fitLine).toContainText("부합");
+  await expect(fitLine).toContainText("엔진 분석 추천");
+  await expect(fitLine.locator("a, button")).toHaveCount(0);
+  await selectPreSpecRow(page, FIT_ORDER[5]);
+  await expect(fitLine).toContainText("불일치");
+  await expect(fitLine).not.toContainText("엔진 분석 추천");
+
+  const shotDir = process.env.FIT_SHOT_DIR;
+  if (shotDir) {
+    // 증거 캡처(선택): 1440에서 회사 핏순 목록과 부합 건 미리보기를 데이터가 그려진 뒤 찍는다.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await selectPreSpecRow(page, FIT_ORDER[0]);
+    await expect(fitLine).toContainText("엔진 분석 추천");
+    await page.evaluate(() => document.fonts.ready);
+    await mkdir(shotDir, { recursive: true });
+    await page.screenshot({ path: `${shotDir}/list-actionable-1440.png` });
+    await page.setViewportSize({ width: 1280, height: 800 });
+  }
+
+  // 마감 임박순으로 바꿀 수 있다.
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
+  await page.getByRole("combobox", { name: "표시 순서" }).click();
+  await page.getByRole("option", { name: "마감 임박순", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("sort")).toBe("deadline");
+  await expect(page.locator(".pre-specs-list-head")).toContainText("마감 임박순");
+  await expect.poll(() => rowTitles(page)).toEqual(DEADLINE_ORDER);
+});
+
+test("T13 회사 핏 필터는 URL에 실리고 상세에 갔다 돌아와도 유지된다", async ({ page }) => {
+  const queries = trackListQueries(page);
+  await mockFixturePreSpecs(page);
+  await page.goto("/pre-specs?fit=matched");
+  await expect.poll(() => rowTitles(page)).toEqual(FIT_ORDER);
+
+  await page.getByRole("button", { name: "상세 필터", exact: true }).click();
+  await page.getByRole("combobox", { name: "회사 핏" }).click();
+  for (const label of ["전체", "부합", "판단 보류", "판정 전", "불일치"]) {
+    await expect(page.getByRole("option", { name: label, exact: true })).toBeVisible();
+  }
+  await page.getByRole("option", { name: "판정 전", exact: true }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("company_fit")).toBe("pending");
+  await expect.poll(() => queries.at(-1)?.get("company_fit")).toBe("pending");
+  await expect.poll(() => rowTitles(page)).toEqual([FIT_ORDER[3], FIT_ORDER[4]]);
+  await expect(page.locator(".pre-specs-pager")).toContainText("전체 2건");
+  await expect(page.getByLabel("적용한 필터").getByText("회사 핏 · 판정 전")).toBeVisible();
+
+  await selectPreSpecRow(page, FIT_ORDER[3]);
+  const open = page.getByRole("link", { name: "상세 페이지 열기 →" });
+  await expect(open).toHaveAttribute("href", /company_fit=pending/);
+  await open.click();
+  await expect(page).toHaveURL((url) => url.pathname === "/pre-specs/9103" && url.searchParams.get("company_fit") === "pending");
+  await expect(page.getByRole("region", { name: "회사 업무 부합 여부" }).getByText("판정 중", { exact: true })).toBeVisible();
+
+  await page.goBack();
+  await expect(page).toHaveURL((url) => url.pathname === "/pre-specs" && url.searchParams.get("company_fit") === "pending");
+  await expect.poll(() => rowTitles(page)).toEqual([FIT_ORDER[3], FIT_ORDER[4]]);
+  await expect(page.getByLabel("적용한 필터").getByText("회사 핏 · 판정 전")).toBeVisible();
+});
+
+test("T13 회사 핏순 선택 검토 순서는 목록 순서와 같고 예전 형식의 저장 선택도 읽힌다", async ({ page }) => {
+  await mockFixturePreSpecs(page);
+  await page.goto("/pre-specs?fit=matched");
+  await expect.poll(() => rowTitles(page)).toEqual(FIT_ORDER);
+
+  // 목록 아래쪽부터 고른다 — 선택한 순서가 아니라 회사 핏순으로 검토해야 한다.
+  for (const title of [FIT_ORDER[5], FIT_ORDER[2], FIT_ORDER[0]]) {
+    await page.getByRole("checkbox", { name: `사전규격 선택 · ${title}` }).check();
+  }
+  const stored = await page.evaluate(() => JSON.parse(sessionStorage.getItem("bidops.pre-specs.selection.v1") ?? "null"));
+  expect(stored.selectedSortMetadata["9101"].company_fit_group).toBe("matched");
+  expect(stored.selectedSortMetadata["9104"].company_fit_group).toBe("mismatch");
+
+  // 예전 형식(회사 핏 그룹 없는 메타데이터)으로 바꿔 저장해도 선택이 버려지지 않는다.
+  await page.evaluate(() => {
+    const key = "bidops.pre-specs.selection.v1";
+    const state = JSON.parse(sessionStorage.getItem(key)!);
+    for (const entry of Object.values(state.selectedSortMetadata) as Record<string, unknown>[]) delete entry.company_fit_group;
+    sessionStorage.setItem(key, JSON.stringify(state));
+  });
+  await page.reload();
+  await expect.poll(() => rowTitles(page)).toEqual(FIT_ORDER);
+  await expect(page.locator(".pre-specs-selection-count")).toContainText("3");
+  await expect(page.locator(".pre-specs-selection-message")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "선택 항목 검토" }).click();
+  await expect(page).toHaveURL((url) => url.pathname === "/pre-specs/9101" && url.searchParams.has("selection_review"));
+  const order = await page.evaluate(() => {
+    const token = new URL(location.href).searchParams.get("selection_review");
+    return JSON.parse(sessionStorage.getItem(`bidops.pre-specs.review.v1.${token}`) ?? "null")?.orderedNoticeIds;
+  });
+  expect(order).toEqual([9101, 9102, 9104]);
 });

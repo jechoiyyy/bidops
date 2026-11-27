@@ -19,6 +19,7 @@ import { readPreSpecLifecycle } from "../../lib/noticeLifecycle";
 import { formatPreSpecCaution, preSpecCautions } from "../../lib/preSpecCautions";
 import { preSpecDetailUrl } from "../../lib/preSpecSelectionReview";
 import {
+  companyFitMark,
   exactBudget,
   originLabel,
   titleOf,
@@ -283,6 +284,13 @@ export function PreSpecDetail({
         )}
 
 
+
+        {/* 회사 핏 한 줄(PS-01). 서버 그룹 그대로이고, 추천은 표시만 한다 — 분석 요청 버튼·링크는 두지 않는다. */}
+        <p className="pre-specs-detail-fit" aria-label="회사 핏">
+          <span className="pre-specs-detail-section-label">회사 핏</span>
+          <StatusMark mark={companyFitMark(item)} />
+          {item.company_fit?.engine_suggested ? <span className="pre-specs-detail-fit-suggested">엔진 분석 추천</span> : null}
+        </p>
 
         {/* ⑤ 일정·규모 한 줄 — 항목이 없으면 줄 자체를 만들지 않는다. */}
         {scaleText ? (

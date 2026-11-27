@@ -238,6 +238,13 @@ function patchOverviewStatus(body: string, status: string): string {
   return JSON.stringify(parsed);
 }
 
+/*
+ * 회사 핏 v2 전환 (`?fit=matched|unknown|mismatch|pending`, `&judge=claude`, 끄기는 `?fit=off`, PS-01).
+ *
+ * `tests/api-mock.ts`의 `companyFitSwitch`가 `page.url()`(= 이 서버의 Referer)을 읽어 상세 회사 핏
+ * 응답(카드 lineage attempt, 모드 추천)을 고르고 목록에 네 그룹 표본(9101~9106)을 더한다. 목록 →
+ * 상세 이동은 목록 질의만 넘기므로 스위치는 끌 때까지 이 서버에 남는다. 여기서 따로 응답을 짓지 않는다.
+ */
 export async function resolveMockApi(input: MockApiRequest): Promise<MockApiResponse> {
   ready ??= buildPage();
   const page = await ready;

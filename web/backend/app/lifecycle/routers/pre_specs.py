@@ -8,7 +8,7 @@ from typing import Annotated, Any, get_args
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, case, exists, func, literal, or_, select
+from sqlalchemy import Integer, and_, column, exists, func, literal, or_, select, values
 from sqlalchemy.orm import Session, aliased
 
 from ...core.constants import PreSpecAutoPreparationStatus
@@ -17,6 +17,8 @@ from ...core.search import search_key, search_sql_match
 from .. import PreSpecDocumentCounts, extension_registry
 from ..models import Attachment, Notice, NoticeObservation, Opportunity, OpportunityLink
 from ..schemas.pre_specs import (
+    PreSpecCompanyFitGroup,
+    PreSpecCompanyFitSummary,
     PreSpecReviewExclusionFilter,
     PreSpecReviewExclusionRequest,
     PreSpecReviewExclusionResponse,
@@ -44,6 +46,7 @@ from ..services.opportunity_connections import tracked_order_plan_connection_pre
 from ..services.pre_spec_scope import (
     TRACKING_ACTIVE_STATUSES,
     deadline_passed_expression,
+    deadline_sort_expression,
 )
 from ..services.opportunity_integrity import (
     active_opportunity_predicate,
@@ -368,17 +371,24 @@ def _deadline_scope_matches(scope: PreSpecDeadlineScope, passed: bool) -> bool:
     return not passed
 
 
-def _deadline_sort_expression(now: datetime):
-    """Future deadlines first ascending, passed deadlines descending, null last."""
+#: 회사 핏 그룹 순위 (PS-01 C7). 확장이 없거나 요약이 없는 공고는 ``pending``이다.
+_COMPANY_FIT_GROUP_RANK: Mapping[str, int] = {"matched": 0, "unknown": 1, "pending": 2, "mismatch": 3}
+_COMPANY_FIT_PENDING_RANK = _COMPANY_FIT_GROUP_RANK["pending"]
 
-    bucket = case(
-        (Notice.deadline_at.is_(None), 2),
-        (Notice.deadline_at >= now, 0),
-        else_=1,
-    )
-    future_value = case((Notice.deadline_at >= now, Notice.deadline_at), else_=None)
-    past_value = case((Notice.deadline_at < now, Notice.deadline_at), else_=None)
-    return bucket, future_value, past_value
+
+def _company_fit_group(fields: Mapping[str, Any]) -> str:
+    """프로젝션 필드에서 회사 핏 그룹 하나. 값이 없거나 모르는 값이면 ``pending``이다."""
+
+    summary = fields.get("company_fit")
+    group = summary.get("group") if isinstance(summary, Mapping) else None
+    return group if group in _COMPANY_FIT_GROUP_RANK else "pending"
+
+
+def _company_fit_summary(fields: Mapping[str, Any]) -> PreSpecCompanyFitSummary | None:
+    summary = fields.get("company_fit")
+    if not isinstance(summary, Mapping):
+        return None
+    return PreSpecCompanyFitSummary.model_validate(dict(summary))
 
 
 @router.get("", response_model=PreSpecListResponse)
@@ -405,6 +415,7 @@ def list_pre_specs(
     observed_to: date | None = None,
     deadline_status: PreSpecDeadlineStatus | None = None,
     deadline_within_days: int | None = None,
+    company_fit: PreSpecCompanyFitGroup | None = None,
     q: str | None = Query(default=None),
     sort: PreSpecSort = Query(default="published"),
     limit: int = Query(default=50, ge=1, le=500),
@@ -448,6 +459,8 @@ def list_pre_specs(
         raise HTTPException(status_code=422, detail="deadline_scope is invalid")
     if deadline_within_days is not None and not 1 <= int(deadline_within_days) <= 365:
         raise HTTPException(status_code=422, detail="deadline_within_days is invalid")
+    if company_fit is not None and company_fit not in get_args(PreSpecCompanyFitGroup):
+        raise HTTPException(status_code=422, detail="company_fit is invalid")
     source_run_value = source_run_id.strip() if isinstance(source_run_id, str) else None
     if not source_run_value:
         source_run_value = None
@@ -640,6 +653,12 @@ def list_pre_specs(
                 == auto_preparation_status
             )
         )
+        # 회사 핏 필터(PS-01 C7)는 자동 준비 필터와 같은 자리다 — `items`·`total`·모든
+        # 집계가 같은 모집단을 읽는다. 확장이 없거나 요약이 없는 공고는 `pending`이다.
+        and (
+            company_fit is None
+            or _company_fit_group(status_fields.get(notice_id, {})) == company_fit
+        )
     ]
     projection_filtered_ids = projection_ids
     overview_filtered_ids = [
@@ -764,8 +783,38 @@ def list_pre_specs(
         PreSpecOverviewStatusCount(status=None, count=max(len(active_ids) - counted, 0))
     )
 
-    if sort == "deadline":
-        deadline_bucket, future_deadline, past_deadline = _deadline_sort_expression(now)
+    if sort == "fit":
+        # 그룹 순위는 `(notice_id, rank)` VALUES 목록으로 join한다. 목록에 없는 id는
+        # pending(2)이다. id는 서버가 만든 정수라 literal로 넣는다.
+        ranked = [
+            (notice_id, _COMPANY_FIT_GROUP_RANK[_company_fit_group(status_fields.get(notice_id, {}))])
+            for notice_id in filtered_ids
+        ]
+        ranked = [(notice_id, rank) for notice_id, rank in ranked if rank != _COMPANY_FIT_PENDING_RANK]
+        rank_order: list[Any] = []
+        if ranked:
+            fit_rank = (
+                values(
+                    column("notice_id", Integer),
+                    column("fit_rank", Integer),
+                    name="pre_spec_fit_rank",
+                    literal_binds=True,
+                )
+                .data(ranked)
+                .cte("pre_spec_fit_rank")
+            )
+            query = query.outerjoin(fit_rank, fit_rank.c.notice_id == Notice.id)
+            rank_order.append(func.coalesce(fit_rank.c.fit_rank, _COMPANY_FIT_PENDING_RANK).asc())
+        deadline_bucket, future_deadline, past_deadline = deadline_sort_expression(now)
+        query = query.order_by(
+            *rank_order,
+            deadline_bucket.asc(),
+            future_deadline.asc().nulls_last(),
+            past_deadline.desc().nulls_last(),
+            Notice.id.asc(),
+        )
+    elif sort == "deadline":
+        deadline_bucket, future_deadline, past_deadline = deadline_sort_expression(now)
         query = query.order_by(
             deadline_bucket.asc(),
             future_deadline.asc().nulls_last(),
@@ -837,6 +886,7 @@ def list_pre_specs(
                 first_observed_at=mapping["first_observed_at"],
                 last_observed_at=mapping["last_observed_at"],
                 next_action=next_action,
+                company_fit=_company_fit_summary(status),
                 document=PreSpecDocumentSummary(
                     attachments=_count(mapping["attachments"]),
                     completed=counts.completed,

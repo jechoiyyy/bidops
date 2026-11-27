@@ -124,18 +124,31 @@ converter의 허용된 안전 오류는 `pdf_preparation_failed:<code>`와
 원문·경로·stderr는 넣지 않는다. 개요 run이 이 snapshot을 가리킨다 — run은 자기 범위
 선택(`range_source`·`page_start`·`page_end`)만 따로 갖고 snapshot 자체는 재사용한다.
 
-## 사전규격 회사 핏 계약 (`bidops.prespec-company-fit.v1`)
+## 사전규격 회사 핏 계약 (`bidops.prespec-company-fit.v2`)
 
-`GET /api/pre-specs/{notice_id}/company-fit`은 해당 공고의 최근 attempt 최대 20개(최신 순), 자동 판정 활성 여부, 서버가 계산한 자동 준비 사유와 실제 최신 `deep_review_id`를 반환한다. 공고 없음/다른 source type은 404, 잘못된 id는 422, 내부 오류는 안전한 `processing_failed` 500이다. GET은 실행을 만들거나 모델을 호출하지 않는다.
+`GET /api/pre-specs/{notice_id}/company-fit`은 해당 공고의 attempt 목록, 자동 판정 활성 여부, 카드 모드 상태, 엔진 분석 추천, 서버가 계산한 자동 준비 사유와 실제 최신 `deep_review_id`를 반환한다. 공고 없음/다른 source type은 404, 잘못된 id는 422, 내부 오류는 안전한 `processing_failed` 503이다. GET은 실행을 만들거나 모델을 호출하지 않는다.
 
+- 최상위: `schema_version`, `notice_id`, `attempts[]`, `automation_enabled`(v1 정의 그대로 `BIDOPS_PRESPEC_COMPANY_FIT_ENABLED and BIDOPS_REFERENCE_WORKFLOW_MODE`), `mode`, `engine_suggested`, `auto_deep_review_reason`, `deep_review_id`.
+- `attempts`는 그 공고의 가장 최근 행(`created_at desc, id desc`, 회사 lineage 제외)과 **같은 lineage**의 행만 최신순으로 최대 20개다. 행이 없으면 빈 목록이다.
+- 각 attempt는 `lineage=profile|card`, `card_version`·`card_sha256`·`judged_by=model|claude_reference`·`company_fact_labels`(`{ref: 표시 이름}`, 카드 lineage만; 프로필 lineage는 모두 null)와 nullable `profile_version_id`·`profile_sha256`(카드 lineage는 null)를 갖는다. 나머지 필드와 재검증 규칙은 v1과 같다.
+- `mode`는 카드 모드 실효 상태 `{mode=off|suggest, effective, reason_code, card_version, card_sha256, prompt_version}`이다. 사유는 `company_fit_disabled` → `company_fit_reference_only` → `company_fit_model_unavailable`(overview binding 실패 또는 revision이 64자 소문자 hex가 아님) → `card_unavailable` → `card_sha256_mismatch` → `switch_off` 순서의 첫 미충족이다. MVP에서 모드는 env `BIDOPS_PRESPEC_COMPANY_FIT_CARD_MODE=off|suggest`(기본 `off`)이며 모드 테이블·REST·CLI는 없다. 카드 정보는 앞 조건과 상관없이 카드를 읽어 채운다.
+- `engine_suggested`는 `attempts[0]`이 카드 lineage이고 `completed`·재검증 통과·현재·`matched`이며 env 카드 모드가 `suggest`일 때만 true다. 실행기 실효(`mode.effective`)는 요구하지 않는다. 추천은 표시뿐이며 추적·분석 요청을 만들지 않는다.
 - 실행 상태: `queued|running|completed|failed|needs_human_review`. 결과가 없거나 검증에 실패한 실행의 `result`는 null이다.
 - 결과: `bidops.prespec-company-fit-result.v1`, `decision=matched|mismatch|unknown`, `summary`, `reasons[]`, `verification_items[]`. 각 사유는 `kind=scope_match|scope_mismatch|information_gap`, 모델 의견 `explanation`, `notice_refs[]`, `company_refs[]`를 갖는다. 입력에 없는 ref, 중복 ref, 확인되지 않은 회사 근거로 만든 일치/불일치, 인용 근거에 없는 숫자는 검증 실패다. 자동 보정하지 않는다.
-- `notice_facts`는 해당 개요의 문장과 PDF 페이지 또는 HWPX 구조 블록 위치, 공고 제목이다. `company_facts`는 승인 프로필의 fact key/status/value만 반환한다. 회사 원문·quote·filesystem source·객체 경로는 응답하지 않는다.
-- `overview_run_id`, `document_version_id`, 개요 run status, profile id/digest, policy digest, model name/revision, prompt version, 품질 표식, 생성/완료 시각과 입력/출력 토큰·소요시간을 보존한다. 사용량 부재는 null, 실제 0은 0이다.
-- `is_current=false`이면 과거 입력 기준이다. 프로필·활성 심층 정책·개요·문서·핏 정책/모델 변경, 입력 hash 불일치가 현재성을 막는다. 회사 핏 결과와 실제 심층 검토 생성 여부를 서로 추정하지 않는다.
-- 자동 사유는 `company_fit_disabled|pending|queued|running|stale|mismatch|unknown|failed|needs_human_review|validation_failed|reference_only`에서 접두사 `company_fit_`을 각각 붙인 코드다. 기존 자동 준비 사유도 그대로 반환한다.
+- `notice_facts`는 해당 개요의 문장과 PDF 페이지 또는 HWPX 구조 블록 위치, 공고 제목이다. `company_facts`는 프로필 lineage면 승인 프로필의 fact key/status/value, 카드 lineage면 사업 범위 카드 투영(scope·policy의 ref/이름·kind/`confirmed`/선택 필드)만 반환한다. 회사 원문·quote·filesystem source·카드 경로·객체 경로는 응답하지 않는다.
+- `overview_run_id`, `document_version_id`, 개요 run status, profile id/digest 또는 카드 version/sha, policy digest, model name/revision, prompt version, 품질 표식, 생성/완료 시각과 입력/출력 토큰·소요시간을 보존한다. 사용량 부재는 null, 실제 0은 0이다.
+- `is_current=false`이면 과거 입력 기준이다. 프로필 lineage는 프로필·활성 심층 정책·개요·문서·핏 정책/모델 변경, 입력 hash 불일치가 현재성을 막는다. 카드 lineage는 현재 개요 id·sha, 현재 카드 sha, `prompt_version=prespec-company-fit-v3.1`, 입력의 모델 이름으로 다시 계산한 policy digest, 입력 hash만 본다(모델 binding은 실행기가 claim·호출 때 따로 확인한다). 카드를 읽을 수 없으면 모든 카드 행이 현재가 아니다. 회사 핏 결과와 실제 심층 검토 생성 여부를 서로 추정하지 않는다.
+- 자동 사유는 `company_fit_disabled|pending|queued|running|stale|mismatch|unknown|failed|needs_human_review|validation_failed|reference_only|suggest_only`에서 접두사 `company_fit_`을 각각 붙인 코드다. `company_fit_suggest_only`는 카드 모드가 실효인 동안 등급과 상관없이 모든 공고에 나오며 회사 핏을 통한 심층 자동 시작을 막는다. 기존 자동 준비 사유도 그대로 반환한다.
 
-`prespec_company_fit_attempt`는 입력 JSON (`bidops.prespec-company-fit-input.v1`, 정책 전문 포함)과 SHA-256, 개요/문서/프로필/심층 정책 FK를 동결한다. 입력 digest는 유일하다. 실행 상태·lease·결과·사용량만 전이할 수 있고 종결 후 UPDATE/DELETE는 DB/ORM에서 거부한다. 원응답은 기존 암호화 model-response 저장소에 저장한다. 종결 이력이 있으면 migration downgrade를 거부한다. 앱 역할은 SELECT, 합성 worker만 INSERT 및 제한된 상태 열 UPDATE를 받는다.
+`prespec_company_fit_attempt`는 입력 JSON과 SHA-256, 개요/문서 FK를 동결하며 lineage가 셋이다(`ck_prespec_company_fit_policy_scope`, 0044).
+
+- 프로필 lineage(`company_id IS NULL AND card_sha256 IS NULL`): `bidops.prespec-company-fit-input.v1`(정책 전문 포함), 프로필·심층 정책 FK.
+- 카드 lineage(`company_id IS NULL AND card_sha256 IS NOT NULL`, PS-01): `bidops.prespec-company-fit-input.v2`, 열 `card_version`·`card_sha256`(64자 소문자 hex), 프로필·정책·graph 없음. 입력은 개요 사실·카드 투영·표시 이름·`policy_digest`·모델 이름/revision·`prompt_version=prespec-company-fit-v3.1`·품질 표식·`judged_by`·`fit_policy`(v1에서 프롬프트 버전과 instruction만 카드 v3.1로 바꾼 것)이다. 모델에는 그중 `schema_version, notice_id, notice_facts, input_limitations, company_facts, model_name, prompt_version` 일곱 키만 보낸다. insert guard는 입력의 schema·notice·문서·개요·카드 version/sha·모델·품질·policy digest가 같은 열과 같고 `prompt_version`이 상수이며 `judged_by`가 `model|claude_reference`인지 본다. 대상은 카드 모드 실효 중 개요가 결정적 검사를 통과한 SW사업대상 전체(C-1 등급 무관)이며 마감 전·미확인이거나 추적 중인 건이다. 카드 행은 심층 자동 시작에 쓰지 않는다. 카드 모드 실효 중에는 프로필 lineage의 자동 enqueue와 claim을 멈춘다.
+- 회사 lineage(`company_id IS NOT NULL`, DEMO-03): 회사 핏 정책·graph·provenance.
+
+입력 digest는 유일하다. 실행 상태·lease·결과·사용량만 전이할 수 있고 종결 후 UPDATE/DELETE는 DB/ORM에서 거부한다. 원응답은 기존 암호화 model-response 저장소에 저장한다. 종결 이력(0026)이나 카드 lineage 행(0044)이 있으면 migration downgrade를 거부한다. 앱 역할은 SELECT, 합성 worker만 INSERT 및 제한된 상태 열 UPDATE를 받는다(카드 열은 그 목록에 없다).
+
+가져오기 도구 `python -m app.deep_review.cli import-company-fit-judgments --file <json> --actor <name> [--dry-run]`(worker 역할, MVP)은 `{"judged_by":"claude_reference","card_sha256":…,"rows":[{"notice_id","result"}]}` 묶음을 현재 DB 기준 카드 동결 입력(`model_name=claude-reference-judgment`, `model_revision`=묶음 파일 sha256, `judged_by=claude_reference`)으로 만들고, `validate_result`를 통과한 결과만 같은 transaction에서 `queued → running → completed`로 넣는다. 개요 입력이 없거나 검증에 실패한 공고·이미 있는 입력은 건너뛴다. 카드를 쓸 수 없거나 묶음의 `card_sha256`이 현재 카드와 다르면 전체를 거부한다(exit 2). 모델은 부르지 않는다.
 
 ## 심층검토 설명형 보고서 v2 (2026-09-22, 선택형 PoC)
 

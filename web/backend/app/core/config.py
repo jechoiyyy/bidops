@@ -294,6 +294,15 @@ class Settings(BaseSettings):
     luna_runner_url: str = Field(default="http://codex-runner:8091", validation_alias="BIDOPS_LUNA_RUNNER_URL")
     prespec_company_fit_enabled: bool = Field(default=False, validation_alias="BIDOPS_PRESPEC_COMPANY_FIT_ENABLED")
     prespec_company_fit_model: str | None = Field(default=None, validation_alias="BIDOPS_PRESPEC_COMPANY_FIT_MODEL")
+    #: 사업 범위 카드 lineage(PS-01). 카드는 git 밖 YAML 파일이며 컨테이너 안 경로와
+    #: 파일 bytes의 SHA-256으로 고정한다. 값이 없거나 어긋나면 카드 lineage가 서지 않는다
+    #: (`card_unavailable`·`card_sha256_mismatch`).
+    prespec_company_fit_card_path: str = Field(default="", validation_alias="BIDOPS_PRESPEC_COMPANY_FIT_CARD_PATH")
+    prespec_company_fit_card_sha256: str = Field(default="", validation_alias="BIDOPS_PRESPEC_COMPANY_FIT_CARD_SHA256")
+    #: MVP 모드 스위치(PS-01 spec "MVP 범위" 1). `off`가 기본이고 다른 값은 설정 오류다.
+    prespec_company_fit_card_mode: Literal["off", "suggest"] = Field(
+        default="off", validation_alias="BIDOPS_PRESPEC_COMPANY_FIT_CARD_MODE"
+    )
     vllm_deep_review_base_url: str = Field(default="", validation_alias="BIDOPS_VLLM_DEEP_REVIEW_BASE_URL")
     vllm_deep_review_allowed_hosts: str = Field(default="", validation_alias="BIDOPS_VLLM_DEEP_REVIEW_ALLOWED_HOSTS")
     vllm_deep_review_api_key: SecretStr = Field(default_factory=lambda: SecretStr(""), validation_alias="BIDOPS_VLLM_DEEP_REVIEW_API_KEY")

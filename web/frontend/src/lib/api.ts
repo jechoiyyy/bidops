@@ -1382,6 +1382,7 @@ export const api = {
         observed_from: params.observed_from,
         observed_to: params.observed_to,
         deadline_status: params.deadline_status,
+        company_fit: params.company_fit,
         q: params.q,
         sort: params.sort,
         limit: params.limit,

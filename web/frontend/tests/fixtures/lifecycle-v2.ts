@@ -29,6 +29,7 @@ export const clickReadyUnlinkedPreSpec: PreSpecListItem = {
   auto_preparation_status: "overview_settled", auto_preparation_reason: null,
   latest_deep_review_id: null, first_observed_at: "2026-09-16T00:00:00Z", last_observed_at: "2026-09-16T00:00:00Z",
   next_action: "review_overview",
+  company_fit: { group: "pending", decision: null, status: null, is_current: false, engine_suggested: false },
 };
 
 const queueBase = {

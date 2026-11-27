@@ -1,0 +1,658 @@
+{
+ "card": "business-scope-card.v1.2",
+ "judge": "Claude(opus-5-5) 직접 판정, 모델 호출 없음; 11-26은 gold v2",
+ "note": "matched_onsite_check = 주된 과업은 matched이나 대구 밖 상주 필수(장소 미기재) → 엄격 기준에선 unknown",
+ "rows": [
+  {
+   "notice_id": 4147,
+   "published_date": "2026-11-23",
+   "title": "2027년 정보시스템 통합운영 및 유지관리",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4149,
+   "published_date": "2026-11-23",
+   "title": "통합연구관리시스템(MSRI 2.0) 종합관리 위탁 운영 용역",
+   "decision": "matched_onsite_check",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4150,
+   "published_date": "2026-11-23",
+   "title": "(긴급)「2027년 종로CCTV통합안전센터 유지관리 용역」시행",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4151,
+   "published_date": "2026-11-23",
+   "title": "2027년 서울주택도시개발공사 온라인 홍보 협력사 선정",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4153,
+   "published_date": "2026-11-23",
+   "title": "RE100 이행관리 체계 개편에 따른 재생E사용 관리시스템 기능 개발",
+   "decision": "matched",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4154,
+   "published_date": "2026-11-23",
+   "title": "2027년 해외안전여행 홈페이지 및 애플리케이션 운영·유지관리 용역",
+   "decision": "matched",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4155,
+   "published_date": "2026-11-23",
+   "title": "2027년 학교 테크센터(동부) 운영 용역",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4156,
+   "published_date": "2026-11-23",
+   "title": "2027년 학교 테크센터(서부) 운영 용역",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4157,
+   "published_date": "2026-11-23",
+   "title": "(긴급)(협상)2027년 걸어용 유지관리 용역",
+   "decision": "matched",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4160,
+   "published_date": "2026-11-23",
+   "title": "2027년 전산장비 유지관리",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4162,
+   "published_date": "2026-11-23",
+   "title": "2027년 거제시 홈페이지 통합 유지관리 용역(수정)",
+   "decision": "matched",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4163,
+   "published_date": "2026-11-23",
+   "title": "사이버침해대응센터 보안관제 용역(2027년~2028년)",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4164,
+   "published_date": "2026-11-23",
+   "title": "(긴급)2027~2028년 정보통신 통합 유지보수 용역",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4167,
+   "published_date": "2026-11-23",
+   "title": "2027년 의성군 보안시스템 및 네트워크 유지보수 용역(긴급)",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4170,
+   "published_date": "2026-11-23",
+   "title": "배전설계 인력지원",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4171,
+   "published_date": "2026-11-23",
+   "title": "GIS 유지운영 및 자료추출 인력지원",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4173,
+   "published_date": "2026-11-23",
+   "title": "2027년 에너지효율개선사업 관리시스템 최적화 및 유지보수 용역",
+   "decision": "matched",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4174,
+   "published_date": "2026-11-23",
+   "title": "2027년 도서관 전산시스템 통합유지관리 용역",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4175,
+   "published_date": "2026-11-23",
+   "title": "2027년 소방청 소셜미디어 운영지원 용역사 선정",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4176,
+   "published_date": "2026-11-23",
+   "title": "2027년 제대군인전직지원시스템 유지관리 사업",
+   "decision": "matched",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4178,
+   "published_date": "2026-11-23",
+   "title": "내선계기 인력지원",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4179,
+   "published_date": "2026-11-23",
+   "title": "2027년 구독형 전자자료 서비스 용역 계약요청",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4180,
+   "published_date": "2026-11-23",
+   "title": "K-BEMS SG운영 인력지원",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4181,
+   "published_date": "2026-11-23",
+   "title": "2027년 경상남도 하천관리시스템 유지관리 용역",
+   "decision": "matched_onsite_check",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4182,
+   "published_date": "2026-11-23",
+   "title": "AI 기반 LMS 및 스마트자기관리시스템 통합플랫폼 구축 사업",
+   "decision": "matched",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4183,
+   "published_date": "2026-11-23",
+   "title": "2027년 국가유산청 개방·활용 정보시스템 운영 위탁 사업",
+   "decision": "matched_onsite_check",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4184,
+   "published_date": "2026-11-23",
+   "title": "2027년도 식품진흥원 플랫폼 운영 및 유지관리 용역",
+   "decision": "matched",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4185,
+   "published_date": "2026-11-23",
+   "title": "2027년 인터넷웹진 및 공식 SNS 위탁운영 용역(긴급, 협상에의한계약)",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4186,
+   "published_date": "2026-11-23",
+   "title": "AI 기반 서·논술형 평가 평가지원시스템 솔루션 도입 및 운영 용역",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4188,
+   "published_date": "2026-11-23",
+   "title": "[긴급] 2027년 서초구 홈페이지 개선 및 유지관리 용역",
+   "decision": "matched_onsite_check",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4189,
+   "published_date": "2026-11-23",
+   "title": "전주시  AI 스마트빌리지(한옥마을) 구축 사업",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4190,
+   "published_date": "2026-11-23",
+   "title": "경주읍성 미디어아트 콘텐츠 구축 및 운영 용역",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4365,
+   "published_date": "2026-11-24",
+   "title": "2027년 서울주택도시개발공사 SNS_웹진(뉴스레터) 통합운영 협력사 선정",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4366,
+   "published_date": "2026-11-24",
+   "title": "수도미터 및 사용량 분석 시스템 구축 용역",
+   "decision": "matched",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4369,
+   "published_date": "2026-11-24",
+   "title": "2027학년도 유아학비지원시스템(e-유치원) 유지관리",
+   "decision": "matched",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4370,
+   "published_date": "2026-11-24",
+   "title": "장기계속 1차 계약체결 요청(e재정배움 운영 및 유지관리)",
+   "decision": "matched",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4371,
+   "published_date": "2026-11-24",
+   "title": "경주시 CCTV통합관제센터 통합유지보수 용역",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4372,
+   "published_date": "2026-11-24",
+   "title": "2027~2028년 디지털행정 시스템 유지보수 용역",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4373,
+   "published_date": "2026-11-24",
+   "title": "국회방송 네트워크제작 아카이브시스템 유지보수 용역 3개년 사업",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4374,
+   "published_date": "2026-11-24",
+   "title": "(긴급)2027년도 정보보안시스템 통합유지보수 용역",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4375,
+   "published_date": "2026-11-24",
+   "title": "2027~2029년 정보시스템 통합 유지관리 용역",
+   "decision": "matched",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4379,
+   "published_date": "2026-11-24",
+   "title": "대구센터 클라우드 서비스 운영·유지관리(2027년~2028년) 사업",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4380,
+   "published_date": "2026-11-24",
+   "title": "전용회선 서비스 공급자 선정",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4381,
+   "published_date": "2026-11-24",
+   "title": "모두의 한국어 통합 감리",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4382,
+   "published_date": "2026-11-24",
+   "title": "2027년 AI 기반 아동·청소년 온라인 성착취 탐지·신고 시스템 운영 및 유지관리",
+   "decision": "matched",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4385,
+   "published_date": "2026-11-24",
+   "title": "대구센터 클라우드 인프라 운영·유지관리(2027년~2028년) 사업",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4386,
+   "published_date": "2026-11-24",
+   "title": "2027년 대구광역시 대표 소셜미디어 채널 운영 용역",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4391,
+   "published_date": "2026-11-24",
+   "title": "2027년 재난 예·경보시스템 통합 유지보수용역",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4392,
+   "published_date": "2026-11-24",
+   "title": "2027년 남해군 CCTV 통합관제센터 통합유지보수 용역",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4393,
+   "published_date": "2026-11-24",
+   "title": "[정보,049] 질병데이터ON 플랫폼 구축 정보화전략계획(ISP) 수립",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4395,
+   "published_date": "2026-11-24",
+   "title": "사내 업무시스템 클라우드 기반 전환",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4397,
+   "published_date": "2026-11-24",
+   "title": "AI 디지털 교수학습 기반 공통모듈 개발(응용SW)",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 4398,
+   "published_date": "2026-11-24",
+   "title": "대구센터 클라우드 서비스 운영·유지관리(2027년~2028년) 사업",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 6377,
+   "published_date": "2026-11-25",
+   "title": "2027년 정보시스템 통합 운영 및 유지관리",
+   "decision": "matched",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 6378,
+   "published_date": "2026-11-25",
+   "title": "2027년 오산시 버스정보시스템(BIS) 유지보수 용",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 6380,
+   "published_date": "2026-11-25",
+   "title": "2027년 신안군 CCTV통합관제센터 유지보수 용역",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 6381,
+   "published_date": "2026-11-25",
+   "title": "2027년 도로교통안전정보관리체계 운영 유지보수",
+   "decision": "matched",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 6384,
+   "published_date": "2026-11-25",
+   "title": "2027년 한국전력공사 종합광고대행사 선정",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 6385,
+   "published_date": "2026-11-25",
+   "title": "2027년 특허수수료 등 전자지불대행서비스 사업",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 6386,
+   "published_date": "2026-11-25",
+   "title": "2027년 교통AI빅데이터 융합플랫폼 유지보수",
+   "decision": "matched",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 6390,
+   "published_date": "2026-11-25",
+   "title": "2027년 꿈it(잇)다 시스템 유지관리 계약",
+   "decision": "matched",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 6392,
+   "published_date": "2026-11-25",
+   "title": "항로표지 관리운영시스템 유지관리용역",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 6393,
+   "published_date": "2026-11-25",
+   "title": "한국원자력연구원 다목적소형연구로개발단 사업전용망 유지관리",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 6394,
+   "published_date": "2026-11-25",
+   "title": "2027년 지능형교통시스템 유지보수 단가계약",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 6396,
+   "published_date": "2026-11-25",
+   "title": "2027년 부정훈련관리시스템(TFDS) 유지보수",
+   "decision": "matched",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 6398,
+   "published_date": "2026-11-25",
+   "title": "대구센터 클라우드 인프라 운영·유지관리(2027년~2028년) 사업",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 6400,
+   "published_date": "2026-11-25",
+   "title": "2027년 차세대 정보시스템 서버 통합 유지보수",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 6402,
+   "published_date": "2026-11-25",
+   "title": "시설관리시스템 점검정비 설계관리 지원 고도화 용역",
+   "decision": "matched",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 6404,
+   "published_date": "2026-11-25",
+   "title": "2027년 강화군 관광SNS 채널 운영 용역",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 6405,
+   "published_date": "2026-11-25",
+   "title": "2027년 강화군 통합 정보시스템 유지보수 용역",
+   "decision": "mismatch",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 7280,
+   "published_date": "2026-11-25",
+   "title": "2026년 해상풍력 입지정보 수집분석 및 클라우드 전환",
+   "decision": "unknown",
+   "source": "claude-direct-2026-11-27"
+  },
+  {
+   "notice_id": 7283,
+   "published_date": "2026-11-26",
+   "title": "UAE원전 건설관리시스템 전산설비 유지관리",
+   "decision": "mismatch",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7284,
+   "published_date": "2026-11-26",
+   "title": "UAE원전 건설관리시스템 시스템S/W 유지관리(Oracle제품군 외 4종)",
+   "decision": "unknown",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7286,
+   "published_date": "2026-11-26",
+   "title": "UAE원전 건설관리시스템 시스템S/W 유지관리(EAI)",
+   "decision": "unknown",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7289,
+   "published_date": "2026-11-26",
+   "title": "(육성) 국립공주대학교 모바일 앱 서비스 고도화 용역",
+   "decision": "matched",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7290,
+   "published_date": "2026-11-26",
+   "title": "한국에너지공과대학교 CEMS 플랫폼 구축 용역",
+   "decision": "unknown",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7291,
+   "published_date": "2026-11-26",
+   "title": "(긴급)2027~28년 버스정보시스템 유지관리 용역(장기계속계약)",
+   "decision": "mismatch",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7293,
+   "published_date": "2026-11-26",
+   "title": "2027년 영등포구립도서관 전산장비 및 정보화시스템 유지보수 용역",
+   "decision": "mismatch",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7294,
+   "published_date": "2026-11-26",
+   "title": "EBS 알림톡 및 문자 메시지 통합발송서비스 용역",
+   "decision": "unknown",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7296,
+   "published_date": "2026-11-26",
+   "title": "2026년~2027년 유동인구 데이터 구매 용역",
+   "decision": "mismatch",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7297,
+   "published_date": "2026-11-26",
+   "title": "2027년도 대구교육정보서비스 북나비 응용SW 유지관리 사업용역",
+   "decision": "matched",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7298,
+   "published_date": "2026-11-26",
+   "title": "2026학년도 GNI공유대학 학사정보시스템 고도화 용역",
+   "decision": "matched",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7299,
+   "published_date": "2026-11-26",
+   "title": "(긴급)2027년 대구광역시 뉴스룸 운영 용역",
+   "decision": "unknown",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7300,
+   "published_date": "2026-11-26",
+   "title": "2027년 고흥 스마트팜 혁신밸리 빅데이터센터 서버 및 네트워크 보안 유지보수 용역",
+   "decision": "mismatch",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7302,
+   "published_date": "2026-11-26",
+   "title": "2027년 디지털숲가꾸기 데이터 품질관리체계 운영 사업",
+   "decision": "matched",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7304,
+   "published_date": "2026-11-26",
+   "title": "2027년 CCTV 자가통신망 광전송장비 유지보수 용역",
+   "decision": "mismatch",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7305,
+   "published_date": "2026-11-26",
+   "title": "2026년 장애인건강보건관리시스템 기능개선",
+   "decision": "matched",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7308,
+   "published_date": "2026-11-26",
+   "title": "2027년 울산경제일자리진흥원 정보화시스템 통합유지관리",
+   "decision": "unknown",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7309,
+   "published_date": "2026-11-26",
+   "title": "(긴급)2027년 서울 건축주택 종합정보시스템 등 운영 및 공통인프라 유지관리",
+   "decision": "matched",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7310,
+   "published_date": "2026-11-26",
+   "title": "2027년 남동구립도서관 정보화시스템 통합 유지보수 용역",
+   "decision": "mismatch",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7311,
+   "published_date": "2026-11-26",
+   "title": "2027년 인공지능 기반 통합위험선별 모델 개발 사업 감리",
+   "decision": "mismatch",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7314,
+   "published_date": "2026-11-26",
+   "title": "(긴급)2027년 전남광주통합특별시 인터넷방송국(전남광주TV) 운영 용역(협상)",
+   "decision": "unknown",
+   "source": "gold-1126.v2"
+  },
+  {
+   "notice_id": 7317,
+   "published_date": "2026-11-26",
+   "title": "2026년 교통정보센터 전산시스템 개선사업",
+   "decision": "unknown",
+   "source": "gold-1126.v2"
+  }
+ ]
+}

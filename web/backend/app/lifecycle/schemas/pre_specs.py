@@ -22,7 +22,10 @@ from .opportunities import OpportunityLinkView, OpportunityTrackingStatus
 
 
 PreSpecOrigin = Literal["추적", "신규"]
-PreSpecSort = Literal["published", "deadline", "observed"]
+#: `fit`(회사 핏순, PS-01 C7): 회사 핏 그룹 순위 → 마감 임박순 → id.
+PreSpecSort = Literal["published", "deadline", "observed", "fit"]
+#: 사전규격 목록 회사 핏 그룹 (PS-01 C6). 최신 카드 lineage attempt로 정한다.
+PreSpecCompanyFitGroup = Literal["matched", "unknown", "pending", "mismatch"]
 #: `needs_check`(확인 필요, 2026-11-19)는 추적 결정이 없는데 개요가 결과 없이 끝났거나
 #: 문서 준비가 사람 없이는 끝나지 않는 공고다. `actionable`과 서로소다.
 PreSpecWorkspace = Literal["actionable", "needs_check", "recent", "tracking", "all"]
@@ -135,6 +138,21 @@ class PreSpecDisplayAssessment(RuntimeContractModel):
     latest_run_status: PreSpecOverviewReviewStatus | None = None
 
 
+class PreSpecCompanyFitSummary(RuntimeContractModel):
+    """목록 회사 핏 요약 (PS-01 C6). 값은 deep_review의 개요·문서 projection이 준다.
+
+    ``group``은 최신 카드 lineage attempt가 완료·재검증 통과·현재일 때만 판정값이고,
+    그 밖(attempt 없음·대기·실행·실패·사람 검토·stale)은 ``pending``이다. ``decision``은
+    완료·재검증 통과 결과의 판정이며 현재가 아니어도 채운다. 프로필 lineage는 쓰지 않는다.
+    """
+
+    group: PreSpecCompanyFitGroup
+    decision: Literal["matched", "mismatch", "unknown"] | None = None
+    status: Literal["queued", "running", "completed", "failed", "needs_human_review"] | None = None
+    is_current: bool = False
+    engine_suggested: bool = False
+
+
 class PreSpecListItem(RuntimeContractModel):
     review_exclusion_status: PreSpecReviewExclusionStatus = "included"
     review_exclusion_actor_name: str | None = None
@@ -184,6 +202,8 @@ class PreSpecListItem(RuntimeContractModel):
     first_observed_at: AwareDateTime | None = None
     last_observed_at: AwareDateTime | None = None
     next_action: PreSpecNextAction | None = None
+    #: 회사 핏 요약 (PS-01 C6). ``None``은 프로젝션 확장이 등록되지 않았다는 뜻이다.
+    company_fit: PreSpecCompanyFitSummary | None = None
 
 
 class PreSpecOverviewStatusCount(RuntimeContractModel):

@@ -120,6 +120,11 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "deadline_passed_expression",
     ),
     "tracked_notice_predicate": (".services.pre_spec_scope", "tracked_notice_predicate"),
+    # 목록 `sort=deadline` 정렬식. 사전규격 회사 핏 카드 enqueue가 같은 순서를 쓴다(PS-01).
+    "pre_spec_deadline_sort_expression": (
+        ".services.pre_spec_scope",
+        "deadline_sort_expression",
+    ),
     # === 형제 모듈이 쓴다 — 응답 helper (routers/common.py) ================
     # `get_run_or_404`은 사람이 쓰는 회차 디렉터리 이름까지 풀고 없으면 404를
     # 낸다. 잠그지도 404를 내지도 않는 단순 조회(`api.get_run`)는 밖에서 쓰는

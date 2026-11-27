@@ -47,7 +47,13 @@ from ...core.model_client import (
 from ...core.models import AuditEvent
 from ...lifecycle.models import Notice
 from ..models import CompanyKnowledgeBinding, DocumentVersion, PreSpecCompanyFitAttempt
-from ..schemas.company_fit import CompanyFitPayload, CompanyFitPayloadV2, CompanyFitResponse, CompanyFitView
+from ..schemas.company_fit import (
+    CompanyFitCardMode,
+    CompanyFitPayload,
+    CompanyFitPayloadV2,
+    CompanyFitResponse,
+    CompanyFitViewV2,
+)
 from .company_analysis_input import (
     CompanyAnalysisError,
     build_company_analysis_input,
@@ -57,6 +63,7 @@ from .company_analysis_input import (
     ready_bundle_document_sets,
     resolve_company_knowledge_context,
 )
+from .company_fit_card import BusinessScopeCard, card_or_reason
 from .company_fit_policy import (
     COMPANY_FIT_POLICY_SCHEMA_V3,
     COMPANY_FIT_STAGE,
@@ -115,6 +122,255 @@ def configured_binding(settings=None) -> tuple[str, str, str]:
         raise ValueError("company_fit_model_unavailable")
     endpoint = resolve_model_endpoint("overview", settings=settings)
     return model, endpoint.model_revision, digest(fit_policy(model))
+
+
+# ---------------------------------------------------------------------------
+# PS-01 사업 범위 카드 lineage (company_id IS NULL AND card_sha256 IS NOT NULL)
+# ---------------------------------------------------------------------------
+
+PROMPT_VERSION_CARD = "prespec-company-fit-v3.1"
+CARD_INPUT_SCHEMA = "bidops.prespec-company-fit-input.v2"
+#: 측정 실행기 `fit_probe.INSTRUCTION`(v3.1)을 한 글자도 바꾸지 않고 옮긴 것이다.
+INSTRUCTION_CARD_V31 = """사전규격 개요와 회사 사업 범위 카드만 대조하여 실제 계약 과업이 회사가 하는 사업에 드는지 판단한다.
+공고 제목의 기술 키워드보다 실제 계약 과업(주된 과업)을 우선한다. 감리·평가·컨설팅 대상이 되는 사업을 수행 과업으로 바꾸지 않는다.
+회사 정보는 사업 범위(scope:*)와 회사 정책(policy:*)이며 모두 회사가 확인한 내용이다.
+matched: 주된 과업의 대상이 어느 scope의 includes 항목과 구체적으로 일치하고, 그 scope의 boundary·policy:no-bid·policy:onsite에 걸리지 않으며, policy:caution에도 해당하지 않을 때만 쓴다. keywords는 후보 힌트일 뿐 matched의 근거가 아니다. 각 이유는 해당 scope ref를 인용한다.
+mismatch: 주된 과업이 policy:no-bid에 해당하거나, policy:onsite의 rules에 따라 대구 밖 상주가 필수일 때만 쓴다. 해당 policy ref를 인용한다.
+unknown: policy:caution에 해당하거나, scope의 boundary가 unknown이라고 정한 경우이거나, 주된 과업이 어느 scope에도 들지 않거나, 개요만으로 판단할 수 없을 때 쓴다. 카드에 없는 사업이라고 해서 회사가 못 한다는 뜻은 아니다. 확인할 사항을 verification_items에 쓴다.
+reasons의 kind는 scope_match, scope_mismatch, information_gap이다. matched면 모든 이유가 scope_match여야 하고, mismatch면 scope_mismatch 이유가 하나 이상 있어야 한다.
+각 이유는 notice_refs와 company_refs에 입력에 있는 ref만 인용한다. explanation은 두 근거를 잇는 의견이며 입력에 없는 숫자·자격·실적을 만들지 않는다.
+summary는 핵심 이유 한 문장, reasons는 최대 8개, verification_items는 사람이 확인할 항목이다.
+입력은 개요 일부이므로 최종 참여 가능 여부나 Go/No-Go를 결정하지 않는다."""
+#: 모델에 보내는 입력 키. 측정 실행기와 같은 키·모양이다(C2).
+CARD_MODEL_INPUT_KEYS = (
+    "schema_version", "notice_id", "notice_facts", "input_limitations",
+    "company_facts", "model_name", "prompt_version",
+)
+JUDGED_BY_MODEL = "model"
+JUDGED_BY_CLAUDE_REFERENCE = "claude_reference"
+JUDGED_BY_VALUES = (JUDGED_BY_MODEL, JUDGED_BY_CLAUDE_REFERENCE)
+#: 가져오기 도구가 넣는 행의 모델 이름(MVP 2). revision은 판정 묶음 파일의 sha256이다.
+CLAUDE_REFERENCE_MODEL_NAME = "claude-reference-judgment"
+CARD_INPUT_MAX_BYTES = 60000
+CARD_MODE_OFF_REASON = "switch_off"
+SUGGEST_ONLY_REASON = "company_fit_suggest_only"
+_REVISION_HEX = re.compile(r"[0-9a-f]{64}")
+
+
+def card_fit_policy(model: str) -> dict[str, Any]:
+    """`fit_policy(model)`에서 프롬프트 버전과 stage instruction만 카드 v3.1로 바꾼다."""
+
+    policy = fit_policy(model)
+    policy["prompt_version"] = PROMPT_VERSION_CARD
+    policy["stages"] = [{"stage": "company_fit", "instruction": INSTRUCTION_CARD_V31}]
+    return policy
+
+
+def frozen_card_input(
+    session: Session,
+    notice_id: int,
+    source: "OverviewInput",
+    card: BusinessScopeCard,
+    *,
+    model_name: str,
+    model_revision: str,
+    judged_by: str = JUDGED_BY_MODEL,
+) -> dict[str, Any]:
+    """카드 lineage 동결 입력 `bidops.prespec-company-fit-input.v2` (C2 + MVP `judged_by`)."""
+
+    if judged_by not in JUDGED_BY_VALUES:
+        raise ValueError("company_fit_judged_by_invalid")
+    notice = session.get(Notice, notice_id)
+    if notice is None:
+        raise ValueError("company_fit_notice_missing")
+    policy = card_fit_policy(model_name)
+    value = {
+        "schema_version": CARD_INPUT_SCHEMA,
+        "notice_id": int(notice_id),
+        "overview_kind": source.kind,
+        "overview_id": str(source.id),
+        "document_version_id": str(source.document_id),
+        "overview_sha256": source.sha256,
+        "notice_facts": [{"ref": "notice:title", "text": notice.title, "pages": [], "block_key": None}, *source.facts],
+        "input_limitations": source.limitations,
+        "card_version": card.card_version,
+        "card_sha256": card.card_sha256,
+        "company_facts": card.company_facts,
+        "company_fact_labels": card.company_fact_labels,
+        "policy_digest": digest(policy),
+        "model_name": model_name,
+        "model_revision": model_revision,
+        "prompt_version": PROMPT_VERSION_CARD,
+        "quality_status": source.quality_status,
+        "judged_by": judged_by,
+        "fit_policy": policy,
+    }
+    if len(json.dumps(value, ensure_ascii=False).encode()) > CARD_INPUT_MAX_BYTES:
+        raise ValueError("company_fit_input_too_large")
+    return value
+
+
+def card_model_input(inputs: Mapping[str, Any]) -> dict[str, Any]:
+    """동결 입력에서 모델에 보내는 키 일곱 개만 뽑는다."""
+
+    return {key: inputs[key] for key in CARD_MODEL_INPUT_KEYS}
+
+
+def _card_model_binding(settings) -> tuple[str, str] | None:
+    """`overview` 용도 binding. revision이 64자 소문자 hex가 아니면 ``None``(C4 조건 3)."""
+
+    try:
+        model, revision, _policy = configured_binding(settings)
+    except (ValueError, ModelEndpointError, AttributeError):
+        # AttributeError: a partial settings object without the model keys is "not configured".
+        return None
+    if not _REVISION_HEX.fullmatch(revision or ""):
+        return None
+    return model, revision
+
+
+def card_mode_with_card(settings=None) -> tuple[dict[str, Any], BusinessScopeCard | None]:
+    """MVP C4 실효 상태와 (조건 4·5를 통과한) 카드.
+
+    평가 순서: ``company_fit_disabled`` → ``company_fit_reference_only`` →
+    ``company_fit_model_unavailable`` → 카드(``card_unavailable``·
+    ``card_sha256_mismatch``) → ``switch_off``(env ``off``). 카드 정보는 앞 조건과
+    상관없이 따로 읽어 채운다. 모델 호출은 없다.
+    """
+
+    settings = settings or get_settings()
+    mode = getattr(settings, "prespec_company_fit_card_mode", "off")
+    card, card_reason = card_or_reason(settings)
+    reason: str | None = None
+    if not settings.prespec_company_fit_enabled:
+        reason = "company_fit_disabled"
+    elif not settings.reference_workflow_mode:
+        reason = "company_fit_reference_only"
+    elif _card_model_binding(settings) is None:
+        reason = "company_fit_model_unavailable"
+    elif card_reason is not None:
+        reason = card_reason
+    elif mode != "suggest":
+        reason = CARD_MODE_OFF_REASON
+    state = {
+        "mode": mode, "effective": reason is None, "reason_code": reason,
+        "card_version": card.card_version if card else None,
+        "card_sha256": card.card_sha256 if card else None,
+        "prompt_version": PROMPT_VERSION_CARD,
+    }
+    return state, card
+
+
+def card_mode_state(settings=None) -> dict[str, Any]:
+    return card_mode_with_card(settings)[0]
+
+
+def card_current_flags(
+    session: Session,
+    attempts: Sequence[PreSpecCompanyFitAttempt],
+    *,
+    settings=None,
+    runs: dict[int, Any] | None = None,
+) -> dict[UUID, bool]:
+    """카드 lineage 표시용 현재성 (C9, MVP 3: 모델 binding은 보지 않는다).
+
+    현재 개요 id·sha, 현재 카드 sha, 프롬프트 버전, 입력의 모델 이름으로 다시 계산한
+    ``policy_digest``, 입력 digest가 모두 같을 때만 현재다. 카드를 쓸 수 없으면 모든
+    카드 행이 현재가 아니다. 모델 binding은 실행기가 claim·호출할 때 따로 본다.
+    """
+
+    settings = settings or get_settings()
+    rows = [row for row in attempts if row.company_id is None and row.card_sha256 is not None]
+    if not rows:
+        return {}
+    card, _reason = card_or_reason(settings)
+    if card is None:
+        return {row.id: False for row in rows}
+    sources = overview_inputs(session, [row.notice_id for row in rows], runs=runs)
+    out: dict[UUID, bool] = {}
+    for row in rows:
+        inputs = row.input_jsonb if isinstance(row.input_jsonb, Mapping) else {}
+        source = sources.get(row.notice_id)
+        try:
+            policy_ok = (
+                isinstance(inputs.get("model_name"), str)
+                and row.policy_digest == inputs.get("policy_digest")
+                == digest(card_fit_policy(inputs["model_name"]))
+            )
+            out[row.id] = bool(
+                source is not None
+                and str(source.id) == inputs.get("overview_id")
+                and source.sha256 == inputs.get("overview_sha256")
+                and row.card_sha256 == card.card_sha256 == inputs.get("card_sha256")
+                and inputs.get("prompt_version") == PROMPT_VERSION_CARD
+                and policy_ok
+                and digest(inputs) == row.input_sha256
+            )
+        except (TypeError, ValueError):
+            out[row.id] = False
+    return out
+
+
+def _verified_result(row: PreSpecCompanyFitAttempt) -> CompanyFitPayload | None:
+    """완료 행의 결과를 hash·결정적 검증으로 다시 확인한다. 실패면 ``None``."""
+
+    if row.status != "completed":
+        return None
+    try:
+        if digest(row.input_jsonb) != row.input_sha256 or digest(row.result_jsonb) != row.result_sha256:
+            return None
+        return validate_result(row.result_jsonb, row.input_jsonb)
+    except (ValidationError, ValueError, TypeError, KeyError):
+        return None
+
+
+#: 목록 그룹 순위(C7). 목록에 없는 id는 ``pending``(2)이다.
+CARD_FIT_GROUP_RANK = {"matched": 0, "unknown": 1, "pending": 2, "mismatch": 3}
+
+
+def latest_card_attempts(session: Session, notice_ids: Sequence[int]) -> dict[int, PreSpecCompanyFitAttempt]:
+    ids = list(dict.fromkeys(int(value) for value in notice_ids))
+    result: dict[int, PreSpecCompanyFitAttempt] = {}
+    if ids:
+        for row in session.scalars(select(PreSpecCompanyFitAttempt).where(
+                                       PreSpecCompanyFitAttempt.notice_id.in_(ids),
+                                       PreSpecCompanyFitAttempt.company_id.is_(None),
+                                       PreSpecCompanyFitAttempt.card_sha256.is_not(None))
+                                   .order_by(PreSpecCompanyFitAttempt.created_at.desc(),
+                                             PreSpecCompanyFitAttempt.id.desc())):
+            result.setdefault(row.notice_id, row)
+    return result
+
+
+def card_fit_summaries(
+    session: Session,
+    notice_ids: Sequence[int],
+    *,
+    settings=None,
+    runs: dict[int, Any] | None = None,
+) -> dict[int, dict[str, Any]]:
+    """목록 회사 핏 요약(C6). 최신 카드 lineage attempt 하나로만 정한다. 상수 회 조회다."""
+
+    settings = settings or get_settings()
+    ids = list(dict.fromkeys(int(value) for value in notice_ids))
+    latest = latest_card_attempts(session, ids)
+    flags = card_current_flags(session, list(latest.values()), settings=settings, runs=runs) if latest else {}
+    suggest = getattr(settings, "prespec_company_fit_card_mode", "off") == "suggest"
+    out: dict[int, dict[str, Any]] = {}
+    for notice_id in ids:
+        row = latest.get(notice_id)
+        if row is None:
+            out[notice_id] = {"group": "pending", "decision": None, "status": None,
+                              "is_current": False, "engine_suggested": False}
+            continue
+        result = _verified_result(row)
+        current = bool(flags.get(row.id))
+        decision = result.decision if result is not None else None
+        group = decision if decision is not None and current else "pending"
+        status = "needs_human_review" if row.status == "completed" and result is None else row.status
+        out[notice_id] = {"group": group, "decision": decision, "status": status, "is_current": current,
+                          "engine_suggested": bool(suggest and group == "matched")}
+    return out
 
 
 @dataclass(frozen=True)
@@ -260,9 +516,11 @@ def validate_result(output: Any, inputs: dict[str, Any]) -> CompanyFitPayload:
 def latest_attempts(session: Session, notice_ids: Sequence[int]) -> dict[int, PreSpecCompanyFitAttempt]:
     result = {}
     if notice_ids:
+        # 프로필 lineage만 본다. 카드 lineage 행(`card_sha256 IS NOT NULL`)은 섞지 않는다.
         for row in session.scalars(select(PreSpecCompanyFitAttempt).where(
                                       PreSpecCompanyFitAttempt.notice_id.in_(notice_ids),
-                                      PreSpecCompanyFitAttempt.company_id.is_(None))
+                                      PreSpecCompanyFitAttempt.company_id.is_(None),
+                                      PreSpecCompanyFitAttempt.card_sha256.is_(None))
                                   .order_by(PreSpecCompanyFitAttempt.created_at.desc(), PreSpecCompanyFitAttempt.id.desc())):
             result.setdefault(row.notice_id, row)
     return result
@@ -275,12 +533,19 @@ def current_flags(
     settings=None,
     runs: dict[int, Any] | None = None,
 ) -> dict[UUID, bool]:
-    """Currentness per attempt. Company rows use ``company_current_flags``."""
+    """Currentness per attempt in three lineages.
+
+    Company rows use ``company_current_flags``, card rows (PS-01) use
+    ``card_current_flags`` and profile rows keep the legacy rule.
+    """
 
     settings = settings or get_settings()
     company_rows = [row for row in attempts if row.company_id is not None]
-    legacy_rows = [row for row in attempts if row.company_id is None]
+    card_rows = [row for row in attempts if row.company_id is None and row.card_sha256 is not None]
+    legacy_rows = [row for row in attempts if row.company_id is None and row.card_sha256 is None]
     flags = company_current_flags(session, company_rows, settings=settings, runs=runs) if company_rows else {}
+    if card_rows:
+        flags.update(card_current_flags(session, card_rows, settings=settings, runs=runs))
     if legacy_rows:
         flags.update(_legacy_current_flags(session, legacy_rows, settings=settings, runs=runs))
     return flags
@@ -318,6 +583,10 @@ def gate_reasons(
         return {notice_id: "company_fit_disabled" for notice_id in notice_ids}
     if not settings.reference_workflow_mode:
         return {notice_id: "company_fit_reference_only" for notice_id in notice_ids}
+    # PS-01: 카드 모드가 실효인 동안 회사 핏은 추천만 한다. 회사 핏을 통한 심층
+    # 자동 시작은 등급과 상관없이 일어나지 않는다.
+    if card_mode_state(settings)["effective"]:
+        return {notice_id: SUGGEST_ONLY_REASON for notice_id in notice_ids}
     current = runs if runs is not None else current_runs(session, notice_ids)
     attempts = latest_attempts(session, notice_ids)
     flags = (
@@ -355,38 +624,74 @@ def gate_reasons(
     return out
 
 
+_VIEW_INPUT_KEYS = (
+    "overview_kind", "overview_id", "document_version_id", "overview_sha256",
+    "policy_digest", "model_name", "model_revision", "prompt_version", "quality_status",
+    "notice_facts", "company_facts",
+)
+
+
+def _attempt_view(row: PreSpecCompanyFitAttempt, notice_id: int, current: bool) -> CompanyFitViewV2:
+    inputs = row.input_jsonb
+    result = None
+    error = row.error_code
+    status = row.status
+    if digest(inputs) != row.input_sha256:
+        raise ValueError("company_fit_input_invalid")
+    if row.status == "completed":
+        try:
+            if digest(row.result_jsonb) != row.result_sha256:
+                raise ValueError("company_fit_result_invalid")
+            result = validate_result(row.result_jsonb, inputs)
+        except (ValidationError, ValueError, TypeError):
+            error, status = "company_fit_validation_failed", "needs_human_review"
+    card = row.card_sha256 is not None
+    lineage_fields = (
+        {"lineage": "card", "card_version": inputs["card_version"], "card_sha256": inputs["card_sha256"],
+         "judged_by": inputs["judged_by"], "company_fact_labels": inputs["company_fact_labels"],
+         "profile_version_id": None, "profile_sha256": None}
+        if card else
+        {"lineage": "profile", "card_version": None, "card_sha256": None, "judged_by": None,
+         "company_fact_labels": None, "profile_version_id": inputs["profile_version_id"],
+         "profile_sha256": inputs["profile_sha256"]}
+    )
+    return CompanyFitViewV2(id=row.id, notice_id=notice_id, status=status, result=result, error_code=error,
+        is_current=current, **{key: inputs[key] for key in _VIEW_INPUT_KEYS}, **lineage_fields,
+        created_at=row.created_at, completed_at=row.completed_at, prompt_tokens=row.prompt_tokens,
+        output_tokens=row.output_tokens, latency_ms=row.latency_ms)
+
+
 def company_fit_view(session: Session, notice_id: int) -> CompanyFitResponse:
+    """`bidops.prespec-company-fit.v2` (C5 + MVP 4).
+
+    ``attempts``는 그 공고의 가장 최근 행(회사 lineage 제외)과 **같은 lineage**의 행만
+    최신순으로 최대 20개다. ``engine_suggested``는 최신 행이 현재·재검증 통과·
+    ``matched``인 카드 행이고 env 카드 모드가 ``suggest``일 때만 true다.
+    """
+
     from .auto_preparation import auto_preparation_fields
     from ..models import DeepReview
+    settings = get_settings()
     notice = session.get(Notice, notice_id)
     if notice is None or notice.source_type != "pre_spec":
         raise LookupError("not_found")
-    rows = session.scalars(select(PreSpecCompanyFitAttempt).where(
-                               PreSpecCompanyFitAttempt.notice_id == notice_id,
-                               PreSpecCompanyFitAttempt.company_id.is_(None))
-                           .order_by(PreSpecCompanyFitAttempt.created_at.desc(), PreSpecCompanyFitAttempt.id.desc()).limit(20)).all()
-    flags = current_flags(session, rows) if rows else {}
-    views = []
-    for row in rows:
-        inputs = row.input_jsonb
-        result = None
-        error = row.error_code
-        status = row.status
-        if digest(inputs) != row.input_sha256:
-            raise ValueError("company_fit_input_invalid")
-        if row.status == "completed":
-            try:
-                if digest(row.result_jsonb) != row.result_sha256:
-                    raise ValueError("company_fit_result_invalid")
-                result = validate_result(row.result_jsonb, inputs)
-            except (ValidationError, ValueError, TypeError):
-                error, status = "company_fit_validation_failed", "needs_human_review"
-        views.append(CompanyFitView(id=row.id, notice_id=notice_id, status=status, result=result, error_code=error,
-            is_current=flags[row.id], **{key: inputs[key] for key in (
-                "overview_kind", "overview_id", "document_version_id", "overview_sha256", "profile_version_id", "profile_sha256",
-                "policy_digest", "model_name", "model_revision", "prompt_version", "quality_status", "notice_facts", "company_facts")},
-            created_at=row.created_at, completed_at=row.completed_at, prompt_tokens=row.prompt_tokens,
-            output_tokens=row.output_tokens, latency_ms=row.latency_ms))
+    base = (select(PreSpecCompanyFitAttempt)
+            .where(PreSpecCompanyFitAttempt.notice_id == notice_id, PreSpecCompanyFitAttempt.company_id.is_(None))
+            .order_by(PreSpecCompanyFitAttempt.created_at.desc(), PreSpecCompanyFitAttempt.id.desc()))
+    latest = session.scalars(base.limit(1)).first()
+    rows: list[PreSpecCompanyFitAttempt] = []
+    if latest is not None:
+        lineage = (PreSpecCompanyFitAttempt.card_sha256.is_not(None) if latest.card_sha256 is not None
+                   else PreSpecCompanyFitAttempt.card_sha256.is_(None))
+        rows = list(session.scalars(base.where(lineage).limit(20)).all())
+    flags = current_flags(session, rows, settings=settings) if rows else {}
+    views = [_attempt_view(row, notice_id, bool(flags[row.id])) for row in rows]
+    first = views[0] if views else None
+    engine_suggested = bool(
+        first is not None and first.lineage == "card" and first.status == "completed" and first.is_current
+        and first.result is not None and first.result.decision == "matched"
+        and getattr(settings, "prespec_company_fit_card_mode", "off") == "suggest"
+    )
     fields = auto_preparation_fields(session, [notice_id]).get(notice_id, {})
     deep_id = session.scalar(
         select(DeepReview.id)
@@ -395,7 +700,8 @@ def company_fit_view(session: Session, notice_id: int) -> CompanyFitResponse:
         .limit(1)
     )
     return CompanyFitResponse(notice_id=notice_id, attempts=views,
-        automation_enabled=get_settings().prespec_company_fit_enabled and get_settings().reference_workflow_mode,
+        automation_enabled=settings.prespec_company_fit_enabled and settings.reference_workflow_mode,
+        mode=CompanyFitCardMode(**card_mode_state(settings)), engine_suggested=engine_suggested,
         auto_deep_review_reason=fields.get("auto_preparation_reason"), deep_review_id=deep_id)
 
 
