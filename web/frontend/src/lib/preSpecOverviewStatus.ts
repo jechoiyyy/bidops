@@ -8,7 +8,7 @@ import type {
 
 // 사전규격 상세(PreSpecDetailPage)와 사전규격 목록(PreSpecsPage 그룹 헤더)이
 // 개요 검토 상태 10값의 표시 문구·배지 색을 각자 다시 정의하지 않도록 이
-// 모듈로 추출한다 (docs/design/PLAN.md 3단계, CLAUDE.md "같은 업무 규칙을
+// 모듈로 추출한다 (docs/design/PLAN.md (git 이력) 3단계, CLAUDE.md "같은 업무 규칙을
 // 복제하지 않는다"). notice에 prespec_overview_review 행이 아직 없는
 // 경우(개요 검토 미시작)는 이 10값 중 어느 것도 아니며 별도로 표시한다.
 

@@ -1,5 +1,5 @@
 """`scripts/run-c2-gate-measurement.sh`(S5c)를 본다
-(`docs/0918_daily-operation/spec.md` §4.1·§4.2, `docs/contracts.md` "품질 게이트 REST").
+(`docs/specs/0918_daily-operation/spec.md` §4.1·§4.2, `docs/contracts.md` "품질 게이트 REST").
 
 가짜 `curl`·`docker`·`python3`와 임시 루트는 `test_daily_lifecycle_script.py`의
 `make_env`/`Env`/`_FAKE_BIN`을 그대로 빌린다. 그 가짜 curl은 `GET

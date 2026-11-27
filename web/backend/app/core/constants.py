@@ -21,7 +21,7 @@ READINESS_ORDER: list[str] = [
 GRADE_RANK: dict[str, int] = {value: index for index, value in enumerate(GRADE_ORDER)}
 
 
-# 사전규격 개요 검토 상태 (docs/design/PLAN.md 3단계).
+# 사전규격 개요 검토 상태 (docs/design/PLAN.md (git 이력) 3단계).
 #
 # 값을 만드는 것은 deep_review의 개요 검토지만, lifecycle의 사전규격 목록이
 # 같은 리터럴로 상태를 투영하고 집계한다(`PreSpecListItem.overview_review_status`,

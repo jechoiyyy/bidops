@@ -1,7 +1,7 @@
 import type { BriefingItemView, BriefingReaction } from "../../lib/types";
 
 /*
- * 추천 항목의 반응 버튼 3개(최종 시안 `docs/1119_kstyle-shell/mockups/FinalBriefing.dc.html`).
+ * 추천 항목의 반응 버튼 3개(최종 시안 `docs/1119_kstyle-shell/mockups/FinalBriefing.dc.html` (git 이력)).
  * 행 안에 채택 · 나중에 · 무시 순서로 둔다. 마감 전 묶음의 채택은 주 버튼(브랜드 채움),
  * 그 밖의 묶음은 옅은 채움이다.
  *

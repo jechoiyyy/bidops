@@ -50,7 +50,7 @@ def test_analysis_provider_is_limited_to_vllm_and_mock() -> None:
 
 
 def test_gpu_rest_and_c2_daily_trigger_default_off() -> None:
-    """GPU 휴지와 C-2 일일 자동 실행은 기본 꺼짐이다 (docs/0918_daily-operation/spec.md §10, §3.4)."""
+    """GPU 휴지와 C-2 일일 자동 실행은 기본 꺼짐이다 (docs/specs/0918_daily-operation/spec.md §10, §3.4)."""
 
     settings = Settings()
     assert settings.gpu_busy_limit_seconds == 0.0

@@ -26,13 +26,13 @@
 | web/backend/alembic/versions/0001_lean_v1_postgresql.py | 수정 | historical metadata에서 신규 location 복합 unique 제외 |
 | web/backend/app/lifecycle/services/company_context.py | 수정 | STEP-001과 회사 identity 검증 공유 |
 | web/backend/tests/app/{boundary_map,test_db_migrations,test_deep_review_migrations,test_mapper_isolation,test_models,test_module_cli_entrypoints}.py | 수정 | 신규 테이블·head·CLI 폐쇄 목록 정합 |
-| docs/demo-fixtures/ontology.v1.json | 신규 | concept/alias/관계 |
-| docs/demo-fixtures/companies/*.v1.json | 신규 | 순수 합성회사 자료 3개 |
+| web/backend/tests/fixtures/demo-companies/ontology.v1.json | 신규 | concept/alias/관계 |
+| web/backend/tests/fixtures/demo-companies/companies/*.v1.json | 신규 | 순수 합성회사 자료 3개 |
 | web/backend/tests/deep_review/test_company_knowledge.py | 신규 | 등록·검증·API |
 | web/backend/tests/app/test_company_knowledge_cli.py | 신규 | 새 프로세스 CLI/PG |
 | web/backend/app/deep_review/__init__.py | 수정 | 공개 등록/조회 facade |
 | web/backend/app/core/db.py | 수정 | runtime head |
-| .dockerignore | 수정 | 합성 원본 docs/demo-fixtures를 이미지 빌드 context에서 제외 |
+| .dockerignore | 수정 | 합성 원본 web/backend/tests/fixtures/demo-companies를 이미지 빌드 context에서 제외 |
 | scripts/runtime-privileges.sql | 수정 | graph/version/source/binding 테이블 권한 |
 | web/backend/tests/app/test_runtime_database_privileges.py | 수정 | 새 권한 기대값 |
 | docs/validation-runs/<actual-date>-company-demo/DEMO-02-company-knowledge/fixture-approval.md | 신규 | 사용자 승인 기록(승인자·시각·source_sha256) |
@@ -110,7 +110,7 @@ STEP-005부터는 Codex 리더의 사용량 한도로 Claude Code 리더가 이�
 
 - STEP-001: validator·identity·변조 차단, 리더 77passed 및 지정 독립 delta 리뷰 PASS. `_runs/demo0203-20261009/step001-result.md`.
 - STEP-002: 7테이블/0035·원자 등록·binding·CLI·최소 권한. fresh PG migration 통과. 최초 관련 검사 136passed/10failed에서 확인한 Location insert 순서·감사 marker를 수정했고 직접 영향 검사 24passed. 추가 table 목록 검사의 기존 실패 1개는 기준506ac77에서도 재현했다. `_runs/demo0203-20261009/step002-result.md`에 명령·한계를 연결했다.
-- STEP-003: `docs/demo-fixtures/README.md`와 원본4개 작성, CLI dry-run3개 모두 exit0/errors=[]/미등록. 2026-10-09 사용자 “현재 초안 승인” 후 동결했으나, 최종 리뷰 B2(값 객체 nullable key 생략이 공통 계약 §3 위반)에 대한 사용자 결정으로 회사 원본 3개에 null을 명시해 재발행했다(사실·인용·노드 순서·ontology 불변). 같은 날 사용자가 재발행 hash를 재승인했고 `docs/validation-runs/2026-10-09-company-demo/DEMO-02-company-knowledge/fixture-approval.md`에 최초 승인(superseded)과 재승인을 기록했다. 실제 DB 등록은 하지 않았다.
+- STEP-003: `web/backend/tests/fixtures/demo-companies/README.md`와 원본4개 작성, CLI dry-run3개 모두 exit0/errors=[]/미등록. 2026-10-09 사용자 “현재 초안 승인” 후 동결했으나, 최종 리뷰 B2(값 객체 nullable key 생략이 공통 계약 §3 위반)에 대한 사용자 결정으로 회사 원본 3개에 null을 명시해 재발행했다(사실·인용·노드 순서·ontology 불변). 같은 날 사용자가 재발행 hash를 재승인했고 `docs/validation-runs/2026-10-09-company-demo/DEMO-02-company-knowledge/fixture-approval.md` (git 이력)에 최초 승인(superseded)과 재승인을 기록했다. 실제 DB 등록은 하지 않았다.
 - STEP-004: v1/v2 strict profile consumer와 계보·hash·unknown 근거 검증. 리더 red 38failed → green 78passed/skip0(SQLite+PG). `_runs/demo0203-20261009/step004-result.md`.
 - STEP-005: 회사 profile·knowledge-graph·profile-evidence 읽기 REST, binding/과거 버전/타회사 404, BFS 절단, 경로 미노출. 리더 red 20failed → green 232passed/skip0(SQLite+일회용 PG17.11). `_runs/demo0203-20261009/step005-result.md`.
 - 최종 리뷰 수정: B1(등록 후 소비 불가 3경로: 다중 ref 행 순서·unknown evidence·PG collation), B2(값 객체 정확 key), N2(ontology version 길이), N4(T3 최초 객체 실패·T5 감사) 반영. red 25failed → 리더 최종 455passed/1failed(기존 실패)/skip0. `_runs/demo0203-20261009/review.md`.

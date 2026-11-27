@@ -1,9 +1,9 @@
 # 관리 화면의 목록·관리·상세를 표 작업대 배치와 공용 틀로 맞춘다
 
-- 상태: 채택 — 2026-11-23 사용자 결정("전체 시안 1로 정할게", "시안 1을 기준으로 진행하자"). 구현은 2026-11-23~24 main 작업 트리에서 단계별로 진행했다([수정안과 진행 기록](../../1123_astryx-templates/plan.md)). main `1d85c1b`에 커밋했고 2026-11-24 운영 web에 프런트엔드 번들만 배포했다([기록](../../validation-runs/20261124-table-workbench-frontend/README.md)). 화면 배치 결정이며 품질·운영 활성화 근거가 아니다.
+- 상태: 채택 — 2026-11-23 사용자 결정("전체 시안 1로 정할게", "시안 1을 기준으로 진행하자"). 구현은 2026-11-23~24 main 작업 트리에서 단계별로 진행했다([수정안과 진행 기록](../../specs/1123_astryx-templates/plan.md)). main `1d85c1b`에 커밋했고 2026-11-24 운영 web에 프런트엔드 번들만 배포했다(기록(`docs/validation-runs/20261124-table-workbench-frontend/README.md`, git 이력)). 화면 배치 결정이며 품질·운영 활성화 근거가 아니다.
 - 일자: 2026-11-23
-- 근거: [Astryx 적용 시안](../../1123_astryx-templates/README.md)의 시안 1 기준(`web/frontend/design/astryx-templates/`, `variant "a"`·`mode "base"`), 운영 웹 29개 주소 검토 결과
-- 관련: ADR-0040(레이아웃은 프로젝트 소유)·ADR-0047(데스크톱 1280~1920)·ADR-0048(테마 정본)·ADR-0076(바탕 위 흰 패널 셸 — 이 ADR이 결정 6·7·13의 일부를 대체)·[`approved-layout.md`](../../1119_kstyle-shell/approved-layout.md)(2026-11-21 적용 기준 — 분할 비율·행 모양·관리 화면 탭을 이 ADR이 대체)
+- 근거: [Astryx 적용 시안](../../specs/1123_astryx-templates/README.md)의 시안 1 기준(`web/frontend/design/astryx-templates/`, `variant "a"`·`mode "base"`), 운영 웹 29개 주소 검토 결과
+- 관련: ADR-0040(레이아웃은 프로젝트 소유)·ADR-0047(데스크톱 1280~1920)·ADR-0048(테마 정본)·ADR-0076(바탕 위 흰 패널 셸 — 이 ADR이 결정 6·7·13의 일부를 대체)·[`approved-layout.md`](../../specs/1119_kstyle-shell/approved-layout.md)(2026-11-21 적용 기준 — 분할 비율·행 모양·관리 화면 탭을 이 ADR이 대체)
 
 ## 맥락
 

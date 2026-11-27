@@ -76,7 +76,7 @@
 7. STEP-007 실제 격리 스택 준비와 호출 전 게이트 확인 [complex]
    - 목표(2026-10-11 재정의): 구현된 회사·graph 입력 경로를 실제 `bidops-local` 스택에 단계별 사용자 확인으로 적용하고(백업·0036 migration·3사 import/activate·demo 정책 import·demo flag·codex-runner), 회사 미리보기가 모델 호출 없이 동결 입력을 만들거나 fail-closed되는 것을 확인한다. 실제 Luna 대표 1건 보고서(원안)는 DEMO-05로 이관했다.
    - 작업 대상: 이미지·migration·CLI import·env/demo.env·compose overlay·preview 호출·읽기 전용 진단. 검사 완화·SQL 보정·모델 호출 없음.
-   - 검증: spec T9(재정의); `docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md`와 `_runs/demo0203-20261009/demo03-step007-*.log`.
+   - 검증: spec T9(재정의); `docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md` (git 이력)와 `_runs/demo0203-20261009/demo03-step007-*.log`.
 8. STEP-008 회사 핏 원문 unit 연결 [complex]
    - 목표(2026-10-11 Codex 배치 리뷰 2회차 차단, 사용자 결정 "코드 수정·bundle 필수"): 핏 Requirement가 개요 evidence page의 분할기 unit과 document_requirement_ids를 실제 조립 경로로 갖게 한다(공통 §9 개정).
    - 작업 대상: 핏 정책 v3 파일·검증, enqueue gate에 ready bundle(bundle_not_ready), 심층과 같은 `company_source_units`(inventory 엄격 일치) 재사용, `requirements_from_overview(..., source_units, document_version_id)` 호출, 입력 bundle_id=null·0036 guard 유지. migration·운영 스택 변경 없음.
@@ -133,7 +133,7 @@ overview=true가 필요한 사례만 fixture에서 설정한다.
 ## 결과
 
 2026-10-10 STEP-001~006 구현·리더 검증(각 단계 일회용 PostgreSQL 17.11 독립 재실행, 최종 751 passed/0 skipped)과 독립 최종 리뷰(PASS_WITH_NOTES, 차단 0, N2 PG 정렬 변형 수정 반영)를 마쳤다.
-STEP-007은 2026-10-11 사용자 단계별 승인으로 실제 `bidops-local`에 백업·롤백 태그·이미지 `bidops-local:demo03-20261011`·0036 migration·3사 import/activate·demo 정책 2건 import·`env/demo.env`·web/analysis-worker 교체·codex-runner 기동을 적용했다. 대표 후보 공고 179의 회사 미리보기는 3사 모두 모델 호출 전에 409 `company_input_invalid`로 fail-closed됐다(segment inventory 11 vs 본문 ID 50, findings 2026-09-22 항목 재현, DEMO-03 결함 아님). 사용자 결정으로 원안 T9(대표 1건 실제 Luna 심층)를 DEMO-05로 이관하고 STEP-007을 "실제 격리 스택 준비·호출 전 게이트 확인"으로 재정의했다. `real_data_run`은 비적용. 증거는 `docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md`와 `_runs/demo0203-20261009/demo03-step007-*.log`. 커밋·병합은 수동 정책이다.
+STEP-007은 2026-10-11 사용자 단계별 승인으로 실제 `bidops-local`에 백업·롤백 태그·이미지 `bidops-local:demo03-20261011`·0036 migration·3사 import/activate·demo 정책 2건 import·`env/demo.env`·web/analysis-worker 교체·codex-runner 기동을 적용했다. 대표 후보 공고 179의 회사 미리보기는 3사 모두 모델 호출 전에 409 `company_input_invalid`로 fail-closed됐다(segment inventory 11 vs 본문 ID 50, findings 2026-09-22 항목 재현, DEMO-03 결함 아님). 사용자 결정으로 원안 T9(대표 1건 실제 Luna 심층)를 DEMO-05로 이관하고 STEP-007을 "실제 격리 스택 준비·호출 전 게이트 확인"으로 재정의했다. `real_data_run`은 비적용. 증거는 `docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md` (git 이력)와 `_runs/demo0203-20261009/demo03-step007-*.log`. 커밋·병합은 수동 정책이다.
 기능 기록은 `_runs/demo0203-20261009/DEMO-03-grounded-analysis.md`, 단계별 `demo03-step00N-result.md`, 리뷰 `demo03-review.md`.
 
 - STEP-001: 순수 검색·coverage·slice 모듈, 90건. 리더 153 passed. 어휘 미일치 위험 기록(DEMO-05).

@@ -1,7 +1,7 @@
 # 사용자 gold 10건 대조 인수 — spec
 
 - 기능 ID: `RL-05-gold-acceptance`
-- 근거: [intent.md](./intent.md). **계약 원본은 [HP-06 spec](../../../HP/features/HP-06-gold-acceptance/spec.md)**("정본·계약"·"측정과 사람 판정"·"actual·차단 조건 대응 계약") — 이 문서는 그 계약을 채택하고 아래 "루트랩 재명세 차이"만 바꾼다. 기준 수치는 `acceptance-criteria.approved.v1.json`(2026-10-15 사용자 확정)을 그대로 쓴다.
+- 근거: [intent.md](./intent.md). **계약 원본은 HP-06 spec(`docs/work/groups/HP/features/HP-06-gold-acceptance/spec.md`, git 이력)**("정본·계약"·"측정과 사람 판정"·"actual·차단 조건 대응 계약") — 이 문서는 그 계약을 채택하고 아래 "루트랩 재명세 차이"만 바꾼다. 기준 수치는 `acceptance-criteria.approved.v1.json`(2026-10-15 사용자 확정)을 그대로 쓴다.
 - 작성일: 2026-10-16 (같은 날 독립 검사 1차 17건 반영)
 
 ## 큰 틀 문서와의 관계

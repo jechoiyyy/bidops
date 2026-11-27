@@ -1,10 +1,10 @@
 # 시안 기준 이미지 보존본
 
-`docs/design/PLAN.md` §0-1의 보존 결과다. 여기 있는 파일이 **화면 이행의 시각 정본**이다.
+`docs/design/PLAN.md` (git 이력) §0-1의 보존 결과다. 여기 있는 파일이 **화면 이행의 시각 정본**이다.
 
 ## 왜 여기 있나
 
-`docs/design/mockups/`의 `_shots/`·`_preview/`·`*.dc.html`은 `.gitignore` 대상이라 Git이
+`docs/design/mockups/` (git 이력)의 `_shots/`·`_preview/`·`*.dc.html`은 `.gitignore` 대상이라 Git이
 지키지 않는다. 그런데 그 산출물을 만든 생성기 버전이 저장소에 없다. 커밋된
 `screens.py`·`screens_more.py`는 ADR-0046 이전 구조(`검토 대기열`)를 만들고, 산출물은
 이후 구조(`사업 추적`·`오늘의 업무`·`추적 시작`)를 담고 있다.
@@ -36,18 +36,18 @@
 ## 2026-09-15 재설계(C 기준) 시안은 다른 폴더에 있다
 
 관리 화면 흰 바탕·초록 포인트 재설계(C 기준, 8화면)의 시각 정본은 이 디렉터리가
-아니라 저장소 루트의 [`docs/0915_ui-redesign/mockups/`](../../../../docs/0915_ui-redesign/mockups/)
+아니라 저장소 루트의 [`docs/specs/0915_ui-redesign/mockups/`](../../../../docs/specs/0915_ui-redesign/mockups/)
 에 있다. 위 "왜 여기 있나" 절의 사정(옛 생성기로 덮이는 문제)과 무관한 별도
 작업이라 이 디렉터리 안의 기존 파일(`shots/`·`preview/`·`artboards/`·
 `MANIFEST.txt`)은 이번에 건드리지 않았다.
 
 | 경로 | 내용 |
 |---|---|
-| `docs/0915_ui-redesign/mockups/shots/` | PNG 8장, 1440×900 |
-| `docs/0915_ui-redesign/mockups/artboards/` | 캔버스 아트보드 HTML 8장(`*.dc.html`). 값은 과거 `zoom: 0.9` 기준 논리 px이며 제품은 같은 물리 크기를 native compact CSS로 표현 |
-| `docs/0915_ui-redesign/mockups/MANIFEST.txt` | 두 묶음의 sha256 |
+| `docs/0915_ui-redesign/mockups/shots/` (git 이력) | PNG 8장, 1440×900 |
+| `docs/0915_ui-redesign/mockups/artboards/` (git 이력) | 캔버스 아트보드 HTML 8장(`*.dc.html`). 값은 과거 `zoom: 0.9` 기준 논리 px이며 제품은 같은 물리 크기를 native compact CSS로 표현 |
+| `docs/0915_ui-redesign/mockups/MANIFEST.txt` (git 이력) | 두 묶음의 sha256 |
 
-시안과 [`docs/0915_ui-redesign/spec.md`](../../../../docs/0915_ui-redesign/spec.md)가
-어긋나면 시안이 이기고, 시안이 [`docs/0915_ui-redesign/intent.md`](../../../../docs/0915_ui-redesign/intent.md)
+시안과 [`docs/specs/0915_ui-redesign/spec.md`](../../../../docs/specs/0915_ui-redesign/spec.md)가
+어긋나면 시안이 이기고, 시안이 [`docs/specs/0915_ui-redesign/intent.md`](../../../../docs/specs/0915_ui-redesign/intent.md)
 §제약의 업무 규칙과 어긋나면 업무 규칙이 이긴다. 결정 기록은
-`docs/0915_ui-redesign/decisions.md`·`notes.md`에 있다.
+`docs/specs/0915_ui-redesign/decisions.md`·`notes.md`에 있다.

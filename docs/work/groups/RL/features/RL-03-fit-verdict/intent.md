@@ -1,7 +1,7 @@
 # 카드 기반 참여 판정(추출→대조→역할→종합)과 판정 화면 — intent
 
 - 기능 ID: `RL-03-fit-verdict`
-- 상위 항목: roadmap §RL 표 4행, ADR-0073 결정 2(G2)·4·5, HP 공통 계약 §6~8(재사용 계약), HP-03·HP-04 spec(재명세 원본), [ui-spec §4.4](../../../../../1016_rootlab-redefinition/ui-spec.md), [bid-procedure §3](../../../../../1016_rootlab-redefinition/bid-procedure.md)
+- 상위 항목: roadmap §RL 표 4행, ADR-0073 결정 2(G2)·4·5, HP 공통 계약 §6~8(재사용 계약), HP-03·HP-04 spec(재명세 원본), [ui-spec §4.4](../../../../../specs/1016_rootlab-redefinition/ui-spec.md), [bid-procedure §3](../../../../../specs/1016_rootlab-redefinition/bid-procedure.md)
 - 크기: L — 새 정책 파일·전송 사전 승인 테이블·분석 단계 테이블·worker 분기·runner contract 3개·REST 4개·화면 1개·자동 트리거. 외부 모델(Luna) 호출. **1차 분석 대상은 사전규격**(입찰공고는 문서 취득 경로가 없어 후속; 결정 근거는 spec 머리).
 - 작성일: 2026-10-16 (2026-10-17 배치 B 인터뷰 D1·D2·D3·D4·D9·D10·D13 반영 — [batch-b-interview.md](../../batch-b-interview.md))
 

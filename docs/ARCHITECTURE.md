@@ -286,7 +286,7 @@ flowchart LR
 `병합 확인` 후보를 만들어 도착 레코드가 고아로 남지 않게 한다. 후보 수락도 같은 규칙을 쓴다.
 SW=Y 사전규격 적재 시 기관·이름이 일치하는 발주계획을 자동 대조하고, 그 밖의 연결은 담당자가
 찾아보기로 보관 색인을 검색한다(모델 호출 없음). 상세는
-[spec.md](0917_opportunity-tracking/spec.md), [business-rules.md](business-rules.md#전량-수집과-선별-적재2026-09-17)가
+[spec.md](specs/0917_opportunity-tracking/spec.md), [business-rules.md](business-rules.md#전량-수집과-선별-적재2026-09-17)가
 정본이다.
 
 **브리핑 흐름(RL-01, 2026-10-17):** 두 트랙 수집·C-2 → `scripts/run-daily-briefing.sh`(web 컨테이너의 `build-briefing`) → 결정적 규칙(회사 `confirmed` 사실·제외·점수, 발주계획은 반복 발주처 ∧ 유사 실적만)이 후보를 상위 N으로 줄여 `briefing`·`briefing_item` 저장 → `/briefing` 화면과 Slack 전송(`--send`, `core/slack.py`) → 화면·Slack 버튼 반응은 개인 기록으로만 저장하고 추적 상태·Go/No-Go를 바꾸지 않음. 상세는 [business-rules.md](business-rules.md#브리핑-추천반응-rl-01-2026-10-17)·[operations.md](operations.md)가 정본이다.
@@ -423,7 +423,7 @@ flowchart LR
 중 하나를 가리키게 해 비교 없이도 결정을 기록할 수 있게 했다. 공고 조건 근거는 authoritative
 입찰공고를 차수 순으로 나열하고 차수 간 변경·사전규격 대비를 결정적으로 계산하며, 담당자가
 확인한 정확한 공고·관측에 fence를 건다. 두 근거는 같은 append-only·supersession·현재성 규칙을
-공유한다. 상세는 [spec.md §9](0917_opportunity-tracking/spec.md#9-최종-gono-go)가 정본이다.
+공유한다. 상세는 [spec.md §9](specs/0917_opportunity-tracking/spec.md#9-최종-gono-go)가 정본이다.
 
 ## 6. 논리 데이터 모델과 lineage
 
@@ -604,7 +604,7 @@ host에 열리는 것은 관리 화면 하나이며 `docker/docker-compose.edge.
 | 입찰 delta·최종 결정 | 저장·REST·화면 존재 | 비교 계산 worker 없음. 최종 결정은 사람 책임 |
 | 인증·SSO | 미구현 | 사내망·감사 표식 경계 유지 |
 
-[구현 현황](tracking/status.md)과 [운영 반영](validation-runs/20261019-ops-rl-rollout/README.md), [RL 인수](validation-runs/2026-10-19-rl/RL-05/README.md)가 증거를 연결한다. 스키마·코드·처리 완료·품질 합격·운영 활성화를 구분한다.
+[구현 현황](tracking/status.md)과 운영 반영(`docs/validation-runs/20261019-ops-rl-rollout/README.md`, git 이력), [RL 인수](validation-runs/2026-10-19-rl/RL-05/README.md)가 증거를 연결한다. 스키마·코드·처리 완료·품질 합격·운영 활성화를 구분한다.
 
 ## 12. 품질·관측·장애 대응
 
@@ -681,8 +681,8 @@ validator 실패는 결과를 자동 보정하지 않는다. report renderer는 
 - 현재 상태: docs/tracking/status.md
 - 결정 상세: docs/tracking/decisions/
 - 미해결 findings: docs/tracking/findings.md
-- 공고 판정 런타임: docs/agent/agent-runtime.md, docs/scheduling.md, docs/model-quality-gate.md, docs/e2e-bc-acceptance.md
-- 화면 개선: docs/0915_ui-redesign/(재설계 C 정본), docs/design/mockups/(사전규격 검토 시안 참고자료)
+- 공고 판정 런타임: docs/agent/agent-runtime.md (git 이력), docs/scheduling.md, docs/model-quality-gate.md, docs/e2e-bc-acceptance.md
+- 화면 개선: docs/specs/0915_ui-redesign/(재설계 C 정본), docs/design/mockups/ (git 이력)(사전규격 검토 시안 참고자료)
 
 ### 사용자 요청 Luna 심층검토 (ADR-0069)
 
@@ -692,7 +692,7 @@ validator 실패는 결과를 자동 보정하지 않는다. report renderer는 
 심층 자동 시작은 기본 off, Luna 요청도 별도 enabled·reference 설정이 필요하다.
 runner는 DB·MinIO·저장소 없이 전용 인증 secret만 사용한다.
 [계약](contracts/deep-review.md#사용자-요청-기반-luna-심층검토-adr-0069)과
-[적용 절차](0922_luna-deep-review/apply.md)를 따른다.
+[적용 절차](specs/0922_luna-deep-review/apply.md)를 따른다.
 
 ### 별도 가정 분석 경로 (2026-09-23, 운영 적용 전)
 
@@ -700,7 +700,7 @@ runner는 DB·MinIO·저장소 없이 전용 인증 secret만 사용한다.
 합성 worker가 C-2 → 심층검토 → 가정 분석 → 회사 핏 → 개요 순서로 한 작업만 실행한다.
 가정 분석은 기존 Codex runner에 허용 목록 계약 `assumption-stage-v1`을 선택해
 세 요청을 보내며 기존 심층검토 계약은 그대로다. 완성/부분 결과와 근거 레지스트리는
-별도 REST를 통해 A안 React reader가 읽는다. [작업 정본](0923_assumption-analysis/intent.md).
+별도 REST를 통해 A안 React reader가 읽는다. [작업 정본](specs/0923_assumption-analysis/intent.md).
 
 
 ## 재사용된 DEMO 회사 계약 (그룹 종료, RL에 통합)

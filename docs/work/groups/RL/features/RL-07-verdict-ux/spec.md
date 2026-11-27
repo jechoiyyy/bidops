@@ -6,7 +6,7 @@
 
 ## 큰 틀 문서와의 관계
 
-- 인용하는 절: [HP 계약 §8](../../../../hp-contract.md)(판정 화면 5블록·판정 카드의 차단 조건 수·쪽 없으면 점프 없음), [ui-spec §4.4](../../../../../1016_rootlab-redefinition/ui-spec.md)(RL-03 구현 기준: 서버 `PractitionerVerdictView`를 그대로 읽고 다시 계산하지 않음, 금지 문자열, 1280/1440), §4.1(브리핑), §5(검증), [contracts.md "카드 기반 참여 판정"](../../../../../contracts/rl.md#카드-기반-참여-판정-rl-03-2026-10-17)(view 필드; `blocking_condition_ids` = mandatory ∧ gap unit id 목록; 브리핑 `record_path` = `/opportunities/<id>`, `verdict_display` 11값), business-rules RL-03 절(B51·B55·C16·C19 격리, `unknown`은 확인 필요).
+- 인용하는 절: [HP 계약 §8](../../../../hp-contract.md)(판정 화면 5블록·판정 카드의 차단 조건 수·쪽 없으면 점프 없음), [ui-spec §4.4](../../../../../specs/1016_rootlab-redefinition/ui-spec.md)(RL-03 구현 기준: 서버 `PractitionerVerdictView`를 그대로 읽고 다시 계산하지 않음, 금지 문자열, 1280/1440), §4.1(브리핑), §5(검증), [contracts.md "카드 기반 참여 판정"](../../../../../contracts/rl.md#카드-기반-참여-판정-rl-03-2026-10-17)(view 필드; `blocking_condition_ids` = mandatory ∧ gap unit id 목록; 브리핑 `record_path` = `/opportunities/<id>`, `verdict_display` 11값), business-rules RL-03 절(B51·B55·C16·C19 격리, `unknown`은 확인 필요).
 - 이 문서에서 새로 확정하는 항목: 주의 포인트 블록의 위치·구성, 판정 한 줄 요약, 코드 "사람 확인" 행 묶음, 격리 번호·목록↔표 연결, 행 이동 시 필터 해제, 회사 근거 열 고정 문구, 쪽 미확인일 때 원문 열, 1280 원문 패널 배치, 브리핑 판정 탭 직행.
 - 큰 틀 문서 수정이 필요한 항목: ui-spec §4.4를 이 문서 규칙으로 정정(주의 포인트 블록 추가 — HP §8과 일치시키는 정정; HP §8의 "unknown 묶음"은 표 제목 집계·상태 필터가 맡는다는 결정 기록), §4.1 브리핑 직행 한 줄. roadmap RL 표 RL-07 행(문서화 때 추가 완료). ADR.md 한 줄(STEP-006).
 

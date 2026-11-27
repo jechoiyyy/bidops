@@ -24,7 +24,7 @@ const AGENDA_TRACKING_LIMIT = 200;
 const AGENDA_FINAL_LIMIT = 200;
 
 /**
- * 오늘 할 일(2026-11-27 시안 C2, `docs/1127_today-simplify/`).
+ * 오늘 할 일(2026-11-27 시안 C2, `docs/specs/1127_today-simplify/`).
  *
  * 다른 화면에서 이미 보이는 것(사이드바 건수, 목록 상위 몇 건, 실행 상태 세부)은 싣지 않고
  * 요약 줄 · 추적 중인 사업의 마감 일정 · 함께 볼 것 한 줄만 둔다. 건수는 링크한 목록의

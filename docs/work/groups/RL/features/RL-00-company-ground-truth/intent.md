@@ -1,7 +1,7 @@
 # 루트랩 회사 근거 등록·버전 고정 — intent
 
 - 기능 ID: `RL-00-company-ground-truth`
-- 상위 항목: roadmap §RL 표 1행, ADR-0073 결정 1·6, [ui-spec §4.6](../../../../../1016_rootlab-redefinition/ui-spec.md)
+- 상위 항목: roadmap §RL 표 1행, ADR-0073 결정 1·6, [ui-spec §4.6](../../../../../specs/1016_rootlab-redefinition/ui-spec.md)
 - 크기: L — lifecycle 등록 service·deep_review 회사 지식 import·profile v2 계약·프런트 `/company` 화면·문서 4종을 건드리고 DEMO 공통 계약의 가상회사 전제(§1·§3·§4)를 수정한다. 외부 호출 없음.
 - 작성일: 2026-10-16 (같은 날 미해결 질문 3건 사용자 답 반영)
 

@@ -19,7 +19,7 @@
   SQL join이고 `GET /api/pre-specs`는 개요 검토 상태를 투영한다. 두 모듈을 단순히 갈라 두면
   그 방향이 그대로 역방향 의존이 된다.
 
-이 결정은 그 세 가지를 닫는다. `docs/backend-modules/design.md`가 설계 근거와 소유권 지도를
+이 결정은 그 세 가지를 닫는다. `docs/specs/backend-modules/design.md`가 설계 근거와 소유권 지도를
 갖고, 이 ADR은 그중 확정된 것과 실행 중에 바뀐 것을 기록한다.
 
 ## 결정
@@ -239,7 +239,7 @@ screening의 `POST /api/runs/{run_id}/pipeline/judgment`가 lifecycle의
    실패가 회차를 무효로 만드는가"로 정한다.
 8. **`tests/agents/`의 두 파일은 `tests/app/`으로 갔다**(`test_deep_review_agent.py`,
    `test_document_preparation_agent.py`). fixture가 screening의 판정 행을 심어 두 모듈이 합쳐지는
-   검사이기 때문이다. `docs/backend-modules/design.md` §4.5 표는 `tests/deep_review`로 적었지만
+   검사이기 때문이다. `docs/specs/backend-modules/design.md` §4.5 표는 `tests/deep_review`로 적었지만
    테스트 배치의 산문 규칙("두 모듈 이상이 합쳐지는 통합 검사는 `tests/app/`")을 따랐다.
 
 9. **기준 6 검증 스크립트는 형제 모듈의 `models.py` 한 파일을 남긴다.** 기준의 문면은 형제

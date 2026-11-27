@@ -103,7 +103,7 @@ function profileSourceFor(snapshot: CompanyProfileSnapshotResponse): ProfileSour
   return snapshot.source_ref ? `git:${snapshot.source_ref}` : null;
 }
 
-/** 서버 오류 본문을 화면에 옮기지 않는다(docs/security.md). */
+/** 서버 오류 본문을 화면에 옮기지 않는다(docs/security.md (git 이력)). */
 function screeningActionMessage(): string {
   return "판정 실행 요청을 처리하지 못했어요. 입력과 실행 상태를 확인한 뒤 다시 시도해 주세요.";
 }

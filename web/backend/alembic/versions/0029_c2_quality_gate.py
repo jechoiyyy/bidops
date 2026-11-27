@@ -3,7 +3,7 @@
 Revision ID: 0029_c2_quality_gate
 Revises: 0028_final_decision_basis
 
-일일 운영 고도화 명세(``docs/0918_daily-operation/spec.md`` §2)의 구조만 만든다.
+일일 운영 고도화 명세(``docs/specs/0918_daily-operation/spec.md`` §2)의 구조만 만든다.
 
 - 신규 4테이블: ``order_plan_screening_quality_gate``,
   ``order_plan_screening_quality_evaluation``, ``order_plan_screening_audit_sample``,

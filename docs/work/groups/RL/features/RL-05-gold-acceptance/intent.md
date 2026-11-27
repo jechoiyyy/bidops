@@ -1,7 +1,7 @@
 # 사용자 gold 10건 대조 인수 — intent
 
 - 기능 ID: `RL-05-gold-acceptance`
-- 상위 항목: roadmap §RL 표 6행, mission "성공 기준"(G2 gold 10건 대조), HP 공통 계약 §9(기준 재사용), [HP-06 spec](../../../HP/features/HP-06-gold-acceptance/spec.md)(도구·계약 재사용), [acceptance-criteria.approved.v1.json](../../../HP/preparation/acceptance-criteria.approved.v1.json)
+- 상위 항목: roadmap §RL 표 6행, mission "성공 기준"(G2 gold 10건 대조), HP 공통 계약 §9(기준 재사용), HP-06 spec(`docs/work/groups/HP/features/HP-06-gold-acceptance/spec.md`, git 이력)(도구·계약 재사용), [acceptance-criteria.approved.v1.json](../../../HP/preparation/acceptance-criteria.approved.v1.json)
 - 크기: M — 제품 패키지에 읽기 전용 export CLI 1개와 RL-03 CLI 옵션 1개(`--hold`), 제품 밖 채점·준비 스크립트 이관, Git 밖 평가 디렉터리, 사람 작성·사람 인수. 외부 호출 없음.
 - 작성일: 2026-10-16
 

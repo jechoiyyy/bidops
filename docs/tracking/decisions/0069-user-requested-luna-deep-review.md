@@ -2,7 +2,7 @@
 
 - 채택: 2026-09-22 사용자 구현 요청. 구현·격리 검증: 2026-09-23.
 - 운영 적용·실제 자료 전송은 별도 직전 승인 전까지 미실행.
-- 정본: [목적](../../0922_luna-deep-review/intent.md), [명세](../../0922_luna-deep-review/spec.md), [계획](../../0922_luna-deep-review/plan.md).
+- 정본: [목적](../../specs/0922_luna-deep-review/intent.md), [명세](../../specs/0922_luna-deep-review/spec.md), [계획](../../specs/0922_luna-deep-review/plan.md).
 
 수집·문서 준비·개요 자동화는 유지하고 심층 자동 시작은
 `BIDOPS_DEEP_REVIEW_AUTO_START_ENABLED=false`를 기본으로 한다. 공통 자동 시작

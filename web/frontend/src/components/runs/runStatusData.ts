@@ -127,7 +127,7 @@ export function remainingCount(execution: ScreeningExecutionResponse | null | un
   return Math.max(0, candidate - execution.completed_count - execution.failure_count);
 }
 
-/** 서버 오류 본문을 화면에 옮기지 않는다(docs/security.md). */
+/** 서버 오류 본문을 화면에 옮기지 않는다(docs/security.md (git 이력)). */
 export function safeMessage(fallback: string): string {
   return fallback;
 }

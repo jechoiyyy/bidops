@@ -1474,7 +1474,7 @@ test('수집된 원문 URL을 새 탭으로 열고 추적 시작 실패 뒤 담�
 });
 
 // ---------------------------------------------------------------------------
-// 발주계획 후보 구역 (docs/0917_opportunity-tracking/spec.md §4.4·§11.4)
+// 발주계획 후보 구역 (docs/specs/0917_opportunity-tracking/spec.md §4.4·§11.4)
 
 function planCandidateLink(id: number, overrides: Partial<OpportunityLinkView> = {}): OpportunityLinkView {
   return {

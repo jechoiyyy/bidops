@@ -7,7 +7,7 @@ import { QueuePage } from "./QueuePage";
 import { PageHeaderTabs } from "../components/common/PageHeaderActions";
 import "../styles/review-workspace-relaxed.css";
 
-// docs/design/PLAN.md 2단계 · ADR-0041 결정 2: 공고 판정 이력(/judgments)과
+// docs/design/PLAN.md (git 이력) 2단계 · ADR-0041 결정 2: 공고 판정 이력(/judgments)과
 // 담당자 리뷰 기록(/reviews)을 검토 대기열의 탭으로 흡수한다. 같은 회차의 같은
 // 자료이고, 리뷰 기록은 아직 구현 전이라 사이드바 최상위 한 칸을 쓸 이유가 없다.
 //

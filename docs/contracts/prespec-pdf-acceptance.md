@@ -1,12 +1,12 @@
 # PDF·회사 핏 참조 인수 경계
 
-2026-10-21 정리. 2026-09-09 v4 구현 계획에서 여전히 필요한 적용·중단 조건만 옮겼다. 당시 단계 목록은 현재 실행 큐가 아니며 `git show b5a61e4:docs/tracking/prespec-v4-implementation-plan.md`에서 찾는다.
+2026-10-21 정리. 2026-09-09 v4 구현 계획에서 여전히 필요한 적용·중단 조건만 옮겼다. 당시 단계 목록은 현재 실행 큐가 아니며 `git show b5a61e4:docs/tracking/prespec-v4-implementation-plan.md` (git 이력)에서 찾는다.
 
 현재 PDF snapshot·회사 핏 계약은 [문서·심층 검토](deep-review.md), 실행은 [참조 절차](../operations/prespec-reference.md), 신규 기능은 [RL 로드맵](../work/constitution/roadmap.md)을 따른다. RL 카드 판정은 개요·회사 핏 자동 게이트를 사용하지 않는다.
 
 ## 마지막 v4 인수의 범위
 
-[PDF 선행](../validation-runs/20260908-prespec-pdf-preflight.md)·[회사 핏](../validation-runs/20260908-prespec-company-fit.md)에서 35·59의 연결을 확인했으나 142의 PDF 준비와 실제 matched → 심층 자동 시작은 미검증으로 남았다. 이후 변환 변경은 [2026-09-10 기록](../validation-runs/2026-09-10-rhwp-pipeline.md)과 [문제 색인](../tracking/findings.md)을 함께 읽는다. 9월 표본 상태를 현재 운영 상태로 승계하지 않는다.
+PDF 선행(`docs/validation-runs/20260908-prespec-pdf-preflight.md`, git 이력)·회사 핏(`docs/validation-runs/20260908-prespec-company-fit.md`, git 이력)에서 35·59의 연결을 확인했으나 142의 PDF 준비와 실제 matched → 심층 자동 시작은 미검증으로 남았다. 이후 변환 변경은 2026-09-10 기록(`docs/validation-runs/2026-09-10-rhwp-pipeline.md`, git 이력)과 [문제 색인](../tracking/findings.md)을 함께 읽는다. 9월 표본 상태를 현재 운영 상태로 승계하지 않는다.
 
 ## 적용·중단 경계
 

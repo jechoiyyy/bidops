@@ -6,7 +6,7 @@
 ## 맥락
 
 [ADR-0031](0031-prespec-overview-review-stage.md)은 사전규격 개요 검토를 제안요청서
-앞부분만 읽는 저비용 단계로 정했다. 그런데 [T-21 측정](../../validation-runs/20260831-prespec-rfp-structure.md)의
+앞부분만 읽는 저비용 단계로 정했다. 그런데 T-21 측정(`docs/validation-runs/20260831-prespec-rfp-structure.md`, git 이력)의
 65건에서 목차 보유는 32%, 첫 소제목이 `사업개요`인 경우는 58%, `과업내용` 절 보유는
 66%로 신호가 갈렸다. 첫 소제목 위치도 p50 32, p90 49, 최대 211 block으로 흩어져
 고정된 block 수를 앞부분으로 볼 근거가 없다.

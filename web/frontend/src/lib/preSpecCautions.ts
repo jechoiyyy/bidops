@@ -2,7 +2,7 @@ import { preSpecAutoPreparationReasonLabel } from "./preSpecAutoPreparation";
 import type { PageOverviewVerification, PreSpecListItem } from "./types";
 
 // 사전규격 목록 우측 정보 영역의 `주의사항` 한 줄을 만든다
-// (docs/0915_ui-redesign/spec.md §3.2).
+// (docs/specs/0915_ui-redesign/spec.md §3.2).
 //
 // **결정적 산출이고 모델 호출이 없다.** 이미 받은 목록 projection(`document`
 // 집계·자동 준비 상태), 개요 주장 검증 기록, (읽는 화면만) 심층 검토 보고서의

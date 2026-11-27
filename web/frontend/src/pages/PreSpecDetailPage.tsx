@@ -142,7 +142,7 @@ function PreSpecDetailSkeleton({ noticeId }: { noticeId: number }) {
 /**
  * 상세 화면의 조회 오류 하나. 제목은 화면 맥락이고, 원인과 다음 행동은
  * `lib/apiErrors`의 정책 하나가 정한다. 서버 raw message·원문·경로는 여기까지
- * 오지 않는다(docs/security.md).
+ * 오지 않는다(docs/security.md (git 이력)).
  */
 function PreSpecQueryError({
   error,
@@ -235,7 +235,7 @@ function PreSpecDetailFrame({
       aria-label="사전규격 상세"
     >
       {/* 순회 컨트롤은 본문 맨 위 카드가 아니라 상단바 액션 슬롯이 갖는다
-          (docs/0915_ui-redesign/spec.md §4 상단바). 조회 성공 여부와 무관하게
+          (docs/specs/0915_ui-redesign/spec.md §4 상단바). 조회 성공 여부와 무관하게
           그려야 하므로 본문이 아니라 이 틀이 portal한다. */}
       <PageHeaderTabs>
         <PreSpecDetailNavigation noticeId={noticeId} search={search} />
@@ -246,7 +246,7 @@ function PreSpecDetailFrame({
 }
 
 /**
- * 패널 아래 고정 추적 결정 띠(2026-11-21 시안 `docs/1121_prespec-detail/` `.decision-bar`). 본문의 옛 ② 추적 결정
+ * 패널 아래 고정 추적 결정 띠(2026-11-21 시안 `docs/specs/1121_prespec-detail/` `.decision-bar`). 본문의 옛 ② 추적 결정
  * 구역이 이 자리로 왔다. 상태값·사유 필수·저장·이탈 보호는 `TrackingDecisionControl`이 그대로 정하고 이 띠는
  * 배치(`presentation="bar"`)만 고른다. 담당자 이름은 사이드바 담당자 칸의 값을 쓴다.
  */
@@ -1237,7 +1237,7 @@ function PreSpecRecordBody({ noticeId, listSearch }: { noticeId: number | null; 
             <h2 id="ps-evidence-title" className="ps-h-sec">원문·첨부 <span className="ps-cnt">{notice.attachments.length}건</span></h2>
           </div>
           <PreSpecAttachmentList attachments={notice.attachments} />
-          {/* 발주계획 후보(docs/0917_opportunity-tracking/spec.md §11.4). 연결 확인은 사람이 한다. 조회 오류는 숨기지 않는다. */}
+          {/* 발주계획 후보(docs/specs/0917_opportunity-tracking/spec.md §11.4). 연결 확인은 사람이 한다. 조회 오류는 숨기지 않는다. */}
           <OrderPlanCandidatesSection noticeId={noticeId} hideWhenEmpty />
         </section>
 

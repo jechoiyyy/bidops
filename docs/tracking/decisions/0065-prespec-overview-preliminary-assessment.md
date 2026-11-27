@@ -2,7 +2,7 @@
 
 - 상태: 채택 — 제품 구현, 운영 비활성
 - 결정일: 2026-09-21
-- 관련 문서: [의도](../../0921_prespec-preliminary-assessment/intent.md), [명세](../../0921_prespec-preliminary-assessment/spec.md), [계획](../../0921_prespec-preliminary-assessment/plan.md)
+- 관련 문서: [의도](../../specs/0921_prespec-preliminary-assessment/intent.md), [명세](../../specs/0921_prespec-preliminary-assessment/spec.md), [계획](../../specs/0921_prespec-preliminary-assessment/plan.md)
 
 ## 배경
 

@@ -353,7 +353,7 @@ class Settings(BaseSettings):
     clamav_port: int = Field(default=3310, validation_alias="BIDOPS_CLAMAV_PORT")
     clamav_timeout_seconds: float = Field(default=15.0, validation_alias="BIDOPS_CLAMAV_TIMEOUT_SECONDS")
     analysis_worker_poll_seconds: float = Field(default=1.0, validation_alias="BIDOPS_ANALYSIS_WORKER_POLL_SECONDS")
-    # GPU 휴지(연속 가동 시간 기준, docs/0918_daily-operation/spec.md §10). 작업을 쉬지 않고
+    # GPU 휴지(연속 가동 시간 기준, docs/specs/0918_daily-operation/spec.md §10). 작업을 쉬지 않고
     # 처리한 시간이 limit 이상이면 다음 claim 전에 rest만큼 쉰다. 둘 다 0보다 커야 켜진다.
     # 기본 0.0 = 휴지 없음(현재 동작 그대로).
     gpu_busy_limit_seconds: float = Field(default=0.0, validation_alias="BIDOPS_GPU_BUSY_LIMIT_SECONDS")

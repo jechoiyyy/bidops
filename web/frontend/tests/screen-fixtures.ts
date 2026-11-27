@@ -34,7 +34,7 @@ export const pages = [
   { name: "quality-gates-comparison", path: "/quality-gates?gate=gate-model-comparison" },
   { name: "policies", path: "/policies" },
   { name: "operations", path: "/operations" },
-  // docs/design/PLAN.md 2단계에서 새로 생긴 사이드바 항목과, 흡수한 탭 중
+  // docs/design/PLAN.md (git 이력) 2단계에서 새로 생긴 사이드바 항목과, 흡수한 탭 중
   // 이전에 리다이렉트라 기준선이 없던 산출물 감사 로그를 덮는다. 위 타깃들은
   // 이제 합친 화면의 각 탭을 찍는다(경로가 그대로 각 탭의 주소다).
   { name: "audit", path: "/audit" },
@@ -171,7 +171,7 @@ export const contractFixtureScenarios = {
 } as const;
 
 
-// ─ docs/0915_ui-redesign/spec.md §6 A3·A5 표본 ─────────────────────────────
+// ─ docs/specs/0915_ui-redesign/spec.md §6 A3·A5 표본 ─────────────────────────────
 // 목록 우측 정보 영역이 1280×800에서 스크롤 없이 보이는지(A3), 그리고 구역
 // 순서와 값 없음 표기(A5)를 재려면 **개요 완료 · 주의 1건 · 미확인 2건 · 과업
 // 4건**인 건과 **값이 거의 없는** 건이 한 응답에 함께 있어야 한다.

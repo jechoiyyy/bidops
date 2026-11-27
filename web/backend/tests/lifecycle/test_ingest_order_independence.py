@@ -1,5 +1,5 @@
 """같은 날 발주계획 회차와 공고 회차의 적재 순서가 공고 선별을 바꾸지 않는다
-(`docs/0918_daily-operation/spec.md` §8 "적재 순서", S9b).
+(`docs/specs/0918_daily-operation/spec.md` §8 "적재 순서", S9b).
 
 공고 선별이 읽는 발주계획 상태는 사람이 정한 추적 상태(`bid_tracked_reference`)뿐이고,
 그날 들어온 발주계획에는 추적 상태가 없다. 그래서 두 트랙을 따로 돌려 어느 쪽이 먼저

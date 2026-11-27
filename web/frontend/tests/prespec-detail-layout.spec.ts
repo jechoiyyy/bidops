@@ -10,7 +10,7 @@ import {
   settleProcessSection,
 } from "./api-mock";
 
-// 2026-11-21 사전규격 상세 재구성(`docs/1121_prespec-detail/`, ADR-0076 결정 13)의 구조 검사.
+// 2026-11-21 사전규격 상세 재구성(`docs/specs/1121_prespec-detail/`, ADR-0076 결정 13)의 구조 검사.
 // 추적 결정 띠의 상태·담당자·PATCH는 pre-specs.spec.ts, 개요 범위 폼은 page-overview.spec.ts, 읽기 폭 기하(1280·1440)는
 // 두 폭 project가 도는 design-shell.spec.ts, 처리 상태 기본 열림 규칙 표는 document-panel-default-open.spec.ts가 갖는다.
 

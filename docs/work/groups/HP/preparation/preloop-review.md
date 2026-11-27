@@ -26,7 +26,7 @@
 
 완료 기준 commit `95d361d` 이후 current working tree의 tracked diff 및 untracked 파일은 docs/와 CHANGELOG에만 있다. `git diff --exit-code 95d361d -- web scripts docker-compose.yml docker-compose.edge.yml docker-compose.model-egress.yml run-tests.sh` exit0. HP00·01 intent/spec/plan과 제품 코드는 그대로다.
 
-[기존 최종 독립 리뷰](../../../_runs/hp0001-20261014/final-batch-review.md)·[최종 검증](../../../_runs/hp0001-20261014/hp0001-final-validation.md)은 해당 최종 제품 소스의 증거다. 333 backend·31 browser·build 통과, MinIO fixture1 skip, 실제 모델 근거검증 실패, 쪽 unavailable/미처리 backfill 한계를 그대로 유지한다.
+기존 최종 독립 리뷰(`docs/work/_runs/hp0001-20261014/final-batch-review.md`, git 이력)·최종 검증(`docs/work/_runs/hp0001-20261014/hp0001-final-validation.md`, git 이력)은 해당 최종 제품 소스의 증거다. 333 backend·31 browser·build 통과, MinIO fixture1 skip, 실제 모델 근거검증 실패, 쪽 unavailable/미처리 backfill 한계를 그대로 유지한다.
 
 공통 constitution/feature.json과 ADR/findings 문서 변경이 전체 snapshot hash를 바꾸어 CLI에 stale로 보였다. 독립 리뷰는 제품 소스 동일성과 범위 대조에 따라 기존 증거 재사용·현재 hash 재결속 가능, 제품 검사 추가 불필요로 판단했다. 문서 수정 완료 후 proof CLI로 이 대조 기록과 원본 증거를 연결한다. 이것은 새 제품 테스트 통과나 실제 모델 성공 선언이 아니다. 기존 proof는 tool의 proof_history에 보존하고 과거 integration 기록은 변경하지 않는다.
 

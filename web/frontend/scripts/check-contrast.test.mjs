@@ -1,5 +1,5 @@
 /**
- * bidops 테마 대비 게이트 — docs/0915_ui-redesign/spec.md §1.
+ * bidops 테마 대비 게이트 — docs/specs/0915_ui-redesign/spec.md §1.
  *
  * 팔레트는 색을 제안하고 대비비가 그것을 이긴다. 이 검사는 빌드된
  * bidops.css 에서 실제 토큰 값을 읽어 검증하므로, 테마 정의를 고치고 다시

@@ -74,7 +74,7 @@ import { apiErrorRecoveryAction, describeApiError } from "../lib/apiErrors";
 import type { BidDeltaDecisionQueueItem } from "../lib/types";
 import "../styles/go-no-go.css";
 
-// docs/design/PLAN.md 2단계 · ADR-0041 결정 3: 최종 Go/No-Go를 최상위 메뉴로
+// docs/design/PLAN.md (git 이력) 2단계 · ADR-0041 결정 3: 최종 Go/No-Go를 최상위 메뉴로
 // 올린다. 빈도는 낮아도 되돌릴 수 없는 결정이며, 지금까지 사이드바에서 도달할
 // 길이 없이 /opportunities/:id/bid-delta 안에만 있었다.
 //

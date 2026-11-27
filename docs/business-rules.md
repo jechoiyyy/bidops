@@ -154,7 +154,7 @@ N은 사용자가 공고를 지정한 단건 요청으로 실행할 수 있다.
 시작하거나 찾아보기를 할 때 쓰인다. 실측(3일 창, 2026-09-17)으로는 입찰공고 전체 1,818건 중
 1468(소프트웨어사업자) 업종 표시는 138건이며, SW 사전규격 계보를 잇는 입찰공고 84건 중 24건
 (29%)이 1468 밖이었다 — 업종제한이 없는 SW 공고는 1468 조회에 잡히지 않으므로 **1468은 수집
-필터가 아니라 표시로만 쓴다**([`../validation-runs/20260917-bid-collection-probe.md`](validation-runs/20260917-bid-collection-probe.md),
+필터가 아니라 표시로만 쓴다**(`docs/validation-runs/20260917-bid-collection-probe.md`(git 이력),
 [ADR-0059](tracking/decisions/0059-full-collection-selective-ingest-and-index-search.md)).
 
 입찰공고는 다음 중 하나에 해당하면 적재한다. ① 공식 키(발주계획 통합번호·사전규격 등록번호·
@@ -252,7 +252,7 @@ offset·정렬 변경·재조회는 선택을 유지한다. 검색어를 입력�
 
 개요 검토의 앞부분은 [ADR-0032](tracking/decisions/0032-prespec-overview-cutting-rule.md)에 따라 정한다. 목차 항목이 본문 소제목과 대응하면 목차를 사용하고, 그렇지 않으면 의미 있는 주제 소제목을 사용한다. 번호 형식만으로 절단하지 않는다. 시작 또는 종료 위치가 모호하면 추측해 자르지 않고 `unknown`으로 남겨 사람 검토로 보낸다. 자동 추출 입력에는 사용 전략(`strategy`), `start_locator`, `end_locator`, `source_sha256`를 보존하며, 고정 block 수나 전체 문서를 개요 검토에 자동 투입하지 않는다.
 
-범위를 정하지 못한 개요 입력은 **사람이 확정한다**([ADR-RDP-004](0910_rhwp-document-pipeline/ADR.md)). rhwp의 안전한 PDF·페이지 텍스트가 핵심 산출물이며 절 후보(`bidops.section-candidates.v1/v2`)는 참고다. 후보가 있어도 담당자는 쪽 범위를 직접 지정할 수 있고, 일부만 반환된 후보는 전체 목록처럼 사용하지 않는다. 확정은 `POST /api/pre-specs/{notice_id}/overview/range-confirmations`로 **개요 run의 범위를 정하는 것일 뿐 실행 승인이 아니다** — 담당자 이름은 감사 표식이다. 유효 본문과 함께 있는 공백 쪽은 보존하되 근거로 인정하지 않으며, 선택 범위 전체가 공백이면 `manifest_invalid`로 닫고 모델을 호출하지 않는다.
+범위를 정하지 못한 개요 입력은 **사람이 확정한다**([ADR-RDP-004](specs/0910_rhwp-document-pipeline/ADR.md)). rhwp의 안전한 PDF·페이지 텍스트가 핵심 산출물이며 절 후보(`bidops.section-candidates.v1/v2`)는 참고다. 후보가 있어도 담당자는 쪽 범위를 직접 지정할 수 있고, 일부만 반환된 후보는 전체 목록처럼 사용하지 않는다. 확정은 `POST /api/pre-specs/{notice_id}/overview/range-confirmations`로 **개요 run의 범위를 정하는 것일 뿐 실행 승인이 아니다** — 담당자 이름은 감사 표식이다. 유효 본문과 함께 있는 공백 쪽은 보존하되 근거로 인정하지 않으며, 선택 범위 전체가 공백이면 `manifest_invalid`로 닫고 모델을 호출하지 않는다.
 
 개요 검토의 상태 의미, 자동 심층 검토 진입 조건, 실행 흐름은 아래
 "사전규격 개요 검토 상태 (MVP)" 절이 정본이다. v3 권고형 개요, legacy v4 단일 호출, v5
@@ -601,7 +601,7 @@ schema 위반(`semantic_schema_invalid`)은 계속 `failed`이며 그 사유 코
 미확인이다. 12개 계산 시나리오의 차액은 가정상 잔액이고 6/12개월은 민감도 분석이다.
 실제 Luna 참조 분석·품질 미측정·가상 회사 정보 포함을 표시한다. 미연결/불일치 본문은
 경고와 함께 부분 조회할 수 있으며 추적 승인·최종 Go/No-Go를 변경하지 않는다.
-[상세 명세](0923_assumption-analysis/spec.md).
+[상세 명세](specs/0923_assumption-analysis/spec.md).
 
 
 ## 가상 SI 3사 데모 계약 (2026-10-09, DEMO-01·02 데모 브랜치 구현; 2026-10-10 DEMO-03 구현, 실제 Luna 대표 1건은 2026-10-11 DEMO-05로 이관; 2026-10-12 DEMO-04 화면 구현, mock 검증)
@@ -646,7 +646,7 @@ DEMO-04 화면은 회사 경로에서만 계속 추적·보류·종료 세 상�
 - **모집단과 창.** 브리핑 1건은 `briefing_date`(KST 평일) 하루 1건이며 재생성·삭제가 없다(수정은 다음 날 브리핑). 후보 창은 (직전 브리핑 `generated_at`, 지금]이고 직전 브리핑이 없으면 D-1 00:00 KST부터다. 창 안에서 **처음 관측된** 레코드만 후보이며(`min(NoticeObservation.observed_at)`·`OrderPlan.first_discovered_at`) 이미 어느 브리핑의 항목인 공고·발주계획은 다시 추천하지 않는다. 후보 stage는 셋이다 — 사전규격(SW사업대상 `Y`, 검토 제외 아님), 입찰공고(마감이 지금 이후, 검토 제외 아님), 발주계획. 소유 사업기회가 없는 후보는 항목을 만들지 않고 경고 `orphan_candidate`로 센다.
 - **발주계획은 "반복 발주처 ∧ 유사 실적"일 때만 든다.** C-2 최신 결과가 `relevant`인 발주계획 중 `repeat_agency`와 `similar_project`가 **둘 다** 참인 것만 후보다. relevant 전부를 넣지 않는다(연차 사업 예고 전용, ADR-0073 결정 3). 하나만 참이면 후보가 아니다.
 - **회사 사실은 `confirmed`만 읽는다.** 규칙은 RL-00 활성 그래프의 `status=confirmed` 사실(분야 tier·키워드, 제외 조건, 금액 하한·범위, 단독 상한, 선호 기관, 과거 사업)만 쓴다. `proposed`·`unknown`·`inferred`는 점수에도 제외에도 쓰지 않고 — 키워드가 `proposed`뿐인 분야는 점수 0이다 — `unknown`을 차단 근거로 승격하지 않는다(ADR-0073 결정 6). 확정 사실을 받지 못하면 브리핑을 만들지 않고 `company_not_registered`로 끝낸다. 0건 브리핑으로 접지 않는다.
-- **제외가 먼저고 한 사유로만 센다.** 제목·기관·수요기관을 이은 정규화 텍스트(NFKC·구분자·공백 제거·casefold)에 제외 키워드(`hardware`·`election`·`design_only`·`staffing_only`)가 있으면 제외한다. 지역 제한(`region`) 제외는 **보류한다**(2026-10-17 사용자 결정). 수집한 `region_limit_json.basis`는 "본사소재지" 같은 소재지 판단 기준이고 공동도급 지역은 의무 지역이라, 참가 가능 지역 이름을 알 수 없다. 모르는 값으로 공고를 빼지 않으므로 `excluded.region`은 항상 0이다. 루트랩 v2의 허용 지역(`excl:region.keywords` = **대구·세종**, [RL-00 증거 README v2](validation-runs/2026-10-16-rl/RL-00/README.md))은 참가 가능 지역 수집이 생기면 쓸 값으로 남긴다([findings](tracking/findings.md) 2026-10-17). 금액 하한(`amount_floor`)은 `estimated_price`(없으면 `budget`)가 있고 `pref:amount_floor`보다 작을 때이며 금액이 둘 다 없으면 제외하지 않는다. 한 후보에 사유가 여럿이면 `hardware → election → design_only → staffing_only → region → amount_floor` 중 앞선 하나로만 세어 `excluded` 합이 제외 후보 수와 같다. 발주계획은 지역 정보가 없어 `region`을 적용하지 않는다.
+- **제외가 먼저고 한 사유로만 센다.** 제목·기관·수요기관을 이은 정규화 텍스트(NFKC·구분자·공백 제거·casefold)에 제외 키워드(`hardware`·`election`·`design_only`·`staffing_only`)가 있으면 제외한다. 지역 제한(`region`) 제외는 **보류한다**(2026-10-17 사용자 결정). 수집한 `region_limit_json.basis`는 "본사소재지" 같은 소재지 판단 기준이고 공동도급 지역은 의무 지역이라, 참가 가능 지역 이름을 알 수 없다. 모르는 값으로 공고를 빼지 않으므로 `excluded.region`은 항상 0이다. 루트랩 v2의 허용 지역(`excl:region.keywords` = **대구·세종**, RL-00 증거 README v2(`docs/validation-runs/2026-10-16-rl/RL-00/README.md`, git 이력))은 참가 가능 지역 수집이 생기면 쓸 값으로 남긴다([findings](tracking/findings.md) 2026-10-17). 금액 하한(`amount_floor`)은 `estimated_price`(없으면 `budget`)가 있고 `pref:amount_floor`보다 작을 때이며 금액이 둘 다 없으면 제외하지 않는다. 한 후보에 사유가 여럿이면 `hardware → election → design_only → staffing_only → region → amount_floor` 중 앞선 하나로만 세어 `excluded` 합이 제외 후보 수와 같다. 발주계획은 지역 정보가 없어 `region`을 적용하지 않는다.
 - **점수와 정렬.** 점수 = 분야 tier 최고 1개 가중치(30/20/10) + `repeat_agency`(기관 필드가 선호 기관명과 정규화 동일) 25 + `similar_project`(과거 사업명의 길이 6 이상 조각이 후보 텍스트에 부분문자열로 있음) 25 + `sw_target`(사전규격 `Y`) 10 + `amount_in_range`(금액이 선호 범위 안) 10이다. 가중치와 상위 N(10)은 immutable 규칙 파일에 있다. 동점은 마감 오름차순(마감 없음은 뒤), 다음 `first_observed_at` 오름차순이다. **점수 0은 항목에 넣지 않고** 상위 N만 `recommendation`이 된다. 같은 입력은 같은 결과다.
 - **이유와 차단 조건은 규칙이 만든다.** 이유 칩(최대 3)은 첫 hit 키워드·유사 사업 수·반복 발주처 순서다. 차단 조건(최대 2)은 금액이 `min(단독 상한, 20억)` 이상이면 "컨소시엄 검토", 마감이 7일 이내면 "마감 n일"뿐이다. 지역·HW 등은 제외 조건이라 차단 조건에 나오지 않는다. 판정 표시(`verdict_display`)는 발주계획 `연차 추적`, 추적 변화 `재검토 중`, 마감 알림 사유만 있는 추적 변화 `마감 임박`(RL-02, 아래)과 — RL-03 판정 모듈이 켜져 있을 때 — 사전규격·입찰공고 추천 행의 판정 표시(`분석 중`·판정 이름 4값·`사전규격 판정 참조`·`판정 대상 아님`)를 만든다. 판정 모듈이 없거나 꺼져 있으면 사전규격·입찰공고는 `분석 대기`다.
 - **추적 중 사업 변화는 공고당 한 행이다.** 추적 상태 `계속 추적`·`보류`인 사업기회의 권위 연결 공고에 창 안의 관측이 `deadline_at`·`title`·`budget`·`estimated_price`(규칙 파일 v2부터 `method` 포함) 중 하나라도 바꿨으면 `tracked_change` 행 1건을 낸다(바뀐 필드의 합집합, 반응 없음, 추천 상한과 별개). 추적하지 않는 사업의 변화는 행이 없다. 같은 공고가 추천에도 해당하면 추천 행만 만들고 변화 필드를 그 행에 적는다.
@@ -656,7 +656,7 @@ DEMO-04 화면은 회사 경로에서만 계속 추적·보류·종료 세 상�
 
 ## 사업기회 레코드 단계 바·활동 피드 (RL-02, 2026-10-17)
 
-사업기회 하나가 지금 어디까지 왔는지(단계 바), 누가 무엇을 했는지(활동 피드), 곧 마감인 추적 중 사업을 알리는 규칙(마감 알림)이다. 계약은 [contracts.md "레코드 활동 피드·노트"](contracts/lifecycle-rest.md#레코드-활동-피드노트-rl-02-2026-10-17)·[브리핑](contracts/rl.md#브리핑-rl-01-2026-10-17), 기능 명세는 `docs/work/groups/RL/features/RL-02-opportunity-timeline/spec.md`다. LLM을 부르지 않는다. "run 결정 기록 #N"은 `docs/work/_runs/rla-20261016/decisions.md`의 번호다.
+사업기회 하나가 지금 어디까지 왔는지(단계 바), 누가 무엇을 했는지(활동 피드), 곧 마감인 추적 중 사업을 알리는 규칙(마감 알림)이다. 계약은 [contracts.md "레코드 활동 피드·노트"](contracts/lifecycle-rest.md#레코드-활동-피드노트-rl-02-2026-10-17)·[브리핑](contracts/rl.md#브리핑-rl-01-2026-10-17), 기능 명세는 `docs/work/groups/RL/features/RL-02-opportunity-timeline/spec.md`다. LLM을 부르지 않는다. "run 결정 기록 #N"은 `docs/work/_runs/rla-20261016/decisions.md` (git 이력)의 번호다.
 
 - **권위 연결의 정의를 그대로 쓴다.** 단계 바·레코드 제목·피드의 "발견·공개·게시" 사건·마감 알림은 모두 contracts "마감 임박 창"의 권위 연결(`official`·`확정` 또는 `candidate`·`사람 확인 완료`·`accepted`)만 읽는다. 확인 대기·거절 후보와 `검색 미확인` 연결은 어느 단계도 만들지 않는다. Python 쪽 판정은 `is_authoritative_link` 하나이고 SQL 쪽은 `authoritative_link_predicate`이며, 이 규칙을 화면이나 다른 service가 다시 만들지 않는다. 단계 구분은 발주계획 = `stage=order_plan`, 사전규격 = `stage=notice` ∧ `Notice.source_type`이 사전규격 종류(`PRE_SPEC_SOURCE_TYPES`), 입찰공고 = `stage=notice` ∧ `source_type='bid_notice'`이고 그 밖의 공고 종류는 단계를 정하지 않는다. 한 단계에 권위 연결이 여럿이면 연결 시각이 가장 늦은 것(같으면 연결 id가 큰 것)이 그 단계를 대표한다.
 - **단계 바는 6단계 고정 순서다**: 발주계획 → 사전규격 → 입찰공고 → 마감 → 개찰 → 계약. 앞 세 단계는 권위 연결이 있으면 `done`이고 **가장 뒤 단계**는 `current`다(단, 입찰공고가 가장 뒤 단계이고 마감이 이미 지났으면 입찰공고도 `done`이다). 마감은 입찰공고 `deadline_at`이 지났으면 `done`, 아직이면 `upcoming_deadline`이며 입찰공고가 없거나 `deadline_at`이 `null`이면 `unknown`이다 — **사전규격 의견 마감은 마감 단계가 아니다**. 개찰은 입찰공고 `lifecycle_json.opening_at`(시간대가 있는 ISO)이 있고 지났으면 `done`, 미래면 `upcoming_deadline`이며 키가 없거나 `null`이거나 시간대가 없으면 `unknown`이다. **계약은 읽을 데이터가 없으므로 언제나 `unknown`이다.** 어느 칸에도 맞지 않는 단계는 뒤 단계가 이미 `done|current`면 `unknown`(건너뛴 단계는 있었는지 추정하지 않는다), 아니면 `pending`이다. 예: 발주계획만 있으면 사전규격·입찰공고 `pending`, 마감·개찰 `unknown`; 사전규격 없이 입찰공고가 있으면 사전규격 `unknown`. 개찰·계약 시각을 마감 날짜로 추정하지 않는다(`unknown`은 "미확인"이며 미실시나 부족이 아니다).

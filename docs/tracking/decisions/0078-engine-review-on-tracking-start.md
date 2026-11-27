@@ -2,7 +2,7 @@
 
 - 상태: 채택 — 2026-11-24 사용자 결정("B로 진행해보자", "루트랩 wiki로만 진행"). 구현 전이다. 실제 모델 전송·운영 활성화·품질 인수와는 별개이며 이 결정으로 어느 것도 열리지 않는다.
 - 일자: 2026-11-24
-- 근거: [개정안](../../work/groups/RL/features/RL-11-live-prespec-engine/track-start-entry.md), [RL-11 최종 흐름 명세](../../work/groups/RL/features/RL-11-live-prespec-engine/spec.md), [2026-11-23 엔진 위임 시험](../../validation-runs/20261123-engine-agent-delegation/README.md), 2026-11-24 운영 조회(추적 중인 사전규격 사업 8건, 개요 완료 하루 30~80건, 등록된 회사 0)
+- 근거: [개정안](../../work/groups/RL/features/RL-11-live-prespec-engine/track-start-entry.md), [RL-11 최종 흐름 명세](../../work/groups/RL/features/RL-11-live-prespec-engine/spec.md), 2026-11-23 엔진 위임 시험(`docs/validation-runs/20261123-engine-agent-delegation/README.md`, git 이력), 2026-11-24 운영 조회(추적 중인 사전규격 사업 8건, 개요 완료 하루 30~80건, 등록된 회사 0)
 - 관련: ADR-0069(사용자 요청 기반 Luna 심층검토)·ADR-0074(분석 엔진 개발 기준선)·ADR-0050(모델 전송 정책)·ADR-0046 결정 6(추적 결정과 분석의 분리)·ADR-0076 결정 13(사전규격 상세의 결정 띠)
 
 ## 맥락

@@ -1,4 +1,4 @@
-"""연속 가동 시간 기준 GPU 휴지 (docs/0918_daily-operation/spec.md §10) 검사.
+"""연속 가동 시간 기준 GPU 휴지 (docs/specs/0918_daily-operation/spec.md §10) 검사.
 
 `GpuRestGate` 자체의 규칙, `ScreeningWorker.run_forever`의 배선, 분석 워커
 `main()`의 SIGTERM 응답성을 각각 확인한다.

@@ -3,7 +3,7 @@
 - 일자: 2026-10-16
 - 상태: 목표 설계 채택. 제품 구현·배포·실제 모델 실행 승인 아님. 기능 명세는 `RL` 그룹에서 `/sdlc:feature`로 만든다.
 - 근거: 사용자가 2026-10-16에 BidOps를 실회사 ㈜루트랩 기준으로 다시 정의했다. 진술한 이유는 "나라장터 공고를 살펴보는 데 인적·시간 비용이 많이 들고 단순 서칭에 입력이 집중된다"이며, 목표는 "에이전트가 공고를 분석해 루트랩이 입찰·수주할 만한 공고를 찾아 실무자에게 알리고, 공고와 회사 데이터로 제안서 초안까지 쓴다"이다.
-  같은 날 인터뷰 답(Q1~Q9)은 [재정의 초안 §6](../../1016_rootlab-redefinition/draft.md)에 있다. 회사 근거는 [회사소개서 프로필](../../reference/company-profile.md)·[홈페이지 프로필](../../reference/company-homepage-profile.md)·[선호·제약 제안값](../../reference/company-preferences.md)·[인터뷰 양식](../../1016_rootlab-redefinition/company-interview.md)이다.
+  같은 날 인터뷰 답(Q1~Q9)은 [재정의 초안 §6](../../specs/1016_rootlab-redefinition/draft.md)에 있다. 회사 근거는 [회사소개서 프로필](../../reference/company-profile.md)·[홈페이지 프로필](../../reference/company-homepage-profile.md)·[선호·제약 제안값](../../reference/company-preferences.md)·[인터뷰 양식](../../1016_rootlab-redefinition/company-interview.md)이다.
 
 ## 결정
 
@@ -19,8 +19,8 @@
 ## 개정
 
 - 2026-10-16 (인터뷰 반영): 결정 2의 제안서 초안 출력 형식 DOCX를 **PDF(1차)·HWP(후속 결정)** 로 바꾼다. 사용자 답(E2)이 PDF·HWP이고 과거 제안서·표준 문구가 없어(E1·E3) 초안은 제안요청서 목차와 회사 근거만으로 만든다. 브리핑 시각은 평일 08:00(F4). 상주 가능 지역은 대구만(C4). 사업 유형은 유지관리·고도화·구축 동급(D8). 근거: [인터뷰](../../1016_rootlab-redefinition/company-interview.md), [프로필 §8](../../reference/company-profile.md).
-- 2026-10-16 (독립 UI/UX 리뷰): 목업 리뷰 결정 10개는 [ux-review.md §5](../../1016_rootlab-redefinition/ux-review.md)에 있으며 RL-01~04 spec의 입력이다. 특히 `unknown`을 부족으로 승격하지 않는 규칙(HP 계약 §7)과 조회·채택·추적 결정·자동 분석의 분리를 화면 계약에 넣는다.
-- 2026-10-16 (화면 시안 확정): 사용자 확정 시안 v26을 [RL 화면 구현 명세](../../1016_rootlab-redefinition/ui-spec.md)로 고정했다. CRM 앱 구조(사이드바 오브젝트·리스트, 리스트 뷰 + 피크 패널, 레코드 페이지 탭)이며 실무 화면에서 운영 정보를 제거한다. 밝은 사이드바와 신설 토큰은 테마 ADR(ADR-0048 개정)로 따로 확정한다.
+- 2026-10-16 (독립 UI/UX 리뷰): 목업 리뷰 결정 10개는 [ux-review.md §5](../../specs/1016_rootlab-redefinition/ux-review.md)에 있으며 RL-01~04 spec의 입력이다. 특히 `unknown`을 부족으로 승격하지 않는 규칙(HP 계약 §7)과 조회·채택·추적 결정·자동 분석의 분리를 화면 계약에 넣는다.
+- 2026-10-16 (화면 시안 확정): 사용자 확정 시안 v26을 [RL 화면 구현 명세](../../specs/1016_rootlab-redefinition/ui-spec.md)로 고정했다. CRM 앱 구조(사이드바 오브젝트·리스트, 리스트 뷰 + 피크 패널, 레코드 페이지 탭)이며 실무 화면에서 운영 정보를 제거한다. 밝은 사이드바와 신설 토큰은 테마 ADR(ADR-0048 개정)로 따로 확정한다.
 - 2026-10-16 (테마·셸 적용): 사용자 "테마 토큰 교체하고 셸부터 시안 그대로 적용" 결정. `bidopsTheme.ts` 라이트 값을 시안 v26 hex로 교체(ADR-0048 개정: 흰 바탕, 사이드바 `#F8F8F9`, 경계 `#E6E7EB`, 본문 `#1F2328`, 강조·성공 `#1D7B4E`, 경고 `#8A5200`, 실패 `#8F2F1D`, 단계 teal, 라운드 6/8px), `brand.css`에 `--bo-sidebar-*`·`--bo-avatar-bg`·`--bo-warning-subtle` 추가, 사이드바·상단바를 ui-spec §1로 재작성, `/briefing` 자리 화면 추가. 대비 게이트의 의미색 기대값은 시안 값으로 갱신했다.
 
 ## 기존 결정과 관계

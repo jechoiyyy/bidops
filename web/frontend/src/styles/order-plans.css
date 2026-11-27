@@ -7,7 +7,7 @@
    헤더에 두지 않는다. */
 
 /* ============================================================================
- * 발주계획 C-2 목록+판정 통합 화면 (PLAN 1단계, docs/design/PLAN.md §3).
+ * 발주계획 C-2 목록+판정 통합 화면 (PLAN 1단계, docs/design/PLAN.md (git 이력) §3).
  * 이 블록의 클래스는 전부 `c2l-` 접두사를 쓴다. 위의 `.c2-*` 클래스는
  * OrderPlanDetailPage(/order-plans/:pk, 4단계 대상)가 그대로 쓰므로 건드리지
  * 않는다. 이 블록은 OrderPlansPage 루트(`data-astryx-theme="bidops"`)
@@ -671,7 +671,7 @@ header.c2l-list-head .c2l-list-scope {
 }
 
 /* ============================================================================
- * 2026-11-19 최종 시안(docs/1119_kstyle-shell/mockups/FinalOrderPlans.dc.html ·
+ * 2026-11-19 최종 시안(docs/1119_kstyle-shell/mockups/FinalOrderPlans.dc.html (git 이력) ·
  * FinalOrderPlansDone.dc.html, ADR 초안 승인 대기).
  *
  * 패널 헤더(화면 이름·문장형 제목·설명·실행 표시·목록 기준·보기 탭·검색·필터)는 셸이 그린다 —

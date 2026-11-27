@@ -18,7 +18,7 @@ function extractionTone(status: string): string {
 }
 
 /**
- * 상세 ⑤의 첨부 표(docs/0915_ui-redesign/spec.md §4 ⑤).
+ * 상세 ⑤의 첨부 표(docs/specs/0915_ui-redesign/spec.md §4 ⑤).
  *
  * `파일 · 형식·크기 · (처리 상태) · 열기` 표다. 크기가 없으면 `크기 미확인`이고 0바이트는 `0 B`로
  * 남는다. 크기는 읽기 쉬운 단위로 적고 정확한 바이트 수는 title로 남긴다.

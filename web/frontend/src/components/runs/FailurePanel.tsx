@@ -39,7 +39,7 @@ function durationLabel(nanoseconds: number | null): string {
  * 실행 전체의 실패와 공고 하나의 실패를 구분한다. 서버가 준 안전한 값(공고
  * 식별자 · 실패 단계 · 실패 유형 코드 · 재시도 횟수 · 요약)만 보여 주며 공고
  * 제목·발주기관을 만들어 붙이지 않는다. 내부 경로·자격증명·원문·프롬프트·모델
- * 응답 본문은 표시하지 않는다(docs/security.md).
+ * 응답 본문은 표시하지 않는다(docs/security.md (git 이력)).
  */
 export function FailurePanel({ detail, summary, loading }: FailurePanelProps) {
   const [selected, setSelected] = useState<ScreeningFailureItem | null>(null);

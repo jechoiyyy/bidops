@@ -29,7 +29,7 @@ v1의 모든 규칙 위에 아래만 더한다. 모델 호출은 없고 회사 �
 - **대상 사실.** `excl:<kind>`이고 `kind`가 `hardware` 또는 `election`, confirmed `excluded=true`, confirmed `requirement_terms`(비어 있지 않은 문자열 목록)가 있는 것만. `proposed`·`unknown`·용어 없음·키와 kind 불일치는 읽지도 연결하지도 않는다. `design_only`·`staffing_only`는 이름 그대로 사업 단위("단독"·"만")라 요구사항 하나로 판단할 수 없고, `region`·`amount_floor`는 업무 분야가 아니라 제외한다.
 - **연결.** 인용에 그 용어(NFKC·공백 제거·대문자)가 있을 때만. 용어는 회사 근거에서만 오고 코드에 별칭이 없다.
 - **결과.** 인용과 겹치는 원문 절을 `및`·`그리고`·`,`·`、`로 나눈 부분 모두에 용어가 있으면 **`gap`**(`fact_ids=[excl:…]`), 하나라도 없으면 `exclusion_partial`(`unknown`). 모델이 인용을 줄여도 원문 절 전체로 판단한다. 제외 분야에 닿은 제약은 `met`이 될 수 없다(`exclusion_partial`이 v1 결과를 덮는다). unit 원문에 용어가 있는데 어떤 제약 인용에도 없으면 `incomplete_unit`이다.
-- 용어 선택이 과잉 차단의 통제 수단이다. 같은 재생에서 회사 근거 v4의 `keywords`를 그대로 용어로 쓰면 `하드웨어 보안 토큰`(인증 수단 목록)·`정보통신공사업법`(법령 이름)이 `gap`이 됐다([재생 기록](../../../../../validation-runs/20261119-rl10-compare-blockers/README.md) 4절). `requirement_terms`는 짧은 명사가 아니라 그 분야 작업을 가리키는 구로 사람이 정한다.
+- 용어 선택이 과잉 차단의 통제 수단이다. 같은 재생에서 회사 근거 v4의 `keywords`를 그대로 용어로 쓰면 `하드웨어 보안 토큰`(인증 수단 목록)·`정보통신공사업법`(법령 이름)이 `gap`이 됐다(재생 기록(`docs/validation-runs/20261119-rl10-compare-blockers/README.md`, git 이력) 4절). `requirement_terms`는 짧은 명사가 아니라 그 분야 작업을 가리키는 구로 사람이 정한다.
 
 ### 계약 유형과 `gap`의 순서 (결정 E4)
 
@@ -82,7 +82,7 @@ v2에서는 `confirmed_contradiction`이 있으면 요구사항 유형이 `계�
 - 검증기: 계약 gap과 새 code는 v2에서만 통과, 모르는 규칙 이름 거부.
 - 회사 근거 모양: `requirement_terms` 허용·거부 조건.
 - 정책: v12 고정 sha·v11과 identity만 다름·식별 집합·resume 계보·import(`tests/app/test_company_luna_policy.py`), mock v12 실행 완료와 저장 compare 행의 v2 재계산 일치·v11 실패 attempt의 v12 resume 거부(`tests/app/test_card_analysis_postgres.py`, PostgreSQL).
-- 재생: RL-05 놓친 차단 7개 탐침과 전 블록 과잉 차단 스캔([기록](../../../../../validation-runs/20261119-rl10-compare-blockers/README.md)).
+- 재생: RL-05 놓친 차단 7개 탐침과 전 블록 과잉 차단 스캔(기록(`docs/validation-runs/20261119-rl10-compare-blockers/README.md`, git 이력)).
 
 ## 증명되지 않은 것
 

@@ -5,10 +5,10 @@
 
 ## 맥락
 
-[`docs/deep-review-v2/document-analysis-design.md`](../../deep-review-v2/document-analysis-design.md)는
+[`docs/specs/deep-review-v2/document-analysis-design.md`](../../specs/deep-review-v2/document-analysis-design.md)는
 제안요청서를 목적별로 분할하고 역할별 모델 분석을 붙여 심층 리포트를 만드는 설계를
 `제안` 상태로 두었다. 그 설계는 구현 순서 §9에서 자신을
-[`luna-evaluation-plan.md`](../../deep-review-v2/luna-evaluation-plan.md)의 승인 뒤에 시작한다고
+[`luna-evaluation-plan.md`](../../specs/deep-review-v2/luna-evaluation-plan.md)의 승인 뒤에 시작한다고
 적었다.
 
 Luna 평가 계획은 실행되지 않았고, 실행할 수도 없다. 당시 정책이 실험용 외부 모델에

@@ -5,7 +5,7 @@
  * `Analysis`·`GateResult`·`RequirementFit`·`Risk`·`ReviewActions`·`Assessment.provisional`·`RfpFacts.staffing`·
  * `ContractTerms`·`Evidence`)와 `engine_tests/report_factory.py`의 `make_analysis()`, BidOps가 덧붙이는
  * `analysis.source_evidence`(`adapter.source_evidence`)에서 옮겼다. 내용은 2026-11-21 시안
- * (`docs/1121_prespec-detail/mockups/index.html`)의 예시 데이터(`FITS`·`gates`·`risks`·`todos*`)다.
+ * (`docs/1121_prespec-detail/mockups/index.html` (git 이력))의 예시 데이터(`FITS`·`gates`·`risks`·`todos*`)다.
  *
  * **예시다.** 회사 근거 문구·판단은 실제 회사 역량이 아니며 운영 데이터도 품질 근거도 아니다
  * (`quality_status=mock_reference`). 원본 Analysis에는 요구사항 이름이 없으므로(`RequirementFit`은

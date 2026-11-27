@@ -2,7 +2,7 @@
 
 - 상태: 채택 — 2026-11-27 사용자 결정(사업 범위 카드 v1.2·프롬프트 v3.1 채택, "추천(suggest) 먼저, 자동 요청은 관찰 뒤", 포트폴리오 화면 문구를 main에 넣되 참조 표식 유지). 코드는 PS-01. 운영 모드 전환·실제 모델 판정·품질 인수는 이 결정으로 열리지 않는다.
 - 일자: 2026-11-27
-- 근거: [측정 기록](../../validation-runs/20261127-company-fit-probe/README.md)(22건, 카드 v1.2 + v3.1 exact 17/22, matched 5/5 precision, recall 5/6, 같은 22건에서 카드 답을 만들었으므로 과적합 위험), [PS-01 명세](../../work/groups/PS/features/PS-01-company-fit-card/spec.md), [운영 배포 기록](../../validation-runs/20261127-company-fit-prod-deploy/README.md)(코드만, 모드 꺼짐)
+- 근거: [측정 기록](../../validation-runs/20261127-company-fit-probe/README.md)(22건, 카드 v1.2 + v3.1 exact 17/22, matched 5/5 precision, recall 5/6, 같은 22건에서 카드 답을 만들었으므로 과적합 위험), [PS-01 명세](../../work/groups/PS/features/PS-01-company-fit-card/spec.md), 운영 배포 기록(`docs/validation-runs/20261127-company-fit-prod-deploy/README.md`, git 이력)(코드만, 모드 꺼짐)
 - 관련: ADR-0078(분석 요청은 사람이 연다)·ADR-0081(엔진 live 전송)·ADR-0054(회사 핏 게이트)·ADR-0072(Mac LiteLLM/Ollama)
 
 ## 결정

@@ -3,7 +3,7 @@
  *
  * 출처: 승인된 사업 추적 시안(`opportunities-relaxed.css`의 `.opportunity-filters`
  * 계열)의 골격을 이름만 `workspace-*`로 바꿔 옮겼다. 프레임은
- * `docs/0915_ui-redesign/spec.md` §2.2로 바뀌었다 — 필터 줄은 더는 카드 면이 아니라
+ * `docs/specs/0915_ui-redesign/spec.md` §2.2로 바뀌었다 — 필터 줄은 더는 카드 면이 아니라
  * **canvas 위에 그대로 놓인 줄**이라 배경·테두리·radius를 갖지 않고 좌우 4px만 둔다.
  * 아래 workspace가 자기 카드(그림자)를 갖고 두 면을 선으로 잇지 않기 때문이다.
  *

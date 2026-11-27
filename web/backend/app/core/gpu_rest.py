@@ -1,4 +1,4 @@
-"""연속 가동 시간 기준 GPU 휴지 (docs/0918_daily-operation/spec.md §10).
+"""연속 가동 시간 기준 GPU 휴지 (docs/specs/0918_daily-operation/spec.md §10).
 
 작업을 쉬지 않고 처리한 시간의 합이 limit 이상이 되면 다음 claim 전에 rest만큼 쉰다.
 작업 중간은 끊지 않는다. 잡을 작업이 없는 idle이 rest 이상 이어지면 그것이 휴지이므로

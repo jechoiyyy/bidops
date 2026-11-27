@@ -9,7 +9,7 @@ import { dailyNoticeStatus, dailyRunStatus, isBasisStale, latestDailyPlanRun } f
 import { compactWon } from "../src/components/dashboard/agendaModel";
 import { dailyNoticeRunFixture, dailyPlanExecutionFixture, dailyPlanRunFixture, mockDailyPlanRun, mockDailyPlanRuns, mockRunWarnings } from "./api-mock";
 
-// 2026-11-27 시안 C2(`docs/1127_today-simplify/`): 요약 줄 · 추적 중인 사업 마감 일정 · 함께 볼 것 한 줄.
+// 2026-11-27 시안 C2(`docs/specs/1127_today-simplify/`): 요약 줄 · 추적 중인 사업 마감 일정 · 함께 볼 것 한 줄.
 // 고정 시각은 KST 2026-09-17(목) 12:00이다.
 const WIDTHS: [number, number][] = [[1280, 800], [1440, 900]];
 

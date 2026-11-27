@@ -185,7 +185,7 @@ C-1이 부르는 모델 id가 Ollama 태그 `qwen3.8:27b`에서 vLLM served id `
 
 ## 결과
 
-- `docs/ARCHITECTURE.md`·`web/backend/AGENTS.md`·`docs/backend-modules/design.md`의 모듈
+- `docs/ARCHITECTURE.md`·`web/backend/AGENTS.md`·`docs/specs/backend-modules/design.md`의 모듈
   지도에서 core의 `vllm_client(범용)`는 `model_client`다.
   [ADR-0045](0045-backend-module-layout.md)가 적은 지도의 그 자리를 이 결정이 갱신한다.
 - 저장소 문서에서 Ollama는 과거 결정·과거 실행 증거·해결된 findings 항목에만 남는다.

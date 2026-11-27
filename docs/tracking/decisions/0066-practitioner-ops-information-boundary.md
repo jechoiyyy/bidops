@@ -5,15 +5,15 @@
 - 관련 결정: [ADR-0062](0062-explore-workspace-structure-unification.md)(수집 회차 선택 위치·실행 상태 표시)와
   [ADR-0064](0064-prespec-actionable-deadline-scope.md) 결정 7(도구 줄 순서)을 이 결정이 개정한다.
   `web/frontend/src/lib/glossary.ts`("목록·필터는 한글 라벨, 계약 토큰은 상세의 기술 정보에서만")의 선언을
-  화면 전체에 강제하는 결정이며, `docs/0918_daily-operation/spec.md` §7 '행 표시'(결정 16)를 함께 개정한다.
+  화면 전체에 강제하는 결정이며, `docs/specs/0918_daily-operation/spec.md` §7 '행 표시'(결정 16)를 함께 개정한다.
   ADR-0004(관리자 화면의 시각 체계·상태 라벨·접근성 기준), ADR-0047(데스크톱 전용 지원 폭),
   ADR-0055(사전규격 담당자 브리핑 우선 배치 — 실행 정보 후순위)와 충돌하지 않으며 그 방향을 화면 전체로 넓힌다.
 - 근거 요청: 2026-09-21 사용자 — "'발주계획'과 '사전규격'은 같은 '회차 선택' 기능 버튼이 있고 '수집회차'라는 텍스트를
   사용하고 있는데 서로 다른 UI를 띄우고 있음", "웹에서는 해당 서비스를 사용하는 실무자들이 공고를 판단하고 결정하는데에
   필요한 정보만을 남겨두고 나머지 서비스 운영에 필요한 내용들은 log로 수집하여 두거나 '실행 상태'와 같은 페이지에서 확인할
   수 있도록 진행하는 것이 바람직하다", "대시보드는 운영자가 아닌 실무자들이 확인할 때 사용할 페이지". 조사 3건과 그에 대한
-  사용자 결정 9개는 `docs/0921_practitioner-screens/intent.md` §3
-- 정본 명세: `docs/0921_practitioner-screens/spec.md` §1(처분 5종·지우면 안 되는 경고), §3(화면별 처분표), §4(운영 수신처)
+  사용자 결정 9개는 `docs/specs/0921_practitioner-screens/intent.md` §3
+- 정본 명세: `docs/specs/0921_practitioner-screens/spec.md` §1(처분 5종·지우면 안 되는 경고), §3(화면별 처분표), §4(운영 수신처)
 
 ## 맥락
 
@@ -71,7 +71,7 @@
    | 한글화 | 값의 뜻은 실무 정보인데 표기가 계약 토큰·모델명·필드명이다. 표시만 바꾸고 서버 값·URL 값·unknown/null의 의미는 보존한다 |
    | 유지 | 판단에 필요하거나 결정 5의 경고다 |
 
-   화면별 처분 결과는 `docs/0921_practitioner-screens/spec.md` §3이 정본이다. "운영 정보처럼 보인다"는
+   화면별 처분 결과는 `docs/specs/0921_practitioner-screens/spec.md` §3이 정본이다. "운영 정보처럼 보인다"는
    인상만으로 지우지 않고, 각 항목이 어느 처분인지와 그 이유를 표에 남긴다.
 
 2. **식별자와 해시 값 자체는 줄이지 않는다. 옮길 수는 있다.** 문서 버전 ID, SHA-256, execution_id, request ID는
@@ -100,7 +100,7 @@
 
    그리고 발주계획 상세의 "계획 정보 기반 탐색 신호 · 회사 적합성과 참여 자격은 미확인", 심층 보고서 범위
    주석(`DeepReviewPage.tsx:770`), `AttachmentPanel.tsx:53,79`의 안내, 사전규격 ⑥ 접힌 진단
-   Collapsible(`docs/0915_ui-redesign/spec.md:234`, 실패·사람 확인이면 기본 열림).
+   Collapsible(`docs/specs/0915_ui-redesign/spec.md:234`, 실패·사람 확인이면 기본 열림).
 
    경고 문장이 운영 코드와 한 블록에 있으면 요소를 나눠 문장만 남긴다 — 블록째 옮기면 경고가 함께 사라진다.
 
@@ -120,15 +120,15 @@
 - migration 없음. 새 상태·필드·외부 전송·모델 binding이 없다. 서버 값·URL 질의 값·unknown/null의 의미는
   모두 보존되며 바뀌는 것은 표시 계층과 값이 놓이는 화면이다. Alembic head는 `0030_prespec_review_exclusion`
   그대로다.
-- 이 결정으로 개정되는 정본(`docs/0921_practitioner-screens/spec.md` §8):
+- 이 결정으로 개정되는 정본(`docs/specs/0921_practitioner-screens/spec.md` §8):
 
   | 문서 | 개정 |
   |---|---|
   | [ADR-0062](0062-explore-workspace-structure-unification.md) | 회차 선택 행(도구 줄 → 상세 필터 안, 공용 컴포넌트, run_id 제외, `/runs` 링크), 실행 상태 표시 행(최근 실행에 문제가 있을 때만) |
   | [ADR-0064](0064-prespec-actionable-deadline-scope.md) 결정 7 | 도구 줄 순서에서 수집 회차 칸 제거 |
-  | `docs/0918_daily-operation/spec.md` §7 '행 표시'(결정 16) | 행에는 첫 수집일만, policy는 운영 화면, `판정 없음` 유지 |
+  | `docs/specs/0918_daily-operation/spec.md` §7 '행 표시'(결정 16) | 행에는 첫 수집일만, policy는 운영 화면, `판정 없음` 유지 |
   | `web/frontend/src/lib/glossary.ts:14` | "줄이지 않는다. 운영 화면·접힌 기술 정보로 옮길 수 있다"(코드 패키지 R2가 개정) |
-  | `docs/0915_ui-redesign/decisions.md`, `docs/ADR.md` | 항목 추가 |
+  | `docs/specs/0915_ui-redesign/decisions.md`, `docs/ADR.md` | 항목 추가 |
   | `docs/tracking/findings.md` | 분리한 후속 작업 인계(수집 확장, 단계 지연, 담당자 연락처, `budget` 출처) |
   | `docs/contracts.md`, `docs/bid-delta-contract-spec.md` | spec §5·§7의 투영 |
   | ADR-0066(신규, spec §7 착수 때) | 대시보드 누적 workload 키 |

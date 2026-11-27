@@ -2,8 +2,8 @@
 
 ## RL — 루트랩 실회사 기준 AX 과제
 
-2026-10-16 확정한 신규 목표다([ADR-0073](../../tracking/decisions/0073-rootlab-real-company-ax-redefinition.md), [재정의 초안](../../1016_rootlab-redefinition/draft.md)).
-화면 정본은 [RL 화면 구현 명세](../../1016_rootlab-redefinition/ui-spec.md)(시안 v26, 2026-10-16)이며 RL-00~04 spec은 이를 인용한다. 상태의 정본은 기능 status.json, 순서·직접 의존의 정본은 queue.json이다. 아래 RL-00~07은 모두 intent·spec·plan 작성과 큐 등록을 마쳤다. 새 기능은 `/sdlc:feature <ID>`로 문서화한 뒤 등록하며, 등록 전 제안은 구현 사실이 아니다.
+2026-10-16 확정한 신규 목표다([ADR-0073](../../tracking/decisions/0073-rootlab-real-company-ax-redefinition.md), [재정의 초안](../../specs/1016_rootlab-redefinition/draft.md)).
+화면 정본은 [RL 화면 구현 명세](../../specs/1016_rootlab-redefinition/ui-spec.md)(시안 v26, 2026-10-16)이며 RL-00~04 spec은 이를 인용한다. 상태의 정본은 기능 status.json, 순서·직접 의존의 정본은 queue.json이다. 아래 RL-00~07은 모두 intent·spec·plan 작성과 큐 등록을 마쳤다. 새 기능은 `/sdlc:feature <ID>`로 문서화한 뒤 등록하며, 등록 전 제안은 구현 사실이 아니다.
 
 | 기능 | 목표 | 선행 요약 | 핵심 입력 |
 |---|---|---|---|
@@ -31,11 +31,11 @@
 
 ### 다음 실행 경계
 
-1. 실행 큐와 [RL-07 선행 증거 재사용 기록](../_runs/rl07-preflight-20261020/evidence-reuse.md)을 대조한다. 제품 소스가 같으면 기존 증거와 문서 변경의 영향을 확인하고 필요한 기록만 갱신한다.
+1. 실행 큐와 RL-07 선행 증거 재사용 기록(`docs/work/_runs/rl07-preflight-20261020/evidence-reuse.md`, git 이력)을 대조한다. 제품 소스가 같으면 기존 증거와 문서 변경의 영향을 확인하고 필요한 기록만 갱신한다.
 2. RL-07은 판정 탭의 설명·표시·탐색을 고치는 프런트엔드 범위다. 회사 대조의 `gap` 누락은 해결하지 않는다.
 3. [RL-05 인수 실패](../../validation-runs/2026-10-19-rl/RL-05/README.md)의 후속은 대조 개념 매핑·회사 사실 범위를 보완한 뒤 같은 gold로 재측정하는 것이다. [findings](../../tracking/findings.md)에 남기며 새 구현 범위·승인은 별도 기능 문서로 정한다.
 4. RL-06은 큐의 RL-04·03·05 선행 조건과 인수 실패의 영향을 확인한 뒤 착수한다. 현재 RL의 승인 모델을 로컬 모델로 바꾼 상태가 아니다.
-5. 운영 코드·DB 반영과 RL 기능 활성화는 별개다. 마지막 [운영 반영 기록](../../validation-runs/20261019-ops-rl-rollout/README.md)은 RL 분석 false·운영 회사 근거/브리핑 미등록이며, 실제 전송·Slack·cron은 별도 승인 경계다.
+5. 운영 코드·DB 반영과 RL 기능 활성화는 별개다. 마지막 운영 반영 기록(`docs/validation-runs/20261019-ops-rl-rollout/README.md`, git 이력)은 RL 분석 false·운영 회사 근거/브리핑 미등록이며, 실제 전송·Slack·cron은 별도 승인 경계다.
 
 ## 후속 범위
 

@@ -14,7 +14,7 @@
 그 사이에 구멍이 생긴다. **담당자가 추적하기로 고른 발주계획의 사전규격이 `swBizObjYn=N`이면
 화면에 영영 나타나지 않고, 놓쳤다는 사실조차 남지 않는다.**
 
-실측(`docs/validation-runs/20260828-lifecycle-linkage-survey.md`)에서 확인한 것:
+실측(`docs/validation-runs/20260828-lifecycle-linkage-survey.md` (git 이력))에서 확인한 것:
 
 - 용역 사전규격 3일치 650건 중 `swBizObjYn=Y`는 55건(8.5%)이다. 필터가 91.5%를 걷어낸다.
 - `swBizObjYn`은 서버측 필터로 동작하므로 켜고 끄는 구현 비용 차이는 거의 없다.

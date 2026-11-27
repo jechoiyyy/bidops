@@ -10,7 +10,7 @@
 `0005_opportunity_links`)에서 `opportunity.first_registered_stage`가 `order_plan`과 `pre_spec`만
 허용하게 되어, 입찰공고에서 처음 보는 사업은 기회로 등록되지 않았다.
 
-측정으로 확인한 것(`docs/validation-runs/20260828-lifecycle-linkage-survey.md`):
+측정으로 확인한 것(`docs/validation-runs/20260828-lifecycle-linkage-survey.md` (git 이력)):
 
 - 입찰공고 1,628건 중 `orderPlanUntyNo`를 가진 것은 76.7%다. **23.3%는 발주계획 번호가 없다.**
 - `bfSpecRgstNo`를 가진 것은 56.3%다.
@@ -79,7 +79,7 @@
 
 ## 개정 (2026-09-17)
 
-[사업 추적 연결·조치 고도화](../../0917_opportunity-tracking/intent.md)가 이 ADR의 전제를 하나
+[사업 추적 연결·조치 고도화](../../specs/0917_opportunity-tracking/intent.md)가 이 ADR의 전제를 하나
 바꾼다 — 이제 입찰공고는 **전량 수집하지만 전량 적재하지 않는다**(전량 수집·선별 적재는
 [ADR-0059](0059-full-collection-selective-ingest-and-index-search.md)). 이 ADR의 결정은
 **적재된 레코드 기준**으로 다시 읽는다.
@@ -98,5 +98,5 @@
   적재된 최초 단계"가 아니라 "병합된 것 중 가장 이른 단계"로 계산한다 — 단일 레코드로 생긴
   기회가 나중에 더 이른 단계의 레코드와 병합되면 최초 등록 단계가 앞당겨진다.
 
-상세는 [spec.md §2.2·§3](../../0917_opportunity-tracking/spec.md#2-수집-색인과-선별-적재)가
+상세는 [spec.md §2.2·§3](../../specs/0917_opportunity-tracking/spec.md#2-수집-색인과-선별-적재)가
 정본이다.

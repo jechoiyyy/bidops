@@ -2,7 +2,7 @@
 .page-overview-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--spacing-2);flex-wrap:wrap}
 .page-overview h3,.page-overview h4{margin:0;font-size:var(--bo-type-section-title);font-weight:600}
 .page-overview p{margin:0;line-height:1.65;white-space:pre-wrap}
-/* docs/0915_ui-redesign/spec.md §2.3: 카드 안 구분선은 --color-background-muted 1px */
+/* docs/specs/0915_ui-redesign/spec.md §2.3: 카드 안 구분선은 --color-background-muted 1px */
 .page-overview-section{display:grid;gap:var(--spacing-2);padding-block:var(--spacing-3);border-bottom:var(--border-width) solid var(--color-background-muted)}
 .page-overview-facts,.page-overview-tasks{margin:0;display:grid;gap:var(--spacing-3)}
 .page-overview-facts{list-style:none;padding:0}.page-overview-tasks{list-style:decimal;padding-left:var(--spacing-5)}

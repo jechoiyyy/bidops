@@ -1,7 +1,7 @@
 # 시안 기준 이미지 manifest
 
 생성 시점: 2026-09-04T08:02:11+09:00
-원본 경로: docs/design/mockups/_shots, _preview, *.dc.html (모두 gitignore 대상)
+원본 경로: docs/design/mockups/_shots, _preview, *.dc.html (모두 gitignore 대상이라 커밋된 적 없음, docs/design 자체는 git 이력)
 원본 렌더 시각: 2026-09-02T17:46:45+09:00
 캡처 폭: 1440px (ADR-0047 기준 폭)
 

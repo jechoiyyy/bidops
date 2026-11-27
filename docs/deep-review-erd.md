@@ -902,7 +902,7 @@ validation check의 관련 ID에는 유효한 대상 claim만 넣으며 제외�
 content object FK를 가진다. 세 표는 DB trigger와 ORM에서 UPDATE/DELETE를 거부한다.
 app은 입력/실행 INSERT와 세 표 SELECT, worker는 결과 INSERT와 세 표 SELECT만 받는다.
 실행 상태/lease는 기존 work_job, 호출 시작은 원문 없는 audit_event로 기록한다.
-[REST 및 결과 계약](0923_assumption-analysis/spec.md).
+[REST 및 결과 계약](specs/0923_assumption-analysis/spec.md).
 
 
 ## 가상 SI 3사 데모 계약 (2026-10-09, DEMO-01·02 데모 브랜치 구현; 2026-10-10 DEMO-03 구현, 실제 Luna 대표 1건은 2026-10-11 DEMO-05로 이관)

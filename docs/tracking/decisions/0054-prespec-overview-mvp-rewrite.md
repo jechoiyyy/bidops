@@ -6,7 +6,7 @@
 ## 맥락
 
 사전규격 개요 검토는 세 세대의 계약이 순서대로 쌓였다. v3 권고형 개요, legacy v4 단일
-호출 개요, 그리고 2026-09-10 `docs/0910_prespec-workflow-hardening/`가 설계한 v5 주장
+호출 개요, 그리고 2026-09-10 `docs/0910_prespec-workflow-hardening/`(git 이력)가 설계한 v5 주장
 검증 스택(activation v2·call ledger·verification 테이블)이다. 세 세대 모두 실사용 모델
 호출 이력이 없고, `quality_status=unmeasured_reference|mock_reference` 표식을 벗어난 적이
 없다. v5는 격리 검증까지는 마쳤지만 실사용 초안 4건 전부가 사람 검토로 떨어졌고, 다음

@@ -35,7 +35,7 @@ LiteLLM `local-agent-main`·Qwen·Terra는 HP에서 호출하지 않는다. 실�
 - 구조 payload의 block은 `paragraph|table|table_cell`이며 `table_cell`은 `attributes{table_key,row,column}`과 `parent_block_key=<table block key>`를 가진다. 모든 block에 `page`가 있으나 HWPX 경로의 `page`는 물리 쪽이 아니라 구역 기준이다.
 - 물리 쪽은 `para_page_map`(`bidops.para-page-map.v1`, `blocks[]{block_key,page_first,page_last,match}`)이 정본이다. 대응표는 원본 HWPX의 문단·표를 문단 identity로(`match=exact`), 셀과 비원본 문단은 PDF 쪽 text와의 유일 일치로 매핑한다. 2026-10-14 외교부 문서의 매핑 1,339건은 전부 문단이었다. 매핑되지 않은 표 셀의 쪽은 §3의 상속 규칙으로 구한다.
 - PDF는 PDF 전용 첨부와 쪽 locator(`para_page_map`·`/pages/{page}`)에만 쓴다. OCR은 범위 밖이다. PDF 전용 첨부가 실제 수집에서 나타나면 findings에 적고 별도 결정한다.
-- 2026-10-14 변환 회차의 기존 metadata는 [실행 증거 README](../validation-runs/2026-10-14-hp/HP-01/README.md)와 그 안의 `hp01-conversion.json` 참조를 따른다. 제품 증거 스크립트에서 카드 27·57·31·35·48건, 총 198건을 확인했다. 쪽은 직접 매핑 0건, 앞 문단 상속 88건(문서별 0·18·31·35·4), `unavailable` 110건으로, 쪽 가용성 목표 198/198은 달성하지 못했다. 기존 scratchpad의 쪽 198/198 수치는 검증 사실로 사용하지 않는다. 별도 PDF 10표본 확인은 상속 쪽 6건이 PDF 카드 위치와 일치했고 4건은 확인되지 않았다; 전수 정확도 근거가 아니다.
+- 2026-10-14 변환 회차의 기존 metadata는 실행 증거 README(`docs/validation-runs/2026-10-14-hp/HP-01/README.md`, git 이력)와 그 안의 `hp01-conversion.json` 참조를 따른다. 제품 증거 스크립트에서 카드 27·57·31·35·48건, 총 198건을 확인했다. 쪽은 직접 매핑 0건, 앞 문단 상속 88건(문서별 0·18·31·35·4), `unavailable` 110건으로, 쪽 가용성 목표 198/198은 달성하지 못했다. 기존 scratchpad의 쪽 198/198 수치는 검증 사실로 사용하지 않는다. 별도 PDF 10표본 확인은 상속 쪽 6건이 PDF 카드 위치와 일치했고 4건은 확인되지 않았다; 전수 정확도 근거가 아니다.
 
 ## 3. 요구사항 카드 (확정, HP-01)
 
@@ -143,7 +143,7 @@ Extract = { unit_id, type: 자격|실적|인력|기술|기능|성능SLA|보안|�
 
 ## 8. 실무자 판정 화면 (확정 구성, 세부는 HP-04)
 
-> **RL-03 주석.** 루트랩 기준으로 RL-03이 구현했다. 화면은 `/opportunities/:id/verdict`([ui-spec §4.4](../1016_rootlab-redefinition/ui-spec.md)), REST는 사업기회 경로 별칭 `GET /api/opportunities/{id}/verdict`가 추가됐고 view에 B4 가산 키가 있다. 아래 5블록 구성·정렬 규칙은 그대로다.
+> **RL-03 주석.** 루트랩 기준으로 RL-03이 구현했다. 화면은 `/opportunities/:id/verdict`([ui-spec §4.4](../specs/1016_rootlab-redefinition/ui-spec.md)), REST는 사업기회 경로 별칭 `GET /api/opportunities/{id}/verdict`가 추가됐고 view에 B4 가산 키가 있다. 아래 5블록 구성·정렬 규칙은 그대로다.
 
 다섯 블록을 한 화면에 둔다(2026-10-15 사용자 승인). 데스크톱 전용·테마 토큰 규칙은 기존과 같다. 요구사항 목록 기본 순서는 부족→미확인→충족이며 각 상태를 합치지 않는다. 역할 의견 불일치는 주의 사항에 남긴다. 상속 쪽은 추정임을, unavailable은 쪽 미확인임을 명시한다. 쪽이 없으면 점프를 만들지 않는다.
 

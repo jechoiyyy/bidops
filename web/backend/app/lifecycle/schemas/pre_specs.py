@@ -177,7 +177,7 @@ class PreSpecListItem(RuntimeContractModel):
     tracking_status: OpportunityTrackingStatus | None = None
     kept_by_tracking: bool
     document: PreSpecDocumentSummary
-    # Additive projection (docs/design/PLAN.md 3단계): current overview review
+    # Additive projection (docs/design/PLAN.md (git 이력) 3단계): current overview review
     # status for this notice, from ``prespec_overview_review.status``.  A
     # notice with no overview review row yet (개요 검토 미시작) projects
     # ``None`` here; it is a distinct, eleventh bucket and must never be
@@ -240,7 +240,7 @@ class PreSpecListResponse(RuntimeContractModel):
     # over the full filtered set rather than the returned page. This lets the
     # list screen render all-groups-always-visible collapsible sections with
     # correct counts while ``items``/``total``/``limit``/``offset`` keep their
-    # existing pagination meaning (docs/design/PLAN.md 3단계 결정 (a)/(b)).
+    # existing pagination meaning (docs/design/PLAN.md (git 이력) 3단계 결정 (a)/(b)).
     overview_status_counts: list[PreSpecOverviewStatusCount] = Field(default_factory=list)
     workspace_counts: dict[PreSpecWorkspace, int] = Field(default_factory=dict)
     # 활성 workspace·활성 `deadline_scope`와 무관하게 항상 같은 값이고 항상 존재한다.

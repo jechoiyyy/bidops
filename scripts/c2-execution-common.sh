@@ -6,7 +6,7 @@
 #
 # Wire: docs/contracts.md "C-2 일일 운영 계약" (실행 트리거 헤더와 게이트, 감사 표본
 # REST, 일일 자동 실행 스위치 REST) and "C-2 수동 REST 계약". Behaviour:
-# docs/0918_daily-operation/spec.md §8. Only the web REST surface is used; no
+# docs/specs/0918_daily-operation/spec.md §8. Only the web REST surface is used; no
 # model is called from here (the analysis worker owns the execution).
 set -euo pipefail
 

@@ -555,7 +555,7 @@ a {
 
 /* 문제 설명은 제목·원인·코드 세 층이다. 제목은 이미 `strong`이 맡고 있으므로
    여기는 원인 한 줄이며, 안전 코드만 mono 캡션으로 뒤에 붙는다. 서버 raw
-   message는 이 자리에 들어오지 않는다(docs/security.md). */
+   message는 이 자리에 들어오지 않는다(docs/security.md (git 이력)). */
 .empty-state-problem {
   max-width: 520px;
   margin: 0;

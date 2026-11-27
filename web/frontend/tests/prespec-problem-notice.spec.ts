@@ -13,7 +13,7 @@ import {
 } from "./api-mock";
 import type { OverviewEnvelope, OverviewRun, PreSpecListItem } from "../src/lib/types";
 
-// 2026-11-21 사전규격 상세 문제 상태 안내(시안 `docs/1121_prespec-detail/` c1~c5, 근거 findings/model-review.md 첫 항목).
+// 2026-11-21 사전규격 상세 문제 상태 안내(시안 `docs/specs/1121_prespec-detail/` c1~c5, 근거 findings/model-review.md 첫 항목).
 // 안내 문장 표와 고르는 규칙은 `src/lib/preSpecProblemNotice.ts` 한 곳이다. 여기서는 각 안내가 맞는 굵은 줄을 고르고
 // 서버 값(쪽 범위·쪽수·실패 문장·건수)을 그대로 쓰는지, 처리 상태 구역이 닫혀 들어오고 요약이 멈춘 단계를 말하는지 본다.
 // 고정값은 일부러 눈에 띄는 숫자(7~49쪽 · 전체 123쪽)를 쓴다.

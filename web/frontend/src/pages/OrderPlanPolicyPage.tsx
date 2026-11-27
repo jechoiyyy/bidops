@@ -47,7 +47,7 @@ import "../styles/order-plan-policy.css";
 /**
  * 발주계획 선별 정책 탭 — C-2 policy의 사람 승인과 일일 자동 실행 스위치.
  *
- * `docs/0918_daily-operation/spec.md` §11, wire는 `docs/contracts.md` "C-2 일일 운영 계약".
+ * `docs/specs/0918_daily-operation/spec.md` §11, wire는 `docs/contracts.md` "C-2 일일 운영 계약".
  * 지키는 경계가 넷이다.
  *
  *  1. **활성 여부의 정본은 DB 행이다.** 화면은 서버가 준 `policy_status`·`blockers[]`·

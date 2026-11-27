@@ -1,5 +1,5 @@
 /* 사전규격의 회사 적합성. 색은 테마 토큰만 읽고, 판정은 색과 함께 글자로도 말한다.
- * docs/0915_ui-redesign/spec.md §2.3: 카드 안 구분선은 --color-background-muted 1px */
+ * docs/specs/0915_ui-redesign/spec.md §2.3: 카드 안 구분선은 --color-background-muted 1px */
 .company-fit { display: grid; gap: var(--spacing-3); min-width: 0; overflow-wrap: anywhere; }
 .company-fit p { margin: 0; }
 .company-fit-muted { color: var(--color-text-secondary); font-size: var(--bo-type-caption); }

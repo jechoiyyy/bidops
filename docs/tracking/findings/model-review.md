@@ -30,8 +30,8 @@
 - **해석(추정).** 범위 선택기가 사업 개요 구간을 좁게 찾지 못하면 넓은 범위(fallback은 앞 60쪽)를 잡고, 그 분량이 로컬 모델 문맥(ctx32k, 출력 예약 8192)의 입력 상계를 넘어 fail closed한다. 입력 상계가 작다는 점은 [engineering-notes](../../engineering-notes.md) "LiteLLM ctx32k에서 개요가 …로 끝난다"에 있다. 선택기가 왜 못 찾는지(문서 유형·목차 형식)는 보지 않았다.
 - **영향.** 이 건들은 사람이 쪽 범위를 확정해야 개요가 생긴다. 화면(`/pre-specs/:id`)은 50건 모두에 "확인 사유 · 사유 코드 없음 — 결정적 선택기가 범위를 정하지 못했어요"를 보여 실제 사유(범위 과대·내용 검증 실패·모델 호출 오류)를 구분하지 못한다. `range_reason_codes`가 비어 있고 사유는 run의 `reason_codes`에 있기 때문이다. 같은 집계에서 문서 준비가 막힌 46건(`ocr_issue` 19·`attachment_bytes_missing` 14·`structure_unavailable` 1의 차단 issue, 첨부 취득 전부 차단·실패 17)도 화면 위쪽에는 "개요 검토 미시작"만 보인다.
 - **재현 조건.** 사업 개요 구간을 선택기가 좁히지 못하는 문서(예: notice 3970·3958·3951, 범위 1~60쪽, `call_count=0`).
-- **지금 해결하지 않은 이유.** 선택기·입력 한도 변경은 개요 정책과 품질에 닿아 새 측정이 필요하고, 화면 안내는 구성 변경이라 시안 확인이 먼저다(시안은 [`docs/1121_prespec-detail/`](../../1121_prespec-detail/README.md)에 추가).
-- **조치(화면만, 2026-11-21).** 상세 화면이 run의 `reason_codes`와 묶음 차단 issue·첨부 취득 실패를 사람 말로 보이고 이전 범위를 함께 보인다(구현 내용은 [`docs/1121_prespec-detail/`](../../1121_prespec-detail/README.md) "문제 상태 안내"). 원인(범위 과대)은 그대로다.
+- **지금 해결하지 않은 이유.** 선택기·입력 한도 변경은 개요 정책과 품질에 닿아 새 측정이 필요하고, 화면 안내는 구성 변경이라 시안 확인이 먼저다(시안은 [`docs/specs/1121_prespec-detail/`](../../specs/1121_prespec-detail/README.md)에 추가).
+- **조치(화면만, 2026-11-21).** 상세 화면이 run의 `reason_codes`와 묶음 차단 issue·첨부 취득 실패를 사람 말로 보이고 이전 범위를 함께 보인다(구현 내용은 [`docs/specs/1121_prespec-detail/`](../../specs/1121_prespec-detail/README.md) "문제 상태 안내"). 원인(범위 과대)은 그대로다.
 - **후속 방향.** ① (조치함) 화면 안내. ② fallback 범위가 입력 상계를 넘을 것이 분명하면 실행 전에 "범위 확정 필요"로 바로 보내 실패 run을 만들지 않는 방안을 검토한다. ③ 선택기가 못 찾는 문서 유형을 표본으로 분류한다.
 
 ## RL-03 결정적 대조가 요구사항을 회사 사실에 연결하지 못해 gap을 하나도 찾지 못한다 (2026-10-20, 미해결)
@@ -40,16 +40,16 @@
 - 영향: RL-05 인수 reject(판정 일치 3/10, 차단 조건 재현율 0.0). 상주 지역·제외 분야처럼 회사 사실이 confirmed인데도 판정이 "조건부 진행"·"판단 불가"에 머문다.
 - 원인(추정, 확인 필요): 대조는 추출 항목의 concept 후보 → 온톨로지 → 회사 그래프 경로가 있어야 fit을 내는데, 상주 지역 요구("원주시청 상주")와 `staff:onsite`·`pref:onsite_cap`, HW 유지관리와 제외 분야(`domain` excluded) 사이 경로·규칙이 없다.
 - 후속: 대조 단계 개념 매핑·규칙 범위 개선(상주 지역, 제외 분야, 직접생산 품명, 지역 제한) 뒤 같은 gold(`gold.v1.json`)로 재측정. RL-05 채점 도구·gold는 그대로 재사용한다.
-- 2026-10-20 읽기 전용 코드 조사: 위 원인 추정은 개념 경로에 한정된다. `card_compare.constraint_comparison`은 그래프 경로 없이 fact_key·앵커·허용 값 경로로도 대조한다. 확인된 공백은 `excl:*`·`pref:onsite_cap`의 대조 allowlist 부재, 시·도 문자열만 인식하는 `_regions`, 다른 상주 지역을 `scope_unverified`로 남기는 분기다. 회사 source v4에는 `supports_capability` 관계도 없다. 개념·규칙·입력의 공백을 함께 고쳐야 하며, 실제 447개 항목별 원인 기여도는 아직 재생하지 않았다. 근거·수정 우선순위·반례는 [온톨로지 비교분석](../../research/2026-10-20-bidops-ontology-assessment.md)에 정리했다. 기존 10건은 수정 회귀에 쓰되 일반화는 새 holdout에서 평가하고, 회사·온톨로지 binding 변경 시 gold의 의미와 버전 정합성을 먼저 확인한다.
-- 2026-11-19 [D-2 분해](../../validation-runs/20261119-rl05-unknown-breakdown/README.md): 447개 중 대조 `gap` 0, 놓친 차단 7개는 이상적 추출이어도 대조 분기에서 멈춘다(a1 상주 장소·a2 제외 분야·a3 계약 우선·a4 다중 앵커).
-- 2026-11-19 부분 해소(코드만, 종단 미증명) — [RL-10](../../work/groups/RL/features/RL-10-compare-blockers/spec.md) 대조 규칙 v2·정책 v12(브랜치 `feat/rl03-compare-blockers`, 미병합·미배포·DB import 없음): 행정구역 지명 표로 상주 장소를 시·도로 정하고 사람이 확인한 상주 가능 지역 전체 목록 밖이면 `gap`, 확인된 제외 분야의 요구사항 수준 용어로만 이루어진 요구면 `gap`, 역할어가 장소 비교를 막지 않고 모순이 계약 유형보다 먼저다. [탐침 재생](../../validation-runs/20261119-rl10-compare-blockers/README.md): 회사 근거 v4 그대로는 v2도 **0/7**(상주 4개 `unknown_fact` — 구조화 값 없음, 1개 `place_unresolved`, 제외 분야 2개 용어 없음). 테스트 fixture(사람 미확인)를 넣으면 4/7·5/7. 284019(장소 미지정)·284956 B9(하드웨어+SW 혼합)는 결정적으로 `gap`이 될 수 없다. v4 `keywords`를 그대로 용어로 쓰면 인증 수단·법령 이름이 차단되는 과잉 차단이 확인됐다. **남은 것**: (1) 사람이 `pref:onsite_cap.params.onsite_regions`와 `excl:hardware.requirement_terms`를 확인해 새 회사 근거 버전 등록, (2) 실제 추출이 상주 장소를 제약 절에 담는지 확인(`bidops_rla` 제약 단위 행 필요), (3) 같은 gold 재측정(Luna 전송 — 사용자 승인), (4) 추출 전 결정적 사전 검사는 단계 행 migration·차단 조건 규칙 재정의가 필요한 후속(RL-10 spec E5). 이 항목은 재측정 전까지 닫지 않는다.
+- 2026-10-20 읽기 전용 코드 조사: 위 원인 추정은 개념 경로에 한정된다. `card_compare.constraint_comparison`은 그래프 경로 없이 fact_key·앵커·허용 값 경로로도 대조한다. 확인된 공백은 `excl:*`·`pref:onsite_cap`의 대조 allowlist 부재, 시·도 문자열만 인식하는 `_regions`, 다른 상주 지역을 `scope_unverified`로 남기는 분기다. 회사 source v4에는 `supports_capability` 관계도 없다. 개념·규칙·입력의 공백을 함께 고쳐야 하며, 실제 447개 항목별 원인 기여도는 아직 재생하지 않았다. 근거·수정 우선순위·반례는 온톨로지 비교분석(`docs/research/2026-10-20-bidops-ontology-assessment.md`, git 이력)에 정리했다. 기존 10건은 수정 회귀에 쓰되 일반화는 새 holdout에서 평가하고, 회사·온톨로지 binding 변경 시 gold의 의미와 버전 정합성을 먼저 확인한다.
+- 2026-11-19 D-2 분해(`docs/validation-runs/20261119-rl05-unknown-breakdown/README.md`, git 이력): 447개 중 대조 `gap` 0, 놓친 차단 7개는 이상적 추출이어도 대조 분기에서 멈춘다(a1 상주 장소·a2 제외 분야·a3 계약 우선·a4 다중 앵커).
+- 2026-11-19 부분 해소(코드만, 종단 미증명) — [RL-10](../../work/groups/RL/features/RL-10-compare-blockers/spec.md) 대조 규칙 v2·정책 v12(브랜치 `feat/rl03-compare-blockers`, 미병합·미배포·DB import 없음): 행정구역 지명 표로 상주 장소를 시·도로 정하고 사람이 확인한 상주 가능 지역 전체 목록 밖이면 `gap`, 확인된 제외 분야의 요구사항 수준 용어로만 이루어진 요구면 `gap`, 역할어가 장소 비교를 막지 않고 모순이 계약 유형보다 먼저다. 탐침 재생(`docs/validation-runs/20261119-rl10-compare-blockers/README.md`, git 이력): 회사 근거 v4 그대로는 v2도 **0/7**(상주 4개 `unknown_fact` — 구조화 값 없음, 1개 `place_unresolved`, 제외 분야 2개 용어 없음). 테스트 fixture(사람 미확인)를 넣으면 4/7·5/7. 284019(장소 미지정)·284956 B9(하드웨어+SW 혼합)는 결정적으로 `gap`이 될 수 없다. v4 `keywords`를 그대로 용어로 쓰면 인증 수단·법령 이름이 차단되는 과잉 차단이 확인됐다. **남은 것**: (1) 사람이 `pref:onsite_cap.params.onsite_regions`와 `excl:hardware.requirement_terms`를 확인해 새 회사 근거 버전 등록, (2) 실제 추출이 상주 장소를 제약 절에 담는지 확인(`bidops_rla` 제약 단위 행 필요), (3) 같은 gold 재측정(Luna 전송 — 사용자 승인), (4) 추출 전 결정적 사전 검사는 단계 행 migration·차단 조건 규칙 재정의가 필요한 후속(RL-10 spec E5). 이 항목은 재측정 전까지 닫지 않는다.
 
 
 - 인수 절차·입력/산출물 hash·사람 reject는 [RL-05 실행 기록](../../validation-runs/2026-10-19-rl/RL-05/README.md)에 있다. 이번 문서 정리에서 모델 재호출·규칙 수정은 하지 않았다. RL-07은 프런트엔드 범위라 이 대조 공백을 해결하지 않는다.
 
 ## RL-03 카드 판정은 제약 하나의 검증 실패로 판정 전체가 사람 검토로 끝난다 (2026-10-18, 설계·구현됨, 실제 증명 대기)
 
-- 재현: bidops-local `bidops_rla` 폴리텍 사전규격(notice 362, opportunity 353, 원문 HWP SHA `8b6cbf1a…005a1e`), 정책 v3~v5 실제 Luna 판정 T12 4~7차(attempt `6dd54a57…`·`bd0fe0a3…`·`28086c87…`·`ff63bc6e…`). 4차 이후 매번 묶음 응답의 제약 1개(5차 `다음 달 10일까지` 단위, 6차 잘린 인용 `5`, 7차 날짜 범위에서 계산한 기간 12)가 결정적 추출 검증에 걸려 `card_extract_invalid`·`needs_human_review`로 끝났다. 진단과 재생 근거는 `docs/validation-runs/2026-10-17-rl/RL-03/README.md` T12 절, 결정 B30~B37.
+- 재현: bidops-local `bidops_rla` 폴리텍 사전규격(notice 362, opportunity 353, 원문 HWP SHA `8b6cbf1a…005a1e`), 정책 v3~v5 실제 Luna 판정 T12 4~7차(attempt `6dd54a57…`·`bd0fe0a3…`·`28086c87…`·`ff63bc6e…`). 4차 이후 매번 묶음 응답의 제약 1개(5차 `다음 달 10일까지` 단위, 6차 잘린 인용 `5`, 7차 날짜 범위에서 계산한 기간 12)가 결정적 추출 검증에 걸려 `card_extract_invalid`·`needs_human_review`로 끝났다. 진단과 재생 근거는 `docs/validation-runs/2026-10-17-rl/RL-03/README.md` (git 이력) T12 절, 결정 B30~B37.
 - 영향: 한 판정이 검증하는 인용·제약이 60개 이상이고 하나라도 틀리면 묶음과 판정 전체가 실패한다. 항목 정확도가 높아도 전체 통과 확률이 낮아(98%/항목이면 약 30% 추정) 실제 판정과 RL-04 실제 초안(T11)을 얻지 못했다.
 - 지금 해결하지 않는 이유: 틀린 제약만 그 항목의 사람 검토 대상으로 격리하고 나머지로 판정을 이어가는 방식은 판정 의미·완료 조건·화면 표시를 바꾸는 spec 변경이다. 자동 보정(제약 삭제·값 수정)은 강제 게이트상 금지라 대안이 아니다.
 - 후속: 항목 단위 실패 설계(실패 항목 표시, 그 항목이 판정 근거에서 빠질 때 판정 상한, 사람 검토 흐름, 감사)를 별도 기능으로 설계하고 승인 뒤 실제 판정 1건으로 증명한다. 검증기 결함(인용 위치·범위 기호)은 B37에서 고쳤다.
@@ -69,7 +69,7 @@
 - 현재 범위와 후속: 검증 스위치와 연속 문단 허용은 적용했다. 모델의 ID 종류 혼동·근거
   작성 방식을 해결하려면 새 불변 정책의 명시적인 출력 예시와 생성 품질 검증이 필요하다.
   기존 실행/정책/응답은 보존하고, 후속 품질 작업에서 고정 응답 재검사와 실제 전체 생성을
-  구분해 확인한다. [실제 검증 기록](../../validation-runs/20260922-narrative-review/live-validation.md).
+  구분해 확인한다. 실제 검증 기록(`docs/validation-runs/20260922-narrative-review/live-validation.md`, git 이력).
 
 ## 심층 보고서의 빈 결과·서버 설명에도 무관한 claim 연결이 필요해진다 (2026-09-22, 미해결)
 
@@ -80,7 +80,7 @@
   묶음 제한 설명이 검증을 통과하지 못할 수 있다. renderer와 validator를 함께 고쳐야 한다.
 - 현재 범위와 후속: 계획 작업이므로 제품 변경은 하지 않았다. 서버 상태 설명과 원문 사실을
   구분하는 새 계약을 정의하고, 임의 note로 사실 검증을 우회하지 않게 한다.
-  수정 순서와 인수 기준은 [심층검토 수정 계획](../../0922_deep-review-improvement/plan.md)에 있다.
+  수정 순서와 인수 기준은 [심층검토 수정 계획](../../specs/0922_deep-review-improvement/plan.md)에 있다.
 
 ## 심층 재실행 상태가 이전 완료 보고서 조회를 막고 문서 기준 차이를 설명하지 않는다 (2026-09-22, 미해결)
 
@@ -191,7 +191,7 @@
 - 증상: adapter가 `done_reason=length`를 확인하자마자 `truncated_output` 예외를 발생시켜 실패 응답의 `prompt_eval_count`, `eval_count`, thinking/content 길이와 duration을 결과에 옮기지 못한다. 해당 batch의 25건은 오류와 분배 latency만 갖고 input/output token은 `null`로 남는다.
 - 영향: 생성 길이 제한이 직접 종료 원인이라는 것은 확인할 수 있지만, batch 크기, thinking 길이, 최종 JSON 길이가 각각 한도 소진에 얼마나 기여했는지 분해할 수 없다. 현재 실행은 747/997건만 성공했으므로 Qwen을 운영 후보로 승인하거나 안전한 batch·token 값을 결정할 근거가 부족하다.
 - 지금 해결할 수 없는 이유: 현재 범위는 기존 불변 실행의 사후 결과 기록이다. 실패 batch telemetry를 추가하려면 method-result 계약의 batch 진단 표현, 비밀·본문 비보존 경계, renderer와 단위 테스트를 함께 변경하고 새 run ID로 live 재검증해야 한다.
-- 접근 방법: 실패 응답 본문은 저장하지 않고 `done_reason`, prompt/eval token count, total/eval duration, thinking/content 문자 수만 안전한 batch 진단으로 보존한다. 동일 실패 batch에서 기준 설정을 재현한 뒤 batch 10, `num_predict=8192`, 모델이 지원하는 thinking 설정을 한 변수씩 분리해 비교한다. 상세 증거와 artifact hash는 [`20260828-order-plan-screening-interim-v4.md`](../../validation-runs/20260828-order-plan-screening-interim-v4.md)에 기록했다.
+- 접근 방법: 실패 응답 본문은 저장하지 않고 `done_reason`, prompt/eval token count, total/eval duration, thinking/content 문자 수만 안전한 batch 진단으로 보존한다. 동일 실패 batch에서 기준 설정을 재현한 뒤 batch 10, `num_predict=8192`, 모델이 지원하는 thinking 설정을 한 변수씩 분리해 비교한다. 상세 증거와 artifact hash는 `docs/validation-runs/20260828-order-plan-screening-interim-v4.md`(git 이력)에 기록했다.
 
 ## 현재 보고서 renderer가 screening v3를 처리하지 못한다
 
@@ -353,11 +353,11 @@
   추정 보완이나 기존 snapshot 변경으로 해결하지 않았다.
 - 후속: 근거 위치를 보존한 구조화와 새 버전 import, 원문 대비 fact 포함 범위 검사,
   자격·인력·실적 증빙의 정보 공백 확인.
-- 상세: [실행 범위와 프로필 점검](../../validation-runs/20260907-prespec-overview-profile-check.md).
+- 상세: 실행 범위와 프로필 점검(`docs/validation-runs/20260907-prespec-overview-profile-check.md`, git 이력).
 - 후속 실행: 기존 43 facts를 모두 보존한 별도 구조화 후보 117 facts를 profile version 2로
   가져왔다. 원문의 명시적 confirmed 항목과 unknown 후보를 구분했고 활성화하지 않았다.
   실제 자격·실적·가용 인력의 정보 공백은 남아 있다.
-  [실제 실행 기록](../../validation-runs/20260907-prespec-overview-live.md) 참고.
+  실제 실행 기록(`docs/validation-runs/20260907-prespec-overview-live.md`, git 이력) 참고.
 
 ## 개요의 조건부 권고가 확인 기한을 생성하고 위치 검증이 주장 의미를 보장하지 않는다
 
@@ -368,7 +368,7 @@
 - 이번 조치: 별도 실험의 최종 결과 10건을 `needs_human_review`로 분류하고 validation 감사에 사유를 남겼다. 운영 리뷰·정책·snapshot에 반영하지 않았으며 원응답을 수정하지 않았다.
 - 현재 해결하지 않은 이유: 요청 범위는 10건 실제 테스트다. 확인 기한의 소유권과 조건부 권고 계약, 다중 문단 근거 및 의미 검증을 함께 정해야 하므로 기한을 임의 보정하거나 출력 계약을 조용히 변경하지 않았다.
 - 후속: 승인된 확인 기한이 없는 경우의 권고 규칙을 명시하고, claim별 다중 근거·숫자·날짜·완료 상태의 검증과 사람 확인 경계를 보완한다.
-- 증거: [Qwen 10건 개요 검토 실험](../../validation-runs/20260907-prespec-overview-qwen-10.md).
+- 증거: Qwen 10건 개요 검토 실험(`docs/validation-runs/20260907-prespec-overview-qwen-10.md`, git 이력).
 - 종결(2026-09-11): `추진 검토|조건부 추진 검토|보류|검토 종료` 권고와 `verification_due_at`
   필드 자체가 [ADR-0054](../decisions/0054-prespec-overview-mvp-rewrite.md)로 삭제됐다. 새
   `prespec_overview_run`의 result에는 권고·확인 기한이 없고 claim별 인용 대조·필수 섹션만
@@ -377,7 +377,7 @@
 
 ## 2026-09-03~09-07 실제 참조 실행의 개요 검증 실패
 
-- 확인: 2026-09-07. 실행 근거: [기간별 실제 실행](../../validation-runs/20260907-pipeline-20260903-20260907-live.md).
+- 확인: 2026-09-07. 실행 근거: 기간별 실제 실행(`docs/validation-runs/20260907-pipeline-20260903-20260907-live.md`, git 이력).
 - 재현: 문서 범위가 `ready`인 R26BD00271850·R26BD00271607·R26BD00271523을
   승인 사설 Ollama `qwen3.8:27b`의 고정 digest·개요 정책으로 실행했다.
 - 결과: 앞의 2건은 `validation_failed`, 마지막 1건은 `prompt_rejected`로 종료됐다.
@@ -392,7 +392,7 @@
 
 - 2026-09-08 회사 핏 구현의 전체·집중 회귀에서도 같은 2개가 재현됐다. 이번 변경의
   회사 핏/설정/슬롯/경계 74개와 PostgreSQL 집중 44개는 통과했으며, 기존 Protocol 공백은
-  별도 수정 대상으로 유지한다([검증 기록](../../validation-runs/20260908-prespec-company-fit.md)).
+  별도 수정 대상으로 유지한다(검증 기록(`docs/validation-runs/20260908-prespec-company-fit.md`, git 이력)).
 - 확인: 2026-09-07 전체 백엔드 검사에서 1,528 통과·2 실패·5 skip. 실패 2건만
   다시 실행해 동일하게 재현했다.
 - 실패: `tests/deep_review/test_prespec_projection.py::test_projection_satisfies_the_lifecycle_protocol`,
@@ -443,7 +443,7 @@
   남으므로 C-2 탈락보다는 피해가 작다. 지금은 기본 비활성이고, 켜도 참조 실행 모드가 아니면
   `company_fit_reference_only`로 닫히므로(`company_fit.py:245-246`) 운영에 닿지 않는다.
 - 지금 해결할 수 없는 이유: 일일 운영 고도화 계획은 C-2 게이트만 구현하고 C-2 밖의 품질 장치는 지도와 선행조건만
-  기록하기로 했다([`0918_daily-operation/intent.md` §6](../../0918_daily-operation/intent.md) 결정 26). 회사 핏 gold를
+  기록하기로 했다([`0918_daily-operation/intent.md` §6](../../specs/0918_daily-operation/intent.md) 결정 26). 회사 핏 gold를
   만들 표본과 사람 정답이 아직 없고 임계값은 사람 결정이다.
 - 후속 방향: 회사 핏을 운영에서 켜기 전에 게이트를 먼저 만든다(별도 계획). C-2 게이트 구조 — 승인된 사람 gold,
   NULL이면 `미측정`인 임계값, 같은 묶음 2 pass, append-only evaluation — 를 다시 쓸 수 있다. `quality_status` CHECK에
@@ -463,7 +463,7 @@
   실패하면 `needs_human_review`다. 그러나 경고로 완화된 수량·날짜 불일치가 담당자에게 얼마나 자주 틀린 정보로
   닿는지 셀 방법이 없고, 품질 표식이 참조 표식에서 벗어날 근거도 쌓이지 않는다.
 - 지금 해결할 수 없는 이유: 사람이 근거와 함께 읽는 지점이라 정식 게이트보다 표본 점검이 맞다고 판단했지만
-  ([`0918_daily-operation/intent.md` §6](../../0918_daily-operation/intent.md)), 라벨 축·저장 table·REST·화면을 새로
+  ([`0918_daily-operation/intent.md` §6](../../specs/0918_daily-operation/intent.md)), 라벨 축·저장 table·REST·화면을 새로
   설계해야 하고 일일 운영 고도화 계획은 C-2만 구현한다(결정 26).
 - 후속 방향: 별도 계획으로 개요 run 단위의 표본 점검 라벨(주장별 맞음·틀림·원문 없음 등)을 append-only로 담을 자리를
   만들고, 경고 코드별 발생률과 라벨을 대조해 경고로 둘지 실패로 올릴지 다시 정한다. 라벨이 쌓이기 전까지
@@ -537,4 +537,4 @@
 ## 2026-09-22 심층검토 고도화의 처리 범위
 
 
-이번 심층검토 점검 사항은 새 선택형 `narrative-v2` 경로에서 입력 관련도 선택·공유 근거 보존·전체 종합·명시적 절/역할·본문 전량 보존·실제 검증 집계로 보완했다. 이전 보고서 읽기와 초안 보호도 제품 코드에 반영했다. [구현 기록](../../0922_deep-review-improvement/plan.md). 이후 사용자 요청으로 운영에 적용해 실제 참조 검증을 진행했다([실행 기록](../../validation-runs/20260922-narrative-review/live-validation.md)). v1 생성 경로와 저장 결과는 그대로이므로 기존 형식의 문제까지 해결 완료로 닫지 않는다. 회사 자료 선택의 의미 회수율, 큰 원문/예외의 누락, 문서 기준 최신성, 실제 사용성은 후속 평가로 남는다.
+이번 심층검토 점검 사항은 새 선택형 `narrative-v2` 경로에서 입력 관련도 선택·공유 근거 보존·전체 종합·명시적 절/역할·본문 전량 보존·실제 검증 집계로 보완했다. 이전 보고서 읽기와 초안 보호도 제품 코드에 반영했다. [구현 기록](../../specs/0922_deep-review-improvement/plan.md). 이후 사용자 요청으로 운영에 적용해 실제 참조 검증을 진행했다(실행 기록(`docs/validation-runs/20260922-narrative-review/live-validation.md`, git 이력)). v1 생성 경로와 저장 결과는 그대로이므로 기존 형식의 문제까지 해결 완료로 닫지 않는다. 회사 자료 선택의 의미 회수율, 큰 원문/예외의 누락, 문서 기준 최신성, 실제 사용성은 후속 평가로 남는다.

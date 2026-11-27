@@ -584,11 +584,11 @@ claim 대상이 없음을 먼저 확인한다. 그 다음 합성 analysis worker
 
 ## 상시 실행으로 켜기 — 사전규격 1단계
 
-[사전규격 단계 수정안](../1118_launch-hardening/사전규격-단계-수정안.md) §6의 2~4단계다. 2026-11-20에
+[사전규격 단계 수정안](../specs/1118_launch-hardening/사전규격-단계-수정안.md) §6의 2~4단계다. 2026-11-20에
 백업·빌드·web/analysis-worker 교체를 마쳤고, 별도 승인 뒤 첨부 worker의 추적 범위 조회 권한을 적용해
 취득 완료를 확인했다. LiteLLM의 입력 상한 정보를 보강한 뒤 개요를 재활성화했고, 대표 실제 공고에서
 첨부 취득·변환·개요·검토 목록을 확인했다. 다음 자동 C-2와의 간섭 및 전체 처리율 확인은 남아 있다.
-[운영 이미지 배포 기록](../validation-runs/20261120-prespec-stage1/README.md)
+운영 이미지 배포 기록(`docs/validation-runs/20261120-prespec-stage1/README.md`, 저장소에 없음)
 
 **세 서비스가 같은 값을 봐야 한다.** 개요 run을 등록하는 곳은 web(사람의 범위 확정), analysis-worker(실행),
 prespec-attachment-worker(취득 종결 뒤 자동 준비·enqueue) 셋이다. 셋의 `BIDOPS_PRESPEC_OVERVIEW_ENABLED`와
@@ -776,7 +776,7 @@ v7이며 v8 활성화는 별도 품질 비교와 정책 변경 확인을 요구�
 2026-11-19부터 사전규격 상세의 사용자 요청 Luna 요청 화면은 내려갔다(사전규격 단계 수정안 §3 B).
 백엔드 서비스·경로는 RL 판정이 같이 쓰므로 남아 있다. 아래는 그 경로의 과거 적용 기록이다.
 
-[단계별 적용 명령과 롤백](../0922_luna-deep-review/apply.md)이 이번 적용 절차다.
+[단계별 적용 명령과 롤백](../specs/0922_luna-deep-review/apply.md)이 이번 적용 절차다.
 0032 migration, 전용 runner 이미지/secret/egress, 불변 Luna 정책, web/worker 환경을
 묶어 적용한다. 각 운영 단계 직전 확인을 받는다. 구현·가짜 실행기 검증으로 실제
 Luna 인증·모델 접근·실자료 품질이 확인됐다고 쓰지 않는다. 심층 자동 시작 기본값은
@@ -787,4 +787,4 @@ off이며 수집·문서 준비·개요를 끄지 않는다.
 0033 입력/승인/단계 표, runner의 별도 schema, web/analysis/첨부 worker 이미지가 필요하다.
 기존 회사 프로필·Luna v3 활성 정책은 유지하며 새 가정 분석 입력에 별도 계약/코드 hash를
 동결한다. 운영 migration·서비스 교체·실제 전송은 각각 직전 확인한다. 준비·복구·검증
-내역은 [가정 분석 계획](../0923_assumption-analysis/plan.md#운영-적용-준비와-직전-확인)을 따른다.
+내역은 [가정 분석 계획](../specs/0923_assumption-analysis/plan.md#운영-적용-준비와-직전-확인)을 따른다.

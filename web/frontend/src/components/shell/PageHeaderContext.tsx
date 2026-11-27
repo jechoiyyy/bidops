@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
 /**
- * 패널 헤더의 글자를 화면이 셸에 알리는 context(2026-11-19 최종 시안, `docs/1119_kstyle-shell/`).
+ * 패널 헤더의 글자를 화면이 셸에 알리는 context(2026-11-19 최종 시안, `docs/specs/1119_kstyle-shell/`).
  *
  * 패널 헤더는 셸(`TopBar`)이 그린다 — 화면 이름(작은 글자) · 문장형 제목 `<h1>` · 한 줄 설명 ·
  * 오른쪽 액션(`#page-header-actions`) · 아래 탭(`#page-header-tabs`). `<h1>`을 셸이 쥐는 이유는

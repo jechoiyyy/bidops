@@ -241,7 +241,7 @@ export function PreSpecsPage() {
   const boundaryLandingRef = useRef<{ offset: number; direction: "next" | "previous" } | null>(null);
   // 상세 pane 바닥의 인라인 추적 폼이 `onDirtyChange`로 알려 주는 미저장 입력
   // (사유·담당자). route 이동은 컨트롤이 스스로 막으므로 여기서는 행 전환·필터
-  // 변경·상세 이동·페이지 이동만 확인한다(docs/0915_ui-redesign/spec.md §3.3).
+  // 변경·상세 이동·페이지 이동만 확인한다(docs/specs/0915_ui-redesign/spec.md §3.3).
   const [trackingFormVersion, setTrackingFormVersion] = useState(0);
   const [trackingDirty, setTrackingDirty] = useState(false);
   const trackingGuard = useUnsavedGuard(trackingDirty, {

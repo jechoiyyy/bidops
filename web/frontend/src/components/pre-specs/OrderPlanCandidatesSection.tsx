@@ -21,7 +21,7 @@ import "../../styles/opportunities-relaxed.css";
 
 /**
  * 사전규격 상세 ⑥ 안의 `발주계획 후보 N건` 구역
- * (docs/0917_opportunity-tracking/spec.md §4.2·§4.4·§11.4).
+ * (docs/specs/0917_opportunity-tracking/spec.md §4.2·§4.4·§11.4).
  *
  * 이 사전규격을 target으로 하는 `후보 확인 대기` 연결과 그 owner 사업기회의 발주계획
  * 요약을 **서버가 준 그대로** 보여 준다. 이름·기관이 비슷하다는 이유로 화면이 같은

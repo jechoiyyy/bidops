@@ -21,7 +21,7 @@
 
 ```bash
 # 1) 테마·셸 적용(앞선 작업)
-git add web/frontend docs/ADR.md docs/tracking/status.md docs/tracking/decisions/0073-rootlab-real-company-ax-redefinition.md docs/1016_rootlab-redefinition docs/reference
+git add web/frontend docs/ADR.md docs/tracking/status.md docs/tracking/decisions/0073-rootlab-real-company-ax-redefinition.md docs/specs/1016_rootlab-redefinition docs/reference
 git commit -m "feat(frontend): RL 시안 테마 토큰 교체와 공통 셸 적용 (ADR-0048 개정)"
 # 2) RL 명세·큐
 git add AGENTS.md CLAUDE.md docs/work docs/reference/company-homepage-profile.md docs/reference/company-preferences.md

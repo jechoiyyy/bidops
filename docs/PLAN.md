@@ -6,13 +6,13 @@
 
 | 범위 | 확인된 결과 | 근거 |
 |---|---|---|
-| C-2 제품화·일일 실행 | 제품 adapter·DB·API·worker·화면·정책·품질 게이트 구현. v4는 WSL2 이력, Mac은 v5 | [일일 운영 결정](0918_daily-operation/plan.md), [ADR-0072](tracking/decisions/0072-c2-mac-litellm-ollama.md) |
-| C-2 v5 품질 | 2026-10-14 두 pass 게이트 통과. 나쁜 쪽 recall 100%, precision 39.7%, 중요 누락 0, 하루 검토량 73 | [측정 증거](validation-runs/20261014-c2-mac-v5-gate/README.md). PoC 기준이며 새 정책에 승계하지 않음 |
+| C-2 제품화·일일 실행 | 제품 adapter·DB·API·worker·화면·정책·품질 게이트 구현. v4는 WSL2 이력, Mac은 v5 | [일일 운영 결정](specs/0918_daily-operation/plan.md), [ADR-0072](tracking/decisions/0072-c2-mac-litellm-ollama.md) |
+| C-2 v5 품질 | 2026-10-14 두 pass 게이트 통과. 나쁜 쪽 recall 100%, precision 39.7%, 중요 누락 0, 하루 검토량 73 | 측정 증거(`docs/validation-runs/20261014-c2-mac-v5-gate/README.md`, git 이력). PoC 기준이며 새 정책에 승계하지 않음 |
 | RL-00~02 | 회사 근거·브리핑/Slack·타임라인 구현·격리 검증 | [현황](tracking/status.md), 각 기능 status.json |
-| RL-03 | 카드 추출·회사 대조·역할 판단·종합·화면 구현. import 기본 정책 v11(운영 이미지), RL-10 브랜치는 v12(대조 규칙 v2) | [실제 실행](validation-runs/2026-10-17-rl/RL-03/README.md), `app/core/config.py` |
-| RL-04 | 제안서 6절·수정·검토·PDF 구현. 실제 1건은 partial(4/6절 완료) | [초안 실행](validation-runs/2026-10-17-rl/RL-04/README.md) |
+| RL-03 | 카드 추출·회사 대조·역할 판단·종합·화면 구현. import 기본 정책 v11(운영 이미지), RL-10 브랜치는 v12(대조 규칙 v2) | 실제 실행(`docs/validation-runs/2026-10-17-rl/RL-03/README.md`, git 이력), `app/core/config.py` |
+| RL-04 | 제안서 6절·수정·검토·PDF 구현. 실제 1건은 partial(4/6절 완료) | 초안 실행(`docs/validation-runs/2026-10-17-rl/RL-04/README.md`, git 이력) |
 | RL-05 | 평가·사람 결정 완료, 인수 reject | [인수 결과](validation-runs/2026-10-19-rl/RL-05/README.md): 판정 일치 3/10, 차단 조건 recall 0/7 |
-| 운영 배포 | 11월 19일 main cfc5942·0042·이미지 main-20261119, C-2 v6(상위 150건) 게이트 통과·active·일일 ON, analysis-worker 기동, RL 분석·개요 false, cron 미설치 | [C-2 Top150 기록](validation-runs/20261119-c2-top150/README.md), [앞 단계 운영 기록](validation-runs/20261118-launch-hardening-deploy/README.md). 운영은 Mac 전용 |
+| 운영 배포 | 11월 19일 main cfc5942·0042·이미지 main-20261119, C-2 v6(상위 150건) 게이트 통과·active·일일 ON, analysis-worker 기동, RL 분석·개요 false, cron 미설치 | [C-2 Top150 기록](validation-runs/20261119-c2-top150/README.md), 앞 단계 운영 기록(`docs/validation-runs/20261118-launch-hardening-deploy/README.md`, git 이력). 운영은 Mac 전용 |
 
 기존 C-2 Phase 0~5의 완료된 구현 계획·과거 실패 기준선은 git 이력에서 찾는다. C-2 계약과 결정은 [contracts](contracts.md), [ADR-0037](tracking/decisions/0037-order-plan-c2-bm25-top300-qwen.md), [ADR-0060](tracking/decisions/0060-c2-policy-db-row-authority.md), [ADR-0061](tracking/decisions/0061-daily-collection-window.md)에 유지한다. 기존의 P5-0 회귀 수정·gold 승인 대기를 현재 착수점으로 반복하지 않는다.
 
@@ -28,7 +28,7 @@ python3 scripts/feature_status.py doctor _
 - RL-07 판정 UX: `review`, 0/6 STEP. 주의 포인트·판정 요약·사람 확인 항목·근거 연결·1280 배치·브리핑 진입 개선. [기능 계획](work/groups/RL/features/RL-07-verdict-ux/plan.md) 범위이며 회사 대조 알고리즘은 바꾸지 않는다.
 - RL-06 로컬 LLM 최적화: `review`, 0/4 STEP. RL-04·03·05 의존과 품질 인수 실패를 확인한 뒤 착수한다. 모델 교체나 운영 전송은 이 문서 갱신으로 승인되지 않는다.
 - RL-11 실제 사전규격 엔진: RL-09의 mock 연결을 이어 회사 위키 매핑, 승인된 Luna 분석, 장문·차단·원문 검증, 동일 입력 비교와 실무 상세 화면을 준비한다. [명세와 계획](work/groups/RL/features/RL-11-live-prespec-engine/plan.md)의 현재 상태는 실행 큐에서 확인한다.
-- 큐의 유효 단계는 저장된 `phase=done`과 다를 수 있다. `queue _ show`가 현재 입력에 대한 증거를 검사하기 때문이다. [RL-07 선행 증거 기록](work/_runs/rl07-preflight-20261020/evidence-reuse.md)을 대조하고 소스 동일성과 변경 범위에 맞춰 증거를 재사용한다. 문서 수정만으로 제품 테스트·실제 호출을 반복하지 않는다.
+- 큐의 유효 단계는 저장된 `phase=done`과 다를 수 있다. `queue _ show`가 현재 입력에 대한 증거를 검사하기 때문이다. RL-07 선행 증거 기록(`docs/work/_runs/rl07-preflight-20261020/evidence-reuse.md`, git 이력)을 대조하고 소스 동일성과 변경 범위에 맞춰 증거를 재사용한다. 문서 수정만으로 제품 테스트·실제 호출을 반복하지 않는다.
 
 ## 인수 실패와 후속 명세가 필요한 작업
 

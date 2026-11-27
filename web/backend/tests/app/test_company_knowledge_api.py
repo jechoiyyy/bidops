@@ -50,7 +50,7 @@ from tests.deep_review.test_company_knowledge import (  # noqa: F401 - shared fi
 )
 
 
-FIXTURES = Path(__file__).parents[4] / "docs" / "demo-fixtures"
+FIXTURES = Path(__file__).parents[1] / "fixtures" / "demo-companies"
 ONTOLOGY_FILE = FIXTURES / "ontology.v1.json"
 COMPANY_FILES = tuple(sorted((FIXTURES / "companies").glob("*.v1.json")))
 FORBIDDEN_PUBLIC_KEYS = (

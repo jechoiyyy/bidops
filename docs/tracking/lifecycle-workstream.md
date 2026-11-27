@@ -27,9 +27,9 @@
 
 ## 조사 근거
 
-- [생애주기 연결 조사](../validation-runs/20260828-lifecycle-linkage-survey.md): 공식 연결 키·검색 후보 경계.
-- [발주계획 종단 관측](../validation-runs/20260831-order-plan-longitudinal.md): 횡단면 채움률을 재조회 효과로 단정하지 않는 근거. 일일 창은 ADR-0061이 대체했다.
-- [사전규격 채움률](../validation-runs/20260831-prespec-fill-curve.md), [첨부 생존](../validation-runs/20260831-prespec-attachment-survival.md), [문서 구조](../validation-runs/20260831-prespec-rfp-structure.md): 당시 표본의 관측이며 현재 전체 모집단 보장이 아니다.
+- 생애주기 연결 조사(`docs/validation-runs/20260828-lifecycle-linkage-survey.md`, git 이력): 공식 연결 키·검색 후보 경계.
+- 발주계획 종단 관측(`docs/validation-runs/20260831-order-plan-longitudinal.md`, git 이력): 횡단면 채움률을 재조회 효과로 단정하지 않는 근거. 일일 창은 ADR-0061이 대체했다.
+- 사전규격 채움률(`docs/validation-runs/20260831-prespec-fill-curve.md`, git 이력), 첨부 생존(`docs/validation-runs/20260831-prespec-attachment-survival.md`, git 이력), 문서 구조(`docs/validation-runs/20260831-prespec-rfp-structure.md`, git 이력): 당시 표본의 관측이며 현재 전체 모집단 보장이 아니다.
 
 ## 이전 작업 기록
 

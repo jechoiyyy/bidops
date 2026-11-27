@@ -3,7 +3,7 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 import { mockApi } from "./api-mock";
 
 /**
- * 발주계획 선별 정책 탭(C-2 활성화 화면) — `docs/0918_daily-operation/spec.md` §11.
+ * 발주계획 선별 정책 탭(C-2 활성화 화면) — `docs/specs/0918_daily-operation/spec.md` §11.
  *
  * 화면이 **서버가 말한 활성화 조건을 그대로 보여 주는가**를 본다: blocker가 있으면
  * 활성화 단추가 닫히고 이유가 보이는지, `미측정`·`미달`·`통과`가 서로 다른 표면인지,

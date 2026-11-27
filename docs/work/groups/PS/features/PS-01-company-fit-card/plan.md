@@ -38,7 +38,7 @@
 | `web/frontend/tests/api-mock.ts`, `web/frontend/scripts/mock-api.ts` | 수정 | `?fit=` 스위치, 목록 fixture |
 | `web/frontend/tests/company-fit.spec.ts`, `web/frontend/tests/pre-specs.spec.ts` | 수정 | T12·T13 |
 | `docker/docker-compose.prod.yml` | 수정 | 카드 ro 마운트·env(web·analysis-worker) |
-| `docs/business-rules.md`, `docs/contracts/deep-review.md`, `docs/contracts/lifecycle-rest.md`, `docs/contracts/prespec-overview.md`, `docs/operations/prespec-reference.md`, `docs/ADR.md`, `docs/tracking/decisions/0080-prespec-company-fit-card-suggest.md`(신규), `docs/work/constitution/roadmap.md`, `docs/validation-runs/20261127-company-fit-probe/README.md` | 수정·신규 | spec "큰 틀 문서와의 관계" |
+| `docs/business-rules.md`, `docs/contracts/deep-review.md`, `docs/contracts/lifecycle-rest.md`, `docs/contracts/prespec-overview.md`, `docs/operations/prespec-reference.md`, `docs/ADR.md`, `docs/tracking/decisions/0080-prespec-company-fit-card.md`(신규), `docs/work/constitution/roadmap.md`, `docs/validation-runs/20261127-company-fit-probe/README.md` | 수정·신규 | spec "큰 틀 문서와의 관계" |
 
 ADR 번호는 0080을 쓴다. main checkout에 미커밋 0078·0079 파일이 있어 번호가 겹치지 않게 한다.
 

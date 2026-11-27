@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useSyncExternalStore, type InputHTMLAttribute
  * 담당자 이름을 이 브라우저에 기억해 두는 자리.
  *
  * 담당자 이름은 화면마다, 한 화면 안에서도 여러 번 요구됐다. 서버에는 감사
- * 표식으로만 쓰이고 인증이 아니므로(`docs/security.md`, AGENTS.md) 값 자체를
+ * 표식으로만 쓰이고 인증이 아니므로(`docs/security.md` (git 이력), AGENTS.md) 값 자체를
  * 브라우저에 남겨도 권한이 생기지 않는다. 저장 위치는 이 브라우저의
  * localStorage 하나이며 서버로 따로 보내지 않는다.
  */

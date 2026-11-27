@@ -755,7 +755,7 @@ test("개요 결과 본문과 첫 주장은 한 번만 렌더된다", async ({ p
   await expect(detail.locator(".pre-specs-detail-tasks")).not.toContainText(firstClaim);
 });
 
-// docs/0915_ui-redesign/spec.md §6 A3 — 긴 판단 문장을 말줄임하지 않고
+// docs/specs/0915_ui-redesign/spec.md §6 A3 — 긴 판단 문장을 말줄임하지 않고
 // 폭 안에서 줄바꿈한다. 높이가 넘치면 본문만 스크롤하고 추적 조작은 남는다.
 test("우측 정보 영역은 긴 내용을 생략하지 않고 필요하면 본문만 스크롤한다", async ({ page }) => {
   // 이 spec은 `app` project(1440×900)로 돌므로 최소 지원 폭을 여기서 만든다.
@@ -962,7 +962,7 @@ test("목록 우측 상세의 고정 영역에서 입찰 참여 안내를 반복
   await expect(page.getByText("입찰 참여 여부는 최종 Go/No-Go에서 결정", { exact: true })).toHaveCount(0);
 });
 
-// docs/0915_ui-redesign/spec.md §3.2 — 주의사항 한 줄은 결정적 산출이고 모델
+// docs/specs/0915_ui-redesign/spec.md §3.2 — 주의사항 한 줄은 결정적 산출이고 모델
 // 호출이 없다. 화면 없이 순수 함수만 부른다(화면 검사는 P2-C가 붙인다).
 test.describe("preSpecCautions (spec §3.2)", () => {
   const cautionItem = (overrides: Partial<PreSpecListItem> = {}): PreSpecListItem => ({

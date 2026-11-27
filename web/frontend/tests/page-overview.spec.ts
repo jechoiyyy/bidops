@@ -71,7 +71,7 @@ for (const width of [1280, 1440]) {
     }));
     await page.goto('/pre-specs/991');
     // 상세 세로 6단에서 검증 라벨·품질 표식은 ③ 카드 머리가, 요약 한 줄은 ① 머리
-    // 카드가 갖는다(docs/0915_ui-redesign/spec.md §4). 참여 조건·위험 및
+    // 카드가 갖는다(docs/specs/0915_ui-redesign/spec.md §4). 참여 조건·위험 및
     // 미확인 사항은 심층 검토 영역(④)이 갖고, 개요 결과에서는 읽지 않는다
     // (ADR-0057 결정 1). 확인하는 사실은 그대로다.
     const tasks = page.locator('#ps-tasks');
@@ -105,7 +105,7 @@ for (const width of [1280, 1440]) {
     await expect(relevance.locator('.ps-risks')).toHaveCount(0);
 
     // 주장 ID는 원문·첨부 구역에 없고 `처리 상태·기술 정보` 안의 접힌 `기술 정보`에서 전문으로 읽힌다
-    // (docs/0921_practitioner-screens/spec.md §3.2).
+    // (docs/specs/0921_practitioner-screens/spec.md §3.2).
     await expect(page.locator('#ps-evidence .ps-loc')).toHaveCount(0);
     await expect(page.locator('#ps-evidence code')).toHaveCount(0);
     await expect(page.locator('#ps-process .ps-collapsed dl[aria-label="현재 개요 결과 식별 정보"]'))

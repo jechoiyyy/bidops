@@ -51,7 +51,7 @@
   `expected_ids` 11개(prefix 11개) vs 본문 관측 ID 50개(빠진 expected 0, 추가 39). 회사 경로는 legacy와 같은
   엄격 일치를 유지하므로 이 결함이 해결될 때까지 요구사항 표가 있는 실제 공고는 어느 경로로도 심층에 들어가지
   않는다. DEMO-05 대표 공고 선정은 모델 호출 전에 inventory 일치를 먼저 검사한다
-  (`docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md`).
+  (`docs/validation-runs/2026-10-10-company-demo/DEMO-03-grounded-analysis/README.md` (git 이력)).
 
 ## 판정 입력에 참여 판단용 날짜·비율 항목이 없고 늘리려면 검증기 여섯 곳을 함께 열어야 한다 (2026-09-21, 미해결)
 
@@ -65,7 +65,7 @@
   `skills/bidops-screen/scripts/build_screening_results.py:583`(선택 projection 목록) →
   `loader.py:2934-2946,3052-3082`(`_SCREENING_*_KEYS` 허용 키 집합). 한 곳만 열면 기존 회차 적재가 깨지거나 새
   필드가 조용히 버려진다. 과거 회차는 소급하지 않으므로 채워지지 않는 칸이 반드시 생긴다.
-- 지금 해결하지 않은 이유: 2026-09-21 사용자 결정 7(`docs/0921_practitioner-screens/intent.md` §3·§4)로 실무
+- 지금 해결하지 않은 이유: 2026-09-21 사용자 결정 7(`docs/specs/0921_practitioner-screens/intent.md` §3·§4)로 실무
   화면 고도화 범위 밖으로 분리했다. **미수집 / 원문 빈 값 / 해석 실패 / 정상**의 4상태 계약을 먼저 설계해야
   한다. 그 계약 없이 필드만 더하면 빈 값이 "그런 조건이 없음"으로 읽혀
   [ADR-0066](../decisions/0066-practitioner-ops-information-boundary.md) 결정 4(뜻이 다른 빈 값을 합치지 않는다)를
@@ -75,7 +75,7 @@
 
 ## host 측정이 정상 PDF를 손상 문서로 판정한다
 
-- 재현 조건: poppler가 없는 host에서 `app.document_mcp.processor.DocumentProcessor.process()`에 정상 PDF를 넣는다. 실측은 [`20260831-prespec-rfp-structure.md`](../../validation-runs/20260831-prespec-rfp-structure.md)에 있다.
+- 재현 조건: poppler가 없는 host에서 `app.document_mcp.processor.DocumentProcessor.process()`에 정상 PDF를 넣는다. 실측은 `docs/validation-runs/20260831-prespec-rfp-structure.md`(git 이력)에 있다.
 - 증상: 실제 조달 PDF 16건 중 15건이 `malformed_pdf`가 된다. 같은 파일을 `bidops-mock-t7-web` 이미지 안에서 처리하면 16건 전부 통과한다.
 - 영향: 결함이 아니라 측정 함정이다. host에서 문서 파이프라인을 재면 처리 실패율이 크게 부풀려지고, 그 수치로 "PDF는 못 쓴다" 같은 잘못된 결론을 내리게 된다. T-21 초기 측정이 실제로 이 오류를 냈다.
 - 상태: **원인 확인.** 표준 PDF 파서가 실패하면 poppler fallback으로 넘어가는데(`processor.py:315`) `pdftotext`·`pdfinfo`가 없으면 fallback이 `malformed_pdf`를 던진다(`processor.py:447-449`). `poppler-utils`는 런타임 이미지에만 있다(`web/Dockerfile:48`).
@@ -120,7 +120,7 @@
 - 영향: 본문이 있어도 검토 대기하거나 다른 절·목차가 개요 입력으로 확정된다. locator 검증 통과를 본문 선택·사실 정확성 검증으로 사용할 수 없다.
 - 현재 범위와 미해결 이유: 원인 조사 및 파싱 비교 실험이며 운영 파서·불변 snapshot을 수정하지 않았다. 어휘만 늘리는 수정으로는 목차와 계층 오류가 남는다.
 - 후속: 동일 원문의 결정적 파서·Qwen·직접 검토를 비교하고 제목 정규화·목차 배제·표 제목·절 계층을 함께 검증한다. 기존 결과는 보존하고 수정 후 새 버전으로 재분석한다.
-- 증거: [미완료 52건 분석](../../validation-runs/20260907-prespec-failure-analysis.md).
+- 증거: 미완료 52건 분석(`docs/validation-runs/20260907-prespec-failure-analysis.md`, git 이력).
 - 추가 재현(2026-09-08): `R26BD00271191`(notice 142)의 완료 attempt
   `992b2824-3573-4c2f-8c8a-29b02f95cc6b`는 감리용역 자체가 아닌 감리대상 사업의
   개요를 발췌했다. 구조 `22541eb7-4e1b-4a0a-9ec4-e0d329dbc774`의 상위 절
@@ -225,7 +225,7 @@
   `22541eb7…` 결속, 대응표 `38958774…`)과 target `f7c73503-8f70-47d4-a309-c9fbd9cfd122`(`ready`, 4~12쪽)를 31초에 준비했다.
   Canvas snapshot `e68670e0…`·target `200e9557…`은 보존됐고 attempt는 없다. `GET /api/document-structures/22541eb7…/pdf`가
   이 PDF를 돌려주고 segments 77건이 `mapped` 35·`partial` 42다. `current`는 여전히 `dbbc7b5f…`이며 아래 projection 항목은 열려 있다
-  ([R6 기록](../../validation-runs/2026-09-10-rhwp-pipeline.md)).
+  (R6 기록(`docs/validation-runs/2026-09-10-rhwp-pipeline.md`, git 이력)).
 - 사실 정정(2026-09-11): 위 "조치(2026-09-09)"가 기록한 `pids_limit: 512`는 R6 이후 이미지
   재생성(`bidops-rdp-r6:20260910` 이후)에서 `fc-list` 추가와 함께 **128로 되돌아갔다** — R6·R7·
   현재 운영 document-worker는 모두 `PidsLimit=128`이다(R6/R7 기록, 2026-09-10). 512로 올린
@@ -242,7 +242,7 @@
 - 해결 구현(R3, 운영 미적용): converter의 허용된 안전 코드를
   `pdf_preparation_failed:<code>`와 감사 `safe_metadata.converter_code`에 함께 보존한다.
   미등록 예외는 일반 코드로 남기며 경로·원문·프롬프트·stderr는 넣지 않는다.
-  [R3 검증](../../validation-runs/2026-09-10-rhwp-r3-snapshot.md)을 참고한다.
+  R3 검증(`docs/validation-runs/2026-09-10-rhwp-r3-snapshot.md`, git 이력)을 참고한다.
   과거 실패 attempt는 그대로 보존하고 당시 원인도 미확정으로 유지한다.
 - `current` projection은 attempt가 없는 `ready` target을 드러내지 않는다. 142의 새 target
   `200e9557-d5d5-4a0f-afa8-896d44b41261`이 `ready`여도 `GET /api/pre-specs/142/overview-pages`의 `current`는 직전
@@ -280,7 +280,7 @@
 ## 실표본에서 사람 확정 흐름을 재현할 문서가 없다 (2026-09-10)
 
 - 상황: 35/59/142 모두 heading 선택기가 `ready`라 `needs_human_review` target이 만들어지지 않는다. R7의 확정 REST·화면·CLI 보조는 API 종단 테스트(`test_page_overview`·`test_prespec_v4_ops`)와 Playwright 목 검사로만 확인했다.
-- 후속: 다음 수집 회차에서 heading 선택기가 미결정인 사전규격이 나오면 `docs/validation-runs/2026-09-10-rhwp-r7-range-review.md`의 절차로 운영 확인하고 결과를 이 항목에 덧붙인다.
+- 후속: 다음 수집 회차에서 heading 선택기가 미결정인 사전규격이 나오면 `docs/validation-runs/2026-09-10-rhwp-r7-range-review.md` (git 이력)의 절차로 운영 확인하고 결과를 이 항목에 덧붙인다.
 - 종결(2026-09-11): 확정 REST는 `POST /api/pre-specs/{notice_id}/overview/range-confirmations`로,
   대상 테이블은 `prespec_overview_run`으로 바뀌었다([ADR-0054](../decisions/0054-prespec-overview-mvp-rewrite.md)).
   옛 target 기반 확정 흐름과 그 테스트(`test_prespec_v4_ops`)는 함께 삭제됐으므로 이 항목은
@@ -321,11 +321,11 @@
 
 - 개별 제한 진단으로 HWP→HWPX 실패를 DATA 상한 512 MiB(Rosetta mmap)로 분리했다. 네트워크 없음·1 GiB cgroup·pids 128·권한 0·NoNewPrivs 조건을 모두 검사하는 로컬 `rosetta` opt-in을 추가했고, native rhwp에만 DATA 768 MiB를 허용한다. 보조 도구는 512 MiB를 유지한다. 기본 설정은 변하지 않았다.
 - 공고 179 / 첨부 264(한부모가족 혼인정보 연계시스템 운영·유지관리)의 실제 HWPX 388,356 bytes는 정규 수집·ClamAV·구조화 경로로 완료됐다. 지정 공고 one-shot 실행 전후 264개 큐 행 중 이 행만 바뀌었으며 기존 차단 2건을 포함한 263개 행은 그대로다. 원문 SHA-256은 `d62ee1f0bee0039ab4e741f099f76680bb2d607a791f9389dece287aa2aa439c`다.
-- 같은 원문의 개요용 PDF export는 768 MiB 환경에서도 메모리 할당 실패(exit -6, 524,288 bytes 할당 실패)로 중단됐다. 구조화 성공을 PDF/개요 완료로 표시하지 않는다. 실제 모델 전송은 0회다. 같은 upstream commit을 사용한 native ARM 격리 워커 빌드를 진행하며, 기본 제한을 추가로 높이지 않는다. 상세는 `docs/validation-runs/20261009-litellm-reference/target179-document.json`과 `plan.md`다.
+- 같은 원문의 개요용 PDF export는 768 MiB 환경에서도 메모리 할당 실패(exit -6, 524,288 bytes 할당 실패)로 중단됐다. 구조화 성공을 PDF/개요 완료로 표시하지 않는다. 실제 모델 전송은 0회다. 같은 upstream commit을 사용한 native ARM 격리 워커 빌드를 진행하며, 기본 제한을 추가로 높이지 않는다. 상세는 `docs/validation-runs/20261009-litellm-reference/target179-document.json` (git 이력)과 `plan.md`다.
 
 ### Native ARM 후속 결과와 남은 PDF 표시 문제
 
-- 동일 upstream commit의 native ARM worker에서 기본 DATA512MiB를 그대로 사용해 공고179의 정규 PDF snapshot 준비가 성공했다(80쪽). Rosetta 완화 코드는 최종 변경에서 제거했다. 적용된 로컬 이미지와 바인딩은 `docs/validation-runs/20261009-litellm-reference/target179-document.json`에 기록했다.
+- 동일 upstream commit의 native ARM worker에서 기본 DATA512MiB를 그대로 사용해 공고179의 정규 PDF snapshot 준비가 성공했다(80쪽). Rosetta 완화 코드는 최종 변경에서 제거했다. 적용된 로컬 이미지와 바인딩은 `docs/validation-runs/20261009-litellm-reference/target179-document.json` (git 이력)에 기록했다.
 - 물리5쪽에서 export-text와 Poppler 텍스트층에는 웹사이트 현황·도메인이 있지만, 직접 렌더링한 화면에는 그 일부가 보이지 않는다. PDF 렌더링/텍스트 표시 불일치이며 모델 문제가 아니다. 전체80쪽의 시각적 정확도를 승인한 것으로 취급하지 않는다. 이 작업은 해당5쪽을 모델 전송에서 제외하고, 시각적으로 대조된4쪽만 개요 검증 후보로 고정했다.
 - 재현: 위 sourceSHA의 snapshotPDF `eb394a414704b70de1e23d264df4a61a50b38c0aea3c3fdc3232a7a7c5896bcb`를 `pdftoppm -f5 -l5 -png`로 렌더하고 `pdftotext -f5 -l5 -layout` 및 동결page-text와 대조한다. 로컬 증거는 `.sdlc/local-runtime/target179/page-05.png`, `page05-poppler.txt`, `snapshot-pages.json`이다. 원본HWPX와 snapshot은 보존했다. 렌더러 레이아웃/가림 분석은 별도 후속 범위이며 텍스트나 PDF를 수동 보정하지 않는다.
 
@@ -334,7 +334,7 @@
 
 - HP-01의 제품 파서로 실제 RFP 5건에서 27/57/31/35/48장(합계 198장)을 추출했다. 현재 명세의 가까운 비어 있지 않은 문단 3개 anchor 규칙으로는 0/18/31/35/4장, 합계 88장만 `inherited`이며 110장은 `unavailable`이다. 셀 직접 매핑은 0장이다. 초안 scratchpad의 198/198을 재현하지 못했으며 완료·품질 수치로 인용하지 않는다.
 - 미확인 카드의 가장 가까운 매핑 가능한 앞 문단은 4~39개 앞에 있었다. 원문·대응표와 고정 규칙은 유지한다. anchor 수를 무제한으로 늘리면 먼 앞쪽 페이지를 카드 쪽으로 잘못 연결할 수 있으므로 이번 범위에서 임의 변경하지 않았다. 후속은 직접 셀 매핑 개선 또는 별도 버전의 anchor 규칙과 정확도 검증이다.
-- 문서당 첫·마지막 카드 2개, 총 10개 PDF 렌더를 리더가 직접 확인했다. 상속값이 있는 6개는 해당 물리 PDF 쪽에 카드가 있고, 4개는 PDF에 카드가 있으나 제품 쪽은 미확인으로 남는다. 전체 198장의 쪽 정확도를 검증한 것은 아니다. `hp01-pdf-spotcheck.json`·`hp01-page-map-diagnosis.json` 및 변환 입력 hash는 `docs/work/_runs/hp0001-20261014/`에 있다.
+- 문서당 첫·마지막 카드 2개, 총 10개 PDF 렌더를 리더가 직접 확인했다. 상속값이 있는 6개는 해당 물리 PDF 쪽에 카드가 있고, 4개는 PDF에 카드가 있으나 제품 쪽은 미확인으로 남는다. 전체 198장의 쪽 정확도를 검증한 것은 아니다. `hp01-pdf-spotcheck.json`·`hp01-page-map-diagnosis.json` 및 변환 입력 hash는 `docs/work/_runs/hp0001-20261014/` (git 이력)에 있다.
 - 같은 표본 중 `school` 물리 PDF 13쪽은 첫 DAR-001 카드가 보이지만 아래 DAR-003 부근 텍스트가 겹친다. 구조 추출 성공이 PDF 전체의 시각적 정확성을 뜻하지 않는다. 재현 산출물은 Git 외부 `.sdlc/local-runtime/hp01-20261014-fixtures/school.pdf`와 `samples/school-13.png`이며 원문/변환 hash는 위 실행 기록에 있다. renderer 수정은 HP 카드 inventory 범위 밖이다. 원문과 구조를 보존하고 PDF를 수동 보정하지 않는다.
 
 ## R5 런타임 이미지에 `fc-list`가 없어 native 변환이 전부 실패했다 (2026-09-10, 해결)
@@ -350,7 +350,7 @@
   R6 격리 실측에서 발견해 운영 영향은 없다.
 - 조치: `web/Dockerfile` apt 목록에 `fontconfig`를 명시하고 `tests/app/test_runtime_contract.py`의 단언을
   `fontconfig fonts-nanum fonts-noto-cjk`로 고쳤다. `bidops-rdp-r6:20260910`에서 `fc-list`와 폰트 manifest
-  `92e5dc4f…1650a9`(R3 이미지와 동일)를 확인했다([R6 기록](../../validation-runs/2026-09-10-rhwp-pipeline.md)).
+  `92e5dc4f…1650a9`(R3 이미지와 동일)를 확인했다(R6 기록(`docs/validation-runs/2026-09-10-rhwp-pipeline.md`, git 이력)).
 - 남은 것: 이미지 안에서 실제 변환기 실행을 검사하는 게이트가 없다. 다음 이미지 변경부터는 R6 기록의 probe 명령으로 표본 1건을
   실제 실행해 확인한다.
 

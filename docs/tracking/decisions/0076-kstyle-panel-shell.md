@@ -5,11 +5,11 @@
   2026-11-21 결정 13은 작업 브랜치 `feat/prespec-detail-1121`이며 main 미병합이다. 품질·운영 활성화 근거가 아니다.
 - 일자: 2026-11-19
 - 개정: 2026-11-23 [ADR-0077](0077-table-workbench-layout.md)이 목록 폭(38% → 60%), 선택 행 모양(fill → 브랜드 옅은 채움 + 왼쪽 선), 목록 행(표), 미리보기 칸의 결정 띠를 대체한다. 셸·헤더·중립색·읽기 폭 결정은 그대로다.
-- 근거: 사용자 승인 최종 시안 4장 [`docs/1119_kstyle-shell/mockups/`](../../1119_kstyle-shell/mockups/)
+- 근거: 사용자 승인 최종 시안 4장 `docs/1119_kstyle-shell/mockups/`(`docs/1119_kstyle-shell/mockups`, git 이력)
   (`FinalBriefing`·`FinalOrderPlans`·`FinalOrderPlansDone`·`FinalOpportunity`, 인라인 style이 수치 정본)
 - 관련: ADR-0040(레이아웃은 프로젝트 소유)·ADR-0047(데스크톱 1280~1920)·ADR-0048(테마 정본, 이 ADR이
   라이트 중립색을 개정)·ADR-0073(RL 시안 v26 테마 개정)·ADR-0062(목록 글자 ⓒ를 발주계획에서 바꿈)·
-  [ui-spec §1~§4](../../1016_rootlab-redefinition/ui-spec.md)
+  [ui-spec §1~§4](../../specs/1016_rootlab-redefinition/ui-spec.md)
 
 ## 맥락
 
@@ -74,7 +74,7 @@
     비교의 발주기관·문서 식별자). 헤더가 유일한 자리였던 경계 문장은 본문 보조 문구로 옮겼다 — Go/No-Go 미리보기
     결정 단추 아래 안내에 `추적 선택이나 판정은 Go/No-Go를 대신하지 않아요`, 실행 상태 바닥 경계 문구에 `참조 실행은
     운영 완료가 아니에요`.
-13. **2026-11-21 사용자 승인: 사전규격 상세 재구성.** 시안 [`docs/1121_prespec-detail/`](../../1121_prespec-detail/)
+13. **2026-11-21 사용자 승인: 사전규격 상세 재구성.** 시안 [`docs/specs/1121_prespec-detail/`](../../specs/1121_prespec-detail/)
     (결정·현재 항목별 처분·두 화면 구성은 그 README). 사전규격 상세(`/pre-specs/:noticeId`)에 한해 다음을 바꾼다.
     ① 본문을 읽기 폭 1040px로 패널 가운데에 둔다. route metadata `detailReadingWidth`가
     `.app-content[data-reading-width="detail"]`을 달고, 패널 헤더 안쪽과 하단 띠 안쪽도 같은 폭에 맞춘다. 결정 10의
@@ -89,9 +89,9 @@
     ④ 추적 결정 범위: 분석 전 화면은 `추적 시작`만, 분석 엔진 결과를 보여 주는 화면(mock 빌드 전용, 운영 번들 미포함)의
     띠에서만 계속 추적·보류·종료를 고른다(규칙 본문은 `docs/business-rules.md`).
     근거: 운영 3753 실측에서 본문이 5,494px이고 공고 내용보다 결정 블록이 먼저 보였다. 파일 직접 추가는 추후 고도화다.
-    검증 기록은 `docs/1121_prespec-detail/README.md`.
+    검증 기록은 `docs/specs/1121_prespec-detail/README.md`.
 
-14. **2026-11-21 사용자 승인: 운영 웹의 위치 줄·도구줄과 우측 미리보기.** [레이아웃 적용 기준](../../1119_kstyle-shell/approved-layout.md)에
+14. **2026-11-21 사용자 승인: 운영 웹의 위치 줄·도구줄과 우측 미리보기.** [레이아웃 적용 기준](../../specs/1119_kstyle-shell/approved-layout.md)에
     공통 치수, 화면별 배치, 추적 시작과 인수 기준을 둔다. 목록·상세 위치와 도구줄에 관해서는 결정 3·10·12보다 이 결정을 적용한다.
 
 15. **2026-11-23 사용자 결정: 목록|상세 4화면(발주계획·사전규격·사업 추적·최종 Go/No-Go)의 글자 단은 발주계획을 기준으로 통일한다.**

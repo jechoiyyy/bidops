@@ -343,7 +343,7 @@ id를 비교한다(적재·모델 호출 없음).
 
 발주계획 트랙(위 절)은 이 절차를 전부 마치기 전까지 매일 `daily_trigger_off`로 끝나고 수집하지
 않는다. 열두 단계이며 ①~③은 사람 결정 값이 필요하고, 나머지는 그 값이 갖춰진 뒤의 명령·화면
-동작이다(`docs/0918_daily-operation/spec.md` §0ⓑ·§3·§4·§11).
+동작이다(`docs/specs/0918_daily-operation/spec.md` §0ⓑ·§3·§4·§11).
 
 1. **gold 확정.** 사람이 확정한 발주계획 정답 표본. 표본 크기와 최종 승인은 운영 결정이다.
 2. **임계값 4개.** `threshold_recall_pct`·`threshold_precision_pct`·`threshold_important_missed_max`·
@@ -601,7 +601,7 @@ worker는 실행 디렉터리에 동결된 파일만 읽으므로 경로 설정�
 
 ### 일일 브리핑·Slack (RL-01, 2026-10-17)
 
-평일 아침 한 번 후보를 고르는 브리핑이다(규칙은 [business-rules.md "브리핑 추천·반응"](../business-rules.md), 계약은 [contracts.md "브리핑"](../contracts.md)). LLM을 부르지 않는다. **Slack 전송은 기본 꺼짐이며 이 저장소는 cron을 설치하지 않는다.** 2026-10-17 격리 스택(`bidops-local`의 `bidops_rla`)에서 `--send` 없는 감독 시운전(T12: 생성·REST·반응·화면)을 했다([기록](../validation-runs/2026-10-16-rl/RL-01/README.md)). 실제 Slack 전송·Socket Mode 연결은 토큰이 없어 아직 하지 않았고, cron도 설치하지 않았다 — 아래는 절차와 예시다.
+평일 아침 한 번 후보를 고르는 브리핑이다(규칙은 [business-rules.md "브리핑 추천·반응"](../business-rules.md), 계약은 [contracts.md "브리핑"](../contracts.md)). LLM을 부르지 않는다. **Slack 전송은 기본 꺼짐이며 이 저장소는 cron을 설치하지 않는다.** 2026-10-17 격리 스택(`bidops-local`의 `bidops_rla`)에서 `--send` 없는 감독 시운전(T12: 생성·REST·반응·화면)을 했다(기록(`docs/validation-runs/2026-10-16-rl/RL-01/README.md`, git 이력)). 실제 Slack 전송·Socket Mode 연결은 토큰이 없어 아직 하지 않았고, cron도 설치하지 않았다 — 아래는 절차와 예시다.
 
 **배포(운영 변경이므로 직전에 사람 확인).** migration `0038_briefing`(테이블 3개, [contracts.md](../contracts.md) 참조)을 적용하고 `web`·`slack-worker` 이미지를 새로 올린다. 전체 백업과 `before-briefing-<날짜>` 롤백 태그를 먼저 남기고 배포 기록에 migration head를 적는다. 브리핑·반응은 DELETE 권한이 없어 되돌리려면 백업으로 복구한다. 이 단계의 승인은 아래 설정·전송·cron 설치로 이어지지 않는다.
 

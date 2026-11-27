@@ -12,7 +12,7 @@
 > 이전 수집·Qwen/Luna·PDF 참조 실행 기록은 [현황](tracking/status.md)에 구간별로 남아 있다.
 > 2026-09-10 policy v5 두 단계 Qwen 주장 검증 스택(activation v2·call ledger·verification)은
 > 2026-09-11 [ADR-0054](tracking/decisions/0054-prespec-overview-mvp-rewrite.md)로 폐기하고
-> `prespec_overview_run`(migration 0026) 단일 테이블로 재작성했다. `docs/0910_prespec-workflow-hardening/`
+> `prespec_overview_run`(migration 0026) 단일 테이블로 재작성했다. `docs/0910_prespec-workflow-hardening/`(git 이력)
 > 폴더는 삭제했으며 상세는 git 이력(`71b9954`)에서 찾는다. 현재 계약은
 > [contracts.md](contracts/prespec-overview.md#사전규격-개요-검토와-예비-적합성-판단-mvp-2026-09-21)를 정본으로 한다.
 

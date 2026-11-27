@@ -3,7 +3,7 @@
 - 기능 ID: `RL-04-proposal-draft`
 - 근거: [intent.md](./intent.md), RL-03 spec(전송 승인·unit·compare·verdict·gate 순서·cap·감사), RL-00 spec(사실 노드), RL-02 spec(hook·탭), bid-procedure §4·§5, ui-spec §3·§4.5, ux-review §5 결정 5·6
 - 작성일: 2026-10-16 (같은 날 독립 검사 1차 20건 반영; 2026-10-17 배치 B 인터뷰 D2·D3·D4·D9·D10·D11·D12와 v2 fixture 대조 정정 반영 — [batch-b-interview.md](../../batch-b-interview.md))
-- 구현·실제 검증 상태(2026-10-21 문서 대조): STEP-001~009 구현·mock 검증과 후속 실제 Luna 초안 1건(T11)을 수행했다. 실제 결과는 `partial`(4/6절 완료)이며 실적·운영 절은 식별자 참조 검증 실패로 남았다. [실제 실행 기록](../../../../../validation-runs/2026-10-17-rl/RL-04/README.md)이 근거다. 초기의 RL-03 판정 미완료에 따른 T11 pending은 해소됐으나 실제 초안 품질 합격을 뜻하지 않는다.
+- 구현·실제 검증 상태(2026-10-21 문서 대조): STEP-001~009 구현·mock 검증과 후속 실제 Luna 초안 1건(T11)을 수행했다. 실제 결과는 `partial`(4/6절 완료)이며 실적·운영 절은 식별자 참조 검증 실패로 남았다. 실제 실행 기록(`docs/validation-runs/2026-10-17-rl/RL-04/README.md`, git 이력)이 근거다. 초기의 RL-03 판정 미완료에 따른 T11 pending은 해소됐으나 실제 초안 품질 합격을 뜻하지 않는다.
 
 ## 큰 틀 문서와의 관계
 

@@ -2,7 +2,7 @@
 """Turn an order-plan business name into pre-specification search queries.
 
 The name search is the only bridge from an order plan to its pre-specification
-(see docs/validation-runs/20260828-lifecycle-linkage-survey.md).  Roughly a
+(see docs/validation-runs/20260828-lifecycle-linkage-survey.md (git 이력)).  Roughly a
 fifth of the ground-truth pairs are not found by the full name, and at least
 one of those has a byte-identical name on both sides -- so the misses are not
 purely a naming difference.  This module builds an ordered ladder of queries,

@@ -352,7 +352,7 @@ export function PageOverviewCurrent({
 }
 
 /**
- * 상세 ③ 카드 맨 위 알림 줄(docs/0915_ui-redesign/spec.md §4 ③).
+ * 상세 ③ 카드 맨 위 알림 줄(docs/specs/0915_ui-redesign/spec.md §4 ③).
  *
  * 종전 오른쪽 `현재 판단` 열이 갖고 있던 두 알림을 그대로 옮긴 것이다. 문장과
  * 상태 어휘는 바꾸지 않고 자리만 바뀐다 — 알림은 조작 자리(`#ps-record-range`,

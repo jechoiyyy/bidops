@@ -1,6 +1,6 @@
 /*
  * 시안 배치 CSS. 색은 bidops 테마 토큰(--color-*, --bo-*)만 읽고 새 색 값을 만들지 않는다.
- * 배치 치수는 2026-11-21 승인 기준(docs/1119_kstyle-shell/approved-layout.md)을 변수로 둔다.
+ * 배치 치수는 2026-11-21 승인 기준(docs/specs/1119_kstyle-shell/approved-layout.md)을 변수로 둔다.
  */
 @font-face {
   font-family: "Pretendard";

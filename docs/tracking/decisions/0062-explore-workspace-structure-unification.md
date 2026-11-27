@@ -2,9 +2,9 @@
 
 - 상태: 채택 (2026-09-20 사용자 결정, 시안 승인)
 - 일자: 2026-09-20
-- 관련 결정: `docs/0915_ui-redesign/spec.md` §2.4("발주계획의 구성·문구·상태 규칙은 현재 화면 그대로")를 넘는 결정, ADR-0040(레이아웃은 프로젝트 소유)·ADR-0047(데스크톱 전용)·ADR-0048(`bidops` 테마가 색 정본), [ADR-0063](0063-order-plan-bulk-tracking-end.md)(같은 작업의 일괄 종료), [ADR-0066](0066-practitioner-ops-information-boundary.md)(아래 결정 표의 `수집 회차 선택` 행을 2026-09-21에 개정)
+- 관련 결정: `docs/specs/0915_ui-redesign/spec.md` §2.4("발주계획의 구성·문구·상태 규칙은 현재 화면 그대로")를 넘는 결정, ADR-0040(레이아웃은 프로젝트 소유)·ADR-0047(데스크톱 전용)·ADR-0048(`bidops` 테마가 색 정본), [ADR-0063](0063-order-plan-bulk-tracking-end.md)(같은 작업의 일괄 종료), [ADR-0066](0066-practitioner-ops-information-boundary.md)(아래 결정 표의 `수집 회차 선택` 행을 2026-09-21에 개정)
 - 근거 요청: 사용자 요청 2026-09-20 — "`/order-plans`와 `/pre-specs`의 UI 구조가 다를 필요가 없음, `/pre-specs` 기준으로", "발주기관을 따로 감싼 것은 가시성이 좋음, `/pre-specs`에도 적용", "회차 선택도 pre-specs와 동일하게"
-- 승인 시안: `docs/0915_ui-redesign/mockups/0920_explore-unify/` (Artifact https://claude.ai/artifact/46DZkNcXT2nFmjZiWRkFCH Version 2)
+- 승인 시안: `docs/specs/0915_ui-redesign/mockups/0920_explore-unify/` (Artifact https://claude.ai/artifact/46DZkNcXT2nFmjZiWRkFCH Version 2)
 
 ## 맥락
 

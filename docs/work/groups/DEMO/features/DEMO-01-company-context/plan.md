@@ -90,7 +90,7 @@ BIDOPS_PRESPEC_OVERVIEW_ENABLED=false python3 -m pytest tests/app/test_company_c
 PostgreSQL 대상은 일회용 postgres:17.11과 BIDOPS_TEST_POSTGRES_URL을 사용한다.
 운영 DB를 연결하지 않는다. backend 기본 검사에는 BIDOPS_PRESPEC_OVERVIEW_ENABLED=false를 명시한다.
 overview=true가 필요한 사례만 fixture에서 설정한다.
-실제 로그/exit code/skip/수동 증거는 `docs/work/_runs/demo01-20261009/`에 남긴다.
+실제 로그/exit code/skip/수동 증거는 `docs/work/_runs/demo01-20261009/` (git 이력)에 남긴다.
 선행 검사 결과를 현재 변경의 검사로 적지 않는다. 변경 뒤 영향받은 검사만 재실행한다.
 
 ## 위험
@@ -127,7 +127,7 @@ main·운영 반영, 배포, migration 적용, 모델 호출은 수행하지 않
 | T6 | lifecycle 소유·공개 `register_company`, 역방향 import 없음, 모듈 조합 | `step003-tests.log` 57 pass, skip 0의 module boundary 포함; STEP-004 doctor 6 pass·diff check pass·source baseline 불일치 0 |
 
 STEP-004 변경 사례는 일회용 PostgreSQL 17.11의 실제 `app` role 변형을 포함해 27 passed,
-0 skipped(18.61초)다(`docs/work/_runs/demo01-20261009/step004-tests.log`). 문서 doctor는 6 passed,
+0 skipped(18.61초)다(`docs/work/_runs/demo01-20261009/step004-tests.log` (git 이력)). 문서 doctor는 6 passed,
 `git diff --check`는 pass, `source-baseline.json` 불일치는 0이다.
 
 STEP-002의 `test_the_flag_opens_preparation_for_sw_business_without_a_grade` 1건은 main `c242850`에서도 같은 assertion으로

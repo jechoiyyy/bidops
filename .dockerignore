@@ -5,7 +5,7 @@ reports
 docs/reference/*
 docs/reference/company-performance-titles.tsv
 wiki/
-docs/demo-fixtures
+web/backend/tests/fixtures/demo-companies
 web/backend/app/screening/baseline_company_profile.md
 web/backend/.venv
 web/data

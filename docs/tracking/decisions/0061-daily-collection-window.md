@@ -3,7 +3,7 @@
 - 상태: 채택 (2026-09-18 늦은 색인 측정 반영 — 공고 창 1일 → 4일, 사용자 결정 28; 2026-09-19 사용자 승인)
 - 일자: 2026-09-18
 - 관련 결정: [ADR-0027](0027-order-plan-requery-window.md) 폐기(대체), [ADR-0059](0059-full-collection-selective-ingest-and-index-search.md) 결정 1 개정(발주계획 21일 재조회·공고 3일 창), [ADR-0016](0016-daily-run-rejudgment.md)(일간 회차), [ADR-0037](0037-order-plan-c2-bm25-top300-qwen.md)(BM25 idf 코퍼스), [ADR-0058](0058-final-decision-basis-separated-from-comparison.md)(새 차수·정정 → `stale`), [ADR-0060](0060-c2-policy-db-row-authority.md)(C-2 일일 실행)
-- 근거 요청: 일일 운영 고도화 계획(`docs/0918_daily-operation/`) intent 결정 6~9·16·28, spec §0·§6·§8·§9.4, 늦은 색인 측정 [`20260918-late-indexing.md`](../../validation-runs/20260918-late-indexing.md)
+- 근거 요청: 일일 운영 고도화 계획(`docs/specs/0918_daily-operation/`) intent 결정 6~9·16·28, spec §0·§6·§8·§9.4, 늦은 색인 측정 `docs/validation-runs/20260918-late-indexing.md`(git 이력)
 
 ## 맥락
 
@@ -26,14 +26,14 @@
   정정·재공고였고 모두 그 건의 게시일로 창 안에 있었다. 겹침이 다시 보는 것은 같은 차수의 재관측뿐이다. 그런데 `승계`
   (ADR-0016)는 회차 사이에서 작동하지 않아(이전 판정은 판정 대상 회차 폴더에서만 읽는다, `orchestrator.py:1492-1507`)
   C-1이 겹친 회차를 판정하면 겹친 날의 공고가 `신규`로 다시 판정된다.
-- **늦은 색인 측정(2026-09-18, [`20260918-late-indexing.md`](../../validation-runs/20260918-late-indexing.md)).**
+- **늦은 색인 측정(2026-09-18, `docs/validation-runs/20260918-late-indexing.md`(git 이력)).**
   - 발주계획 8일(08-27~09-02, 09-10)을 D+1~D+5 수집본과 09-18 재수집으로 비교했다 — 늦은 색인 0건.
   - 입찰공고 3일(08-25~27, D+1~D+3 수집본) — 0건. `bidNtceDt ≤ rgstDt`이고 등록 즉시 조회된다.
   - **사전규격은 공개가 늦는 건이 있다.** API 날짜 조회(`inqryDiv=1`)는 **등록일시 `rgstDt`** 기준인데 목록 공개는
     **접수일시 `rcptDt`**부터다. 대부분 같은 날이지만 708건 중 lag 1일 7건·2일 1건·3일 3건이 있었다. 09-15 10:52
     수집본에서 빠진 09-14 등록분 5건은 전부 `rcptDt`가 그 뒤였고, 두 수집본 모두에 있던 479건은 `rcptDt`가 바뀌지 않았다.
     D+1 07:00 수집 기준 창별 누락은 1일 11/708(1.55%, SW=Y 2/68)·2일 4·3일 3·**4일 0**이다.
-  - 기존 조사 기록(`docs/tracking/lifecycle-workstream.md:33`, `docs/validation-runs/20260828-lifecycle-linkage-survey.md`
+  - 기존 조사 기록(`docs/tracking/lifecycle-workstream.md:33`, `docs/validation-runs/20260828-lifecycle-linkage-survey.md` (git 이력)
     D절)이 `inqryDiv=1`을 "접수일시"라 적은 것은 오기다.
 
 ## 결정
@@ -96,7 +96,7 @@ C-2 자동 실행이 켜질 때까지 수집도 하지 않는다(ADR-0060 결정
 ## 결과
 
 - 발주계획 수집 창은 하루, 공고는 4일이다. 하루 발주계획은 평일 290~379건, 주말 9~18건이다(게시일 기준 실측,
-  `docs/0918_daily-operation/intent.md` §4). 공휴일에는 0건인 날이 있을 수 있고 일일 스크립트가 `empty_population`으로
+  `docs/specs/0918_daily-operation/intent.md` §4). 공휴일에는 0건인 날이 있을 수 있고 일일 스크립트가 `empty_population`으로
   정상 종료한다.
 - **대가 1 — 추적 중 발주계획의 변경을 관측하지 못한다.** 발주계획 측 `bidNtceNoList`·`changed_at` 갱신을 보지 않으므로
   추적 중인 사업의 예산·발주 시기가 바뀌어도 화면에 반영되지 않는다. 발주계획은 첫 관측 그대로 고정되고 화면은 첫 관측일을

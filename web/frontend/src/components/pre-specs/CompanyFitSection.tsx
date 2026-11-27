@@ -11,7 +11,7 @@ type CompanyFitResult = NonNullable<CompanyFitAttempt["result"]>;
 type Decision = CompanyFitResult["decision"];
 type CompanyFitReason = CompanyFitResult["reasons"][number];
 
-/** 화면 문구는 `회사 적합성`으로 통일한다(docs/0915_ui-redesign/spec.md §4 용어).
+/** 화면 문구는 `회사 적합성`으로 통일한다(docs/specs/0915_ui-redesign/spec.md §4 용어).
  * API 필드명(`company_fit`)·함수명은 그대로 둔다. 판정 이름은 목록의 회사 핏 열과 같다. */
 export const DECISION_LABEL: Record<Decision, string> = { matched: "부합", unknown: "판단 보류", mismatch: "불일치" };
 export const STATUS_LABEL: Record<CompanyFitAttempt["status"], string> = {
@@ -127,7 +127,7 @@ export function CompanyFitBody({ attempt }: { attempt: CompanyFitAttempt }) {
  * 한 판정 실행의 고정 입력·식별 해시·소요(ADR-0066 결정 1 `이동`·결정 2).
  *
  * 종전 ④ 회사 적합성 구역 안의 `판정 기준과 실행 정보` 접힘이었다. 같은 화면
- * ⑥의 접힌 `기술 정보` 하나로 모았으므로(docs/0915_ui-redesign/spec.md:234)
+ * ⑥의 접힌 `기술 정보` 하나로 모았으므로(docs/specs/0915_ui-redesign/spec.md:234)
  * 여기서는 다시 접지 않고 값만 그린다. **값은 하나도 줄이지 않는다** — 식별자와
  * 해시는 전문을 그대로 두고 줄바꿈으로만 흐르게 한다.
  */

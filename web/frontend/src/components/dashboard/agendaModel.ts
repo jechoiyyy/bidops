@@ -6,7 +6,7 @@ import { LIFECYCLE_STAGES, isConfirmedLink, primaryAgency, primaryTitle, stageOf
 import { DEADLINE_URGENT_DAYS, imminentDeadline } from "./dashboardData";
 
 /**
- * 오늘 할 일의 마감 일정(2026-11-27 시안 C2, `docs/1127_today-simplify/`).
+ * 오늘 할 일의 마감 일정(2026-11-27 시안 C2, `docs/specs/1127_today-simplify/`).
  *
  * 마감 임박 추적 건과 최종 Go/No-Go 대기를 **한국 날짜별로** 묶는다. 화면은 서버가 준
  * 링크·대기열 값을 옮겨 적을 뿐이며 새 판정을 만들지 않는다.

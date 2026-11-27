@@ -78,7 +78,7 @@ test("대시보드 요약 줄은 한 줄이고 칸 이름이 잘리지 않으며
 });
 
 test("흡수한 마감·감사 경로가 기존 쿼리를 보존한다", async ({ page }) => {
-  // docs/design/PLAN.md 2단계: 마감 추적은 검토 대기열의 저장된 뷰, 산출물 감사
+  // docs/design/PLAN.md (git 이력) 2단계: 마감 추적은 검토 대기열의 저장된 뷰, 산출물 감사
   // 감사 로그는 실행 상태 구역의 직접 진입 주소이므로
   // 경로가 그대로 남고, 담당자가 들고 온 쿼리를 잃지 않아야 한다.
   await page.goto(`/deadlines?run=${encodeURIComponent(RUN_ID)}&from=dashboard`);
@@ -267,7 +267,7 @@ test("평가 수치 누락은 0/10이 아니라 계산 불가로 남는다", asy
   await expect(review).not.toContainText("0 / 10건");
 });
 
-// docs/design/PLAN.md 3단계: 사전규격 목록에서 심층 추적 승인 패널을 연 상태는
+// docs/design/PLAN.md (git 이력) 3단계: 사전규격 목록에서 심층 추적 승인 패널을 연 상태는
 // lifecycleVisualTargets의 단순 goto만으로 도달할 수 없는 새 상호작용이라
 // 별도 타깃으로 기준선을 남긴다(기존 pre-specs-list 타깃은 패널이 닫힌
 // 기본 상태만 찍는다).

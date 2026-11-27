@@ -125,14 +125,14 @@ ADR 본문의 결정은 그대로 두고, 규칙이 다루지 않아 구현에�
 
 ## 개정 (2026-09-17)
 
-[사업 추적 연결·조치 고도화](../../0917_opportunity-tracking/intent.md)가 T-16b "구현 중 정한
+[사업 추적 연결·조치 고도화](../../specs/0917_opportunity-tracking/intent.md)가 T-16b "구현 중 정한
 규칙" 두 항목을 바꾼다.
 
 - **"보류에는 재검토 신호를 올리지 않는다. 신호는 종료에서만 뜬다"를 뒤집는다.**
   `raise_recheck_signal`은 이제 `계속 추적`·`보류`·`종료` 셋 모두에서 공식 확정 링크가 도착하면
   신호를 켠다. `미선택`은 여전히 켜지 않는다(이미 사람의 시야 밖이라 "재검토"라는 말이 성립하지
   않는다). 이렇게 바꾼 이유는 `보류`·`계속 추적` 사업에도 새 공고가 조용히 붙는 문제를
-  [intent.md "새 공고 도착을 알리지 않는다"](../../0917_opportunity-tracking/intent.md)에서
+  [intent.md "새 공고 도착을 알리지 않는다"](../../specs/0917_opportunity-tracking/intent.md)에서
   확인했기 때문이다 — `종료`만 신호가 필요한 상태가 아니었다.
 - **확인 처리 API를 더한다.** 기존에는 신호를 끄려면 추적 상태를 다시 저장해야 해 가짜 결정
   이력이 생겼다. `POST /api/opportunities/{id}/recheck-acknowledgements`는 근거 링크
@@ -146,4 +146,4 @@ ADR 본문의 결정은 그대로 두고, 규칙이 다루지 않아 구현에�
 
 이력(`GET /api/opportunities/{id}/tracking-decisions`의 `recheck_events[]`)에 생성·확인·
 추적 결정에 의한 해제 세 종류의 이벤트를 감사에서 투영해 함께 보여 준다. 상세는
-[spec.md §6](../../0917_opportunity-tracking/spec.md#6-재검토-신호와-확인)가 정본이다.
+[spec.md §6](../../specs/0917_opportunity-tracking/spec.md#6-재검토-신호와-확인)가 정본이다.

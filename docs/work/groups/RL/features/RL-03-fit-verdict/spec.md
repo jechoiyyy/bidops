@@ -1,8 +1,8 @@
 # 카드 기반 참여 판정(추출→대조→역할→종합)과 판정 화면 — spec
 
 - 기능 ID: `RL-03-fit-verdict`
-- 근거: [intent.md](./intent.md). **wire 계약의 원본은 [HP-03 spec](../../../HP/features/HP-03-two-tier-analysis/spec.md) "단계 wire 계약"·"설정·상태·저장"·"승인 wire와 호환 경계" 절과 [HP-04 spec](../../../HP/features/HP-04-practitioner-verdict/spec.md) "API 계약" 절**이며, 이 문서는 그 계약을 그대로 채택하고 아래 "루트랩 재명세 차이"만 바꾼다. 두 HP 문서는 blocked 기능의 기록이지만 계약 본문은 이 spec의 일부로 읽는다.
-- 작성일: 2026-10-16 (같은 날 독립 검사 1차 18건 반영; 2026-10-17 배치 B 인터뷰 D1·D2·D5·D9·D13과 v2 fixture 대조 결함 정정 반영 — [batch-b-interview.md](../../batch-b-interview.md); 같은 날 run 결정 B23(selector `card-sections-v2`·정책 v2·영역 누락 기록)·B24(v2 종합 payload·지시문의 `missing_sections`)·B30(selector `card-sections-v3`·추출 payload `expected_concepts`·정책 v3)·B33(추출 출력 계약 v2·코드 파생 개념/operator·구조 위반 repair·정책 v4)·B35(잘린 인용 거부·`까지`/`내에` lte·정책 v5·제약 내는 mock)·B36(앞잘림 인용 거부)·B37(인용 유일성·범위 감지·정책 v6, 실제 증명 T12 pending)·B51(항목 단위 추출 실패 격리·정책 v7)·B53(역할 근거에 그 unit의 제약 인용 허용·정책 v8)·B55(종합 출력 계약 v2·코드 차단 조건·코드 "사람 확인" 행·종합만 다시 실행·정책 v9) 반영 — [decisions.md](../../../../_runs/rlb-20261017/decisions.md))
+- 근거: [intent.md](./intent.md). **wire 계약의 원본은 HP-03 spec(`docs/work/groups/HP/features/HP-03-two-tier-analysis/spec.md`, git 이력) "단계 wire 계약"·"설정·상태·저장"·"승인 wire와 호환 경계" 절과 HP-04 spec(`docs/work/groups/HP/features/HP-04-practitioner-verdict/spec.md`, git 이력) "API 계약" 절**이며, 이 문서는 그 계약을 그대로 채택하고 아래 "루트랩 재명세 차이"만 바꾼다. 두 HP 문서는 blocked 기능의 기록이지만 계약 본문은 이 spec의 일부로 읽는다.
+- 작성일: 2026-10-16 (같은 날 독립 검사 1차 18건 반영; 2026-10-17 배치 B 인터뷰 D1·D2·D5·D9·D13과 v2 fixture 대조 결함 정정 반영 — [batch-b-interview.md](../../batch-b-interview.md); 같은 날 run 결정 B23(selector `card-sections-v2`·정책 v2·영역 누락 기록)·B24(v2 종합 payload·지시문의 `missing_sections`)·B30(selector `card-sections-v3`·추출 payload `expected_concepts`·정책 v3)·B33(추출 출력 계약 v2·코드 파생 개념/operator·구조 위반 repair·정책 v4)·B35(잘린 인용 거부·`까지`/`내에` lte·정책 v5·제약 내는 mock)·B36(앞잘림 인용 거부)·B37(인용 유일성·범위 감지·정책 v6, 실제 증명 T12 pending)·B51(항목 단위 추출 실패 격리·정책 v7)·B53(역할 근거에 그 unit의 제약 인용 허용·정책 v8)·B55(종합 출력 계약 v2·코드 차단 조건·코드 "사람 확인" 행·종합만 다시 실행·정책 v9) 반영 — `docs/work/_runs/rlb-20261017/decisions.md`(git 이력))
 
 ## 큰 틀 문서와의 관계
 

@@ -18,7 +18,7 @@
 | web/frontend/src/styles/verdict.css | 수정 | 주의 블록·요약 줄·묶음 스타일(토큰만), `.vd-table-scroll.is-compact table { min-width: 0 }`. 열 숨김은 CSS가 아니라 열 정의로(뷰포트 판단은 `matchMedia`) |
 | web/frontend/src/components/briefing/PeekPanel.tsx, src/pages/BriefingPage.tsx, src/lib/briefing.ts | 수정 | 판정 이름 4값일 때 `/verdict` 직행 경로 함수 |
 | web/frontend/tests/fixtures/verdict.ts, tests/verdict.spec.ts, tests/briefing.spec.ts | 수정 | T1~T20 fixture·검사, 의도적으로 바뀌는 기존 기대값 갱신(아래 STEP-001) |
-| docs/1016_rootlab-redefinition/ui-spec.md(§4.4·§4.1), docs/ADR.md, docs/validation-runs/2026-10-20-rl/RL-07/README.md | 수정/신규 | STEP-006 |
+| docs/specs/1016_rootlab-redefinition/ui-spec.md(§4.4·§4.1), docs/ADR.md, docs/validation-runs/2026-10-20-rl/RL-07/README.md(저장소에 없음) | 수정/신규 | STEP-006 |
 
 ## 작업 순서
 
@@ -46,7 +46,7 @@
 6. STEP-006 화면 명세 정정·실제 화면 확인 [standard]
    - 목표: ui-spec §4.4(주의 포인트 블록·unknown 묶음 제외 결정·한 줄 요약·묶음·표/패널/1280 규칙, HP §8과 일치)·§4.1(브리핑 직행) 정정, ADR.md 한 줄, 실제 10건 화면 1280·1440 캡처 확인.
    - 실제 화면 환경: 격리 스택 `bidops-local`의 `rla-web`(래퍼 `.sdlc/local-runtime/rlc-20261019/compose-rlc.sh`, DB `bidops_rla`, v11 판정 10건 — opportunity 414·422·424·433·441·499·502·523·536·541, `127.0.0.1:18797`, tailnet `:8197`). 새 프런트가 든 web 이미지를 `bidops-local:rl07-<날짜>`로 build해 `RLA_IMAGE`만 바꿔 `rla-web`을 `up -d --no-deps --force-recreate`(격리 스택만, 직전 사람 확인). 운영 `bidops` 스택은 건드리지 않는다. 모델 호출 없음.
-   - 작업 대상: docs/1016_rootlab-redefinition/ui-spec.md, docs/ADR.md, docs/validation-runs/2026-10-20-rl/RL-07/README.md, bidops-local rla-web 이미지
+   - 작업 대상: docs/specs/1016_rootlab-redefinition/ui-spec.md, docs/ADR.md, docs/validation-runs/2026-10-20-rl/RL-07/README.md(저장소에 없음), bidops-local rla-web 이미지
    - 검증: `python3 scripts/feature_status.py doctor _`, 실제 화면 캡처(real_data_run)
 
 ## 위임

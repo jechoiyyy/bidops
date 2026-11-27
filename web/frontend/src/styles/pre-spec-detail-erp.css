@@ -22,7 +22,7 @@
   --ps-radius-box: var(--radius-inner);        /* 4px */
   --ps-type-lead: 16px; /* 사실 칸 값. 정수 척도의 16 단(2026-11-18) */
   /* 세로 보고서형 6단: 카드 최대 폭 1040px 가운데 정렬, 카드 사이 16px
-     (docs/0915_ui-redesign/spec.md §4). */
+     (docs/specs/0915_ui-redesign/spec.md §4). */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -541,7 +541,7 @@
 /* ---- 처리 이력과 접힌 진단 줄 ----------------------------------------- */
 .ps-record .ps-record-history { display: flex; flex-direction: column; gap: var(--spacing-3); min-width: 0; scroll-margin-top: var(--spacing-3); }
 
-/* ⑥ 발주계획 후보 (docs/0917_opportunity-tracking/spec.md §11.4). 후보는 조밀한 행이며
+/* ⑥ 발주계획 후보 (docs/specs/0917_opportunity-tracking/spec.md §11.4). 후보는 조밀한 행이며
    카드로 감싸지 않는다. 기관 불일치는 색과 함께 `기관 불일치` 글자로 말한다. */
 .ps-record .ps-plan-candidates { display: grid; gap: var(--spacing-2); min-width: 0; scroll-margin-top: var(--spacing-3); }
 .ps-record .ps-plan-candidates p { margin: 0; }
@@ -689,7 +689,7 @@
 
 /* ---- 선택 상세 순회 (상단바 액션 슬롯) ------------------------------- */
 /* 순회는 `PageHeaderActions` portal 로 상단바에 들어가 `.ps-record` 밖에 있다
- * (docs/0915_ui-redesign/spec.md §4 상단바). 화면 CSS 가 닿지 않는 자리라
+ * (docs/specs/0915_ui-redesign/spec.md §4 상단바). 화면 CSS 가 닿지 않는 자리라
  * `.ps-record` 안의 별칭 토큰을 쓰지 않고 테마 토큰만 읽는다. 조회 성공 여부와
  * 무관하게 그려지므로 min-width:0 으로 긴 값이 조작을 밀어내지 않게 한다. */
 #page-header-tabs .ps-detail-navigation {
@@ -753,7 +753,7 @@
 }
 
 /* ======================================================================
- * 2026-11-21 재구성 — 분석 전 화면(시안 `docs/1121_prespec-detail/` a1·a2·a3)
+ * 2026-11-21 재구성 — 분석 전 화면(시안 `docs/specs/1121_prespec-detail/` a1·a2·a3)
  *
  * 구역은 제목 줄 + 구역 사이 옅은 선 한 줄(ADR-0076). 네 변 테두리 상자·그림자·왼쪽 굵은 선을 새로 두지 않는다.
  * 글자·조작 크기는 `--bo-k-*`, 색은 테마 토큰만 쓴다. 본문 묶음의 가운데 배치는 셸(`shell-relaxed.css`)이 맡는다.

@@ -133,7 +133,7 @@ export interface WorkspaceViewTabsProps<K extends string> {
  * 접근 이름은 여전히 `${label}  ${count}`(두 칸)이다. Astryx `Button`의 `label`은
  * 문자열이지만 `children`을 주면 그것을 그리고 `label`은 `aria-label`로 남으므로,
  * 표기 형식과 접근 이름을 바꾸지 않은 채 건수만 따로 칠할 수 있다
- * (`docs/0915_ui-redesign/spec.md` §2.2: 활성 탭의 건수는 `--color-text-accent`).
+ * (`docs/specs/0915_ui-redesign/spec.md` §2.2: 활성 탭의 건수는 `--color-text-accent`).
  * 건수는 접근 이름의 일부이므로 테스트는 `getByRole("button", { name: /^전체/ })`처럼
  * 앞부분으로 찾는다.
  */

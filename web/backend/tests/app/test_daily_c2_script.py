@@ -1,5 +1,5 @@
 """`scripts/run-daily-c2.sh`와 발주계획 트랙의 C-2 실행·감사 표본 draw 연결(S9c)을 본다
-(`docs/0918_daily-operation/spec.md` §8, `docs/contracts.md` "C-2 일일 운영 계약").
+(`docs/specs/0918_daily-operation/spec.md` §8, `docs/contracts.md` "C-2 일일 운영 계약").
 
 가짜 `curl`·`docker`·`python3`와 임시 루트는 `test_daily_lifecycle_script.py`의 것을 그대로 쓴다.
 가짜 REST는 실행 생성 때 `outcomes`에 적힌 terminal 상태(기본 `성공`)를 첫 상세 조회에서 돌려준다.

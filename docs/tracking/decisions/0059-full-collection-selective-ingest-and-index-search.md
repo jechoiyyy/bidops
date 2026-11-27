@@ -3,7 +3,7 @@
 - 상태: 채택 (결정 1의 수집 창은 2026-09-18 [ADR-0061](0061-daily-collection-window.md)이 개정)
 - 일자: 2026-09-17
 - 관련 결정: [ADR-0022](0022-plan-prespec-centered-lifecycle.md)(생애주기 구성), [ADR-0024](0024-prespec-collect-all-flag-sw.md)(사전규격 전량 수집), [ADR-0025](0025-prespec-link-search-unconfirmed-state.md) §개정(기관 조건·색인 검색), [ADR-0027](0027-order-plan-requery-window.md)(발주계획 21일 창), [ADR-0028](0028-bid-first-opportunity-registration.md) §개정(적재된 레코드 기준), [ADR-0030](0030-opportunity-tracking-state.md) §개정(신호 확장)
-- 근거 요청: 사업 추적 연결·조치 고도화 계획(`docs/0917_opportunity-tracking/`) intent 결정 1~4, [실측](../../validation-runs/20260917-bid-collection-probe.md)
+- 근거 요청: 사업 추적 연결·조치 고도화 계획(`docs/specs/0917_opportunity-tracking/`) intent 결정 1~4, 실측(`docs/validation-runs/20260917-bid-collection-probe.md`, git 이력)
 
 ## 맥락
 
@@ -20,7 +20,7 @@
 
 **1468(소프트웨어사업자) 업종 조회를 수집 필터로 쓸 수 있는지가 핵심 미지수였다.** 확인하려고
 2026-09-17 3일 창(`202609140000`~`202609162359`) 실측을 했다
-([`../../validation-runs/20260917-bid-collection-probe.md`](../../validation-runs/20260917-bid-collection-probe.md)).
+(`docs/validation-runs/20260917-bid-collection-probe.md`(git 이력)(`docs/validation-runs/20260917-bid-collection-probe.md`, git 이력)).
 
 | 값 | 수치 |
 |---|---|

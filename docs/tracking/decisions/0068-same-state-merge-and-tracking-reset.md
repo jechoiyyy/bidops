@@ -4,8 +4,8 @@
 - 일자: 2026-09-22
 - 관련: [ADR-0028](0028-bid-first-opportunity-registration.md)(병합은 공식 번호가 같을 때만·판정 보존),
   [ADR-0030](0030-opportunity-tracking-state.md)(추적 상태와 재검토 신호),
-  `docs/business-rules.md` "병합 규칙", `docs/0917_opportunity-tracking/spec.md` §3.2·§3.3,
-  승인 시안 `docs/0915_ui-redesign/mockups/0922_practitioner-m7/`(결정 4·5)
+  `docs/business-rules.md` "병합 규칙", `docs/specs/0917_opportunity-tracking/spec.md` §3.2·§3.3,
+  승인 시안 `docs/specs/0915_ui-redesign/mockups/0922_practitioner-m7/`(결정 4·5)
 
 ## 맥락
 

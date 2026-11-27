@@ -79,7 +79,7 @@ function firstEvidencePage(payload: PageOverviewPayload): number | null {
 
 /**
  * 선택한 사전규격 하나 — 담당자가 추적을 시작할지 판단하는 데 필요한 것만
- * 위에서 아래로 한 화면에 둔다(docs/0915_ui-redesign/spec.md §3.1·§3.3).
+ * 위에서 아래로 한 화면에 둔다(docs/specs/0915_ui-redesign/spec.md §3.1·§3.3).
  *
  * 순서는 머리 → 사업 설명 → 주요 과업 요약 → 예산·일정 4칸 → 일정·규모 한 줄 →
  * 주의사항이고, 추적 조작과 상세 진입은 바닥에 고정된다. **첨부 목록·처리 이력·

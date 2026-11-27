@@ -346,7 +346,7 @@ BM25가 놓친 두 건은 현재 기록상 관련·우선순위 낮음·draft la
 4. fake/live 실행을 분리해 strict schema·failure·no-fallback·감사·hash를 검증한다.
 5. 운영자가 정확한 policy·model·prompt·profile·generation binding을 명시적으로 승인한다.
 
-C-2 PoC 임계값과 승인값은 [일일 운영 결정 표](0918_daily-operation/plan.md)에 있다. v4·v5의 통과 기록을 새 정책에 승계하지 않는다. RL 카드 판정은 별도 [gold 인수 기준](model-quality-gate.md#rl-판정-gold-인수-rl-05)을 적용하며, 2026-10-20 인수 결과는 reject다. 예전 심층 검토 후보 지표를 RL의 합격 기준으로 대신 쓰지 않는다.
+C-2 PoC 임계값과 승인값은 [일일 운영 결정 표](specs/0918_daily-operation/plan.md)에 있다. v4·v5의 통과 기록을 새 정책에 승계하지 않는다. RL 카드 판정은 별도 [gold 인수 기준](model-quality-gate.md#rl-판정-gold-인수-rl-05)을 적용하며, 2026-10-20 인수 결과는 reject다. 예전 심층 검토 후보 지표를 RL의 합격 기준으로 대신 쓰지 않는다.
 
 ## 9. 현재 로드맵
 

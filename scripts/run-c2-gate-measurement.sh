@@ -15,7 +15,7 @@ Usage:
   scripts/run-c2-gate-measurement.sh -h|--help
 
 Runs one pass of a C-2 quality gate's measurement executions
-(docs/0918_daily-operation/spec.md §4.1·§4.2) through the product path, in the
+(docs/specs/0918_daily-operation/spec.md §4.1·§4.2) through the product path, in the
 order the gate lists its measurement_run_ids, and prints the execution ids for
 the person to paste into a quality-gates/{gate_id}/evaluations POST. It does
 not score anything and does not record an evaluation.

@@ -80,7 +80,7 @@ test("legacy 첨부는 mutation control 없이 provenance와 안전한 문서 �
 
 // 담당자 이름은 화면마다 되풀이해 묻지 않고 이 브라우저에 기억된다. 기억은
 // 편의일 뿐이므로 **인증으로 표현되지 않고**, 이름이 채워졌다는 것만으로는
-// 어떤 변경 요청도 나가지 않는다(docs/security.md · AGENTS.md).
+// 어떤 변경 요청도 나가지 않는다(docs/security.md (git 이력) · AGENTS.md).
 test("기억된 담당자 이름은 인증으로 표현되지 않고 스스로 변경을 보내지 않는다", async ({ page }) => {
   const mutations: string[] = [];
   page.on("request", (request) => {

@@ -530,7 +530,7 @@ DB/MinIO는 host publish하지 않고 프로젝트별 volume을 사용한다. �
 교체는 Compose v2.24+ `!override`로 web·analysis-worker의 volumes를 다시 선언한다(설치 버전 v5.1.2, 저장소는 `!reset` 사용 전례가 있다).
 전체 렌더 config에서 기존 회사 프로필 read-only mount와 운영 pipeline mount도 남아 있지 않음을 검사한다.
 가상회사·온톨로지 원본은 이미지에 넣지 않고(Dockerfile은 docs를 복사하지 않는다) 일회성 CLI 컨테이너에
-`docs/demo-fixtures`를 `/run/demo-fixtures`로 read-only 마운트해 넘긴다. 상주 서비스에는 마운트하지 않는다.
+`web/backend/tests/fixtures/demo-companies`를 `/run/demo-fixtures`로 read-only 마운트해 넘긴다. 상주 서비스에는 마운트하지 않는다.
 현재 로컬 `.env`·`env/model.env`·`env/prespec-attachment.env`를 재사용하고, `env/demo.env`는 새 demo flag·policy ID·Codex 경로만 Git 밖에서 보탠다. 운영 env를 복사하지 않는다.
 BIDOPS_CODEX_AUTH_FILE은 사용자가 승인한 계정의 인증 파일을 지정한다.
 같은 인증을 쓰는 다른 Luna 실행과 겹치지 않게 순차로 하고, 데모 실행 시각과 review ID를 증거에 남긴다.
@@ -542,7 +542,7 @@ DEEP_REVIEW_AUTO_START_ENABLED=false·scheduler/always-on/C-2 daily trigger=fals
 2026-10-06~08 실제 수집 범위를 source hash와 정규 run ID로 동결하고 그 안에서 6건을 선택한다.
 첨부 취득·문서 준비·개요는 target을 명시한 one-shot 작업으로 수행하며 자동 개요·회사 핏·심층 시작과 scheduler는 false를 유지한다.
 Luna/회사 핏 enable과 policy ID 주입은 별도의 명시적 단계다. prepare가 이를 활성화하거나 모델을 호출하지 않는다.
-실제 원문·manifest·인수 기록이 들어가는 `data/demo/`는 `.gitignore`에 추가한다. Git 대상은 schema와 순수 합성 원본(`docs/demo-fixtures`)뿐이다.
+실제 원문·manifest·인수 기록이 들어가는 `data/demo/`는 `.gitignore`에 추가한다. Git 대상은 schema와 순수 합성 원본(`web/backend/tests/fixtures/demo-companies`)뿐이다.
 
 `./scripts/prepare-company-demo.sh --stage preflight|storage|migrate|companies|notices --env-file env/demo.env [--apply]`
 - default stage=preflight, default dry-run. cwd와 무관하게 script 위치에서 repo root를 찾는다.
@@ -635,7 +635,7 @@ live config의 tracking mutation은 demo-laptop project에서만 실행하고 de
 ## RL 개정 (2026-10-16, RL-00, ADR-0073)
 
 루트랩 실회사 1곳을 같은 등록·binding·profile 경로로 받기 위한 개정이다. 근거 [RL-00 spec](groups/RL/features/RL-00-company-ground-truth/spec.md), [ADR-0073](../tracking/decisions/0073-rootlab-real-company-ax-redefinition.md). 위 §1~§4 원문은 DEMO·HP 가상회사 기준으로 남기고 겹치는 항목은 이 절이 대체한다. §2의 REST 공통형·§8의 저장·fingerprint·오류 envelope는 그대로다.
-상태: 코드 구현과 `bidops-local`(별도 DB `bidops_rla`) 격리 등록·활성화(STEP-006, [README](../validation-runs/2026-10-16-rl/RL-00/README.md))는 RL-00 run에서 끝났다. 운영 반영은 아직이며 이 절은 운영 결과를 주장하지 않는다. 회사 REST 응답 계약은 [contracts.md](../contracts.md) "회사 근거(RL-00)"가 정본이다.
+상태: 코드 구현과 `bidops-local`(별도 DB `bidops_rla`) 격리 등록·활성화(STEP-006, README(`docs/validation-runs/2026-10-16-rl/RL-00/README.md`, git 이력))는 RL-00 run에서 끝났다. 운영 반영은 아직이며 이 절은 운영 결과를 주장하지 않는다. 회사 REST 응답 계약은 [contracts.md](../contracts.md) "회사 근거(RL-00)"가 정본이다.
 
 ### R1. 회사 등록과 demo 플래그 (§1 대체)
 

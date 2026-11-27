@@ -6,7 +6,7 @@
 
 이 절차는 현재 실행 중인 애플리케이션 스택(Compose 프로젝트 `bidops`)에서 `notice`(입찰공고·사전규격), `judgment`(모델 1차 판정),
 `review`(사람 검토) 테이블을 채우고, 그 데이터가 관리 화면까지 렌더링되는지 확인하는 순서다.
-발주계획 종단 실행(`docs/validation-runs/20260902-order-plan-c2-phases2-4.md`)과 같은 스택에서
+발주계획 종단 실행(`docs/validation-runs/20260902-order-plan-c2-phases2-4.md` (git 이력))과 같은 스택에서
 이어서 수행한다.
 
 등급 기반 자동 문서 준비와 `SW사업대상=Y` 자동 심층 시작까지 한 번에 통과시키는 절차는 이
@@ -52,7 +52,7 @@
 ## 실행 순서
 
 컨테이너 이름은 Compose 프로젝트 `bidops` 기준이다. 2026-09-04에 `bidops-e2e-t7` 프로젝트의 volume을
-복제해 이 이름으로 재기동했고, 발주계획 1,040건과 C-2 실행 결과는 그대로 보존됐다(당시 정리 기록: `git show b5a61e4:docs/docker-consolidation.md`; 현재 조합은 [호스트 절차](operations/host.md)).
+복제해 이 이름으로 재기동했고, 발주계획 1,040건과 C-2 실행 결과는 그대로 보존됐다(당시 정리 기록: `git show b5a61e4:docs/docker-consolidation.md` (git 이력); 현재 조합은 [호스트 절차](operations/host.md)).
 
 ### 1. 기존 공고 회차 적재 (모델·외부망 불필요)
 

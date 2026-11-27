@@ -3,7 +3,7 @@
 - 상태: 채택
 - 일자: 2026-09-17
 - 관련 결정: [ADR-0034](0034-bid-delta-final-decision.md) §5 부분 개정, [ADR-0053](0053-decision-workload-read-contracts.md) §6 현재성 단일 규칙 확장
-- 근거 요청: 사업 추적 연결·조치 고도화 계획(`docs/0917_opportunity-tracking/`) intent 결정 8, spec §9
+- 근거 요청: 사업 추적 연결·조치 고도화 계획(`docs/specs/0917_opportunity-tracking/`) intent 결정 8, spec §9
 
 ## 맥락
 

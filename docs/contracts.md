@@ -77,7 +77,7 @@ C-1 `candidate_selection`의 기존 `collect-candidate.v2 / candidate_pool_all /
 
 - 사전규격은 `Notice.title|agency|demand_agency`, 사업 추적은 authoritative 소유 링크 대상의 `OrderPlan.title|agency_name`·`Notice.title|agency|demand_agency`, 발주계획은 `OrderPlan.title|agency_name|order_plan_unty_no`를 검색한다.
 - 사업 추적의 2~100자 한계는 위 공백의 연속 구간을 ASCII SPACE 한 칸으로 줄여 양끝을 제거한 값의 Unicode 코드포인트 수로 검사한다. 유효한 raw `q`는 바꾸지 않는다.
-- Go/No-Go의 `q`는 API 인자가 아니다. 받은 decision queue 행의 실제 `title|agency`만 클라이언트에서 검색하며 서버 `total`은 유지한다. 상세 동작은 [검색 UX 명세](0921_search-ux/spec.md)를 따른다.
+- Go/No-Go의 `q`는 API 인자가 아니다. 받은 decision queue 행의 실제 `title|agency`만 클라이언트에서 검색하며 서버 `total`은 유지한다. 상세 동작은 [검색 UX 명세](specs/0921_search-ux/spec.md)를 따른다.
 
 ## 상태와 식별자
 

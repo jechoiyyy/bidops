@@ -50,7 +50,7 @@ test("문서 준비 기본 열림은 조치와 처리 중 폴링을 우선한다
   }
 });
 
-// 2026-11-21 `처리 상태·기술 정보` 구역의 기본 열림(시안 `docs/1121_prespec-detail/`). 기본은 닫힘이고, 옮겨 온 두 접힘
+// 2026-11-21 `처리 상태·기술 정보` 구역의 기본 열림(시안 `docs/specs/1121_prespec-detail/`). 기본은 닫힘이고, 옮겨 온 두 접힘
 // (문서 준비 패널·기술 정보)이 스스로 열리던 조건과 범위 확정 필요만 합쳐 연다. 규칙 한 곳 = `preSpecProcessDefaultOpen`.
 const readyBundle = bundle("ready");
 const none = { bundle: null, overviewCurrent: null, companyFitAttempt: null, verification: null } as const;

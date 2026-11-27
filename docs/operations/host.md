@@ -128,7 +128,7 @@ scripts/c2-mac-model-preflight.sh        # 별칭 경로·Ollama digest·컨테�
 
   운영 checkout은 2026-11-18부터 main checkout `/Users/temp/orca/bidops`다. env 파일 4개와
   `data/runs`·`backups`를 옛 `bidops-c2mac`에서 옮겼다
-  ([기록](../validation-runs/20261118-ops-main-move/README.md)).
+  (기록(`docs/validation-runs/20261118-ops-main-move/README.md`, git 이력)).
 - 앱 이미지는 `BIDOPS_ENV=prod scripts/compose.sh build web`으로 빌드한다. `make build`는
   bootstrap 대상을 arm64로 빌드해 lock hash 검사에서 실패한다(findings). postgres-init·migrate는
   web과 같은 `BIDOPS_IMAGE`를 쓴다. 문서 worker는 `build document-worker`다.

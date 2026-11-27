@@ -33,7 +33,7 @@ PRESPEC_ENDPOINT = (
 )
 # The PPSSrch variant filters bids by the industry code of an industry-limited
 # notice.  Its result is used only as a key set to mark collected bids; it is
-# never a collection filter (docs/validation-runs/20260917-bid-collection-probe.md).
+# never a collection filter (docs/validation-runs/20260917-bid-collection-probe.md (git 이력)).
 SW_INDUSTRY_ENDPOINT = (
     "https://apis.data.go.kr/1230000/ad/BidPublicInfoService/"
     "getBidPblancListInfoServcPPSSrch"

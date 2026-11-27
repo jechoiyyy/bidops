@@ -27,7 +27,7 @@ Run.notices/reviews  cascade="all, delete-orphan"
   evidence_ref, screening_execution)이 **대리키 `notice.id`**를 참조한다.
   외부 식별자 기준으로 바꿔도 이 8개 테이블은 바뀌지 않는다.
 - 발주계획 갱신은 원 구간 재조회로 재관측된다
-  (`docs/validation-runs/20260828-lifecycle-linkage-survey.md`). 관측 이력을 저장할 자리가 필요하다.
+  (`docs/validation-runs/20260828-lifecycle-linkage-survey.md` (git 이력)). 관측 이력을 저장할 자리가 필요하다.
 - `notice`에 맞지 않는 필드는 유실된다. `pre_spec` 정규화기는 `attachments`를 `[]`로 비우고
   `swBizObjYn`·`bsnsDivNm`은 담을 자리가 없어 `raw_source` JSONB에만 남는다.
 - 운영 데이터가 아직 없다. Alembic 마이그레이션은 3개이고 `web/data/`는 비어 있다.

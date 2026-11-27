@@ -8,7 +8,7 @@
   - `prespec-list-work.spec.ts:678`·`:734`(LS-06): 담당자 이름만 입력한 상태에서 필터·쪽 이동을 하면 이탈 확인 창을 기대하지만, 창이 뜨지 않는다. 현재 `TrackingDecisionControl`은 사유가 있을 때만 dirty로 본다. 검사의 기대와 제품 규칙이 어긋나 있는 것으로 보인다.
   - `design-shell.spec.ts:228` "native compact 셸…": 드롭다운에서 선택한 항목의 중심이 trigger 중심과 5~7px 어긋나 허용치 4px를 넘는다. 두 폭 모두 실패한다. native select의 OS 기하에 의존하는 것으로 보인다.
   - `mock-review-prototype.spec.ts`: `src/mock-review/scenario`가 `.md`를 import해 Playwright 수집 단계에서 SyntaxError가 난다. 이 때문에 파일을 지정하지 않은 `test:screens` 전체 실행이 시작되지 않는다.
-  - 증거는 DEMO-04 run의 `docs/work/_runs/demo04-20261012/baseline-design-shell.log`·`baseline-admin-listwork.log`·`feature-final-screens.log`에 있다. 같은 run에서 `admin-workspace-consistency.spec.ts:23` 2건도 실패했는데, 이는 아래 2026-09-16 항목에 이미 있다.
+  - 증거는 DEMO-04 run의 `docs/work/_runs/demo04-20261012/baseline-design-shell.log` (git 이력)·`baseline-admin-listwork.log`·`feature-final-screens.log`에 있다. 같은 run에서 `admin-workspace-consistency.spec.ts:23` 2건도 실패했는데, 이는 아래 2026-09-16 항목에 이미 있다.
 - 영향: 화면 게이트(`test:screens`)를 그대로 돌리면 수집 오류로 멈추고, spec을 나열해 돌려도 6건이 항상 실패한다. 그래서 새 회귀를 기존 실패와 가르려면 기준 빌드와 대조해야 한다.
 - 지금 해결하지 않은 이유: 셋 다 DEMO-04가 바꾸지 않은 파일이나 규칙에 걸려 있다. 특히 LS-06은 검사와 제품 중 무엇이 맞는지 판단이 필요하다.
 - 후속: LS-06은 dirty 규칙(담당자만 입력한 경우도 dirty로 볼지)을 정한 뒤 검사나 제품을 맞춘다. `mock-review-prototype`은 `.md` import를 Playwright가 읽을 수 있는 방식으로 바꾸거나 `testIgnore`에 넣는다. design-shell 기하 허용치는 Linux CI 기준값과 대조한다.
@@ -32,7 +32,7 @@
   통합으로 바뀌었는데(`display_assessment`·`assessment_status` 등) 자동 심층 검토 시작 테스트의 fixture가 그 조건을 갖추지 않는다.
 - 영향: 자동 심층 검토 시작 경로의 회귀를 이 파일이 더는 막지 못한다. 실무 화면 고도화 묶음 ③·④ 게이트(백엔드 전체 2454 passed)에서
   발견했고 그 변경과 무관하다(clean `bda1288`에서 재현).
-- 지금 해결하지 않는 이유: `bda1288`의 작업(다른 세션, `docs/0921_prespec-preliminary-assessment/`) 몫이다. 제품 결함(예비 판단이 없으면
+- 지금 해결하지 않는 이유: `bda1288`의 작업(다른 세션, `docs/specs/0921_prespec-preliminary-assessment/`) 몫이다. 제품 결함(예비 판단이 없으면
   자동 시작이 막히는 것이 의도인지)인지 fixture 결함인지 그 작업이 가려야 한다.
 - 후속 방향: 그 작업에서 개요 완료 판정의 새 조건을 명세로 못 박고 fixture를 맞추거나, 자동 시작이 예비 판단과 무관해야 하면 게이트를 되돌린다.
 
@@ -93,7 +93,7 @@
   "발주기관 연락·협상·알림 발송"을 명시적 제외로 두고 있는데, 그것은 **시스템이 대신 연락하는 기능**의 제외이지
   사람이 볼 연락처를 화면에 두는 것을 금지한 문장이 아니다. 두 가지를 같은 것으로 읽으면 결정이 근거 없이 닫힌다 —
   이 항목은 PRD가 이미 금지한 것이 아니라 **아직 결정하지 않은 것**이다.
-- 지금 해결하지 않은 이유: 2026-09-21 사용자 결정 8(`docs/0921_practitioner-screens/intent.md` §3)로 이번 범위에서
+- 지금 해결하지 않은 이유: 2026-09-21 사용자 결정 8(`docs/specs/0921_practitioner-screens/intent.md` §3)로 이번 범위에서
   빼고 후속 결정으로만 기록하기로 했다. 측정된 정규화 스키마를 넓히는 것은 기존 레코드의 저장 identity에 영향을 줄
   수 있고(`docs/engineering-notes.md` "선택 필드를 계약 모델에 더하면 기존 레코드의 저장 identity가 바뀐다"),
   개인 연락처를 API 응답·로그·감사에 어디까지 실을지가 먼저 정해져야 한다.
@@ -108,7 +108,7 @@
   고른다. 바로 다음 줄(`:613`)의 `estimated_price`는 `presmptPrce` 하나다. 저장된 `budget` 값만 보면 셋 중 어느
   원문 필드에서 왔는지 알 수 없고, 두 번째 후보로 떨어진 공고는 `budget`과 `estimated_price`가 같은 값이 된다.
 - 영향: 화면이 이 값을 '배정예산'이라 부르면 사실이 아닌 라벨이 된다. 그래서 실무 화면 고도화는 `예산(원문 제공
-  금액)`과 `추정가격`을 따로 보이고 값이 같아도 합치지 않는 선에서 멈췄다(`docs/0921_practitioner-screens/spec.md`
+  금액)`과 `추정가격`을 따로 보이고 값이 같아도 합치지 않는 선에서 멈췄다(`docs/specs/0921_practitioner-screens/spec.md`
   §6.3, [ADR-0066](../decisions/0066-practitioner-ops-information-boundary.md) 결정 4). 두 값이 같을 때 그것이 "실제로
   같은 금액"인지 "fallback으로 같아진 것"인지는 여전히 화면에서 구분되지 않는다.
 - 지금 해결하지 않은 이유: 출처를 남기려면 수집기 정규화 출력에 `budget_source` 같은 필드를 더해야 하고, 그러면 위
@@ -250,7 +250,7 @@
   현재 화면 명칭·회차 구분의 정본에 맞춰 해당 기존 회귀 기대값을 검토해야 한다.
 - 영향: 전체 회귀 게이트를 통과했다고 주장하거나 이 기록만으로 배포 승인 근거로 사용할
   수 없다. 재현 명령과 이번 변경의 상세 검증은
-  `docs/validation-runs/20260907-prespec-page-overview-integration.md`에 기록한다.
+  `docs/validation-runs/20260907-prespec-page-overview-integration.md` (git 이력)에 기록한다.
 
 ## 화면 스위트의 발주계획·공통 골격 spec 53건이 main에서 실패한다 (2026-09-16, 원인 미확인)
 
@@ -279,7 +279,7 @@
 
 - 재현 조건: `web/frontend/src/pages/OrderPlansPage.tsx:77`의 `PAGE_SIZE = 500`으로 누적 목록을 한 번에
   최대 500행 받아 브라우저에서 필터링한다. 활성화 뒤 발주계획은 하루 약 300건씩 누적으로 늘어난다
-  (`docs/0918_daily-operation/spec.md` §7 — 활성화된 적 있는 policy의 운영 목적 완료 실행 전부가 누적
+  (`docs/specs/0918_daily-operation/spec.md` §7 — 활성화된 적 있는 policy의 운영 목적 완료 실행 전부가 누적
   범위).
 - 영향: 누적 기간이 늘수록(며칠만 지나도 500건을 넘는다) 서버가 이미 필터링해 줄 수 있는 조건도 클라이언트가
   전량을 받아서 걸러야 하므로 응답 크기와 렌더 비용이 계속 커진다. 목록 응답의 `human_feedback`에
@@ -338,7 +338,7 @@
   `replaced_by_policy_version=null`)가 남으며, 활성 policy가 없으므로 일일 자동 실행도
   `no_active_policy`로 꺼진 채 시작한다(절차는 `docs/operations.md`의 C-2 활성화 절). 운영 조치 전이므로
   이 항목은 실제 실행과 그 결과 확인 뒤에 닫는다. v3를 정식 활성화하면 그 시점에는 활성화 transaction이
-  이전 active를 자동으로 내린다(§3.3 9번, `docs/0918_daily-operation/spec.md`).
+  이전 active를 자동으로 내린다(§3.3 9번, `docs/specs/0918_daily-operation/spec.md`).
 - 조치 결과(2026-09-19): 운영 DB를 백업(`backups/postgres/full/bidops-20260919T063021Z.dump`, SHA-256
   `f0fb31f1…3e4a09`)하고 그 사본으로 0026→0029 migration과 retire CLI를 격리 리허설한 뒤, 운영에 migration
   `0029_c2_quality_gate`를 적용하고 web 컨테이너에서 retire CLI를 실행했다(담당자 `jechoi`). v2는

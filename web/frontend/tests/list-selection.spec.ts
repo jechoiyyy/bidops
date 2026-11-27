@@ -112,7 +112,7 @@ test("LS-S1 canonical fingerprints normalize set order and exclude paging contex
   });
   expect(first).toBe(reordered);
   expect(first).not.toContain("offset");
-  // 지문은 raw `q`가 아니라 `searchKey(q)`를 담는다(docs/0921_search-ux/spec.md §3).
+  // 지문은 raw `q`가 아니라 `searchKey(q)`를 담는다(docs/specs/0921_search-ux/spec.md §3).
   // 공백만 다른 검색어는 같은 적용값이므로 **같은** 지문이어야 하고, 선택을 비우는
   // 것은 적용값이 실제로 달라질 때뿐이다.
   expect(orderPlansFilterFingerprint({ ...reorderedInput(), q: "접근성" })).toBe(first);

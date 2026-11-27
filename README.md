@@ -69,7 +69,7 @@ scripts/mac-compose.sh ps
 
 앱은 amd64 이미지, 문서 worker는 native arm64 이미지를 사용합니다. 저장소에 portable `docker/Document.Dockerfile`을 제공합니다. 운영 project·volume 이름은 유지합니다. migration·재배포·정책 활성화·실제 모델·Slack·cron은 이번 통합에서 실행하지 않습니다.
 
-마지막 저장된 배포는 [2026-10-19 기록](docs/validation-runs/20261019-ops-rl-rollout/README.md)입니다. 2026-11-17 읽기 전용 확인에서 운영과 데모 web은 모두 restarting/unhealthy였고 활성 BidOps cron 행은 없었습니다. 이 통합에서 복구하지 않았으며, 정상 운영 또는 새 코드 반영으로 해석하지 않습니다.
+마지막 저장된 배포는 2026-10-19 기록(`docs/validation-runs/20261019-ops-rl-rollout/README.md`, git 이력)입니다. 2026-11-17 읽기 전용 확인에서 운영과 데모 web은 모두 restarting/unhealthy였고 활성 BidOps cron 행은 없었습니다. 이 통합에서 복구하지 않았으며, 정상 운영 또는 새 코드 반영으로 해석하지 않습니다.
 
 ## 업데이트·백업·복구
 
@@ -98,4 +98,4 @@ scripts/mac-compose.sh ps
 | [업무 규칙](docs/business-rules.md) · [계약](docs/contracts.md) | 상태·사람 결정·REST·파일·DB 규칙 |
 | [구현·검증 현황](docs/tracking/status.md) · [로드맵](docs/work/constitution/roadmap.md) | 확인된 기능·품질·남은 작업 |
 | [문제 기록](docs/tracking/findings.md) | 알려진 제약·재현 조건 |
-| [기존 README 보존본](docs/README-before-deployment.md) | 이번 개편 직전 문서. 본문을 보존하고 이동에 따른 상대 링크만 보정 |
+| 기존 README 보존본(`docs/README-before-deployment.md`, git 이력) | 이번 개편 직전 문서. 본문을 보존하고 이동에 따른 상대 링크만 보정 |

@@ -49,7 +49,7 @@ _HANDLER_MARKER = "_bidops_logging_handler"
 # Third-party loggers that emit request bodies, SQL bind parameters, or full
 # URLs at DEBUG/INFO.  The masking filter only redacts key-like assignments, so
 # a developer raising BIDOPS_LOG_LEVEL to DEBUG would otherwise dump prompts,
-# notice text, and query strings that docs/security.md keeps out of logs.
+# notice text, and query strings that docs/security.md (git 이력) keeps out of logs.
 # These stay pinned at WARNING no matter what the application level is.
 _THIRD_PARTY_FLOOR = (
     "sqlalchemy",

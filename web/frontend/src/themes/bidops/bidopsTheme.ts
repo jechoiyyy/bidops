@@ -2,19 +2,19 @@
  * BidOps Theme
  *
  * 프로젝트 소유 테마. stock `neutral`(무채색)에서 갈라져 나왔고, 색만 무드보드
- * `docs/design/moodborad.jpg`의 5색 anchor에서 파생한다. 타이포그래피·모션·
+ * `docs/design/moodborad.jpg` (git 이력)의 5색 anchor에서 파생한다. 타이포그래피·모션·
  * categorical 팔레트·컴포넌트 override는 neutral에서 그대로 가져왔다.
  *
- * 근거: ADR-0048, `docs/design/PRD.md` §4.1 (토큰 표가 정본이다).
+ * 근거: ADR-0048, `docs/design/PRD.md` (git 이력) §4.1 (토큰 표가 정본이다).
  *
  * 2026-09-15: 라이트 값이 무드보드 파생 팔레트에서 흰 바탕·회사 포인트색
- * `#75A03B` 계열로 바뀌었다(`docs/0915_ui-redesign/spec.md` §1.1).
+ * `#75A03B` 계열로 바뀌었다(`docs/specs/0915_ui-redesign/spec.md` §1.1).
  * 2026-10-16: 라이트 값을 RL 시안 v26(CRM 앱 구조, 흰 바탕·회색 사이드바·
  * 초록 #1D7B4E 강조·시안 의미색 4종)으로 교체했다. 정본은
- * `docs/1016_rootlab-redefinition/ui-spec.md` §2 와 mockups/v26 이며 ADR-0073 개정에
+ * `docs/specs/1016_rootlab-redefinition/ui-spec.md` §2 와 mockups/v26 이며 ADR-0073 개정에
  * 기록했다. 아래 무드보드 설명은 다크 값과 파생 이력에만 해당한다.
- * 2026-11-19(사용자 승인 대기 ADR 초안 `docs/1119_kstyle-shell/adr-draft.md`): 중립색을
- * 최종 시안(`docs/1119_kstyle-shell/mockups/`)의 따뜻한 회색 한 벌로 바꿨다 — 본문 먹색
+ * 2026-11-19(사용자 승인 대기 ADR 초안, 이후 ADR-0076으로 채택): 중립색을
+ * 최종 시안(`docs/1119_kstyle-shell/mockups/` (git 이력))의 따뜻한 회색 한 벌로 바꿨다 — 본문 먹색
  * #1B1B1A, 보조 #5E5D5A, 경계 #E4E3E0, fill #F6F5F3. purple 계열은 시안의 정보색(모델 판단
  * 표식)이다. 강조·의미색(success·warning·error)은 대비 게이트가 고정한 값 그대로다.
  *

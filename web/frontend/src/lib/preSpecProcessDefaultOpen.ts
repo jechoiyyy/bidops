@@ -3,7 +3,7 @@ import { documentPanelDefaultOpen } from "./documentPanelDefaultOpen";
 import type { CompanyFitAttempt, PageOverviewCurrent, PageOverviewRangeReview, PageOverviewVerification, PreSpecAutoPreparationStatus } from "./types";
 
 /**
- * 사전규격 상세 맨 아래 `처리 상태·기술 정보` 구역의 기본 열림 규칙(2026-11-21 시안 `docs/1121_prespec-detail/`).
+ * 사전규격 상세 맨 아래 `처리 상태·기술 정보` 구역의 기본 열림 규칙(2026-11-21 시안 `docs/specs/1121_prespec-detail/`).
  *
  * 구역은 기본 닫힘이다. 문제가 있을 때만 열린 채로 들어온다. "문제"는 새로 정하지 않고, 이 구역으로 옮겨 온
  * 두 접힘이 이미 스스로 열리던 조건을 그대로 합친다:

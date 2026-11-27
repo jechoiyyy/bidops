@@ -100,7 +100,7 @@
 
 ## 결과
 
-run `rla-20261016`, 기능 브랜치 `sdlc/rla-20261016-RL-01-daily-briefing`, 기준 df02b33(배치, RL-00 통합 후). 상세 `docs/work/_runs/rla-20261016/RL-01-daily-briefing.md`, 결정 `decisions.md`.
+run `rla-20261016`, 기능 브랜치 `sdlc/rla-20261016-RL-01-daily-briefing`, 기준 df02b33(배치, RL-00 통합 후). 상세 `docs/work/_runs/rla-20261016/RL-01-daily-briefing.md` (git 이력), 결정 `decisions.md`.
 
 - 단계 8/8 done(STEP-001~007 위임, STEP-008 스크립트·문서 위임 + T12 리더 실행).
 - 증명: tests 237 passed·52 skipped(PG 변형) exit 0; postgres(17.11) 274 passed + 리뷰 수정 뒤 영향 파일 32 passed(모듈 경계·권한·alembic drift 포함); frontend build·contrast 8/8·Playwright 45; T11 스크립트 43 passed; T12 bidops-local `bidops_rla` 감독 시운전(생성·REST·반응 왕복·화면, `--send` 제외).

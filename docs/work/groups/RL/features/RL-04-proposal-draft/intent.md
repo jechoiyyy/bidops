@@ -1,7 +1,7 @@
 # 제안서 초안(요구사항 대응표·절 초안·PDF) — intent
 
 - 기능 ID: `RL-04-proposal-draft`
-- 상위 항목: roadmap §RL 표 5행, ADR-0073 결정 2(G3)·개정(PDF 1차·HWP 후속), 인터뷰 E1~E4, [bid-procedure §4·§5](../../../../../1016_rootlab-redefinition/bid-procedure.md), [ui-spec §4.5](../../../../../1016_rootlab-redefinition/ui-spec.md), ux-review §5 결정 5·6
+- 상위 항목: roadmap §RL 표 5행, ADR-0073 결정 2(G3)·개정(PDF 1차·HWP 후속), 인터뷰 E1~E4, [bid-procedure §4·§5](../../../../../specs/1016_rootlab-redefinition/bid-procedure.md), [ui-spec §4.5](../../../../../specs/1016_rootlab-redefinition/ui-spec.md), ux-review §5 결정 5·6
 - 크기: L — 새 정책 파일(용도 `proposal`)·전송 승인 행·테이블 4개·REST 8개·전용 WorkJob/worker·Luna 호출(절당 1회)·PDF 렌더러·화면 1개. 외부 모델 호출. 착수는 RL-03 병합 뒤.
 - 작성일: 2026-10-16 (2026-10-17 배치 B 인터뷰 D2·D3·D4·D9·D10·D11·D12 반영 — [batch-b-interview.md](../../batch-b-interview.md))
 

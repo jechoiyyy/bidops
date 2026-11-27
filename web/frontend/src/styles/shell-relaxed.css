@@ -2,7 +2,7 @@
  * 단계 A — 공통 셸
  *
  * AppShell이 bidops 테마의 경계를 소유한다. 2026-11-19부터 셸은 최종 시안
- * (docs/1119_kstyle-shell/mockups/, ADR 초안 승인 대기)을 따른다: 따뜻한 회색
+ * (docs/1119_kstyle-shell/mockups/ (git 이력), ADR 초안 승인 대기)을 따른다: 따뜻한 회색
  * 바탕(frame) 위에 면 없는 216px 사이드바 + 바깥 여백 8px의 흰 패널 하나(1px 경계,
  * radius 12). 패널 맨 위가 패널 헤더(화면 이름·문장형 제목·설명·탭)이고 별도
  * 상단바는 없다. 바탕·활성 색은 brand.css의 `--bo-*` 프로젝트 토큰이다.
@@ -25,7 +25,7 @@
 
   /* Astryx의 `--spacing-*`(2·4·6·8·12…48px)와 `--size-element-*`(28·32·36px)는
      라이브러리 값을 그대로 쓴다. 2026-11-18 전역 ×0.9 축척을 없애고 4px 격자로
-     옮겼다(docs/1118_launch-hardening/설계고도화안.md §4 B-2). 여기서 다시
+     옮겼다(docs/specs/1118_launch-hardening/설계고도화안.md §4 B-2). 여기서 다시
      덮어쓰지 않는다.
 
      아직 Astryx 간격 토큰으로 옮기지 않은 화면이 읽는 legacy 별칭은 이 한 곳에서만
@@ -1194,7 +1194,7 @@ body {
 
 /* 사전규격 상세(2026-11-19·2026-11-20, ADR-0076): 카드 더미 대신 패널 한 장 안의 구역이다. 그림자·둥근 상자·
    초록 띠·회색 머리 띠 없이, 구역 제목 줄과 구역 사이 옅은 선 한 줄로 나눈다. 2026-11-21 시안
-   (`docs/1121_prespec-detail/`)부터 본문 묶음은 읽기 폭 1040px로 패널 가운데에 놓이고, 패널 헤더 안쪽과 하단
+   (`docs/specs/1121_prespec-detail/`)부터 본문 묶음은 읽기 폭 1040px로 패널 가운데에 놓이고, 패널 헤더 안쪽과 하단
    결정 띠 안쪽도 같은 폭이라(`data-reading-width="detail"`) 세 곳의 왼쪽 선이 같다. */
 .app-shell .page-canvas .ps-record {
   --ps-brand-band: transparent;

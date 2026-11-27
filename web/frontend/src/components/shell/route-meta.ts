@@ -69,7 +69,7 @@ export interface RouteMetadata {
   canvas?: "flush" | "flush-with-detail";
   /**
    * 상세(식별자 칸이 있을 때)의 본문·패널 헤더 안쪽·패널 아래 고정 띠를 읽기 폭(1040px) 가운데에 맞춘다
-   * (2026-11-21 사전규격 상세 시안 `docs/1121_prespec-detail/`). 목록에서는 쓰지 않는다. 없으면 지금처럼
+   * (2026-11-21 사전규격 상세 시안 `docs/specs/1121_prespec-detail/`). 목록에서는 쓰지 않는다. 없으면 지금처럼
    * 패널 왼쪽 여백에서 시작한다.
    */
   detailReadingWidth?: boolean;

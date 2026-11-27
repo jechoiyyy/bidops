@@ -5,7 +5,7 @@ export interface PreSpecBriefingSectionProps {
 }
 
 /**
- * 상세 ④의 가운데 열 `회사 적합성`(docs/0915_ui-redesign/spec.md §4 ④).
+ * 상세 ④의 가운데 열 `회사 적합성`(docs/specs/0915_ui-redesign/spec.md §4 ④).
  *
  * 2026-11-19(사전규격 단계 수정안 §3 B): C-1 공고 판정을 다시 돌리지 않으므로 이 열에 있던
  * `등급 사유`·`사람 정정 사유`·판정의 다음 행동 줄은 내려갔다(운영에는 판정이 0건이라 늘

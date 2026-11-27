@@ -10,7 +10,7 @@ import { ApiError, OrderPlanBulkTrackingResultUnconfirmedError } from "./api";
  * 다음 행동을 함께 말하지 않았고, 마지막 둘은 서버가 만든 문자열을 그대로
  * 화면에 실었다.
  *
- * `docs/security.md`: API 오류 본문은 UI 전송 계약이 아니다. 서버 message,
+ * `docs/security.md` (git 이력): API 오류 본문은 UI 전송 계약이 아니다. 서버 message,
  * 원문, 내부 경로, provider 진단은 화면에 내지 않는다. 남기는 것은 **안전한
  * 오류 코드**뿐이며, 그것도 `[a-z][a-z0-9_]*` 모양일 때만 코드로 인정한다.
  * 그렇지 않으면 서버가 message를 code 자리에 실어 보내는 것과 구분할 수 없다.

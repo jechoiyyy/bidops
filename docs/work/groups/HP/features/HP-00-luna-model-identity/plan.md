@@ -105,4 +105,4 @@ T11은 사용자 확인 뒤 `bidops-local`에서만 실행하고 명령·시각�
 - 관련 backend 160개 사례 통과(최초 156 + fixture-only 수정 후 4), TypeScript/production build·Playwright 27개 통과, 합성 Compose image 검사 통과.
 - 독립 gpt-5.6-sol/high 리뷰 차단 0건. 기존 정책 파일 bytes 보존.
 - 실제 모델 접근·identity 확인 완료. 응답은 숫자/원문 범위 검증에서 차단되어 분석 성공·품질 검증은 아님. 승인된 bidops-local web·analysis-worker·runner 교체 및 health·SPA·DB head 확인 완료. 이번 loop의 commit/merge는 사용자 명시 승인됨. HP-01은 의존 없는 별도 작업 공간에서 구현 중이며 배치 검증 후 통합.
-- 상세 증거·환경 한계·재개 위치: [run 기록](../../../../_runs/hp0001-20261014/HP-00-luna-model-identity.md), [독립 리뷰](../../../../_runs/hp0001-20261014/final-feature-review.md).
+- 상세 증거·환경 한계·재개 위치: run 기록(`docs/work/_runs/hp0001-20261014/HP-00-luna-model-identity.md`, git 이력), 독립 리뷰(`docs/work/_runs/hp0001-20261014/final-feature-review.md`, git 이력).

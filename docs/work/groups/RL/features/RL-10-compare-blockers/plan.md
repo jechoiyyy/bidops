@@ -7,7 +7,7 @@
 2. STEP-002 정책 v12와 규칙 선택 [complex]
    - v11 바이트 + identity, 식별 집합·resume 계보·기본 경로. 검사: `tests/app/test_company_luna_policy.py`, `tests/app/test_card_analysis_postgres.py`(PostgreSQL), 영향 파일 묶음 SQLite·PostgreSQL.
 3. STEP-003 D-2 탐침 재생과 과잉 차단 스캔 [complex]
-   - 놓친 차단 7개를 v1/v2 × 회사 근거 v4/테스트 fixture로 재생, 10건 전 블록 스캔. 모델 호출 0. 증거: `docs/validation-runs/20261119-rl10-compare-blockers/`.
+   - 놓친 차단 7개를 v1/v2 × 회사 근거 v4/테스트 fixture로 재생, 10건 전 블록 스캔. 모델 호출 0. 증거: `docs/validation-runs/20261119-rl10-compare-blockers/` (git 이력).
 4. STEP-004 문서 [complex]
    - business-rules·contracts·operations 기본 경로·findings·ADR 색인·현황.
 
@@ -29,4 +29,4 @@
 
 ## 결과
 
-[검증 기록](../../../../../validation-runs/20261119-rl10-compare-blockers/README.md) 참조. 종단 품질은 미측정이며 같은 gold 재측정은 사용자 승인 뒤에만 한다.
+검증 기록(`docs/validation-runs/20261119-rl10-compare-blockers/README.md`, git 이력) 참조. 종단 품질은 미측정이며 같은 gold 재측정은 사용자 승인 뒤에만 한다.

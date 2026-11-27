@@ -55,8 +55,8 @@
 - 재현: 운영 `bidops`의 postgres·minio·clamav·document-worker는 compose에 `restart`가 없어 정책이 `no`다. 2026-10-28 Mac/OrbStack 재시작 뒤 이 서비스들은 `Exited`로 남았다. web(`unless-stopped`)만 올라와 `failed to resolve host 'postgres'`로 3주간 1,683회 재시작했다.
 - 영향: 운영 화면·C-2 일일 실행이 사람이 알아차릴 때까지 멈춘다. 경보가 없다.
 - 지금 해결하지 않은 이유: restart 정책은 dev/mock/prod가 공유하는 `docker/docker-compose.yml` 계약 변경이다. 이번 배포 승인 범위(경로 이전·main 배포)를 넘는다.
-- 후속: prod overlay에서 상태 서비스에 `unless-stopped`를 주는 방안과 host 재시작 뒤 감독 확인 절차를 정한다. 그때까지 host 재시작 뒤 `docs/operations/host.md`의 수동 기동 명령을 쓴다. 기록은 [2026-11-18 배포](../../validation-runs/20261118-ops-main-move/README.md)다.
-- 상태(2026-11-18): **운영 반영·실제 재시작에서 확인.** 2026-11-18 14:53 KST host 재시작 뒤 postgres·minio·clamav·document-worker·web이 스스로 올라왔다([배포 기록](../../validation-runs/20261118-launch-hardening-deploy/README.md)). analysis-worker는 정책 `no` 그대로이며 자동 기동 여부는 사용자 결정 대기다. 공유 base 파일은 그대로 두고 `docker/docker-compose.prod.yml`에서 postgres·minio·clamav·document-worker에 `restart: unless-stopped`를 줬다. analysis-worker(사람 확인 뒤 기동)와 postgres-init·migrate·minio-init(일회성)은 바꾸지 않았다. `BIDOPS_ENV=prod scripts/compose.sh config`를 저장소 밖 더미 env 파일로 렌더해 서비스별 restart 값만 확인했다(네 서비스 `unless-stopped`, analysis-worker·postgres-init·migrate `no`, dev 렌더는 네 서비스 모두 `no`). 운영 컨테이너는 다시 만들어야 반영되며 재배포·host 재시작 뒤 자동 기동 확인은 아직이다. 그때까지 위 수동 기동이 유효하다.
+- 후속: prod overlay에서 상태 서비스에 `unless-stopped`를 주는 방안과 host 재시작 뒤 감독 확인 절차를 정한다. 그때까지 host 재시작 뒤 `docs/operations/host.md`의 수동 기동 명령을 쓴다. 기록은 2026-11-18 배포(`docs/validation-runs/20261118-ops-main-move/README.md`, git 이력)다.
+- 상태(2026-11-18): **운영 반영·실제 재시작에서 확인.** 2026-11-18 14:53 KST host 재시작 뒤 postgres·minio·clamav·document-worker·web이 스스로 올라왔다(배포 기록(`docs/validation-runs/20261118-launch-hardening-deploy/README.md`, git 이력)). analysis-worker는 정책 `no` 그대로이며 자동 기동 여부는 사용자 결정 대기다. 공유 base 파일은 그대로 두고 `docker/docker-compose.prod.yml`에서 postgres·minio·clamav·document-worker에 `restart: unless-stopped`를 줬다. analysis-worker(사람 확인 뒤 기동)와 postgres-init·migrate·minio-init(일회성)은 바꾸지 않았다. `BIDOPS_ENV=prod scripts/compose.sh config`를 저장소 밖 더미 env 파일로 렌더해 서비스별 restart 값만 확인했다(네 서비스 `unless-stopped`, analysis-worker·postgres-init·migrate `no`, dev 렌더는 네 서비스 모두 `no`). 운영 컨테이너는 다시 만들어야 반영되며 재배포·host 재시작 뒤 자동 기동 확인은 아직이다. 그때까지 위 수동 기동이 유효하다.
 
 ## prod `make build`가 bootstrap 대상을 arm64로 빌드해 실패한다 (2026-11-18, 미해결)
 
@@ -73,7 +73,7 @@
 - 남은 관측: 초기에 `worker.job_failed`가 있었으나 같은 역할의 각 소비자와 공용 `--once`에서는 재현되지 않았다. 초기 재기동도 60초를 넘긴 뒤 health가 정상화됐다. 당시 host load average가 약 90/132/112로 높았지만 시계열이 없어 원인을 확정하지 않는다. 별도 probe와 최종 기동/기능 성공으로 이 관측을 해소 처리하지 않는다.
 - 환경 조치: Docker 기본 address pool 소진은 기존 network/daemon을 건드리지 않고 개발 전용 비중첩 subnet으로 우회했다. 운영·다른 프로젝트의 자원을 변경하지 않았다.
 - 후속: 유휴 worker는 민감 payload 없이 event/exception-class를 계측한다. 지연 재현 시 브라우저 body 완료, 서버 duration/DB wait, host/VM 자원을 같은 시점에 대조한다. timeout 확대·강제 클릭으로 실패를 통과시키지 않는다.
-- 증거: [통합 검증](../../validation-runs/20261117-engine-integration/README.md), `.sdlc/dev-browser-actor-fixed.log`, `frontend-actor-tests.log`. 초기 실패 로그와 trace도 `.sdlc`에 유지한다.
+- 증거: 통합 검증(`docs/validation-runs/20261117-engine-integration/README.md`, git 이력), `.sdlc/dev-browser-actor-fixed.log`, `frontend-actor-tests.log`. 초기 실패 로그와 trace도 `.sdlc`에 유지한다.
 
 ## 첨부 취득 종결에서 부르는 자동 문서 준비가 커밋되지 않는다 (2026-10-15, 커밋 해소·정책 경로 브랜치 수정)
 
@@ -195,7 +195,7 @@
 ## 수집 실패일·중단일은 자동으로 따라잡지 않는다 (W-3·W-4)
 
 - 확인: 2026-09-19 (독립 검증)
-- 상태: **운영 반영·감독 실행 통과 (2026-11-18).** 14일 따라잡기와 cron 명령 감독 실행에서 `no gap`·공고 3일 따라잡기를 확인했다([배포 기록](../../validation-runs/20261118-launch-hardening-deploy/README.md)). `gap_detected`·`unjudged_detected`(exit 10)와 발주계획 따라잡기가 실행을 만드는 경우는 실제 스택에서 지나가지 않았다. cron은 미설치다. 누락일 감지와 범위 제한 따라잡기를 넣었다 — 아래 "2026-11-18 수정"
+- 상태: **운영 반영·감독 실행 통과 (2026-11-18).** 14일 따라잡기와 cron 명령 감독 실행에서 `no gap`·공고 3일 따라잡기를 확인했다(배포 기록(`docs/validation-runs/20261118-launch-hardening-deploy/README.md`, git 이력)). `gap_detected`·`unjudged_detected`(exit 10)와 발주계획 따라잡기가 실행을 만드는 경우는 실제 스택에서 지나가지 않았다. cron은 미설치다. 누락일 감지와 범위 제한 따라잡기를 넣었다 — 아래 "2026-11-18 수정"
 - 재현 조건: `scripts/run-daily-lifecycle.sh`는 기준일 하루만 돈다(기본값 전일). 수집기가 실패하면
   그 트랙은 exit 비0으로 멈추고, 호스트(WSL)가 꺼져 있어 cron 줄이 아예 돌지 못한 날도 아무 기록이
   남지 않는다. 다음 날 실행은 그 전날을 돌아보지 않는다.
@@ -320,12 +320,12 @@
 ## ADR-0027의 21일 재조회 근거가 종단 관측에서 재현되지 않는다
 
 - 상태: **해결** (2026-09-18, [ADR-0061](../decisions/0061-daily-collection-window.md))
-- 재현 조건: `experiments/lifecycle-linkage-survey/scripts/survey.py`로 게시일 2026-08-24~2026-08-26 구간을 재조회하고 `--baseline-raw`로 이전 관측과 대조한다. 실행 기록은 [`20260831-order-plan-longitudinal.md`](../../validation-runs/20260831-order-plan-longitudinal.md)에 있다.
+- 재현 조건: `experiments/lifecycle-linkage-survey/scripts/survey.py`로 게시일 2026-08-24~2026-08-26 구간을 재조회하고 `--baseline-raw`로 이전 관측과 대조한다. 실행 기록은 `docs/validation-runs/20260831-order-plan-longitudinal.md`(git 이력)에 있다.
 - 증상: 같은 997건이 5일 동안 `bidNtceNoList` 채움률 45.6% → 46.6%로 **1 포인트**만 올랐다. 같은 나이(6일)의 횡단면 점은 67.8%다. 횡단면 곡선은 3일 45.8% → 6일 67.8% → 9일 77.1%로 가파르게 오르지만 실제로 추적 가능한 코호트는 그 속도로 채워지지 않는다.
-- 영향: [ADR-0027](../decisions/0027-order-plan-requery-window.md)이 재조회 범위를 최근 21일로 정한 근거는 횡단면 곡선의 "15~17일 평탄화"다. 실제 코호트가 훨씬 느리게 채워진다면 평탄화 시점이 21일보다 뒤일 수 있고 그러면 창이 짧아 공고 전환을 놓친다. [fill-curve](../../validation-runs/20260829-order-plan-fill-curve.md)가 "횡단면과 종단이 어긋나면 종단이 정본"이라고 미리 정해 두었으므로 이 관측이 우선한다.
+- 영향: [ADR-0027](../decisions/0027-order-plan-requery-window.md)이 재조회 범위를 최근 21일로 정한 근거는 횡단면 곡선의 "15~17일 평탄화"다. 실제 코호트가 훨씬 느리게 채워진다면 평탄화 시점이 21일보다 뒤일 수 있고 그러면 창이 짧아 공고 전환을 놓친다. fill-curve(`docs/validation-runs/20260829-order-plan-fill-curve.md`, git 이력)가 "횡단면과 종단이 어긋나면 종단이 정본"이라고 미리 정해 두었으므로 이 관측이 우선한다.
 - 지금 해결할 수 없는 이유: 종단 관측점이 세 개이고 기간이 5일뿐이다. 21일이 틀렸다고 단정하기에 부족하다. 나이 15일과 21일 근처(2026-09-08, 2026-09-14 무렵) 관측이 나와야 판단할 수 있고, 재조회 범위 변경은 수집 비용과 API 한도에 직접 영향을 주므로 사람 결정이 필요하다.
 - 접근 방법: 같은 구간의 재조회를 계속 쌓아 나이 21일 이후까지 본다. 횡단면 구간들은 폭이 3일로 같은데 건수가 28~997로 흔들려(08-15 광복절 구간이 28건) 비교 가능한 코호트가 아니다. 횡단면 기울기가 나이 효과인지 코호트 구성 차이인지 구분하려면 요일 구성이 같은 구간끼리 비교하거나, 08-21~08-23 구간도 종단으로 추적해 두 방법을 같은 코호트에서 직접 대조한다.
-- 해결: ADR-0061이 ADR-0027을 폐기하고 발주계획을 전일 하루 창으로 수집하고 재조회하지 않기로 정했다. 21일 창의 길이를 맞추는 문제가 아니라 재조회 자체를 그만두므로 이 관측이 요구한 추가 종단 관측은 더 필요 없다. 발주계획→입찰공고 연결은 입찰공고 측 `orderPlanUntyNo`(ADR-0027 결과 절의 76.7%)가 유일 경로다. 겹치지 않는 세 회차(625·1,040·482건) 사이에 같은 통합번호가 다시 나온 경우는 0건이었다(2026-09-18 실측). 대가로 추적 중 발주계획의 `bidNtceNoList`·예산·발주 시기 변경을 관측하지 못하며, 이는 ADR-0061과 [`0918_daily-operation/plan.md` §4](../../0918_daily-operation/plan.md)에 후속 과제로 남겼다.
+- 해결: ADR-0061이 ADR-0027을 폐기하고 발주계획을 전일 하루 창으로 수집하고 재조회하지 않기로 정했다. 21일 창의 길이를 맞추는 문제가 아니라 재조회 자체를 그만두므로 이 관측이 요구한 추가 종단 관측은 더 필요 없다. 발주계획→입찰공고 연결은 입찰공고 측 `orderPlanUntyNo`(ADR-0027 결과 절의 76.7%)가 유일 경로다. 겹치지 않는 세 회차(625·1,040·482건) 사이에 같은 통합번호가 다시 나온 경우는 0건이었다(2026-09-18 실측). 대가로 추적 중 발주계획의 `bidNtceNoList`·예산·발주 시기 변경을 관측하지 못하며, 이는 ADR-0061과 [`0918_daily-operation/plan.md` §4](../../specs/0918_daily-operation/plan.md)에 후속 과제로 남겼다.
 
 ## PostgreSQL 전용 테스트가 스키마 변경 뒤에도 갱신되지 않고 skip됐다
 
@@ -422,7 +422,7 @@
 
 ## B-F 설계 승인 baseline과 manifest가 없어 전체 설계 게이트를 완료할 수 없다
 
-- 재현 조건: `web/frontend`에서 `npm run test:design`을 실행하고 `docs/design/mockups/canvas.json`의 14개 artboard와 `tests/design-snapshots/`·manifest-driven `design.spec.ts`를 대조한다. 기존 공통 시각 회귀는 `npx playwright test visual.spec.ts`로 실행한다.
+- 재현 조건: `web/frontend`에서 `npm run test:design`을 실행하고 `docs/design/mockups/canvas.json` (git 이력)의 14개 artboard와 `tests/design-snapshots/`·manifest-driven `design.spec.ts`를 대조한다. 기존 공통 시각 회귀는 `npx playwright test visual.spec.ts`로 실행한다.
 - 증상: PLAN.md §3·§5·§7이 요구하는 14-artboard manifest, 승인된 PNG baseline, fixture·viewport·crop 매핑과 그 변경 승인 기록이 저장소에 없다. 현재 design suite는 shell 차원의 5 passed·3 skipped에 그치며, 기존 visual suite는 현 UI와 맞지 않는 baseline 때문에 204 passed·144 failed로 끝난다.
 - 영향: B-F 화면의 기능·반응형·접근성 검증은 가능하지만, 승인된 기준 이미지와 픽셀/crop 일치 여부를 주장할 수 없다. 승인 없이 기존 snapshot을 갱신하면 설계 검수 증거를 덮어쓰게 된다.
 - 상태: **차단** (2026-09-03 독립검증). 코드 구현 완료의 차단이 아니라 PLAN 전체 완료 정의에 포함된 승인 설계 자산의 부재다.

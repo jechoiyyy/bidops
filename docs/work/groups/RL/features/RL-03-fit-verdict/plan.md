@@ -120,7 +120,7 @@
 
 ## 결과
 
-2026-10-18, run `rlb-20261017`. STEP-001~010 done, 상태 validating. 상세 기록 `docs/work/_runs/rlb-20261017/RL-03-fit-verdict.md`, 결정 B1~B39 `docs/work/_runs/rlb-20261017/decisions.md`.
+2026-10-18, run `rlb-20261017`. STEP-001~010 done, 상태 validating. 상세 기록 `docs/work/_runs/rlb-20261017/RL-03-fit-verdict.md` (git 이력), 결정 B1~B39 `docs/work/_runs/rlb-20261017/decisions.md`.
 
 - 구현: 카드 판정 파이프라인(unit·batch, 추출→결정적 대조→3역할→종합), 정책 단위 전송 승인·일일 상한·`analysis.transfer.sent` 감사, 판정 REST·화면 탭·활동·브리핑 연동, 자동 트리거·drain, mock 참조 실행, 로컬 원본 연결 CLI. 정책 v1~v6(기본 v6), selector v1~v3, 추출 계약 v1·v2, migration `0040_card_analysis`.
 - 증명: docs·tests(284)·postgres(156)·frontend(build + 52)·api_guard(57) pass. **real_data_run pending** — 실제 Luna T12 1~7차 모두 판정을 얻지 못함(마지막은 단일 제약 검증 실패). 사용자 결정 B37(옵션 B)로 pending 유지, 구조 원인은 `docs/tracking/findings.md` "RL-03 카드 판정은 제약 하나의…".

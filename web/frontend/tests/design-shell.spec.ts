@@ -172,7 +172,7 @@ test("1920px 셸의 팔레트 색과 기준 치수를 고정한다", async ({ pa
     };
   });
 
-  // 색·치수는 2026-11-19 최종 시안(docs/1119_kstyle-shell/mockups/, ADR 초안 승인 대기)과 1:1로 대응한다.
+  // 색·치수는 2026-11-19 최종 시안(docs/1119_kstyle-shell/mockups/ (git 이력), ADR 초안 승인 대기)과 1:1로 대응한다.
   // 따뜻한 회색 바탕(#EEEDEB) 위에 면 없는 사이드바 + 흰 패널(1px #E4E3E0, radius 12, 바깥 8px).
   expect(metrics).toMatchObject({
     colorScheme: "light",

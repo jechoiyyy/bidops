@@ -15,11 +15,11 @@
 
 | 기능 | 실행 명세·계획 | loop에서 해야 할 일 |
 |---|---|---|
-| HP02 | [spec](../features/HP-02-homepage-ontology-company/spec.md) · [plan](../features/HP-02-homepage-ontology-company/plan.md) | v2 projection·binding·격리 등록/조회·coverage |
-| HP03 | [spec](../features/HP-03-two-tier-analysis/spec.md) · [plan](../features/HP-03-two-tier-analysis/plan.md) | 추출/대조/역할/종합·저장·worker·대표 실제검증 |
-| HP04 | [spec](../features/HP-04-practitioner-verdict/spec.md) · [plan](../features/HP-04-practitioner-verdict/plan.md) | 읽기 REST·다섯블록 화면·두 폭/실제조회 검증 |
-| HP05 | [spec](../features/HP-05-neo4j-experiment/spec.md) · [plan](../features/HP-05-neo4j-experiment/plan.md) | 엔진 adapter·동등성·사람 기대경로 후 실제비교 |
-| HP06 | [spec](../features/HP-06-gold-acceptance/spec.md) · [plan](../features/HP-06-gold-acceptance/plan.md) | export/채점 연결·독립정답·실제10건·사람 인수 |
+| HP02 | spec(`docs/work/groups/HP/features/HP-02-homepage-ontology-company/spec.md`, git 이력) · plan(`docs/work/groups/HP/features/HP-02-homepage-ontology-company/plan.md`, git 이력) | v2 projection·binding·격리 등록/조회·coverage |
+| HP03 | spec(`docs/work/groups/HP/features/HP-03-two-tier-analysis/spec.md`, git 이력) · plan(`docs/work/groups/HP/features/HP-03-two-tier-analysis/plan.md`, git 이력) | 추출/대조/역할/종합·저장·worker·대표 실제검증 |
+| HP04 | spec(`docs/work/groups/HP/features/HP-04-practitioner-verdict/spec.md`, git 이력) · plan(`docs/work/groups/HP/features/HP-04-practitioner-verdict/plan.md`, git 이력) | 읽기 REST·다섯블록 화면·두 폭/실제조회 검증 |
+| HP05 | spec(`docs/work/groups/HP/features/HP-05-neo4j-experiment/spec.md`, git 이력) · plan(`docs/work/groups/HP/features/HP-05-neo4j-experiment/plan.md`, git 이력) | 엔진 adapter·동등성·사람 기대경로 후 실제비교 |
+| HP06 | spec(`docs/work/groups/HP/features/HP-06-gold-acceptance/spec.md`, git 이력) · plan(`docs/work/groups/HP/features/HP-06-gold-acceptance/plan.md`, git 이력) | export/채점 연결·독립정답·실제10건·사람 인수 |
 
 18개 STEP을 동기화했고 독립 문서 리뷰(수정 차이1회 재검토 포함)는 PASS/차단0이다. HP02~06은 review 상태로 실행 큐에 등록했다. 다음 착수 기능은 HP02이며 나머지는 명시된 선행 기능을 기다린다. 구현 run은 시작하지 않았다. 단계/큐의 정본은 status.json과 queue.json, 변경은 feature_status.py만 사용한다.
 
@@ -47,7 +47,7 @@ export 입력은 `sources.json`의 name/file/source_sha256 및 `<name>.structure
 
 ## 검증과 한계
 
-HP00·01은 완료 커밋 `95d361d`와 [최종 검증](../../../_runs/hp0001-20261014/hp0001-final-validation.md)이 있다: 관련 backend333·browser31·build·독립리뷰 통과. MinIO fixture1 skip, 실제 모델 분석 실패, 최초198카드 쪽110미확인과 기본 backfill3건 구조 부재는 유지한다.
+HP00·01은 완료 커밋 `95d361d`와 최종 검증(`docs/work/_runs/hp0001-20261014/hp0001-final-validation.md`, git 이력)이 있다: 관련 backend333·browser31·build·독립리뷰 통과. MinIO fixture1 skip, 실제 모델 분석 실패, 최초198카드 쪽110미확인과 기본 backfill3건 구조 부재는 유지한다.
 
 이전 준비 도구는23검사, 보조 그래프 질의는 합성1검사가 통과했다. 이를 실제 엔진 비교/모델 품질 근거로 쓰지 않는다. 이번 문서 작업에서는 doctor·5개 check-plan·JSON 파싱·v2 동결 파일 해시·10건 정답 빈칸 보존과 제품 소스 동일성을 검사했다. 제품 코드 변경이 없어 앱 재빌드·배포·모델 실행을 반복하지 않았다.
 

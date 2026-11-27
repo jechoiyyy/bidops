@@ -4,7 +4,7 @@
 갱신될 때 다시 관측되는지를 실제 호출로 측정하는 일회성 조사다.
 제품 DB·scheduler·웹과 연결하지 않으며 산출물은 증적 문서다.
 
-측정 결과는 [`docs/validation-runs/20260828-lifecycle-linkage-survey.md`](../../docs/validation-runs/20260828-lifecycle-linkage-survey.md)에 있다.
+측정 결과는 `docs/validation-runs/20260828-lifecycle-linkage-survey.md`(git 이력)에 있다.
 
 ## 경계
 

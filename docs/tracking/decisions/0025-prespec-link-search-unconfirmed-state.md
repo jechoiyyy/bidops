@@ -6,7 +6,7 @@
 ## 맥락
 
 발주계획에서 사전규격으로 가는 공식 키는 없다. 사업명 부분일치 검색이 유일한 대체 경로다
-(`docs/validation-runs/20260828-lifecycle-linkage-survey.md`).
+(`docs/validation-runs/20260828-lifecycle-linkage-survey.md` (git 이력)).
 
 측정으로 확인한 것:
 
@@ -80,7 +80,7 @@
 
 ## 개정 (2026-09-17)
 
-[사업 추적 연결·조치 고도화](../../0917_opportunity-tracking/intent.md)에서 이 ADR의 네 전략
+[사업 추적 연결·조치 고도화](../../specs/0917_opportunity-tracking/intent.md)에서 이 ADR의 네 전략
 사다리와 후보 정렬 규칙을 그대로 재사용하며 세 가지를 더한다.
 
 - 판정 대상이 **기관 조건**을 얻는다. SW사업대상=Y 사전규격이 적재되는 시점에는 이름 사다리
@@ -95,4 +95,4 @@
 
 전략 사다리 함수 자체(`experiments/lifecycle-linkage-survey/scripts/name_normalize.py`)는
 `app/lifecycle/services/name_matching.py`로 그대로 옮겼으며 판정 로직은 바꾸지 않았다. 상세는
-[spec.md §4](../../0917_opportunity-tracking/spec.md#4-후보-대조와-찾아보기)가 정본이다.
+[spec.md §4](../../specs/0917_opportunity-tracking/spec.md#4-후보-대조와-찾아보기)가 정본이다.

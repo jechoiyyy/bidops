@@ -91,7 +91,7 @@ DB gate/evaluation/review와 A/B execution artifact가 정본이다. API는 `GET
 
 ## RL 판정 gold 인수 (RL-05)
 
-위 C-1·C-2 게이트와 **별개**로, RL-03 카드 판정(`analysis-policy-luna-rl-v1`~`-v11`)은 모델 출력 전에 확정한 사용자 gold 10건과 대조해 인수 후보를 가린다. 계약 원본은 [HP-06 spec](work/groups/HP/features/HP-06-gold-acceptance/spec.md)이고 루트랩에서 바뀐 점은 [RL-05 spec](work/groups/RL/features/RL-05-gold-acceptance/spec.md) "루트랩 재명세 차이"다. 절차는 [operations.md "RL 판정 gold 인수 평가"](operations/rl.md#rl-판정-gold-인수-평가-rl-05-2026-10-19)다. 기준은 위 두 게이트의 수치와 무관하다.
+위 C-1·C-2 게이트와 **별개**로, RL-03 카드 판정(`analysis-policy-luna-rl-v1`~`-v11`)은 모델 출력 전에 확정한 사용자 gold 10건과 대조해 인수 후보를 가린다. 계약 원본은 HP-06 spec(`docs/work/groups/HP/features/HP-06-gold-acceptance/spec.md`, git 이력)이고 루트랩에서 바뀐 점은 [RL-05 spec](work/groups/RL/features/RL-05-gold-acceptance/spec.md) "루트랩 재명세 차이"다. 절차는 [operations.md "RL 판정 gold 인수 평가"](operations/rl.md#rl-판정-gold-인수-평가-rl-05-2026-10-19)다. 기준은 위 두 게이트의 수치와 무관하다.
 
 **최신 인수 결과(2026-10-20): reject.** v11 완료 attempt 10건에서 판정 일치 3/10, 차단 조건 recall 0/7로 기준 미달이다. 카드 상태 일치 84/100은 통과했지만 모델 카드 447개 전부 unknown이며 met 오판 0건도 모델 met 0건인 조건에서 나온 값이다. RL-05의 작업 상태 `done`은 평가·사람 결정 절차 완료를 뜻한다. 품질 합격·운영 활성화 근거가 아니다. [실행·채점 기록](validation-runs/2026-10-19-rl/RL-05/README.md)과 [대조 범위 후속](tracking/findings.md)을 따른다.
 

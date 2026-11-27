@@ -1,7 +1,7 @@
 # 실제 사전규격 엔진 분석과 상세 검토
 
 - 기능 ID `RL-11-live-prespec-engine`
-- 상위 목표 [루트랩 G2](../../../../constitution/mission.md)와 [실사용 전 설계 고도화](../../../../../1118_launch-hardening/설계고도화안.md)
+- 상위 목표 [루트랩 G2](../../../../constitution/mission.md)와 [실사용 전 설계 고도화](../../../../../specs/1118_launch-hardening/설계고도화안.md)
 - 2026-11-20 사용자 요청. 외부 모델·새 실행 계약·상세 화면을 포함하는 L 작업
 
 ## 문제와 기대 결과

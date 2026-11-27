@@ -1,5 +1,5 @@
 """`scripts/run-daily-lifecycle.sh`의 트랙 분리·전일 기준·수집 창·`--collect-only`(S9a)와
-회차 조회·`-retryN`·날짜 범위 단계별 재개(S9b)를 본다 (`docs/0918_daily-operation/spec.md` §8).
+회차 조회·`-retryN`·날짜 범위 단계별 재개(S9b)를 본다 (`docs/specs/0918_daily-operation/spec.md` §8).
 C-2 실행·감사 표본 draw 연결(S9c)은 `test_daily_c2_script.py`가 이 모듈의 fixture를 빌려 본다.
 
 스크립트는 자기 위치의 부모를 저장소 루트로 삼고 `data/runs`를 거기서 찾는다. 그래서

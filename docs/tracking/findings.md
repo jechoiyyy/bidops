@@ -7,7 +7,7 @@
 - 2026-11-17 통합 개발 Compose의 초기 기동 지연·worker 경고는 [진단 기록](findings/operations.md#2026-11-17-통합-개발-compose의-응답-대기와-worker-경고)에 남긴다. 입력 손실 수정 뒤 최종 Compose E2E는 통과했으며, 초기 운영성 관측과 구분한다.
 
 - RL-05 인수 reject: 10건 completed, 판정 일치 3/10·차단 조건 recall 0/7. 카드 일치 84/100이어도 447개 전부 unknown이다. [회사 대조 공백](findings/model-review.md), [실제 평가](../validation-runs/2026-10-19-rl/RL-05/README.md).
-- RL-04 실제 초안 partial(4/6절): 실적·운영 절의 식별자 참조 검증 실패는 [실행 기록](../validation-runs/2026-10-17-rl/RL-04/README.md)을 따른다.
+- RL-04 실제 초안 partial(4/6절): 실적·운영 절의 식별자 참조 검증 실패는 실행 기록(`docs/validation-runs/2026-10-17-rl/RL-04/README.md`, git 이력)을 따른다.
 - 첨부 worker 자동 준비의 transaction·정책 경로 문제와 Mac 변환 제한은 아래 운영·문서 기록의 10월 항목을 먼저 확인한다.
 - 문서 준비 UI는 구현됐지만 실패 재시작 UI, 입찰 delta 계산 worker, 인증/SSO는 [현황](status.md)의 미구현 범위다.
 

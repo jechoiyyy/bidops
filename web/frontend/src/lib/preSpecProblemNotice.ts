@@ -4,7 +4,7 @@ import type { FeatureState } from "./featureFlags";
 import type { AttachmentResponse, PageOverviewCurrent, PageOverviewRangeReview, PreSpecListItem } from "./types";
 
 /**
- * 사전규격 상세 `사업 개요와 주요 과업` 맨 위의 문제 상태 안내 한 블록(2026-11-21 시안 `docs/1121_prespec-detail/`
+ * 사전규격 상세 `사업 개요와 주요 과업` 맨 위의 문제 상태 안내 한 블록(2026-11-21 시안 `docs/specs/1121_prespec-detail/`
  * c1~c5, 근거 `docs/tracking/findings/model-review.md` 첫 항목).
  *
  * **이 파일이 사유 코드 → 문장 표를 모두 갖는다.** 화면은 이미 받은 서버 객체만 넘기고, 여기서는 상태를 새로

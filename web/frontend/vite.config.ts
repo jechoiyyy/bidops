@@ -26,7 +26,7 @@ function mockApiPlugin(): Plugin {
       server.middlewares.use(async (req, res, next) => {
         if (req.url === "/__mock-review/approved") {
           try {
-            const html = await readFile(path.resolve(configDirectory, "../../docs/0922_deep-review-improvement/prototype/index.html"), "utf8");
+            const html = await readFile(path.resolve(configDirectory, "../../docs/specs/0922_deep-review-improvement/prototype/index.html"), "utf8");
             res.setHeader("content-type", "text/html; charset=utf-8");
             res.end(html);
           } catch {

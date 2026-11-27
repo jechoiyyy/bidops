@@ -1,5 +1,5 @@
 /*
- * 회사 포인트색 — docs/0915_ui-redesign/spec.md §1.2.
+ * 회사 포인트색 — docs/specs/0915_ui-redesign/spec.md §1.2.
  *
  * grade-ramp.css 와 같은 이유로 테마가 아닌 프로젝트 토큰이다(Astryx `TokenName`
  * 이 닫힌 union 이라 `--color-*` 에 새 이름을 더하지 못한다). 색이 한곳에 모이도록
@@ -18,7 +18,7 @@
 }
 
 /*
- * 셸 토큰 — 2026-11-19 최종 시안(docs/1119_kstyle-shell/mockups/, ADR 초안 승인 대기).
+ * 셸 토큰 — 2026-11-19 최종 시안(docs/1119_kstyle-shell/mockups/ (git 이력), ADR 초안 승인 대기).
  * 따뜻한 회색 바탕(frame) 위에 사이드바가 면 없이 놓이고 본문은 흰 패널 하나로 뜬다.
  * Astryx TokenName 에 없는 이름이라 프로젝트 토큰으로 둔다. 글자는 테마의
  * --color-text-primary/secondary 를 그대로 읽는다.

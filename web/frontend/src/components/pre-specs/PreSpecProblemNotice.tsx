@@ -9,7 +9,7 @@ const TAG_CLASS: Record<PreSpecProblemTone, string> = {
 };
 
 /**
- * 사전규격 상세 `사업 개요와 주요 과업` 맨 위의 문제 상태 안내(2026-11-21 시안 `docs/1121_prespec-detail/` c1~c5).
+ * 사전규격 상세 `사업 개요와 주요 과업` 맨 위의 문제 상태 안내(2026-11-21 시안 `docs/specs/1121_prespec-detail/` c1~c5).
  *
  * 회색 채움 한 블록이다(네 변 테두리·왼쪽 굵은 선 없음): 상태 단어 + 무슨 일인지(굵게) → `이유` → (맞지 않는 문장) →
  * `할 일` → 조작 → 원 사유 코드(작게). 문장과 조작 종류는 `lib/preSpecProblemNotice.ts`가 정하고 여기서는 그리기만 한다.

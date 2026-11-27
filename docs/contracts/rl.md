@@ -122,7 +122,7 @@
 
 ## 카드 기반 참여 판정 (RL-03, 2026-10-17)
 
-사전규격 제안요청서를 카드·영역 단위로 추출(Luna) → 결정적 대조(코드) → 역할 3개 → 종합으로 나눠 참여 판정을 만드는 REST·DB·정책·감사 계약이다. wire 원본은 [HP-03](../work/groups/HP/features/HP-03-two-tier-analysis/spec.md)·[HP-04](../work/groups/HP/features/HP-04-practitioner-verdict/spec.md) spec이고 이 절은 루트랩 차이만 적는다. 업무 규칙은 [business-rules.md "RL 자동 분석과 판정 상태"](../business-rules.md), 실행 절차는 [operations.md "RL 카드 판정 운영"](../operations.md), 기능 명세는 `docs/work/groups/RL/features/RL-03-fit-verdict/spec.md`다. **판정은 참고 의견이며 적합성 등급·추적 선택·참여 준비·최종 Go/No-Go를 대신하지 않는다.** 결과는 `quality_status=unmeasured_reference`(mock 참조 실행은 `mock_reference`, 결정 B16)로만 표시하며 품질 근거로 쓰지 않는다. 라우터는 deep_review가 소유하고(`routers/verdicts.py`, ADR-0045) 경로 접두사 `/api/opportunities`는 lifecycle 것이다.
+사전규격 제안요청서를 카드·영역 단위로 추출(Luna) → 결정적 대조(코드) → 역할 3개 → 종합으로 나눠 참여 판정을 만드는 REST·DB·정책·감사 계약이다. wire 원본은 HP-03(`docs/work/groups/HP/features/HP-03-two-tier-analysis/spec.md`, git 이력)·HP-04(`docs/work/groups/HP/features/HP-04-practitioner-verdict/spec.md`, git 이력) spec이고 이 절은 루트랩 차이만 적는다. 업무 규칙은 [business-rules.md "RL 자동 분석과 판정 상태"](../business-rules.md), 실행 절차는 [operations.md "RL 카드 판정 운영"](../operations.md), 기능 명세는 `docs/work/groups/RL/features/RL-03-fit-verdict/spec.md`다. **판정은 참고 의견이며 적합성 등급·추적 선택·참여 준비·최종 Go/No-Go를 대신하지 않는다.** 결과는 `quality_status=unmeasured_reference`(mock 참조 실행은 `mock_reference`, 결정 B16)로만 표시하며 품질 근거로 쓰지 않는다. 라우터는 deep_review가 소유하고(`routers/verdicts.py`, ADR-0045) 경로 접두사 `/api/opportunities`는 lifecycle 것이다.
 
 ### REST
 
@@ -250,7 +250,7 @@
 
 ## 제안서 초안 (RL-04, 2026-10-18)
 
-완료된 RL-03 카드 판정 하나로 제안서 여섯 절 초안과 요구사항 대응표를 만들고 PDF로 내보내는 REST·DB·정책·계약·artifact 계약이다. 업무 규칙은 [business-rules.md "제안서 초안"](../business-rules.md#제안서-초안-rl-04-2026-10-18), 실행 절차는 [operations.md "RL 제안서 초안 운영"](../operations/rl.md#rl-제안서-초안-운영-rl-04-2026-10-18), 기능 명세는 `docs/work/groups/RL/features/RL-04-proposal-draft/spec.md`, 미정 선택은 결정 B41~B49(`docs/work/_runs/rlb-20261017/decisions.md`)다. **초안은 서류 준비를 돕는 참고 산출물이다.** 판정·추적 선택·최종 Go/No-Go를 대신하지 않고 가격·투입 인력 수를 만들지 않는다. 참조 실행 표식(`unmeasured_reference`, mock은 `mock_reference`)은 PDF 표지와 생성·완료 감사의 `quality_status`에 남고, `ProposalView`에는 없어 화면은 품질 표식을 그리지 않는다(ui-spec §4.5). 어느 쪽이든 품질 근거로 쓰지 않는다. 라우터는 deep_review가 소유하고(`routers/proposals.py`) `/api/opportunities` 접두사는 lifecycle 것이다. 이 절의 모든 경로는 `BIDOPS_RL_ANALYSIS_ENABLED=false`이면 조립 계층 미들웨어가 `{"detail":"Not Found"}` 404로 숨기고, 켜져 있어도 실회사가 없으면 service가 404 `not_found` envelope을 낸다.
+완료된 RL-03 카드 판정 하나로 제안서 여섯 절 초안과 요구사항 대응표를 만들고 PDF로 내보내는 REST·DB·정책·계약·artifact 계약이다. 업무 규칙은 [business-rules.md "제안서 초안"](../business-rules.md#제안서-초안-rl-04-2026-10-18), 실행 절차는 [operations.md "RL 제안서 초안 운영"](../operations/rl.md#rl-제안서-초안-운영-rl-04-2026-10-18), 기능 명세는 `docs/work/groups/RL/features/RL-04-proposal-draft/spec.md`, 미정 선택은 결정 B41~B49(`docs/work/_runs/rlb-20261017/decisions.md` (git 이력))다. **초안은 서류 준비를 돕는 참고 산출물이다.** 판정·추적 선택·최종 Go/No-Go를 대신하지 않고 가격·투입 인력 수를 만들지 않는다. 참조 실행 표식(`unmeasured_reference`, mock은 `mock_reference`)은 PDF 표지와 생성·완료 감사의 `quality_status`에 남고, `ProposalView`에는 없어 화면은 품질 표식을 그리지 않는다(ui-spec §4.5). 어느 쪽이든 품질 근거로 쓰지 않는다. 라우터는 deep_review가 소유하고(`routers/proposals.py`) `/api/opportunities` 접두사는 lifecycle 것이다. 이 절의 모든 경로는 `BIDOPS_RL_ANALYSIS_ENABLED=false`이면 조립 계층 미들웨어가 `{"detail":"Not Found"}` 404로 숨기고, 켜져 있어도 실회사가 없으면 service가 404 `not_found` envelope을 낸다.
 
 ### REST (`bidops.proposal.v1`)
 

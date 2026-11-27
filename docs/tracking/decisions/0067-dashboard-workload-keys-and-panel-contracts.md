@@ -2,12 +2,12 @@
 
 - 상태: 채택
 - 결정일: 2026-09-22
-- 근거 시안: `docs/0915_ui-redesign/mockups/0921_practitioner-m5-m6/`(M6, 2026-09-22 승인)
+- 근거 시안: `docs/specs/0915_ui-redesign/mockups/0921_practitioner-m5-m6/`(M6, 2026-09-22 승인)
 - 관련 결정: [ADR-0053](0053-decision-workload-read-contracts.md)(업무 집계 읽기 계약),
   [ADR-0045](0045-backend-module-layout.md)(모듈 경계와 확장점),
   [ADR-0064](0064-prespec-actionable-deadline-scope.md)(사전규격 마감 구간),
   [ADR-0066](0066-practitioner-ops-information-boundary.md)(실무·운영 정보 경계)
-- 명세: [`docs/0921_practitioner-screens/spec.md`](../../0921_practitioner-screens/spec.md) §7
+- 명세: [`docs/specs/0921_practitioner-screens/spec.md`](../../specs/0921_practitioner-screens/spec.md) §7
 
 ## 배경
 

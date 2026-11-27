@@ -30,11 +30,11 @@ for (const width of [1280, 1440]) {
     await page.setViewportSize({ width, height: width === 1280 ? 800 : 900 });
     await mockApi(page);
     await page.route("**/api/pre-specs/991/company-fit", route => route.fulfill({ json: response() }));
-    // 회사 적합성 구역은 상세만 소유한다(docs/0915_ui-redesign/spec.md §3.1·§4 ④).
+    // 회사 적합성 구역은 상세만 소유한다(docs/specs/0915_ui-redesign/spec.md §3.1·§4 ④).
     for (const path of ["/pre-specs/991"]) {
       await page.goto(path);
       // 상세 ④의 `회사 적합성` 열은 판정·사유·근거만 갖는다. 실행 정보는 ⑥의
-      // 접힌 `기술 정보` 하나로 옮겼다(docs/0915_ui-redesign/spec.md:234, ADR-0066).
+      // 접힌 `기술 정보` 하나로 옮겼다(docs/specs/0915_ui-redesign/spec.md:234, ADR-0066).
       const section = page.getByRole("region", { name: "회사 업무 부합 여부" });
       const verdict = section.locator(".company-fit-verdict");
       await expect(verdict).toHaveAttribute("data-tone", "mismatch");

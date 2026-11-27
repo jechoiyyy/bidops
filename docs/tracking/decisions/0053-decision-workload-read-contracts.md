@@ -31,7 +31,7 @@
 
 ## 개정 (2026-09-17)
 
-[사업 추적 연결·조치 고도화](../../0917_opportunity-tracking/intent.md)가 결정 1의 항목 수를
+[사업 추적 연결·조치 고도화](../../specs/0917_opportunity-tracking/intent.md)가 결정 1의 항목 수를
 넷에서 **다섯**으로 늘린다. `tracking_hold_review_due`를 `GET /api/workload`에 추가하고, 값은
 lifecycle이 `GET /api/opportunities?hold_review=overdue`와 같은 첫 일치 규칙으로 직접 센다
 (결정 4의 "제공자가 아니라 lifecycle이 직접 센다" 원칙을 그대로 따른다). `items`의 고정 순서는

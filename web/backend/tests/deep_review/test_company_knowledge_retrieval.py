@@ -25,7 +25,7 @@ from app.deep_review.services.company_knowledge_retrieval import CompanyRetrieva
 from app.deep_review.services.narrative_inputs import NarrativeInputError
 
 
-FIXTURES = Path(__file__).parents[4] / "docs" / "demo-fixtures"
+FIXTURES = Path(__file__).parents[1] / "fixtures" / "demo-companies"
 RELATIONS = [
     ("has_capability", ["company"], ["capability"]),
     ("uses_technology", ["project", "capability"], ["technology"]),

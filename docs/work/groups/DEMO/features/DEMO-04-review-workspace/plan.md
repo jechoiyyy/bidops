@@ -111,7 +111,7 @@ Playwright는 `tests/api-mock.ts`의 고정 응답으로 돌며 실제 백엔드
 ## 결과
 
 2026-10-12 run `demo04-20261012`에서 STEP-001~005를 구현했다. 리더가 단계마다 영향 검사를 다시 돌렸고, 독립 최종 리뷰(PASS_WITH_NOTES, 차단 0)와 그 회차의 주의 3건 수정까지 마쳤다. 변경은 frontend뿐이고, 검증은 Playwright mock으로만 했다. 실제 백엔드·자료 화면 인수는 DEMO-05가 맡는다. 커밋·병합은 수동 정책이다.
-기능 기록은 `_runs/demo04-20261012/DEMO-04-review-workspace.md`, 증거 요약은 `docs/validation-runs/2026-10-12-company-demo/DEMO-04-review-workspace/README.md`, 리뷰는 `_runs/demo04-20261012/review.md`.
+기능 기록은 `_runs/demo04-20261012/DEMO-04-review-workspace.md`, 증거 요약은 `docs/validation-runs/2026-10-12-company-demo/DEMO-04-review-workspace/README.md` (git 이력), 리뷰는 `_runs/demo04-20261012/review.md`.
 
 - 위 "검사 명령과 증거" 절의 "신규 테스트는 아직 없으며" 문장은 계획 작성 시점 문구다. 실제 실행 결과는 이 절과 리더 로그가 정본이다.
 - 이 Mac에서는 `vite preview`가 IPv6 localhost에만 바인딩된다. 그래서 위 명령은 preview를 `--host 127.0.0.1`로 띄우고 `PW_PORT`·`PW_OUT_DIR`로 재사용해 실행했다(설정 변경 없음).

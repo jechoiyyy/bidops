@@ -20,7 +20,7 @@ interface EmptyStateProps {
   /**
    * `lib/apiErrors.describeApiError`의 결과. 주면 원인 한 줄과 다음 행동 한 줄을
    * 화면 맥락 제목 아래에 함께 적는다. 서버 raw message는 여기에 들어오지 않고,
-   * 안전한 코드만 표식으로 남는다(docs/security.md).
+   * 안전한 코드만 표식으로 남는다(docs/security.md (git 이력)).
    */
   problem?: ApiErrorDescription;
 }

@@ -19,7 +19,7 @@
 
 패키지·버전 adapter·기존 큐/worker·불변 저장·API·관리 화면과 공통 Compose 선택기를 구현했다. 합성 HWPX 한 공고의 호스트 격리 E2E와 최종 실제 Compose E2E가 각각 두 폭 모두 통과했다. 새 폼의 입력 손실은 old-code 회귀 실패를 먼저 확인하고 수정했으며, UI 9건·대비 8건·최종 이미지 빌드를 통과했다.
 
-검사별 결과·원본 실패·초기 실패의 분류·잔여 한계는 [검증 기록](../../../../../validation-runs/20261117-engine-integration/README.md)에 모았다. 실제 모델 품질 인수와 운영 배포/활성화는 수행하지 않았다. 기능 상태는 기존 RL-07 active run을 보존하기 위해 review에 남기되, 로컬 구현·검증 근거를 steps/proof에 기록한다.
+검사별 결과·원본 실패·초기 실패의 분류·잔여 한계는 검증 기록(`docs/validation-runs/20261117-engine-integration/README.md`, git 이력)에 모았다. 실제 모델 품질 인수와 운영 배포/활성화는 수행하지 않았다. 기능 상태는 기존 RL-07 active run을 보존하기 위해 review에 남기되, 로컬 구현·검증 근거를 steps/proof에 기록한다.
 
 다음 우선순위는 회사·문서 projection 완성 및 승인 Luna transport, 원본 요구사항 누락 수정과 별도 품질 재측정, 초기 기동 지연/유휴 worker 경고의 안전한 계측이다. 채팅·A2A·독립 CLI는 실제 제품 소비자를 정한 뒤 별도로 판단한다.
 
@@ -46,7 +46,7 @@
 
 사용자가 commit·기존 origin push·main 병합과 나머지 worktree/브랜치 정리를 명시적으로 요청했다. 초기 commit/merge 금지의 후속 승인이다. 원래 main의 문서 정리 변경은 별도 커밋으로 보존하고 검증한 통합 트리를 main에 반영한다. RL-07 미커밋 구현과 main 밖 HP 커밋은 이번 제품 기준선에 섞지 않고 권한 제한 로컬 아카이브(tar·Git bundle)로 보존한다. 운영 `bidops-c2mac`은 컨테이너 bind source이므로 경로·worktree를 유지한다. 실제 모델·Slack·운영 재생성·migration은 승인 범위에 없다.
 
-추가 독립 리뷰는 Docker 이동 및 새 Git 후보에 한정해 차단 0건이다([리뷰](../../../../../validation-runs/20261117-engine-integration/review.md)). 이미 통과한 제품 검사는 재실행하지 않는다. Git 반영과 SDLC 자동 run 완료·품질 인수·운영 배포는 별개로 기록한다.
+추가 독립 리뷰는 Docker 이동 및 새 Git 후보에 한정해 차단 0건이다(리뷰(`docs/validation-runs/20261117-engine-integration/review.md`, git 이력)). 이미 통과한 제품 검사는 재실행하지 않는다. Git 반영과 SDLC 자동 run 완료·품질 인수·운영 배포는 별개로 기록한다.
 
 반영 결과: 기존 사용자 문서 보존 `653dcf6`, 통합 구현 `00d7e59`, main 병합 `4657dfe`를 기존 origin/main에 push했다. 병합 전체 트리는 검증된 통합 커밋의 트리와 동일하다. 이후 기본 개발 경로는 `/Users/temp/orca/bidops`다. 통합/RL-07 worktree 3개와 로컬 브랜치 7개를 정리했고, 미완료 RL-07 전체 파일·main 밖 HP 커밋은 `/Users/temp/orca/bidops-worktree-archive/20261118-004032`의 hash 검증 tar와 Git bundle로 보존했다. RL-07 run은 도구로 abandoned 처리했으며 기능 완료로 표시하지 않았다. 운영 bind source인 `bidops-c2mac`과 그 브랜치, 다른 원격 브랜치는 유지했다.
 
@@ -54,7 +54,7 @@
 
 ### 후속: 병합 확인 결함 수정(2026-11-19)
 
-[병합 확인 기록](../../../../../validation-runs/20261119-engine-merge-check/README.md) §11 "수정 결과"가 정본이다. 바뀐 동작만 적는다.
+병합 확인 기록(`docs/validation-runs/20261119-engine-merge-check/README.md`, git 이력) §11 "수정 결과"가 정본이다. 바뀐 동작만 적는다.
 
 - manifest는 들여온 파일 전부를 세 묶음(원본 파일·대체 파일·BidOps 작성 파일)으로 한 번씩 기록하고 `engine_tests/test_manifest.py`가 오프라인으로 검사한다.
 - 새 실행은 더 이상 "이전 기준 분석"(stale)으로 표시되지 않는다. 엔진 회사 hash와 BidOps `profile_sha256`을 따로 기록한다.

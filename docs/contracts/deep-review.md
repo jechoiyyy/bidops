@@ -31,7 +31,7 @@ HWP 변환본·표 셀의 `match=page_text`는 전체 텍스트의 유일 발생
 `para_index=null`이며, 확인하지 못한 source section도 `null`로 둔다.
 빈 블록·미확인 연결은 `unmapped_block_keys`에 보존하며 매핑률 0도 유효하다.
 `mapping`의 세 블록 집계는 mapped·unmapped의 중복 없는 전체 분할과 같아야 하고
-`rule=para-page-align.v1`로 고정한다. [상세 계약과 정렬 규칙](../0910_rhwp-document-pipeline/Spec.md)을 따른다.
+`rule=para-page-align.v1`로 고정한다. [상세 계약과 정렬 규칙](../specs/0910_rhwp-document-pipeline/Spec.md)을 따른다.
 대응표와 canonical JSON 바이트는 native `ProcessedDocument`의 별도 속성이다.
 기존 구조 JSON·REST는 유지하고 scratch v2의 `native_sidecars` descriptor와
 `prespec_v4_pdf_snapshot`의 객체 참조로 저장 경계를 연결한다.
@@ -198,8 +198,8 @@ payload/hash는 변경하지 않는다. `ReportView.report`, `ReportRevisionRequ
   `review_not_ready`다. 실행 상태는 기존 `GET /deep-reviews/{id}`로 별도 조회한다.
   GET은 생성·보정하지 않으며 수정/의견 저장에는 기존 완료 실행 gate가 유지된다.
 
-상세 설계·검증 범위는 [0922 명세](../0922_deep-review-improvement/spec.md)와
-[구현 기록](../0922_deep-review-improvement/plan.md)을 따른다.
+상세 설계·검증 범위는 [0922 명세](../specs/0922_deep-review-improvement/spec.md)와
+[구현 기록](../specs/0922_deep-review-improvement/plan.md)을 따른다.
 
 #### 실행별 원문 대조 선택
 
@@ -304,12 +304,12 @@ PostgreSQL 17.11 저장·REST, 두 폭 경고와 승인 미리보기. 운영 적
 두 원응답은 기존 model-response aggregate 모양을 유지해 암호화 보존하고, 호출 metadata와
 보고서 `validation_repair_applied` warning에 교정 사실을 남긴다. 교정 응답도 같은 인용·숫자·
 coverage·considered·전제·근거 검사를 모두 통과해야 하며 검사를 끄거나 warning으로 낮추지 않는다.
-이 절은 [DEMO-00 STEP-002](../work/groups/DEMO/features/DEMO-00-luna-preflight/spec.md)의 로컬 구현
+이 절은 DEMO-00 STEP-002(`docs/work/groups/DEMO/features/DEMO-00-luna-preflight/spec.md`, git 이력)의 로컬 구현
 계약이며 운영 배포·정책 import·실제 Luna 호출 또는 품질 검증 완료를 뜻하지 않는다.
 
 ## 1489번 가정 분석 v1 (2026-09-23, 운영 적용 전)
 
-기존 심층검토와 별도 계약이다. [작업 명세](../0923_assumption-analysis/spec.md)를 따른다.
+기존 심층검토와 별도 계약이다. [작업 명세](../specs/0923_assumption-analysis/spec.md)를 따른다.
 
 - `POST /api/notices/{notice_id}/assumption-analysis-previews` (`bundle_id`)는 동결 입력,
   hash, 이전 가정 분석/심층검토 미리보기와 달라진 필드를 반환한다. 전송은 하지 않는다.

@@ -1,7 +1,7 @@
 /*
  * 상세 화면 3종(사전규격 상세 · 발주계획 상세 · 입찰 변경 비교)이 공유하는 골격.
- * docs/design/PLAN.md 4단계 · 시안 정본 docs/design/mockups/screens.py의
- * detail_screen()과 docs/design/mockups/bo-skeleton.css를 참조했다.
+ * docs/design/PLAN.md (git 이력) 4단계 · 시안 정본 docs/design/mockups/screens.py의
+ * detail_screen()과 docs/design/mockups/bo-skeleton.css (git 이력)를 참조했다.
  *
  * ADR-0040: 레이아웃은 프로젝트가 소유하고, 골격 CSS도 값을 새로 정하지 않고
  * Astryx 토큰만 읽는다. 여기서 읽는 --color-* 토큰은 data-astryx-theme="bidops"을

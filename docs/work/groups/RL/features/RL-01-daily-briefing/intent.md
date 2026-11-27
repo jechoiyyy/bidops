@@ -1,7 +1,7 @@
 # 평일 브리핑 생성·Slack 전송·반응 저장 — intent
 
 - 기능 ID: `RL-01-daily-briefing`
-- 상위 항목: roadmap §RL 표 2행, ADR-0073 결정 2(G1)·3·4, [ui-spec §4.1·§4.2](../../../../../1016_rootlab-redefinition/ui-spec.md), [ux-review §5 결정 3·4·8](../../../../../1016_rootlab-redefinition/ux-review.md)
+- 상위 항목: roadmap §RL 표 2행, ADR-0073 결정 2(G1)·3·4, [ui-spec §4.1·§4.2](../../../../../specs/1016_rootlab-redefinition/ui-spec.md), [ux-review §5 결정 3·4·8](../../../../../specs/1016_rootlab-redefinition/ux-review.md)
 - 크기: L — 새 테이블 3개·REST 4개·CLI 1개·Slack 외부 전송(Socket Mode worker)·호스트 스크립트·화면 1개. lifecycle↔screening 확장점을 새로 쓴다.
 - 작성일: 2026-10-16
 

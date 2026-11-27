@@ -1,6 +1,6 @@
 # RL 배치 B(RL-03·RL-04) 시작 인터뷰 — 2026-10-17
 
-배치 A(run `rla-20261016`, RL-00~02) main 반영(9c61fe1) 뒤 사용자 요청: "RL-03,04를 진행하기 위한 것들을 정리해서 인터뷰형식으로 정해서 바로 시작할 수 있도록 하자". 사용자는 배치 B(실제 Luna 호출 포함)를 승인했다. 아래 값이 배치 B의 승인 범위·전송 정책·상한·정지 조건이다. 사전 조사는 RL-03·04 intent·spec·plan, ADR-0073·0069, `docs/0922_luna-deep-review/apply.md`, 로컬 runner·fixture·bidops-local 상태를 읽기 전용으로 확인했다.
+배치 A(run `rla-20261016`, RL-00~02) main 반영(9c61fe1) 뒤 사용자 요청: "RL-03,04를 진행하기 위한 것들을 정리해서 인터뷰형식으로 정해서 바로 시작할 수 있도록 하자". 사용자는 배치 B(실제 Luna 호출 포함)를 승인했다. 아래 값이 배치 B의 승인 범위·전송 정책·상한·정지 조건이다. 사전 조사는 RL-03·04 intent·spec·plan, ADR-0073·0069, `docs/specs/0922_luna-deep-review/apply.md`, 로컬 runner·fixture·bidops-local 상태를 읽기 전용으로 확인했다.
 
 ## 사용자 답 (2026-10-17)
 

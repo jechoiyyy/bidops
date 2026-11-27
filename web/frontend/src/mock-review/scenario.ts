@@ -1,6 +1,6 @@
 /** Reuse the approved fictional report and source; no operational data. */
-import report from '../../../../docs/0922_deep-review-improvement/report.md?raw';
-import input from '../../../../docs/0922_deep-review-improvement/report-source.md?raw';
+import report from '../../../../docs/specs/0922_deep-review-improvement/report.md?raw';
+import input from '../../../../docs/specs/0922_deep-review-improvement/report-source.md?raw';
 export const title = '한빛시 민원 데이터 통합·분석 플랫폼 구축';
 export type SourceId = string;
 export const sources = [...input.matchAll(/^### (문서|회사) (\d+) — (.+)\n([\s\S]*?)(?=^#{2,3} |$(?![\s\S]))/gm)].map(m=>({id:`${m[1]} ${m[2]}`,location:`가상 ${m[1]} · ${m[3]}`,text:m[4].trim()}));

@@ -29,7 +29,7 @@
 | web/frontend/src/themes/bidops/bidopsTheme.ts(주석 1줄) | 수정 | 추정값 pill blue 허용 주석 |
 | web/frontend/src/lib/companyApi.ts, components/company/KnowledgeGraph.tsx | 수정 | status·origin Literal 확장, `getCompanyContext` |
 | web/frontend/tests/company-ground-truth.spec.ts | 신규 | T8 |
-| docs/work/demo-contract.md, docs/work/hp-contract.md(§1·§5 주석), docs/contracts.md, docs/business-rules.md, docs/operations.md, docs/1016_rootlab-redefinition/ui-spec.md(§1.3·§1.4·§3·§4.6·§7), docs/ADR.md | 수정 | RL 개정 절·REST·상태 대응·재등록 절차·화면 정본 읽기 전용 반영·결정 한 줄 |
+| docs/work/demo-contract.md, docs/work/hp-contract.md(§1·§5 주석), docs/contracts.md, docs/business-rules.md, docs/operations.md, docs/specs/1016_rootlab-redefinition/ui-spec.md(§1.3·§1.4·§3·§4.6·§7), docs/ADR.md | 수정 | RL 개정 절·REST·상태 대응·재등록 절차·화면 정본 읽기 전용 반영·결정 한 줄 |
 | docs/validation-runs/<날짜>-rl/RL-00/README.md | 신규 | fixture sha256·dry-run 결과(T9) |
 
 ## 작업 순서
@@ -97,7 +97,7 @@
 
 ## 결과
 
-run `rla-20261016`(배치 A), 기능 브랜치 `sdlc/rla-20261016-RL-00-company-ground-truth`, 기준 c93da20. 상세는 `docs/work/_runs/rla-20261016/RL-00-company-ground-truth.md`.
+run `rla-20261016`(배치 A), 기능 브랜치 `sdlc/rla-20261016-RL-00-company-ground-truth`, 기준 c93da20. 상세는 `docs/work/_runs/rla-20261016/RL-00-company-ground-truth.md` (git 이력).
 
 - 단계 7/7 done. STEP-001~003·004·005·007 위임, STEP-006은 리더가 실행.
 - 증명: tests 140 passed·85 skipped(PG 변형)·exit 0; postgres(일회용 17.11) 255 passed·exit 0(모듈 경계·runtime 권한·alembic drift 포함); frontend build·contrast 8/8·Playwright app 41 + company-layout 20 passed; T9 dry-run exit 0·errors 0; STEP-006 bidops-local `bidops_rla` import·activate·REST 확인.

@@ -1,7 +1,7 @@
 """DEMO-03 STEP-002/STEP-008 company-fit policy import and enqueue gates (spec T2·T4·T8).
 
 The world is built through the real DEMO-02 registration services from the
-frozen ``docs/demo-fixtures`` ontology and company source, plus a ready
+frozen ``web/backend/tests/fixtures/demo-companies`` ontology and company source, plus a ready
 document bundle whose structure payload is really stored (in-memory object
 store) and read back by the production loader.  No model or network is
 called: every test here stops before the runner.
@@ -69,7 +69,7 @@ from tests.deep_review.test_company_knowledge import (  # noqa: F401 - shared fi
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 PROJECT_ROOT = BACKEND_ROOT.parents[1]
-FIXTURES = PROJECT_ROOT / "docs" / "demo-fixtures"
+FIXTURES = BACKEND_ROOT / "tests" / "fixtures" / "demo-companies"
 ONTOLOGY_FILE = FIXTURES / "ontology.v1.json"
 DEFAULT_COMPANY = "demo-data-ai"
 POLICY_DIR = BACKEND_ROOT / "app" / "deep_review" / "policies"

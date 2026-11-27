@@ -4,7 +4,7 @@ import { TextArea } from "@astryxdesign/core/TextArea";
 /**
  * 일괄 창(발주계획 추적 종료, 사전규격 검토 제외·복원)이 함께 쓰는 사유 입력.
  *
- * 2026-09-23 승인 시안(`docs/0915_ui-redesign/mockups/0923_bulk-end-unify/`)의 정본:
+ * 2026-09-23 승인 시안(`docs/specs/0915_ui-redesign/mockups/0923_bulk-end-unify/`)의 정본:
  * 사유는 선택지에서 고르고 `기타 · 직접 입력`일 때만 입력칸이 열린다. `hasClear`의 ×는
  * 고른 값과 적어 둔 기타 문장을 함께 비운다. 화면은 사유를 자동으로 고르지 않는다.
  */

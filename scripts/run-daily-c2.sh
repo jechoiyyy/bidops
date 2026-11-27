@@ -14,7 +14,7 @@ Usage:
   scripts/run-daily-c2.sh -h|--help
 
 Runs the C-2 order-plan screening stage for one ingested order-plan run and
-draws its audit sample (docs/0918_daily-operation/spec.md §8). The daily
+draws its audit sample (docs/specs/0918_daily-operation/spec.md §8). The daily
 order-plans track (scripts/run-daily-lifecycle.sh --track order-plans) runs the
 same stage after ingest; this script runs it on its own.
 

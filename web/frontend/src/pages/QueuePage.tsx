@@ -65,7 +65,7 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 /**
  * @param defaultSort 주소에 sort가 없을 때 쓸 정렬. 마감 추적(/deadlines)은
- *   리다이렉트가 아니라 이 화면의 저장된 뷰이므로(docs/design/PLAN.md 2단계)
+ *   리다이렉트가 아니라 이 화면의 저장된 뷰이므로(docs/design/PLAN.md (git 이력) 2단계)
  *   그 경로로 들어오면 마감순을 기본으로 삼는다. 리다이렉트로 sort 파라미터를
  *   실어 보내던 방식은 AppShell의 회차 동기화와 경쟁해 파라미터를 잃었다.
  */
