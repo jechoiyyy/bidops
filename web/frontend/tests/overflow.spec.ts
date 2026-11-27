@@ -271,6 +271,21 @@ test("[search-ux] 발주계획 탭 줄 오른쪽에 적용 필터·필터·검�
   await expectSearchToolsRightOfTabs(page, testInfo, ".c2l-row", [
     "workbench-filter-tokens", "workspace-advanced-toggle", "workspace-search-field",
   ]);
+
+  const toggle = page.getByRole("button", { name: "상세 필터", exact: true });
+  await toggle.click();
+  const filters = page.getByRole("region", { name: "상세 필터", exact: true });
+  await expect(filters.getByRole("heading")).toHaveText(["조회 범위", "모델 선별", "사람 판단·추적"]);
+  await expect(filters.getByRole("button", { name: "수집 회차", exact: true })).toBeInViewport();
+  for (const name of ["모델 판단", "1차 선별", "선별 처리 상태", "사람 판단", "추적 선택"]) {
+    await expect(filters.getByRole("combobox", { name, exact: true })).toBeInViewport();
+  }
+  await expect(filters.getByRole("button", { name: "기본값으로", exact: true })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  await expect.poll(() => filters.locator(".workspace-filter-advanced").evaluate((grid) => grid.scrollWidth - grid.clientWidth))
+    .toBeLessThanOrEqual(1);
+  await filters.getByRole("button", { name: "필터 접기", exact: true }).click();
+  await expect(toggle).toBeFocused();
 });
 
 test("[search-ux] 사전규격 필터·검색은 조회 도구 줄에, 날짜·회차·추가 조건은 상세 필터에 있다", async ({ page }, testInfo) => {

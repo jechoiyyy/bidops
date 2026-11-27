@@ -52,13 +52,21 @@ async function selectReason(page: import("@playwright/test").Page, label: string
   await page.getByRole("option", { name: label, exact: true }).click();
 }
 
-/** 기술 축 필터는 `상세 필터` 뒤에 접혀 있다. 열어야 축과 `필터 초기화`를 쓸 수 있다. */
+/** 기술 축 필터는 `상세 필터` 뒤에 접혀 있다. 열어야 축과 `기본값으로`를 쓸 수 있다. */
 async function openAdvancedFilters(page: import("@playwright/test").Page) {
   const toggle = page.getByRole("button", { name: "상세 필터", exact: true });
   if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  const secondary = page.locator(".c2l-secondary-filters");
-  if (!(await secondary.evaluate(element => element.hasAttribute("open")))) await secondary.locator("summary").click();
+}
+
+async function selectFilterOption(page: import("@playwright/test").Page, label: string, ...options: string[]) {
+  const field = page.getByRole("region", { name: "상세 필터", exact: true })
+    .getByRole("combobox", { name: label, exact: true });
+  await field.click();
+  for (const option of options) {
+    await page.getByRole("option", { name: option, exact: true }).click();
+  }
+  if (await field.getAttribute("aria-expanded") === "true") await field.press("Escape");
 }
 
 /**
@@ -77,7 +85,7 @@ async function clickPreset(page: import("@playwright/test").Page, label: string)
 /** 상세 필터 안의 초기화. 빈 상태 안내의 같은 이름 버튼과 섞이지 않게 필터 바로 좁힌다. */
 async function resetFilters(page: import("@playwright/test").Page) {
   await openAdvancedFilters(page);
-  await page.locator(".c2l-filters").getByRole("button", { name: "필터 초기화", exact: true }).click();
+  await page.locator(".c2l-filters").getByRole("button", { name: "기본값으로", exact: true }).click();
 }
 
 const TEST_ORDER_PLAN_SOURCE_RUN_ID = "91d8c2e4-3f09-4e6a-9bd9-0c2e4e6d0101";
@@ -296,8 +304,6 @@ test("기본 목록은 밀집 행이고 판정에 필요한 값만 담으며, �
   await expect(page.locator("header.topbar").getByRole("button", { name: "수집 회차" })).toHaveCount(0);
   await expect(page.locator(".c2l-filter-tools").getByRole("button", { name: "수집 회차" })).toHaveCount(0);
   await page.getByRole("button", { name: "상세 필터" }).click();
-  await expect(page.locator("#c2l-advanced-filters").getByRole("button", { name: "수집 회차" })).toBeHidden();
-  await page.locator(".c2l-secondary-filters summary").click();
   await expect(page.locator("#c2l-advanced-filters").getByRole("button", { name: "수집 회차" })).toBeVisible();
   await page.getByRole("button", { name: "상세 필터" }).click();
   // 페이지에 남는 것은 문서 구조와 `aria-labelledby`를 위한 숨긴 제목 하나뿐이다.
@@ -653,7 +659,7 @@ test("토큰 필터는 축끼리 AND, 축 안에서는 OR로 조합되고 프리
   // 1차 선별 축의 `순위 밖`은 상세 필터의 한 값이다. 이미 열린 화면에서 고르면 그 필터 그대로다 —
   // 옛 탭 주소의 별칭(`모델 미판정`)은 화면에 들어올 때만 적용된다.
   await openAdvancedFilters(page);
-  await page.locator(".c2l-filter-axis", { hasText: "1차 선별" }).getByRole("button", { name: "순위 밖", exact: true }).click();
+  await selectFilterOption(page, "1차 선별", "순위 밖");
   await expect(page).toHaveURL(/stage1=filtered_out/);
   await expect(page.locator(".c2l-row")).toHaveCount(1);
   await expect(page.locator(".c2l-list-scope")).toContainText("1차 선별 순위 밖");
@@ -663,16 +669,25 @@ test("토큰 필터는 축끼리 AND, 축 안에서는 OR로 조합되고 프리
   // 비관련은 고정 프리셋이 아니라 모델 판단 축의 한 값이다. 라벨은 한글이고 URL 값은 그대로다.
   await clickPreset(page, "전체");
   await openAdvancedFilters(page);
-  await page.locator(".c2l-filter-axis", { hasText: "모델 판단" }).getByRole("button", { name: "비관련", exact: true }).click();
+  await selectFilterOption(page, "모델 판단", "비관련");
   await expect(page).toHaveURL(/qwen=not_relevant/);
   await expect(page.locator(".c2l-row")).toHaveCount(1);
   await expect(page.locator(".c2l-row")).toContainText("모델 · 비관련");
+
+  // 모델 판단 두 값은 OR이고, 사람 판단 조건을 더하면 AND로 적용한다.
+  await clickPreset(page, "전체");
+  await selectFilterOption(page, "모델 판단", "관련", "비관련");
+  expect(new URL(page.url()).searchParams.get("qwen")?.split(",")).toEqual(["relevant", "not_relevant"]);
+  await expect(page.locator(".c2l-row")).toHaveCount(2);
+  await selectFilterOption(page, "사람 판단", "있음");
+  await expect(page.locator(".c2l-row")).toHaveCount(1);
+  await expect(page.locator(".c2l-row")).toContainText("모델 · 관련");
 
   // 상세 필터 `실패·거부만`은 1차 선별 실패(106)와 모델 판정 실패(105)·응답 거부(108)를 모두
   // 포함하고, 미판정(104)이나 상태 미확인(107)은 포함하지 않는다. 행은 제목이 아니라 상태
   // 문구로 식별한다.
   await clickPreset(page, "전체");
-  await page.locator(".c2l-filter-axis", { hasText: "선별 처리 상태" }).getByRole("button", { name: "실패·거부만", exact: true }).click();
+  await selectFilterOption(page, "선별 처리 상태", "실패·거부만");
   await expect(page).toHaveURL(/issue=yes/);
   const issueRows = page.locator(".c2l-row");
   await expect(issueRows).toHaveCount(3);
@@ -1277,8 +1292,8 @@ test("저장된 뷰: 이름 붙여 저장한 조합만 localStorage에 남고 �
   // 프리셋 어디에도 없는 커스텀 조합을 만든다: BM25 selected AND Qwen not_relevant.
   await clickPreset(page, "전체");
   await openAdvancedFilters(page);
-  await page.locator(".c2l-filter-axis", { hasText: "1차 선별" }).getByRole("button", { name: "선정", exact: true }).click();
-  await page.locator(".c2l-filter-axis", { hasText: "모델 판단" }).getByRole("button", { name: "비관련", exact: true }).click();
+  await selectFilterOption(page, "1차 선별", "선정");
+  await selectFilterOption(page, "모델 판단", "비관련");
   await expect(page.locator(".c2l-row")).toHaveCount(1);
 
   await page.getByRole("button", { name: "현재 필터를 뷰로 저장" }).click();
@@ -1336,7 +1351,7 @@ test("사람 피드백 축과 텍스트 검색도 다른 축과 AND로 조합된
 
   // 사람 피드백 "있음"은 revision이 있는 101 한 건만 남긴다.
   await openAdvancedFilters(page);
-  await page.locator(".c2l-filter-axis", { hasText: "사람 판단" }).getByRole("button", { name: "있음" }).click();
+  await selectFilterOption(page, "사람 판단", "있음");
   await expect(page.locator(".c2l-row")).toHaveCount(1);
   await expect(page.locator(".c2l-row")).toContainText("사람 판단 수정 1회");
 

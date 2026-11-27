@@ -118,43 +118,10 @@
   background: var(--color-background-card);
 }
 
-/* --- 필터 바 ---
- *
- * 골격·프레임 값은 공용 `workspace-filters.css`가 소유한다(`WorkspaceFilterBar`).
- * 여기 남는 것은 **이 화면에만 있는 것**뿐이다: 4축 + 저장된 뷰의 자리 배치와,
- * Astryx 기본 chrome과 시안의 차이를 메우는 칩 스타일.
- *
- * 접혀 있어도 URL 동기화와 축의 AND/OR 의미는 그대로다. */
+/* 저장된 보기 조작의 배치. 필터 패널과 입력 스타일은 공용 컴포넌트가 맡는다. */
 .c2l-filter-tools {
   align-items: flex-start;
 }
-
-.c2l-filter-axis {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-  min-width: 0;
-}
-
-.c2l-filter-axis > p {
-  margin: 0;
-}
-
-/* 저장된 뷰는 이름 입력·저장 단추·칩 목록까지 한 줄을 통째로 쓴다. 4축 아래 새 행이다. */
-.c2l-saved-views {
-  min-width: 0;
-  grid-column: 1 / -1;
-}
-
-.c2l-secondary-filters summary { cursor: pointer; width: fit-content; }
-.c2l-secondary-fields {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  gap: var(--spacing-2);
-  margin-top: var(--spacing-2);
-}
-.c2l-secondary-fields .c2l-saved-views { grid-column: auto; }
 
 .c2l-saved-views-row {
   display: flex;
@@ -183,127 +150,6 @@
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-full);
   background: var(--color-background-muted);
-}
-
-/* --- 필터 control 의 조작 affordance ---
- *
- * 이 규칙은 preflight 가 Astryx 를 덮던 시절의 임시 복원이 아니다.
- * `styles/layers.css` 로 layer 순서를 고쳐 Astryx 기본 chrome 이 되살아난 뒤
- * 다시 재어 보면(1440px 실측), Astryx 기본은 이 자리에 padding 8/12px 과
- * 배경만 주고 **테두리도 pill 반지름도 주지 않는다.** 시안 `Main` 의 필터는
- * 테두리 있는 칩이므로 그 차이만 여기서 채운다 — 겹치는 선언이 아니라
- * 시안과 기본값의 차이다.
- *
- * 값은 새로 만들지 않고 토큰만 읽는다(ADR-0048). */
-.c2l-filters :where(.astryx-toggle-button) {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-1);
-  min-height: var(--size-element-md);
-  padding: var(--spacing-1) var(--spacing-3);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-inner);
-  background: var(--color-background-card);
-  color: var(--color-text-primary);
-  cursor: pointer;
-}
-
-.c2l-filters :where(.astryx-toggle-button):hover {
-  background: var(--color-background-muted);
-}
-
-.c2l-filters :where(.astryx-toggle-button):focus-visible {
-  outline: var(--focus-outline-width) var(--focus-outline-style) var(--focus-outline-color);
-  outline-offset: var(--focus-outline-offset);
-}
-
-.c2l-filters :where(.astryx-toggle-button)[aria-disabled="true"],
-.c2l-filters :where(.astryx-toggle-button):disabled {
-  color: var(--color-text-disabled);
-  background: var(--color-background-muted);
-  cursor: default;
-}
-
-/* 저장된 뷰 chip 안의 삭제는 chip 자체가 테두리를 갖고 있어 다시 두르지 않는다. */
-.c2l-filters .c2l-view-delete {
-  min-height: var(--size-element-sm);
-  padding: 0 var(--spacing-1);
-  border-color: transparent;
-  background: transparent;
-}
-
-/* 목록 검색 입력은 공용 필터 줄이 소유한다(spec §2.2: 264x32 · 반지름 8.75 ·
-   테두리 `--color-border-emphasized`). 여기서 덧쓰면 화면마다 검색 칸이 달라진다. */
-.c2l-filters :where(.astryx-text-input, .astryx-selector):not(.workspace-search) {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  min-height: var(--size-element-md);
-  min-width: 0;
-  padding: 0 var(--spacing-2);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-inner);
-  background: var(--color-background-card);
-}
-
-.c2l-filters :where(.astryx-text-input, .astryx-selector):not(.workspace-search):focus-within {
-  border-color: var(--color-accent);
-}
-
-/* 저장된 뷰가 하나도 없으면 selector 는 비활성이다. 눌러도 되는 것처럼 보이지
- * 않게 배경과 글자색으로 함께 말한다. */
-.c2l-filters .astryx-selector[data-disabled] {
-  color: var(--color-text-disabled);
-  background: var(--color-background-muted);
-}
-
-/* 토글 축은 다중 선택이다. 미선택도 누를 수 있는 칩으로 보이고, 선택은 채움과
- * 체크 표시로 함께 말한다 — 색만으로 구분하지 않는다. 접근 가능한 이름은
- * Astryx 가 `aria-label` 로 고정하므로 체크 표시가 이름을 바꾸지 않는다. */
-.c2l-filters .astryx-toggle-button-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-1);
-  min-width: 0;
-}
-
-.c2l-filters .astryx-toggle-button {
-  gap: var(--spacing-1);
-  padding: var(--spacing-1) var(--spacing-2);
-  border-radius: var(--radius-full);
-  color: var(--color-text-secondary);
-  background: var(--color-background-surface);
-  font-size: var(--bo-type-caption);
-}
-
-.c2l-filters .astryx-toggle-button:hover {
-  border-color: var(--color-border-emphasized);
-  background: var(--color-background-muted);
-}
-
-.c2l-filters .astryx-toggle-button::before {
-  content: "✓";
-  flex: 0 0 auto;
-  visibility: hidden;
-  font-size: var(--bo-type-caption);
-  line-height: 1;
-}
-
-.c2l-filters .astryx-toggle-button[aria-pressed="true"] {
-  border-color: var(--color-accent);
-  color: var(--color-on-accent);
-  background: var(--color-accent);
-  font-weight: var(--font-weight-semibold);
-}
-
-.c2l-filters .astryx-toggle-button[aria-pressed="true"]::before {
-  visibility: visible;
-}
-
-.c2l-filters .astryx-toggle-button[aria-pressed="true"]:hover {
-  background: var(--color-accent);
-  border-color: var(--color-border-emphasized);
 }
 
 /* --- 목록/상세 workspace ---

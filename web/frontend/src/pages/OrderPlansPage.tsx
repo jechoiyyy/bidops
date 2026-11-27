@@ -12,7 +12,8 @@ import { Dialog } from "../components/common/WorkspaceDialog";
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { TextInput } from "@astryxdesign/core/TextInput";
-import { ToggleButton, ToggleButtonGroup } from "@astryxdesign/core/ToggleButton";
+import { MultiSelector, type MultiSelectorSelectedItem } from "@astryxdesign/core/MultiSelector";
+import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
 import { ConfirmDecisionDialog, trackingEndConfirmContent } from "../components/common/ConfirmDecisionDialog";
 import { EmptyState } from "../components/common/EmptyState";
@@ -35,7 +36,6 @@ import { useListSelection } from "../components/common/useListSelection";
 import {
   ListPagerControls,
   ReviewDecisionAction,
-  ReviewFilterSelector,
   ReviewFilterTextInput,
   ReviewRevisionHistory,
   SelectionToolbar,
@@ -277,6 +277,13 @@ function DailyTriggerOffBanner({ state }: { state: C2DailyTriggerStateResponse }
  */
 function axisValueLabel(labels: Readonly<Record<string, string>>): (token: string) => string {
   return (token) => (token === "null" ? ORDER_PLAN_NULL_LABEL : orderPlanLabel(labels, token));
+}
+
+const relevanceFilterLabel = axisValueLabel(ORDER_PLAN_RELEVANCE_LABEL);
+const stage1FilterLabel = axisValueLabel(ORDER_PLAN_STAGE1_LABEL);
+
+function formatFilterValues(items: MultiSelectorSelectedItem[]) {
+  return items.map((item) => item.label).join(" · ");
 }
 
 /** 사람 판단 수정의 관련성. 모델 판단(`불확실`)과 달리 business-rules의 `판단 보류`를 쓴다(C-6). */
@@ -1419,8 +1426,8 @@ function OrderPlansWorkspace() {
     }
     const parts: string[] = [];
     if (window) parts.push(window);
-    if (stage1Set.size) parts.push(`1차 선별 ${Array.from(stage1Set).map(axisValueLabel(ORDER_PLAN_STAGE1_LABEL)).join("·")}`);
-    if (qwenSet.size) parts.push(`모델 판단 ${Array.from(qwenSet).map(axisValueLabel(ORDER_PLAN_RELEVANCE_LABEL)).join("·")}`);
+    if (stage1Set.size) parts.push(`1차 선별 ${Array.from(stage1Set).map(stage1FilterLabel).join("·")}`);
+    if (qwenSet.size) parts.push(`모델 판단 ${Array.from(qwenSet).map(relevanceFilterLabel).join("·")}`);
     if (feedbackSet.size) parts.push(`사람 판단 ${Array.from(feedbackSet).map((token) => (token === "has" ? "있음" : "없음")).join("·")}`);
     if (trackingSet.size) parts.push(`추적 ${Array.from(trackingSet).map((token) => (token === "none" ? ORDER_PLAN_TRACKING_NONE_LABEL : token)).join("·")}`);
     if (issueOn) parts.push("실패·거부만");
@@ -1441,12 +1448,12 @@ function OrderPlansWorkspace() {
   const appliedFilters = ([
     !activePreset && qwenSet.size > 0 && {
       key: "qwen",
-      label: `모델 판단 · ${Array.from(qwenSet).map(axisValueLabel(ORDER_PLAN_RELEVANCE_LABEL)).join("·")}`,
+      label: `모델 판단 · ${Array.from(qwenSet).map(relevanceFilterLabel).join("·")}`,
       onRemove: () => changeAxes({ qwen: new Set() }),
     },
     stage1Set.size > 0 && {
       key: "stage1",
-      label: `1차 선별 · ${Array.from(stage1Set).map(axisValueLabel(ORDER_PLAN_STAGE1_LABEL)).join("·")}`,
+      label: `1차 선별 · ${Array.from(stage1Set).map(stage1FilterLabel).join("·")}`,
       onRemove: () => changeAxes({ stage1: new Set() }),
     },
     feedbackSet.size > 0 && {
@@ -1615,141 +1622,101 @@ function OrderPlansWorkspace() {
             onClose={() => setAdvancedOpen(false)}
             id="c2l-advanced-filters"
             onReset={resetFilters}
+            resetLabel="기본값으로"
           >
+            <WorkspaceFilterGroup title="조회 범위">
+              <SourceRunFilter
+                allRunsDescription="활성화된 적 있는 policy의 운영 판정 누적"
+                extraRunIds={runOptionSourceIds}
+                isDisabled={bulkPending}
+                isError={runsQuery.isError}
+                isPending={runsQuery.isPending}
+                onChange={changeSourceRun}
+                onRetry={() => { void runsQuery.refetch(); }}
+                runs={collectionRuns}
+                value={sourceRunId}
+              />
+              <Selector
+                label="저장된 뷰"
+                size="sm"
+                options={savedViews.map((view) => ({ value: view.id, label: view.name }))}
+                value=""
+                onChange={(id) => {
+                  const view = savedViews.find((item) => item.id === id);
+                  if (view) applySavedViewSearch(view.search);
+                }}
+                placeholder={savedViews.length ? "저장된 뷰 선택" : "저장된 뷰 없음"}
+                isDisabled={savedViews.length === 0}
+              />
+              <div className="c2l-saved-views-row">
+                {isNamingView ? (
+                  <>
+                    <ReviewFilterTextInput label="뷰 이름" value={newViewName} onChange={setNewViewName} placeholder="뷰 이름" onEnter={saveCurrentAsView} />
+                    <Button label="뷰 저장" size="sm" onClick={saveCurrentAsView} isDisabled={!newViewName.trim()} />
+                    <Button label="취소" size="sm" variant="ghost" onClick={() => { setIsNamingView(false); setNewViewName(""); }} />
+                  </>
+                ) : (
+                  <Button label="현재 필터를 뷰로 저장" size="sm" variant="ghost" onClick={() => setIsNamingView(true)} />
+                )}
+              </div>
+              {savedViews.length ? (
+                <ul className="c2l-saved-view-list">
+                  {savedViews.map((view) => (
+                    <li key={view.id}>
+                      <Text type="supporting" color="secondary" as="span">{view.name}</Text>
+                      <Button label={`${view.name} 삭제`} isIconOnly icon={<span aria-hidden="true">×</span>} size="sm" variant="ghost" onClick={() => deleteSavedView(view.id)} />
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </WorkspaceFilterGroup>
             <WorkspaceFilterGroup title="모델 선별">
-              {/* 축 이름과 값은 한글 라벨이고 **URL·서버 값은 `value`에 그대로 남는다**
-                  (ADR-0066 결정 3). `값 없음`은 서버가 값을 주지 않았다는 뜻이며
-                  `미확인`·`계산 불가`와 다르다. */}
-              <div className="c2l-filter-axis">
-                <Text type="label" color="secondary" as="p">모델 판단</Text>
-                <ToggleButtonGroup
-                  type="multiple"
-                  label="모델 판단 필터"
-                  value={Array.from(qwenSet)}
-                  onChange={(value) => changeAxes({ qwen: new Set(value as RelevanceToken[]) })}
-                >
-                  <ToggleButton value="relevant" label="관련" />
-                  <ToggleButton value="uncertain" label={ORDER_PLAN_RELEVANCE_LABEL.uncertain} />
-                  <ToggleButton value="not_relevant" label="비관련" />
-                  <ToggleButton value="null" label="값 없음" />
-                </ToggleButtonGroup>
-              </div>
-
-              <div className="c2l-filter-axis">
-                <Text type="label" color="secondary" as="p">1차 선별</Text>
-                <ToggleButtonGroup
-                  type="multiple"
-                  label="1차 선별 필터"
-                  value={Array.from(stage1Set)}
-                  onChange={(value) => changeAxes({ stage1: new Set(value as Stage1Token[]) })}
-                >
-                  <ToggleButton value="selected" label="선정" />
-                  <ToggleButton value="filtered_out" label="순위 밖" />
-                  <ToggleButton value="failed" label="실패" />
-                  <ToggleButton value="rejected" label="거부" />
-                  <ToggleButton value="null" label="값 없음" />
-                </ToggleButtonGroup>
-              </div>
+              <MultiSelector
+                label="모델 판단"
+                size="sm"
+                placeholder="전체"
+                formatValue={formatFilterValues}
+                options={RELEVANCE_TOKENS.map((value) => ({ value, label: relevanceFilterLabel(value) }))}
+                value={Array.from(qwenSet)}
+                onChange={(value) => changeAxes({ qwen: new Set(value as RelevanceToken[]) })}
+              />
+              <MultiSelector
+                label="1차 선별"
+                size="sm"
+                placeholder="전체"
+                formatValue={formatFilterValues}
+                options={STAGE1_TOKENS.map((value) => ({ value, label: stage1FilterLabel(value) }))}
+                value={Array.from(stage1Set)}
+                onChange={(value) => changeAxes({ stage1: new Set(value as Stage1Token[]) })}
+              />
+              {/* 1차 선별과 모델 판정 양쪽의 실패·거부를 포함한다. */}
+              <Selector
+                label="선별 처리 상태"
+                size="sm"
+                options={[{ value: "all", label: "전체" }, { value: "issue", label: "실패·거부만" }]}
+                value={issueOn ? "issue" : "all"}
+                onChange={(value) => changeAxes({ issue: value === "issue" })}
+              />
             </WorkspaceFilterGroup>
             <WorkspaceFilterGroup title="사람 판단·추적">
-              <div className="c2l-filter-axis">
-                <Text type="label" color="secondary" as="p">사람 판단</Text>
-                <ToggleButtonGroup
-                  type="multiple"
-                  label="사람 판단 필터"
-                  value={Array.from(feedbackSet)}
-                  onChange={(value) => changeAxes({ feedback: new Set(value as FeedbackToken[]) })}
-                >
-                  <ToggleButton value="has" label="있음" />
-                  <ToggleButton value="none" label="없음" />
-                </ToggleButtonGroup>
-              </div>
-
-              <div className="c2l-filter-axis">
-                <Text type="label" color="secondary" as="p">추적 선택</Text>
-                <ToggleButtonGroup
-                  type="multiple"
-                  label="추적 선택 필터"
-                  value={Array.from(trackingSet)}
-                  onChange={(value) => changeAxes({ tracking: new Set(value as TrackingToken[]) })}
-                >
-                  <ToggleButton value="미선택" label="미선택" />
-                  <ToggleButton value="계속 추적" label="계속 추적" />
-                  <ToggleButton value="보류" label="보류" />
-                  <ToggleButton value="종료" label="종료" />
-                  <ToggleButton value="none" label={ORDER_PLAN_TRACKING_NONE_LABEL} />
-                </ToggleButtonGroup>
-              </div>
-            </WorkspaceFilterGroup>
-            <WorkspaceFilterGroup title="조회 범위">
-              <details className="c2l-secondary-filters">
-                <summary>처리 상태·회차·저장된 보기</summary>
-                <div className="c2l-secondary-fields">
-                  {/* 이 축은 1차 선별과 모델 판정 **둘 다**의 실패·거부를 건다. 그래서 한쪽
-                      단계 이름(`모델`)을 붙이지 않고 두 단계를 아우르는 이름을 쓴다. */}
-                  <div className="c2l-filter-axis">
-                    <Text type="label" color="secondary" as="p">선별 처리 상태</Text>
-                    <ToggleButton
-                      value="issue"
-                      label="실패·거부만"
-                      isPressed={issueOn}
-                      onPressedChange={(pressed) => changeAxes({ issue: pressed })}
-                    />
-                  </div>
-
-                  {/* 회차는 감사용 범위 선택이며 상세 필터의 한 축이다(ADR-0062 2026-09-21
-                      재개정). 기본은 누적이다. */}
-                  <SourceRunFilter
-                    allRunsDescription="활성화된 적 있는 policy의 운영 판정 누적"
-                    className="c2l-filter-axis"
-                    extraRunIds={runOptionSourceIds}
-                    isDisabled={bulkPending}
-                    isError={runsQuery.isError}
-                    isPending={runsQuery.isPending}
-                    onChange={changeSourceRun}
-                    onRetry={() => { void runsQuery.refetch(); }}
-                    runs={collectionRuns}
-                    value={sourceRunId}
-                  />
-
-                  <div className="c2l-filter-axis c2l-saved-views">
-                    <Text type="label" color="secondary" as="p">저장된 뷰</Text>
-                    <div className="c2l-saved-views-row">
-                      <ReviewFilterSelector
-                        clearable={false}
-                        label="저장된 뷰"
-                        options={savedViews.map((view) => ({ value: view.id, label: view.name }))}
-                        value=""
-                        onChange={(id) => {
-                          const view = savedViews.find((item) => item.id === id);
-                          if (view) applySavedViewSearch(view.search);
-                        }}
-                        placeholder={savedViews.length ? "저장된 뷰 선택" : "저장된 뷰 없음"}
-                        isDisabled={savedViews.length === 0}
-                      />
-                      {isNamingView ? (
-                        <>
-                          <ReviewFilterTextInput label="뷰 이름" value={newViewName} onChange={setNewViewName} placeholder="뷰 이름" onEnter={saveCurrentAsView} />
-                          <Button label="뷰 저장" size="sm" onClick={saveCurrentAsView} isDisabled={!newViewName.trim()} />
-                          <Button label="취소" size="sm" variant="ghost" onClick={() => { setIsNamingView(false); setNewViewName(""); }} />
-                        </>
-                      ) : (
-                        <Button label="현재 필터를 뷰로 저장" size="sm" variant="ghost" onClick={() => setIsNamingView(true)} />
-                      )}
-                    </div>
-                    {savedViews.length ? (
-                      <ul className="c2l-saved-view-list">
-                        {savedViews.map((view) => (
-                          <li key={view.id}>
-                            <Text type="supporting" color="secondary" as="span">{view.name}</Text>
-                            <Button className="c2l-view-delete" label={`${view.name} 삭제`} isIconOnly icon={<span aria-hidden="true">×</span>} size="sm" variant="ghost" onClick={() => deleteSavedView(view.id)} />
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </div>
-                </div>
-              </details>
+              <MultiSelector
+                label="사람 판단"
+                size="sm"
+                placeholder="전체"
+                formatValue={formatFilterValues}
+                options={[{ value: "has", label: "있음" }, { value: "none", label: "없음" }]}
+                value={Array.from(feedbackSet)}
+                onChange={(value) => changeAxes({ feedback: new Set(value as FeedbackToken[]) })}
+              />
+              <MultiSelector
+                label="추적 선택"
+                size="sm"
+                placeholder="전체"
+                formatValue={formatFilterValues}
+                options={TRACKING_TOKENS.map((value) => ({ value, label: value === "none" ? ORDER_PLAN_TRACKING_NONE_LABEL : value }))}
+                value={Array.from(trackingSet)}
+                onChange={(value) => changeAxes({ tracking: new Set(value as TrackingToken[]) })}
+              />
             </WorkspaceFilterGroup>
           </WorkspaceFilterAdvanced>
 
