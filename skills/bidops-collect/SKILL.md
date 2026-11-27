@@ -10,6 +10,7 @@ description: 나라장터 용역 공고와 사전규격을 수집·정규화하�
 산출물을 만들기 전에 [워크플로 계약](../references/workflow-contract.md)을 읽는다.
 후보 탐색을 위해 회사소개서 사업명 참조 파일
 `../../docs/reference/company-performance-titles.tsv` (PDF 41–46페이지)도 함께 사용한다.
+이 파일은 회사 자료라 Git에 없고 운영 checkout에만 있다. 형식은 같은 자리의 `company-performance-titles.example.tsv`를 본다.
 
 ## 작업 순서
 

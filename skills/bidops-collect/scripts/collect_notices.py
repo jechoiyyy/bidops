@@ -57,8 +57,12 @@ PRESPEC_QUALIFICATION_FIELDS = (
     "successful_bid_method",
 )
 
-PERFORMANCE_REFERENCE_PATH = (
-    PROJECT_ROOT / "docs/reference/company-performance-titles.tsv"
+# The reference is company material kept outside Git (docs/operations/setup.md).
+# Tests point the override at the synthetic example next to it; unset means the
+# canonical path.
+PERFORMANCE_REFERENCE_PATH = Path(
+    os.environ.get("BIDOPS_PERFORMANCE_REFERENCE_PATH")
+    or PROJECT_ROOT / "docs/reference/company-performance-titles.tsv"
 )
 
 PERFORMANCE_THRESHOLD = 0.58

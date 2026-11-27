@@ -131,10 +131,10 @@ def test_policy_hash_is_the_approved_literal_hash():
 
 def test_profile_policy_import_is_immutable_and_policy_activation_requires_quality(engine):
     with Session(engine) as session:
-        profile_path = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.md"
+        profile_path = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.example.md"
         profile = import_profile_version(session, profile_path, created_by_name="운영자")
-        assert len(profile.profile_payload["facts"]) == 43
-        assert len({fact["fact_key"] for fact in profile.profile_payload["facts"]}) == 43
+        assert len(profile.profile_payload["facts"]) == 8
+        assert len({fact["fact_key"] for fact in profile.profile_payload["facts"]}) == 8
         assert import_profile_version(session, profile_path, created_by_name="다른 운영자").id == profile.id
         policy = import_policy_version(session, created_by_name="운영자", sample_hash="a" * 64, required_item_recall=.8, human_agreement=.7, unsupported_false_positive_rate=.1)
         assert policy_activation_valid(policy)
@@ -144,7 +144,7 @@ def test_profile_policy_import_is_immutable_and_policy_activation_requires_quali
 
 
 def test_measured_profile_policy_import_requires_and_matches_expected_policy_hash(engine, monkeypatch):
-    profile_path = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.md"
+    profile_path = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.example.md"
     monkeypatch.setattr(
         input_versions,
         "_store_profile_source",
@@ -209,7 +209,7 @@ def test_policy_quality_identity_supports_both_insertion_orders_and_measured_rep
 
 
 def test_profile_import_integrity_error_savepoint_preserves_caller_pending_work(engine):
-    profile_path = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.md"
+    profile_path = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.example.md"
     calls = {"count": 0}
 
     def fail_first_profile_insert(_mapper, _connection, _target):
@@ -239,7 +239,7 @@ def test_input_imports_preserve_caller_pending_rows_and_reject_tampered_profile(
     with Session(engine) as session:
         pending = Run(id=f"caller-pending-{uuid4()}")
         session.add(pending)
-        profile_path = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.md"
+        profile_path = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.example.md"
         profile = import_profile_version(session, profile_path, created_by_name="운영자")
         assert session.get(Run, pending.id) is not None
         evidence = session.query(ProfileEvidence).filter_by(profile_version_id=profile.id).first()
@@ -254,14 +254,14 @@ def test_profile_context_validates_snapshot_without_private_source_credentials(e
     """The structure-only analysis worker must not need the source namespace."""
 
     with Session(engine) as session:
-        profile_path = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.md"
+        profile_path = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.example.md"
         profile = import_profile_version(session, profile_path, created_by_name="운영자")
         monkeypatch.setattr(input_versions, "_verified_profile_source", lambda _session, _rows: None)
 
         context = input_versions.profile_context(session, profile)
 
         assert context["profile_version_id"] == str(profile.id)
-        assert len(context["facts"]) == 43
+        assert len(context["facts"]) == 8
         assert len(context["evidence"]) > 0
 
 
@@ -269,7 +269,7 @@ def test_profile_context_validates_snapshot_without_private_source_credentials(e
 def test_explicit_profile_source_repair_preserves_snapshot_and_old_location(engine, monkeypatch, tampered):
     from app.deep_review.services import assets
     from copy import deepcopy
-    profile_path = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.md"
+    profile_path = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.example.md"
     with Session(engine) as session:
         profile = import_profile_version(session, profile_path, created_by_name="운영자")
         session.commit()

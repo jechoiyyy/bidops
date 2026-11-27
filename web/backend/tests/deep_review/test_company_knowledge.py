@@ -600,7 +600,7 @@ def test_t6_profile_v2_rejects_made_up_evidence_for_unknown_fact(engine) -> None
 
 def test_t7_profile_v1_consumer_keeps_fixed_source_file_contract(engine) -> None:
     with Session(engine) as session:
-        profile_path = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.md"
+        profile_path = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.example.md"
         profile = input_versions.import_profile_version(
             session, profile_path, created_by_name="검사 담당자"
         )

@@ -9,6 +9,7 @@ content of its own.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -109,9 +110,14 @@ def judgment(notice_id: str, *, excluded: bool) -> dict:
     }
 
 
+# 실적 사업명 원본은 회사 자료라 저장소에 없다. 수집기는 같은 자리의 합성 예시를 읽는다.
+PERFORMANCE_EXAMPLE = ROOT / "docs/reference/company-performance-titles.example.tsv"
+
+
 def run(*command: str) -> subprocess.CompletedProcess:
+    env = {**os.environ, "BIDOPS_PERFORMANCE_REFERENCE_PATH": str(PERFORMANCE_EXAMPLE)}
     return subprocess.run(
-        [sys.executable, *command], capture_output=True, text=True, cwd=ROOT
+        [sys.executable, *command], capture_output=True, text=True, cwd=ROOT, env=env
     )
 
 

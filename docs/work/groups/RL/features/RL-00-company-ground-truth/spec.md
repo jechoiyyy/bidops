@@ -1,7 +1,7 @@
 # 루트랩 회사 근거 등록·버전 고정 — spec
 
 - 기능 ID: `RL-00-company-ground-truth`
-- 근거: [intent.md](./intent.md), DEMO 공통 계약 §1·§3·§4·§8(재사용 코드의 계약), ADR-0073 결정 1·6, [ui-spec §4.6](../../../../../specs/1016_rootlab-redefinition/ui-spec.md), [company-profile §8](../../../../../reference/company-profile.md), [company-preferences](../../../../../reference/company-preferences.md)
+- 근거: [intent.md](./intent.md), DEMO 공통 계약 §1·§3·§4·§8(재사용 코드의 계약), ADR-0073 결정 1·6, [ui-spec §4.6](../../../../../specs/1016_rootlab-redefinition/ui-spec.md), company-profile §8(`docs/reference/company-profile.md`, 회사 자료, 저장소 밖), company-preferences(`docs/reference/company-preferences.md`, 회사 자료, 저장소 밖)
 - 작성일: 2026-10-16 (같은 날 독립 검사 1차 20건·2차 12건 반영; 3차 검사는 돌리지 않음)
 
 ## 큰 틀 문서와의 관계

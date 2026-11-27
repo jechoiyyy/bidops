@@ -1,0 +1,7 @@
+# source: 합성 회사 소개 자료(가상), 쪽 번호는 예시다
+# columns: pdf_page<TAB>project_name
+# usage: discovery similarity only; legal bid-qualification recognition is unknown
+# 운영에서는 실제 company-performance-titles.tsv를 이 자리에 둔다(docs/operations/setup.md).
+1	가상 연구장비 공동활용 예약관리시스템 구축 용역
+1	가상 기관 홈페이지 통합 및 시스템 구축
+2	가상 블록체인 기반 자원봉사 플랫폼 고도화 용역

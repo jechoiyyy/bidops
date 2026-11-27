@@ -37,7 +37,7 @@ def _assert_safe_profile_json(payload: object, *, sentinel: str, project_root: P
 
 
 def test_profile_routes_return_only_safe_projection_and_stable_read_errors(tmp_path: Path, monkeypatch) -> None:
-    source = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.md"
+    source = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.example.md"
     sentinel = "대표 근거:"
     profile_path = tmp_path / "docs" / "reference" / "company-profile.md"
     profile_path.parent.mkdir(parents=True)

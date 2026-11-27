@@ -70,3 +70,15 @@ web/frontend/playwright-report/
 
 # Business scope cards hold unpublished company answers and stay outside Git (ADR-0080).
 business-scope-card*.yaml
+
+# 실회사 자료는 Git에 두지 않는다. 운영 checkout은 같은 경로의 로컬 사본을 그대로 쓰고
+# Compose bind mount 경로도 바뀌지 않는다. 형식은 옆의 *.example.* 파일을 본다
+# (docs/operations/setup.md "웹의 회사자료 입력 전제").
+/docs/reference/\[루트랩\]회사소개서_260804.pdf
+/docs/reference/company-profile.md
+/docs/reference/company-homepage-profile.md
+/docs/reference/company-performance-titles.tsv
+/docs/reference/company-preferences.md
+/web/backend/app/screening/baseline_company_profile.md
+/docker/portfolio/reference/company-profile.md
+/docs/1016_rootlab-redefinition/company-interview.md

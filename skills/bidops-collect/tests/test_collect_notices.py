@@ -25,6 +25,14 @@ assert SPEC and SPEC.loader
 COLLECT = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(COLLECT)
 
+# 실적 사업명 원본(company-performance-titles.tsv)은 회사 자료라 저장소에 없다(.gitignore).
+# 검색 동작은 같은 자리의 합성 예시로 검사한다. 원본이 있으면 건수 검사만 원본을 읽는다.
+REAL_PERFORMANCE_REFERENCE = COLLECT.PERFORMANCE_REFERENCE_PATH
+COLLECT.PERFORMANCE_REFERENCE_PATH = REAL_PERFORMANCE_REFERENCE.with_name(
+    "company-performance-titles.example.tsv"
+)
+COLLECT.load_performance_references.cache_clear()
+
 
 def labels_of(signals, axis=None):
     return {
@@ -151,10 +159,13 @@ class PerformanceRetrievalTests(unittest.TestCase):
         _, empty_score = COLLECT.performance_signals("청사 조경 및 수목 관리 용역")
         self.assertEqual(0.0, empty_score)
 
+    @unittest.skipUnless(
+        REAL_PERFORMANCE_REFERENCE.is_file(), "회사 실적 원본은 운영 checkout에만 있다"
+    )
     def test_all_pdf_performance_titles_are_preserved_as_reference_data(self) -> None:
         lines = [
             line
-            for line in COLLECT.PERFORMANCE_REFERENCE_PATH.read_text(
+            for line in REAL_PERFORMANCE_REFERENCE.read_text(
                 encoding="utf-8"
             ).splitlines()
             if line and not line.startswith("#")

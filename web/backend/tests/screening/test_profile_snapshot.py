@@ -63,7 +63,11 @@ def test_baseline_git_snapshot_and_source_validation():
             project_root=root,
         )
     except ProfileSnapshotError as exc:
-        assert str(exc) == "approved git profile blob is missing"
+        # 승인 blob이 이력에 없거나, 있어도 대조할 baseline 원본이 checkout에 없으면 fail closed한다.
+        assert str(exc) in {
+            "approved git profile blob is missing",
+            "vendored baseline profile is missing or not a regular file",
+        }
         assert session.scalar(select(CompanyProfileSnapshot)) is None
     else:
         assert row.digest == hashlib.sha256(read_git_source(root).raw).hexdigest()

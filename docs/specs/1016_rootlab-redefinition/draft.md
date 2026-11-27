@@ -1,7 +1,7 @@
 # BidOps 재정의 초안 — 루트랩 기준 AX 과제
 
 - 상태: **2026-10-16 목표 채택 후의 결정 근거 기록**([ADR-0073](../../tracking/decisions/0073-rootlab-real-company-ax-redefinition.md)). 본문의 초기 제안과 인터뷰 답을 구분한다. 현재 요구·순서는 [mission](../../work/constitution/mission.md)·[roadmap](../../work/constitution/roadmap.md), 구현·인수는 [status](../../tracking/status.md)를 따른다. RL-00~05 구현·평가 기록이 있으며 RL-05 인수는 reject다(2026-10-21 문서 대조).
-- 회사 기준: 실회사 ㈜루트랩. 근거는 [`docs/reference/company-profile.md`](../../reference/company-profile.md)(2026-08 회사소개서)와 [`docs/reference/company-homepage-profile.md`](../../reference/company-homepage-profile.md)(2026-10-16 홈페이지).
+- 회사 기준: 실회사 ㈜루트랩. 근거는 `docs/reference/company-profile.md`(회사 자료, 저장소 밖)(2026-08 회사소개서)와 `docs/reference/company-homepage-profile.md`(회사 자료, 저장소 밖)(2026-10-16 홈페이지).
 - 이전 방향과의 관계: C-2 발주계획 선별(운영 PoC), DEMO 가상 SI 3사(종료), HP 가상 홈페이지 1사(HP-00·01 완료, 02~06 미착수)는 기록과 코드를 보존하되 **가상회사 전제는 폐기**한다.
 
 ## 1. 왜 필요한가
@@ -106,8 +106,8 @@
 | Q2 | Slack + 화면, 하루 1회, bot 전용 채널 | RL-01 브리핑 |
 | Q3 | 모든 LLM 작업은 Luna, 자동 전송. 구현 뒤 로컬 LLM 토큰 최적화 단계 | ADR-0073 결정 5 |
 | Q4 | fixture RFP 5건 기준 입찰 절차·서류·문서 흐름 리서치 요청 | [bid-procedure.md](bid-procedure.md) |
-| Q5 | 인터뷰하면 채워 줌 | [company-interview.md](../../1016_rootlab-redefinition/company-interview.md) |
-| Q6 | 루트랩 기준으로 임의로 채움 | [company-preferences.md](../../reference/company-preferences.md) (`proposed`) |
+| Q5 | 인터뷰하면 채워 줌 | `docs/1016_rootlab-redefinition/company-interview.md`(회사 자료, 저장소 밖) |
+| Q6 | 루트랩 기준으로 임의로 채움 | `docs/reference/company-preferences.md`(회사 자료, 저장소 밖) (`proposed`) |
 | Q7 | 동의 | HP run abandon, HP-02~06 blocked, Neo4j 보류 |
 | Q8 | 실무자 5명, 2~3일에 한 번, 시간은 추론 | 아래 기준선 추정 |
 | Q9 | 추천대로 | main ← demo/local-20261009 fast-forward, 그룹 `RL` |
@@ -126,7 +126,7 @@
 
 ## 9. 회사 인터뷰 반영 (2026-10-16 12:05)
 
-35문항 중 31개 응답. 반영 위치는 [`company-profile.md` §8](../../reference/company-profile.md)·[`company-preferences.md`](../../reference/company-preferences.md). 설계에 영향을 준 답:
+35문항 중 31개 응답. 반영 위치는 `company-profile.md` §8(`docs/reference/company-profile.md`, 회사 자료, 저장소 밖)·`docs/reference/company-preferences.md`(회사 자료, 저장소 밖). 설계에 영향을 준 답:
 
 - **상주 가능 지역은 대구만**(C4). 서울·수도권 상주를 요구하는 공고(외교부 유형)는 상주 항목이 부족으로 판정되고 원격 개발 허용 여부가 분기점이 된다.
 - **과거 제안서·표준 문구 없음**(E1·E3). RL-04는 참조 제안서 없이 제안요청서 목차와 회사 근거로만 초안을 만든다. 형식은 PDF·HWP(E2) — HWP 생성기는 없으므로 1차 PDF, HWP는 후속 결정.

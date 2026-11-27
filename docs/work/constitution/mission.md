@@ -6,7 +6,7 @@
 자동 입찰·제출, 발주처 연락, 최종 Go/No-Go, 제안서 제출본은 사람의 책임이다.
 
 ## 이번 목표 — RL (2026-10-16)
-회사는 실회사 루트랩 하나다. 회사 근거는 [회사소개서 프로필](../../reference/company-profile.md)·[홈페이지 프로필](../../reference/company-homepage-profile.md)·[선호·제약 제안값](../../reference/company-preferences.md)이며 미확인 값은 [인터뷰](../../1016_rootlab-redefinition/company-interview.md)로 채운다.
+회사는 실회사 루트랩 하나다. 회사 근거는 회사소개서 프로필(`docs/reference/company-profile.md`, 회사 자료, 저장소 밖)·홈페이지 프로필(`docs/reference/company-homepage-profile.md`, 회사 자료, 저장소 밖)·선호·제약 제안값(`docs/reference/company-preferences.md`, 회사 자료, 저장소 밖)이며 미확인 값은 인터뷰(`docs/1016_rootlab-redefinition/company-interview.md`, 회사 자료, 저장소 밖)로 채운다.
 세 단계 목표를 순서대로 간다.
 - G1 발견·알림: 평일 08:00 브리핑(상위 N건·이유·차단 조건·마감)을 Slack bot 전용 채널과 화면으로 보내고 실무자는 채택·무시로만 반응한다. 사전규격·입찰공고가 1순위, 발주계획은 반복 발주처의 연차 사업 예고 전용이다.
 - G2 판정 근거: 요구사항 카드(HP-01)·자격·예산·일정을 회사 근거와 대조해 참여 판정 보조(진행 가능·조건부·어려움·판단 불가)·차단 조건·충족/부족/미확인·다음 행동을 원문 쪽까지 보여 준다.

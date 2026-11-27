@@ -24,6 +24,10 @@ docs/reference/company-performance-titles.tsv
 web/backend/app/screening/baseline_company_profile.md
 ```
 
+세 파일은 실회사 자료라 Git에 두지 않는다(`.gitignore`, 2026-11-28). 새 checkout에는 없으므로 승인된 원본을 담당자에게 받아 위 경로에 그대로 복사한다. 경로와 Compose bind mount는 바뀌지 않는다. 같은 이유로 `docs/reference/company-homepage-profile.md`·`company-preferences.md`·회사소개서 PDF, 포트폴리오 스택의 `docker/portfolio/reference/company-profile.md`도 로컬 사본으로만 둔다. 형식은 옆의 `*.example.md`·`company-performance-titles.example.tsv`(합성 회사)를 본다. 예시는 테스트용이며 운영 입력으로 쓰지 않는다. baseline 예시는 `BASELINE_PROFILE_SHA256`과 맞지 않아 baseline으로 읽히지 않는다.
+
+이 파일들이 추적되던 커밋에서 삭제 커밋으로 `git pull`하면 Git이 작업 트리의 사본도 지운다. 기존 운영 checkout은 pull 전에 위 경로의 파일을 checkout 밖으로 복사해 두고, pull 뒤 같은 경로로 되돌린 다음 `test -f` 확인을 다시 한다.
+
 Docker/Compose는 bind source가 없는 경우 그 자리에 디렉터리를 만들 수 있다. 그러면 파일을 읽어야 하는 프로필 경계와 수집 subprocess가 regular file 대신 디렉터리를 받아 비정상적으로 실패한다. 기동 전에 다음을 확인한다.
 
 ```bash

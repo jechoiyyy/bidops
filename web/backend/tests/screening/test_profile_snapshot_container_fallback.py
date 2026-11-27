@@ -20,17 +20,42 @@ from app.screening.profile_snapshot import (
 )
 
 
+# 승인 baseline 원본은 회사 자료라 저장소에 없다(.gitignore). 대체 경로의 동작은 같은 위치의
+# 합성 예시와 그 hash로 검사한다. 원본이 있는 운영 checkout에서도 결과는 같다.
+EXAMPLE_BASELINE = BASELINE_PROFILE_PATH.with_name("baseline_company_profile.example.md")
+
+
+def _use_example_baseline(monkeypatch) -> str:
+    digest = hashlib.sha256(EXAMPLE_BASELINE.read_bytes()).hexdigest()
+    monkeypatch.setattr(snapshot_module, "BASELINE_PROFILE_PATH", EXAMPLE_BASELINE)
+    monkeypatch.setattr(snapshot_module, "BASELINE_PROFILE_SHA256", digest)
+    return digest
+
+
 def test_missing_git_uses_only_the_hash_verified_baseline(monkeypatch, tmp_path: Path):
     def missing_git(*args, **kwargs):
         raise FileNotFoundError("git")
 
+    digest = _use_example_baseline(monkeypatch)
     monkeypatch.setattr(snapshot_module.subprocess, "run", missing_git)
     source = read_git_source(tmp_path, commit=BASELINE_COMMIT)
 
     assert source.source_kind == "git_blob"
     assert source.source_ref == BASELINE_COMMIT
-    assert hashlib.sha256(source.raw).hexdigest() == BASELINE_PROFILE_SHA256
-    assert source.raw == BASELINE_PROFILE_PATH.read_bytes()
+    assert hashlib.sha256(source.raw).hexdigest() == digest
+    assert source.raw == EXAMPLE_BASELINE.read_bytes()
+
+
+def test_missing_vendored_baseline_fails_clearly_without_git(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(snapshot_module, "BASELINE_PROFILE_PATH", tmp_path / "baseline_company_profile.md")
+    monkeypatch.setattr(
+        snapshot_module.subprocess,
+        "run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("git")),
+    )
+
+    with pytest.raises(ProfileSnapshotError, match="vendored baseline profile is missing"):
+        read_git_source(tmp_path, commit=BASELINE_COMMIT)
 
 
 def test_tampered_vendored_baseline_is_rejected_without_git(monkeypatch, tmp_path: Path):
@@ -83,6 +108,10 @@ def test_source_checkout_compares_vendored_baseline_or_fails_closed():
         check=True,
         capture_output=True,
     ).stdout
+    if not BASELINE_PROFILE_PATH.is_file():
+        with pytest.raises(ProfileSnapshotError, match="vendored baseline profile is missing"):
+            read_git_source(root)
+        return
     assert BASELINE_PROFILE_PATH.read_bytes() == expected
     assert read_git_source(root).raw == expected
 

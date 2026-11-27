@@ -22,6 +22,7 @@ from __future__ import annotations
 from copy import deepcopy
 import hashlib
 import json
+from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
@@ -1409,7 +1410,8 @@ def test_b55_rl_card_policy_v9_is_pinned_and_changes_only_synthesis(tmp_path, en
 def import_profile_version_for_global(session):
     from app.deep_review.services.input_versions import import_profile_version
 
-    profile = import_profile_version(session, created_by_name="정책 담당자", label="company-profile")
+    example = Path(__file__).parents[4] / "docs" / "reference" / "company-profile.example.md"
+    profile = import_profile_version(session, example, created_by_name="정책 담당자", label="company-profile")
     session.commit()
     return profile
 
@@ -1781,7 +1783,8 @@ def test_rl04_proposal_policy_imports_as_an_immutable_row_never_global(engine) -
     with Session(engine) as session:
         # The existing operator command imports the row (spec: "import-profile-policy로 행 import").
         result = import_profile_policy(
-            session, policy_source=PROPOSAL_LUNA_POLICY_FILE, actor="jechoi", label="proposal-policy-luna-v1",
+            session, profile_source=Path(__file__).parents[4] / "docs" / "reference" / "company-profile.example.md",
+            policy_source=PROPOSAL_LUNA_POLICY_FILE, actor="jechoi", label="proposal-policy-luna-v1",
             expected_policy_sha256=PROPOSAL_POLICY_SHA256,
         )
         assert result["policy_sha256"] == PROPOSAL_POLICY_SHA256

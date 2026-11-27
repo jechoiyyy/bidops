@@ -65,7 +65,11 @@ def evidence(tmp_path_factory: pytest.TempPathFactory) -> dict:
         pytest.skip(f"판정 제공자({SCREENING_PROVIDER})가 없어 종단 실행을 확인할 수 없다")
     tmp_path = tmp_path_factory.mktemp("prespec-e2e")
     argv = _mutating_argv(tmp_path)
-    assert run_cli(argv) == 0
+    # 실회사 프로필은 Git에 없다(.gitignore). 기본 프로필 경로를 같은 형식의 합성 예시로 바꾼다.
+    example = Path(__file__).resolve().parents[4] / "docs" / "reference" / "company-profile.example.md"
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr("app.deep_review.services.input_versions.profile_path", lambda: example)
+        assert run_cli(argv) == 0
     return json.loads((tmp_path / "prespec-e2e-result.json").read_text(encoding="utf-8"))
 
 

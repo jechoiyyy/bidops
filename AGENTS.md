@@ -68,7 +68,7 @@ Astryx의 "레이아웃도 컴포넌트로만, `<div>` 금지" 규칙은 ADR-004
 ## RL 기능 문서와 실행 큐
 
 루트랩 실회사 기준 AX 과제(2026-10-16, ADR-0073)는 [로드맵](docs/work/constitution/roadmap.md)과 [재정의 초안](docs/specs/1016_rootlab-redefinition/draft.md)을 먼저 읽는다.
-회사 근거는 `docs/reference/company-profile.md`(회사소개서)·`company-homepage-profile.md`(홈페이지)·`company-preferences.md`(제안값, `proposed`)이며 미확인 값은 `docs/1016_rootlab-redefinition/company-interview.md`로 채운다.
+회사 근거는 `docs/reference/company-profile.md`(회사소개서)·`company-homepage-profile.md`(홈페이지)·`company-preferences.md`(제안값, `proposed`)이며 미확인 값은 `docs/1016_rootlab-redefinition/company-interview.md`로 채운다. 이 파일들은 회사 자료라 Git에 없고 운영 checkout에만 있다(`docs/operations/setup.md` "웹의 회사자료 입력 전제", 형식은 `*.example.md`).
 이전 HP(가상 홈페이지 1사)·DEMO(가상 SI 3사) 그룹은 종료했고 HP-00·01과 DEMO-01~04의 회사 기반 코드를 재사용한다. [HP 공통 계약](docs/work/hp-contract.md)·[DEMO 공통 계약](docs/work/demo-contract.md)은 재사용 코드의 계약 기록이다.
 기능 상태는 `docs/work/groups/RL/features/*/status.json`, 순서·의존은 `docs/work/queue.json`이 정본이다.
 `python3 scripts/feature_status.py queue _ show`로 확인하고 상태·큐는 이 도구로만 수정한다.
