@@ -15,11 +15,13 @@ import { CollectionHealth, CollectionStatus } from "../components/dashboard/Coll
 import { opportunityActionRequiredQuery, preSpecNeedsCheckTotalQuery, preSpecRecentTotalQuery } from "../lib/defaultViewCounts";
 import { DashboardBlock, LinkButton, Small, SummaryCell, type DashCount } from "../components/dashboard/DashboardPrimitives";
 import { DeadlineAgenda } from "../components/dashboard/DeadlineAgenda";
-import { DEADLINE_IMMINENT_DAYS, HOLD_REVIEW_LIST_PATH, WORK_PANEL_LIMIT, previousKstDate } from "../components/dashboard/dashboardData";
+import { DEADLINE_IMMINENT_DAYS, HOLD_REVIEW_LIST_PATH, previousKstDate } from "../components/dashboard/dashboardData";
 import "../styles/dashboard-erp.css";
 
 /** 마감 일정이 한 번에 받는 마감 임박 추적 건 수. 넘으면 몇 건 중 몇 건인지 적는다. */
-const AGENDA_TRACKING_LIMIT = 50;
+const AGENDA_TRACKING_LIMIT = 200;
+/** 최종 결정 대기열을 한 번에 받는 수. 일정에 합칠 사업과 일정 밖 건수를 가르는 데 쓴다. */
+const AGENDA_FINAL_LIMIT = 200;
 
 /**
  * 오늘 할 일(2026-11-27 시안 C2, `docs/1127_today-simplify/`).
@@ -49,8 +51,8 @@ function DashboardWorkspace() {
     staleTime: 60_000,
   });
   const decisionQuery = useQuery({
-    queryKey: ["bid-delta-decision-queue", "dashboard"],
-    queryFn: ({ signal }) => api.getBidDeltaDecisionQueue({ status: "pending", limit: WORK_PANEL_LIMIT }, { signal }),
+    queryKey: ["bid-delta-decision-queue", "dashboard", AGENDA_FINAL_LIMIT],
+    queryFn: ({ signal }) => api.getBidDeltaDecisionQueue({ status: "pending", limit: AGENDA_FINAL_LIMIT }, { signal }),
     staleTime: 60_000,
   });
   // 개요 사람 확인은 사전규격 목록의 같은 보기와 같은 모집단이다(`sw_only=false`, 나머지 기본값).
@@ -95,8 +97,8 @@ function DashboardWorkspace() {
     value: countText(preSpecNeedsCheckQuery, preSpecNeedsCheckQuery.data), to: "/pre-specs?workspace=needs_check",
   };
   const newCounts: DashCount[] = [
-    { key: "new-order-plan", label: "관련 발주계획", value: countText(newPlanQuery, newPlanQuery.data?.total), to: `/order-plans?qwen=relevant&tracking=미선택&first_observed_from=${newSince}` },
-    { key: "new-pre-spec", label: "SW 사전규격", value: countText(recentPreSpecQuery, recentPreSpecQuery.data), to: `/pre-specs?workspace=recent&observed_from=${newSince}` },
+    { key: "new-order-plan", label: "발주계획", value: countText(newPlanQuery, newPlanQuery.data?.total), to: `/order-plans?qwen=relevant&tracking=미선택&first_observed_from=${newSince}` },
+    { key: "new-pre-spec", label: "사전규격", value: countText(recentPreSpecQuery, recentPreSpecQuery.data), to: `/pre-specs?workspace=recent&observed_from=${newSince}` },
   ];
 
   // 함께 볼 것: 0건은 링크 대신 한 줄로 모으고, 셀 수 없는 것은 0으로 숨기지 않는다.
@@ -129,7 +131,7 @@ function DashboardWorkspace() {
     <div className="dash-summary" aria-label="오늘 요약" role="group">
       <SummaryCell id="decide" title="결정할 것" hot main={deadlineCount} basis={`마감 ${DEADLINE_IMMINENT_DAYS}일 이내 추적 건`} extras={[finalCount]} />
       <SummaryCell id="stuck" title="멈춘 것" main={needsCheckCount} basis="사전규격 개요 실패·취소 · 문서 준비 중단" />
-      <SummaryCell id="new" title="새로 들어온 것" basis={`${newSince.slice(5)} 이후 첫 수집 · 추적 결정 전`} extras={newCounts} />
+      <SummaryCell id="new" title="새로 들어온 것" basis={`관련 발주계획·SW 사전규격 · ${newSince.slice(5)} 이후 첫 수집`} extras={newCounts} />
     </div>
 
     <DashboardBlock id="agenda" title="추적 중인 사업 · 마감 일정"

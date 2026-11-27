@@ -10,8 +10,6 @@ function kstDayIndex(time: number): number {
   return Date.UTC(part("year"), part("month") - 1, part("day")) / 86_400_000;
 }
 
-/** 누적 업무 패널이 보여 주는 목록 길이. 건수는 `/api/workload`가 따로 낸다(ADR-0067 결정 7). */
-export const WORK_PANEL_LIMIT = 5;
 /** 보류 기한 지남 목록. 사업 추적의 URL 동기화 이름(`section`·`reason`)을 그대로 쓴다. */
 export const HOLD_REVIEW_LIST_PATH = "/opportunities?section=조치 필요&reason=hold_overdue";
 /** `마감 임박 추적 건`의 창(일). 서버 `DEADLINE_IMMINENT_WINDOW_DAYS`와 같은 값이다. */
