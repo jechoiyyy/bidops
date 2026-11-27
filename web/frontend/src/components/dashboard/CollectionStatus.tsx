@@ -38,9 +38,8 @@ const TRACK_SHORT: Record<string, string> = { "order-plans": "발주계획", not
 function trackPhrase(track: DailyCollectionStatusResponse["tracks"][number]): string {
   const name = TRACK_SHORT[track.track] ?? track.track;
   if (track.state === "missing") return `${name} 수집 기록 없음`;
-  if (track.state === "incomplete") {
-    return track.warning_count ? `${name} 적재 경고 ${track.warning_count.toLocaleString("ko-KR")}건` : `${name} 적재 확인 필요`;
-  }
+  // 경고 건수는 펼친 기록과 실행 상태 화면에 있다. 헤더 한 줄은 상태만 말한다.
+  if (track.state === "incomplete") return `${name} 적재 확인 필요`;
   return `${name} 수집 완료`;
 }
 

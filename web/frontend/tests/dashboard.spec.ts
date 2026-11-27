@@ -307,7 +307,7 @@ test("헤더의 수집 상태 줄은 트랙 상태를 적고 누르면 일일 �
   await page.goto("/");
   const health = page.locator(".dash-health");
   await expect(health).toHaveAttribute("data-state", "warning");
-  await expect(health.locator("summary")).toHaveText("09-16 기준 · 발주계획 수집 완료 · 공고 적재 경고 388건");
+  await expect(health.locator("summary")).toHaveText("09-16 기준 · 발주계획 수집 완료 · 공고 적재 확인 필요");
   await expect(page.getByTestId("daily-collection")).toBeHidden();
   await health.locator("summary").click();
   await expect(page.getByTestId("daily-collection")).toBeVisible();
