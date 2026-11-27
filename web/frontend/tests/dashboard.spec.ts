@@ -97,7 +97,8 @@ test("마감 일정은 한국 날짜별로 묶고 빈 날은 한 줄로 접는�
   const days = agenda(page).locator(":scope > li");
   await expect(days).toHaveCount(5);
   expect(await days.evaluateAll(nodes => nodes.map(node => node.getAttribute("data-entry")))).toEqual(["day", "gap", "day", "gap", "day"]);
-  await expect(days.locator(".dash-agenda-rail")).toHaveText(["09.19토D-22건", "09.20", "09.21월D-41건", "09.22", "09.23수D-61건"]);
+  // 한 날의 행이 모두 같은 마감 종류면 날짜 칸에 한 번만 적는다.
+  await expect(days.locator(".dash-agenda-rail")).toHaveText(["09.19토D-22건입찰 마감", "09.20", "09.21월D-41건의견등록 마감", "09.22", "09.23수D-61건입찰 마감"]);
   await expect(days.nth(1)).toContainText("마감 없음");
   // 3일 이내만 강조한다. 문구(D-n)가 함께 정보를 싣는다.
   expect(await days.locator(".dash-agenda-due").evaluateAll(nodes => nodes.map(node => node.classList.contains("is-urgent")))).toEqual([true, false, false]);
@@ -121,12 +122,12 @@ test("오늘 묶음은 마감 시각이 지나도 오늘이고 지난 행에는 
     decisions: { items: [{ ...decisionItems[0], opportunity_id: 799, deadline_at: "2026-09-17T00:00:00Z" }], total: 1, limit: 200, offset: 0 },
   });
   await page.goto("/");
-  await expect(agenda(page).locator(".dash-agenda-rail")).toHaveText(["09.17목오늘1건"]);
+  await expect(agenda(page).locator(".dash-agenda-rail")).toHaveText(["09.17목오늘1건입찰 마감"]);
   await expect(agendaBody(page).locator('[data-source="final-outside"]')).toContainText("마감 지남 1건");
-  await expect(agendaRows(page, "tracking").locator(".dash-agenda-time")).toHaveText("23:59입찰 마감");
+  await expect(agendaRows(page, "tracking").locator(".dash-agenda-time")).toHaveText("23:59");
 });
 
-test("추적 건 행은 마감 종류·시각·예산과 지금 다가오는 단계를 적는다", async ({ page }) => {
+test("추적 건 행은 시각·예산과 지금 다가오는 단계를 적고 마감 종류는 날짜 칸에 한 번 적는다", async ({ page }) => {
   const items = structuredClone(deadlineItems);
   // 사전규격 마감 건에 발주계획 연결과 예산을 더한다. 기각된 후보 연결은 단계로 세지 않는다.
   items[1].links[0].budget = 592_000_000;
@@ -136,22 +137,36 @@ test("추적 건 행은 마감 종류·시각·예산과 지금 다가오는 단
   await page.goto("/");
   const rows = agendaRows(page, "tracking");
   const bid = rows.filter({ hasText: "종료된 지능형 업무 시스템 본공고" });
-  await expect(bid.locator(".dash-agenda-time")).toHaveText("09:00입찰 마감");
+  await expect(bid.locator(".dash-agenda-time")).toHaveText("09:00");
   await expect(bid.locator(".dash-agenda-step")).toHaveText(["입찰공고 마감 지금 단계"]);
   await expect(bid).toContainText("경상남도 · 예산 미제공");
   await expect(bid.getByRole("link")).toHaveAttribute("href", "/opportunities/501");
 
   const pre = rows.filter({ hasText: "신규 지능형 행정 지원 사전규격" });
-  await expect(pre.locator(".dash-agenda-time")).toHaveText("11:00의견등록 마감");
+  await expect(pre.locator(".dash-agenda-time")).toHaveText("11:00");
   await expect(pre).toContainText("해솔시청 · 예산 5억 9,200만 원");
   await expect(pre.locator(".dash-agenda-step")).toHaveText(["발주계획 ✓ 연결됨", "사전규격 의견등록 지금 단계", "입찰공고 아직 없음"]);
   expect(await pre.locator(".dash-agenda-step").evaluateAll(nodes => nodes.map(node => node.getAttribute("data-state")))).toEqual(["linked", "current", "absent"]);
-  await expect(pre.locator(".dash-agenda-status")).toContainText("보류");
-  await expect(pre.locator(".dash-agenda-status")).toContainText("루트랩 실무자 · 예시 결정");
+  // 결정자 이름은 행마다 싣지 않고, 미리 넣은 에이전트 결정만 `예시 결정`으로 남긴다.
+  await expect(pre.locator(".dash-agenda-status")).toHaveText("보류예시 결정");
+  await expect(pre.locator(".dash-agenda-status")).not.toContainText("루트랩 실무자");
 
   // 후보 확인 대기 연결의 더 이른 마감(09-17 18:00)은 고르지 않는다.
   const candidate = rows.filter({ hasText: "행정정보 연계시스템 유지관리 공고" });
-  await expect(candidate.locator(".dash-agenda-time")).toHaveText("14:00입찰 마감");
+  await expect(candidate.locator(".dash-agenda-time")).toHaveText("14:00");
+});
+
+test("한 날에 마감 종류가 섞이면 날짜 칸 대신 행마다 마감 종류를 적는다", async ({ page }) => {
+  const items = structuredClone(deadlineItems);
+  // 사전규격 의견등록 마감을 본공고 입찰 마감과 같은 날(09-19 11:00 KST)로 옮긴다.
+  items[1].links[0].deadline_at = "2026-09-19T02:00:00Z";
+  await mockDashboard(page, { deadlines: opportunityList(items, 7) });
+  await page.goto("/");
+  const day = agenda(page).locator(":scope > li").first();
+  await expect(day.locator(".dash-agenda-rail")).not.toContainText("마감");
+  const rows = agendaRows(page, "tracking");
+  await expect(rows.filter({ hasText: "종료된 지능형 업무 시스템 본공고" }).locator(".dash-agenda-time")).toHaveText("09:00입찰 마감");
+  await expect(rows.filter({ hasText: "신규 지능형 행정 지원 사전규격" }).locator(".dash-agenda-time")).toHaveText("11:00의견등록 마감");
 });
 
 test("최종 결정 대기 행은 추정가격·결정 단계를 적고 일정 밖 대기는 건수로만 센다", async ({ page }) => {

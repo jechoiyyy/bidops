@@ -14,7 +14,7 @@
   flex: 1;
   min-height: 100%;
   min-width: 0;
-  gap: var(--spacing-4);
+  gap: var(--spacing-6);
 }
 
 /* ── 헤더: 수집 상태 한 줄 + 새로고침 ─────────────────────────────── */
@@ -70,7 +70,7 @@
 /* ── 요약 줄 ─────────────────────────────────────────────────────── */
 .dash-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, .85fr) minmax(0, 1.15fr);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-element);
   background: var(--color-background-surface);
@@ -90,7 +90,6 @@
   white-space: nowrap;
 }
 .dash-summary-main:hover { text-decoration: underline; }
-.dash-summary-cell.is-hot .dash-summary-main { color: var(--color-error); }
 .dash-summary-aside { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--spacing-3); min-width: 0; }
 .dash-summary-extra {
   color: var(--color-text-primary);
@@ -145,18 +144,31 @@
 .dash-agenda-more { display: flex; align-items: center; padding: 0 var(--spacing-3); }
 .dash-agenda-item + .dash-agenda-more { border-top: var(--border-width) solid var(--color-background-muted); }
 
-.dash-agenda-items { margin: 0; padding: 0; list-style: none; min-width: 0; }
+.dash-agenda-items { margin: 0; padding: 0; list-style: none; min-width: 0; container-type: inline-size; }
 .dash-agenda-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto calc(var(--spacing-12) * 2) calc(var(--spacing-12) * 3);
+  grid-template-columns: minmax(0, calc(var(--spacing-12) * 14)) auto minmax(0, 1fr) calc(var(--spacing-12) * 2) calc(var(--spacing-12) * 3);
+  grid-template-areas: "main chain . time status";
   align-items: center;
-  gap: var(--spacing-4);
+  gap: var(--spacing-1) var(--spacing-4);
   padding: var(--spacing-1-5, var(--spacing-1)) var(--spacing-4);
   min-width: 0;
+}
+.dash-agenda-main { grid-area: main; }
+.dash-agenda-item > :is(.dash-agenda-chain, .dash-agenda-chain-empty) { grid-area: chain; }
+.dash-agenda-time { grid-area: time; }
+.dash-agenda-status { grid-area: status; }
+@container (max-width: 960px) {
+  .dash-agenda-item {
+    grid-template-columns: minmax(0, 1fr) calc(var(--spacing-12) * 2) calc(var(--spacing-12) * 3);
+    grid-template-areas: "main time status" "chain time status";
+  }
+  .dash-agenda-item > :is(.dash-agenda-chain, .dash-agenda-chain-empty) { justify-self: start; }
 }
 .dash-agenda-item + .dash-agenda-item { border-top: var(--border-width) solid var(--color-background-muted); }
 .dash-agenda-item:hover { background: var(--color-accent-muted); }
 .dash-agenda-main { display: flex; flex-direction: column; min-width: 0; }
+.dash-agenda-kind { white-space: nowrap; }
 .dash-agenda-main > .dash-small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dash-agenda-title {
   color: var(--color-text-primary);
@@ -188,16 +200,18 @@
 .dash-agenda-status { display: flex; flex-direction: column; align-items: flex-end; gap: var(--spacing-0-5); min-width: 0; }
 .dash-agenda-note { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+.dash-agenda-body { display: flex; flex-direction: column; gap: var(--spacing-2); min-width: 0; }
 .dash-agenda-body > :is(.empty-state, .skeleton-panel) { margin: 0; }
 .dash-agenda-status-line {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
   margin: 0;
-  padding: var(--spacing-1) var(--spacing-1);
+  padding: 0;
   color: var(--color-text-secondary);
   font-size: var(--bo-k-meta);
 }
+.dash-agenda-status-line a { color: var(--color-text-accent); text-decoration: underline; text-underline-offset: var(--spacing-0-5); white-space: nowrap; }
 .dash-agenda-status-line[role="alert"] { color: var(--color-error); }
 
 /* ── 함께 볼 것 ──────────────────────────────────────────────────── */

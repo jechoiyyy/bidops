@@ -33,7 +33,13 @@ function Chain({ steps }: { steps: ChainStep[] }) {
   </ol>;
 }
 
-function AgendaRow({ item, now }: { item: AgendaItem; now: number }) {
+/** 한 날의 행이 모두 같은 마감 종류면 그 종류. 날짜 칸에 한 번만 적고 행에서는 뺀다. */
+function sharedKind(items: AgendaItem[]): string | null {
+  const kinds = new Set(items.map(item => item.deadlineKind));
+  return kinds.size === 1 ? items[0].deadlineKind : null;
+}
+
+function AgendaRow({ item, now, showKind = true }: { item: AgendaItem; now: number; showKind?: boolean }) {
   const passed = item.deadlineAt !== null && Date.parse(item.deadlineAt) < now;
   return <li className="dash-agenda-item" data-kind={item.kind}>
     <div className="dash-agenda-main">
@@ -43,7 +49,7 @@ function AgendaRow({ item, now }: { item: AgendaItem; now: number }) {
     <Chain steps={item.chain} />
     <div className="dash-agenda-time">
       <strong>{item.time ?? "시각 미확인"}</strong>
-      <Small>{passed ? `${item.deadlineKind} 지남` : item.deadlineKind}</Small>
+      {passed ? <Small>{`${item.deadlineKind} 지남`}</Small> : showKind ? <Small>{item.deadlineKind}</Small> : null}
     </div>
     <div className="dash-agenda-status">
       <Tag label={item.status} tone={item.statusTone} />
@@ -113,6 +119,7 @@ export function DeadlineAgenda({ tracking, final, now }: {
         budget -= visible;
         const hidden = entry.items.length - visible;
         const count = <Small className="dash-agenda-count">{`${formatNumber(entry.items.length)}건`}</Small>;
+        const kind = entry.type === "day" ? sharedKind(entry.items) : null;
         const rail = entry.type === "day"
           ? <div className="dash-agenda-rail">
             <span className="dash-agenda-date"><strong>{entry.date}</strong><Small>{entry.weekday}</Small></span>
@@ -120,12 +127,13 @@ export function DeadlineAgenda({ tracking, final, now }: {
               <span className={entry.urgent ? "dash-agenda-due is-urgent" : "dash-agenda-due"}>{entry.due}</span>
               {count}
             </span>
+            {kind ? <Small className="dash-agenda-kind">{kind}</Small> : null}
           </div>
           : <div className="dash-agenda-rail"><span className="dash-agenda-date"><strong>마감 미확인</strong></span><span className="dash-agenda-meta">{count}</span></div>;
         return <li className={visible === 0 ? "dash-agenda-day is-folded" : "dash-agenda-day"} data-entry={entry.type} key={entry.key}>
           {rail}
           <ul className="dash-agenda-items">
-            {entry.items.slice(0, visible).map(item => <AgendaRow item={item} now={now} key={item.key} />)}
+            {entry.items.slice(0, visible).map(item => <AgendaRow item={item} now={now} showKind={kind === null} key={item.key} />)}
             {hidden > 0 || open ? <li className="dash-agenda-more">
               <Button size="sm" variant="ghost" onClick={() => toggle(entry.key)}
                 label={open ? "접기" : visible === 0 ? `${formatNumber(hidden)}건 보기` : `${formatNumber(hidden)}건 더 보기`} />

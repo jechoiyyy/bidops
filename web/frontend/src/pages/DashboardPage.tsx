@@ -137,8 +137,8 @@ function DashboardWorkspace() {
     <DashboardBlock id="agenda" title="추적 중인 사업 · 마감 일정"
       caption={`마감 ${DEADLINE_IMMINENT_DAYS}일 이내 추적 건과 최종 Go/No-Go 대기 · 마감일별`}
       actions={<>
-        <LinkButton label="사업기회" to={deadlinePath} />
-        <LinkButton label="최종 Go/No-Go" to="/go-no-go" />
+        <LinkButton label="사업기회" to={deadlinePath} secondary />
+        <LinkButton label="최종 Go/No-Go" to="/go-no-go" secondary />
       </>}>
       <DeadlineAgenda now={now}
         tracking={{ data: deadlineQuery.data, isPending: deadlineQuery.isPending, isError: deadlineQuery.isError, onRetry: () => { void deadlineQuery.refetch(); } }}

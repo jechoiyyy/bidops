@@ -132,9 +132,11 @@ export function trackingAgendaItem(item: OpportunityListItem, now: number, pendi
     time: timeOf(due?.deadlineAt ?? null),
     chain: trackingChain(item, due?.stage ?? null),
     // 같은 사업이 최종 결정 대기열에도 있으면 한 행으로 합치고 결정 상태를 앞에 적는다.
+    // 결정자 이름은 행마다 반복되므로 싣지 않는다(사업기회 기록에 있다). 미리 넣은 에이전트
+    // 결정만 `예시 결정`으로 남겨 사람이 한 결정으로 읽히지 않게 한다.
     status: pending ? `Go/No-Go ${pending.review_state ? DECISION_REVIEW_LABELS[pending.review_state] : "상태 미확인"}` : item.tracking_status,
     statusTone: pending ? "warning" : "neutral",
-    statusNote: pending ? [item.tracking_status, actor].filter(Boolean).join(" · ") : actor,
+    statusNote: [pending ? item.tracking_status : null, actor?.endsWith("예시 결정") ? "예시 결정" : null].filter(Boolean).join(" · ") || null,
   };
 }
 
