@@ -1,16 +1,16 @@
 # 운영 절차
 
-## 마지막 운영 확인과 현재 코드 (2026-11-20 배포)
+## 현재 운영 상태 (2026-11-27 배포, 2026-11-28 정리)
 
-운영 상태의 마지막 확인 근거는 2026-11-20 사전규격 1단계 운영 이미지 배포 기록(`docs/validation-runs/20261120-prespec-stage1/README.md`, 저장소에 없음)이다. 운영은 Mac에서만 한다(2026-11-18 사용자 결정).
+근거는 [엔진 live·회사 핏 운영 배포 기록](validation-runs/20261127-engine-live-prod/README.md)과 [C-2 Top150 기록](validation-runs/20261119-c2-top150/README.md)이다. 운영은 Mac 한 대에서만 한다(2026-11-18 사용자 결정).
 
-- 운영 작업 트리 `/Users/temp/orca/bidops`(main checkout, `.env`가 운영 값), Compose 프로젝트 `bidops`. web·analysis-worker는 main `b839367`의 이미지 `bidops:main-20261120-b839367`로 실행 중이며 문서 worker는 `bidops:document-arm64-main-20261118`을 쓴다. DB head는 `0042_engine_run`이다. 직전 앱 이미지 `bidops:main-20261119`의 롤백 태그는 `before-prespec-stage1-20261120`이다.
-- C-2 v6 active·일일 스위치 ON, `/api/health` 200 확인. analysis-worker·postgres·minio·clamav·document-worker는 `unless-stopped`다. 일일 cron은 공고 06:30·발주계획 07:00으로 설치했다. 11월 20일 공고는 종료 코드 0이었고 해당 회차에 적재 경고 440건이 남았다. 발주계획은 수집기 수정 뒤 수동 재실행에서 11월 19일치 557건을 수집하고 상위 150건을 판정했다. 사전규격 1단계 코드와 첨부 worker 조회 권한을 적용했고 로컬 개요는 활성화했다. 실제 공고 1건의 첨부부터 검토 목록까지 시운전(`docs/validation-runs/20261120-prespec-stage1/README.md`, 저장소에 없음)에서 확인했다.
-- RL 분석은 `BIDOPS_RL_ANALYSIS_ENABLED=false`. 운영 회사 근거·브리핑 미등록이며 코드·스키마 배포가 기능 활성화나 모델 전송 승인은 아니다.
-- RL import 기본 정책 v11 코드가 운영 이미지에 들어갔으나 RL 분석은 꺼져 있다. 10월 20일 실제 v11 분석과 인수 reject는 격리 `bidops-local` 기록이며 운영 품질 근거가 아니다. 새 엔진 경로(`engine_run`)는 mock_reference 계약이며 운영 활성화가 아니다.
-- 아래 일반 설치 명령·WSL2 v4 이력·격리 RL 실행 절차를 구분한다. Mac 운영 조합은 main checkout에서 `BIDOPS_ENV=prod scripts/compose.sh` (`mac-compose.sh`는 호환 진입점), RL·Slack 추가 활성화는 해당 절의 승인·설정 절차를 따른다.
-
-2026-11-17 조회의 운영·데모 web restarting은 10-28 host 재시작 뒤 restart 정책 `no`인 postgres 등이 올라오지 않은 결과였고, 2026-11-18 배포에서 운영을 다시 올렸다.
+- 운영 작업 트리 `/Users/temp/orca/bidops`(main checkout, `.env`가 운영 값), Compose 프로젝트 `bidops`. web·analysis-worker·첨부 worker는 main에서 직접 빌드한 `bidops:main-20261127-d812377`이고 DB head는 `0047_company_fit_mode`다. 직전 상태로 돌아가는 백업·env 사본·이미지 태그와 순서는 위 기록의 "되돌리기"에 있다. 0047은 모드 행이 남으면 downgrade를 거부하므로 그때는 백업 복원이 길이다.
+- 회사 자료(`docs/reference/company-*.md`·실적 tsv·회사소개서 PDF·`web/backend/app/screening/baseline_company_profile.md`)는 Git에 없고 운영 checkout에만 로컬 사본으로 있다. Compose bind mount 경로는 그대로다. 이 파일들을 지운 커밋을 처음 pull할 때는 [설치·설정](operations/setup.md) "웹의 회사자료 입력 전제"대로 사본을 먼저 옮겨 두고 되돌린다.
+- C-2 v6 active·일일 스위치 ON. 로컬 개요 ON. 회사 핏 `suggest` ON이며 2026-11-27 21:15 KST 이후 처음 수집된 공고만 판정한다(`BIDOPS_PRESPEC_COMPANY_FIT_CARD_OBSERVED_FROM`). 끄기는 `set-company-fit-mode --mode off`(행은 지우지 않는다).
+- 엔진 live ON(`BIDOPS_COMPOSE_FEATURES=engine-live`, 키 secret은 analysis-worker에만). 시운전 상한은 하루 1건·8회·$1, 공고당 8회다. 첫 감독 실행 1건이 `completed`·`unmeasured_reference`로 끝났고 사용자가 "맞아"로 판정했다. 1건이라 품질 근거가 아니며 상한 상향은 별도 결정이다.
+- RL 분석은 `BIDOPS_RL_ANALYSIS_ENABLED=false`, 운영 회사 근거·브리핑 미등록이다. 코드·스키마 배포가 기능 활성화나 모델 전송 승인은 아니다.
+- 사용자가 상시 운영이 필요 없다고 결정했다(2026-11-27). **cron 제거 예정**이다. 공고 06:30·발주계획 07:00 두 줄(`scripts/cron-daily-track.sh`)은 사용자가 지울 때까지 남는다. 제거 뒤 일일 실행은 [daily](operations/daily.md)의 수동 명령으로 한다.
+- Mac 운영 조합은 main checkout에서 `BIDOPS_ENV=prod scripts/compose.sh`(`mac-compose.sh`는 호환 진입점)다. 아래 일반 설치 명령·WSL2 v4 이력·격리 RL 실행 절차를 구분한다.
 
 ## 운영 기준선
 

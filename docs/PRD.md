@@ -3,10 +3,10 @@
 | 항목 | 내용 |
 |---|---|
 | 문서 상태 | 현재 제품 기준선·통합 PRD |
-| 기준일 | 2026-10-21 (소스·기록 대조, 운영 마지막 확인 2026-10-19) |
+| 기준일 | 2026-11-28 (소스·기록 대조, 운영 배포 2026-11-27) |
 | 제품 | BidOps — 공공조달 사업기회 의사결정 지원 시스템 |
 | 대상 사용자 | 기획·사업개발 담당자, 운영자 |
-| 현재 작업 범위 | RL 실회사 AX — 구현된 RL-00~05의 인수 후속, review 상태 RL-06·07 |
+| 현재 작업 범위 | RL 실회사 AX — RL-00~05 인수 후속, 사전규격 엔진(RL-11)·회사 핏(PS-01)의 품질 측정, review 상태 RL-06·07 |
 | 관련 문서 | [`ADR.md`](ADR.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`contracts.md`](contracts.md), [`business-rules.md`](business-rules.md) |
 
 이 문서는 나라장터의 발주계획을 조기에 탐색하고, 사전규격 제안요청서를 검토한 뒤, 선택한
@@ -140,10 +140,12 @@ RFP 개요 검토는 문서의 목차와 의미 있는 소제목에 따라 결�
 
 | 영역 | 현재 상태 | 제품 해석 |
 |---|---|---|
-| 수집·C-2 | 수집·적재·BM25·Qwen·정책·게이트·화면·일일 실행 구현 | Mac v5는 10월 14일 게이트 통과, 10월 19일 active·일일 ON 확인 |
+| 수집·C-2 | 수집·적재·BM25·Qwen·정책·게이트·화면·일일 실행 구현 | v6(1단계 상위 150건)이 11월 19일 게이트 통과·active·일일 ON. 상시 운영은 필요 없다는 사용자 결정(11월 27일)으로 cron 제거 예정 |
 | 관리자 API/UI | 회차·공고·리뷰·프로필·첨부·사업기회·문서·심층 검토 제공 | 사람 조회·검토 기반. 로그인/SSO 없음 |
-| PostgreSQL/MinIO | 코드 head 0041, 운영에도 10월 19일 적용, versioned object | SQLite는 격리 테스트·일회성 이관만 |
-| 사전규격 개요·자동 준비 | 취득·변환·개요 실행·조회 구현 | 개요는 참조 실행. Mac의 개요 플래그·상시 첨부 worker는 마지막 기록상 꺼짐 |
+| PostgreSQL/MinIO | 코드·운영 head `0047_company_fit_mode`(11월 27일), versioned object | SQLite는 격리 테스트·일회성 이관만 |
+| 사전규격 개요·자동 준비 | 취득·변환·개요 실행·조회 구현 | 개요는 참조 실행이며 운영에서 켜져 있다 |
+| 사전규격 회사 핏 | 사업 범위 카드 + 로컬 Qwen 판정, 모드 `off\|suggest`, `matched`는 추천만(ADR-0080) | 운영 `suggest`. 사람 판정 40건 대조에서 낮음(처음 보는 날 8/18·`matched` 정밀도 1/4) |
+| 사전규격 엔진 분석 | 사람이 추적을 시작하거나 `분석 요청`한 공고만, 공고별 미리보기 승인 뒤 Responses API live(ADR-0078·0081) | 운영 시운전 상한 하루 1건. 결과는 `unmeasured_reference`, 품질 미측정 |
 | RL-00~02 | 실회사 근거 등록, 브리핑·Slack·반응, 활동 피드·노트 구현 | 격리 검증 기록 있음. 운영 회사 등록·브리핑은 별도 |
 | RL-03 카드 판정 | 카드·영역 추출, 결정적 회사 대조, 역할 판단·종합, 판정 탭 구현 | 실제 gold 10건 인수 reject. 실행 완료를 품질 합격으로 해석하지 않음 |
 | RL-04 제안서 | 6절 초안·문장 수정·검토·PDF 구현 | 실제 1건 partial(4/6절 완료), 제출본은 사람 책임 |
@@ -217,7 +219,7 @@ tracking/status.md에서 별도로 관리한다.
 | FR-C2-08 | 사람 feedback을 모델 결과와 분리한다 | relevance·priority·memo는 새 revision이며 grade/readiness/tracking/Go-No-Go를 바꾸지 않는다 |
 | FR-C2-09 | 재실행은 새 계보를 만든다 | 기존 execution·batch·result·feedback이 수정되지 않는다 |
 
-현재 고정된 C-2 방식은 ADR-0037에 따라 `BM25 Top 300 + Qwen`이다. 정확한 model revision,
+현재 C-2 방식은 ADR-0037의 `BM25 + Qwen`이며 1단계 절단은 ADR-0075에 따라 상위 150건(정책 v6)이다. 정확한 model revision,
 prompt·profile·generation config digest는 계약과 실행 binding에만 기록하며 이 문서에 본문을
 복사하지 않는다.
 
@@ -350,7 +352,7 @@ C-2 PoC 임계값과 승인값은 [일일 운영 결정 표](specs/0918_daily-op
 
 ## 9. 현재 로드맵
 
-[RL 로드맵](work/constitution/roadmap.md)과 `docs/work/queue.json`이 순서·의존의 정본이다. RL-00~05는 구현·평가 기록이 있고 RL-06 로컬 모델 최적화·RL-07 판정 UX는 review다. 저장된 done과 큐의 증거 유효 단계, 품질 인수 결과를 구분한다.
+[RL 로드맵](work/constitution/roadmap.md)과 `docs/work/queue.json`이 순서·의존의 정본이다. RL-00~05는 구현·평가 기록이 있고 RL-11 1~3단계·엔진 live·PS-01 회사 핏은 main과 운영에 있다. RL-06 로컬 모델 최적화·RL-07 판정 UX는 review다. 저장된 done과 큐의 증거 유효 단계, 품질 인수 결과를 구분한다.
 
 우선 후속은 인수 실패의 회사 대조 범위, 제안서 부분 실패, 판정 UX와 운영 RL 전환 경계다. 상세는 [PLAN](PLAN.md)·[findings](tracking/findings.md)를 따른다. C-2 제품화 이전의 Phase 순서는 git 이력이며 새 작업 번호로 재사용하지 않는다. C-2 scheduler 통합·입찰 delta worker·SSO는 별도 후속이다.
 
@@ -388,6 +390,6 @@ C-2 PoC 임계값과 승인값은 [일일 운영 결정 표](specs/0918_daily-op
 
 ## RL 목표 계약과 이전 그룹
 
-2026-10-16 [ADR-0073](tracking/decisions/0073-rootlab-real-company-ax-redefinition.md)으로 실회사 루트랩 1곳의 발견·브리핑, 근거 기반 판정 보조, 제안서 초안을 채택했다. [mission](work/constitution/mission.md)과 각 RL 기능 spec이 상세 요구사항이다. RL의 모델 호출은 codex-exec `gpt-6-luna`/high, 전송은 정책 단위 승인과 건별 감사다. 이 범위가 기존 Mac C-2의 모델을 교체하지 않는다.
+2026-10-16 [ADR-0073](tracking/decisions/0073-rootlab-real-company-ax-redefinition.md)으로 실회사 루트랩 1곳의 발견·브리핑, 근거 기반 판정 보조, 제안서 초안을 채택했다. [mission](work/constitution/mission.md)과 각 RL 기능 spec이 상세 요구사항이다. RL의 모델 호출은 codex-exec `gpt-6-luna`/high, 전송은 정책 단위 승인과 건별 감사다. 사전규격 분석 엔진의 live 호출은 OpenAI Responses API로만 하고 공고마다 미리보기를 승인한다(ADR-0081). 이 범위가 기존 Mac C-2의 모델을 교체하지 않는다.
 
 DEMO 가상 3사와 HP 가상 1사 작업은 종료됐다. [DEMO 공통 계약](work/demo-contract.md)·[HP 공통 계약](work/hp-contract.md)은 재사용 코드의 경계 기록이며 새 데모 착수 지시가 아니다.

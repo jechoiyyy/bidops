@@ -3,7 +3,7 @@
 | 항목 | 내용 |
 |---|---|
 | 문서 상태 | 현재 구조·계약·목표 구조를 통합한 기준 문서 |
-| 기준일 | 2026-10-21 (소스·기록 대조, 운영 마지막 확인 2026-10-19) |
+| 기준일 | 2026-11-28 (소스·기록 대조, 운영 배포 2026-11-27) |
 | 정본 | docs/ARCHITECTURE.md |
 | 제품 | BidOps |
 | 관련 문서 | ADR.md, PRD.md, business-rules.md, contracts.md, operations.md (모델 전송 정책은 ADR-0050 완화 항목 참조) |
@@ -353,7 +353,9 @@ flowchart LR
 
 읽기 경계도 둘이다. 화면은 lifecycle의 batch `display_assessment` projection으로 사람 정정, 현재 문서의 새 판정/보류, 기존 선별 등급을 우선순위대로 보여 준다. 회사 핏과 자동 시작은 effective grade와 `automation_completed_result`를 계속 사용하며, v8 run은 개요 전체 의미검증 범위가 통과한 경우에만 이 경계로 들어간다. 프런트는 등급을 다시 계산하지 않는다. 기본 정책 경로는 v7이며 v8 정책·migration이 코드에 있다는 사실은 운영 활성화를 뜻하지 않는다.
 
-회사 핏은 검증된 개요 문장과 승인 회사 프로필의 구조화 항목을 짧게 대조한다. `prespec_company_fit_attempt`가 입력/정책 원문·해시·불변 버전과 사유·결과·사용량을 보존한다. 원응답 저장은 개요와 공유하는 암호화 저장 함수를 쓴다. 기존 overview 용도의 모델 설정을 사용하며 회사 핏 모델명은 별도 설정으로 고정한다. 최신 페이지 개요가 있으면 먼저 쓰고 검증 실패는 과거 추출형 개요로 우회하지 않는다. 최신 입력이 없으면 과거 판정을 현재의 자동 시작에 쓰지 않는다. 기본 비활성이며 현재는 명시적인 참조 실행만 지원한다. 자세한 상태·품질 경계는 business-rules와 contracts의 회사 핏 절을 따른다.
+회사 핏은 검증된 개요 문장과 승인 회사 프로필의 구조화 항목을 짧게 대조한다. `prespec_company_fit_attempt`가 입력/정책 원문·해시·불변 버전과 사유·결과·사용량을 보존한다. 원응답 저장은 개요와 공유하는 암호화 저장 함수를 쓴다. 기존 overview 용도의 모델 설정을 사용하며 회사 핏 모델명은 별도 설정으로 고정한다. 최신 페이지 개요가 있으면 먼저 쓰고 검증 실패는 과거 추출형 개요로 우회하지 않는다. 최신 입력이 없으면 과거 판정을 현재의 자동 시작에 쓰지 않는다. 자세한 상태·품질 경계는 business-rules와 contracts의 회사 핏 절을 따른다.
+
+2026-11-27부터 회사 핏의 현재 경로는 사업 범위 카드 판정이다([ADR-0080](tracking/decisions/0080-prespec-company-fit-card.md)). 개요 결과 3절과 카드 v1.2(회사 자료라 Git 밖, 경로·sha256을 설정으로 고정)를 프롬프트 v3.1로 로컬 LiteLLM `local-agent-main`에 보내고, 결정적 검증기를 지난 결과만 `matched|mismatch|unknown`으로 남긴다(카드 lineage는 migration 0044). 모드는 `off|suggest`이며 env 상한과 감사되는 모드 행(`prespec_company_fit_mode`, migration 0047, REST·CLI)이 함께 켜져야 판정한다. `BIDOPS_PRESPEC_COMPANY_FIT_CARD_OBSERVED_FROM` 이후 처음 관측된 공고만 대상이다. `matched`는 추천 표시일 뿐이며 엔진 요청을 만들지 않는다. 결과에는 참조 표식이 붙는다.
 
 
 ~~~mermaid
@@ -431,19 +433,19 @@ flowchart LR
 
 PostgreSQL 17의 bidops schema가 운영 메타데이터·관계·상태·감사·리뷰의 정본이다. MinIO는 raw, attachment, document, report와 같은 binary/object bytes를 versioning으로 보존한다. DB row가 object hash·namespace·version과 연결되지 않으면 산출물을 완전한 정본으로 취급하지 않는다.
 
-현재 코드의 Alembic head는 `0041_proposal_draft`이며 2026-10-19 운영 적용 기록이 있다. 이후 소스 변경의 배포 여부는 별도다. SQLite는 격리 테스트와 일회성 이전 입력에만 사용한다. 운영 애플리케이션이 startup에서 SQLite로 fallback하거나 create_all로 스키마를 만들지 않는다.
+현재 코드와 운영의 Alembic head는 `0047_company_fit_mode`다(2026-11-27 운영 적용). 0042 `engine_run`, 0043 회사 위키 적재, 0044 회사 핏 카드 계보, 0045 `engine_review`, 0046 `engine_live`(`engine_call` 원장), 0047 회사 핏 모드 행이 2026-11 이후 추가됐다. SQLite는 격리 테스트와 일회성 이전 입력에만 사용한다. 운영 애플리케이션이 startup에서 SQLite로 fallback하거나 create_all로 스키마를 만들지 않는다.
 
 ### 6.2 도메인 그룹
 
-현재 네 도메인의 `models.py` 선언(`__tablename__`) 기준으로 업무 테이블은 109개다. `alembic_version`은 제외하며 운영 DB를 조회한 수치가 아니다.
+현재 네 도메인의 `models.py` 선언(`__tablename__`) 기준으로 업무 테이블은 117개다(2026-11-28 소스 집계). `alembic_version`은 제외하며 운영 DB를 조회한 수치가 아니다.
 
 | 소유 모듈 | 수량 | 주요 책임 |
 |---|---:|---|
 | core | 2 | 공통 멱등성·감사 |
 | lifecycle | 19 | 수집·관측·사업기회·회사 identity·브리핑·노트 |
 | screening | 32 | C-1·C-2 판정·리뷰·정책·품질·일정 |
-| deep_review | 56 | 문서·회사 근거·개요·판정·제안서·delta·최종 결정 |
-| 합계 | 109 | 현재 모델 선언 기준 |
+| deep_review | 64 | 문서·회사 근거·개요·회사 핏·엔진 분석·판정·제안서·delta·최종 결정 |
+| 합계 | 117 | 현재 모델 선언 기준 |
 
 세부 table·column·FK·삭제 정책은 docs/database-guide.md와 docs/deep-review-erd.md의 계약을 사용한다. 이 문서의 그룹화는 탐색용이며 schema 정의를 복제하지 않는다.
 
@@ -592,9 +594,11 @@ host에 열리는 것은 관리 화면 하나이며 `docker/docker-compose.edge.
 
 | 영역 | 현재 상태 | 목표·다음 경계 |
 |---|---|---|
-| 수집·C-2 | 전체 모집단·BM25/Qwen·DB/API/worker/화면·게이트·일일 실행 구현 | Mac v5는 게이트 통과·일일 ON 기록 있음. 새 정책은 별도 측정·승인 |
-| PostgreSQL/MinIO | 코드 head 0041, 모델 선언 109개, versioned object | 10월 19일 운영 0041 반영. 현재 소스가 전부 운영 배포됐다는 뜻은 아님 |
+| 수집·C-2 | 전체 모집단·BM25/Qwen·DB/API/worker/화면·게이트·일일 실행 구현 | v6(상위 150건) 게이트 통과·active·일일 ON. 새 정책은 별도 측정·승인. 상시 운영 불필요 결정으로 cron 제거 예정 |
+| PostgreSQL/MinIO | 코드 head 0047, 모델 선언 117개, versioned object | 11월 27일 운영 0047 반영 |
 | 첨부·문서·개요 | ClamAV·native HWP/HWPX·문서 준비·개요 실행/조회 구현 | 개요 품질은 참조 실행. 첨부 실패·묶음 failed 재시작 UI 없음 |
+| 회사 핏 | 카드 v1.2 + v3.1 + 로컬 Qwen, 모드 `off\|suggest`, 수집 하한 | 운영 `suggest`. 사람 판정 40건 대조에서 낮음. 자동 요청은 구현·승인 전 |
+| 엔진 분석 | 추적 시작·`분석 요청` → 공고별 미리보기 승인 → Responses API live, `engine_call` 원장·상한 | 운영 시운전 1건 `completed`. 결과는 `unmeasured_reference`, 품질 미측정 |
 | 기존 자동 심층 | 개요 완료·SW Y·회사 핏 matched와 별도 자동 시작 플래그로 제한 | 기본 false. RL 자동 분석은 별도 정책·트리거이며 개요 run을 요구하지 않음 |
 | RL-00~02 | 실회사 근거·브리핑/Slack·활동 피드·노트 구현 | 운영 회사 등록·브리핑·Slack 활성화는 별도 |
 | RL-03 | 추출·코드 대조·역할 판단·종합·판정 화면 구현, import 기본 v11 | 실제 10건 인수 reject. 개념 매핑·회사 대조 범위 개선 필요 |
@@ -604,7 +608,7 @@ host에 열리는 것은 관리 화면 하나이며 `docker/docker-compose.edge.
 | 입찰 delta·최종 결정 | 저장·REST·화면 존재 | 비교 계산 worker 없음. 최종 결정은 사람 책임 |
 | 인증·SSO | 미구현 | 사내망·감사 표식 경계 유지 |
 
-[구현 현황](tracking/status.md)과 운영 반영(`docs/validation-runs/20261019-ops-rl-rollout/README.md`, git 이력), [RL 인수](validation-runs/2026-10-19-rl/RL-05/README.md)가 증거를 연결한다. 스키마·코드·처리 완료·품질 합격·운영 활성화를 구분한다.
+[구현 현황](tracking/status.md)과 [운영 반영](validation-runs/20261127-engine-live-prod/README.md), [RL 인수](validation-runs/2026-10-19-rl/RL-05/README.md)가 증거를 연결한다. 스키마·코드·처리 완료·품질 합격·운영 활성화를 구분한다.
 
 ## 12. 품질·관측·장애 대응
 
@@ -721,3 +725,22 @@ lifecycle은 공개 함수 `company_pre_spec_notices`·`company_tracking_views`�
 ## 분석 엔진 통합 개발 기준선 (2026-11-17)
 
 [ADR-0074](tracking/decisions/0074-deep-engine-development-baseline.md)에 따라 별도 분석 코어 패키지를 deep_review adapter로 연결한다. 수집·공고·회사 근거·공용 WorkJob·PostgreSQL·MinIO 정본은 유지한다. 원본 SQLite/CLI/A2A/chat 운영 구조 및 외부 모델/관측 transport는 이식하지 않는다. `mock_reference` 연결 검증과 실제 모델 품질·운영 배포를 구별한다. 구현·검증 범위는 [RL-09](work/groups/RL/features/RL-09-engine-integration/plan.md)를 따른다.
+
+### 추적 시작 요청과 live 전송 (2026-11-27)
+
+엔진 분석 요청은 사람이 사전규격의 추적을 시작하거나(단건·일괄) `분석 요청`을 누를 때만 생긴다([ADR-0078](tracking/decisions/0078-engine-review-on-tracking-start.md), `engine_review` migration 0045). 요청은 공고마다 입력을 동결한 미리보기를 만들고, 사람이 그 미리보기를 승인해야 실행된다. 추적 API는 바꾸지 않았다.
+
+live 전송은 OpenAI Responses API 하나다([ADR-0081](tracking/decisions/0081-engine-live-responses-api.md)).
+
+~~~text
+analysis-worker
+  supervisor ── 키 secret·HTTP·상한·engine_call 원장
+     │  runner --live-ipc frame(요청 body·응답)
+  엔진 runner ── 키·네트워크 없음, 분석 코어만
+~~~
+
+- supervisor만 키 파일(`docker-compose.engine-live.yml` secret)과 egress를 갖는다. web에는 없다.
+- body는 엔진이 만든 측정값 그대로 보낸다. `store=false`, SDK 재시도 없음, 명시 캐시 경계.
+- 첫 요청 sha256을 승인 manifest와 대조한다. KST 하루 공고 수·호출 수·비용과 공고당 호출 수를 넘으면 호출 전에 막는다.
+- 호출마다 `engine_call`(migration 0046)에 모델·토큰·비용·상태를 남긴다. 결과의 품질 표식은 `unmeasured_reference`다.
+- 사용자 요청 Luna(ADR-0069)의 codex-runner 경로는 그대로다.
