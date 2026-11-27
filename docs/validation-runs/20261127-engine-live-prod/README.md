@@ -39,3 +39,15 @@
 
 - 회사 핏만 끄기: web에서 `python -m app.deep_review.cli set-company-fit-mode --mode off --actor <이름> --reason <사유>`(행은 지우지 않는다).
 - 코드 되돌리기: `.env`·`env/model.env` 사본 복원 → 세 컨테이너를 `before-engine-live-20261127-*` 이미지로 교체. 옛 이미지는 시작할 때 DB head `0044`를 요구하므로 migration downgrade가 먼저다. 0047은 모드 행이 남으면 downgrade를 거부한다(감사 이력 보존). 그때는 백업 복원이 길이다.
+
+## 같은 날 추가 반영 (21:15~21:45 KST)
+
+사용자 결정: "이미 수집된 것들은 다시 작업하지 말고, 이후에 수집된 것들에 대해서만 구현한대로 진행", 포트폴리오는 "운영 DB 유지 + 화면만", 하한 배포는 "배포하고 다시 켜기".
+
+| 단계 | 결과 |
+|---|---|
+| 기존 공고 판정 중단 | 21:15 `set-company-fit-mode --mode off`. 그 전까지 기존 공고 8건이 판정됐다(matched 1·mismatch 4·unknown 2·진행 중이던 1건 완료). 이 8건은 감사 기록으로 남는다 |
+| 수집 하한 | main `f8699c1`: `BIDOPS_PRESPEC_COMPANY_FIT_CARD_OBSERVED_FROM` 이후 첫 관측된 공고만 카드 lineage 대상. `.env`에 `2026-11-27T21:15:00+09:00`. 운영 worker 역할로 확인하니 `notice_observation` 읽기 권한이 없어 대상 조회가 실패(판정 0건으로 닫힘)했다. main `4f5182d`로 worker에 SELECT만 주고 `run --rm --no-deps migrate`(head 그대로 `0047`)로 권한을 다시 적용했다. worker 역할로 대상 261건 → 하한 뒤 0건 확인, `--mode suggest` 다시 기록(12:32:17Z), 75초 동안 새 시도 0 |
+| 포트폴리오 화면 | main `d812377`: 오늘 할 일 화면(`feat/today-c2`·`feat/today-polish`), 사이드바 제품 이름만, 검증 표시 한국어만, 헤더 수집 상태에서 경고 건수 제거, 참가 자격 이름 쉬운 말·개요/과업/기간 묶음·예산 출처(포트폴리오 `40a2bf16`에서 엔진 결과 로더는 뺌). 고정 시계·스냅샷 안내·가져온 판정은 넣지 않았다 |
+| 검증 | `tsc -b` 통과. Playwright 299개 중 279 통과·19 skip(mock 서버 전용)·1 실패. 실패한 `overflow.spec.ts:91`(1280px 사전규격 당일 마감·예산)은 이 작업 전 `0dda610`에서도 실패한다. mock 서버에서 `prespec-analysis-view` 19개 통과. backend 회사 핏·설정 170개, 권한 39개(PostgreSQL), compose 28개 통과 |
+| 운영 이미지 | `bidops:main-20261127-d812377`(main에서 직접 빌드, 별도 release 브랜치 불필요). 세 컨테이너 교체, health·화면·사전규격·workload·수집 상태 200, 오류 로그 0줄. 제공 번들에 `함께 볼 것`·새 자격 이름이 있고 `시연용 스냅샷`은 없다. `.env` 사본 `backups/env-prod-before-fit-cutoff-20261127`·`backups/env-prod-before-portfolio-screens-20261127` |
