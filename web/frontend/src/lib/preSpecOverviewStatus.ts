@@ -73,9 +73,9 @@ export const PRE_SPEC_OVERVIEW_VALIDATION: Record<
   PreSpecOverviewValidationStatus,
   { label: string; variant: BadgeVariant; warning: string | null }
 > = {
-  passed: { label: "검증 통과 · passed", variant: "evidence-confirmed", warning: null },
-  failed: { label: "검증 실패 · failed", variant: "danger", warning: "검증에 실패한 결과예요. 이 내용을 판정으로 읽지 마세요." },
-  pending: { label: "검증 대기 · pending", variant: "neutral", warning: "아직 결정적 검증을 통과하지 않은 결과예요. 이 내용을 판정으로 읽지 마세요." },
+  passed: { label: "검증 통과", variant: "evidence-confirmed", warning: null },
+  failed: { label: "검증 실패", variant: "danger", warning: "검증에 실패한 결과예요. 이 내용을 판정으로 읽지 마세요." },
+  pending: { label: "검증 대기", variant: "neutral", warning: "아직 결정적 검증을 통과하지 않은 결과예요. 이 내용을 판정으로 읽지 마세요." },
 };
 
 /**

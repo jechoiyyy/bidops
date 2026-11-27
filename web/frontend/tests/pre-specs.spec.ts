@@ -995,7 +995,7 @@ test("선택한 건의 개요 결과·품질 표식·근거 위치를 개요 응
   const detail = page.locator(".pre-specs-detail-pane");
   const description = detail.locator('.pre-specs-detail-block[aria-label="사업 설명"]');
   await expect(description).toContainText("차세대 통합 데이터 플랫폼을 구축하는 사업이다.");
-  await expect(description).toContainText("검증 통과 · passed");
+  await expect(description).toContainText("검증 통과");
   await expect(detail.locator(".pre-specs-detail-tasks"))
     .toContainText("기존 데이터를 신규 플랫폼으로 이관하고 검증한다.");
   const scale = detail.locator(".pre-specs-detail-scale");

@@ -3,7 +3,6 @@ import { Layers } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import { api } from "../../lib/api";
-import { companyContextQueryKey, getCompanyContext } from "../../lib/companyApi";
 import { orderPlanViewTotalQuery, preSpecDefaultViewTotalQuery } from "../../lib/defaultViewCounts";
 import type { WorkloadKey } from "../../lib/types";
 import { ActorField, OPEN_ACTOR_EVENT, useRememberedActorName } from "../common/ActorField";
@@ -121,12 +120,6 @@ function demoGroup(companyId: string | null): NavGroup {
   return { label: "가상회사 데모", items };
 }
 
-/** 법인 표기(`㈜`·`(주)`·`주식회사`)를 뗀 이름. 이름이 없으면 제품 이름이다. */
-function workspaceIdentity(companyName: string | null): { name: string } {
-  const short = (companyName ?? "").replace(/^(?:㈜|\(주\)|주식회사)\s*/u, "").replace(/\s*(?:㈜|\(주\)|주식회사)$/u, "").trim();
-  return { name: short || "BidOps" };
-}
-
 export interface SidebarDemoNav {
   /** 주소에서 읽은 현재 회사. 회사가 정해지지 않은 주소면 `null`이다. */
   companyId: string | null;
@@ -161,10 +154,6 @@ export function Sidebar({ activeNavPath, runSearch, demoNav = null }: { activeNa
     if (query.isError) return "error";
     return typeof query.data === "number" ? query.data : null;
   };
-  // 워크스페이스 이름은 `GET /api/company`가 준다. 읽지 못하면 이름을 지어내지 않고
-  // 제품 이름을 둔다(회사 화면이 같은 key로 오류를 설명한다).
-  const company = useQuery({ queryKey: companyContextQueryKey, queryFn: ({ signal }) => getCompanyContext({ signal }), retry: false, staleTime: 60_000 });
-  const workspace = workspaceIdentity(company.data?.company.name ?? null);
   const visibleGroups = [
     ...groups,
     ...(demoNav ? [demoGroup(demoNav.companyId)] : []),
@@ -174,11 +163,10 @@ export function Sidebar({ activeNavPath, runSearch, demoNav = null }: { activeNa
   const activeId = resolveActiveItemId(allItems, activeNavPath, pathname);
   return (
     <aside aria-label="주 메뉴" className="sidebar" data-shell-region="sidebar">
-      <Link aria-label={`${workspace.name} 오늘 할 일로 이동`} className="sidebar-brand" to="/">
-        {/* 시안: 제품 이름(굵게) + 회사 이름(작게). 회사 이름을 모르면 제품 이름 하나만 둔다. */}
+      <Link aria-label="BidOps 오늘 할 일로 이동" className="sidebar-brand" to="/">
+        {/* 제품 이름만 둔다(2026-11-25 사용자 요청: 회사 이름 표기 제거). */}
         <span className="sidebar-brand-mark" aria-hidden="true"><Layers size={15} /></span>
         <span className="sidebar-brand-product">BidOps</span>
-        {workspace.name !== "BidOps" ? <strong>{workspace.name}</strong> : null}
       </Link>
       <nav aria-label="주 메뉴" className="sidebar-nav">
         {visibleGroups.map((group, index) => (
